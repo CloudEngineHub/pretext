@@ -184,7 +184,8 @@
       position: absolute;
       white-space: pre;
       color: var(--muted);
-      font: 600 11px/1 "SF Mono", ui-monospace, Menlo, monospace;
+      font: var(--marker-font);
+      line-height: 1;
     }
     .block-marker--task {
       color: var(--muted);
@@ -199,26 +200,15 @@
     .frag {
       display: inline-block;
       white-space: pre;
+      font: var(--font);
       line-height: 1;
       color: var(--ink);
       vertical-align: baseline;
-    }
-    .frag--body {
-      font: 400 14px/1 Helvetica, Arial, sans-serif;
-    }
-    .frag--heading-1 {
-      font: 700 20px/1 "Iowan Old Style", Georgia, "Times New Roman", serif;
-      letter-spacing: -0.01em;
-    }
-    .frag--heading-2 {
-      font: 700 17px/1 "Iowan Old Style", Georgia, "Times New Roman", serif;
-      letter-spacing: -0.01em;
     }
     .frag--code {
       padding: 2px 6px 3px;
       border-radius: 8px;
       background: rgb(49 56 64 / 1);
-      font: 600 12px/1 "SF Mono", ui-monospace, Menlo, monospace;
     }
     .msg--user .frag--code {
       background: rgb(49 56 64 / 1);
@@ -231,7 +221,6 @@
       border-radius: 999px;
       background: rgb(49 56 64 / 1);
       color: var(--accent);
-      font: 700 11px/1 Helvetica, Arial, sans-serif;
       transform: translateY(1px);
     }
     .is-link {
@@ -243,8 +232,6 @@
     .msg--user .is-link {
       color: var(--accent);
     }
-    .is-em { font-style: italic; }
-    .is-strong { font-weight: 700; }
     .is-del { text-decoration: line-through; text-decoration-thickness: 1px; }
     .code-box {
       position: absolute;
@@ -260,7 +247,8 @@
     .code-line {
       position: absolute;
       white-space: pre;
-      font: 500 12px/18px "SF Mono", ui-monospace, Menlo, Monaco, monospace;
+      font: var(--code-font);
+      line-height: 18px;
       color: var(--ink);
     }
     .rule-line {

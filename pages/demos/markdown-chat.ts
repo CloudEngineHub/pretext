@@ -2,11 +2,13 @@ import {
   buildConversationFrame,
   CODE_BLOCK_PADDING_X,
   CODE_BLOCK_PADDING_Y,
+  CODE_FONT,
   CODE_LINE_HEIGHT,
   createPreparedChatMessages,
   findVisibleRange,
   getMaxChatWidth,
   getOcclusionBannerHeight,
+  MARKER_FONT,
   materializeMessageBlocks,
   MESSAGE_SIDE_PADDING,
   OCCLUSION_BANNER_HEIGHT,
@@ -53,6 +55,8 @@ const st: State = {
 let scheduledRaf: number | null = null
 
 domCache.root.style.setProperty('--message-side-padding', `${MESSAGE_SIDE_PADDING}px`)
+domCache.root.style.setProperty('--marker-font', MARKER_FONT)
+domCache.root.style.setProperty('--code-font', CODE_FONT)
 
 domCache.toggleButton.addEventListener('click', () => {
   st.events.toggleVisualization = true
@@ -379,7 +383,12 @@ function renderInlineFragment(fragment: InlineFragmentLayout): HTMLElement {
     ? document.createElement('span')
     : document.createElement('a')
 
-  node.className = fragment.className
+  node.className = fragment.style.className
+  // Paint with the font and letter spacing the line was measured with.
+  node.style.setProperty('--font', fragment.style.font)
+  if (fragment.style.letterSpacing !== 0) {
+    node.style.letterSpacing = `${fragment.style.letterSpacing}px`
+  }
   if (fragment.leadingGap > 0) {
     node.style.marginLeft = `${fragment.leadingGap}px`
   }

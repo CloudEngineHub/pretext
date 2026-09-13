@@ -52,11 +52,24 @@ const RAIL_OFFSET = 5
 const SANS_FAMILY = 'Helvetica, Arial, sans-serif'
 const SERIF_FAMILY = '"Iowan Old Style", Georgia, "Times New Roman", serif'
 const MONO_FAMILY = '"SF Mono", ui-monospace, Menlo, Monaco, monospace'
-const INLINE_CODE_FONT = `600 12px ${MONO_FAMILY}`
+const HEADING_LETTER_SPACING_EM = -0.01
 const INLINE_CODE_EXTRA_WIDTH = 12
-const IMAGE_FONT = `700 11px ${SANS_FAMILY}`
 const IMAGE_EXTRA_WIDTH = 14
-const MARKER_FONT = `600 11px ${MONO_FAMILY}`
+
+// The page paints text with the fonts and letter spacing Pretext measured, so
+// typography lives here and the CSS doesn't restate it.
+export const MARKER_FONT = `600 11px ${MONO_FAMILY}`
+export const CODE_FONT = `500 12px ${MONO_FAMILY}`
+const INLINE_CODE_STYLE: TextStyle = {
+  className: 'frag frag--code',
+  font: `600 12px ${MONO_FAMILY}`,
+  letterSpacing: 0,
+}
+const IMAGE_STYLE: TextStyle = {
+  className: 'frag frag--chip',
+  font: `700 11px ${SANS_FAMILY}`,
+  letterSpacing: 0,
+}
 
 type InlineVariant = 'body' | 'heading-1' | 'heading-2'
 
@@ -67,6 +80,12 @@ type MarkState = {
   href: string | null
 }
 
+export type TextStyle = {
+  className: string
+  font: string // Canvas font shorthand, painted as the CSS `font`
+  letterSpacing: number // CSS px
+}
+
 type ParseContext = {
   listDepth: number
   quoteDepth: number
@@ -74,10 +93,9 @@ type ParseContext = {
 
 type InlinePiece = {
   breakMode: 'normal' | 'never'
-  className: string
   extraWidth: number
-  font: string
   href: string | null
+  style: TextStyle
   text: string
 }
 
@@ -92,10 +110,10 @@ type PreparedBlockBase = {
 
 type PreparedInlineBlock = PreparedBlockBase & {
   kind: 'inline'
-  classNames: string[]
   flow: PreparedRichInline
   hrefs: Array<string | null>
   lineHeight: number
+  styles: TextStyle[]
 }
 
 type PreparedCodeBlock = PreparedBlockBase & {
@@ -117,9 +135,9 @@ export type PreparedChatMessage = {
 }
 
 export type InlineFragmentLayout = {
-  className: string
   href: string | null
   leadingGap: number
+  style: TextStyle
   text: string
 }
 
@@ -536,16 +554,17 @@ function buildPreparedInlineBlock(
 
   return {
     ...createBlockBase(ctx),
-    classNames: pieces.map(piece => piece.className),
     flow: prepareRichInline(pieces.map(piece => ({
       text: piece.text,
-      font: piece.font,
+      font: piece.style.font,
+      letterSpacing: piece.style.letterSpacing,
       break: piece.breakMode,
       extraWidth: piece.extraWidth,
     }))),
     hrefs: pieces.map(piece => piece.href),
     kind: 'inline',
     lineHeight: lineHeightForVariant(variant),
+    styles: pieces.map(piece => piece.style),
   }
 }
 
@@ -554,7 +573,7 @@ function buildCodeBlock(text: string, ctx: ParseContext): PreparedCodeBlock {
     ...createBlockBase(ctx),
     kind: 'code',
     lineHeight: CODE_LINE_HEIGHT,
-    prepared: prepareWithSegments(stripSingleTrailingNewline(text), `500 12px ${MONO_FAMILY}`, {
+    prepared: prepareWithSegments(stripSingleTrailingNewline(text), CODE_FONT, {
       whiteSpace: 'pre-wrap',
     }),
   }
@@ -704,10 +723,9 @@ function createTextPiece(
 
   return {
     breakMode: 'normal',
-    className: resolveTextClassName(variant, marks),
     extraWidth: 0,
-    font: resolveTextFont(variant, marks),
     href: marks.href,
+    style: resolveTextStyle(variant, marks),
     text,
   }
 }
@@ -717,10 +735,9 @@ function createCodePiece(text: string): InlinePiece | null {
 
   return {
     breakMode: 'normal',
-    className: 'frag frag--code',
     extraWidth: INLINE_CODE_EXTRA_WIDTH,
-    font: INLINE_CODE_FONT,
     href: null,
+    style: INLINE_CODE_STYLE,
     text,
   }
 }
@@ -728,10 +745,9 @@ function createCodePiece(text: string): InlinePiece | null {
 function createImagePiece(text: string): InlinePiece {
   return {
     breakMode: 'never',
-    className: 'frag frag--chip',
     extraWidth: IMAGE_EXTRA_WIDTH,
-    font: IMAGE_FONT,
     href: null,
+    style: IMAGE_STYLE,
     text: text.length > 0 ? text : 'image',
   }
 }
@@ -739,31 +755,36 @@ function createImagePiece(text: string): InlinePiece {
 function canMergeInlinePieces(a: InlinePiece, b: InlinePiece): boolean {
   return (
     a.breakMode === b.breakMode &&
-    a.className === b.className &&
     a.extraWidth === b.extraWidth &&
-    a.font === b.font &&
-    a.href === b.href
+    a.href === b.href &&
+    a.style === b.style
   )
 }
 
-function resolveTextFont(variant: InlineVariant, marks: MarkState): string {
+const textStyleCache = new Map<string, TextStyle>()
+
+function resolveTextStyle(variant: InlineVariant, marks: MarkState): TextStyle {
+  const className = resolveTextClassName(variant, marks)
+  let style = textStyleCache.get(className)
+  if (style === undefined) {
+    style = createTextStyle(className, variant, marks)
+    textStyleCache.set(className, style)
+  }
+  return style
+}
+
+function createTextStyle(className: string, variant: InlineVariant, marks: MarkState): TextStyle {
   const italicPrefix = marks.italic ? 'italic ' : ''
-
-  switch (variant) {
-    case 'heading-1': {
-      const weight = marks.bold ? 800 : 700
-      return `${italicPrefix}${weight} 20px ${SERIF_FAMILY}`
-    }
-
-    case 'heading-2': {
-      const weight = marks.bold ? 800 : 700
-      return `${italicPrefix}${weight} 17px ${SERIF_FAMILY}`
-    }
-
-    case 'body': {
-      const weight = marks.bold ? 700 : marks.href === null ? 400 : 500
-      return `${italicPrefix}${weight} 14px ${SANS_FAMILY}`
-    }
+  // Links keep the body weight; color and underline mark them.
+  if (variant === 'body') {
+    return { className, font: `${italicPrefix}${marks.bold ? 700 : 400} 14px ${SANS_FAMILY}`, letterSpacing: 0 }
+  }
+  // Headings are already bold, and bold text inside one keeps that weight.
+  const size = variant === 'heading-1' ? 20 : 17
+  return {
+    className,
+    font: `${italicPrefix}700 ${size}px ${SERIF_FAMILY}`,
+    letterSpacing: size * HEADING_LETTER_SPACING_EM,
   }
 }
 
@@ -1029,9 +1050,9 @@ function materializeBlockLayout(
         const line = materializeRichInlineLineRange(block.flow, range)
         lines.push({
           fragments: line.fragments.map(fragment => ({
-            className: block.classNames[fragment.itemIndex]!,
             href: block.hrefs[fragment.itemIndex] ?? null,
             leadingGap: fragment.gapBefore,
+            style: block.styles[fragment.itemIndex]!,
             text: fragment.text,
           })),
           width: line.width,
