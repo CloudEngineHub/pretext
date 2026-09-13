@@ -389,7 +389,9 @@ function parseBlockTokens(tokens: readonly Token[], ctx: ParseContext): Prepared
       }
 
       case 'list': {
-        appendBlockGroup(blocks, buildListBlocks(token as Tokens.List, ctx), BLOCK_GAP)
+        // A nested list continues its parent item's rhythm.
+        const gap = ctx.listDepth === 0 ? BLOCK_GAP : LIST_ITEM_GAP
+        appendBlockGroup(blocks, buildListBlocks(token as Tokens.List, ctx), gap)
         continue
       }
 
