@@ -719,6 +719,43 @@ avoid misleading widths. Bringing a shaper and font loading into the runtime is
 a separate project, not a required next step for Pretext. Measuring every possible
 resumed substring is outside the intended bounded preparation model too.
 
+## Bidi Levels
+
+`prepareWithSegments()` used to return `segLevels`, one embedding level per
+segment from a simplified resolver that came from pdf.js through text-layout.
+`layout()` reordered lines with them at first, but that result was discarded and
+the call was removed (`5ecce72`). The levels stayed as custom-rendering metadata
+that nothing in the library, rich-inline or the demos read, and they could not
+produce visual order. The resolver took the paragraph direction from the first
+strong character, with no way to set it, and had no explicit embeddings,
+overrides or isolates, no bracket pairs and no line rules. A segment reported
+the level of its first code unit, although punctuation merged into a word can
+resolve differently, and a line can start or end inside a segment. The published
+uses checked on GitHub only read the levels to guess a paragraph's direction,
+and one patched in a forced base level.
+
+Every rich preparation still paid for the pass, including each rich-inline item.
+Skipping it made `prepareWithSegments()` about 3% faster on the Latin corpora,
+8.5% on the Arabic, Hebrew and Urdu corpora and 16% on short Arabic texts, and
+`prepareRichInline()` 15% faster with Arabic items (Node V8 with a fake Canvas,
+medians of 31 interleaved rounds). The generated bidi class table stayed,
+because the WebKit following-space kerning guard reads it.
+
+A DOM element that renders the whole paragraph needs only a paragraph direction,
+since the browser resolves the paragraph and reorders each line itself. A string
+drawn on its own, such as one line passed to Canvas `fillText()`, is a separate
+bidi paragraph and loses what was resolved across the line break. GNU FriBidi
+1.0.16 orders the second line of the LTR paragraph `abc ابج 1+2 xyz`, broken
+before `1+2`, as `2+1 xyz` inside the paragraph, because the digits follow
+Arabic, but as `1+2 xyz` on its own. Numbers and punctuation before a line's
+first letter, punctuation after its last letter, and embeddings or isolates that
+span lines changed order the same way; digits after a letter on the same line
+didn't. A real replacement for custom rendering needs a different shape: a
+paragraph-direction option, levels per code unit rather than per segment, and
+per-line whitespace reset and reordering (UAX #9 L1 and L2) so callers get runs
+in visual order. A known paragraph direction would also let the kerning guard
+keep the kerning where it now leaves the direction unknown.
+
 ## Corpus Lessons
 
 Short examples catch regressions; long text reveals accumulated differences.
