@@ -17,11 +17,8 @@ import {
 } from '../../src/rich-inline.ts'
 import { BASE_MESSAGE_SPECS } from './markdown-chat.data.ts'
 
-export const MIN_CHAT_WIDTH = 360
-export const DEFAULT_CHAT_WIDTH = 640
 export const MAX_CHAT_WIDTH = 860
 export const TOTAL_MESSAGE_COUNT = 10_000
-export const CHAT_VIEWPORT_HEIGHT = 560
 export const OCCLUSION_BANNER_HEIGHT = 61
 export const PAGE_MARGIN = 28
 export const MESSAGE_SIDE_PADDING = 22
@@ -86,9 +83,11 @@ export type TextStyle = {
   letterSpacing: number // CSS px
 }
 
+// Geometry of the enclosing lists and quotes, in the order they nest.
 type ParseContext = {
+  contentLeft: number
   listDepth: number
-  quoteDepth: number
+  quoteRailLefts: number[]
 }
 
 type InlinePiece = {
@@ -165,7 +164,6 @@ type CodeBlockFrame = BlockFrameBase & {
 
 type RuleBlockFrame = BlockFrameBase & {
   kind: 'rule'
-  width: number
 }
 
 type BlockFrame = InlineBlockFrame | CodeBlockFrame | RuleBlockFrame
@@ -177,14 +175,12 @@ type InlineBlockLayout = {
   lineHeight: number
   lines: Array<{
     fragments: InlineFragmentLayout[]
-    width: number
   }>
   markerClassName: string | null
   markerLeft: number | null
   markerText: string | null
   quoteRailLefts: number[]
   top: number
-  usedWidth: number
 }
 
 type CodeBlockLayout = {
@@ -197,7 +193,6 @@ type CodeBlockLayout = {
   markerText: string | null
   quoteRailLefts: number[]
   top: number
-  usedWidth: number
   width: number
 }
 
@@ -222,7 +217,6 @@ export type MessageFrame = {
   frameWidth: number
   layoutContentWidth: number
   role: 'assistant' | 'user'
-  totalHeight: number
 }
 
 export type ChatMessageInstance = {
@@ -294,7 +288,7 @@ export function buildConversationFrame(
     const contentWidth = Math.max(120, frameWidth - contentInsetX * 2)
     const messageFrame = layoutMessageFrame(preparedMessage, frameWidth, contentWidth, contentInsetX)
     const top = y
-    const bottom = top + messageFrame.totalHeight
+    const bottom = top + messageFrame.bubbleHeight
 
     messages[ordinal] = {
       bottom,
@@ -366,13 +360,9 @@ export function findVisibleRange(
   return { start, end: low }
 }
 
-export function formatPixelCount(value: number): string {
-  return `${Math.round(value).toLocaleString()}px`
-}
-
 function parseMarkdownBlocks(markdown: string): PreparedBlock[] {
   const tokens = marked.lexer(markdown, { gfm: true })
-  return parseBlockTokens(tokens, { listDepth: 0, quoteDepth: 0 })
+  return parseBlockTokens(tokens, { contentLeft: 0, listDepth: 0, quoteRailLefts: [] })
 }
 
 function parseBlockTokens(tokens: readonly Token[], ctx: ParseContext): PreparedBlock[] {
@@ -383,7 +373,9 @@ function parseBlockTokens(tokens: readonly Token[], ctx: ParseContext): Prepared
 
     switch (token.type) {
       case 'space':
-      case 'def': {
+      case 'def':
+      // A task item's checkbox is drawn as its list marker.
+      case 'checkbox': {
         continue
       }
 
@@ -407,7 +399,9 @@ function parseBlockTokens(tokens: readonly Token[], ctx: ParseContext): Prepared
       }
 
       case 'list': {
-        appendBlockGroup(blocks, buildListBlocks(token as Tokens.List, ctx), BLOCK_GAP)
+        // A nested list continues its parent item's rhythm.
+        const gap = ctx.listDepth === 0 ? BLOCK_GAP : LIST_ITEM_GAP
+        appendBlockGroup(blocks, buildListBlocks(token as Tokens.List, ctx), gap)
         continue
       }
 
@@ -415,8 +409,9 @@ function parseBlockTokens(tokens: readonly Token[], ctx: ParseContext): Prepared
         appendBlockGroup(
           blocks,
           parseBlockTokens(token.tokens ?? [], {
+            contentLeft: ctx.contentLeft + BLOCKQUOTE_INDENT,
             listDepth: ctx.listDepth,
-            quoteDepth: ctx.quoteDepth + 1,
+            quoteRailLefts: [...ctx.quoteRailLefts, ctx.contentLeft + RAIL_OFFSET],
           }),
           RICH_BLOCK_GAP,
         )
@@ -467,44 +462,33 @@ function parseBlockTokens(tokens: readonly Token[], ctx: ParseContext): Prepared
 
 function buildListBlocks(token: Tokens.List, ctx: ParseContext): PreparedBlock[] {
   const blocks: PreparedBlock[] = []
-  const itemCtx: ParseContext = {
-    listDepth: ctx.listDepth + 1,
-    quoteDepth: ctx.quoteDepth,
-  }
+  // Top-level lists stay flush; a nested list steps in from its item's content.
+  const markerLeft = ctx.contentLeft + (ctx.listDepth === 0 ? 0 : LIST_NESTING_INDENT)
 
   for (let index = 0; index < token.items.length; index++) {
     const item = token.items[index]!
+    const markerText = resolveListMarkerText(token, item, index)
+    const itemCtx: ParseContext = {
+      contentLeft: markerLeft + measureMarkerWidth(markerText) + LIST_MARKER_GAP,
+      listDepth: ctx.listDepth + 1,
+      quoteRailLefts: ctx.quoteRailLefts,
+    }
     let itemBlocks = parseBlockTokens(item.tokens, itemCtx)
     if (itemBlocks.length === 0) {
       itemBlocks = buildPlainTextBlocks(item.text, 'body', itemCtx)
     }
+    if (itemBlocks.length === 0) continue
 
-    decorateListItemBlocks(itemBlocks, resolveListMarkerText(token, item, index), resolveListMarkerClassName(token, item))
+    itemBlocks[0] = {
+      ...itemBlocks[0]!,
+      markerClassName: resolveListMarkerClassName(token, item),
+      markerLeft,
+      markerText,
+    } satisfies PreparedBlock
     appendBlockGroup(blocks, itemBlocks, LIST_ITEM_GAP)
   }
 
   return blocks
-}
-
-function decorateListItemBlocks(
-  blocks: PreparedBlock[],
-  markerText: string,
-  markerClassName: string,
-): void {
-  if (blocks.length === 0) return
-
-  const markerArea = measureMarkerWidth(markerText) + LIST_MARKER_GAP
-  for (let index = 0; index < blocks.length; index++) {
-    blocks[index] = shiftBlock(blocks[index]!, markerArea)
-  }
-
-  const firstBlock = blocks[0]!
-  blocks[0] = {
-    ...firstBlock,
-    markerClassName,
-    markerLeft: firstBlock.contentLeft - markerArea,
-    markerText,
-  } satisfies PreparedBlock
 }
 
 function buildPlainTextBlocks(
@@ -588,21 +572,13 @@ function buildRuleBlock(ctx: ParseContext): PreparedRuleBlock {
 }
 
 function createBlockBase(ctx: ParseContext): PreparedBlockBase {
-  const listIndent = Math.max(0, ctx.listDepth - 1) * LIST_NESTING_INDENT
-  const contentLeft = listIndent + ctx.quoteDepth * BLOCKQUOTE_INDENT
-  const quoteRailLefts: number[] = []
-
-  for (let depth = 0; depth < ctx.quoteDepth; depth++) {
-    quoteRailLefts.push(listIndent + depth * BLOCKQUOTE_INDENT + RAIL_OFFSET)
-  }
-
   return {
-    contentLeft,
+    contentLeft: ctx.contentLeft,
     marginTop: 0,
     markerClassName: null,
     markerLeft: null,
     markerText: null,
-    quoteRailLefts,
+    quoteRailLefts: ctx.quoteRailLefts,
   }
 }
 
@@ -686,7 +662,6 @@ function collectInlinePieceLines(
         }
 
         case 'checkbox': {
-          pushPiece(createTextPiece(token.checked ? '[x] ' : '[ ] ', marks, variant))
           continue
         }
 
@@ -843,13 +818,6 @@ function appendBlockGroup(
   }
 }
 
-function shiftBlock(block: PreparedBlock, delta: number): PreparedBlock {
-  return {
-    ...block,
-    contentLeft: block.contentLeft + delta,
-  } satisfies PreparedBlock
-}
-
 function resolveListMarkerText(
   list: Tokens.List,
   item: Tokens.ListItem,
@@ -958,7 +926,6 @@ function layoutMessageFrame(
     frameWidth,
     layoutContentWidth: maxContentWidth,
     role: preparedMessage.role,
-    totalHeight: bubbleHeight,
   }
 }
 
@@ -1013,7 +980,6 @@ function layoutBlockFrame(
         markerText: block.markerText,
         quoteRailLefts: block.quoteRailLefts,
         top,
-        width: Math.max(1, contentWidth - block.contentLeft),
       }
     }
   }
@@ -1026,13 +992,16 @@ function getUsedBlockWidth(block: BlockFrame): number {
     case 'code':
       return block.contentLeft + block.width
     case 'rule':
-      return block.contentLeft + block.width
+      // A rule has no width of its own. It stretches across the final bubble.
+      return block.contentLeft
   }
 }
 
 export function materializeMessageBlocks(message: ChatMessageInstance): BlockLayout[] {
+  const { frame } = message
+  const bubbleContentWidth = frame.frameWidth - frame.contentInsetX * 2
   return message.prepared.blocks.map((block, index) =>
-    materializeBlockLayout(block, message.frame.blocks[index]!, message.frame.layoutContentWidth),
+    materializeBlockLayout(block, frame.blocks[index]!, frame.layoutContentWidth, bubbleContentWidth),
   )
 }
 
@@ -1040,12 +1009,13 @@ function materializeBlockLayout(
   block: PreparedBlock,
   frame: BlockFrame,
   contentWidth: number,
+  bubbleContentWidth: number,
 ): BlockLayout {
   switch (frame.kind) {
     case 'inline': {
       if (block.kind !== 'inline') throw new Error('Inline block/frame mismatch')
       const lineWidth = Math.max(1, contentWidth - frame.contentLeft)
-      const lines: Array<{ fragments: InlineFragmentLayout[]; width: number }> = []
+      const lines: InlineBlockLayout['lines'] = []
       walkRichInlineLineRanges(block.flow, lineWidth, range => {
         const line = materializeRichInlineLineRange(block.flow, range)
         lines.push({
@@ -1055,7 +1025,6 @@ function materializeBlockLayout(
             style: block.styles[fragment.itemIndex]!,
             text: fragment.text,
           })),
-          width: line.width,
         })
       })
 
@@ -1070,7 +1039,6 @@ function materializeBlockLayout(
         markerText: frame.markerText,
         quoteRailLefts: frame.quoteRailLefts,
         top: frame.top,
-        usedWidth: frame.usedWidth,
       }
     }
 
@@ -1089,7 +1057,6 @@ function materializeBlockLayout(
         markerText: frame.markerText,
         quoteRailLefts: frame.quoteRailLefts,
         top: frame.top,
-        usedWidth: frame.width,
         width: frame.width,
       }
     }
@@ -1105,7 +1072,7 @@ function materializeBlockLayout(
         markerText: frame.markerText,
         quoteRailLefts: frame.quoteRailLefts,
         top: frame.top,
-        width: frame.width,
+        width: Math.max(1, bubbleContentWidth - frame.contentLeft),
       }
     }
   }

@@ -17,6 +17,45 @@ All accuracy, letter-spacing and corpus result payloads are unchanged; refreshed
 snapshots change only provenance and environment records. Runtime sources and
 the baseline pin are unchanged, so no runtime benchmark was needed.
 
+## Removing segLevels
+
+This change starts from main after #256. `prepareWithSegments()` no longer
+returns `segLevels`, and `src/bidi.ts` keeps only the class lookup and bracket
+check that Safari's following-space kerning guard reads. Nothing in the library,
+rich-inline or the demos read the levels, and one level per segment couldn't
+produce visual order. The published `PreparedTextWithSegments` type loses the
+field; nothing else in the emitted declarations changes.
+
+Before the browsers, a counting fake canvas under desktop Chrome, Safari, Firefox
+and Android user agents compared the branch with main on 24,404 cases per user
+agent: every corpus text, `src/test-data.ts` and every retained wrapping input.
+Handles, layout and rich-inline outputs, and Canvas calls and submitted strings
+matched, apart from the missing field. A review probe on 4,915 new bidi-heavy
+cases under six profiles matched as well. Interleaved V8 timings of the removed
+pass on main read `prepareWithSegments()` 2.9% faster on Latin corpora, 8.5% on
+Arabic, Hebrew and Urdu corpora and 16.3% on 500 short Arabic texts, and
+`prepareRichInline()` 15.2% faster with 300 Arabic items. The gzipped layout entry
+shrinks from 26,099 to 25,441 B.
+
+The installed gate ran against #255's pin `cc2328b`: Chrome 153 through the
+Playwright transport, Safari 26.5.2 and Firefox 155 natively, both directions.
+No leg fixes or loses a metric, and none has required failures, execution errors,
+or new API or rich failures.
+
+`bun test` and `bun run check` pass. The baseline advances to `b510ce1`, and the
+ordinary snapshots were regenerated against it.
+
+Chrome and Safari benchmark snapshots were refreshed from this branch: three
+foreground runs each at DPR 2, visible and focused. A first Chrome run read the
+long-form corpus total 11% above #255's snapshot, almost all of it in Arabic
+measurement, so Chrome was measured again back to back with main 477510e on the
+2560x1440 screen. This branch reads `prepare()` at 8.40 ms (8.45 on main), hot
+`layout()` at 0.0870 ms (0.0868) and a corpus total of 117.5 ms (115.9), so the
+earlier gap was environment drift, not this branch. Safari on the 1440x2560 screen
+(#255's runs used the 2560x1440 screen) reads 11.0 ms (11.5 on #255), 0.105 ms
+(0.105) and 345 ms (347). The benchmark page times `prepare()`, which never
+computed the levels.
+
 ## Smaller prepare state
 
 This change starts from main after #254 and leaves output unchanged. The

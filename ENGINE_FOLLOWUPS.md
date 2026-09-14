@@ -83,7 +83,7 @@ Open engine work: decisions for the maintainer, known gaps and harness debt.
 
 ## Per-browser gaps
 
-- Installed Firefox confirms its cluster rules around invisible characters: ZWSP plus extenders form one unit, emergency units are clusters, and bidi levels separate marks. Implement them with resolved bidi levels, and fix the cap that misfires on kerned pairs.
+- Installed Firefox confirms its cluster rules around invisible characters: ZWSP plus extenders form one unit, emergency units are clusters, and bidi levels separate marks. Implement them with resolved bidi levels, which Pretext no longer computes (RESEARCH.md), and fix the cap that misfires on kerned pairs.
 - Firefox keeps a Myanmar spacing mark such as U+102C with the previous cluster where Unicode graphemes split it. Record Firefox's `Intl.Segmenter` output, then model Gecko cluster starts, which rich-inline boundaries need too.
 - Firefox charges no hyphen for a soft hyphen at an ordinary break opportunity.
 - Firefox fits lines at app-unit rounding of the width, fits negative letter spacing before preserved spaces differently, and paints hidden controls at zero advance plus letter spacing.

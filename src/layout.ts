@@ -1,11 +1,11 @@
 // Prepare text with Intl segmentation and cached Canvas measurements, then
 // lay it out with arithmetic. Emoji calibration may perform a cached DOM read
 // during preparation; layout itself does no measurement or string work.
-// Rich APIs add source cursors, text materialization and approximate bidi metadata.
+// Rich APIs add source cursors and text materialization.
 // Browser measurement limitations are documented in README.md and PLATFORM_BUGS.md.
 // Based on Sebastian Markbage's text-layout research (github.com/chenglou/text-layout).
 
-import { classifyCodePoint, computeSegmentLevels, isBidiPairedBracket } from './bidi.js'
+import { classifyCodePoint, isBidiPairedBracket } from './bidi.js'
 import { observeSegmentEntries, type SegmentEntryGeometry } from './entry-geometry.js'
 import {
   analyzeText,
@@ -61,7 +61,6 @@ type PreparedCore = {
   widths: number[] // Segment widths, e.g. [42.5, 4.4, 37.2]
   kinds: SegmentBreakKind[] // Break behavior per segment, e.g. ['text', 'space', 'text']
   simpleLineWalkFastPath: boolean // Normal text can use the simpler old line walker across all layout APIs
-  segLevels: Int8Array | null // Rich-path bidi metadata for custom rendering; layout() never reads it
   breakableFitAdvances: (number[] | null)[] // Per-grapheme fit advances for breakable segments, else null
   breakablePreferredBreaks: (number[] | null)[] // Preferred grapheme break ends inside breakable segments, else null
   letterSpacing: number // Extra advance between rendered graphemes on the same line
@@ -145,7 +144,6 @@ function createEmptyPrepared(includeSegments: boolean): InternalPreparedText | P
       widths: [],
       kinds: [],
       simpleLineWalkFastPath: true,
-      segLevels: null,
       breakableFitAdvances: [],
       breakablePreferredBreaks: [],
       entryGeometry: null,
@@ -162,7 +160,6 @@ function createEmptyPrepared(includeSegments: boolean): InternalPreparedText | P
     widths: [],
     kinds: [],
     simpleLineWalkFastPath: true,
-    segLevels: null,
     breakableFitAdvances: [],
     breakablePreferredBreaks: [],
     entryGeometry: null,
@@ -419,7 +416,6 @@ function measureAnalysis(
   const widths: number[] = []
   const kinds: SegmentBreakKind[] = []
   let simpleLineWalkFastPath = !hasLetterSpacing
-  const segStarts = includeSegments ? [] as number[] : null
   const breakableFitAdvances: (number[] | null)[] = []
   const breakablePreferredBreaks: (number[] | null)[] = []
   let entryGeometry: (SegmentEntryGeometry | null)[] | null = null
@@ -497,7 +493,6 @@ function measureAnalysis(
     text: string,
     width: number,
     kind: SegmentBreakKind,
-    start: number,
     breakableFitAdvance: number[] | null,
     breakablePreferredBreak: number[] | null,
     spacingGraphemeCount: number,
@@ -508,7 +503,6 @@ function measureAnalysis(
     }
     widths.push(width)
     kinds.push(kind)
-    segStarts?.push(start)
     breakableFitAdvances.push(breakableFitAdvance)
     breakablePreferredBreaks.push(breakablePreferredBreak)
     if (entry !== null && entryGeometry === null) {
@@ -528,7 +522,6 @@ function measureAnalysis(
     text: string,
     textMetrics: SegmentMetrics,
     kind: SegmentBreakKind,
-    start: number,
     allowOverflowBreaks: boolean,
     followingSpaceTail: string | null,
   ): void {
@@ -580,7 +573,6 @@ function measureAnalysis(
         text,
         width,
         kind,
-        start,
         fitAdvances,
         preferredBreaks,
         spacingGraphemeCount,
@@ -594,7 +586,6 @@ function measureAnalysis(
       text,
       width,
       kind,
-      start,
       null,
       null,
       spacingGraphemeCount,
@@ -604,7 +595,6 @@ function measureAnalysis(
   for (let mi = 0; mi < analysis.len; mi++) {
     const segText = analysis.texts[mi]!
     const segKind = analysis.kinds[mi]!
-    const segStart = analysis.starts[mi]!
 
     if (segKind === 'soft-hyphen') {
       const shapesAcross = retreatsFromUnfitHyphen && shapesAcrossSoftHyphen(mi)
@@ -612,7 +602,6 @@ function measureAnalysis(
         segText,
         0,
         segKind,
-        segStart,
         null,
         null,
         0,
@@ -626,7 +615,7 @@ function measureAnalysis(
 
     if (segKind === 'hard-break') {
       const endSegmentIndex = widths.length
-      pushMeasuredSegment(segText, 0, segKind, segStart, null, null, 0)
+      pushMeasuredSegment(segText, 0, segKind, null, null, 0)
       chunks.push({
         startSegmentIndex: chunkStartSegmentIndex,
         endSegmentIndex,
@@ -641,7 +630,6 @@ function measureAnalysis(
         segText,
         0,
         segKind,
-        segStart,
         null,
         null,
         hasLetterSpacing ? countRenderedSpacingGraphemes(segText, segKind) : 0,
@@ -661,7 +649,7 @@ function measureAnalysis(
         ((previousKind === 'text' || previousKind === 'glue') && needsComplexTextPath(analysis.texts[mi - 1]!)) ||
         (leadingCombiningMarkRe.test(nextText) && needsComplexTextPath(nextText))
       )
-      pushMeasuredSegment(segText, width, segKind, segStart, null, null, takesLetterSpacing ? 1 : 0)
+      pushMeasuredSegment(segText, width, segKind, null, null, takesLetterSpacing ? 1 : 0)
       continue
     }
 
@@ -676,7 +664,6 @@ function measureAnalysis(
           unit.text,
           getTextMetrics(unit.text, followingSpaceTail),
           'text',
-          segStart + unit.start,
           unit.overflow === 'grapheme' || (analysis.isWordLike[mi]! && (wordBreak === 'keep-all' || unit.overflow === 'word-like')),
           followingSpaceTail,
         )
@@ -685,7 +672,7 @@ function measureAnalysis(
     }
 
     const followingSpaceTail = segKind === 'text' || segKind === 'glue' ? getFollowingSpaceTail(mi, segText) : null
-    pushMeasuredTextSegment(segText, getTextMetrics(segText, followingSpaceTail), segKind, segStart,
+    pushMeasuredTextSegment(segText, getTextMetrics(segText, followingSpaceTail), segKind,
       segKind === 'text' && (analysis.isWordLike[mi]! || isIndependentSymbolRun(segText)),
       followingSpaceTail)
   }
@@ -704,13 +691,11 @@ function measureAnalysis(
       consumedEndSegmentIndex: widths.length,
     })
   }
-  const segLevels = segStarts === null ? null : computeSegmentLevels(analysis.normalized, segStarts)
   if (segments !== null) {
     return {
       widths,
       kinds,
       simpleLineWalkFastPath,
-      segLevels,
       breakableFitAdvances,
       breakablePreferredBreaks,
       entryGeometry,
@@ -727,7 +712,6 @@ function measureAnalysis(
     widths,
     kinds,
     simpleLineWalkFastPath,
-    segLevels,
     breakableFitAdvances,
     breakablePreferredBreaks,
     entryGeometry,
@@ -768,7 +752,6 @@ function prepareInternal(
 //   5. Measure each segment via canvas measureText, cache by (segment, font)
 //   6. Pre-measure graphemes of long words (for overflow-wrap: break-word)
 //   7. Correct emoji canvas inflation (auto-detected per font size)
-//   8. Optionally compute rich-path bidi metadata for custom renderers
 export function prepare(text: string, font: string, options?: PrepareOptions): PreparedText {
   return prepareInternal(text, font, false, options) as PreparedText
 }
