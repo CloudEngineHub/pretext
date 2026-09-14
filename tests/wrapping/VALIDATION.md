@@ -17,6 +17,65 @@ All accuracy, letter-spacing and corpus result payloads are unchanged; refreshed
 snapshots change only provenance and environment records. Runtime sources and
 the baseline pin are unchanged, so no runtime benchmark was needed.
 
+## Rich-inline boundaries in Firefox
+
+This change starts from main after #281. `prepareRichInline()` still let every item
+boundary break in Firefox, while Gecko keeps collecting a word across text frames
+until a space and breaks it once with ICU4X's line segmenter. The Gecko profile's
+`inlineItemBreaks` is now `'joined-text'`, as in Blink, so its own break rules apply
+across item boundaries. Engines Pretext doesn't recognize keep `'item-boundary'`. The
+`parenthesized-item` and `split-word` rich-boundary rows now require rich height in
+Firefox too.
+
+The installed gate ran this change on `e690b1c` against pinned `63600ad`: Chrome 153
+through the Playwright transport, Safari 26.5.2 and Firefox 155 natively, both
+directions. Chrome, Safari and Firefox RTL change nothing. Firefox LTR fixes 6 rich
+heights in `maintained/rich-boundaries`, including both newly required rows, and
+loses one, so 23 of 24 rich heights pass (18 on main). The lost row is
+`myanmar-split-word` at 88px, where the rich prediction now has 5 lines and native
+Firefox 4. Its second item starts with U+102C, which shapes with the consonant before
+it: in 16px Myanmar Sangam MN `ဘာသ` and `ာသည်` measure 91.80px separately and 82.03px
+joined, so the joined rule adds a line. Main matched the line count only by breaking
+at the item boundary, where Firefox never starts a line, and the flat prediction
+still gives Firefox's lines. That loss is accepted as main's accidental pass, so the
+Firefox leg exits with an error. No leg has required failures, execution errors or
+new API or rich failures, the 14 `issue/#210-#211` rich rows pass in every browser,
+and five numeric profiles have no new failures.
+
+An installed Firefox 155 replay of the 13,038 left-to-right `r0912/rib/` research
+rows, with main `01937de` and this branch as candidates, gains 768 rich heights
+(11,840 to 12,515 pass) and loses 93, all accidents. 40 are Myanmar split-word rows
+with the same cluster split; their flat line count matches native on all 40. 36
+follow a flat prediction that already fails: 33 numeric-sign fuzz rows where Firefox
+keeps a hyphen with the digit after it, as in `n2-1`, and 3 fit thresholds of
+`our community,` and `see (docs)`. 17 are `our community,` rows between 108.21 and
+109.38px, where Arial kerns across items: the line measures 108.2167px as one string
+in Canvas and the DOM, but its items sum to 109.40px. Main broke before `,`, where
+Firefox never breaks. Two of those rows fit as one string only within the 0.005px
+fit epsilon.
+
+Rerunning the September 14 installed probe of 68 cases against the same two builds
+changes no Chrome row. In Firefox, over 2,018 rows (same-font copies left out, Myanmar
+counted once), lines fix 624 and lose 29, and line counts fix 297 and lose 117. Every
+lost row has a checked cause. Firefox breaks after `/` before a letter, as in
+`example.com/|docs`, `src/|layout.ts` and `and/|or`, where Pretext keeps the unit
+whole (178 rows, same-font copies included). The Myanmar cluster split accounts for
+40 rows on two pages. A padded code item split across lines, whose padding Pretext
+charges on both pieces, accounts for 2. Main matched the `/` rows by analyzing each
+item alone, so Firefox heights of text split across items next to `/`, such as links
+and paths, are accepted as main's accidental passes too.
+
+The change adds no Canvas calls: preparing the Markdown chat demo's 17,685 rich-inline
+blocks in installed Firefox makes 18,197 calls on both builds, with the same strings
+in the same order. In the foreground on AC power, over 10 page loads per build in
+ABBA order, `prepareRichInline()` reads 347.5 ms per cold pass (342.0 on main),
+298.5 ms for 15,926 fresh-text calls (293.0) and 373.5 ms for the first pass (370.5).
+Only the fresh-text slowdown, 1.7%, holds in every adjacent pair.
+
+`bun test` and `bun run check` pass. Merging main afterwards brought in only demo
+and docs changes, which touch no file under `src/` or `tests/`. The baseline
+advances to `3bd7496`, and the ordinary snapshots were regenerated against it.
+
 ## Rich-inline items within the line fit epsilon
 
 This change starts from main after #276. Rich-inline layout could take one more line at a

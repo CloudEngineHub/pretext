@@ -41,7 +41,7 @@
 - With `word-break: keep-all` in Chrome and Firefox, a URL containing a second `www.` or scheme such as `https://` before its query, as in `x中www.a/www.b?q`, no longer loses text. In Chrome and Safari, rich-inline layout no longer breaks such a URL where its text has no break opportunity, as before the second `www.` in items `字` and `www.a/www.b?q=1` (#269).
 - After CJK text, `.`, `,`, `:`, `;`, `)`, `]`, `%` or `"` now stays on the same line as a following word or number, as browsers do. In `甲乙丙.first_week_voltage}户`, lines no longer break after the period (#276).
 - Rich-inline layout now keeps text, or a `break: 'never'` item, on a line when it overflows by no more than 0.005px, or 1/64px in Safari, as it already did inside one item. Previously, at some widths, layout took one more line than at a slightly narrower width (#281).
-- In Firefox, rich-inline layout now breaks between items only where their joined text has a break opportunity, as in Chrome. Punctuation such as `,` or `)` at the start of an item stays with the word before it, and a word split across items wraps as one word. Items without a space between them can also break where the joined text allows it, such as between CJK characters, at Thai word boundaries or after `-`.
+- In Firefox, rich-inline layout now breaks between items only where their joined text has a break opportunity, as in Chrome. Punctuation such as `,` or `)` at the start of an item stays with the word before it, and a word split across items wraps as one word. Items without a space between them can also break where the joined text allows it, such as between CJK characters, at Thai word boundaries or after `-` (#287).
 
 ## 0.0.9 - 2026-09-07
 
