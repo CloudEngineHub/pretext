@@ -131,6 +131,12 @@ export function generateCases(measure: Measure, selection: CaseSelection): Wrapp
     family: 'standalone-zwsp', origins: ['maintained/standalone-zwsp'],
     heightSource: 'layout', heightMode: 'exact', required: ['height', 'lineCount', 'api'] })
 
+  // A collapsible space after an overflowing first glyph ends that line. Native
+  // rects of the collapsed space straddle the break, so the case pins the line
+  // count, not which line owns the space.
+  add({ ...defaults, family: 'maintained/space-after-overflow', origins: ['maintained/space-after-overflow'],
+    text: '字 字', width: 5, required: ['height', 'lineCount', 'api'] })
+
   // Same-font inline items break where their joined text breaks in Chromium;
   // WebKit breaks inside each item from its own text. Pretext still breaks at
   // every item boundary in Firefox, so the two rows required in Chrome and Safari

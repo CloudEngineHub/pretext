@@ -34,6 +34,8 @@
 - In Safari, small kana and `ー` after CJK text can now start a line only on pages whose `<html lang>` is Japanese or Korean, as Safari does (#249).
 - In Chrome, `ー` can now start a line after CJK text, as Chrome does (#250).
 - In Firefox, and in engines Pretext doesn't recognize, small kana no longer start a line after CJK text, as Firefox does (#250).
+- When a line's first word is wider than the line, a following space or zero-width space now ends that line in `layoutWithLines()`, `walkLineRanges()`, `layoutNextLine()`, `layoutNextLineRange()` and rich-inline layout. Previously, other content such as a soft hyphen or a word joiner, or `letterSpacing`, moved it to the start of the next line. Plain-text line counts and widths don't change. With `letterSpacing`, rich-inline layout can also take fewer lines or give lines different widths, for example where invisible characters such as a zero-width space took a line of their own.
+- A negative `maxWidth` now lays out like 0 in `layout()` and the other plain-text line APIs. Previously it could give a different line count than 0, which could also depend on whether the text contained a soft hyphen or used `letterSpacing`.
 
 ## 0.0.9 - 2026-09-07
 
