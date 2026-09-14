@@ -52,6 +52,12 @@ const MONO_FAMILY = '"SF Mono", ui-monospace, Menlo, Monaco, monospace'
 const HEADING_LETTER_SPACING_EM = -0.01
 const INLINE_CODE_EXTRA_WIDTH = 12
 const IMAGE_EXTRA_WIDTH = 14
+// A block takes the direction of its first strong character, the way HTML
+// dir=auto reads text. Scripts stand in for bidi classes: letters of these
+// right-to-left scripts, RLM and ALM count as right-to-left, and any other
+// letter, spacing mark or LRM as left-to-right.
+const STRONG_CHARACTER = /[\p{L}\p{Mc}\u200E\u200F\u061C]/u
+const RIGHT_TO_LEFT_CHARACTER = /[\p{Script=Hebrew}\p{Script=Arabic}\p{Script=Syriac}\p{Script=Thaana}\p{Script=Nko}\p{Script=Samaritan}\p{Script=Mandaic}\p{Script=Adlam}\p{Script=Hanifi_Rohingya}\u200F\u061C]/u
 
 // The page paints text with the fonts and letter spacing Pretext measured, so
 // typography lives here and the CSS doesn't restate it.
@@ -109,9 +115,11 @@ type PreparedBlockBase = {
 
 type PreparedInlineBlock = PreparedBlockBase & {
   kind: 'inline'
+  direction: 'ltr' | 'rtl'
   flow: PreparedRichInline
   hrefs: Array<string | null>
   lineHeight: number
+  paragraphStyle: TextStyle // unmarked text, which paints the spaces between items
   styles: TextStyle[]
 }
 
@@ -135,7 +143,7 @@ export type PreparedChatMessage = {
 
 export type InlineFragmentLayout = {
   href: string | null
-  leadingGap: number
+  spaceBefore: boolean // a collapsed space precedes it on its line
   style: TextStyle
   text: string
 }
@@ -170,6 +178,7 @@ type BlockFrame = InlineBlockFrame | CodeBlockFrame | RuleBlockFrame
 
 type InlineBlockLayout = {
   contentLeft: number
+  direction: 'ltr' | 'rtl'
   height: number
   kind: 'inline'
   lineHeight: number
@@ -179,8 +188,10 @@ type InlineBlockLayout = {
   markerClassName: string | null
   markerLeft: number | null
   markerText: string | null
+  paragraphStyle: TextStyle
   quoteRailLefts: number[]
   top: number
+  width: number
 }
 
 type CodeBlockLayout = {
@@ -539,6 +550,7 @@ function buildPreparedInlineBlock(
 
   return {
     ...createBlockBase(ctx),
+    direction: resolveDirection(pieces),
     flow: prepareRichInline(pieces.map(piece => ({
       text: piece.text,
       font: piece.style.font,
@@ -549,8 +561,17 @@ function buildPreparedInlineBlock(
     hrefs: pieces.map(piece => piece.href),
     kind: 'inline',
     lineHeight: lineHeightForVariant(variant),
+    paragraphStyle: resolveTextStyle(variant, EMPTY_MARK_STATE),
     styles: pieces.map(piece => piece.style),
   }
+}
+
+function resolveDirection(pieces: readonly InlinePiece[]): 'ltr' | 'rtl' {
+  for (let index = 0; index < pieces.length; index++) {
+    const strong = STRONG_CHARACTER.exec(pieces[index]!.text)
+    if (strong !== null) return RIGHT_TO_LEFT_CHARACTER.test(strong[0]) ? 'rtl' : 'ltr'
+  }
+  return 'ltr'
 }
 
 function buildCodeBlock(text: string, ctx: ParseContext): PreparedCodeBlock {
@@ -1022,7 +1043,7 @@ function materializeBlockLayout(
         lines.push({
           fragments: line.fragments.map(fragment => ({
             href: block.hrefs[fragment.itemIndex] ?? null,
-            leadingGap: fragment.gapBefore,
+            spaceBefore: fragment.gapBefore > 0,
             style: block.styles[fragment.itemIndex]!,
             text: fragment.text,
           })),
@@ -1031,6 +1052,7 @@ function materializeBlockLayout(
 
       return {
         contentLeft: frame.contentLeft,
+        direction: block.direction,
         height: frame.height,
         kind: 'inline',
         lineHeight: frame.lineHeight,
@@ -1038,8 +1060,11 @@ function materializeBlockLayout(
         markerClassName: frame.markerClassName,
         markerLeft: frame.markerLeft,
         markerText: frame.markerText,
+        paragraphStyle: block.paragraphStyle,
         quoteRailLefts: frame.quoteRailLefts,
         top: frame.top,
+        // Rows span the final bubble, so they stay inside a shrinkwrapped one.
+        width: Math.max(1, bubbleContentWidth - frame.contentLeft),
       }
     }
 

@@ -17,6 +17,7 @@ import {
   type ConversationFrame,
   type InlineFragmentLayout,
   type MessageFrame,
+  type TextStyle,
 } from './markdown-chat.model.ts'
 
 type State = {
@@ -269,18 +270,26 @@ function renderInlineBlock(
   block: Extract<BlockLayout, { kind: 'inline' }>,
   contentInsetX: number,
 ): HTMLElement {
-  const wrapper = createBlockShell(block, 'block block--inline', contentInsetX)
+  const start = block.direction === 'rtl' ? 'right' : 'left'
+  const wrapper = createBlockShell(block, 'block block--inline', contentInsetX, start)
 
   for (let lineIndex = 0; lineIndex < block.lines.length; lineIndex++) {
     const line = block.lines[lineIndex]!
+    // Each Pretext line is one line box, so the browser orders its bidi runs.
+    // The paragraph style sets the baseline and paints the collapsed spaces.
     const row = document.createElement('div')
-    row.className = 'line-row'
-    row.style.height = `${block.lineHeight}px`
-    row.style.left = `${contentInsetX + block.contentLeft}px`
+    row.className = 'inline-line'
+    row.dir = block.direction
+    applyTextStyle(row, block.paragraphStyle)
+    row.style.lineHeight = `${block.lineHeight}px`
+    row.style[start] = `${contentInsetX + block.contentLeft}px`
     row.style.top = `${lineIndex * block.lineHeight}px`
+    row.style.width = `${block.width}px`
 
     for (let fragmentIndex = 0; fragmentIndex < line.fragments.length; fragmentIndex++) {
-      row.append(renderInlineFragment(line.fragments[fragmentIndex]!))
+      const fragment = line.fragments[fragmentIndex]!
+      if (fragment.spaceBefore) row.append(' ')
+      row.append(renderInlineFragment(fragment))
     }
     wrapper.append(row)
   }
@@ -292,7 +301,7 @@ function renderCodeBlock(
   block: Extract<BlockLayout, { kind: 'code' }>,
   contentInsetX: number,
 ): HTMLElement {
-  const wrapper = createBlockShell(block, 'block block--code-shell', contentInsetX)
+  const wrapper = createBlockShell(block, 'block block--code-shell', contentInsetX, 'left')
 
   const codeBox = document.createElement('div')
   codeBox.className = 'code-box'
@@ -318,7 +327,7 @@ function renderRuleBlock(
   block: Extract<BlockLayout, { kind: 'rule' }>,
   contentInsetX: number,
 ): HTMLElement {
-  const wrapper = createBlockShell(block, 'block block--rule-shell', contentInsetX)
+  const wrapper = createBlockShell(block, 'block block--rule-shell', contentInsetX, 'left')
   const rule = document.createElement('div')
   rule.className = 'rule-line'
   rule.style.left = `${contentInsetX + block.contentLeft}px`
@@ -332,22 +341,28 @@ function createBlockShell(
   block: BlockLayout,
   className: string,
   contentInsetX: number,
+  start: 'left' | 'right',
 ): HTMLDivElement {
   const wrapper = document.createElement('div')
   wrapper.className = className
   wrapper.style.top = `${block.top}px`
   wrapper.style.height = `${block.height}px`
 
-  appendRails(wrapper, block, contentInsetX)
-  appendMarker(wrapper, block, contentInsetX)
+  appendRails(wrapper, block, contentInsetX, start)
+  appendMarker(wrapper, block, contentInsetX, start)
   return wrapper
 }
 
-function appendRails(wrapper: HTMLDivElement, block: BlockLayout, contentInsetX: number): void {
+function appendRails(
+  wrapper: HTMLDivElement,
+  block: BlockLayout,
+  contentInsetX: number,
+  start: 'left' | 'right',
+): void {
   for (let index = 0; index < block.quoteRailLefts.length; index++) {
     const rail = document.createElement('div')
     rail.className = 'quote-rail'
-    rail.style.left = `${contentInsetX + block.quoteRailLefts[index]!}px`
+    rail.style[start] = `${contentInsetX + block.quoteRailLefts[index]!}px`
     wrapper.append(rail)
   }
 }
@@ -356,12 +371,13 @@ function appendMarker(
   wrapper: HTMLDivElement,
   block: BlockLayout,
   contentInsetX: number,
+  start: 'left' | 'right',
 ): void {
   if (block.markerText === null || block.markerLeft === null || block.markerClassName === null) return
 
   const marker = document.createElement('span')
   marker.className = block.markerClassName
-  marker.style.left = `${contentInsetX + block.markerLeft}px`
+  marker.style[start] = `${contentInsetX + block.markerLeft}px`
   marker.style.top = `${markerTop(block)}px`
   marker.textContent = block.markerText
   wrapper.append(marker)
@@ -384,14 +400,7 @@ function renderInlineFragment(fragment: InlineFragmentLayout): HTMLElement {
     : document.createElement('a')
 
   node.className = fragment.style.className
-  // Paint with the font and letter spacing the line was measured with.
-  node.style.setProperty('--font', fragment.style.font)
-  if (fragment.style.letterSpacing !== 0) {
-    node.style.letterSpacing = `${fragment.style.letterSpacing}px`
-  }
-  if (fragment.leadingGap > 0) {
-    node.style.marginLeft = `${fragment.leadingGap}px`
-  }
+  applyTextStyle(node, fragment.style)
   node.textContent = fragment.text
 
   if (node instanceof HTMLAnchorElement && fragment.href !== null) {
@@ -401,4 +410,11 @@ function renderInlineFragment(fragment: InlineFragmentLayout): HTMLElement {
   }
 
   return node
+}
+
+// Paint with the font and letter spacing the line was measured with. Letter
+// spacing is always set, since a fragment would otherwise inherit its row's.
+function applyTextStyle(node: HTMLElement, style: TextStyle): void {
+  node.style.setProperty('--font', style.font)
+  node.style.letterSpacing = `${style.letterSpacing}px`
 }

@@ -190,20 +190,16 @@
     .block-marker--task {
       color: var(--muted);
     }
-    .line-row {
+    .inline-line {
       position: absolute;
-      display: flex;
-      align-items: center;
-      gap: 0;
-      width: max-content;
+      white-space: pre;
+      text-align: start;
+      font: var(--font);
     }
     .frag {
-      display: inline-block;
-      white-space: pre;
       font: var(--font);
       line-height: 1;
       color: var(--ink);
-      vertical-align: baseline;
     }
     .frag--code {
       padding: 2px 6px 3px;
@@ -214,14 +210,10 @@
       background: rgb(49 56 64 / 1);
     }
     .frag--chip {
-      display: inline-flex;
-      align-items: center;
-      padding: 0 7px;
-      min-height: 18px;
+      padding: 3px 7px;
       border-radius: 999px;
       background: rgb(49 56 64 / 1);
       color: var(--accent);
-      transform: translateY(1px);
     }
     .is-link {
       color: var(--accent);
