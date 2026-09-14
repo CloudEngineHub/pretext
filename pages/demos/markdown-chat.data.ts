@@ -63,9 +63,12 @@ const BASE_MESSAGE_SPECS: MarkdownChatSeed[] = [
   message(
     'assistant',
     '```ts',
-    'const frame = buildConversationFrame(preparedMessages, width)',
-    'const visible = findVisibleRange(frame, scrollTop, viewportHeight, topMask, bottomMask)',
-    'renderMessages(frame, visible.start, visible.end)',
+    'const conversation = layoutConversation(preparedMessages, width, bannerHeight)',
+    'const visible = findVisibleRange(conversation, scrollTop, viewportHeight, bannerHeight, bannerHeight)',
+    'for (let index = visible.start; index < visible.end; index++) {',
+    '  const frame = layoutMessageFrame(preparedMessages[index], width)',
+    '  renderMessage(frame, conversation.tops[index], conversation.heights[index])',
+    '}',
     '```',
   ),
   message(
