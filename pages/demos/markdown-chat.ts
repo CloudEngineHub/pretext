@@ -19,6 +19,7 @@ import {
   type InlineFragmentLayout,
   type MessageFrame,
   type QuoteRailLayout,
+  type TextStyle,
 } from './markdown-chat.model.ts'
 
 type State = {
@@ -261,32 +262,42 @@ function projectMessageNode(
 }
 
 function renderBlock(block: BlockLayout, contentInsetX: number): HTMLElement {
+  // A right-to-left block starts its indent and marker from the right.
+  const start = block.direction === 'rtl' ? 'right' : 'left'
   switch (block.kind) {
     case 'inline':
-      return renderInlineBlock(block, contentInsetX)
+      return renderInlineBlock(block, contentInsetX, start)
     case 'code':
-      return renderCodeBlock(block, contentInsetX)
+      return renderCodeBlock(block, contentInsetX, start)
     case 'rule':
-      return renderRuleBlock(block, contentInsetX)
+      return renderRuleBlock(block, contentInsetX, start)
   }
 }
 
 function renderInlineBlock(
   block: Extract<BlockLayout, { kind: 'inline' }>,
   contentInsetX: number,
+  start: 'left' | 'right',
 ): HTMLElement {
-  const wrapper = createBlockShell(block, 'block block--inline', contentInsetX)
+  const wrapper = createBlockShell(block, 'block block--inline', contentInsetX, start)
 
   for (let lineIndex = 0; lineIndex < block.lines.length; lineIndex++) {
     const line = block.lines[lineIndex]!
+    // Each Pretext line is one line box, so the browser orders its bidi runs.
+    // The paragraph style sets the baseline and paints the collapsed spaces.
     const row = document.createElement('div')
-    row.className = 'line-row'
-    row.style.height = `${block.lineHeight}px`
-    row.style.left = `${contentInsetX + block.contentLeft}px`
+    row.className = 'inline-line'
+    row.dir = block.direction
+    applyTextStyle(row, block.paragraphStyle)
+    row.style.lineHeight = `${block.lineHeight}px`
+    row.style[start] = `${contentInsetX + block.contentLeft}px`
     row.style.top = `${lineIndex * block.lineHeight}px`
+    row.style.width = `${block.width}px`
 
     for (let fragmentIndex = 0; fragmentIndex < line.fragments.length; fragmentIndex++) {
-      row.append(renderInlineFragment(line.fragments[fragmentIndex]!))
+      const fragment = line.fragments[fragmentIndex]!
+      if (fragment.spaceBefore) row.append(' ')
+      row.append(renderInlineFragment(fragment))
     }
     wrapper.append(row)
   }
@@ -297,12 +308,13 @@ function renderInlineBlock(
 function renderCodeBlock(
   block: Extract<BlockLayout, { kind: 'code' }>,
   contentInsetX: number,
+  start: 'left' | 'right',
 ): HTMLElement {
-  const wrapper = createBlockShell(block, 'block block--code-shell', contentInsetX)
+  const wrapper = createBlockShell(block, 'block block--code-shell', contentInsetX, start)
 
   const codeBox = document.createElement('div')
   codeBox.className = 'code-box'
-  codeBox.style.left = `${contentInsetX + block.contentLeft}px`
+  codeBox.style[start] = `${contentInsetX + block.contentLeft}px`
   codeBox.style.width = `${block.width}px`
   codeBox.style.height = `${block.height}px`
 
@@ -310,6 +322,7 @@ function renderCodeBlock(
     const line = block.lines[lineIndex]!
     const row = document.createElement('div')
     row.className = 'code-line'
+    // Code reads left to right inside its box, whichever side the box starts from.
     row.style.left = `${CODE_BLOCK_PADDING_X}px`
     row.style.top = `${CODE_BLOCK_PADDING_Y + lineIndex * CODE_LINE_HEIGHT}px`
     row.textContent = line.text
@@ -323,11 +336,12 @@ function renderCodeBlock(
 function renderRuleBlock(
   block: Extract<BlockLayout, { kind: 'rule' }>,
   contentInsetX: number,
+  start: 'left' | 'right',
 ): HTMLElement {
-  const wrapper = createBlockShell(block, 'block block--rule-shell', contentInsetX)
+  const wrapper = createBlockShell(block, 'block block--rule-shell', contentInsetX, start)
   const rule = document.createElement('div')
   rule.className = 'rule-line'
-  rule.style.left = `${contentInsetX + block.contentLeft}px`
+  rule.style[start] = `${contentInsetX + block.contentLeft}px`
   rule.style.top = `${Math.floor(block.height / 2)}px`
   rule.style.width = `${block.width}px`
   wrapper.append(rule)
@@ -338,20 +352,22 @@ function createBlockShell(
   block: BlockLayout,
   className: string,
   contentInsetX: number,
+  start: 'left' | 'right',
 ): HTMLDivElement {
   const wrapper = document.createElement('div')
   wrapper.className = className
   wrapper.style.top = `${block.top}px`
   wrapper.style.height = `${block.height}px`
 
-  appendMarker(wrapper, block, contentInsetX)
+  appendMarker(wrapper, block, contentInsetX, start)
   return wrapper
 }
 
+// A rail starts from the side of the blocks it runs beside.
 function renderQuoteRail(rail: QuoteRailLayout, contentInsetX: number): HTMLElement {
   const node = document.createElement('div')
   node.className = 'quote-rail'
-  node.style.left = `${contentInsetX + rail.left}px`
+  node.style[rail.direction === 'rtl' ? 'right' : 'left'] = `${contentInsetX + rail.left}px`
   node.style.top = `${rail.top}px`
   node.style.height = `${rail.height}px`
   return node
@@ -361,12 +377,13 @@ function appendMarker(
   wrapper: HTMLDivElement,
   block: BlockLayout,
   contentInsetX: number,
+  start: 'left' | 'right',
 ): void {
   if (block.markerText === null || block.markerLeft === null || block.markerClassName === null) return
 
   const marker = document.createElement('span')
   marker.className = block.markerClassName
-  marker.style.left = `${contentInsetX + block.markerLeft}px`
+  marker.style[start] = `${contentInsetX + block.markerLeft}px`
   marker.style.top = `${markerTop(block)}px`
   marker.textContent = block.markerText
   wrapper.append(marker)
@@ -389,14 +406,7 @@ function renderInlineFragment(fragment: InlineFragmentLayout): HTMLElement {
     : document.createElement('a')
 
   node.className = fragment.style.className
-  // Paint with the font and letter spacing the line was measured with.
-  node.style.setProperty('--font', fragment.style.font)
-  if (fragment.style.letterSpacing !== 0) {
-    node.style.letterSpacing = `${fragment.style.letterSpacing}px`
-  }
-  if (fragment.leadingGap > 0) {
-    node.style.marginLeft = `${fragment.leadingGap}px`
-  }
+  applyTextStyle(node, fragment.style)
   node.textContent = fragment.text
 
   if (node instanceof HTMLAnchorElement && fragment.href !== null) {
@@ -406,4 +416,11 @@ function renderInlineFragment(fragment: InlineFragmentLayout): HTMLElement {
   }
 
   return node
+}
+
+// Paint with the font and letter spacing the line was measured with. Letter
+// spacing is always set, since a fragment would otherwise inherit its row's.
+function applyTextStyle(node: HTMLElement, style: TextStyle): void {
+  node.style.setProperty('--font', style.font)
+  node.style.letterSpacing = `${style.letterSpacing}px`
 }

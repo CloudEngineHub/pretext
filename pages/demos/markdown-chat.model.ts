@@ -53,6 +53,12 @@ const MONO_FAMILY = '"SF Mono", ui-monospace, Menlo, Monaco, monospace'
 const HEADING_LETTER_SPACING_EM = -0.01
 const INLINE_CODE_EXTRA_WIDTH = 12
 const IMAGE_EXTRA_WIDTH = 14
+// A paragraph takes the direction of its first strong character, the way HTML
+// dir=auto reads text. Scripts stand in for bidi classes: letters of these
+// right-to-left scripts, RLM and ALM count as right-to-left, and any other
+// letter, spacing mark or LRM as left-to-right.
+const STRONG_CHARACTER = /[\p{L}\p{Mc}\u200E\u200F\u061C]/u
+const RIGHT_TO_LEFT_CHARACTER = /[\p{Script=Hebrew}\p{Script=Arabic}\p{Script=Syriac}\p{Script=Thaana}\p{Script=Nko}\p{Script=Samaritan}\p{Script=Mandaic}\p{Script=Adlam}\p{Script=Hanifi_Rohingya}\u200F\u061C]/u
 
 // The page paints text with the fonts and letter spacing Pretext measured, so
 // typography lives here and the CSS doesn't restate it.
@@ -84,7 +90,8 @@ export type TextStyle = {
   letterSpacing: number // CSS px
 }
 
-// A quote paints one rail at its absolute left, beside every block it holds.
+// A quote paints a rail beside every block it holds, railLeft from the block's
+// starting side.
 type Quote = {
   railLeft: number
 }
@@ -106,6 +113,7 @@ type InlinePiece = {
 
 type PreparedBlockBase = {
   contentLeft: number
+  direction: 'ltr' | 'rtl' | null // a code block or rule has none until inheritDirection
   marginTop: number
   markerClassName: string | null
   markerLeft: number | null
@@ -115,9 +123,11 @@ type PreparedBlockBase = {
 
 type PreparedInlineBlock = PreparedBlockBase & {
   kind: 'inline'
+  direction: 'ltr' | 'rtl'
   flow: PreparedRichInline
   hrefs: Array<string | null>
   lineHeight: number
+  paragraphStyle: TextStyle // unmarked text, which paints the spaces between items
   styles: TextStyle[]
 }
 
@@ -141,7 +151,7 @@ export type PreparedChatMessage = {
 
 export type InlineFragmentLayout = {
   href: string | null
-  leadingGap: number
+  spaceBefore: boolean // a collapsed space precedes it on its line
   style: TextStyle
   text: string
 }
@@ -175,6 +185,7 @@ type BlockFrame = InlineBlockFrame | CodeBlockFrame | RuleBlockFrame
 
 type InlineBlockLayout = {
   contentLeft: number
+  direction: 'ltr' | 'rtl'
   height: number
   kind: 'inline'
   lineHeight: number
@@ -184,11 +195,14 @@ type InlineBlockLayout = {
   markerClassName: string | null
   markerLeft: number | null
   markerText: string | null
+  paragraphStyle: TextStyle
   top: number
+  width: number
 }
 
 type CodeBlockLayout = {
   contentLeft: number
+  direction: 'ltr' | 'rtl'
   height: number
   kind: 'code'
   lines: LayoutLine[]
@@ -201,6 +215,7 @@ type CodeBlockLayout = {
 
 type RuleBlockLayout = {
   contentLeft: number
+  direction: 'ltr' | 'rtl'
   height: number
   kind: 'rule'
   markerClassName: string | null
@@ -213,6 +228,7 @@ type RuleBlockLayout = {
 export type BlockLayout = InlineBlockLayout | CodeBlockLayout | RuleBlockLayout
 
 export type QuoteRailLayout = {
+  direction: 'ltr' | 'rtl'
   height: number
   left: number
   top: number
@@ -466,6 +482,7 @@ function parseBlockTokens(tokens: readonly Token[], ctx: ParseContext): Prepared
     }
   }
 
+  inheritDirection(blocks)
   return blocks
 }
 
@@ -497,7 +514,22 @@ function buildListBlocks(token: Tokens.List, ctx: ParseContext): PreparedBlock[]
     appendBlockGroup(blocks, itemBlocks, LIST_ITEM_GAP)
   }
 
+  inheritDirection(blocks)
   return blocks
+}
+
+// A code block or rule has no text to read a direction from. It takes the
+// direction of the first paragraph in its list item, list or quote, else in
+// the enclosing one, out to the message.
+function inheritDirection(blocks: PreparedBlock[]): void {
+  let direction: 'ltr' | 'rtl' | null = null
+  for (let index = 0; index < blocks.length && direction === null; index++) {
+    direction = blocks[index]!.direction
+  }
+  if (direction === null) return
+  for (let index = 0; index < blocks.length; index++) {
+    blocks[index]!.direction ??= direction
+  }
 }
 
 function buildPlainTextBlocks(
@@ -525,9 +557,11 @@ function buildPreparedInlineBlocks(
   ctx: ParseContext,
 ): PreparedBlock[] {
   const blocks: PreparedBlock[] = []
+  // Hard breaks split a paragraph into blocks, but the paragraph has one direction.
+  const direction = resolveDirection(lines)
 
   for (let index = 0; index < lines.length; index++) {
-    const block = buildPreparedInlineBlock(lines[index]!, variant, ctx)
+    const block = buildPreparedInlineBlock(lines[index]!, variant, direction, ctx)
     if (block === null) continue
     blocks.push({
       ...block,
@@ -541,12 +575,14 @@ function buildPreparedInlineBlocks(
 function buildPreparedInlineBlock(
   pieces: InlinePiece[],
   variant: InlineVariant,
+  direction: 'ltr' | 'rtl',
   ctx: ParseContext,
 ): PreparedInlineBlock | null {
   if (pieces.length === 0) return null
 
   return {
     ...createBlockBase(ctx),
+    direction,
     flow: prepareRichInline(pieces.map(piece => ({
       text: piece.text,
       font: piece.style.font,
@@ -557,8 +593,20 @@ function buildPreparedInlineBlock(
     hrefs: pieces.map(piece => piece.href),
     kind: 'inline',
     lineHeight: lineHeightForVariant(variant),
+    paragraphStyle: resolveTextStyle(variant, EMPTY_MARK_STATE),
     styles: pieces.map(piece => piece.style),
   }
+}
+
+function resolveDirection(lines: readonly InlinePiece[][]): 'ltr' | 'rtl' {
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    const pieces = lines[lineIndex]!
+    for (let index = 0; index < pieces.length; index++) {
+      const strong = STRONG_CHARACTER.exec(pieces[index]!.text)
+      if (strong !== null) return RIGHT_TO_LEFT_CHARACTER.test(strong[0]) ? 'rtl' : 'ltr'
+    }
+  }
+  return 'ltr'
 }
 
 function buildCodeBlock(text: string, ctx: ParseContext): PreparedCodeBlock {
@@ -583,6 +631,7 @@ function buildRuleBlock(ctx: ParseContext): PreparedRuleBlock {
 function createBlockBase(ctx: ParseContext): PreparedBlockBase {
   return {
     contentLeft: ctx.contentLeft,
+    direction: null,
     marginTop: 0,
     markerClassName: null,
     markerLeft: null,
@@ -1030,26 +1079,34 @@ export function materializeMessageBlocks(message: ChatMessageInstance): BlockLay
   )
 }
 
-// One rail per quote, from the top of its first block to the bottom of its
-// last, across the gaps between them. A quote's blocks are consecutive, so its
-// first block opens the rail and each later one extends it.
+// A quote's rail runs beside its blocks, from the top of the first to the
+// bottom of the last, across the gaps between them. Each block starts from its
+// own side, indented past every enclosing quote's rail, so a quote with blocks
+// on both sides paints one rail per run of blocks on the same side. A quote's
+// blocks are consecutive, so each block extends its quote's last rail, or opens
+// a new one where the side changes.
 export function materializeQuoteRails(message: ChatMessageInstance): QuoteRailLayout[] {
-  const rails = new Map<Quote, QuoteRailLayout>()
+  const rails: QuoteRailLayout[] = []
+  const lastRails = new Map<Quote, QuoteRailLayout>()
   const { blocks } = message.prepared
   for (let index = 0; index < blocks.length; index++) {
+    const block = blocks[index]!
     const frame = message.frame.blocks[index]!
-    const quotes = blocks[index]!.quotes
-    for (let depth = 0; depth < quotes.length; depth++) {
-      const quote = quotes[depth]!
-      const rail = rails.get(quote)
-      if (rail === undefined) {
-        rails.set(quote, { height: frame.height, left: quote.railLeft, top: frame.top })
+    // A message with no paragraph at all is left-to-right.
+    const direction = block.direction ?? 'ltr'
+    for (let depth = 0; depth < block.quotes.length; depth++) {
+      const quote = block.quotes[depth]!
+      const rail = lastRails.get(quote)
+      if (rail === undefined || rail.direction !== direction) {
+        const opened = { direction, height: frame.height, left: quote.railLeft, top: frame.top }
+        lastRails.set(quote, opened)
+        rails.push(opened)
       } else {
         rail.height = frame.top + frame.height - rail.top
       }
     }
   }
-  return Array.from(rails.values())
+  return rails
 }
 
 function materializeBlockLayout(
@@ -1068,7 +1125,7 @@ function materializeBlockLayout(
         lines.push({
           fragments: line.fragments.map(fragment => ({
             href: block.hrefs[fragment.itemIndex] ?? null,
-            leadingGap: fragment.gapBefore,
+            spaceBefore: fragment.gapBefore > 0,
             style: block.styles[fragment.itemIndex]!,
             text: fragment.text,
           })),
@@ -1077,6 +1134,7 @@ function materializeBlockLayout(
 
       return {
         contentLeft: frame.contentLeft,
+        direction: block.direction,
         height: frame.height,
         kind: 'inline',
         lineHeight: frame.lineHeight,
@@ -1084,7 +1142,10 @@ function materializeBlockLayout(
         markerClassName: frame.markerClassName,
         markerLeft: frame.markerLeft,
         markerText: frame.markerText,
+        paragraphStyle: block.paragraphStyle,
         top: frame.top,
+        // Rows span the final bubble, so they stay inside a shrinkwrapped one.
+        width: Math.max(1, bubbleContentWidth - frame.contentLeft),
       }
     }
 
@@ -1095,6 +1156,8 @@ function materializeBlockLayout(
       const layout = layoutWithLines(block.prepared, innerWidth, frame.lineHeight)
       return {
         contentLeft: frame.contentLeft,
+        // A message with no paragraph at all is left-to-right.
+        direction: block.direction ?? 'ltr',
         height: frame.height,
         kind: 'code',
         lines: layout.lines,
@@ -1110,6 +1173,7 @@ function materializeBlockLayout(
       if (block.kind !== 'rule') throw new Error('Rule block/frame mismatch')
       return {
         contentLeft: frame.contentLeft,
+        direction: block.direction ?? 'ltr',
         height: frame.height,
         kind: 'rule',
         markerClassName: frame.markerClassName,
