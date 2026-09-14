@@ -36,6 +36,13 @@ or new API or rich failures.
 `bun test` and `bun run check` pass. The baseline advances to `ee5607e`, and the
 ordinary snapshots were regenerated against it.
 
+Chrome and Safari benchmark snapshots were refreshed from this branch: three
+foreground runs each at DPR 2, visible and focused, with Chrome on the 2560x1440
+screen and Safari on the 1440x2560 screen. Chrome reads `prepare()` at 8.55 ms
+(8.40 on the parent branch) and hot `layout()` at 0.0880 ms (0.0870); Safari reads
+11.0 ms (11.0) and 0.105 ms (0.105). Long-form corpus totals read 117.2 ms in
+Chrome (117.5) and 345 ms in Safari (345).
+
 ## Removing segLevels
 
 This change starts from main after #256. `prepareWithSegments()` no longer
