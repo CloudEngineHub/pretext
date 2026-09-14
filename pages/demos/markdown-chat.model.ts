@@ -90,7 +90,8 @@ export type TextStyle = {
   letterSpacing: number // CSS px
 }
 
-// A quote paints one rail at its absolute left, beside every block it holds.
+// A quote paints a rail beside every block it holds, railLeft from the block's
+// starting side.
 type Quote = {
   railLeft: number
 }
@@ -1078,35 +1079,34 @@ export function materializeMessageBlocks(message: ChatMessageInstance): BlockLay
   )
 }
 
-// One rail per quote, from the top of its first block to the bottom of its
-// last, across the gaps between them. A quote's blocks are consecutive, so its
-// first block opens the rail and each later one extends it. The first block
-// also has the direction of the quote's first paragraph, else of the enclosing
-// one, which inheritDirection gives the quote's own code blocks and rules, so
-// the rail starts from their side.
+// A quote's rail runs beside its blocks, from the top of the first to the
+// bottom of the last, across the gaps between them. Each block starts from its
+// own side, indented past every enclosing quote's rail, so a quote with blocks
+// on both sides paints one rail per run of blocks on the same side. A quote's
+// blocks are consecutive, so each block extends its quote's last rail, or opens
+// a new one where the side changes.
 export function materializeQuoteRails(message: ChatMessageInstance): QuoteRailLayout[] {
-  const rails = new Map<Quote, QuoteRailLayout>()
+  const rails: QuoteRailLayout[] = []
+  const lastRails = new Map<Quote, QuoteRailLayout>()
   const { blocks } = message.prepared
   for (let index = 0; index < blocks.length; index++) {
     const block = blocks[index]!
     const frame = message.frame.blocks[index]!
+    // A message with no paragraph at all is left-to-right.
+    const direction = block.direction ?? 'ltr'
     for (let depth = 0; depth < block.quotes.length; depth++) {
       const quote = block.quotes[depth]!
-      const rail = rails.get(quote)
-      if (rail === undefined) {
-        rails.set(quote, {
-          // A message with no paragraph at all is left-to-right.
-          direction: block.direction ?? 'ltr',
-          height: frame.height,
-          left: quote.railLeft,
-          top: frame.top,
-        })
+      const rail = lastRails.get(quote)
+      if (rail === undefined || rail.direction !== direction) {
+        const opened = { direction, height: frame.height, left: quote.railLeft, top: frame.top }
+        lastRails.set(quote, opened)
+        rails.push(opened)
       } else {
         rail.height = frame.top + frame.height - rail.top
       }
     }
   }
-  return Array.from(rails.values())
+  return rails
 }
 
 function materializeBlockLayout(

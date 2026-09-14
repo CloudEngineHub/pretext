@@ -363,7 +363,7 @@ function createBlockShell(
   return wrapper
 }
 
-// A right-to-left quote starts its rail from the right, like its blocks.
+// A rail starts from the side of the blocks it runs beside.
 function renderQuoteRail(rail: QuoteRailLayout, contentInsetX: number): HTMLElement {
   const node = document.createElement('div')
   node.className = 'quote-rail'
