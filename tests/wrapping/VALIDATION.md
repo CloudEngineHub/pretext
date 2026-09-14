@@ -82,6 +82,13 @@ in three corpora, where time ranges such as `8:30-4:30` and `ה-16` stay whole. 
 baseline advances to `108c98a`, and the ordinary snapshots were regenerated against
 it.
 
+Chrome and Safari benchmark snapshots were refreshed from this branch: three
+foreground runs each at DPR 2, visible and focused, with Chrome on the 2560x1440
+screen and Safari on the 2560x1440 screen. Chrome reads `prepare()` at 8.75 ms
+(8.85 on the parent branch) and hot `layout()` at 0.0880 ms (0.0885); Safari reads
+11.0 ms (11.0) and 0.100 ms (0.105). Long-form corpus totals read 110.6 ms in
+Chrome (111.6) and 344 ms in Safari (346).
+
 ## Emergency breaks inside kinsoku units
 
 This runtime change starts from published main `cc8619a` (#287). A CJK unit that
