@@ -365,7 +365,9 @@ function parseBlockTokens(tokens: readonly Token[], ctx: ParseContext): Prepared
 
     switch (token.type) {
       case 'space':
-      case 'def': {
+      case 'def':
+      // A task item's checkbox is drawn as its list marker.
+      case 'checkbox': {
         continue
       }
 
@@ -669,7 +671,6 @@ function collectInlinePieceLines(
         }
 
         case 'checkbox': {
-          pushPiece(createTextPiece(token.checked ? '[x] ' : '[ ] ', marks, variant))
           continue
         }
 
