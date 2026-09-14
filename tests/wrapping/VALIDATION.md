@@ -104,6 +104,13 @@ zh-zhufu adds one call in the Chrome and Firefox profiles, and mixed-app-text an
 the accuracy grid don't change. The baseline advances to `b69f72e`, and the ordinary
 snapshots were regenerated against it.
 
+Chrome and Safari benchmark snapshots were refreshed from this branch: three
+foreground runs each at DPR 2, visible and focused, with Chrome on the 2560x1440
+screen and Safari on the 2560x1440 screen. Chrome reads `prepare()` at 8.95 ms
+(8.80 on the parent branch) and hot `layout()` at 0.0882 ms (0.0882); Safari reads
+12.0 ms (11.0) and 0.105 ms (0.100). Long-form corpus totals read 114.9 ms in
+Chrome (117.2) and 350 ms in Safari (346).
+
 ## Firefox breaks after a slash before a letter
 
 This runtime change starts from published main `3f6bf0c` (#289). Installed Firefox
