@@ -64,9 +64,11 @@ type MarkState = {
   href: string | null
 }
 
+// Geometry of the enclosing lists and quotes, in the order they nest.
 type ParseContext = {
+  contentLeft: number
   listDepth: number
-  quoteDepth: number
+  quoteRailLefts: number[]
 }
 
 type InlinePiece = {
@@ -342,7 +344,7 @@ export function findVisibleRange(
 
 function parseMarkdownBlocks(markdown: string): PreparedBlock[] {
   const tokens = marked.lexer(markdown, { gfm: true })
-  return parseBlockTokens(tokens, { listDepth: 0, quoteDepth: 0 })
+  return parseBlockTokens(tokens, { contentLeft: 0, listDepth: 0, quoteRailLefts: [] })
 }
 
 function parseBlockTokens(tokens: readonly Token[], ctx: ParseContext): PreparedBlock[] {
@@ -389,8 +391,9 @@ function parseBlockTokens(tokens: readonly Token[], ctx: ParseContext): Prepared
         appendBlockGroup(
           blocks,
           parseBlockTokens(token.tokens ?? [], {
+            contentLeft: ctx.contentLeft + BLOCKQUOTE_INDENT,
             listDepth: ctx.listDepth,
-            quoteDepth: ctx.quoteDepth + 1,
+            quoteRailLefts: [...ctx.quoteRailLefts, ctx.contentLeft + RAIL_OFFSET],
           }),
           RICH_BLOCK_GAP,
         )
@@ -441,44 +444,33 @@ function parseBlockTokens(tokens: readonly Token[], ctx: ParseContext): Prepared
 
 function buildListBlocks(token: Tokens.List, ctx: ParseContext): PreparedBlock[] {
   const blocks: PreparedBlock[] = []
-  const itemCtx: ParseContext = {
-    listDepth: ctx.listDepth + 1,
-    quoteDepth: ctx.quoteDepth,
-  }
+  // Top-level lists stay flush; a nested list steps in from its item's content.
+  const markerLeft = ctx.contentLeft + (ctx.listDepth === 0 ? 0 : LIST_NESTING_INDENT)
 
   for (let index = 0; index < token.items.length; index++) {
     const item = token.items[index]!
+    const markerText = resolveListMarkerText(token, item, index)
+    const itemCtx: ParseContext = {
+      contentLeft: markerLeft + measureMarkerWidth(markerText) + LIST_MARKER_GAP,
+      listDepth: ctx.listDepth + 1,
+      quoteRailLefts: ctx.quoteRailLefts,
+    }
     let itemBlocks = parseBlockTokens(item.tokens, itemCtx)
     if (itemBlocks.length === 0) {
       itemBlocks = buildPlainTextBlocks(item.text, 'body', itemCtx)
     }
+    if (itemBlocks.length === 0) continue
 
-    decorateListItemBlocks(itemBlocks, resolveListMarkerText(token, item, index), resolveListMarkerClassName(token, item))
+    itemBlocks[0] = {
+      ...itemBlocks[0]!,
+      markerClassName: resolveListMarkerClassName(token, item),
+      markerLeft,
+      markerText,
+    } satisfies PreparedBlock
     appendBlockGroup(blocks, itemBlocks, LIST_ITEM_GAP)
   }
 
   return blocks
-}
-
-function decorateListItemBlocks(
-  blocks: PreparedBlock[],
-  markerText: string,
-  markerClassName: string,
-): void {
-  if (blocks.length === 0) return
-
-  const markerArea = measureMarkerWidth(markerText) + LIST_MARKER_GAP
-  for (let index = 0; index < blocks.length; index++) {
-    blocks[index] = shiftBlock(blocks[index]!, markerArea)
-  }
-
-  const firstBlock = blocks[0]!
-  blocks[0] = {
-    ...firstBlock,
-    markerClassName,
-    markerLeft: firstBlock.contentLeft - markerArea,
-    markerText,
-  } satisfies PreparedBlock
 }
 
 function buildPlainTextBlocks(
@@ -561,21 +553,13 @@ function buildRuleBlock(ctx: ParseContext): PreparedRuleBlock {
 }
 
 function createBlockBase(ctx: ParseContext): PreparedBlockBase {
-  const listIndent = Math.max(0, ctx.listDepth - 1) * LIST_NESTING_INDENT
-  const contentLeft = listIndent + ctx.quoteDepth * BLOCKQUOTE_INDENT
-  const quoteRailLefts: number[] = []
-
-  for (let depth = 0; depth < ctx.quoteDepth; depth++) {
-    quoteRailLefts.push(listIndent + depth * BLOCKQUOTE_INDENT + RAIL_OFFSET)
-  }
-
   return {
-    contentLeft,
+    contentLeft: ctx.contentLeft,
     marginTop: 0,
     markerClassName: null,
     markerLeft: null,
     markerText: null,
-    quoteRailLefts,
+    quoteRailLefts: ctx.quoteRailLefts,
   }
 }
 
@@ -811,13 +795,6 @@ function appendBlockGroup(
       marginTop: index === 0 ? (target.length === 0 ? 0 : firstMargin) : block.marginTop,
     } satisfies PreparedBlock)
   }
-}
-
-function shiftBlock(block: PreparedBlock, delta: number): PreparedBlock {
-  return {
-    ...block,
-    contentLeft: block.contentLeft + delta,
-  } satisfies PreparedBlock
 }
 
 function resolveListMarkerText(
