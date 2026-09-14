@@ -60,6 +60,21 @@ ARABIC SEMICOLON is EX too, while `:`, `.` and U+060C are IS and keep a
 following Arabic word (LB29). Firefox also breaks after BA such as `|` before a
 letter, which symbol chains do not model.
 
+After CJK text, engines don't decide those pairs alike (#274). Blink reads its
+pair table for any two characters up to U+00FF, whatever comes before them, so
+`丙!a` keeps `!` with `a`, as `x!a` does. WebKit reaches ICU at the CJK character,
+takes ICU's next break, and skips ahead over ASCII letters without reading its
+table (`BreakablePositions.h`). So ICU's rules decide before a letter and the
+table before a number: `丙!|a` breaks and `丙!1` doesn't. WebKit skips ICU
+entirely when CL or CP follows an ideograph, so `}` keeps a letter after Han and
+Hangul, but not after kana. Firefox sends those words to ICU4X. Where UAX #14 keeps
+the pair, as IS, CP, PO and straight quotes do before a letter or number, all three
+engines keep it, and Pretext joins that text to the CJK text's last unit, which
+still takes grapheme breaks when it doesn't fit. Only punctuation joins, never a
+letter inside a CJK unit such as the Arabic in `中（ابب）`, and a closing curly
+quote doesn't: LB19 no longer keeps the text after it, and Chrome breaks before
+`tail` in `中文中文””tail`.
+
 No break follows ZWJ (LB8a), so a ZWJ at the start of the text or after a ZWSP,
 tab or hard break stays with the next word. A ZWJ right after a space belongs to
 that space's grapheme cluster. Browsers break between them, but a line that

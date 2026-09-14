@@ -72,6 +72,7 @@ test('boundary, rich and flat #210 reproductions are required', () => {
     { text: '-0.475', font: '16px Arial, sans-serif', width: 40.1, lineHeight: 20, whiteSpace: 'normal' },
     { text: '≥-100nA', font: '16px Arial, sans-serif', width: 48.1, lineHeight: 20, whiteSpace: 'normal' },
     { text: '(试验前-试验后)/试验前', font: '20px Arial', width: 32.1, lineHeight: 28, whiteSpace: 'pre-wrap' },
+    { text: '甲乙丙.first_week_voltage}户', font: '16px Arial, sans-serif', width: 168.1, lineHeight: 20, whiteSpace: 'normal' },
     ...(['normal', 'pre-wrap'] as const).flatMap(whiteSpace => ([
       ['2025-08-01 00:00:00，2025-08-01 00:00:00', 155],
       ['a 00:00:00，b', 84],

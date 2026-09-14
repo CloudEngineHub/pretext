@@ -17,6 +17,35 @@ All accuracy, letter-spacing and corpus result payloads are unchanged; refreshed
 snapshots change only provenance and environment records. Runtime sources and
 the baseline pin are unchanged, so no runtime benchmark was needed.
 
+## Text after a mark that ends CJK text
+
+This change starts from main after #275. After CJK text, Pretext attached punctuation that
+can't start a line, such as the `.` in `丙.`, to the CJK text, but then started the next word
+as its own break unit, so lines could break between `丙.` and `first_week_voltage}` (#274).
+Chrome, Safari and Firefox keep them together wherever UAX #14 keeps the pair: IS, CP and PO
+before a letter or number, and straight quotes before anything. The first merge pass and the
+CJK unit builder now take the text after such punctuation, and the joined unit still takes
+grapheme breaks when it doesn't fit an empty line. Letters inside a CJK unit don't join, and
+neither does text after a closing curly quote, where Chrome breaks; the first installed gate
+lost rows on both. Where engines disagree, as for `!`, `}`, `/` and `|` before a letter,
+Pretext keeps main's behavior, and ENGINE_FOLLOWUPS.md records what each engine does.
+
+The installed gate ran against the previous pin `b569d86`: Chrome 153 through the
+Playwright transport, Safari 26.5.2 and Firefox 155 natively, both directions.
+Chrome fixes 79 LTR and 37 RTL metrics (42 in `signed-spacing/straight-double`, 32 in `script-prefix-heldout`, 24 in `reported/#274`, 18 in `straight-double`); Safari fixes 80 LTR and 38 RTL metrics (42 in `signed-spacing/straight-double`, 34 in `script-prefix-heldout`, 24 in `reported/#274`, 18 in `straight-double`); Firefox fixes 79 LTR and 37 RTL metrics (42 in `signed-spacing/straight-double`, 32 in `script-prefix-heldout`, 24 in `reported/#274`, 18 in `straight-double`). No leg loses a metric, and none has required failures, execution errors,
+or new API or rich failures.
+
+`bun test` and `bun run check` pass. The baseline advances to `6f22449`, and the
+ordinary snapshots were regenerated against it.
+
+Chrome and Safari benchmark snapshots were refreshed from this branch: three
+foreground runs each at DPR 2, visible and focused, with Chrome on the 2560x1440
+screen and Safari on the 2560x1440 screen (the parent branch's runs used the
+1440x2560 screen). Chrome reads `prepare()` at 8.50 ms (8.50 on the parent branch)
+and hot `layout()` at 0.0877 ms (0.0885); Safari reads 11.0 ms (11.0) and 0.105 ms
+(0.103). Long-form corpus totals read 116.8 ms in Chrome (113.7) and 362 ms in
+Safari (346).
+
 ## A space after an overflowing first word
 
 This change starts from main after #271. Pretext walks lines with a fast loop for plain text

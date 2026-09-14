@@ -1487,6 +1487,32 @@ describe('prepare invariants', () => {
     expect(prepareWithSegments('테스트입니다.', FONT).segments.at(-1)).toBe('다.')
   })
 
+  test('keeps text after a mark that ends CJK text where UAX #14 keeps the pair', () => {
+    // #274. IS, CP, PO and QU keep a following letter or number; EX and
+    // full-width marks don't, and a hyphen keeps its own rules.
+    for (const [text, expected] of [
+      ['甲乙丙.first_week_voltage}户', ['甲', '乙', '丙.first_week_voltage}', '户']],
+      ['甲乙丙,1234户', ['甲', '乙', '丙,1234', '户']],
+      ['甲乙丙)first户', ['甲', '乙', '丙)first', '户']],
+      ['甲乙丙%first户', ['甲', '乙', '丙%first', '户']],
+      ['가나다.first', ['가', '나', '다.first']],
+      ['甲乙丙.foo-bar', ['甲', '乙', '丙.foo-', 'bar']],
+      ['甲乙丙?first户', ['甲', '乙', '丙?', 'first', '户']],
+      ['甲乙丙。first户', ['甲', '乙', '丙。', 'first', '户']],
+      // LB19 doesn't keep the text after a closing curly quote, and Chrome breaks there.
+      ['中文””tail', ['中', '文””', 'tail']],
+    ] as const) {
+      expect(prepareWithSegments(text, FONT).segments).toEqual([...expected])
+    }
+    // A joined run that doesn't fit an empty line still breaks between graphemes.
+    const prepared = prepareWithSegments('丙.first_week_voltage', FONT)
+    const width = measureWidth('丙.first', FONT) + 0.1
+    const lines = layoutWithLines(prepared, width, LINE_HEIGHT).lines
+    expect(lines.length).toBeGreaterThan(1)
+    expect(lines.map(line => line.text).join('')).toBe('丙.first_week_voltage')
+    expect(collectStreamedLines(prepared, width)).toEqual(lines)
+  })
+
   test('engine profiles follow the layout engine the user agent names', async () => {
     const { getLayoutEngine } = await import('./measurement.ts')
     const mac = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)'
