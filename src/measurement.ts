@@ -103,13 +103,12 @@ export type EngineProfile = {
   // remain before the next one (FontCascade::tabWidth).
   skipNarrowTabStops: boolean
   // Where rich-inline items break near a boundary. Blink runs one line-break
-  // iterator over the text of the whole inline formatting context, so every
-  // break fact near a boundary comes from the joined text. WebKit finds breaks
-  // inside each inline box from that box's own text, and decides a boundary
-  // between boxes from the previous box's last two characters. Gecko collects a
-  // word across text frames until a space, but it segments joined Myanmar text
-  // differently from Blink and that is not modeled, so Gecko and unknown engines
-  // keep breaking at every item boundary.
+  // iterator over the text of the whole inline formatting context, and Gecko
+  // collects a word across text frames until a space and breaks it in one pass,
+  // so every break fact near a boundary comes from the joined text. WebKit finds
+  // breaks inside each inline box from that box's own text, and decides a
+  // boundary between boxes from the previous box's last two characters. Engines
+  // Pretext doesn't recognize keep breaking at every item boundary.
   inlineItemBreaks: 'joined-text' | 'item-text' | 'item-boundary'
 }
 
@@ -302,7 +301,7 @@ export function getEngineProfile(language: BreakLanguage = 'root'): EngineProfil
     unfitHyphenRetreat: engine === 'blink' ? 'reduced-width' : 'none',
     breakOnlyAfterNextLine: engine === 'webkit',
     skipNarrowTabStops: engine === 'webkit',
-    inlineItemBreaks: engine === 'blink' ? 'joined-text' : engine === 'webkit' ? 'item-text' : 'item-boundary',
+    inlineItemBreaks: engine === 'blink' || engine === 'gecko' ? 'joined-text' : engine === 'webkit' ? 'item-text' : 'item-boundary',
   }
   // Apple ICU opens its normal line rules for Japanese and Korean content.
   const normalRules = engine === 'webkit' ? { ...profile, breakBeforeConditionalJapaneseStarter: true } : profile

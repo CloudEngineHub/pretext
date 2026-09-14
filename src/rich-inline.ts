@@ -94,8 +94,9 @@ type InternalPreparedRichInline = PreparedRichInline & {
 type PreparedRichInlineItem = {
   break: 'normal' | 'never'
   // An ordinary break at the boundary before this item: collapsed whitespace,
-  // or a break the joined text offers there. Where every item boundary breaks,
-  // only collapsed whitespace or a trailing ZWSP before the item sets it.
+  // or a break the joined text offers there. In engines Pretext doesn't
+  // recognize, where every item boundary breaks, only collapsed whitespace or a
+  // trailing ZWSP before the item sets it.
   breakBefore: boolean
   // Following items can continue this item's last unbreakable run. This is
   // the width they add to that run before the next ordinary break.
@@ -453,8 +454,9 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
   // A collapsed SPACE can have zero or negative advance. Its existence and
   // ordinary break opportunity must survive independently of that number.
   let pendingGapWidth: number | null = null
-  // Where every item boundary breaks, a trailing ZWSP still marks the break
-  // before the next item, so the line wraps there before splitting that item.
+  // In engines Pretext doesn't recognize, every item boundary breaks, and a
+  // trailing ZWSP still marks the break before the next item, so the line wraps
+  // there before splitting that item.
   let breakAfterPreviousItem = false
   let previousItem: PreparedRichInlineItem | null = null
   // Collapsible spaces always break and atomic items always allow a break on

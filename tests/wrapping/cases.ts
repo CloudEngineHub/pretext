@@ -145,12 +145,11 @@ export function generateCases(measure: Measure, selection: CaseSelection): Wrapp
   add({ ...defaults, family: 'maintained/space-after-overflow', origins: ['maintained/space-after-overflow'],
     text: '字 字', width: 5, required: ['height', 'lineCount', 'api'] })
 
-  // Same-font inline items break where their joined text breaks in Chromium;
-  // WebKit breaks inside each item from its own text. Pretext still breaks at
-  // every item boundary in Firefox, so the two rows required in Chrome and Safari
-  // only observe Firefox. They sit inside wide native bands where all three
-  // browsers agree. The others observe engine-sensitive shapes, including the
-  // fitting control after the comma row.
+  // Same-font inline items break where their joined text breaks in Chromium and
+  // Gecko; WebKit breaks inside each item from its own text. The two required
+  // rows sit inside wide native bands where all three browsers agree. The others
+  // observe engine-sensitive shapes, including the fitting control after the
+  // comma row.
   const richBoundary = (label: string, parts: string[], width: number, options: Partial<Omit<WrappingCase, 'id' | 'text' | 'parts' | 'width'>> = {}): void => {
     add({ ...defaults, family: 'maintained/rich-boundaries', origins: [`maintained/rich-boundaries/${label}`],
       context: { kind: 'installed', lang: 'en' }, lang: 'en', ...options, text: parts.join(''), parts, width, nativeItems: true })
@@ -159,14 +158,8 @@ export function generateCases(measure: Measure, selection: CaseSelection): Wrapp
   const zh = { context: { kind: 'installed', lang: 'zh' }, lang: 'zh' } as const
   const th = { context: { kind: 'installed', lang: 'th' }, lang: 'th' } as const
   const perItem = 'WebKit finds breaks inside each inline box from its own text, so spans and one text node wrap differently at this width.'
-  const everyBoundary = 'Pretext breaks at every item boundary in Firefox, where Gecko keeps a word together across text frames.'
-  for (const [label, parts, width] of [
-    ['parenthesized-item', ['see (', 'docs', ') now please'], 64],
-    ['split-word', ['Hello wor', 'ld again and again'], 75],
-  ] as const) {
-    richBoundary(label, [...parts], width, { required: ['richHeight'], browsers: ['chrome', 'safari'] })
-    richBoundary(label, [...parts], width, { browsers: ['firefox'], note: everyBoundary })
-  }
+  richBoundary('parenthesized-item', ['see (', 'docs', ') now please'], 64, { required: ['richHeight'] })
+  richBoundary('split-word', ['Hello wor', 'ld again and again'], 75, { required: ['richHeight'] })
   richBoundary('leading-comma', community, 106)
   richBoundary('leading-comma-fits', community, 112)
   richBoundary('after-hyphen', ['A long line with state-', 'of-the-art tools and more words'], 55)
@@ -180,7 +173,7 @@ export function generateCases(measure: Measure, selection: CaseSelection): Wrapp
   })
   richBoundary('myanmar-split-word', ['\u1019\u103C\u1014\u103A\u1019\u102C\u1018\u102C\u101E', '\u102C\u101E\u100A\u103A\u101C\u103E\u1015\u101E\u1031\u102C\u1018\u102C\u101E\u102C\u1016\u103C\u1005\u103A\u101E\u100A\u103A'], 88, {
     context: { kind: 'installed', lang: 'my' }, lang: 'my', font: '16px "Myanmar Sangam MN"', lineHeight: 24,
-    note: `${perItem} Gecko segments this joined text differently from Chromium, so Pretext breaks at every item boundary in Firefox.`,
+    note: `${perItem} The item boundary splits a cluster: the second item starts with a vowel sign that shapes with the consonant before it, so measuring the items separately adds about 10px in Chrome and Firefox.`,
   })
 
   // Native breaks that depend on the page language. Preparation reads `<html lang>`,
