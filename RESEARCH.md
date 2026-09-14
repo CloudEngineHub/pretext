@@ -142,6 +142,27 @@ prefer that break in an overflowing word. Before Arabic-Indic, Devanagari or
 mathematical digits Chrome keeps the hyphen too, and so does Safari except before
 Arabic-Indic digits; Pretext breaks there in both profiles.
 
+`/` isn't in Gecko's table of ASCII characters that never break
+(`kNonBreakableASCII` in `nsLineBreaker.cpp`), so Firefox sends every word
+containing it to ICU4X, which breaks after `/` (SY) wherever UAX #14 allows it.
+The SY row of ICU4X 2.1.1's line table breaks before AL, ID, OP, PR, PO, B2, SA
+and emoji, and keeps `/` before BA, CJ, CL, CP, EX, GL, HY, IN, IS, NS, QU and SY
+(LB13 and others), HL (LB21b) and NU (LB25). So installed Firefox 155 paints
+`https:// | example.com`, `example.com/ | docs`, `and/ | or`, `a/ | (b)`,
+`a/ | #b` and `see / | docs`, keeps `1/2`, `example.com/2026`, `a/"b"`, `a/.b`
+and `a/עברית`, breaks after a combining mark on `/` rather than before it, and
+never breaks before `/`, after CJK text either. Keep-all, pre-wrap, letter
+spacing, right-to-left paragraphs and rich-inline items split next to `/` give the
+same breaks, and a unit that doesn't fit fills graphemes but still ends its line
+at that break (`ryname/ | anotherl`). Chrome and Safari keep `/` with a following
+ASCII letter or symbol from their pair tables, and break before Latin-1, Cyrillic,
+Arabic, Thai and CJK letters as ICU does. The Gecko profile answers the pair in
+the same boundary rule as the hyphen pair, from the generated class table, so
+every merge breaks there. A URL run stops after `https://` or at the first `/`
+before a letter, and a URL query unit forms only when no such break comes before
+`?`; without one, `-` and `/` before a letter break inside the query too, as in
+Firefox.
+
 U+2007 FIGURE SPACE is UAX #14 class GL, like NBSP and NNBSP, even though it is
 a space separator. Chrome and Safari treat only SPACE, TAB and LF (Safari also
 LS/PS) as breakable spaces, and their pair tables stop at U+00FF, so U+2007 goes

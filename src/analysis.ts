@@ -1051,7 +1051,7 @@ function mergeUrlRuns(segmentation: MergedSegmentation, normalized: string, prof
       while (
         j < segmentation.len &&
         !isTextRunBoundary(segmentation.kinds[j]!) &&
-        numericAffixBoundary(normalized, segmentation.starts[j]!, profile) !== false
+        geckoPairBoundary(normalized, segmentation.starts[j]!, profile) !== false
       ) {
         const nextText = segmentation.texts[j]!
         urlParts.push(nextText)
@@ -1083,7 +1083,7 @@ function mergeUrlRuns(segmentation: MergedSegmentation, normalized: string, prof
     while (
       j < segmentation.len &&
       !isTextRunBoundary(segmentation.kinds[j]!) &&
-      numericAffixBoundary(normalized, segmentation.starts[j]!, profile) !== false
+      geckoPairBoundary(normalized, segmentation.starts[j]!, profile) !== false
     ) {
       queryParts.push(segmentation.texts[j]!)
       j++
@@ -1290,20 +1290,30 @@ function isAsciiBoundary(left: string, right: string): boolean {
 // opener attachment. Unicode neighbors retain the existing compatibility tier.
 // ICU4X also keeps a hyphen-minus (HY) with a following number (NU), ASCII or
 // not (LB25), so Firefox keeps `2025-08-01` whole, where the pair tables of
-// Chromium and WebKit break `-` before an ASCII digit.
-function numericAffixBoundary(source: string, boundary: number, profile: AnalysisProfile): boolean | null {
+// Chromium and WebKit break `-` before an ASCII digit. And ICU4X breaks after
+// `/` (SY) wherever UAX #14 allows it: before a letter of any script, an opener,
+// PR, PO or emoji, but not before a mark, punctuation that no break precedes,
+// HL (LB21b), NU (LB25) or CJ, which Gecko's strict rules read as NS. So Firefox
+// breaks `https://|example.com` and `example.com/|docs`, where the pair tables
+// keep `/` with an ASCII letter.
+function geckoPairBoundary(source: string, boundary: number, profile: AnalysisProfile): boolean | null {
   if (!profile.geckoAsciiLineBreaks || boundary <= 0 || boundary >= source.length) return null
   const left = getLastSignificantCodePoint(source, boundary)
   if (left === null) return null
   const rightCodePoint = source.codePointAt(boundary)!
-  if (getLineBreakClass(left.codePointAt(0)!) === LineBreakClass.HY && getLineBreakClass(rightCodePoint) === LineBreakClass.NU) return true
+  const leftClass = getLineBreakClass(left.codePointAt(0)!)
+  const rightClass = getLineBreakClass(rightCodePoint)
+  if (leftClass === LineBreakClass.HY && rightClass === LineBreakClass.NU) return true
+  if (
+    leftClass === LineBreakClass.SY && rightClass !== LineBreakClass.CJ &&
+    lineBreakClassesBreak(leftClass, rightClass === LineBreakClass.SA ? LineBreakClass.AL : rightClass, rightCodePoint)
+  ) return false
   const right = String.fromCodePoint(rightCodePoint)
   if (!isAsciiBoundary(left, right)) return null
   // Marks after a space or a line break have no base (UAX #14 LB9) and count as
   // letters (LB10), as marks at the start of the text do.
   if (left !== source.slice(boundary - left.length, boundary)) {
-    const baseClass = getLineBreakClass(left.codePointAt(0)!)
-    if (baseClass === LineBreakClass.BK || baseClass === LineBreakClass.SP) return null
+    if (leftClass === LineBreakClass.BK || leftClass === LineBreakClass.SP) return null
   }
   const leftAffix = isLineBreakNumericAffix(left)
   const rightAffix = isLineBreakNumericAffix(right)
@@ -1427,7 +1437,7 @@ function mergeNumericRuns(segmentation: MergedSegmentation, normalized: string, 
         for (let i = 0; i < parts.length; i++) {
           const part = parts[i]!
           const splitText = i < parts.length - 1 ? `${part}-` : part + suffix
-          if (i > 0 && numericAffixBoundary(normalized, start + offset, profile) === true) {
+          if (i > 0 && geckoPairBoundary(normalized, start + offset, profile) === true) {
             texts[texts.length - 1] += splitText
           } else {
             texts.push(splitText)
@@ -1458,7 +1468,7 @@ function mergeNumericRuns(segmentation: MergedSegmentation, normalized: string, 
         j < segmentation.len &&
         segmentation.kinds[j] === 'text' &&
         isNumericRunSegment(segmentation.texts[j]!) &&
-        numericAffixBoundary(normalized, segmentation.starts[j]!, profile) !== false
+        geckoPairBoundary(normalized, segmentation.starts[j]!, profile) !== false
       ) {
         mergedParts.push(segmentation.texts[j]!)
         j++
@@ -1468,7 +1478,7 @@ function mergeNumericRuns(segmentation: MergedSegmentation, normalized: string, 
       if (
         j < segmentation.len &&
         segmentation.kinds[j] === 'text' &&
-        numericAffixBoundary(normalized, segmentation.starts[j]!, profile) !== false
+        geckoPairBoundary(normalized, segmentation.starts[j]!, profile) !== false
       ) {
         const finalText = segmentation.texts[j]!
         const suffixStart = getNumericClosingSuffixStart(finalText)
@@ -1524,7 +1534,7 @@ function mergeNoSpaceWordChains(
       while (
         j < segmentation.len &&
         segmentation.kinds[j] === 'text' &&
-        (numericAffixBoundary(normalized, segmentation.starts[j]!, profile) ?? canJoinNoSpaceWordBoundary(
+        (geckoPairBoundary(normalized, segmentation.starts[j]!, profile) ?? canJoinNoSpaceWordBoundary(
           normalized,
           segmentation.starts[j]!,
           segmentation.texts[j - 1]!,
@@ -1723,7 +1733,7 @@ function buildMergedSegmentation(
       const pieceEndsWithMyanmarMedialGlue = endsWithMyanmarMedialGlue(piece.text)
       const pieceEnd = piece.start + piece.text.length
       const pieceEndsWithZeroWidthJoiner = piece.text.charCodeAt(piece.text.length - 1) === 0x200D
-      const boundaryJoin = numericAffixBoundary(normalized, piece.start, profile) ??
+      const boundaryJoin = geckoPairBoundary(normalized, piece.start, profile) ??
         (tailContainsCJK || pieceContainsCJK ? null :
           openingPunctuationJoinsPrevious(normalized, piece.text, profile, piece.start))
       let appendToTail = false
@@ -1890,7 +1900,7 @@ function buildMergedSegmentation(
       isPunctuationGlueCluster(mergedTexts[i]!) &&
       mergedKinds[i - 1] === 'text' &&
       !isCJK(mergedTexts[i - 1]!) &&
-      (numericAffixBoundary(normalized, mergedStarts[i]!, profile) ??
+      (geckoPairBoundary(normalized, mergedStarts[i]!, profile) ??
         openingPunctuationJoinsPrevious(normalized, mergedTexts[i]!, profile, mergedStarts[i]!)) !== false &&
       !breaksAfterExclamation(normalized, mergedStarts[i]!, profile, wordBreak)
     ) {
@@ -1914,7 +1924,7 @@ function buildMergedSegmentation(
       nextText !== null &&
       mergedKinds[nextLiveIndex] === 'text' &&
       (
-        (numericAffixBoundary(normalized, mergedStarts[i]! + text.length, profile) ??
+        (geckoPairBoundary(normalized, mergedStarts[i]! + text.length, profile) ??
           // A cluster with no text before it must not erase the break
           // browsers keep after it, such as '?' before a word.
           (isForwardStickyClusterSegment(text) &&
@@ -2072,7 +2082,7 @@ function mergeKeepAllTextSegments(
       if (groupStart >= 0 && kind !== 'control') {
         const start = segmentation.starts[i]!
         const runEnd = getKeepAllRunEnd(normalized, start, segmentation.texts[i - 1]!, profile)
-        if (runEnd === 'end' || numericAffixBoundary(normalized, start, profile) === false) {
+        if (runEnd === 'end' || geckoPairBoundary(normalized, start, profile) === false) {
           flushGroup(i)
         } else if (runEnd === 'split') {
           (splits ??= []).push(i)
@@ -2282,7 +2292,7 @@ function mergeKeepAllTextUnits(
     const unit = units[i]!
     if (groupStart >= 0) {
       const runEnd = getKeepAllRunEnd(segText, unit.start, units[i - 1]!.text, profile)
-      if (runEnd === 'end' || numericAffixBoundary(segText, unit.start, profile) === false) {
+      if (runEnd === 'end' || geckoPairBoundary(segText, unit.start, profile) === false) {
         flushGroup(i)
       } else if (runEnd === 'split') {
         (splits ??= []).push(i)
@@ -2355,7 +2365,7 @@ export function getBreakablePreferredBreaks(text: string, profile: AnalysisProfi
     // Gecko keeps any hyphen with a following number (LB25), so an overflowing
     // word fills graphemes there.
     const numericSign = gs.segment === '-' &&
-      (isNumericHyphen(text, gs.index) || numericAffixBoundary(text, gs.index + 1, profile) === true)
+      (isNumericHyphen(text, gs.index) || geckoPairBoundary(text, gs.index + 1, profile) === true)
     // A segment that starts with a hyphen kept with its letter (LB20a) offers
     // no break after it, so an overflowing word fills graphemes there.
     const wordInitial = gs.index === 0 && isHyphenPiece(gs.segment) && keepsWordInitialHyphen(text, 0, gs.segment.length, profile)

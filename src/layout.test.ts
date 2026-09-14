@@ -639,6 +639,39 @@ describe('boundary-policy regressions', () => {
     expect(getBreakablePreferredBreaks('a-\u0661\u0662', gecko)).toBeNull()
   })
 
+  test('the Gecko profile breaks after a slash before a letter', async () => {
+    const { analyzeText } = await import('./analysis.ts')
+    const gecko = { ...baseProfile, geckoAsciiLineBreaks: true, keepAllPairModel: 'icu4x-classes' as const, breakAroundEastAsianQuotes: false, wordInitialHyphenLetters: 'none' as const }
+    // ICU4X breaks after `/` (SY) wherever UAX #14 allows it, before a letter of
+    // any script, an opener or `#`: Firefox paints `https:// | example.com` and
+    // `example.com/ | docs`, and ends an overflowing unit's line there. The pair
+    // tables of Chromium and WebKit keep `/` with an ASCII letter.
+    for (const [text, geckoTexts, blinkTexts] of [
+      ['https://example.com/docs?a=b', ['https://', 'example.com/', 'docs?', 'a=b'], ['https://example.com/docs?', 'a=b']],
+      ['and/or', ['and/', 'or'], ['and/or']],
+      ['~/src/layout.ts', ['~/', 'src/', 'layout.ts'], ['~/src/layout.ts']],
+      ['a//b', ['a//', 'b'], ['a//b']],
+      ['a/(b)', ['a/', '(b)'], ['a/(b)']],
+      ['a/#b', ['a/', '#b'], ['a/#b']],
+      ['a/\u0301b', ['a/\u0301', 'b'], ['a/\u0301b']],
+      ['a/\u0639\u0631\u0628\u064a', ['a/', '\u0639\u0631\u0628\u064a'], ['a/\u0639\u0631\u0628\u064a']],
+      ['a/\u0e44\u0e17\u0e22', ['a/', '\u0e44\u0e17\u0e22'], ['a/\u0e44\u0e17\u0e22']],
+      ['https://example.com/2026/09/docs', ['https://', 'example.com/2026/09/', 'docs'], ['https://example.com/2026/09/docs']],
+      // Pretext still breaks before `/` after CJK text, which UAX #14 forbids (ENGINE_FOLLOWUPS.md:29).
+      ['\u6f22/abc', ['\u6f22', '/', 'abc'], ['\u6f22', '/abc']],
+    ] as const) {
+      expect(analyzeText(text, gecko).texts).toEqual([...geckoTexts])
+      expect(analyzeText(text, baseProfile).texts).toEqual([...blinkTexts])
+    }
+    expect(analyzeText('and/or', gecko, 'normal', 'keep-all').texts).toEqual(['and/', 'or'])
+    expect(analyzeText('\u6f22/abc', gecko, 'normal', 'keep-all').texts).toEqual(['\u6f22/', 'abc'])
+    expect(analyzeText('a src/layout.ts', gecko, 'pre-wrap').texts).toEqual(['a', ' ', 'src/', 'layout.ts'])
+    // No break before a quote, IS, BA, a Hebrew letter (LB21b) or a number (LB25).
+    for (const text of ['a/"b"', 'a/.b', 'a/|b', 'a/\u05e2\u05d1\u05e8', '1/2', 'a/1', 'docs/']) {
+      expect(analyzeText(text, gecko).texts).toEqual(analyzeText(text, baseProfile).texts)
+    }
+  })
+
   test('ZWJ and a word-initial hyphen keep the following character', async () => {
     const { analyzeText, getBreakablePreferredBreaks } = await import('./analysis.ts')
     const profile = baseProfile
