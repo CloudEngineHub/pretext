@@ -550,7 +550,7 @@ function keepsConditionalJapaneseStarter(text: string, profile: AnalysisProfile)
   return !profile.breakBeforeConditionalJapaneseStarter && getLineBreakClass(text.codePointAt(0)!) === LineBreakClass.CJ
 }
 
-// Whether a grapheme or a code point cannot start a line after CJK text.
+// Whether a grapheme or a code point cannot start a line after text.
 function prohibitsCJKLineStart(text: string, profile: AnalysisProfile): boolean {
   const lineBreakClass = getCJKLineStartClass(text)
   return lineBreakClass === LineBreakClass.CL || lineBreakClass === LineBreakClass.EX || lineBreakClass === LineBreakClass.NS ||
@@ -1653,6 +1653,53 @@ function mergeGlueConnectedTextRuns(segmentation: MergedSegmentation): MergedSeg
   }
 }
 
+// ICU4X, which Firefox uses for every word that isn't plain ASCII, hands a run of
+// two or more SA code points (any SA script; Khmer, Lao, Myanmar and Thai have
+// models) to its dictionary or LSTM segmenter, which reports the end of the run as
+// a break whatever follows (icu_segmenter line.rs and complex/mod.rs). So Firefox
+// breaks `ខ្មែរ|，`, where Chrome and Safari keep the mark.
+function endsWithComplexScriptRun(text: string): boolean {
+  const last = previousCodePointStart(text, text.length)
+  if (last <= 0 || getLineBreakClass(text.codePointAt(last)!) !== LineBreakClass.SA) return false
+  return getLineBreakClass(text.codePointAt(previousCodePointStart(text, last))!) === LineBreakClass.SA
+}
+
+// No break precedes closing punctuation or a nonstarter, whatever text comes
+// before it (UAX #14 LB13, LB21), so a text segment that starts with a character
+// that can't start a line joins the text segment before it, as `，` joins `xxxx`
+// or `(10:30)`. This runs after the URL, numeric and no-space merges: they skip
+// text that contains CJK, so an earlier join would hide the boundaries inside
+// `(10:30)` or `foo@bar.com`. The Gecko profile keeps the break after a run of
+// complex-script code points.
+function attachLineStartProhibitedText(segmentation: MergedSegmentation, profile: AnalysisProfile): MergedSegmentation {
+  const { texts, isWordLike, kinds, starts } = segmentation
+  let len = 0
+  for (let i = 0; i < segmentation.len; i++) {
+    const text = texts[i]!
+    if (
+      len > 0 &&
+      kinds[i] === 'text' &&
+      kinds[len - 1] === 'text' &&
+      prohibitsCJKLineStart(String.fromCodePoint(text.codePointAt(0)!), profile) &&
+      !(profile.geckoAsciiLineBreaks && endsWithComplexScriptRun(texts[len - 1]!))
+    ) {
+      texts[len - 1] += text
+      isWordLike[len - 1] = isWordLike[len - 1]! || isWordLike[i]!
+      continue
+    }
+    texts[len] = text
+    isWordLike[len] = isWordLike[i]!
+    kinds[len] = kinds[i]!
+    starts[len] = starts[i]!
+    len++
+  }
+  texts.length = len
+  isWordLike.length = len
+  kinds.length = len
+  starts.length = len
+  return { len, texts, isWordLike, kinds, starts }
+}
+
 function carryTrailingForwardStickyAcrossCJKBoundary(segmentation: MergedSegmentation): void {
   const { texts, kinds, starts } = segmentation
 
@@ -1982,12 +2029,12 @@ function buildMergedSegmentation(
     kinds: mergedKinds,
     starts: mergedStarts,
   })
-  const mergedRuns = mergeNoSpaceWordChains(
+  const mergedRuns = attachLineStartProhibitedText(mergeNoSpaceWordChains(
     mergeNumericRuns(mergeUrlRuns(compacted, normalized, profile), normalized, profile),
     normalized,
     profile,
     wordBreak,
-  )
+  ), profile)
   carryTrailingForwardStickyAcrossCJKBoundary(mergedRuns)
 
   for (let i = 0; i < mergedRuns.len - 1; i++) {

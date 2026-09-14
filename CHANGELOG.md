@@ -45,6 +45,7 @@
 - CJK text that stays together on a line, such as `漢。`, `「漢` or a `word-break: keep-all` group, now breaks between characters when it doesn't fit a line, as browsers do, instead of overflowing. Lines also no longer break between a run of opening brackets and the word after it, as in `「「tail`, or inside that word, as in `「tail`, or before a combining mark that ends a word before CJK text or an opening bracket, such as U+3099 after `ト` (#288).
 - In Firefox, a hyphen now stays on the same line as a number after it, as in `2025-08-01`, `log-2026` or `8:30-4:30`, as Firefox does. A word that doesn't fit a line breaks between characters there instead (#289).
 - In Firefox, lines can now break after `/` before a letter or a symbol such as `#` or `@`, as in `https://example.com`, `example.com/docs` or `and/or`, as Firefox does. A number after `/` still stays on the same line, as in `1/2` (#290).
+- Closing punctuation and marks that can't start a line, such as `，`, `」`, `：`, `。` or `！`, now stay on the same line as the text before them when that text isn't CJK, as in `xxxx，`, `x“value”，` or `😀。`, as browsers do. A word that doesn't fit a line with its mark breaks before the mark instead. In Firefox, and in Safari on pages that aren't Japanese or Korean, small kana and `ー` also stay with a letter or digit before them, as in `約3ヶ月`.
 
 ## 0.0.9 - 2026-09-07
 

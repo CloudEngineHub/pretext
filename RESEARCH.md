@@ -85,6 +85,26 @@ letter inside a CJK unit such as the Arabic in `中（ابب）`, and a closing 
 quote doesn't: LB19 no longer keeps the text after it, and Chrome breaks before
 `tail` in `中文中文””tail`.
 
+No break precedes closing punctuation or a nonstarter, whatever comes before it
+(LB13, LB21). For these marks above U+00FF all three engines reach ICU or ICU4X, and
+installed Chrome, Safari and Firefox keep `，」：。）！？、` and `」。` after `xxxx` or
+`1234` whenever the text plus the mark fits an empty line, breaking before the mark
+only in an emergency. So Pretext joins a text segment whose first code point passes
+its kinsoku test to the text segment before it, whatever that text is. Small kana
+and `ー` follow the profile there as after CJK text: Chrome breaks before them after
+letters and digits on every page, Safari only on `ja` and `ko` pages, and Firefox
+never. The join runs after the URL, numeric and no-space merges, which skip text
+that contains CJK: joining in the first pass left `(10:|30)，`, `foo@|bar.com，`
+and `x“|value”，`. It runs before the forward carry, which then moves `「` from
+`739x「` onto `value」!`. The first pass keeps its own join after CJK text, since
+it also keeps ASCII punctuation there: without it, `丙|.first` and `中文|.b` break.
+A space, zero-width space or other segment kind still separates a mark from the
+text before it; no installed run has observed `a ，b`. Firefox breaks before the
+mark after a run of complex-script code points: ICU4X hands a run of two or more
+SA code points to its dictionary or LSTM segmenter, which reports the end of the
+run as a break whatever follows, even for an SA script with no model, so Firefox
+paints `a ខ្មែរ / ，b`, and the Gecko profile keeps that break.
+
 No break follows ZWJ (LB8a), so a ZWJ at the start of the text or after a ZWSP,
 tab or hard break stays with the next word. A ZWJ right after a space belongs to
 that space's grapheme cluster. Browsers break between them, but a line that
