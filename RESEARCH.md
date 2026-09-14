@@ -491,6 +491,11 @@ contains text of that direction, so on an RTL page `A`, WJ, space, then a
 parenthesized Latin letter and Hebrew letter paints the unkerned letter too. On
 an RTL page headless WebKit also needs about a hyphen's width more to fit a word
 that ends in SHY before a space, so preparation takes no kerning across SHY.
+An explicit embedding, override or isolate also leaves the direction unknown,
+but only in the space's own paragraph, since explicit levels end with their
+paragraph (UAX #9 X8). Installed Safari lays out `AA`, WJ, space, `B`, newline,
+U+202A, `x` in pre-wrap 16px Arial at 20.9px, between the word's kerned and
+unkerned widths, in 3 lines; checking the whole text for controls predicted 4.
 With letter spacing the same measurement also moves the space's gap onto the
 item and clamps the item at zero. The per-grapheme gap model does not represent
 that; applying only the kerning lost native successes where the fit at a

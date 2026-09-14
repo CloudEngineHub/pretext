@@ -1336,6 +1336,13 @@ describe('prepare invariants', () => {
     ])
   })
 
+  test('keeps the query text of a URL run with a later www. segment', () => {
+    // The query segment starts after the whole URL run, not at the inner
+    // www. segment. keep-all slices normalized text by segment starts.
+    expect(prepareWithSegments('アwww.¿www.?־', FONT, { wordBreak: 'keep-all' }).segments).toEqual(['アwww.¿www.?', '־'])
+    expect(prepareWithSegments('x中www.a/www.b?q', FONT, { wordBreak: 'keep-all' }).segments).toEqual(['x中www.a/www.b?', 'q'])
+  })
+
   test('prefers hyphen-like boundaries inside overlong breakable runs', () => {
     const text = 'https://alpha-beta-gamma-delta.example.test/path'
     const prepared = prepareWithSegments(text, FONT)
@@ -2974,6 +2981,7 @@ test('the Firefox profile keeps breaking rich items at every item boundary', () 
   // modeled, so the parenthesis that starts the third item can still start a
   // line. The joined text would keep "(docs)" whole.
   const measurementUrl = new URL('./measurement.ts', import.meta.url).href
+  const layoutUrl = new URL('./layout.ts', import.meta.url).href
   const richInlineUrl = new URL('./rich-inline.ts', import.meta.url).href
   const script = `
     Object.defineProperty(globalThis, 'navigator', { configurable: true, value: {
@@ -2996,13 +3004,18 @@ test('the Firefox profile keeps breaking rich items at every item boundary', () 
     walkRichInlineLineRanges(prepared, 70, range => {
       lines.push(materializeRichInlineLineRange(prepared, range).fragments.map(fragment => fragment.text))
     })
-    console.log(JSON.stringify({ inlineItemBreaks: getEngineProfile().inlineItemBreaks, lines }))
+    const { prepareWithSegments } = await import(${JSON.stringify(layoutUrl)})
+    const marks = ['\\u064B$', 'x\\n\\u064B$', 'x \\u064B$'].map(text => prepareWithSegments(text, '16px Test', { whiteSpace: 'pre-wrap' }).segments)
+    console.log(JSON.stringify({ inlineItemBreaks: getEngineProfile().inlineItemBreaks, lines, marks }))
   `
   const child = Bun.spawnSync([process.execPath, '-e', script])
   if (child.exitCode !== 0) throw new Error(child.stderr.toString())
   expect(JSON.parse(child.stdout.toString())).toEqual({
     inlineItemBreaks: 'item-boundary',
     lines: [['see (', 'docs'], [') now '], ['please']],
+    // A mark after a line break or a space has no base and counts as a letter,
+    // as at the start of the text, so it stays with a following numeric prefix.
+    marks: [['\u064B$'], ['x', '\n', '\u064B$'], ['x', ' ', '\u064B$']],
   })
 })
 
@@ -3053,7 +3066,9 @@ test('the Safari profile keeps the kerning between a word and a following space'
     }
     const rich = []
     walkRichInlineLineRanges(prepareRichInline([{ text: 'A\\u2060 B', font: '16px Test' }]), 8.5, line => rich.push(line.width))
-    console.log(JSON.stringify({ kerning, spaced, wordMeasurements, remainder: {
+    const paragraphs = [['AA\\u2060 B\\n\\u202Ax', 'pre-wrap'], ['AA\\u2060 B\\u2029\\u202Ax', 'normal'], ['AA\\u2060 B\\u202Ax', 'normal']]
+      .map(([text, whiteSpace]) => prepareWithSegments(text, '16px Test', { whiteSpace }).widths[0])
+    console.log(JSON.stringify({ kerning, spaced, wordMeasurements, paragraphs, remainder: {
       lines: layoutWithLines(remainder, 8.5, 20).lines.map(line => [line.text, line.width, line.start.segmentIndex, line.start.graphemeIndex, line.end.segmentIndex, line.end.graphemeIndex]),
       signed,
       streamed,
@@ -3063,7 +3078,7 @@ test('the Safari profile keeps the kerning between a word and a following space'
   `
   const child = Bun.spawnSync([process.execPath, '-e', script])
   if (child.exitCode !== 0) throw new Error(child.stderr.toString())
-  const { kerning, spaced, wordMeasurements, remainder } = JSON.parse(child.stdout.toString())
+  const { kerning, spaced, wordMeasurements, paragraphs, remainder } = JSON.parse(child.stdout.toString())
   expect(kerning).toEqual([
     // The kerned word fits and the space hangs.
     { lines: [['AA ', 19], ['B', 8]], lineCount: 2 },
@@ -3082,6 +3097,10 @@ test('the Safari profile keeps the kerning between a word and a following space'
   // alone, and keeps the -1px kerning.
   expect(spaced).toEqual([['QA ', 17], ['XA ', 17], ['q', 8]])
   expect(wordMeasurements).toEqual(['QA ', 'XA '])
+  // An explicit bidi control ends with its paragraph, at a newline in pre-wrap
+  // or at U+2029, so one in a later paragraph keeps the kerning. One in the same
+  // paragraph leaves the space's direction unknown.
+  expect(paragraphs).toEqual([19, 19, 20])
   // An emergency break inside A and the word joiner leaves the joiner alone
   // with the -1px kerning. Breaking keeps that signed advance, so the cursors
   // match the internal walker's, but every reported width is clamped at zero.

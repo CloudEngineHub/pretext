@@ -2,10 +2,11 @@ import { marked, type Token, type Tokens } from 'marked'
 
 import {
   layoutWithLines,
-  measureLineStats,
   measureNaturalWidth,
   prepareWithSegments,
+  walkLineRanges,
   type LayoutLine,
+  type LineStats,
   type PreparedTextWithSegments,
 } from '../../src/layout.ts'
 import {
@@ -52,6 +53,12 @@ const MONO_FAMILY = '"SF Mono", ui-monospace, Menlo, Monaco, monospace'
 const HEADING_LETTER_SPACING_EM = -0.01
 const INLINE_CODE_EXTRA_WIDTH = 12
 const IMAGE_EXTRA_WIDTH = 14
+// A paragraph takes the direction of its first strong character, the way HTML
+// dir=auto reads text. Scripts stand in for bidi classes: letters of these
+// right-to-left scripts, RLM and ALM count as right-to-left, and any other
+// letter, spacing mark or LRM as left-to-right.
+const STRONG_CHARACTER = /[\p{L}\p{Mc}\u200E\u200F\u061C]/u
+const RIGHT_TO_LEFT_CHARACTER = /[\p{Script=Hebrew}\p{Script=Arabic}\p{Script=Syriac}\p{Script=Thaana}\p{Script=Nko}\p{Script=Samaritan}\p{Script=Mandaic}\p{Script=Adlam}\p{Script=Hanifi_Rohingya}\u200F\u061C]/u
 
 // The page paints text with the fonts and letter spacing Pretext measured, so
 // typography lives here and the CSS doesn't restate it.
@@ -83,11 +90,17 @@ export type TextStyle = {
   letterSpacing: number // CSS px
 }
 
+// A quote paints a rail beside every block it holds, railLeft from the block's
+// starting side.
+type Quote = {
+  railLeft: number
+}
+
 // Geometry of the enclosing lists and quotes, in the order they nest.
 type ParseContext = {
   contentLeft: number
   listDepth: number
-  quoteRailLefts: number[]
+  quotes: Quote[]
 }
 
 type InlinePiece = {
@@ -100,18 +113,21 @@ type InlinePiece = {
 
 type PreparedBlockBase = {
   contentLeft: number
+  direction: 'ltr' | 'rtl' | null // a code block or rule has none until inheritDirection
   marginTop: number
   markerClassName: string | null
   markerLeft: number | null
   markerText: string | null
-  quoteRailLefts: number[]
+  quotes: Quote[]
 }
 
 type PreparedInlineBlock = PreparedBlockBase & {
   kind: 'inline'
+  direction: 'ltr' | 'rtl'
   flow: PreparedRichInline
   hrefs: Array<string | null>
   lineHeight: number
+  paragraphStyle: TextStyle // unmarked text, which paints the spaces between items
   styles: TextStyle[]
 }
 
@@ -135,7 +151,7 @@ export type PreparedChatMessage = {
 
 export type InlineFragmentLayout = {
   href: string | null
-  leadingGap: number
+  spaceBefore: boolean // a collapsed space precedes it on its line
   style: TextStyle
   text: string
 }
@@ -146,7 +162,6 @@ type BlockFrameBase = {
   markerClassName: string | null
   markerLeft: number | null
   markerText: string | null
-  quoteRailLefts: number[]
   top: number
 }
 
@@ -170,6 +185,7 @@ type BlockFrame = InlineBlockFrame | CodeBlockFrame | RuleBlockFrame
 
 type InlineBlockLayout = {
   contentLeft: number
+  direction: 'ltr' | 'rtl'
   height: number
   kind: 'inline'
   lineHeight: number
@@ -179,36 +195,44 @@ type InlineBlockLayout = {
   markerClassName: string | null
   markerLeft: number | null
   markerText: string | null
-  quoteRailLefts: number[]
+  paragraphStyle: TextStyle
   top: number
+  width: number
 }
 
 type CodeBlockLayout = {
   contentLeft: number
+  direction: 'ltr' | 'rtl'
   height: number
   kind: 'code'
   lines: LayoutLine[]
   markerClassName: string | null
   markerLeft: number | null
   markerText: string | null
-  quoteRailLefts: number[]
   top: number
   width: number
 }
 
 type RuleBlockLayout = {
   contentLeft: number
+  direction: 'ltr' | 'rtl'
   height: number
   kind: 'rule'
   markerClassName: string | null
   markerLeft: number | null
   markerText: string | null
-  quoteRailLefts: number[]
   top: number
   width: number
 }
 
 export type BlockLayout = InlineBlockLayout | CodeBlockLayout | RuleBlockLayout
+
+export type QuoteRailLayout = {
+  direction: 'ltr' | 'rtl'
+  height: number
+  left: number
+  top: number
+}
 
 export type MessageFrame = {
   blocks: BlockFrame[]
@@ -363,7 +387,7 @@ export function findVisibleRange(
 
 function parseMarkdownBlocks(markdown: string): PreparedBlock[] {
   const tokens = marked.lexer(markdown, { gfm: true })
-  return parseBlockTokens(tokens, { contentLeft: 0, listDepth: 0, quoteRailLefts: [] })
+  return parseBlockTokens(tokens, { contentLeft: 0, listDepth: 0, quotes: [] })
 }
 
 function parseBlockTokens(tokens: readonly Token[], ctx: ParseContext): PreparedBlock[] {
@@ -412,7 +436,7 @@ function parseBlockTokens(tokens: readonly Token[], ctx: ParseContext): Prepared
           parseBlockTokens(token.tokens ?? [], {
             contentLeft: ctx.contentLeft + BLOCKQUOTE_INDENT,
             listDepth: ctx.listDepth,
-            quoteRailLefts: [...ctx.quoteRailLefts, ctx.contentLeft + RAIL_OFFSET],
+            quotes: [...ctx.quotes, { railLeft: ctx.contentLeft + RAIL_OFFSET }],
           }),
           RICH_BLOCK_GAP,
         )
@@ -458,6 +482,7 @@ function parseBlockTokens(tokens: readonly Token[], ctx: ParseContext): Prepared
     }
   }
 
+  inheritDirection(blocks)
   return blocks
 }
 
@@ -472,7 +497,7 @@ function buildListBlocks(token: Tokens.List, ctx: ParseContext): PreparedBlock[]
     const itemCtx: ParseContext = {
       contentLeft: markerLeft + measureMarkerWidth(markerText) + LIST_MARKER_GAP,
       listDepth: ctx.listDepth + 1,
-      quoteRailLefts: ctx.quoteRailLefts,
+      quotes: ctx.quotes,
     }
     let itemBlocks = parseBlockTokens(item.tokens, itemCtx)
     if (itemBlocks.length === 0) {
@@ -489,7 +514,22 @@ function buildListBlocks(token: Tokens.List, ctx: ParseContext): PreparedBlock[]
     appendBlockGroup(blocks, itemBlocks, LIST_ITEM_GAP)
   }
 
+  inheritDirection(blocks)
   return blocks
+}
+
+// A code block or rule has no text to read a direction from. It takes the
+// direction of the first paragraph in its list item, list or quote, else in
+// the enclosing one, out to the message.
+function inheritDirection(blocks: PreparedBlock[]): void {
+  let direction: 'ltr' | 'rtl' | null = null
+  for (let index = 0; index < blocks.length && direction === null; index++) {
+    direction = blocks[index]!.direction
+  }
+  if (direction === null) return
+  for (let index = 0; index < blocks.length; index++) {
+    blocks[index]!.direction ??= direction
+  }
 }
 
 function buildPlainTextBlocks(
@@ -517,9 +557,11 @@ function buildPreparedInlineBlocks(
   ctx: ParseContext,
 ): PreparedBlock[] {
   const blocks: PreparedBlock[] = []
+  // Hard breaks split a paragraph into blocks, but the paragraph has one direction.
+  const direction = resolveDirection(lines)
 
   for (let index = 0; index < lines.length; index++) {
-    const block = buildPreparedInlineBlock(lines[index]!, variant, ctx)
+    const block = buildPreparedInlineBlock(lines[index]!, variant, direction, ctx)
     if (block === null) continue
     blocks.push({
       ...block,
@@ -533,12 +575,14 @@ function buildPreparedInlineBlocks(
 function buildPreparedInlineBlock(
   pieces: InlinePiece[],
   variant: InlineVariant,
+  direction: 'ltr' | 'rtl',
   ctx: ParseContext,
 ): PreparedInlineBlock | null {
   if (pieces.length === 0) return null
 
   return {
     ...createBlockBase(ctx),
+    direction,
     flow: prepareRichInline(pieces.map(piece => ({
       text: piece.text,
       font: piece.style.font,
@@ -549,8 +593,20 @@ function buildPreparedInlineBlock(
     hrefs: pieces.map(piece => piece.href),
     kind: 'inline',
     lineHeight: lineHeightForVariant(variant),
+    paragraphStyle: resolveTextStyle(variant, EMPTY_MARK_STATE),
     styles: pieces.map(piece => piece.style),
   }
+}
+
+function resolveDirection(lines: readonly InlinePiece[][]): 'ltr' | 'rtl' {
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    const pieces = lines[lineIndex]!
+    for (let index = 0; index < pieces.length; index++) {
+      const strong = STRONG_CHARACTER.exec(pieces[index]!.text)
+      if (strong !== null) return RIGHT_TO_LEFT_CHARACTER.test(strong[0]) ? 'rtl' : 'ltr'
+    }
+  }
+  return 'ltr'
 }
 
 function buildCodeBlock(text: string, ctx: ParseContext): PreparedCodeBlock {
@@ -575,11 +631,12 @@ function buildRuleBlock(ctx: ParseContext): PreparedRuleBlock {
 function createBlockBase(ctx: ParseContext): PreparedBlockBase {
   return {
     contentLeft: ctx.contentLeft,
+    direction: null,
     marginTop: 0,
     markerClassName: null,
     markerLeft: null,
     markerText: null,
-    quoteRailLefts: ctx.quoteRailLefts,
+    quotes: ctx.quotes,
   }
 }
 
@@ -947,7 +1004,6 @@ function layoutBlockFrame(
         markerClassName: block.markerClassName,
         markerLeft: block.markerLeft,
         markerText: block.markerText,
-        quoteRailLefts: block.quoteRailLefts,
         top,
         usedWidth: maxLineWidth,
       }
@@ -956,7 +1012,7 @@ function layoutBlockFrame(
     case 'code': {
       const boxWidth = Math.max(1, contentWidth - block.contentLeft)
       const innerWidth = Math.max(1, boxWidth - CODE_BLOCK_PADDING_X * 2)
-      const { lineCount, maxLineWidth } = measureLineStats(block.prepared, innerWidth)
+      const { lineCount, maxLineWidth } = measureCodeLineStats(block.prepared, innerWidth)
       return {
         contentLeft: block.contentLeft,
         height: lineCount * block.lineHeight + CODE_BLOCK_PADDING_Y * 2,
@@ -965,7 +1021,6 @@ function layoutBlockFrame(
         markerClassName: block.markerClassName,
         markerLeft: block.markerLeft,
         markerText: block.markerText,
-        quoteRailLefts: block.quoteRailLefts,
         top,
         width: maxLineWidth + CODE_BLOCK_PADDING_X * 2,
       }
@@ -979,11 +1034,29 @@ function layoutBlockFrame(
         markerClassName: block.markerClassName,
         markerLeft: block.markerLeft,
         markerText: block.markerText,
-        quoteRailLefts: block.quoteRailLefts,
         top,
       }
     }
   }
+}
+
+// A pre-wrap line that soft-wraps after a space keeps the space, and Pretext
+// counts it in the line's width. Browsers hang that space past the end of the
+// line (CSS Text 3 §4.1.2, §8.2), so it paints nothing and never sizes a box.
+// Spaces before a newline or the end of the code still count, as in a browser's
+// max-content width.
+function measureCodeLineStats(prepared: PreparedTextWithSegments, maxWidth: number): LineStats {
+  let maxLineWidth = 0
+  const lineCount = walkLineRanges(prepared, maxWidth, line => {
+    const last = line.end.segmentIndex - 1
+    const isSoftWrapAfterSpace =
+      line.end.graphemeIndex === 0 &&
+      line.end.segmentIndex < prepared.segments.length &&
+      prepared.kinds[last] === 'preserved-space'
+    const width = isSoftWrapAfterSpace ? line.width - prepared.widths[last]! : line.width
+    if (width > maxLineWidth) maxLineWidth = width
+  })
+  return { lineCount, maxLineWidth }
 }
 
 function getUsedBlockWidth(block: BlockFrame): number {
@@ -1006,6 +1079,36 @@ export function materializeMessageBlocks(message: ChatMessageInstance): BlockLay
   )
 }
 
+// A quote's rail runs beside its blocks, from the top of the first to the
+// bottom of the last, across the gaps between them. Each block starts from its
+// own side, indented past every enclosing quote's rail, so a quote with blocks
+// on both sides paints one rail per run of blocks on the same side. A quote's
+// blocks are consecutive, so each block extends its quote's last rail, or opens
+// a new one where the side changes.
+export function materializeQuoteRails(message: ChatMessageInstance): QuoteRailLayout[] {
+  const rails: QuoteRailLayout[] = []
+  const lastRails = new Map<Quote, QuoteRailLayout>()
+  const { blocks } = message.prepared
+  for (let index = 0; index < blocks.length; index++) {
+    const block = blocks[index]!
+    const frame = message.frame.blocks[index]!
+    // A message with no paragraph at all is left-to-right.
+    const direction = block.direction ?? 'ltr'
+    for (let depth = 0; depth < block.quotes.length; depth++) {
+      const quote = block.quotes[depth]!
+      const rail = lastRails.get(quote)
+      if (rail === undefined || rail.direction !== direction) {
+        const opened = { direction, height: frame.height, left: quote.railLeft, top: frame.top }
+        lastRails.set(quote, opened)
+        rails.push(opened)
+      } else {
+        rail.height = frame.top + frame.height - rail.top
+      }
+    }
+  }
+  return rails
+}
+
 function materializeBlockLayout(
   block: PreparedBlock,
   frame: BlockFrame,
@@ -1022,7 +1125,7 @@ function materializeBlockLayout(
         lines.push({
           fragments: line.fragments.map(fragment => ({
             href: block.hrefs[fragment.itemIndex] ?? null,
-            leadingGap: fragment.gapBefore,
+            spaceBefore: fragment.gapBefore > 0,
             style: block.styles[fragment.itemIndex]!,
             text: fragment.text,
           })),
@@ -1031,6 +1134,7 @@ function materializeBlockLayout(
 
       return {
         contentLeft: frame.contentLeft,
+        direction: block.direction,
         height: frame.height,
         kind: 'inline',
         lineHeight: frame.lineHeight,
@@ -1038,8 +1142,10 @@ function materializeBlockLayout(
         markerClassName: frame.markerClassName,
         markerLeft: frame.markerLeft,
         markerText: frame.markerText,
-        quoteRailLefts: frame.quoteRailLefts,
+        paragraphStyle: block.paragraphStyle,
         top: frame.top,
+        // Rows span the final bubble, so they stay inside a shrinkwrapped one.
+        width: Math.max(1, bubbleContentWidth - frame.contentLeft),
       }
     }
 
@@ -1050,13 +1156,14 @@ function materializeBlockLayout(
       const layout = layoutWithLines(block.prepared, innerWidth, frame.lineHeight)
       return {
         contentLeft: frame.contentLeft,
+        // A message with no paragraph at all is left-to-right.
+        direction: block.direction ?? 'ltr',
         height: frame.height,
         kind: 'code',
         lines: layout.lines,
         markerClassName: frame.markerClassName,
         markerLeft: frame.markerLeft,
         markerText: frame.markerText,
-        quoteRailLefts: frame.quoteRailLefts,
         top: frame.top,
         width: frame.width,
       }
@@ -1066,12 +1173,12 @@ function materializeBlockLayout(
       if (block.kind !== 'rule') throw new Error('Rule block/frame mismatch')
       return {
         contentLeft: frame.contentLeft,
+        direction: block.direction ?? 'ltr',
         height: frame.height,
         kind: 'rule',
         markerClassName: frame.markerClassName,
         markerLeft: frame.markerLeft,
         markerText: frame.markerText,
-        quoteRailLefts: frame.quoteRailLefts,
         top: frame.top,
         width: Math.max(1, bubbleContentWidth - frame.contentLeft),
       }
