@@ -34,6 +34,7 @@
 - In Safari, small kana and `ー` after CJK text can now start a line only on pages whose `<html lang>` is Japanese or Korean, as Safari does (#249).
 - In Chrome, `ー` can now start a line after CJK text, as Chrome does (#250).
 - In Firefox, and in engines Pretext doesn't recognize, small kana no longer start a line after CJK text, as Firefox does (#250).
+- In Firefox, a combining mark after a line break or a space now stays with a following `$`, `%`, `+` or `\`, as it does at the start of the text. At narrow widths such text can also take one line fewer: after `어`, a space and U+3099, `$"` no longer breaks between `$` and `"`.
 
 ## 0.0.9 - 2026-09-07
 

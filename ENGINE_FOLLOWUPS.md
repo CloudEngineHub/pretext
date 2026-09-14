@@ -89,6 +89,7 @@ Open engine work: decisions for the maintainer, known gaps and harness debt.
 - Firefox fits lines at app-unit rounding of the width, fits negative letter spacing before preserved spaces differently, and paints hidden controls at zero advance plus letter spacing.
 - Firefox trims U+1680 at line edges in normal white-space.
 - Trace Firefox's hang and trim rules for spaces, CR, FF and tabs at line end before encoding any rule for controls.
+- The Gecko profile counts a combining mark after a space or line break as a letter before `$`, `%`, `+` or `\` (UAX #14 LB9 and LB10), as at the start of the text, so it no longer breaks `$"` after `어`, a space and U+3099. No installed Firefox run has observed these shapes.
 - Find a witness for whether `direction: rtl` alone enables Firefox document bidi.
 - Record `Intl.Segmenter` word-likeness for emoji, U+2605 and digit strings in installed Safari and Firefox.
 - The iOS profile patch has no device evidence: iOS fonts, older iOS ICU without the Hebrew LB20a rule, EU alternative engines, and Edge's iPad desktop user agent.
