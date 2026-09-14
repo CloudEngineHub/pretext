@@ -17,6 +17,31 @@ All accuracy, letter-spacing and corpus result payloads are unchanged; refreshed
 snapshots change only provenance and environment records. Runtime sources and
 the baseline pin are unchanged, so no runtime benchmark was needed.
 
+## Safari kerning across paragraphs
+
+This change starts from main after #270. In the Safari profile, a word ending in an invisible
+format character such as a word joiner is measured together with a following space, so the
+pair keeps its kerning. That was skipped when an explicit bidi control such as U+202A appeared
+anywhere in the text, even in another paragraph. The check now scans only the space's own bidi
+paragraph, since UAX #9 X8 ends embeddings at a paragraph separator. The maintained
+`space-kerning` case `AA⁠ B`, a newline and `‪x` in pre-wrap at about 20.9px is 3 lines in
+installed Safari; main predicted 4.
+
+The installed gate ran against the previous pin `4833f8e`: Chrome 153 through the
+Playwright transport, Safari 26.5.2 and Firefox 155 natively, both directions.
+Safari fixes 3 LTR and 0 RTL metrics (3 in `maintained/space-kerning`). No leg loses a metric, and none has required failures, execution errors,
+or new API or rich failures.
+
+`bun test` and `bun run check` pass. The baseline advances to `8ab3383`, and the
+ordinary snapshots were regenerated against it.
+
+Chrome and Safari benchmark snapshots were refreshed from this branch: three
+foreground runs each at DPR 2, visible and focused, with Chrome on the 2560x1440
+screen and Safari on the 2560x1440 screen. Chrome reads `prepare()` at 8.65 ms
+(8.45 on the parent branch) and hot `layout()` at 0.0885 ms (0.0887); Safari reads
+12.0 ms (11.0) and 0.105 ms (0.103). Long-form corpus totals read 118.7 ms in
+Chrome (117.9) and 348 ms in Safari (347).
+
 ## Firefox marks after a line break or space
 
 This change starts from main after #269. In the Firefox profile, the numeric affix check
