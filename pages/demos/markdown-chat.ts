@@ -1,5 +1,4 @@
 import {
-  buildConversationFrame,
   CODE_BLOCK_PADDING_X,
   CODE_BLOCK_PADDING_Y,
   CODE_FONT,
@@ -8,25 +7,27 @@ import {
   findVisibleRange,
   getMaxChatWidth,
   getOcclusionBannerHeight,
+  layoutConversation,
+  layoutMessageFrame,
   MARKER_FONT,
   materializeMessageBlocks,
   materializeQuoteRails,
   MESSAGE_SIDE_PADDING,
   OCCLUSION_BANNER_HEIGHT,
   type BlockLayout,
-  type ChatMessageInstance,
-  type ConversationFrame,
+  type ConversationLayout,
   type InlineFragmentLayout,
   type MessageFrame,
+  type PreparedChatMessage,
   type QuoteRailLayout,
   type TextStyle,
 } from './markdown-chat.model.ts'
 
 type State = {
+  conversation: ConversationLayout | null
   events: {
     toggleVisualization: boolean
   }
-  frame: ConversationFrame | null
   isVisualizationOn: boolean
 }
 
@@ -48,10 +49,10 @@ const domCache = {
 
 const preparedMessages = createPreparedChatMessages()
 const st: State = {
+  conversation: null,
   events: {
     toggleVisualization: false,
   },
-  frame: null,
   isVisualizationOn: false,
 }
 
@@ -109,46 +110,52 @@ function render(): void {
   if (st.events.toggleVisualization) isVisualizationOn = !isVisualizationOn
 
   const chatWidth = getMaxChatWidth(viewportWidth)
-  const previousFrame = st.frame
-  const canReuseFrame =
-    previousFrame !== null
-    && previousFrame.chatWidth === chatWidth
-    && previousFrame.occlusionBannerHeight === occlusionBannerHeight
-  const frame = canReuseFrame
-    ? previousFrame
-    : buildConversationFrame(preparedMessages, chatWidth, occlusionBannerHeight)
-  const needsRelayout = !canReuseFrame
+  const previousConversation = st.conversation
+  const canReuseConversation =
+    previousConversation !== null
+    && previousConversation.chatWidth === chatWidth
+    && previousConversation.occlusionBannerHeight === occlusionBannerHeight
+  const conversation = canReuseConversation
+    ? previousConversation
+    : layoutConversation(preparedMessages, chatWidth, occlusionBannerHeight)
+  const needsRelayout = !canReuseConversation
 
   const { start, end } = findVisibleRange(
-    frame,
+    conversation,
     scrollTop,
     viewportHeight,
     occlusionBannerHeight,
     occlusionBannerHeight,
   )
+  const visibleFrames = new Array<MessageFrame>(end - start)
+  for (let index = start; index < end; index++) {
+    visibleFrames[index - start] = layoutMessageFrame(preparedMessages[index]!, chatWidth)
+  }
 
-  st.frame = frame
+  st.conversation = conversation
   st.isVisualizationOn = isVisualizationOn
   st.events.toggleVisualization = false
 
-  domCache.root.style.setProperty('--chat-width', `${frame.chatWidth}px`)
+  domCache.root.style.setProperty('--chat-width', `${chatWidth}px`)
   domCache.root.style.setProperty('--occlusion-banner-height', `${occlusionBannerHeight}px`)
   domCache.root.style.setProperty('--occlusion-banner-padding-block', isCompactOcclusionChrome ? '6px' : '12px')
   domCache.root.style.setProperty('--virtualization-toggle-padding-block', isCompactOcclusionChrome ? '8px' : '10px')
   domCache.root.style.setProperty('--virtualization-toggle-padding-inline', isCompactOcclusionChrome ? '12px' : '14px')
   domCache.root.style.setProperty('--virtualization-toggle-font-size', isCompactOcclusionChrome ? '11px' : '12px')
   domCache.shell.dataset['visualization'] = isVisualizationOn ? 'on' : 'off'
-  domCache.canvas.style.height = `${frame.totalHeight}px`
+  domCache.canvas.style.height = `${conversation.totalHeight}px`
   domCache.toggleButton.textContent = isVisualizationOn
     ? 'Hide virtualization mask'
     : 'Show virtualization mask'
   domCache.toggleButton.setAttribute('aria-pressed', String(isVisualizationOn))
 
-  projectVisibleRows(frame, start, end, needsRelayout)
+  projectVisibleRows(conversation.tops, conversation.heights, visibleFrames, start, end, needsRelayout)
 }
 
 function projectVisibleRows(
-  frame: ConversationFrame,
+  tops: Float64Array,
+  heights: Float64Array,
+  visibleFrames: readonly MessageFrame[],
   start: number,
   end: number,
   needsRelayout: boolean,
@@ -174,15 +181,15 @@ function projectVisibleRows(
 
   if (overlapStart >= overlapEnd) {
     for (let index = start; index < end; index++) {
-      const cachedRow = prepareRow(frame.messages[index]!, index, needsRelayout)
-      projectMessageNode(cachedRow, frame.messages[index]!.frame, frame.messages[index]!.top)
+      const cachedRow = prepareRow(index, visibleFrames[index - start]!, needsRelayout)
+      projectMessageNode(cachedRow, visibleFrames[index - start]!, tops[index]!, heights[index]!)
       if (cachedRow.row.parentNode === null) domCache.canvas.append(cachedRow.row)
     }
   } else {
     let anchorRow = domCache.rows[overlapStart]?.row ?? null
     for (let index = overlapStart - 1; index >= start; index--) {
-      const cachedRow = prepareRow(frame.messages[index]!, index, needsRelayout)
-      projectMessageNode(cachedRow, frame.messages[index]!.frame, frame.messages[index]!.top)
+      const cachedRow = prepareRow(index, visibleFrames[index - start]!, needsRelayout)
+      projectMessageNode(cachedRow, visibleFrames[index - start]!, tops[index]!, heights[index]!)
       if (anchorRow === null) {
         if (cachedRow.row.parentNode === null) domCache.canvas.append(cachedRow.row)
       } else if (cachedRow.row.parentNode !== domCache.canvas || cachedRow.row.nextSibling !== anchorRow) {
@@ -192,13 +199,13 @@ function projectVisibleRows(
     }
 
     for (let index = overlapStart; index < overlapEnd; index++) {
-      const cachedRow = prepareRow(frame.messages[index]!, index, needsRelayout)
-      projectMessageNode(cachedRow, frame.messages[index]!.frame, frame.messages[index]!.top)
+      const cachedRow = prepareRow(index, visibleFrames[index - start]!, needsRelayout)
+      projectMessageNode(cachedRow, visibleFrames[index - start]!, tops[index]!, heights[index]!)
     }
 
     for (let index = overlapEnd; index < end; index++) {
-      const cachedRow = prepareRow(frame.messages[index]!, index, needsRelayout)
-      projectMessageNode(cachedRow, frame.messages[index]!.frame, frame.messages[index]!.top)
+      const cachedRow = prepareRow(index, visibleFrames[index - start]!, needsRelayout)
+      projectMessageNode(cachedRow, visibleFrames[index - start]!, tops[index]!, heights[index]!)
       if (cachedRow.row.parentNode === null) domCache.canvas.append(cachedRow.row)
     }
   }
@@ -208,22 +215,23 @@ function projectVisibleRows(
 }
 
 function prepareRow(
-  message: ChatMessageInstance,
   index: number,
+  frame: MessageFrame,
   needsRelayout: boolean,
 ): CachedRow {
+  const preparedMessage = preparedMessages[index]!
   let cachedRow = domCache.rows[index]
   if (cachedRow === undefined) {
-    cachedRow = createMessageShell(message.frame.role)
+    cachedRow = createMessageShell(preparedMessage.role)
     domCache.rows[index] = cachedRow
-    renderMessageContents(cachedRow.bubble, message)
+    renderMessageContents(cachedRow.bubble, preparedMessage, frame)
     return cachedRow
   }
-  if (needsRelayout) renderMessageContents(cachedRow.bubble, message)
+  if (needsRelayout) renderMessageContents(cachedRow.bubble, preparedMessage, frame)
   return cachedRow
 }
 
-function createMessageShell(role: ChatMessageInstance['frame']['role']): CachedRow {
+function createMessageShell(role: PreparedChatMessage['role']): CachedRow {
   const row = document.createElement('article')
   row.className = `msg msg--${role}`
 
@@ -236,16 +244,17 @@ function createMessageShell(role: ChatMessageInstance['frame']['role']): CachedR
 
 function renderMessageContents(
   bubble: HTMLDivElement,
-  message: ChatMessageInstance,
+  preparedMessage: PreparedChatMessage,
+  frame: MessageFrame,
 ): void {
   const fragment = document.createDocumentFragment()
-  const rails = materializeQuoteRails(message)
+  const rails = materializeQuoteRails(preparedMessage, frame)
   for (let index = 0; index < rails.length; index++) {
-    fragment.append(renderQuoteRail(rails[index]!, message.frame.contentInsetX))
+    fragment.append(renderQuoteRail(rails[index]!, frame.contentInsetX))
   }
-  const blocks = materializeMessageBlocks(message)
+  const blocks = materializeMessageBlocks(preparedMessage, frame)
   for (let index = 0; index < blocks.length; index++) {
-    fragment.append(renderBlock(blocks[index]!, message.frame.contentInsetX))
+    fragment.append(renderBlock(blocks[index]!, frame.contentInsetX))
   }
   bubble.replaceChildren(fragment)
 }
@@ -254,11 +263,12 @@ function projectMessageNode(
   cachedRow: CachedRow,
   frame: MessageFrame,
   top: number,
+  height: number,
 ): void {
   cachedRow.row.style.top = `${top}px`
-  cachedRow.row.style.height = `${frame.bubbleHeight}px`
+  cachedRow.row.style.height = `${height}px`
   cachedRow.bubble.style.width = `${frame.frameWidth}px`
-  cachedRow.bubble.style.height = `${frame.bubbleHeight}px`
+  cachedRow.bubble.style.height = `${height}px`
 }
 
 function renderBlock(block: BlockLayout, contentInsetX: number): HTMLElement {
