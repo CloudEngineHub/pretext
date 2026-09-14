@@ -35,6 +35,13 @@ or new API or rich failures.
 `bun test` and `bun run check` pass. The baseline advances to `8ab3383`, and the
 ordinary snapshots were regenerated against it.
 
+Chrome and Safari benchmark snapshots were refreshed from this branch: three
+foreground runs each at DPR 2, visible and focused, with Chrome on the 2560x1440
+screen and Safari on the 2560x1440 screen. Chrome reads `prepare()` at 8.65 ms
+(8.45 on the parent branch) and hot `layout()` at 0.0885 ms (0.0887); Safari reads
+12.0 ms (11.0) and 0.105 ms (0.103). Long-form corpus totals read 118.7 ms in
+Chrome (117.9) and 348 ms in Safari (347).
+
 ## Firefox marks after a line break or space
 
 This change starts from main after #269. In the Firefox profile, the numeric affix check
