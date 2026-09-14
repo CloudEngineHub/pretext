@@ -105,8 +105,8 @@ function render(): void {
   if (st.events.sliderValue !== null) requestedWidth = st.events.sliderValue
 
   // Layout
-  const { bodyWidth, maxBodyWidth } = resolveRichNoteBodyWidth(viewportWidth, requestedWidth)
-  const layout = layoutRichNote(richInline, bodyWidth)
+  const { bodyWidth, maxBodyWidth, notePaddingX } = resolveRichNoteBodyWidth(viewportWidth, requestedWidth)
+  const layout = layoutRichNote(richInline, bodyWidth, notePaddingX)
 
   // Commit state
   st.requestedWidth = bodyWidth
@@ -118,6 +118,7 @@ function render(): void {
   domCache.widthSlider.value = String(bodyWidth)
   domCache.widthValue.textContent = `${Math.round(bodyWidth)}px`
   domCache.root.style.setProperty('--note-width', `${layout.noteWidth}px`)
+  domCache.root.style.setProperty('--note-padding-x', `${notePaddingX}px`)
   domCache.root.style.setProperty('--note-content-width', `${bodyWidth}px`)
   domCache.noteBody.style.height = `${layout.noteBodyHeight}px`
 
