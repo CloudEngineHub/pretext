@@ -54,7 +54,6 @@ type TestLayoutCursor = {
 
 type TestPreparedTextWithSegments = {
   segments: string[]
-  segLevels?: Int8Array | null
 }
 
 type TestLayoutLine = {
@@ -238,20 +237,6 @@ function compareCursors(a: TestLayoutCursor, b: TestLayoutCursor): number {
 
 function terminalCursor(prepared: TestPreparedTextWithSegments): TestLayoutCursor {
   return { segmentIndex: prepared.segments.length, graphemeIndex: 0 }
-}
-
-function getNonSpaceSegmentLevels(
-  prepared: TestPreparedTextWithSegments,
-): Array<{ level: number, text: string }> {
-  if (prepared.segLevels === null || prepared.segLevels === undefined) return []
-
-  const levels: Array<{ level: number, text: string }> = []
-  for (let i = 0; i < prepared.segments.length; i++) {
-    const text = prepared.segments[i]!
-    if (text.trim().length === 0) continue
-    levels.push({ level: prepared.segLevels[i]!, text })
-  }
-  return levels
 }
 
 class TestCanvasRenderingContext2D {
@@ -1955,38 +1940,6 @@ describe('prepare invariants', () => {
       expect({ tag, language: getBreakLanguage(tag) }).toEqual({ tag, language })
     }
   })
-
-  test('pure LTR text skips rich bidi metadata', () => {
-    expect(prepareWithSegments('hello world', FONT).segLevels).toBeNull()
-  })
-
-  test('rich bidi metadata uses the first strong character for paragraph direction', () => {
-    const ltrFirst = prepareWithSegments('one اثنان three', FONT)
-    expect(ltrFirst.segLevels).not.toBeNull()
-    expect(ltrFirst.segLevels).toHaveLength(ltrFirst.segments.length)
-    expect(getNonSpaceSegmentLevels(ltrFirst)).toEqual([
-      { text: 'one', level: 0 },
-      { text: 'اثنان', level: 1 },
-      { text: 'three', level: 0 },
-    ])
-
-    const rtlFirst = prepareWithSegments('123 واحد three', FONT)
-    expect(rtlFirst.segLevels).not.toBeNull()
-    expect(rtlFirst.segLevels).toHaveLength(rtlFirst.segments.length)
-    expect(getNonSpaceSegmentLevels(rtlFirst)).toEqual([
-      { text: '123', level: 2 },
-      { text: 'واحد', level: 1 },
-      { text: 'three', level: 2 },
-    ])
-
-    const astralRtlFirst = prepareWithSegments('𞤀𞤁 abc', FONT)
-    expect(astralRtlFirst.segLevels).not.toBeNull()
-    expect(astralRtlFirst.segLevels).toHaveLength(astralRtlFirst.segments.length)
-    expect(getNonSpaceSegmentLevels(astralRtlFirst)).toEqual([
-      { text: '𞤀𞤁', level: 1 },
-      { text: 'abc', level: 2 },
-    ])
-  })
 })
 
 describe('rich-inline invariants', () => {
@@ -3162,36 +3115,4 @@ test('the Safari profile lets small kana and U+30FC start a line only on Japanes
   const root = { segments: ['日|本ァ|ア', '日|本ーー', 'わ|かっ|て'], readsPerPrepare: 1, rich: ['日', '本ァ', 'ア'] }
   const normalRules = { segments: ['日|本|ァ|ア', '日|本|ー|ー', 'わ|か|っ|て'], readsPerPrepare: 1, rich: ['日本', 'ァア'] }
   expect(JSON.parse(child.stdout.toString())).toEqual({ '': root, en: root, 'zh-Hant': root, ja: normalRules, 'ko-KR': normalRules })
-})
-
-describe('bidi paragraph boundaries', () => {
-  test('pre-wrap metadata matches independently prepared paragraphs', () => {
-    const paragraphs = ['אבג.', 'abc.', 'ا', '123', '\u0301abc', '𞤀𞤁 xyz']
-    const actual = prepareWithSegments(paragraphs.join('\r\n'), FONT, { whiteSpace: 'pre-wrap' })
-    const expected = paragraphs.flatMap(text => {
-      const paragraph = prepareWithSegments(text, FONT, { whiteSpace: 'pre-wrap' })
-      return paragraph.segments.map((segment, i) => ({ text: segment, level: paragraph.segLevels?.[i] ?? 0 }))
-    })
-    expect(actual.segments.flatMap((text, i) => text === '\n' ? [] : [{ text, level: actual.segLevels?.[i] ?? 0 }])).toEqual(expected)
-    expect(prepareWithSegments('one\ntwo\n', FONT, { whiteSpace: 'pre-wrap' }).segLevels).toBeNull()
-    // Normal whitespace collapses newline before bidi analysis, so it remains
-    // one paragraph; the rich metadata must follow that normalized input.
-    const normal = prepareWithSegments('אבג.\r\nabc.', FONT)
-    const collapsed = prepareWithSegments('אבג. abc.', FONT)
-    expect(normal.segments).toEqual(collapsed.segments)
-    expect(normal.segLevels).toEqual(collapsed.segLevels)
-    expect(getNonSpaceSegmentLevels(normal).at(-1)?.level).toBe(2)
-  })
-
-  test('all B separators reset base and weak state, while tabs and line separators do not', async () => {
-    const { computeSegmentLevels } = await import('./bidi.js')
-    const levels = (text: string) => Array.from(computeSegmentLevels(text, Array.from({ length: text.length }, (_, i) => i)) ?? new Int8Array(text.length))
-    for (const separator of ['\n', '\r', '\u001C', '\u001D', '\u001E', '\u0085', '\u2029']) {
-      expect(levels(`אבג.${separator}abc.`)).toEqual([1, 1, 1, 1, 1, 0, 0, 0, 0])
-      expect(levels(`ا${separator}123`)).toEqual([1, 1, 0, 0, 0])
-      expect(levels(`א${separator}\u0301a`)).toEqual([1, 1, 0, 0])
-    }
-    expect(levels('אבג.\n\nabc.')).toEqual([1, 1, 1, 1, 1, 0, 0, 0, 0, 0])
-    for (const separator of ['\t', '\u2028']) expect(levels(`אבג${separator}abc`).at(-1)).toBe(2)
-  })
 })

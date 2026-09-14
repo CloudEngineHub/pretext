@@ -364,7 +364,9 @@ function parseBlockTokens(tokens: readonly Token[], ctx: ParseContext): Prepared
 
     switch (token.type) {
       case 'space':
-      case 'def': {
+      case 'def':
+      // A task item's checkbox is drawn as its list marker.
+      case 'checkbox': {
         continue
       }
 
@@ -388,7 +390,9 @@ function parseBlockTokens(tokens: readonly Token[], ctx: ParseContext): Prepared
       }
 
       case 'list': {
-        appendBlockGroup(blocks, buildListBlocks(token as Tokens.List, ctx), BLOCK_GAP)
+        // A nested list continues its parent item's rhythm.
+        const gap = ctx.listDepth === 0 ? BLOCK_GAP : LIST_ITEM_GAP
+        appendBlockGroup(blocks, buildListBlocks(token as Tokens.List, ctx), gap)
         continue
       }
 
@@ -666,7 +670,6 @@ function collectInlinePieceLines(
         }
 
         case 'checkbox': {
-          pushPiece(createTextPiece(token.checked ? '[x] ' : '[ ] ', marks, variant))
           continue
         }
 

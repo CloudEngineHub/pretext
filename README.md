@@ -213,7 +213,7 @@ setLocale(locale?: string): void // optional (by default we use the current loca
 Notes:
 - `LayoutCursor` is a segment/grapheme cursor, not a raw string offset.
 - `layout()` with an empty string returns `{ lineCount: 0, height: 0 }`. Browsers still size an empty block to one `line-height`, so clamp with `Math.max(1, lineCount) * lineHeight` if you need that behavior.
-- If you're drawing mixed bidi text, like English and Arabic, `prepareWithSegments()` includes `segLevels`: approximate bidi levels for each text segment, or `null` when no bidi metadata is needed. Levels describe direction and nesting for drawing; they don't affect where lines wrap. This is not a full Unicode Bidirectional Algorithm implementation.
+- Pretext doesn't compute bidi levels. If you're drawing mixed bidi text, like English and Arabic, render each paragraph as one DOM element with its direction set, and the browser orders every line. If you draw lines separately, such as with Canvas `fillText()`, each line is ordered as its own paragraph, so numbers or punctuation next to a line break, or bidi controls that span lines, can come out in a different order.
 - Segment widths are browser-canvas widths for line breaking. They aren't enough to position individual characters correctly in Arabic or mixed bidi text.
 
 ## Caveats
