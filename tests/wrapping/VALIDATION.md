@@ -38,6 +38,14 @@ or new API or rich failures.
 `bun test` and `bun run check` pass. The baseline advances to `6f22449`, and the
 ordinary snapshots were regenerated against it.
 
+Chrome and Safari benchmark snapshots were refreshed from this branch: three
+foreground runs each at DPR 2, visible and focused, with Chrome on the 2560x1440
+screen and Safari on the 2560x1440 screen (the parent branch's runs used the
+1440x2560 screen). Chrome reads `prepare()` at 8.50 ms (8.50 on the parent branch)
+and hot `layout()` at 0.0877 ms (0.0885); Safari reads 11.0 ms (11.0) and 0.105 ms
+(0.103). Long-form corpus totals read 116.8 ms in Chrome (113.7) and 362 ms in
+Safari (346).
+
 ## A space after an overflowing first word
 
 This change starts from main after #271. Pretext walks lines with a fast loop for plain text
