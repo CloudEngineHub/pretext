@@ -1,3 +1,8 @@
+import arabicCorpus from '../../corpora/ar-risalat-al-ghufran-part-1.txt' with { type: 'text' }
+import englishCorpus from '../../corpora/en-gatsby-opening.txt' with { type: 'text' }
+import hindiCorpus from '../../corpora/hi-eidgah.txt' with { type: 'text' }
+import chineseCorpus from '../../corpora/zh-guxiang.txt' with { type: 'text' }
+
 export type MarkdownChatSeed = {
   role: 'assistant' | 'user'
   markdown: string
@@ -10,7 +15,7 @@ function message(role: 'assistant' | 'user', ...lines: string[]): MarkdownChatSe
   }
 }
 
-export const BASE_MESSAGE_SPECS: MarkdownChatSeed[] = [
+const BASE_MESSAGE_SPECS: MarkdownChatSeed[] = [
   message(
     'user',
     'Can we treat the rich-text inline flow helper (`rich-inline`) as a real primitive, or is it only good for one tiny demo?',
@@ -261,3 +266,307 @@ export const BASE_MESSAGE_SPECS: MarkdownChatSeed[] = [
     'The good version of this alpha API is not “we solved rich text.” It is “we found a low-level paragraph leaf that keeps the hypothesis space open for a richer block model above it.”',
   ),
 ]
+
+// The thread opens with the hand-written seeds above. Every later message is
+// generated: it takes the shape and markdown features of one of the seeds, with
+// the seeds' frequencies, and fills it with corpus text. Real chats don't reuse
+// the same 44 messages, so preparation meets new words as they do.
+const GENERATOR_SEED = 20260404
+// There are 22 seeds of each role, and each seed is one weight.
+const SHAPES_PER_ROLE = 22
+
+type Random = () => number
+
+const SENTENCE_BREAK = /(?<=[.!?][”’"]?)\s+/
+const MARKDOWN_SYNTAX = /[*_`<>#[\]|\\~=]|https?:|www\.|^(?:\d+[.)]|[-+])\s/
+const ENGLISH_START = /^[A-Z“"]/
+// Other scripts come only from the mixed-script shapes, as in the seeds.
+const OTHER_SCRIPT = /[^\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}]/u
+const EMOJI = ['👩‍🚀', '🧪📐', '👩‍💻', '👨🏽‍🔬', '👨‍👩‍👧‍👦', '✅', '🚀']
+
+const ENGLISH_SENTENCES = collectEnglishSentences(englishCorpus)
+const SEED_SENTENCES = collectEnglishSentences(BASE_MESSAGE_SPECS.map(spec => spec.markdown).join('\n'))
+const CHINESE_RUNS = collectScriptRuns(chineseCorpus, /[^\p{Script=Han}]+/u)
+const ARABIC_RUNS = collectScriptRuns(arabicCorpus, /[^\p{Script=Arabic}\p{M} ]+/u)
+const HINDI_RUNS = collectScriptRuns(hindiCorpus, /[^\p{Script=Devanagari}\p{M} ]+/u)
+
+export function createMarkdownChatSpecs(count: number): MarkdownChatSeed[] {
+  const random = createRandom(GENERATOR_SEED)
+  const specs: MarkdownChatSeed[] = []
+  const seen = new Set<string>()
+
+  for (let index = 0; index < Math.min(count, BASE_MESSAGE_SPECS.length); index++) {
+    const spec = BASE_MESSAGE_SPECS[index]!
+    specs.push(spec)
+    seen.add(spec.markdown)
+  }
+
+  while (specs.length < count) {
+    const role = specs.length % 2 === 0 ? 'user' : 'assistant'
+    // Pick the shape once, so retrying a duplicate keeps the seed weights.
+    const shape = Math.floor(random() * SHAPES_PER_ROLE)
+    let markdown: string
+    do {
+      markdown = role === 'user' ? createUserMarkdown(random, shape) : createAssistantMarkdown(random, shape)
+    } while (seen.has(markdown))
+    seen.add(markdown)
+    specs.push({ role, markdown })
+  }
+
+  return specs
+}
+
+// Weights follow the 22 user seeds: 17 plain paragraphs, then one each of a
+// list, a URL with mixed scripts, rich marks, escaped quotes and mixed scripts.
+function createUserMarkdown(random: Random, shape: number): string {
+  switch (shape) {
+    case 0:
+      return lines(
+        insertWords(random, sentence(random), `(\`${identifier(random)}\`)`),
+        '',
+        `${capitalize(phrase(random, 2, 4))}:`,
+        `- ${phrase(random, 2, 5)}`,
+        `- ${phrase(random, 2, 5)}`,
+        `- ${phrase(random, 2, 5)}`,
+      )
+    case 1:
+      return `${sentence(random)} ${capitalize(phrase(random, 1, 2))} ${chinesePhrase(random)}, ${phrase(random, 1, 2)} ${scriptPhrase(random, ARABIC_RUNS, 2)}, ${pick(random, EMOJI)}, and ${phrase(random, 2, 3)} https://example.com/${slug(random)}?lang=ar&mode=full`
+    case 2:
+      return insertWords(
+        random,
+        sentence(random),
+        `**${phrase(random, 1, 2)}**, ***${phrase(random, 1, 2)}***, ~~${phrase(random, 1, 2)}~~, \`${identifier(random)}\`, [${phrase(random, 1, 2)}](https://example.com/${slug(random)})`,
+      )
+    case 3:
+      return insertWords(random, sentence(random), `\\"${phrase(random, 2, 3)}\\"`)
+    case 4:
+      return insertWords(random, sentence(random), `${phrase(random, 1, 2)}, ${chinesePhrase(random)}, ${scriptPhrase(random, ARABIC_RUNS, 2)},`)
+    default:
+      return paragraph(random, between(random, 1, 2))
+  }
+}
+
+// Weights follow the 22 assistant seeds: 4 short answers, then the richer
+// shapes in the proportions the seeds use them.
+function createAssistantMarkdown(random: Random, shape: number): string {
+  switch (shape) {
+    case 0: {
+      const text = insertWords(random, paragraph(random, between(random, 1, 2)), `${chinesePhrase(random)}, ${scriptPhrase(random, ARABIC_RUNS, 3)}`)
+      return insertWords(random, text, pick(random, EMOJI))
+    }
+    case 1:
+    case 2:
+      return lines(paragraph(random, 2), '', paragraph(random, 2))
+    case 3:
+      return lines(
+        insertWords(random, paragraph(random, 1), `**${phrase(random, 2, 5)}**`),
+        '',
+        insertWords(random, insertWords(random, paragraph(random, 2), `\`${identifier(random)}\``), `[${phrase(random, 1, 2)}](https://example.com/${slug(random)})`),
+      )
+    case 4:
+      return lines(
+        `### ${capitalize(phrase(random, 3, 6))}`,
+        '',
+        `1. ${capitalize(phrase(random, 3, 7))}.`,
+        `2. ${capitalize(phrase(random, 3, 7))} \`${identifier(random)}\`.`,
+        `3. ${capitalize(phrase(random, 3, 7))}.`,
+        `4. ${capitalize(phrase(random, 2, 5))} \`${identifier(random)}\`.`,
+      )
+    case 5:
+      return lines(`> ${sentence(random)}`, '>', `> ${sentence(random)}`, '', paragraph(random, 1))
+    case 6:
+      return lines(`> ${sentence(random)}`, '>', `> ${sentence(random)}`, '', `> ${sentence(random)}`)
+    case 7: {
+      const code: string[] = []
+      for (let index = between(random, 2, 4); index > 0; index--) {
+        code.push(`const ${identifier(random)} = ${identifier(random)}(${identifier(random)}, ${identifier(random)})`)
+      }
+      return lines('```ts', ...code, '```')
+    }
+    case 8: {
+      const code: string[] = []
+      for (let index = between(random, 3, 5); index > 0; index--) {
+        code.push(`${englishWords(random, 2).join('_')}: ${phrase(random, 1, 4)}`)
+      }
+      return lines('```yaml', ...code, '```')
+    }
+    case 9: {
+      const code: string[] = ['{']
+      const fieldCount = between(random, 3, 5)
+      for (let index = 0; index < fieldCount; index++) {
+        code.push(`  "${identifier(random)}": "${phrase(random, 1, 4)}"${index === fieldCount - 1 ? '' : ','}`)
+      }
+      code.push('}')
+      return lines('```json', ...code, '```')
+    }
+    case 10:
+      return lines(paragraph(random, 1), '', ...bulletItems(random, 3), '', paragraph(random, 1))
+    case 11:
+      return lines(paragraph(random, 1), '', ...bulletItems(random, 4))
+    case 12: {
+      const hour = between(random, 6, 10)
+      const days = between(random, 2, 7)
+      return lines(
+        `${capitalize(phrase(random, 1, 3))}:`,
+        '',
+        `- ${phrase(random, 2, 3)} ${hour}:00-${hour + 2}:00`,
+        `- ${phrase(random, 1, 2)} \`RICH-${between(random, 100, 999)}\``,
+        `- ${phrase(random, 2, 3)} \`${24}×${days}\` and \`${toDevanagariDigits(24)}×${toDevanagariDigits(days)}\``,
+        `- ${phrase(random, 1, 2)}: \\"${phrase(random, 2, 3)}\\" ${scriptPhrase(random, HINDI_RUNS, 3)}`,
+      )
+    }
+    case 13:
+      return lines(
+        paragraph(random, 1),
+        '',
+        `- [${phrase(random, 2, 3)}](https://example.com/${slug(random)})`,
+        `- [${phrase(random, 2, 3)}](https://example.com/${slug(random)})`,
+        `- [${phrase(random, 2, 3)}](https://example.com/${slug(random)})`,
+      )
+    case 14:
+      return insertWords(random, paragraph(random, between(random, 1, 2)), `![${phrase(random, 1, 2)}](https://example.com/${slug(random)}.png)`)
+    case 15:
+      return lines(
+        `## ${capitalize(phrase(random, 2, 4))}`,
+        '',
+        insertWords(random, paragraph(random, 2), `**${phrase(random, 3, 8)}**`),
+        '',
+        paragraph(random, 2),
+      )
+    case 16:
+      return lines(`<aside>${sentence(random)}</aside>`, '', paragraph(random, between(random, 1, 2)))
+    case 17:
+      return lines(
+        `${capitalize(phrase(random, 2, 4))}:`,
+        '',
+        `- ${phrase(random, 4, 9)}`,
+        `- ${phrase(random, 4, 9)}`,
+        `  - ${phrase(random, 4, 9)}`,
+        `  - ${phrase(random, 4, 9)}`,
+        `- ${phrase(random, 4, 9)}`,
+      )
+    default:
+      return paragraph(random, between(random, 1, 2))
+  }
+}
+
+function bulletItems(random: Random, count: number): string[] {
+  const items: string[] = []
+  for (let index = 0; index < count; index++) items.push(`- ${phrase(random, 3, 9)}`)
+  return items
+}
+
+function lines(...parts: string[]): string {
+  return parts.join('\n')
+}
+
+function paragraph(random: Random, sentenceCount: number): string {
+  const sentences: string[] = []
+  for (let index = 0; index < sentenceCount; index++) sentences.push(sentence(random))
+  return sentences.join(' ')
+}
+
+// Mostly novel prose, with some of the seeds' own chat sentences.
+function sentence(random: Random): string {
+  return pick(random, random() < 0.35 ? SEED_SENTENCES : ENGLISH_SENTENCES)
+}
+
+function phrase(random: Random, minWords: number, maxWords: number): string {
+  return englishWords(random, between(random, minWords, maxWords)).join(' ')
+}
+
+function identifier(random: Random): string {
+  const [first, second] = englishWords(random, 2)
+  return first! + capitalize(second!)
+}
+
+function slug(random: Random): string {
+  return englishWords(random, between(random, 1, 3)).join('-')
+}
+
+function englishWords(random: Random, count: number): string[] {
+  const words: string[] = []
+  while (words.length < count) {
+    const parts = pick(random, ENGLISH_SENTENCES).split(' ')
+    for (let index = Math.floor(random() * parts.length); index < parts.length && words.length < count; index++) {
+      const word = parts[index]!.toLowerCase().replace(/[^a-z]/g, '')
+      if (word.length >= 3) words.push(word)
+    }
+  }
+  return words
+}
+
+function chinesePhrase(random: Random): string {
+  const characters = Array.from(pick(random, CHINESE_RUNS))
+  const length = between(random, 2, Math.min(4, characters.length))
+  const start = Math.floor(random() * (characters.length - length + 1))
+  return characters.slice(start, start + length).join('')
+}
+
+function scriptPhrase(random: Random, runs: readonly string[], maxWords: number): string {
+  const words = pick(random, runs).split(' ')
+  const count = between(random, 1, Math.min(maxWords, words.length))
+  const start = Math.floor(random() * (words.length - count + 1))
+  return words.slice(start, start + count).join(' ')
+}
+
+function insertWords(random: Random, text: string, insertion: string): string {
+  const words = text.split(' ')
+  words.splice(between(random, 1, words.length), 0, insertion)
+  return words.join(' ')
+}
+
+function toDevanagariDigits(value: number): string {
+  return String(value).replace(/\d/g, digit => String.fromCharCode(0x0966 + Number(digit)))
+}
+
+function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
+function pick<T>(random: Random, items: readonly T[]): T {
+  return items[Math.floor(random() * items.length)]!
+}
+
+function between(random: Random, min: number, max: number): number {
+  return min + Math.floor(random() * (max - min + 1))
+}
+
+// mulberry32
+function createRandom(seed: number): Random {
+  let state = seed >>> 0
+  return () => {
+    state = (state + 0x6D2B79F5) >>> 0
+    let t = state
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+// Plain sentences that cannot turn into markdown syntax.
+function collectEnglishSentences(text: string): string[] {
+  const sentences: string[] = []
+  const paragraphs = text.split('\n')
+  for (let paragraphIndex = 0; paragraphIndex < paragraphs.length; paragraphIndex++) {
+    const parts = paragraphs[paragraphIndex]!.split(SENTENCE_BREAK)
+    for (let index = 0; index < parts.length; index++) {
+      const part = parts[index]!.trim()
+      if (part.length < 24 || part.length > 200) continue
+      if (!ENGLISH_START.test(part) || MARKDOWN_SYNTAX.test(part) || OTHER_SCRIPT.test(part)) continue
+      sentences.push(part)
+    }
+  }
+  return sentences
+}
+
+// Runs of one script between other characters, with spaces collapsed.
+function collectScriptRuns(text: string, separator: RegExp): string[] {
+  const runs: string[] = []
+  const parts = text.split(separator)
+  for (let index = 0; index < parts.length; index++) {
+    const run = parts[index]!.trim().replace(/ +/g, ' ')
+    if (run.length >= 2) runs.push(run)
+  }
+  return runs
+}

@@ -15,7 +15,7 @@ import {
   walkRichInlineLineRanges,
   type PreparedRichInline,
 } from '../../src/rich-inline.ts'
-import { BASE_MESSAGE_SPECS } from './markdown-chat.data.ts'
+import { createMarkdownChatSpecs } from './markdown-chat.data.ts'
 
 export const MAX_CHAT_WIDTH = 860
 export const TOTAL_MESSAGE_COUNT = 10_000
@@ -253,12 +253,13 @@ function parseMarkdownHref(href: string | null | undefined): string | null {
 const markerWidthCache = new Map<string, number>()
 
 export function createPreparedChatMessages(): PreparedChatMessage[] {
-  const messages = new Array<PreparedChatMessage>(TOTAL_MESSAGE_COUNT)
-  for (let index = 0; index < messages.length; index++) {
-    const seed = BASE_MESSAGE_SPECS[index % BASE_MESSAGE_SPECS.length]!
+  const specs = createMarkdownChatSpecs(TOTAL_MESSAGE_COUNT)
+  const messages = new Array<PreparedChatMessage>(specs.length)
+  for (let index = 0; index < specs.length; index++) {
+    const spec = specs[index]!
     messages[index] = {
-      blocks: parseMarkdownBlocks(seed.markdown),
-      role: seed.role,
+      blocks: parseMarkdownBlocks(spec.markdown),
+      role: spec.role,
     }
   }
   return messages
