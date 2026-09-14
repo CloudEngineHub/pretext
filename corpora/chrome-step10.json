@@ -1,11 +1,11 @@
 [
   {
-    "generatedAt": "2026-09-14T05:07:09.319Z",
-    "suiteHash": "156136c60ca67bcd967f34ec678b68ccb53664066178b76d389a8768f122bee2",
+    "generatedAt": "2026-09-14T10:24:04.878Z",
+    "suiteHash": "63ad52d16e85ddca7069c20b312fdba1a9a4e9e067ecd0e72abfb52b4eead955",
     "source": {
-      "revision": "b569d863fc01c889da0ffc765bed579294c07211",
+      "revision": "6f22449162fe99b8c2f863bf3dbcaf53478e31ef",
       "files": {
-        "analysis.ts": "2d2d25686a0171171eedb01dbc06c56134eeb93788c6eea47df4c559b8831bb8",
+        "analysis.ts": "ec15ad1ea31e21fb038640f1946013d93395658d85c1c36358eed3d7c93b3d7a",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
         "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
@@ -85,12 +85,12 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-14T05:07:09.319Z",
-    "suiteHash": "156136c60ca67bcd967f34ec678b68ccb53664066178b76d389a8768f122bee2",
+    "generatedAt": "2026-09-14T10:24:04.878Z",
+    "suiteHash": "63ad52d16e85ddca7069c20b312fdba1a9a4e9e067ecd0e72abfb52b4eead955",
     "source": {
-      "revision": "b569d863fc01c889da0ffc765bed579294c07211",
+      "revision": "6f22449162fe99b8c2f863bf3dbcaf53478e31ef",
       "files": {
-        "analysis.ts": "2d2d25686a0171171eedb01dbc06c56134eeb93788c6eea47df4c559b8831bb8",
+        "analysis.ts": "ec15ad1ea31e21fb038640f1946013d93395658d85c1c36358eed3d7c93b3d7a",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
         "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
@@ -259,12 +259,12 @@
     ]
   },
   {
-    "generatedAt": "2026-09-14T05:07:09.319Z",
-    "suiteHash": "156136c60ca67bcd967f34ec678b68ccb53664066178b76d389a8768f122bee2",
+    "generatedAt": "2026-09-14T10:24:04.878Z",
+    "suiteHash": "63ad52d16e85ddca7069c20b312fdba1a9a4e9e067ecd0e72abfb52b4eead955",
     "source": {
-      "revision": "b569d863fc01c889da0ffc765bed579294c07211",
+      "revision": "6f22449162fe99b8c2f863bf3dbcaf53478e31ef",
       "files": {
-        "analysis.ts": "2d2d25686a0171171eedb01dbc06c56134eeb93788c6eea47df4c559b8831bb8",
+        "analysis.ts": "ec15ad1ea31e21fb038640f1946013d93395658d85c1c36358eed3d7c93b3d7a",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
         "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
@@ -377,12 +377,12 @@
     ]
   },
   {
-    "generatedAt": "2026-09-14T05:07:09.319Z",
-    "suiteHash": "156136c60ca67bcd967f34ec678b68ccb53664066178b76d389a8768f122bee2",
+    "generatedAt": "2026-09-14T10:24:04.878Z",
+    "suiteHash": "63ad52d16e85ddca7069c20b312fdba1a9a4e9e067ecd0e72abfb52b4eead955",
     "source": {
-      "revision": "b569d863fc01c889da0ffc765bed579294c07211",
+      "revision": "6f22449162fe99b8c2f863bf3dbcaf53478e31ef",
       "files": {
-        "analysis.ts": "2d2d25686a0171171eedb01dbc06c56134eeb93788c6eea47df4c559b8831bb8",
+        "analysis.ts": "ec15ad1ea31e21fb038640f1946013d93395658d85c1c36358eed3d7c93b3d7a",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
         "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
@@ -495,12 +495,12 @@
     ]
   },
   {
-    "generatedAt": "2026-09-14T05:07:09.319Z",
-    "suiteHash": "156136c60ca67bcd967f34ec678b68ccb53664066178b76d389a8768f122bee2",
+    "generatedAt": "2026-09-14T10:24:04.878Z",
+    "suiteHash": "63ad52d16e85ddca7069c20b312fdba1a9a4e9e067ecd0e72abfb52b4eead955",
     "source": {
-      "revision": "b569d863fc01c889da0ffc765bed579294c07211",
+      "revision": "6f22449162fe99b8c2f863bf3dbcaf53478e31ef",
       "files": {
-        "analysis.ts": "2d2d25686a0171171eedb01dbc06c56134eeb93788c6eea47df4c559b8831bb8",
+        "analysis.ts": "ec15ad1ea31e21fb038640f1946013d93395658d85c1c36358eed3d7c93b3d7a",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
         "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
@@ -580,12 +580,12 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-14T05:07:09.319Z",
-    "suiteHash": "156136c60ca67bcd967f34ec678b68ccb53664066178b76d389a8768f122bee2",
+    "generatedAt": "2026-09-14T10:24:04.878Z",
+    "suiteHash": "63ad52d16e85ddca7069c20b312fdba1a9a4e9e067ecd0e72abfb52b4eead955",
     "source": {
-      "revision": "b569d863fc01c889da0ffc765bed579294c07211",
+      "revision": "6f22449162fe99b8c2f863bf3dbcaf53478e31ef",
       "files": {
-        "analysis.ts": "2d2d25686a0171171eedb01dbc06c56134eeb93788c6eea47df4c559b8831bb8",
+        "analysis.ts": "ec15ad1ea31e21fb038640f1946013d93395658d85c1c36358eed3d7c93b3d7a",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
         "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
@@ -665,12 +665,12 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-14T05:07:09.319Z",
-    "suiteHash": "156136c60ca67bcd967f34ec678b68ccb53664066178b76d389a8768f122bee2",
+    "generatedAt": "2026-09-14T10:24:04.878Z",
+    "suiteHash": "63ad52d16e85ddca7069c20b312fdba1a9a4e9e067ecd0e72abfb52b4eead955",
     "source": {
-      "revision": "b569d863fc01c889da0ffc765bed579294c07211",
+      "revision": "6f22449162fe99b8c2f863bf3dbcaf53478e31ef",
       "files": {
-        "analysis.ts": "2d2d25686a0171171eedb01dbc06c56134eeb93788c6eea47df4c559b8831bb8",
+        "analysis.ts": "ec15ad1ea31e21fb038640f1946013d93395658d85c1c36358eed3d7c93b3d7a",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
         "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
@@ -750,12 +750,12 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-14T05:07:09.319Z",
-    "suiteHash": "156136c60ca67bcd967f34ec678b68ccb53664066178b76d389a8768f122bee2",
+    "generatedAt": "2026-09-14T10:24:04.878Z",
+    "suiteHash": "63ad52d16e85ddca7069c20b312fdba1a9a4e9e067ecd0e72abfb52b4eead955",
     "source": {
-      "revision": "b569d863fc01c889da0ffc765bed579294c07211",
+      "revision": "6f22449162fe99b8c2f863bf3dbcaf53478e31ef",
       "files": {
-        "analysis.ts": "2d2d25686a0171171eedb01dbc06c56134eeb93788c6eea47df4c559b8831bb8",
+        "analysis.ts": "ec15ad1ea31e21fb038640f1946013d93395658d85c1c36358eed3d7c93b3d7a",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
         "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
@@ -835,12 +835,12 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-14T05:07:09.319Z",
-    "suiteHash": "156136c60ca67bcd967f34ec678b68ccb53664066178b76d389a8768f122bee2",
+    "generatedAt": "2026-09-14T10:24:04.878Z",
+    "suiteHash": "63ad52d16e85ddca7069c20b312fdba1a9a4e9e067ecd0e72abfb52b4eead955",
     "source": {
-      "revision": "b569d863fc01c889da0ffc765bed579294c07211",
+      "revision": "6f22449162fe99b8c2f863bf3dbcaf53478e31ef",
       "files": {
-        "analysis.ts": "2d2d25686a0171171eedb01dbc06c56134eeb93788c6eea47df4c559b8831bb8",
+        "analysis.ts": "ec15ad1ea31e21fb038640f1946013d93395658d85c1c36358eed3d7c93b3d7a",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
         "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
@@ -937,12 +937,12 @@
     ]
   },
   {
-    "generatedAt": "2026-09-14T05:07:09.319Z",
-    "suiteHash": "156136c60ca67bcd967f34ec678b68ccb53664066178b76d389a8768f122bee2",
+    "generatedAt": "2026-09-14T10:24:04.878Z",
+    "suiteHash": "63ad52d16e85ddca7069c20b312fdba1a9a4e9e067ecd0e72abfb52b4eead955",
     "source": {
-      "revision": "b569d863fc01c889da0ffc765bed579294c07211",
+      "revision": "6f22449162fe99b8c2f863bf3dbcaf53478e31ef",
       "files": {
-        "analysis.ts": "2d2d25686a0171171eedb01dbc06c56134eeb93788c6eea47df4c559b8831bb8",
+        "analysis.ts": "ec15ad1ea31e21fb038640f1946013d93395658d85c1c36358eed3d7c93b3d7a",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
         "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
@@ -1031,12 +1031,12 @@
     ]
   },
   {
-    "generatedAt": "2026-09-14T05:07:09.319Z",
-    "suiteHash": "156136c60ca67bcd967f34ec678b68ccb53664066178b76d389a8768f122bee2",
+    "generatedAt": "2026-09-14T10:24:04.878Z",
+    "suiteHash": "63ad52d16e85ddca7069c20b312fdba1a9a4e9e067ecd0e72abfb52b4eead955",
     "source": {
-      "revision": "b569d863fc01c889da0ffc765bed579294c07211",
+      "revision": "6f22449162fe99b8c2f863bf3dbcaf53478e31ef",
       "files": {
-        "analysis.ts": "2d2d25686a0171171eedb01dbc06c56134eeb93788c6eea47df4c559b8831bb8",
+        "analysis.ts": "ec15ad1ea31e21fb038640f1946013d93395658d85c1c36358eed3d7c93b3d7a",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
         "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
@@ -1116,12 +1116,12 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-14T05:07:09.319Z",
-    "suiteHash": "156136c60ca67bcd967f34ec678b68ccb53664066178b76d389a8768f122bee2",
+    "generatedAt": "2026-09-14T10:24:04.878Z",
+    "suiteHash": "63ad52d16e85ddca7069c20b312fdba1a9a4e9e067ecd0e72abfb52b4eead955",
     "source": {
-      "revision": "b569d863fc01c889da0ffc765bed579294c07211",
+      "revision": "6f22449162fe99b8c2f863bf3dbcaf53478e31ef",
       "files": {
-        "analysis.ts": "2d2d25686a0171171eedb01dbc06c56134eeb93788c6eea47df4c559b8831bb8",
+        "analysis.ts": "ec15ad1ea31e21fb038640f1946013d93395658d85c1c36358eed3d7c93b3d7a",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
         "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
@@ -1201,12 +1201,12 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-14T05:07:09.319Z",
-    "suiteHash": "156136c60ca67bcd967f34ec678b68ccb53664066178b76d389a8768f122bee2",
+    "generatedAt": "2026-09-14T10:24:04.878Z",
+    "suiteHash": "63ad52d16e85ddca7069c20b312fdba1a9a4e9e067ecd0e72abfb52b4eead955",
     "source": {
-      "revision": "b569d863fc01c889da0ffc765bed579294c07211",
+      "revision": "6f22449162fe99b8c2f863bf3dbcaf53478e31ef",
       "files": {
-        "analysis.ts": "2d2d25686a0171171eedb01dbc06c56134eeb93788c6eea47df4c559b8831bb8",
+        "analysis.ts": "ec15ad1ea31e21fb038640f1946013d93395658d85c1c36358eed3d7c93b3d7a",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
         "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
@@ -1286,12 +1286,12 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-14T05:07:09.319Z",
-    "suiteHash": "156136c60ca67bcd967f34ec678b68ccb53664066178b76d389a8768f122bee2",
+    "generatedAt": "2026-09-14T10:24:04.878Z",
+    "suiteHash": "63ad52d16e85ddca7069c20b312fdba1a9a4e9e067ecd0e72abfb52b4eead955",
     "source": {
-      "revision": "b569d863fc01c889da0ffc765bed579294c07211",
+      "revision": "6f22449162fe99b8c2f863bf3dbcaf53478e31ef",
       "files": {
-        "analysis.ts": "2d2d25686a0171171eedb01dbc06c56134eeb93788c6eea47df4c559b8831bb8",
+        "analysis.ts": "ec15ad1ea31e21fb038640f1946013d93395658d85c1c36358eed3d7c93b3d7a",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
         "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
@@ -1323,7 +1323,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "ar",
             "direction": "rtl"
           },
@@ -1345,13 +1345,7 @@
             "language": "ar",
             "direction": "rtl"
           },
-          "changes": [
-            {
-              "field": "focused",
-              "value": false,
-              "evidence": "snapshot"
-            }
-          ]
+          "changes": []
         },
         "context": {
           "kind": "installed",
@@ -1377,12 +1371,12 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-14T05:07:09.319Z",
-    "suiteHash": "156136c60ca67bcd967f34ec678b68ccb53664066178b76d389a8768f122bee2",
+    "generatedAt": "2026-09-14T10:24:04.878Z",
+    "suiteHash": "63ad52d16e85ddca7069c20b312fdba1a9a4e9e067ecd0e72abfb52b4eead955",
     "source": {
-      "revision": "b569d863fc01c889da0ffc765bed579294c07211",
+      "revision": "6f22449162fe99b8c2f863bf3dbcaf53478e31ef",
       "files": {
-        "analysis.ts": "2d2d25686a0171171eedb01dbc06c56134eeb93788c6eea47df4c559b8831bb8",
+        "analysis.ts": "ec15ad1ea31e21fb038640f1946013d93395658d85c1c36358eed3d7c93b3d7a",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
         "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
@@ -1414,7 +1408,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "ar",
             "direction": "rtl"
           },
@@ -1436,13 +1430,7 @@
             "language": "ar",
             "direction": "rtl"
           },
-          "changes": [
-            {
-              "field": "focused",
-              "value": false,
-              "evidence": "snapshot"
-            }
-          ]
+          "changes": []
         },
         "context": {
           "kind": "installed",
@@ -1468,12 +1456,12 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-14T05:07:09.319Z",
-    "suiteHash": "156136c60ca67bcd967f34ec678b68ccb53664066178b76d389a8768f122bee2",
+    "generatedAt": "2026-09-14T10:24:04.878Z",
+    "suiteHash": "63ad52d16e85ddca7069c20b312fdba1a9a4e9e067ecd0e72abfb52b4eead955",
     "source": {
-      "revision": "b569d863fc01c889da0ffc765bed579294c07211",
+      "revision": "6f22449162fe99b8c2f863bf3dbcaf53478e31ef",
       "files": {
-        "analysis.ts": "2d2d25686a0171171eedb01dbc06c56134eeb93788c6eea47df4c559b8831bb8",
+        "analysis.ts": "ec15ad1ea31e21fb038640f1946013d93395658d85c1c36358eed3d7c93b3d7a",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
         "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
@@ -1553,12 +1541,12 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-14T05:07:09.319Z",
-    "suiteHash": "156136c60ca67bcd967f34ec678b68ccb53664066178b76d389a8768f122bee2",
+    "generatedAt": "2026-09-14T10:24:04.878Z",
+    "suiteHash": "63ad52d16e85ddca7069c20b312fdba1a9a4e9e067ecd0e72abfb52b4eead955",
     "source": {
-      "revision": "b569d863fc01c889da0ffc765bed579294c07211",
+      "revision": "6f22449162fe99b8c2f863bf3dbcaf53478e31ef",
       "files": {
-        "analysis.ts": "2d2d25686a0171171eedb01dbc06c56134eeb93788c6eea47df4c559b8831bb8",
+        "analysis.ts": "ec15ad1ea31e21fb038640f1946013d93395658d85c1c36358eed3d7c93b3d7a",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
         "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
@@ -1590,7 +1578,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "he",
             "direction": "rtl"
           },
@@ -1608,7 +1596,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "he",
             "direction": "rtl"
           },
@@ -1622,7 +1610,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -1638,12 +1626,12 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-14T05:07:09.319Z",
-    "suiteHash": "156136c60ca67bcd967f34ec678b68ccb53664066178b76d389a8768f122bee2",
+    "generatedAt": "2026-09-14T10:24:04.878Z",
+    "suiteHash": "63ad52d16e85ddca7069c20b312fdba1a9a4e9e067ecd0e72abfb52b4eead955",
     "source": {
-      "revision": "b569d863fc01c889da0ffc765bed579294c07211",
+      "revision": "6f22449162fe99b8c2f863bf3dbcaf53478e31ef",
       "files": {
-        "analysis.ts": "2d2d25686a0171171eedb01dbc06c56134eeb93788c6eea47df4c559b8831bb8",
+        "analysis.ts": "ec15ad1ea31e21fb038640f1946013d93395658d85c1c36358eed3d7c93b3d7a",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
         "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
@@ -1675,7 +1663,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "ur",
             "direction": "rtl"
           },
@@ -1697,13 +1685,7 @@
             "language": "ur",
             "direction": "rtl"
           },
-          "changes": [
-            {
-              "field": "focused",
-              "value": false,
-              "evidence": "snapshot"
-            }
-          ]
+          "changes": []
         },
         "context": {
           "kind": "installed",
