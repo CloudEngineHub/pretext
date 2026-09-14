@@ -17,6 +17,54 @@ All accuracy, letter-spacing and corpus result payloads are unchanged; refreshed
 snapshots change only provenance and environment records. Runtime sources and
 the baseline pin are unchanged, so no runtime benchmark was needed.
 
+## Emergency breaks inside kinsoku units
+
+This runtime change starts from published main `cc8619a` (#287). A CJK unit that
+kinsoku keeps together, such as `漢。` or `「漢`, and a `keep-all` group now break
+between graphemes when they don't fit a line, as Chromium, WebKit in Safari 26.5.2
+and Gecko do under `overflow-wrap: break-word`. That includes a `keep-all` run of
+plain letters that `Intl.Segmenter` doesn't mark as a word, as Firefox's segmenter
+doesn't for the second `漢字` in `漢字」。漢字`. The forward carry keeps combining marks
+with their base, and a run of openers stays with the text after it (UAX #14 LB14,
+LB28). The new research family `maintained/kinsoku-units` sweeps these shapes from
+1px until they fit one line.
+
+The installed gate ran this change against pinned `3bd7496`, whose runtime source
+equals `cc8619a`: Chrome 153 through the Playwright transport, Safari 26.5.2 and
+Firefox 155 natively, both directions, at DPR 2. Chrome fixes 1,271 LTR and 987 RTL
+metrics and loses 210 and 158; Safari fixes 2,138 and 1,369 and loses 22 and 22;
+Firefox fixes 1,234 and 771 and loses 80 and 44. No leg has required failures,
+execution errors or new API or rich failures, and five numeric profiles have no new
+failures. Every lost row is one main passed only while two errors cancelled. Chrome
+loses 77 LTR and 57 RTL rows: 37 and 29 to text-spacing-trim, where Chrome paints
+the second opener in `「「tail` at 8px and Pretext charges 16px when it breaks inside
+the unit, 22 and 18 to the U+3000 hang, 16 and 8 to joined Arabic emergency widths
+and 2 and 2 to raw VT. Safari loses 11 per direction: 6 to its joined Arabic
+graphemes and 5 to raw CR and FF. Firefox loses 33 LTR and 21 RTL rows: 6 and 2 to
+the U+3000 hang, 12 and 4 to joined Arabic emergency widths, 7 and 7 to raw VT, CR
+and FF, 4 per direction where Firefox paints U+0000 at zero advance, and 4 per
+direction where, under `keep-all`, Firefox keeps `”` with the ideograph after it. On
+most of these rows main broke where UAX #14 forbids a break, such as `「「|tail`, and
+the browser's emergency break fell at the same place. Suite hash
+`adfc9cfd00420d56870040b83e723844ae5dc7b14e273b7ccc55ce0828ee70db`; rows are in
+`/private/tmp/pretext-eng-20260912/gate-cl-a-{chrome,safari,firefox}`.
+
+In the recipes, `漢。字`, `1234。b`, `日本ーー` and `日本！ーー` match all three browsers at
+every width, so Firefox's emergency split of `本ーー` is now modeled. Under `keep-all`,
+`漢字」。漢字` matches Firefox at every width, where main is wrong on 189 of 291 rows.
+Outside Chrome's trimmed widths, only `abc」。d` still differs among the cluster,
+`keep-all` and sub-glyph sweeps (133 Firefox and 140 Safari rows), because Pretext
+breaks before `」` after Latin letters.
+
+`bun test` and `bun run check` pass. Under a counting fake canvas, Canvas calls per
+cold `prepare()` rise only on the Chinese, Japanese, Korean and mixed corpora,
+because their kinsoku units now take emergency breaks. zh-zhufu goes from 1,597 to
+1,699 calls in the Chrome and Firefox profiles and from 1,601 to 1,760 in the Safari
+profile, and all 18 corpora from 52,811 to 53,092 in the Chrome profile, from
+115,855 to 116,304 in the Safari profile and from 52,817 to 53,104 in the Firefox
+profile. Under `keep-all` the totals don't change. The baseline advances to
+`01daf37`, and the ordinary snapshots were regenerated against it.
+
 ## Rich-inline boundaries in Firefox
 
 This change starts from main after #281. `prepareRichInline()` still let every item
