@@ -456,7 +456,7 @@ function addReportedCases(add: (input: Omit<WrappingCase, 'id'>) => void, measur
         continue
       }
       // Firefox keeps a date such as 2025-08-01 whole, where Chrome and Safari
-      // break after its hyphens, while Pretext splits it for every engine.
+      // break after its hyphens.
       report('#225', text, width, { ...options, origins: ['issue/#225', 'reported-reproduction/#225'], browsers: ['chrome', 'safari'],
         required: ['height', 'lineCount', 'source', 'api'] })
       report('#225', text, width, { ...options, origins: ['issue/#225', 'reported-reproduction/#225'], browsers: ['firefox'],

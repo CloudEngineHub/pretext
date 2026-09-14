@@ -125,6 +125,23 @@ its own text, so an item that starts with a hyphen keeps its letter as at a text
 start. That matches Safari's per-node scan, but Chrome's context crosses items.
 Firefox's ICU4X 2.1 rules follow Unicode 15.0, before LB20a.
 
+ICU4X keeps a hyphen-minus (HY) with a following number (NU), ASCII or not
+(LB25), so installed Firefox 155 moves `log-2026` or `2025-08-01` to the next
+line whole and breaks `crash-log-2026-09-12.txt` only after `crash-`. Chrome and
+Safari break `-` before an ASCII digit from their pair tables. Gecko also marks
+the position after a hyphen between alphanumerics as an emergency wrap
+(`gfxShapedText::SetupClusterBoundaries`), taken only when nothing else fits: under
+`overflow-wrap: normal` Firefox paints `log- | 2026` once the word can't fit a
+line, while under `break-word` every cluster start is such a wrap and it fills
+graphemes (`log-2 | 026`). A probe that reads only `overflow-wrap: normal` lines
+sees a break there. Fullwidth digits are ID, and U+2010, U+2012 and U+2013 are
+BA in ICU4X's data, so Firefox still breaks after them before a digit. The Gecko
+profile answers the pair in the ASCII model's boundary rule, which every merge
+asks, keeps the pieces of a numeric run such as `8:30-4:30` together, and doesn't
+prefer that break in an overflowing word. Before Arabic-Indic, Devanagari or
+mathematical digits Chrome keeps the hyphen too, and so does Safari except before
+Arabic-Indic digits; Pretext breaks there in both profiles.
+
 U+2007 FIGURE SPACE is UAX #14 class GL, like NBSP and NNBSP, even though it is
 a space separator. Chrome and Safari treat only SPACE, TAB and LF (Safari also
 LS/PS) as breakable spaces, and their pair tables stop at U+00FF, so U+2007 goes

@@ -1288,11 +1288,17 @@ function isAsciiBoundary(left: string, right: string): boolean {
 
 // The observed Gecko ASCII model owns directional PR/PO seams and ordinary
 // opener attachment. Unicode neighbors retain the existing compatibility tier.
+// ICU4X also keeps a hyphen-minus (HY) with a following number (NU), ASCII or
+// not (LB25), so Firefox keeps `2025-08-01` whole, where the pair tables of
+// Chromium and WebKit break `-` before an ASCII digit.
 function numericAffixBoundary(source: string, boundary: number, profile: AnalysisProfile): boolean | null {
   if (!profile.geckoAsciiLineBreaks || boundary <= 0 || boundary >= source.length) return null
   const left = getLastSignificantCodePoint(source, boundary)
-  const right = String.fromCodePoint(source.codePointAt(boundary)!)
-  if (left === null || !isAsciiBoundary(left, right)) return null
+  if (left === null) return null
+  const rightCodePoint = source.codePointAt(boundary)!
+  if (getLineBreakClass(left.codePointAt(0)!) === LineBreakClass.HY && getLineBreakClass(rightCodePoint) === LineBreakClass.NU) return true
+  const right = String.fromCodePoint(rightCodePoint)
+  if (!isAsciiBoundary(left, right)) return null
   // Marks after a space or a line break have no base (UAX #14 LB9) and count as
   // letters (LB10), as marks at the start of the text do.
   if (left !== source.slice(boundary - left.length, boundary)) {
@@ -1421,10 +1427,14 @@ function mergeNumericRuns(segmentation: MergedSegmentation, normalized: string, 
         for (let i = 0; i < parts.length; i++) {
           const part = parts[i]!
           const splitText = i < parts.length - 1 ? `${part}-` : part + suffix
-          texts.push(splitText)
-          isWordLike.push(true)
-          kinds.push('text')
-          starts.push(start + offset)
+          if (i > 0 && numericAffixBoundary(normalized, start + offset, profile) === true) {
+            texts[texts.length - 1] += splitText
+          } else {
+            texts.push(splitText)
+            isWordLike.push(true)
+            kinds.push('text')
+            starts.push(start + offset)
+          }
           offset += splitText.length
         }
         return
@@ -2342,7 +2352,10 @@ export function getBreakablePreferredBreaks(text: string, profile: AnalysisProfi
   let graphemeIndex = 0
   for (const gs of getSharedGraphemeSegmenter().segment(text)) {
     graphemeIndex++
-    const numericSign = gs.segment === '-' && isNumericHyphen(text, gs.index)
+    // Gecko keeps any hyphen with a following number (LB25), so an overflowing
+    // word fills graphemes there.
+    const numericSign = gs.segment === '-' &&
+      (isNumericHyphen(text, gs.index) || numericAffixBoundary(text, gs.index + 1, profile) === true)
     // A segment that starts with a hyphen kept with its letter (LB20a) offers
     // no break after it, so an overflowing word fills graphemes there.
     const wordInitial = gs.index === 0 && isHyphenPiece(gs.segment) && keepsWordInitialHyphen(text, 0, gs.segment.length, profile)
