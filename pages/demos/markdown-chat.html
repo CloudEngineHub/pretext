@@ -206,10 +206,6 @@
     .frag--code {
       padding: 2px 6px 3px;
       border-radius: 8px;
-      background: rgb(49 56 64 / 1);
-    }
-    .msg--user .frag--code {
-      background: rgb(49 56 64 / 1);
     }
     .frag--chip {
       display: inline-flex;
@@ -217,9 +213,17 @@
       padding: 0 7px;
       min-height: 18px;
       border-radius: 999px;
-      background: rgb(49 56 64 / 1);
       color: var(--accent);
       transform: translateY(1px);
+    }
+    /* A pill is one surface step from the ground behind it. */
+    .msg--assistant .frag--code,
+    .msg--assistant .frag--chip {
+      background: var(--user-bubble);
+    }
+    .msg--user .frag--code,
+    .msg--user .frag--chip {
+      background: var(--assistant-code);
     }
     .is-link {
       color: var(--accent);
