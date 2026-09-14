@@ -307,6 +307,48 @@ export function generateCases(measure: Measure, selection: CaseSelection): Wrapp
     kinsokuUnits('owner/amiri-ideographic-space-mark', 'a\u3000\u0301?b', '24px Amiri', [8, 24, 40], { whiteSpace, letterSpacing: 1.5, lineHeight: 48 }, 'fixtures')
   }
 
+  // Characters that can't start a line after text. No break precedes closing
+  // punctuation or a nonstarter, whatever comes before it (UAX #14 LB13, LB21), and
+  // small kana and `ー` follow the engine and page language. `a TEXT MARK b` runs at
+  // three widths: TEXT MARK fits an empty line, only TEXT fits, and `a TEXT` fits
+  // where `a TEXT MARK` doesn't. The bracket sweeps run from 1px to 160px, and the
+  // opener shapes observe whether browsers break after an opener that follows
+  // text. Nothing is required.
+  const closingFamily = 'maintained/closing-punctuation'
+  const closingPunctuation = (label: string, text: string, font: string, widths: readonly number[], options: Partial<Omit<WrappingCase, 'id' | 'text' | 'font' | 'width'>> = {}): void => {
+    const lang = options.lang ?? 'en'
+    for (const width of widths) {
+      add({ ...defaults, family: closingFamily, origins: [`${closingFamily}/${label}`], scope: 'research',
+        context: { kind: 'installed', lang }, ...options, lang, text, font, width,
+        note: 'Observation only: closing punctuation and nonstarters after text, and openers after text.' }, false)
+    }
+  }
+  const closingMarks = ['，', '」', '：', '。', '）', '！', '？', '、', '」。', 'ー', 'ァ', 'ヶ'] as const
+  for (const font of [arial, hiragino]) {
+    for (const [label, word] of [
+      ['latin', 'xxxx'], ['digits', '1234'], ['time-in-parens', '(10:30)'], ['emoji', '😀'], ['symbol', '★'], ['khmer', 'ខ\u17D2ម\u17C2រ'],
+      ['arabic', 'عربي'], ['email', 'foo@bar.com'], ['quoted', 'x“value”'], ['url', 'https://example.com/docs'],
+    ] as const) {
+      for (const mark of label === 'latin' ? [...closingMarks, '〜', '゠'] : closingMarks) {
+        const wordWidth = measure(word, font, 0)
+        const wordMarkWidth = measure(`${word}${mark}`, font, 0)
+        const widths = [wordMarkWidth + 0.5]
+        if (wordWidth + 1 < wordMarkWidth) widths.push(wordWidth + 1)
+        const prefixWidth = Math.max(measure(`a ${word}`, font, 0), wordMarkWidth) + 0.5
+        if (prefixWidth < measure(`a ${word}${mark}`, font, 0) - 0.5 && Math.abs(prefixWidth - widths[0]!) > 0.25) widths.push(prefixWidth)
+        for (const lang of pageLanguages) for (const whiteSpace of ['normal', 'pre-wrap'] as const) {
+          closingPunctuation(`attach/${label}`, `a ${word}${mark}b`, font, widths, { lang, whiteSpace })
+        }
+      }
+    }
+    for (const direction of ['ltr', 'rtl'] as const) {
+      for (const [label, text] of [
+        ['bracket/latin', '739x「value」! end'], ['bracket/hangul', '한글x（value）! end'],
+        ['opener/two-words', 'x「hello world」'], ['opener/unclosed', 'x「value'], ['opener/after-space', 'go xyzx「hello world」!'],
+      ] as const) closingPunctuation(label, text, font, widthRange(1, 160), { direction })
+    }
+  }
+
   const recipeMeasure = (text: string, font: string): number => measure(text, font, 0)
   for (const recipe of [policyCases, generateLanguageCases, generateSeamCases, generateAcceptanceCases]) {
     for (const input of recipe(recipeMeasure)) {

@@ -1,4 +1,4 @@
 {
-  "revision": "1269f5ec284cf9cc479f383bc3eb7cb3d15119cf",
+  "revision": "b69f72ea6055fd015c129cdf6556de3a17b82c32",
   "description": "Reviewed boundary, rich-inline, shared complex-walker, leading-ZWSP, exclamation-break, figure-space glue, pair-table gap, CJK closing-bracket, Safari line-edge kerning, WebKit engine routing, segment-break removal and Blink soft-hyphen retreat fixes. The runner measures this source and every candidate against the same fresh browser observations; existing mismatches remain observations, never expected answers."
 }

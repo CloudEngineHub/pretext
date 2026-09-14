@@ -607,6 +607,69 @@ describe('boundary-policy regressions', () => {
     }
   })
 
+  test('closing punctuation and nonstarters stay with the text before them (#225)', async () => {
+    // No break precedes CL, CP, EX, IS or NS, whatever comes before it (UAX #14
+    // LB13, LB21). Chrome, Safari and Firefox keep the mark with a word or a number
+    // until only the word fits an empty line.
+    const lines = (text: string, width: number) =>
+      layoutWithLines(prepareWithSegments(text, FONT), width, LINE_HEIGHT).lines.map(line => line.text.trimEnd())
+    for (const word of ['xxxx', '1234']) {
+      for (const mark of ['，', '」', '：', '。', '）', '！', '？', '、', '」。']) {
+        const text = `a ${word}${mark}b`
+        expect(lines(text, measureWidth(`${word}${mark}`, FONT) + 0.1)).toEqual(['a', `${word}${mark}`, 'b'])
+        // Half a mark wider than the word, which an emergency fill of the digits needs.
+        const narrow = lines(text, measureWidth(word, FONT) + measureWidth(mark[0]!, FONT) / 2)
+        expect(narrow.slice(0, 2)).toEqual(['a', word])
+        expect(narrow.join('')).toBe(`a${word}${mark}b`)
+      }
+    }
+    // The mark joins a whole merged run, and a space or zero-width space still
+    // separates it from the text before.
+    for (const [text, expected] of [
+      ['a 00:00:00：b', ['a', ' ', '00:00:00：', 'b']],
+      ['(10:30)，b', ['(10:30)，', 'b']],
+      ['foo@bar.com，b', ['foo@bar.com，', 'b']],
+      ['x“value”，b', ['x“value”，', 'b']],
+      ['x?，b', ['x?，', 'b']],
+      ['abcヽカ', ['abcヽ', 'カ']],
+      ['中（ابب） ', ['中', '（ابب）', ' ']],
+      ['a ，b', ['a', ' ', '，', 'b']],
+      ['a​，b', ['a', '​', '，', 'b']],
+    ] as const) {
+      expect(prepareWithSegments(text, FONT).segments).toEqual([...expected])
+    }
+    // Once `」!` joins `value`, the forward carry moves the opener onto it.
+    const bracket = '739x「value」! end'
+    expect(prepareWithSegments(bracket, FONT).segments).toEqual(['739x', '「value」!', ' ', 'end'])
+    expect(lines(bracket, measureWidth('「value」!', FONT) + 0.1)).toEqual(['739x', '「value」!', 'end'])
+    expect(lines(bracket, measureWidth('「value', FONT) + 0.1)).toEqual(['739x', '「value', '」! end'])
+    // An overlong unit still breaks between graphemes.
+    expect(lines('abc」。d', measureWidth('c」', FONT) + 0.1)).toEqual(['ab', 'c」', '。d'])
+    // Firefox breaks at the end of a run of complex-script letters, whatever follows.
+    const { analyzeText } = await import('./analysis.ts')
+    const khmer = 'a ខ\u17D2ម\u17C2រ，b'
+    expect(analyzeText(khmer, baseProfile).texts).toEqual(['a', ' ', 'ខ\u17D2ម\u17C2រ，', 'b'])
+    expect(analyzeText(khmer, { ...baseProfile, geckoAsciiLineBreaks: true }).texts).toEqual(['a', ' ', 'ខ\u17D2ម\u17C2រ', '，', 'b'])
+  })
+
+  test('small kana and U+30FC stay with the text before them where the profile resolves them to NS', async () => {
+    const { getEngineProfile } = await import('./measurement.ts')
+    const profile = getEngineProfile()
+    const previous = profile.breakBeforeConditionalJapaneseStarter
+    const segments = (text: string) => prepareWithSegments(text, FONT).segments.join('|')
+    const texts = ['a xxxxーb', '約3ヶ月', '日本abcァア']
+    try {
+      // The Chromium profile, and the WebKit profile on ja and ko pages.
+      profile.breakBeforeConditionalJapaneseStarter = true
+      expect(texts.map(text => segments(text))).toEqual(['a| |xxxx|ー|b', '約|3|ヶ|月', '日|本|abc|ァ|ア'])
+      // The Gecko profile, and the WebKit profile on other pages.
+      profile.breakBeforeConditionalJapaneseStarter = false
+      expect(texts.map(text => segments(text))).toEqual(['a| |xxxxー|b', '約|3ヶ|月', '日|本|abcァ|ア'])
+    } finally {
+      profile.breakBeforeConditionalJapaneseStarter = previous
+    }
+  })
+
   test('the Gecko profile keeps a hyphen with the number after it', async () => {
     const { analyzeText, getBreakablePreferredBreaks } = await import('./analysis.ts')
     const gecko = { ...baseProfile, geckoAsciiLineBreaks: true, keepAllPairModel: 'icu4x-classes' as const, breakAroundEastAsianQuotes: false, wordInitialHyphenLetters: 'none' as const }
@@ -2425,6 +2488,7 @@ describe('rich-inline invariants', () => {
         [['\u1019\u103C\u1014\u103A\u1019\u102C\u1018\u102C\u101E', '\u102C\u101E\u100A\u103A\u101C\u103E\u1015\u101E\u1031\u102C'], 100],
         [['\u4E2D\u6587\u4E2D\u6587', '\u3002\u65E5\u672C\u8A9E'], 40],
         [['foo ba', 'r\u00AD baz'], 64],
+        [['a xxxx', '\uFF0Cb'], 54.5],
       ] as const) {
         const prepared = prepareRichInline(parts.map(text => ({ text, font: FONT })))
         const richLines: string[] = []
@@ -3273,6 +3337,7 @@ test('the Firefox profile breaks rich items only where their joined text breaks'
       [['\u4E2D\u6587\u4E2D\u6587', '\u3002\u65E5\u672C\u8A9E'], 36],
       [['\u3061\u3087\u3063\u3068\u5F85', '\u3063\u3066\u304F\u3060\u3055\u3044'], 44],
       [['he said \u201Chello', '\u201D and left'], 108],
+      [['a xxxx', '\uFF0Cb'], 46],
     ]) {
       const prepared = prepareRichInline(parts.map(text => ({ text, font: '16px Test' })))
       const rich = []
@@ -3297,7 +3362,7 @@ test('the Firefox profile breaks rich items only where their joined text breaks'
     marks: string[][]
   }
   expect(result.inlineItemBreaks).toBe('joined-text')
-  expect(result.rows).toHaveLength(6)
+  expect(result.rows).toHaveLength(7)
   for (const row of result.rows) expect(row.rich).toEqual(row.flat)
   // A mark after a line break or a space has no base and counts as a letter,
   // as at the start of the text, so it stays with a following numeric prefix.
