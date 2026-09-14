@@ -83,6 +83,8 @@ function renderBody(lines: RichLine[]): void {
       const part = line.fragments[fragmentIndex]!
       const element = document.createElement('span')
       element.className = part.className
+      // Paint with the font the item was measured with.
+      element.style.setProperty('--font', part.font)
       element.textContent = part.text
       if (part.leadingGap > 0) element.style.marginLeft = `${part.leadingGap}px`
       row.appendChild(element)
