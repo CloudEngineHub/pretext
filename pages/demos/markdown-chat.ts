@@ -245,7 +245,7 @@ function projectMessageNode(
   top: number,
 ): void {
   cachedRow.row.style.top = `${top}px`
-  cachedRow.row.style.height = `${frame.totalHeight}px`
+  cachedRow.row.style.height = `${frame.bubbleHeight}px`
   cachedRow.bubble.style.width = `${frame.frameWidth}px`
   cachedRow.bubble.style.height = `${frame.bubbleHeight}px`
 }
