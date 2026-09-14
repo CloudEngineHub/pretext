@@ -147,7 +147,6 @@ type CodeBlockFrame = BlockFrameBase & {
 
 type RuleBlockFrame = BlockFrameBase & {
   kind: 'rule'
-  width: number
 }
 
 type BlockFrame = InlineBlockFrame | CodeBlockFrame | RuleBlockFrame
@@ -995,7 +994,6 @@ function layoutBlockFrame(
         markerText: block.markerText,
         quoteRailLefts: block.quoteRailLefts,
         top,
-        width: Math.max(1, contentWidth - block.contentLeft),
       }
     }
   }
@@ -1008,13 +1006,16 @@ function getUsedBlockWidth(block: BlockFrame): number {
     case 'code':
       return block.contentLeft + block.width
     case 'rule':
-      return block.contentLeft + block.width
+      // A rule has no width of its own. It stretches across the final bubble.
+      return block.contentLeft
   }
 }
 
 export function materializeMessageBlocks(message: ChatMessageInstance): BlockLayout[] {
+  const { frame } = message
+  const bubbleContentWidth = frame.frameWidth - frame.contentInsetX * 2
   return message.prepared.blocks.map((block, index) =>
-    materializeBlockLayout(block, message.frame.blocks[index]!, message.frame.layoutContentWidth),
+    materializeBlockLayout(block, frame.blocks[index]!, frame.layoutContentWidth, bubbleContentWidth),
   )
 }
 
@@ -1022,6 +1023,7 @@ function materializeBlockLayout(
   block: PreparedBlock,
   frame: BlockFrame,
   contentWidth: number,
+  bubbleContentWidth: number,
 ): BlockLayout {
   switch (frame.kind) {
     case 'inline': {
@@ -1087,7 +1089,7 @@ function materializeBlockLayout(
         markerText: frame.markerText,
         quoteRailLefts: frame.quoteRailLefts,
         top: frame.top,
-        width: frame.width,
+        width: Math.max(1, bubbleContentWidth - frame.contentLeft),
       }
     }
   }
