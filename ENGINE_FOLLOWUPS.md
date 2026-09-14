@@ -81,6 +81,7 @@ Open engine work: decisions for the maintainer, known gaps and harness debt.
 - Skip letter spacing inside cursive scripts, per engine. Chrome versions before 149 lack the rule or apply it differently, so choose between a README limitation and a version gate.
 - Arabic letters joined across a soft hyphen are measured at isolated widths; the Chrome widths are recoverable for joining fonts. Prototype the gated per-grapheme ZWJ recipe for the Gecko profile (FONT_DIAGNOSTICS.md), together with the Firefox halves of the planned rules that wait on it.
 - Chrome and Firefox shape and kern across rich-inline item boundaries, so per-item widths miss by about 1px there; Safari doesn't. Consider a prepare-time boundary correction for Blink and Gecko.
+- Rich-inline layout clamps the line width and an item's available width to at least 1px, while the plain line walkers clamp to 0, so widths below 1px lay out differently in rich-inline.
 
 ## Per-browser gaps
 

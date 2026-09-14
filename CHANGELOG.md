@@ -40,6 +40,7 @@
 - In Firefox, a combining mark after a line break or a space now stays with a following `$`, `%`, `+` or `\`, as it does at the start of the text. At narrow widths such text can also take one line fewer: after `어`, a space and U+3099, `$"` no longer breaks between `$` and `"` (#270).
 - With `word-break: keep-all` in Chrome and Firefox, a URL containing a second `www.` or scheme such as `https://` before its query, as in `x中www.a/www.b?q`, no longer loses text. In Chrome and Safari, rich-inline layout no longer breaks such a URL where its text has no break opportunity, as before the second `www.` in items `字` and `www.a/www.b?q=1` (#269).
 - After CJK text, `.`, `,`, `:`, `;`, `)`, `]`, `%` or `"` now stays on the same line as a following word or number, as browsers do. In `甲乙丙.first_week_voltage}户`, lines no longer break after the period (#276).
+- Rich-inline layout now keeps text, or a `break: 'never'` item, on a line when it overflows by no more than 0.005px, or 1/64px in Safari, as it already did inside one item. Previously, at some widths, layout took one more line than at a slightly narrower width (#281).
 
 ## 0.0.9 - 2026-09-07
 

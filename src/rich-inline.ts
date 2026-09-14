@@ -710,7 +710,7 @@ function stepRichInlineLine(
 
       const occupiedWidth = item.naturalWidth + item.extraWidth
       const totalWidth = gapBefore + occupiedWidth
-      if (hasContent && totalWidth > remainingWidth) break lineLoop
+      if (hasContent && totalWidth > remainingWidth + lineFitEpsilon) break lineLoop
 
       collectWholeItem(collectFragment, itemIndex, item, gapBefore, occupiedWidth)
       hasContent = true
@@ -720,19 +720,19 @@ function stepRichInlineLine(
     }
 
     const reservedWidth = gapBefore + item.extraWidth
-    if (hasContent && reservedWidth > remainingWidth) break lineLoop
+    if (hasContent && reservedWidth > remainingWidth + lineFitEpsilon) break lineLoop
 
     // When following items continue this item's last run without a break,
     // the run moves to a later line with them if the line already has an
     // earlier ordinary break: inside this item, or at its start boundary.
-    // A run that began the line can still take an overflow break later. The
-    // carry fits like the line walker's content, within its fit epsilon.
+    // A run that began the line can still take an overflow break later. Every
+    // fit check here, including the carry's, allows the line walker's fit epsilon.
     const carryWidth = item.carryWidth
 
     if (atItemStart) {
       const totalWidth = reservedWidth + item.naturalWidth
       if (
-        totalWidth <= remainingWidth &&
+        totalWidth <= remainingWidth + lineFitEpsilon &&
         (
           carryWidth === 0 ||
           totalWidth + carryWidth <= remainingWidth + lineFitEpsilon ||
@@ -766,7 +766,7 @@ function stepRichInlineLine(
 
     // The lower-level walker may force one unit to make progress. If that unit
     // only fits on a fresh line, wrap before this rich item instead.
-    if (hasContent && atItemStart && lineWidthContribution > remainingWidth) break lineLoop
+    if (hasContent && atItemStart && lineWidthContribution > remainingWidth + lineFitEpsilon) break lineLoop
 
     // Preserve ordinary breaks before emergency splitting the next word: the
     // last one the joined text offers inside its first segment, else the item
