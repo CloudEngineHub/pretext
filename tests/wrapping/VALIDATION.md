@@ -17,6 +17,91 @@ All accuracy, letter-spacing and corpus result payloads are unchanged; refreshed
 snapshots change only provenance and environment records. Runtime sources and
 the baseline pin are unchanged, so no runtime benchmark was needed.
 
+## Firefox breaks after a slash before a letter
+
+This runtime change starts from published main `3f6bf0c` (#289). Installed Firefox
+155 breaks after `/` wherever ICU4X's UAX #14 rules allow a break: before a letter
+of any script, an opener or a symbol such as `#`, but not before a number, a Hebrew
+letter or punctuation that no break precedes. It paints `https:// | example.com`,
+`example.com/ | docs` and `and/ | or`, where Chrome and Safari keep the unit whole,
+never breaks before `/`, and when such a unit doesn't fit a line it fills graphemes
+but still ends the line after `/`. The Gecko profile now breaks there in every
+merge, so a URL run stops after `https://` and after each `/` before a letter. The
+Chromium and WebKit profiles don't change.
+
+The installed gate ran this change against pinned `108c98a`, whose runtime source
+equals `3f6bf0c`: Chrome 153 through the Playwright transport, Safari 26.5.2 and
+Firefox 155 natively, both directions, at DPR 2 on the 2560x1440 screen. Chrome and
+Safari change nothing in either direction: no fixed or lost metric, no changed
+failure and identical metric totals. Firefox LTR fixes 969 metrics on 410 rows and
+loses 5 on 5, and Firefox RTL fixes 93 on 39 and loses 1, so the Firefox leg exits 1
+only because of those losses. Left to right, it fixes 282 `measurement` rows of
+`©︎/©️`, where Firefox breaks after `/`, and 12 `mixed-app-text` corpus widths from
+230 to 490px, including the 330, 340 and 350px rows #289 lost. It also fixes source
+placement, widths or heights on 21 URL seam rows (`https://ex.com foo` with a tab,
+ZWSP, NBSP, soft hyphen or newline, and `https://ex.com?x=1 foo` with a tab or soft
+hyphen), 14 `hanging-tab` rows, 4 `url-shy-barrier` rows, and 77 seam rows of
+`\/x<value>!`, `go \/x“value”!`, `go \/x‘value’!` and `////<<aabb`, 40 plain and 37
+letter-spaced. Right to left it fixes the letter-spaced copies of those seam rows
+and 2 `url-shy-barrier` rows. The 6 lost rows lose only whitespace. In
+`https://ex.com\tfoo` in pre-wrap at 101px, twice left to right and once right to
+left, Firefox paints `https:// | ex.com\tfoo` and this branch hangs the tab
+(`https://ex.com\t | foo`). In `https://ex.com?x=1\tfoo` at 12px, three times left
+to right, Firefox gives the tab a line of its own and this branch hangs it after
+`1`. Main matched those rows only while its URL run took the tab into its text:
+Firefox doesn't hang a tab that doesn't fit (ENGINE_FOLLOWUPS.md:99), and URL runs
+still take a tab or soft hyphen into their text in every profile (:23). Firefox LTR
+also changes the detail of 23 failures that still fail, on `hanging-tab` and URL
+seam rows, and 216 `©︎/©️` source metrics move from failing to unobserved, since
+Firefox gives each `©` a zero-width rectangle. No leg has required failures,
+execution errors or new API or rich failures, and five numeric profiles have no new
+failures. Suite hash
+`dde51ce1d9e3b9651a1d40f7074b175079e9ee6f1e549619889710e585587c5e`; rows are in
+`/private/tmp/pretext-eng-20260912/gate-ff-slash-{chrome,safari,firefox}`.
+
+Before the gate, a headless replay of the #289 gate's rows that hold `/`, 1,183
+left-to-right and 86 right-to-left in Firefox, predicted the same 6 lost rows, all
+410 left-to-right fixed rows (362 with the same fixed metrics) and all 39
+right-to-left ones, and no change in Chrome or Safari. It also predicted one more
+corpus fix at 310px and two `©︎/©️` losses at 24px in 12px Courier New with letter
+spacing -1.5, which installed Firefox doesn't show: there Firefox's Canvas measures
+the text at 22.4px, and headless Chromium's at 24.9px.
+
+An installed probe on an `en` page in 16px Arial swept 115 shapes at widths that
+force a break before and after each `/`, `?`, `#`, `&` and `=`, in Firefox 155.0.1,
+Chrome 153 and Safari 26.5.2, with main and this branch side by side. Chrome and
+Safari give the same lines for both. Over the 6,686 Firefox rows of slash positions,
+followers, right-to-left paragraphs, text after CJK text, URLs, overflowing units,
+`keep-all`, `pre-wrap` and letter-spaced variants, rich-inline splits and the chat
+block, lines fix 3,044 and lose none, and line counts fix 1,595 and lose 3. The 3
+lost rows are right-to-left Arabic at 21-26px, where Firefox fills joined Arabic
+graphemes (`عرب | ي/`) and Pretext isolated ones (`عر | ب | ي`); main matched their
+counts only by keeping `/` with the Arabic after it (ENGINE_FOLLOWUPS.md:74). The
+Markdown chat probe's `https://` link block (m02 b0), rebuilt in right-to-left 14px
+Helvetica at the chat's content widths and swept from 120 to 540px, matches
+Firefox's lines on 216 of 216 rows (102 on main), so its two Firefox membership
+failures are fixed. The mixed-app-text corpus on its `mul` page matches Firefox's
+line counts at 25 of 25 widths from 300 to 420px (10 on main): Firefox breaks its
+URL after `https://example.com/` or `…/reports/`, as this branch does. Rerunning the
+September 14 installed probe of 68 rich-inline cases with main and this branch
+changes no Chrome row. In Firefox, over its 2,361 rows, lines fix 345 and lose none,
+and line counts fix 194 and lose 5, all on a padded Menlo code item split across
+lines, whose padding Pretext charges on both pieces. Of the rows #287 accepted where
+Firefox breaks after `/`, all 54 lost lines and 168 of 171 lost line counts now
+match Firefox; the other 3 are that code item.
+
+`bun test` and `bun run check` pass. Under a counting fake canvas, Canvas calls per
+cold `prepare()` don't change in the Chrome or Safari profile: over the 18 corpora
+the Chrome profile makes 53,092 on main and this branch and the Safari profile
+116,304 (57,040 and 135,791 under `keep-all`), and over the accuracy grid 9,136 and
+13,984. The Firefox profile makes 53,104 on main and 53,107 on this branch (57,067
+and 57,070 under `keep-all`), the three extra calls measuring the new pieces of the
+mixed-app-text URL, and 9,160 over the accuracy grid on both. Only the Firefox
+profile's segments change, in that one corpus, where
+`https://example.com/reports/q3?` becomes `https://`, `example.com/`, `reports/` and
+`q3?`. The baseline advances to `1269f5e`, and the ordinary snapshots were
+regenerated against it.
+
 ## Firefox hyphens before digits
 
 This runtime change starts from published main `f4ac038` (#288). Installed Firefox

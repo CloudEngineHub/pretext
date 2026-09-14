@@ -44,7 +44,7 @@
 - In Firefox, rich-inline layout now breaks between items only where their joined text has a break opportunity, as in Chrome. Punctuation such as `,` or `)` at the start of an item stays with the word before it, and a word split across items wraps as one word. Items without a space between them can also break where the joined text allows it, such as between CJK characters, at Thai word boundaries or after `-` (#287).
 - CJK text that stays together on a line, such as `漢。`, `「漢` or a `word-break: keep-all` group, now breaks between characters when it doesn't fit a line, as browsers do, instead of overflowing. Lines also no longer break between a run of opening brackets and the word after it, as in `「「tail`, or inside that word, as in `「tail`, or before a combining mark that ends a word before CJK text or an opening bracket, such as U+3099 after `ト` (#288).
 - In Firefox, a hyphen now stays on the same line as a number after it, as in `2025-08-01`, `log-2026` or `8:30-4:30`, as Firefox does. A word that doesn't fit a line breaks between characters there instead (#289).
-- In Firefox, lines can now break after `/` before a letter or a symbol such as `#` or `@`, as in `https://example.com`, `example.com/docs` or `and/or`, as Firefox does. A number after `/` still stays on the same line, as in `1/2`.
+- In Firefox, lines can now break after `/` before a letter or a symbol such as `#` or `@`, as in `https://example.com`, `example.com/docs` or `and/or`, as Firefox does. A number after `/` still stays on the same line, as in `1/2` (#290).
 
 ## 0.0.9 - 2026-09-07
 
