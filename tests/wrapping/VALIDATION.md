@@ -45,6 +45,17 @@ or new API or rich failures.
 `bun test` and `bun run check` pass. The baseline advances to `b510ce1`, and the
 ordinary snapshots were regenerated against it.
 
+Chrome and Safari benchmark snapshots were refreshed from this branch: three
+foreground runs each at DPR 2, visible and focused. A first Chrome run read the
+long-form corpus total 11% above #255's snapshot, almost all of it in Arabic
+measurement, so Chrome was measured again back to back with main 477510e on the
+2560x1440 screen. This branch reads `prepare()` at 8.40 ms (8.45 on main), hot
+`layout()` at 0.0870 ms (0.0868) and a corpus total of 117.5 ms (115.9), so the
+earlier gap was environment drift, not this branch. Safari on the 1440x2560 screen
+(#255's runs used the 2560x1440 screen) reads 11.0 ms (11.5 on #255), 0.105 ms
+(0.105) and 345 ms (347). The benchmark page times `prepare()`, which never
+computed the levels.
+
 ## Smaller prepare state
 
 This change starts from main after #254 and leaves output unchanged. The
