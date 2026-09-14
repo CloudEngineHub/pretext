@@ -3,6 +3,7 @@ import {
   prepareRichInline,
   walkRichInlineLineRanges,
   type PreparedRichInline,
+  type RichInlineItem,
 } from '../../src/rich-inline.ts'
 
 // Local layout model for this demo. It keeps the page readable and shows how
@@ -25,10 +26,12 @@ type TextStyleModel = {
 export type PreparedRichInlineNote = {
   classNames: string[]
   flow: PreparedRichInline
+  fonts: string[]
 }
 
 export type RichLineFragment = {
   className: string
+  font: string
   leadingGap: number
   text: string
 }
@@ -45,8 +48,9 @@ export type RichNoteLayout = {
   noteWidth: number
 }
 
+// The page paints text with the fonts Pretext measured, so typography lives here
+// and the CSS doesn't restate it.
 export const BODY_FONT = '500 17px "Helvetica Neue", Helvetica, Arial, sans-serif'
-export const LINK_FONT = '600 17px "Helvetica Neue", Helvetica, Arial, sans-serif'
 export const CODE_FONT = '600 14px "SF Mono", ui-monospace, Menlo, Monaco, monospace'
 export const CHIP_FONT = '700 12px "Helvetica Neue", Helvetica, Arial, sans-serif'
 
@@ -70,10 +74,11 @@ export const TEXT_STYLES = {
     extraWidth: 14,
     font: CODE_FONT,
   },
+  // Links keep the body weight; color and underline mark them.
   link: {
     className: 'frag frag--link',
     extraWidth: 0,
-    font: LINK_FONT,
+    font: BODY_FONT,
   },
 } satisfies Record<TextStyleName, TextStyleModel>
 
@@ -122,27 +127,26 @@ export function prepareRichInlineNote(
       : TEXT_STYLES[spec.style].className,
   )
 
-  const flow = prepareRichInline(
-    specs.map(spec => {
-      if (spec.kind === 'chip') {
-        return {
-          text: spec.label,
-          font: CHIP_FONT,
-          break: 'never' as const,
-          extraWidth: CHIP_CHROME_WIDTH,
-        }
-      }
-
-      const style = TEXT_STYLES[spec.style]
+  const items: RichInlineItem[] = specs.map(spec => {
+    if (spec.kind === 'chip') {
       return {
-        text: spec.text,
-        font: style.font,
-        extraWidth: style.extraWidth,
+        text: spec.label,
+        font: CHIP_FONT,
+        break: 'never' as const,
+        extraWidth: CHIP_CHROME_WIDTH,
       }
-    }),
-  )
+    }
 
-  return { classNames, flow }
+    const style = TEXT_STYLES[spec.style]
+    return {
+      text: spec.text,
+      font: style.font,
+      extraWidth: style.extraWidth,
+    }
+  })
+
+  // The painter reads each item's font from the items Pretext measured.
+  return { classNames, flow: prepareRichInline(items), fonts: items.map(item => item.font) }
 }
 
 export function layoutRichInlineItems(
@@ -155,6 +159,7 @@ export function layoutRichInlineItems(
     lines.push({
       fragments: line.fragments.map(fragment => ({
         className: prepared.classNames[fragment.itemIndex]!,
+        font: prepared.fonts[fragment.itemIndex]!,
         leadingGap: fragment.gapBefore,
         text: fragment.text,
       })),
