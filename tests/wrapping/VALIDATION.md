@@ -76,6 +76,13 @@ Only the fresh-text slowdown, 1.7%, holds in every adjacent pair.
 and docs changes, which touch no file under `src/` or `tests/`. The baseline
 advances to `3bd7496`, and the ordinary snapshots were regenerated against it.
 
+Chrome and Safari benchmark snapshots were refreshed from this branch: three
+foreground runs each at DPR 2, visible and focused, with Chrome on the 2560x1440
+screen and Safari on the 2560x1440 screen. Chrome reads `prepare()` at 8.75 ms
+(8.60 on the parent branch) and hot `layout()` at 0.0890 ms (0.0885); Safari reads
+11.0 ms (12.0) and 0.105 ms (0.105). Long-form corpus totals read 119.9 ms in
+Chrome (111.9) and 345 ms in Safari (362).
+
 ## Rich-inline items within the line fit epsilon
 
 This change starts from main after #276. Rich-inline layout could take one more line at a
