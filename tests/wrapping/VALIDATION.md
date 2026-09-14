@@ -38,6 +38,14 @@ or new API or rich failures.
 `bun test` and `bun run check` pass. The baseline advances to `b569d86`, and the
 ordinary snapshots were regenerated against it.
 
+Chrome and Safari benchmark snapshots were refreshed from this branch: three
+foreground runs each at DPR 2, visible and focused, with Chrome on the 2560x1440
+screen and Safari on the 1440x2560 screen (the parent branch's runs used the
+2560x1440 screen). Chrome reads `prepare()` at 8.50 ms (8.65 on the parent branch)
+and hot `layout()` at 0.0885 ms (0.0885); Safari reads 11.0 ms (12.0) and 0.103 ms
+(0.105). Long-form corpus totals read 113.7 ms in Chrome (118.7) and 346 ms in
+Safari (348).
+
 ## Safari kerning across paragraphs
 
 This change starts from main after #270. In the Safari profile, a word ending in an invisible
