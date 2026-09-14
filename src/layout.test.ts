@@ -1311,6 +1311,13 @@ describe('prepare invariants', () => {
     ])
   })
 
+  test('keeps the query text of a URL run with a later www. segment', () => {
+    // The query segment starts after the whole URL run, not at the inner
+    // www. segment. keep-all slices normalized text by segment starts.
+    expect(prepareWithSegments('アwww.¿www.?־', FONT, { wordBreak: 'keep-all' }).segments).toEqual(['アwww.¿www.?', '־'])
+    expect(prepareWithSegments('x中www.a/www.b?q', FONT, { wordBreak: 'keep-all' }).segments).toEqual(['x中www.a/www.b?', 'q'])
+  })
+
   test('prefers hyphen-like boundaries inside overlong breakable runs', () => {
     const text = 'https://alpha-beta-gamma-delta.example.test/path'
     const prepared = prepareWithSegments(text, FONT)
@@ -2949,6 +2956,7 @@ test('the Firefox profile keeps breaking rich items at every item boundary', () 
   // modeled, so the parenthesis that starts the third item can still start a
   // line. The joined text would keep "(docs)" whole.
   const measurementUrl = new URL('./measurement.ts', import.meta.url).href
+  const layoutUrl = new URL('./layout.ts', import.meta.url).href
   const richInlineUrl = new URL('./rich-inline.ts', import.meta.url).href
   const script = `
     Object.defineProperty(globalThis, 'navigator', { configurable: true, value: {
@@ -2971,13 +2979,18 @@ test('the Firefox profile keeps breaking rich items at every item boundary', () 
     walkRichInlineLineRanges(prepared, 70, range => {
       lines.push(materializeRichInlineLineRange(prepared, range).fragments.map(fragment => fragment.text))
     })
-    console.log(JSON.stringify({ inlineItemBreaks: getEngineProfile().inlineItemBreaks, lines }))
+    const { prepareWithSegments } = await import(${JSON.stringify(layoutUrl)})
+    const marks = ['\\u064B$', 'x\\n\\u064B$', 'x \\u064B$'].map(text => prepareWithSegments(text, '16px Test', { whiteSpace: 'pre-wrap' }).segments)
+    console.log(JSON.stringify({ inlineItemBreaks: getEngineProfile().inlineItemBreaks, lines, marks }))
   `
   const child = Bun.spawnSync([process.execPath, '-e', script])
   if (child.exitCode !== 0) throw new Error(child.stderr.toString())
   expect(JSON.parse(child.stdout.toString())).toEqual({
     inlineItemBreaks: 'item-boundary',
     lines: [['see (', 'docs'], [') now '], ['please']],
+    // A mark after a line break or a space has no base and counts as a letter,
+    // as at the start of the text, so it stays with a following numeric prefix.
+    marks: [['\u064B$'], ['x', '\n', '\u064B$'], ['x', ' ', '\u064B$']],
   })
 })
 

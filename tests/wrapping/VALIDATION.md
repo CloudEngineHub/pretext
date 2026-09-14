@@ -17,6 +17,58 @@ All accuracy, letter-spacing and corpus result payloads are unchanged; refreshed
 snapshots change only provenance and environment records. Runtime sources and
 the baseline pin are unchanged, so no runtime benchmark was needed.
 
+## Firefox marks after a line break or space
+
+This change starts from main after #269. In the Firefox profile, the numeric affix check
+looked back past combining marks for the character before `$`, `%`, `+` or `\`, and after a
+line break or a space it took the break or space as the mark's base. So `x`, a newline and
+`ً$` split differently from `ً$` at the start of the text. Following UAX #14 LB9 and LB10,
+a mark with no base now counts as a letter. At narrow widths such text can take one line
+fewer: after `어`, a space and U+3099, `$"` no longer breaks between `$` and `"`. A
+counting fake canvas over `src/test-data.ts` and whole corpora found no other change.
+
+The installed gate ran against the previous pin `ee5607e`: Chrome 153 through the
+Playwright transport, Safari 26.5.2 and Firefox 155 natively, both directions.
+No leg fixes a metric. No leg loses a metric, and none has required failures, execution errors,
+or new API or rich failures.
+
+`bun test` and `bun run check` pass. The baseline advances to `4833f8e`, and the
+ordinary snapshots were regenerated against it.
+
+Chrome and Safari benchmark snapshots were refreshed from this branch: three
+foreground runs each at DPR 2, visible and focused, with Chrome on the 2560x1440
+screen and Safari on the 2560x1440 screen (the parent branch's runs used the
+1440x2560 screen). Chrome reads `prepare()` at 8.45 ms (8.55 on the parent branch)
+and hot `layout()` at 0.0887 ms (0.0880); Safari reads 11.0 ms (11.0) and 0.103 ms
+(0.105). Long-form corpus totals read 117.9 ms in Chrome (117.2) and 347 ms in
+Safari (345).
+
+## Keep-all URL query text
+
+This change starts from main after #268. `mergeUrlRuns` gave a URL's query segment the start of an inner
+`www.` or scheme segment instead of the position after the whole URL run. With
+`word-break: keep-all` in the Chrome and Firefox profiles, `アwww.¿www.?־` prepared as
+`["アwww.¿", "־"]` and lost `www.?`, and an inner `https://` lost text the same way. The
+fix removes that override. In Chrome and Safari, rich-inline layout no longer breaks such a
+URL where its text has no break opportunity, as before the second `www.` in items `字` and
+`www.a/www.b?q=1`. A counting fake canvas over `src/test-data.ts` and whole corpora under
+desktop Chrome, Safari, Firefox and Android user agents found no other change.
+
+The installed gate ran against the previous pin `b510ce1`: Chrome 153 through the
+Playwright transport, Safari 26.5.2 and Firefox 155 natively, both directions.
+No leg fixes a metric. No leg loses a metric, and none has required failures, execution errors,
+or new API or rich failures.
+
+`bun test` and `bun run check` pass. The baseline advances to `ee5607e`, and the
+ordinary snapshots were regenerated against it.
+
+Chrome and Safari benchmark snapshots were refreshed from this branch: three
+foreground runs each at DPR 2, visible and focused, with Chrome on the 2560x1440
+screen and Safari on the 1440x2560 screen. Chrome reads `prepare()` at 8.55 ms
+(8.40 on the parent branch) and hot `layout()` at 0.0880 ms (0.0870); Safari reads
+11.0 ms (11.0) and 0.105 ms (0.105). Long-form corpus totals read 117.2 ms in
+Chrome (117.5) and 345 ms in Safari (345).
+
 ## Removing segLevels
 
 This change starts from main after #256. `prepareWithSegments()` no longer

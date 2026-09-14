@@ -1004,7 +1004,6 @@ function mergeUrlRuns(segmentation: MergedSegmentation, normalized: string, prof
     let text = segmentation.texts[i]!
     let wordLike = segmentation.isWordLike[i]!
     const kind = segmentation.kinds[i]!
-    let queryStartOverride = -1
 
     if (kind === 'text' && isUrlLikeRunStart(segmentation, i)) {
       const urlParts = [text]
@@ -1014,9 +1013,6 @@ function mergeUrlRuns(segmentation: MergedSegmentation, normalized: string, prof
         !isTextRunBoundary(segmentation.kinds[j]!) &&
         numericAffixBoundary(normalized, segmentation.starts[j]!, profile) !== false
       ) {
-        if (queryStartOverride < 0 && isUrlLikeRunStart(segmentation, j)) {
-          queryStartOverride = segmentation.starts[j]!
-        }
         const nextText = segmentation.texts[j]!
         urlParts.push(nextText)
         wordLike = true
@@ -1042,9 +1038,7 @@ function mergeUrlRuns(segmentation: MergedSegmentation, normalized: string, prof
     }
 
     const queryParts: string[] = []
-    const queryStart = queryStartOverride < 0
-      ? segmentation.starts[nextIndex]!
-      : queryStartOverride
+    const queryStart = segmentation.starts[nextIndex]!
     let j = nextIndex
     while (
       j < segmentation.len &&
@@ -1259,6 +1253,12 @@ function numericAffixBoundary(source: string, boundary: number, profile: Analysi
   const left = getLastSignificantCodePoint(source, boundary)
   const right = String.fromCodePoint(source.codePointAt(boundary)!)
   if (left === null || !isAsciiBoundary(left, right)) return null
+  // Marks after a space or a line break have no base (UAX #14 LB9) and count as
+  // letters (LB10), as marks at the start of the text do.
+  if (left !== source.slice(boundary - left.length, boundary)) {
+    const baseClass = getLineBreakClass(left.codePointAt(0)!)
+    if (baseClass === LineBreakClass.BK || baseClass === LineBreakClass.SP) return null
+  }
   const leftAffix = isLineBreakNumericAffix(left)
   const rightAffix = isLineBreakNumericAffix(right)
   if (!leftAffix && !rightAffix) return null
