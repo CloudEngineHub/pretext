@@ -10,6 +10,7 @@ import {
   getOcclusionBannerHeight,
   MARKER_FONT,
   materializeMessageBlocks,
+  materializeQuoteRails,
   MESSAGE_SIDE_PADDING,
   OCCLUSION_BANNER_HEIGHT,
   type BlockLayout,
@@ -17,6 +18,7 @@ import {
   type ConversationFrame,
   type InlineFragmentLayout,
   type MessageFrame,
+  type QuoteRailLayout,
   type TextStyle,
 } from './markdown-chat.model.ts'
 
@@ -236,8 +238,12 @@ function renderMessageContents(
   bubble: HTMLDivElement,
   message: ChatMessageInstance,
 ): void {
-  const blocks = materializeMessageBlocks(message)
   const fragment = document.createDocumentFragment()
+  const rails = materializeQuoteRails(message)
+  for (let index = 0; index < rails.length; index++) {
+    fragment.append(renderQuoteRail(rails[index]!, message.frame.contentInsetX))
+  }
+  const blocks = materializeMessageBlocks(message)
   for (let index = 0; index < blocks.length; index++) {
     fragment.append(renderBlock(blocks[index]!, message.frame.contentInsetX))
   }
@@ -256,7 +262,7 @@ function projectMessageNode(
 }
 
 function renderBlock(block: BlockLayout, contentInsetX: number): HTMLElement {
-  // A right-to-left block starts its indent, marker and rails from the right.
+  // A right-to-left block starts its indent and marker from the right.
   const start = block.direction === 'rtl' ? 'right' : 'left'
   switch (block.kind) {
     case 'inline':
@@ -353,23 +359,18 @@ function createBlockShell(
   wrapper.style.top = `${block.top}px`
   wrapper.style.height = `${block.height}px`
 
-  appendRails(wrapper, block, contentInsetX, start)
   appendMarker(wrapper, block, contentInsetX, start)
   return wrapper
 }
 
-function appendRails(
-  wrapper: HTMLDivElement,
-  block: BlockLayout,
-  contentInsetX: number,
-  start: 'left' | 'right',
-): void {
-  for (let index = 0; index < block.quoteRailLefts.length; index++) {
-    const rail = document.createElement('div')
-    rail.className = 'quote-rail'
-    rail.style[start] = `${contentInsetX + block.quoteRailLefts[index]!}px`
-    wrapper.append(rail)
-  }
+// A right-to-left quote starts its rail from the right, like its blocks.
+function renderQuoteRail(rail: QuoteRailLayout, contentInsetX: number): HTMLElement {
+  const node = document.createElement('div')
+  node.className = 'quote-rail'
+  node.style[rail.direction === 'rtl' ? 'right' : 'left'] = `${contentInsetX + rail.left}px`
+  node.style.top = `${rail.top}px`
+  node.style.height = `${rail.height}px`
+  return node
 }
 
 function appendMarker(

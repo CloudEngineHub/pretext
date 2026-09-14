@@ -2,10 +2,11 @@ import { marked, type Token, type Tokens } from 'marked'
 
 import {
   layoutWithLines,
-  measureLineStats,
   measureNaturalWidth,
   prepareWithSegments,
+  walkLineRanges,
   type LayoutLine,
+  type LineStats,
   type PreparedTextWithSegments,
 } from '../../src/layout.ts'
 import {
@@ -89,11 +90,16 @@ export type TextStyle = {
   letterSpacing: number // CSS px
 }
 
+// A quote paints one rail at its absolute left, beside every block it holds.
+type Quote = {
+  railLeft: number
+}
+
 // Geometry of the enclosing lists and quotes, in the order they nest.
 type ParseContext = {
   contentLeft: number
   listDepth: number
-  quoteRailLefts: number[]
+  quotes: Quote[]
 }
 
 type InlinePiece = {
@@ -111,7 +117,7 @@ type PreparedBlockBase = {
   markerClassName: string | null
   markerLeft: number | null
   markerText: string | null
-  quoteRailLefts: number[]
+  quotes: Quote[]
 }
 
 type PreparedInlineBlock = PreparedBlockBase & {
@@ -155,7 +161,6 @@ type BlockFrameBase = {
   markerClassName: string | null
   markerLeft: number | null
   markerText: string | null
-  quoteRailLefts: number[]
   top: number
 }
 
@@ -190,7 +195,6 @@ type InlineBlockLayout = {
   markerLeft: number | null
   markerText: string | null
   paragraphStyle: TextStyle
-  quoteRailLefts: number[]
   top: number
   width: number
 }
@@ -204,7 +208,6 @@ type CodeBlockLayout = {
   markerClassName: string | null
   markerLeft: number | null
   markerText: string | null
-  quoteRailLefts: number[]
   top: number
   width: number
 }
@@ -217,12 +220,18 @@ type RuleBlockLayout = {
   markerClassName: string | null
   markerLeft: number | null
   markerText: string | null
-  quoteRailLefts: number[]
   top: number
   width: number
 }
 
 export type BlockLayout = InlineBlockLayout | CodeBlockLayout | RuleBlockLayout
+
+export type QuoteRailLayout = {
+  direction: 'ltr' | 'rtl'
+  height: number
+  left: number
+  top: number
+}
 
 export type MessageFrame = {
   blocks: BlockFrame[]
@@ -377,7 +386,7 @@ export function findVisibleRange(
 
 function parseMarkdownBlocks(markdown: string): PreparedBlock[] {
   const tokens = marked.lexer(markdown, { gfm: true })
-  return parseBlockTokens(tokens, { contentLeft: 0, listDepth: 0, quoteRailLefts: [] })
+  return parseBlockTokens(tokens, { contentLeft: 0, listDepth: 0, quotes: [] })
 }
 
 function parseBlockTokens(tokens: readonly Token[], ctx: ParseContext): PreparedBlock[] {
@@ -426,7 +435,7 @@ function parseBlockTokens(tokens: readonly Token[], ctx: ParseContext): Prepared
           parseBlockTokens(token.tokens ?? [], {
             contentLeft: ctx.contentLeft + BLOCKQUOTE_INDENT,
             listDepth: ctx.listDepth,
-            quoteRailLefts: [...ctx.quoteRailLefts, ctx.contentLeft + RAIL_OFFSET],
+            quotes: [...ctx.quotes, { railLeft: ctx.contentLeft + RAIL_OFFSET }],
           }),
           RICH_BLOCK_GAP,
         )
@@ -487,7 +496,7 @@ function buildListBlocks(token: Tokens.List, ctx: ParseContext): PreparedBlock[]
     const itemCtx: ParseContext = {
       contentLeft: markerLeft + measureMarkerWidth(markerText) + LIST_MARKER_GAP,
       listDepth: ctx.listDepth + 1,
-      quoteRailLefts: ctx.quoteRailLefts,
+      quotes: ctx.quotes,
     }
     let itemBlocks = parseBlockTokens(item.tokens, itemCtx)
     if (itemBlocks.length === 0) {
@@ -626,7 +635,7 @@ function createBlockBase(ctx: ParseContext): PreparedBlockBase {
     markerClassName: null,
     markerLeft: null,
     markerText: null,
-    quoteRailLefts: ctx.quoteRailLefts,
+    quotes: ctx.quotes,
   }
 }
 
@@ -994,7 +1003,6 @@ function layoutBlockFrame(
         markerClassName: block.markerClassName,
         markerLeft: block.markerLeft,
         markerText: block.markerText,
-        quoteRailLefts: block.quoteRailLefts,
         top,
         usedWidth: maxLineWidth,
       }
@@ -1003,7 +1011,7 @@ function layoutBlockFrame(
     case 'code': {
       const boxWidth = Math.max(1, contentWidth - block.contentLeft)
       const innerWidth = Math.max(1, boxWidth - CODE_BLOCK_PADDING_X * 2)
-      const { lineCount, maxLineWidth } = measureLineStats(block.prepared, innerWidth)
+      const { lineCount, maxLineWidth } = measureCodeLineStats(block.prepared, innerWidth)
       return {
         contentLeft: block.contentLeft,
         height: lineCount * block.lineHeight + CODE_BLOCK_PADDING_Y * 2,
@@ -1012,7 +1020,6 @@ function layoutBlockFrame(
         markerClassName: block.markerClassName,
         markerLeft: block.markerLeft,
         markerText: block.markerText,
-        quoteRailLefts: block.quoteRailLefts,
         top,
         width: maxLineWidth + CODE_BLOCK_PADDING_X * 2,
       }
@@ -1026,11 +1033,29 @@ function layoutBlockFrame(
         markerClassName: block.markerClassName,
         markerLeft: block.markerLeft,
         markerText: block.markerText,
-        quoteRailLefts: block.quoteRailLefts,
         top,
       }
     }
   }
+}
+
+// A pre-wrap line that soft-wraps after a space keeps the space, and Pretext
+// counts it in the line's width. Browsers hang that space past the end of the
+// line (CSS Text 3 §4.1.2, §8.2), so it paints nothing and never sizes a box.
+// Spaces before a newline or the end of the code still count, as in a browser's
+// max-content width.
+function measureCodeLineStats(prepared: PreparedTextWithSegments, maxWidth: number): LineStats {
+  let maxLineWidth = 0
+  const lineCount = walkLineRanges(prepared, maxWidth, line => {
+    const last = line.end.segmentIndex - 1
+    const isSoftWrapAfterSpace =
+      line.end.graphemeIndex === 0 &&
+      line.end.segmentIndex < prepared.segments.length &&
+      prepared.kinds[last] === 'preserved-space'
+    const width = isSoftWrapAfterSpace ? line.width - prepared.widths[last]! : line.width
+    if (width > maxLineWidth) maxLineWidth = width
+  })
+  return { lineCount, maxLineWidth }
 }
 
 function getUsedBlockWidth(block: BlockFrame): number {
@@ -1051,6 +1076,37 @@ export function materializeMessageBlocks(message: ChatMessageInstance): BlockLay
   return message.prepared.blocks.map((block, index) =>
     materializeBlockLayout(block, frame.blocks[index]!, frame.layoutContentWidth, bubbleContentWidth),
   )
+}
+
+// One rail per quote, from the top of its first block to the bottom of its
+// last, across the gaps between them. A quote's blocks are consecutive, so its
+// first block opens the rail and each later one extends it. The first block
+// also has the direction of the quote's first paragraph, else of the enclosing
+// one, which inheritDirection gives the quote's own code blocks and rules, so
+// the rail starts from their side.
+export function materializeQuoteRails(message: ChatMessageInstance): QuoteRailLayout[] {
+  const rails = new Map<Quote, QuoteRailLayout>()
+  const { blocks } = message.prepared
+  for (let index = 0; index < blocks.length; index++) {
+    const block = blocks[index]!
+    const frame = message.frame.blocks[index]!
+    for (let depth = 0; depth < block.quotes.length; depth++) {
+      const quote = block.quotes[depth]!
+      const rail = rails.get(quote)
+      if (rail === undefined) {
+        rails.set(quote, {
+          // A message with no paragraph at all is left-to-right.
+          direction: block.direction ?? 'ltr',
+          height: frame.height,
+          left: quote.railLeft,
+          top: frame.top,
+        })
+      } else {
+        rail.height = frame.top + frame.height - rail.top
+      }
+    }
+  }
+  return Array.from(rails.values())
 }
 
 function materializeBlockLayout(
@@ -1087,7 +1143,6 @@ function materializeBlockLayout(
         markerLeft: frame.markerLeft,
         markerText: frame.markerText,
         paragraphStyle: block.paragraphStyle,
-        quoteRailLefts: frame.quoteRailLefts,
         top: frame.top,
         // Rows span the final bubble, so they stay inside a shrinkwrapped one.
         width: Math.max(1, bubbleContentWidth - frame.contentLeft),
@@ -1109,7 +1164,6 @@ function materializeBlockLayout(
         markerClassName: frame.markerClassName,
         markerLeft: frame.markerLeft,
         markerText: frame.markerText,
-        quoteRailLefts: frame.quoteRailLefts,
         top: frame.top,
         width: frame.width,
       }
@@ -1125,7 +1179,6 @@ function materializeBlockLayout(
         markerClassName: frame.markerClassName,
         markerLeft: frame.markerLeft,
         markerText: frame.markerText,
-        quoteRailLefts: frame.quoteRailLefts,
         top: frame.top,
         width: Math.max(1, bubbleContentWidth - frame.contentLeft),
       }
