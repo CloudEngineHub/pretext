@@ -73,6 +73,15 @@ test('kinsoku-unit observations run only on full, require nothing and merge with
   expect([...new Set(rows.map(input => input.context?.lang ?? 'fixtures'))].sort()).toEqual(['en', 'fixtures', 'ja', 'zh'])
 })
 
+test('closing-punctuation observations run only on full, require nothing and merge with no other input', () => {
+  expect(ordinary.some(input => input.family === 'maintained/closing-punctuation')).toBe(false)
+  const rows = full.filter(input => input.origins.some(origin => origin.startsWith('maintained/closing-punctuation/')))
+  expect(rows.length).toBeGreaterThan(0)
+  expect(rows.every(input => input.family === 'maintained/closing-punctuation' && input.scope === 'research' && input.required === undefined
+    && input.context?.lang === input.lang && input.origins.every(origin => origin.startsWith('maintained/closing-punctuation/')))).toBe(true)
+  expect(new Set(rows.map(input => input.lang))).toEqual(new Set(['en', 'ja', 'zh']))
+})
+
 test('boundary, rich and flat #210 reproductions are required', () => {
   const exact = ordinary.filter(input => input.origins.some(origin => /^reported-reproduction\/#\d+$/.test(origin)))
   expect(exact.map(input => ({ text: input.text, font: input.font, width: input.width, lineHeight: input.lineHeight, whiteSpace: input.whiteSpace }))).toEqual([
