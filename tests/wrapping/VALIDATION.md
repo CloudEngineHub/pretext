@@ -17,6 +17,71 @@ All accuracy, letter-spacing and corpus result payloads are unchanged; refreshed
 snapshots change only provenance and environment records. Runtime sources and
 the baseline pin are unchanged, so no runtime benchmark was needed.
 
+## Firefox hyphens before digits
+
+This runtime change starts from published main `f4ac038` (#288). Installed Firefox
+155 offers no break between a hyphen-minus and a following number, as ICU4X keeps HY
+with NU (UAX #14 LB25), ASCII or not. It moves `log-2026` or `2025-08-01` to the
+next line whole and breaks `crash-log-2026-09-12.txt` only after `crash-`, where
+Chrome and Safari break after each hyphen, and when such a word doesn't fit a line
+it fills graphemes. The Gecko profile now keeps the pair in every merge, keeps
+numeric runs such as `8:30-4:30` whole, and no longer prefers that break in an
+overflowing word. The Chromium and WebKit profiles don't change.
+
+The installed gate ran this change against pinned `01daf37`, whose runtime source
+equals `f4ac038`: Chrome 153 through the Playwright transport, Safari 26.5.2 and
+Firefox 155 natively, both directions, at DPR 2. Chrome, Safari and Firefox RTL
+change nothing: no fixed or lost metric, no changed failure and identical metric
+totals. Firefox LTR fixes 10 metrics on 5 rows and loses 6 on 3, so that leg exits 1
+only because of those losses. It fixes source placement on #225's first reproduction
+in both white-space modes, and widths in normal white space, where Firefox paints
+`2025-08-01 / 00:00:00， / 2025-08-01 00:00:00` and main broke after `2025-08-`. It
+fixes source placement on `$-73` in both modes and widths in normal white space, and
+height, line count, source placement and widths on #212's `x-100`, where Firefox
+fills graphemes past the hyphen (`$-7 / 3`, `x-1 / 00`) and main broke after it. The
+3 lost rows are `mixed-app-text` corpus heights and line counts at 330, 340 and
+350px, where this branch takes one line more than Firefox. Main matched them only by
+breaking after `8:30-`, where Firefox doesn't break. In installed Firefox that
+corpus keeps `8:30-4:30` whole, as this branch does, and then breaks the URL after a
+`/` before a letter, before `reports/` at 330 and 340px and before `q3?` at 350px,
+where Pretext moves the URL to the next line (ENGINE_FOLLOWUPS.md:34). Four
+`en-gatsby-opening` corpus widths that already failed move one line closer to
+Firefox. No leg has required failures, execution errors or new API or rich failures,
+and five numeric profiles have no new failures. #225's Firefox row stays observed,
+since its width sits about 1px inside Firefox's three-line band. Suite hash
+`0b90b0740c1c261a4d082ed05c83d88b4038831f8118a8d8d8ffcda2eba8f76c`; rows are in
+`/private/tmp/pretext-eng-20260912/gate-ff-hyphen-{chrome,safari,firefox}`.
+
+An installed probe on an `en` page in 16px Arial swept 75 shapes at widths that
+force each break, in Firefox 155.0.1, Chrome 153 and Safari 26.5.2, with main and
+this branch side by side. Chrome and Safari give the same lines for both. Over the
+2,358 Firefox rows of hyphen shapes, `keep-all`, `pre-wrap`, letter-spaced and
+rich-inline variants and the chat block, lines fix 928 and lose 13, and line counts
+fix 487 and lose 6. The 18 lost rows are ones main matched only by breaking after a
+hyphen where Firefox doesn't break: 8 `x--1` rows, where the overflowing word now
+prefers the break after its first hyphen (ENGINE_FOLLOWUPS.md:33), 4 `a-́1` rows,
+where Pretext breaks before a hyphen that carries a mark (:32), and 6 `keep-all`
+rows of `crash-log-2026-09-12.txt`, where Firefox keeps `crash-log` too (:46).
+U+2010, U+2012 and U+2013 before a digit, fullwidth digits, and `/`, which Firefox
+breaks after before a letter (:34), change nothing. The Markdown chat probe's
+`crash-log-2026-09-12.txt` block (m07 b1), rebuilt in right-to-left 14px Helvetica
+at the chat's content widths and swept from 120 to 420px, matches Firefox's lines on
+151 of 151 rows (89 on main), so its two Firefox membership failures are fixed. Its
+`https://` blocks wait on the `/` rule.
+
+Before the gate, a headless replay of the #288 gate's rows that hold `-` before a
+number, 186 left-to-right and 64 right-to-left in Firefox, predicted exactly these
+fixed and lost rows, and no change in Chrome or Safari.
+
+`bun test` and `bun run check` pass. Under a counting fake canvas, Canvas calls per
+cold `prepare()` don't change in any engine profile: over the 18 corpora the Chrome
+profile makes 53,092 on main and this branch, the Safari profile 116,304 and the
+Firefox profile 53,104 (57,040, 135,791 and 57,067 under `keep-all`), and over the
+accuracy grid 9,136, 13,984 and 9,160. Only the Firefox profile's segments change,
+in three corpora, where time ranges such as `8:30-4:30` and `ה-16` stay whole. The
+baseline advances to `108c98a`, and the ordinary snapshots were regenerated against
+it.
+
 ## Emergency breaks inside kinsoku units
 
 This runtime change starts from published main `cc8619a` (#287). A CJK unit that
