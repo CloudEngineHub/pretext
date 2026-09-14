@@ -63,7 +63,7 @@ const BASE_MESSAGE_SPECS: MarkdownChatSeed[] = [
   message(
     'assistant',
     '```ts',
-    'const frame = buildConversationFrame(templates, width)',
+    'const frame = buildConversationFrame(preparedMessages, width)',
     'const visible = findVisibleRange(frame, scrollTop, viewportHeight, topMask, bottomMask)',
     'renderMessages(frame, visible.start, visible.end)',
     '```',
@@ -255,7 +255,7 @@ const BASE_MESSAGE_SPECS: MarkdownChatSeed[] = [
   ),
   message(
     'assistant',
-    'That is one of the better parts of the demo right now: width changes rebuild the frame, preserve relative scroll intent, and remount only the visible window.',
+    'That is one of the better parts of the demo right now: width changes rebuild the frame and remount only the visible window.',
   ),
   message(
     'user',
