@@ -102,6 +102,13 @@ profile's segments change, in that one corpus, where
 `q3?`. The baseline advances to `1269f5e`, and the ordinary snapshots were
 regenerated against it.
 
+Chrome and Safari benchmark snapshots were refreshed from this branch: three
+foreground runs each at DPR 2, visible and focused, with Chrome on the 2560x1440
+screen and Safari on the 2560x1440 screen. Chrome reads `prepare()` at 8.80 ms
+(8.75 on the parent branch) and hot `layout()` at 0.0882 ms (0.0880); Safari reads
+11.0 ms (11.0) and 0.100 ms (0.100). Long-form corpus totals read 117.2 ms in
+Chrome (110.6) and 346 ms in Safari (344).
+
 ## Firefox hyphens before digits
 
 This runtime change starts from published main `f4ac038` (#288). Installed Firefox
