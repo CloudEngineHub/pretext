@@ -35,6 +35,14 @@ or new API or rich failures.
 `bun test` and `bun run check` pass. The baseline advances to `4833f8e`, and the
 ordinary snapshots were regenerated against it.
 
+Chrome and Safari benchmark snapshots were refreshed from this branch: three
+foreground runs each at DPR 2, visible and focused, with Chrome on the 2560x1440
+screen and Safari on the 2560x1440 screen (the parent branch's runs used the
+1440x2560 screen). Chrome reads `prepare()` at 8.45 ms (8.55 on the parent branch)
+and hot `layout()` at 0.0887 ms (0.0880); Safari reads 11.0 ms (11.0) and 0.103 ms
+(0.105). Long-form corpus totals read 117.9 ms in Chrome (117.2) and 347 ms in
+Safari (345).
+
 ## Keep-all URL query text
 
 This change starts from main after #268. `mergeUrlRuns` gave a URL's query segment the start of an inner
