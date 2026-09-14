@@ -144,7 +144,6 @@ type CodeBlockFrame = BlockFrameBase & {
 
 type RuleBlockFrame = BlockFrameBase & {
   kind: 'rule'
-  width: number
 }
 
 type BlockFrame = InlineBlockFrame | CodeBlockFrame | RuleBlockFrame
@@ -354,7 +353,9 @@ function parseBlockTokens(tokens: readonly Token[], ctx: ParseContext): Prepared
 
     switch (token.type) {
       case 'space':
-      case 'def': {
+      case 'def':
+      // A task item's checkbox is drawn as its list marker.
+      case 'checkbox': {
         continue
       }
 
@@ -378,7 +379,9 @@ function parseBlockTokens(tokens: readonly Token[], ctx: ParseContext): Prepared
       }
 
       case 'list': {
-        appendBlockGroup(blocks, buildListBlocks(token as Tokens.List, ctx), BLOCK_GAP)
+        // A nested list continues its parent item's rhythm.
+        const gap = ctx.listDepth === 0 ? BLOCK_GAP : LIST_ITEM_GAP
+        appendBlockGroup(blocks, buildListBlocks(token as Tokens.List, ctx), gap)
         continue
       }
 
@@ -656,7 +659,6 @@ function collectInlinePieceLines(
         }
 
         case 'checkbox': {
-          pushPiece(createTextPiece(token.checked ? '[x] ' : '[ ] ', marks, variant))
           continue
         }
 
@@ -980,7 +982,6 @@ function layoutBlockFrame(
         markerText: block.markerText,
         quoteRailLefts: block.quoteRailLefts,
         top,
-        width: Math.max(1, contentWidth - block.contentLeft),
       }
     }
   }
@@ -993,13 +994,16 @@ function getUsedBlockWidth(block: BlockFrame): number {
     case 'code':
       return block.contentLeft + block.width
     case 'rule':
-      return block.contentLeft + block.width
+      // A rule has no width of its own. It stretches across the final bubble.
+      return block.contentLeft
   }
 }
 
 export function materializeMessageBlocks(message: ChatMessageInstance): BlockLayout[] {
+  const { frame } = message
+  const bubbleContentWidth = frame.frameWidth - frame.contentInsetX * 2
   return message.prepared.blocks.map((block, index) =>
-    materializeBlockLayout(block, message.frame.blocks[index]!, message.frame.layoutContentWidth),
+    materializeBlockLayout(block, frame.blocks[index]!, frame.layoutContentWidth, bubbleContentWidth),
   )
 }
 
@@ -1007,6 +1011,7 @@ function materializeBlockLayout(
   block: PreparedBlock,
   frame: BlockFrame,
   contentWidth: number,
+  bubbleContentWidth: number,
 ): BlockLayout {
   switch (frame.kind) {
     case 'inline': {
@@ -1069,7 +1074,7 @@ function materializeBlockLayout(
         markerText: frame.markerText,
         quoteRailLefts: frame.quoteRailLefts,
         top: frame.top,
-        width: frame.width,
+        width: Math.max(1, bubbleContentWidth - frame.contentLeft),
       }
     }
   }
