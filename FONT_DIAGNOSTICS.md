@@ -35,10 +35,13 @@ shaping, exact painted widths, or an unconditional browser policy.
 
 ## Language context
 
-For `foo-bar日本語` in `18px serif`, `lang=ja`, Firefox's DOM measured 114.867px
-versus 106.983px in the default offscreen canvas. An HTML canvas with `lang=ja`
-restored 114.867px. Chrome showed the same kind of difference; named Times New
-Roman controls agreed in both browsers.
+For `foo-bar日本語` in `18px serif`, the September 3 probe set `lang=ja` on its
+test element in a `lang=en` page. Firefox's DOM measured 114.867px versus
+106.983px in the offscreen canvas, which follows `<html lang>`, not the element.
+An HTML canvas with `lang=ja` restored 114.867px. Chrome showed the same kind of
+difference; named Times New Roman controls agreed in both browsers. With
+`lang=ja` on `<html>`, installed Chrome 153 and Firefox 155 later measured this
+text at 114.86px in both OffscreenCanvas and DOM.
 
 Safari's language-matched canvas, which the probe never attaches to the page,
 still measured 106.972px against the DOM's 114.859px; its named-font control
