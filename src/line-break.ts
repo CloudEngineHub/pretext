@@ -312,7 +312,9 @@ function walkPreparedLinesSimple(
 
   const engineProfile = getEngineProfile()
   const lineFitEpsilon = engineProfile.lineFitEpsilon
-  const fitLimit = maxWidth + lineFitEpsilon
+  // CSS widths are never negative. Every walker lays out a negative width as 0,
+  // where zero-width content still fits, so the walkers agree there too.
+  const fitLimit = Math.max(0, maxWidth) + lineFitEpsilon
 
   let lineCount = 0
   let lineW = 0
@@ -560,7 +562,8 @@ function walkPreparedComplexLines(
   } = prepared
   const engineProfile = getEngineProfile()
   const lineFitEpsilon = engineProfile.lineFitEpsilon
-  const fitLimit = maxWidth + lineFitEpsilon
+  // A negative width lays out as 0, as in the simple walker.
+  const fitLimit = Math.max(0, maxWidth) + lineFitEpsilon
   // Preparation records soft-hyphen contexts only where the engine retreats
   // and the text has a soft hyphen; hand-built handles may omit them.
   const discretionaryHyphenContexts = prepared.discretionaryHyphenContexts ?? null
@@ -862,8 +865,11 @@ function walkPreparedComplexLines(
             lineEndSegmentIndex = i - 1
             lineEndGraphemeIndex = 0
           }
-          // A break segment hangs with the gap before it.
-          if (breakAfter && lineW <= fitLimit) {
+          // A break segment hangs with the gap before it. A collapsible space or
+          // ZWSP hangs even after overflowing content that started the line, as
+          // the simple walker does; a preserved space there starts the next line.
+          if (breakAfter && (lineW <= fitLimit ||
+            (pendingBreakSegmentIndex < 0 && (kind === 'space' || kind === 'zero-width-break')))) {
             const currentBreakPaintWidth = lineW + getLineEndPaintContribution(kind, leadingSpacing, w)
             appendWholeSegment(i, advance)
             lineWidth = finishLine(i + 1, 0, currentBreakPaintWidth)
@@ -952,7 +958,8 @@ function stepPreparedSimpleLineGeometry(
   const { widths, kinds, breakableFitAdvances, breakablePreferredBreaks } = prepared
   const engineProfile = getEngineProfile()
   const lineFitEpsilon = engineProfile.lineFitEpsilon
-  const fitLimit = maxWidth + lineFitEpsilon
+  // A negative width lays out as 0, as in the batch walkers.
+  const fitLimit = Math.max(0, maxWidth) + lineFitEpsilon
 
   let lineW = 0
   let hasContent = false

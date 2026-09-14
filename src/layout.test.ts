@@ -920,6 +920,31 @@ describe('boundary-policy regressions', () => {
       expect(layout(prepare(text, FONT, { whiteSpace: 'pre-wrap' }), width, LINE_HEIGHT).lineCount).toBe(expected.length)
     }
   })
+
+  test('a collapsible space or zero-width space after an overflowing first glyph ends that line', () => {
+    // A soft hyphen later in the text moves the handle off the simple line
+    // walker, which must not move where the first line ends.
+    for (const separator of [' ', '\u200B']) {
+      for (const tail of ['', ' ab\u00ADcd']) {
+        const prepared = prepareWithSegments(`字${separator}字${tail}`, FONT)
+        const lines = layoutWithLines(prepared, 5, LINE_HEIGHT).lines
+        expect(lines.slice(0, 2).map(line => line.text)).toEqual([`字${separator}`, tail === '' ? '字' : '字 '])
+        expect(lines[0]!.end).toEqual({ segmentIndex: 2, graphemeIndex: 0 })
+        expect(collectStreamedLines(prepared, 5)).toEqual(lines)
+      }
+    }
+  })
+
+  test('a negative width lays out like 0 on both line walkers', () => {
+    // The soft hyphen moves the handle off the simple line walker.
+    for (const tail of ['', ' ab\u00ADcd']) {
+      const prepared = prepareWithSegments(`\u200B\u200Bb${tail}`, FONT)
+      const lines = layoutWithLines(prepared, 0, LINE_HEIGHT).lines
+      expect(lines[0]!.text).toBe('\u200B\u200B')
+      expect(layoutWithLines(prepared, -5, LINE_HEIGHT).lines).toEqual(lines)
+      expect(collectStreamedLines(prepared, -5)).toEqual(lines)
+    }
+  })
 })
 
 describe('measurement invariants', () => {

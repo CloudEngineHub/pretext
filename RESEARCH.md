@@ -282,9 +282,13 @@ win in one path while another rewound to the hyphen. This needed one decision
 algorithm, not more width measurements.
 
 Do not assume every remaining walker can be collapsed the same way. The simple
-continuation path consumes following SPACE/ZWSP differently after forced overflow;
-routing it through the complex path changed public cursors. Reusing batch traversal
-for statistics preserved output but made long-form statistics materially slower.
+walker kept a SPACE or ZWSP after forced overflow on the overflowing line, while
+the complex walker moved it to the next one, so a soft hyphen anywhere in the text
+changed public cursors. The complex walker now keeps it too, and every walker lays
+out a negative width as 0, where the two also disagreed. Routing simple handles
+through the complex walker still made `layout()` about twice as slow on
+simple-path documents in a Node microbenchmark. Reusing batch traversal for
+statistics preserved output but made long-form statistics materially slower.
 
 A selected discretionary hyphen must fit. Chromium retries a text item whose
 hyphen does not fit against the available width minus the hyphen, WebKit reverts

@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-09-14T04:56:21.595Z",
-  "suiteHash": "39892782f075db5632ef7a48b31ab7525f19e5351e77aecb66577165c61c3421",
+  "generatedAt": "2026-09-14T05:07:09.319Z",
+  "suiteHash": "156136c60ca67bcd967f34ec678b68ccb53664066178b76d389a8768f122bee2",
   "source": {
-    "revision": "8ab33835f0d325816acd91ee18cdce375b6a5f7c",
+    "revision": "b569d863fc01c889da0ffc765bed579294c07211",
     "files": {
       "analysis.ts": "2d2d25686a0171171eedb01dbc06c56134eeb93788c6eea47df4c559b8831bb8",
       "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
@@ -10,7 +10,7 @@
       "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
       "generated/line-break-data.ts": "3a42caa6039e2d59df4830d3d713d8e5692aae79e40d34c0b7f7f49e294fdd8a",
       "layout.ts": "147f91bd5752b993aba46581d5fd826950c236ef9dda4b9170a01b290ecd75b9",
-      "line-break.ts": "d58f099ceec536438da532b071c7e3287af52d380469d7327ddf61dcadb9fb45",
+      "line-break.ts": "9d06f9d6c8b2eac44e36557bdb533328e2466d495962488ad639e6775c0880d6",
       "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
       "measurement.ts": "5e2ca67e40e654cce390c35022f2811238b0322980b05a7cc08e6496d2274d13",
       "rich-inline.ts": "dd2a18d28995c01c46aa9ddb3b27564a8ed05fa20dc534c368ba27ff369a3667",
@@ -30,7 +30,7 @@
           "innerHeight": 853,
           "outerWidth": 1400,
           "outerHeight": 900,
-          "screenX": 0,
+          "screenX": 1,
           "screenY": 30,
           "screenWidth": 2560,
           "screenHeight": 1440,
@@ -48,7 +48,7 @@
           "innerHeight": 853,
           "outerWidth": 1400,
           "outerHeight": 900,
-          "screenX": 0,
+          "screenX": 1,
           "screenY": 30,
           "screenWidth": 2560,
           "screenHeight": 1440,
@@ -84,7 +84,7 @@
           "innerHeight": 853,
           "outerWidth": 1400,
           "outerHeight": 900,
-          "screenX": 0,
+          "screenX": 1,
           "screenY": 30,
           "screenWidth": 2560,
           "screenHeight": 1440,
@@ -102,7 +102,7 @@
           "innerHeight": 853,
           "outerWidth": 1400,
           "outerHeight": 900,
-          "screenX": 0,
+          "screenX": 1,
           "screenY": 30,
           "screenWidth": 2560,
           "screenHeight": 1440,
@@ -138,7 +138,7 @@
           "innerHeight": 853,
           "outerWidth": 1400,
           "outerHeight": 900,
-          "screenX": 0,
+          "screenX": 1,
           "screenY": 30,
           "screenWidth": 2560,
           "screenHeight": 1440,
@@ -156,7 +156,7 @@
           "innerHeight": 853,
           "outerWidth": 1400,
           "outerHeight": 900,
-          "screenX": 0,
+          "screenX": 1,
           "screenY": 30,
           "screenWidth": 2560,
           "screenHeight": 1440,
@@ -192,7 +192,7 @@
           "innerHeight": 853,
           "outerWidth": 1400,
           "outerHeight": 900,
-          "screenX": 0,
+          "screenX": 1,
           "screenY": 30,
           "screenWidth": 2560,
           "screenHeight": 1440,
@@ -210,7 +210,7 @@
           "innerHeight": 853,
           "outerWidth": 1400,
           "outerHeight": 900,
-          "screenX": 0,
+          "screenX": 1,
           "screenY": 30,
           "screenWidth": 2560,
           "screenHeight": 1440,
@@ -246,14 +246,14 @@
           "innerHeight": 853,
           "outerWidth": 1400,
           "outerHeight": 900,
-          "screenX": 0,
+          "screenX": 1,
           "screenY": 30,
           "screenWidth": 2560,
           "screenHeight": 1440,
           "screenAvailWidth": 2560,
           "screenAvailHeight": 1315,
           "visibility": "visible",
-          "focused": false,
+          "focused": true,
           "language": "ar",
           "direction": "rtl"
         },
@@ -264,7 +264,7 @@
           "innerHeight": 853,
           "outerWidth": 1400,
           "outerHeight": 900,
-          "screenX": 0,
+          "screenX": 1,
           "screenY": 30,
           "screenWidth": 2560,
           "screenHeight": 1440,
@@ -275,7 +275,13 @@
           "language": "ar",
           "direction": "rtl"
         },
-        "changes": []
+        "changes": [
+          {
+            "field": "focused",
+            "value": false,
+            "evidence": "snapshot"
+          }
+        ]
       },
       "context": {
         "kind": "installed",
@@ -307,7 +313,7 @@
           "screenAvailWidth": 1440,
           "screenAvailHeight": 2530,
           "visibility": "visible",
-          "focused": true,
+          "focused": false,
           "language": "en",
           "direction": "ltr"
         },
@@ -325,7 +331,7 @@
           "screenAvailWidth": 1440,
           "screenAvailHeight": 2530,
           "visibility": "visible",
-          "focused": true,
+          "focused": false,
           "language": "en",
           "direction": "ltr"
         },
@@ -339,7 +345,7 @@
       "dpr": 2,
       "locale": "zh-CN",
       "visibility": "visible",
-      "focused": true,
+      "focused": false,
       "fonts": []
     },
     {
@@ -361,7 +367,7 @@
           "screenAvailWidth": 1440,
           "screenAvailHeight": 2530,
           "visibility": "visible",
-          "focused": true,
+          "focused": false,
           "language": "he",
           "direction": "ltr"
         },
@@ -379,7 +385,7 @@
           "screenAvailWidth": 1440,
           "screenAvailHeight": 2530,
           "visibility": "visible",
-          "focused": true,
+          "focused": false,
           "language": "he",
           "direction": "ltr"
         },
@@ -393,7 +399,7 @@
       "dpr": 2,
       "locale": "zh-CN",
       "visibility": "visible",
-      "focused": true,
+      "focused": false,
       "fonts": []
     },
     {
@@ -415,7 +421,7 @@
           "screenAvailWidth": 1440,
           "screenAvailHeight": 2530,
           "visibility": "visible",
-          "focused": true,
+          "focused": false,
           "language": "ja",
           "direction": "ltr"
         },
@@ -433,7 +439,7 @@
           "screenAvailWidth": 1440,
           "screenAvailHeight": 2530,
           "visibility": "visible",
-          "focused": true,
+          "focused": false,
           "language": "ja",
           "direction": "ltr"
         },
@@ -447,7 +453,7 @@
       "dpr": 2,
       "locale": "zh-CN",
       "visibility": "visible",
-      "focused": true,
+      "focused": false,
       "fonts": []
     },
     {
@@ -469,7 +475,7 @@
           "screenAvailWidth": 1440,
           "screenAvailHeight": 2530,
           "visibility": "visible",
-          "focused": true,
+          "focused": false,
           "language": "zh",
           "direction": "ltr"
         },
@@ -487,7 +493,7 @@
           "screenAvailWidth": 1440,
           "screenAvailHeight": 2530,
           "visibility": "visible",
-          "focused": true,
+          "focused": false,
           "language": "zh",
           "direction": "ltr"
         },
@@ -501,7 +507,7 @@
       "dpr": 2,
       "locale": "zh-CN",
       "visibility": "visible",
-      "focused": true,
+      "focused": false,
       "fonts": []
     },
     {
@@ -523,7 +529,7 @@
           "screenAvailWidth": 1440,
           "screenAvailHeight": 2530,
           "visibility": "visible",
-          "focused": true,
+          "focused": false,
           "language": "ar",
           "direction": "rtl"
         },
@@ -541,7 +547,7 @@
           "screenAvailWidth": 1440,
           "screenAvailHeight": 2530,
           "visibility": "visible",
-          "focused": true,
+          "focused": false,
           "language": "ar",
           "direction": "rtl"
         },
@@ -555,7 +561,7 @@
       "dpr": 2,
       "locale": "zh-CN",
       "visibility": "visible",
-      "focused": true,
+      "focused": false,
       "fonts": []
     }
   ],
