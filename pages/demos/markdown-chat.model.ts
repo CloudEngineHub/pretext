@@ -106,6 +106,7 @@ type InlinePiece = {
 
 type PreparedBlockBase = {
   contentLeft: number
+  direction: 'ltr' | 'rtl' | null // a code block or rule has none until inheritDirection
   marginTop: number
   markerClassName: string | null
   markerLeft: number | null
@@ -196,6 +197,7 @@ type InlineBlockLayout = {
 
 type CodeBlockLayout = {
   contentLeft: number
+  direction: 'ltr' | 'rtl'
   height: number
   kind: 'code'
   lines: LayoutLine[]
@@ -209,6 +211,7 @@ type CodeBlockLayout = {
 
 type RuleBlockLayout = {
   contentLeft: number
+  direction: 'ltr' | 'rtl'
   height: number
   kind: 'rule'
   markerClassName: string | null
@@ -469,6 +472,7 @@ function parseBlockTokens(tokens: readonly Token[], ctx: ParseContext): Prepared
     }
   }
 
+  inheritDirection(blocks)
   return blocks
 }
 
@@ -500,7 +504,22 @@ function buildListBlocks(token: Tokens.List, ctx: ParseContext): PreparedBlock[]
     appendBlockGroup(blocks, itemBlocks, LIST_ITEM_GAP)
   }
 
+  inheritDirection(blocks)
   return blocks
+}
+
+// A code block or rule has no text to read a direction from. It takes the
+// direction of the first paragraph in its list item, list or quote, else in
+// the enclosing one, out to the message.
+function inheritDirection(blocks: PreparedBlock[]): void {
+  let direction: 'ltr' | 'rtl' | null = null
+  for (let index = 0; index < blocks.length && direction === null; index++) {
+    direction = blocks[index]!.direction
+  }
+  if (direction === null) return
+  for (let index = 0; index < blocks.length; index++) {
+    blocks[index]!.direction ??= direction
+  }
 }
 
 function buildPlainTextBlocks(
@@ -602,6 +621,7 @@ function buildRuleBlock(ctx: ParseContext): PreparedRuleBlock {
 function createBlockBase(ctx: ParseContext): PreparedBlockBase {
   return {
     contentLeft: ctx.contentLeft,
+    direction: null,
     marginTop: 0,
     markerClassName: null,
     markerLeft: null,
@@ -1081,6 +1101,8 @@ function materializeBlockLayout(
       const layout = layoutWithLines(block.prepared, innerWidth, frame.lineHeight)
       return {
         contentLeft: frame.contentLeft,
+        // A message with no paragraph at all is left-to-right.
+        direction: block.direction ?? 'ltr',
         height: frame.height,
         kind: 'code',
         lines: layout.lines,
@@ -1097,6 +1119,7 @@ function materializeBlockLayout(
       if (block.kind !== 'rule') throw new Error('Rule block/frame mismatch')
       return {
         contentLeft: frame.contentLeft,
+        direction: block.direction ?? 'ltr',
         height: frame.height,
         kind: 'rule',
         markerClassName: frame.markerClassName,

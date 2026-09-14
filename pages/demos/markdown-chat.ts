@@ -256,21 +256,23 @@ function projectMessageNode(
 }
 
 function renderBlock(block: BlockLayout, contentInsetX: number): HTMLElement {
+  // A right-to-left block starts its indent, marker and rails from the right.
+  const start = block.direction === 'rtl' ? 'right' : 'left'
   switch (block.kind) {
     case 'inline':
-      return renderInlineBlock(block, contentInsetX)
+      return renderInlineBlock(block, contentInsetX, start)
     case 'code':
-      return renderCodeBlock(block, contentInsetX)
+      return renderCodeBlock(block, contentInsetX, start)
     case 'rule':
-      return renderRuleBlock(block, contentInsetX)
+      return renderRuleBlock(block, contentInsetX, start)
   }
 }
 
 function renderInlineBlock(
   block: Extract<BlockLayout, { kind: 'inline' }>,
   contentInsetX: number,
+  start: 'left' | 'right',
 ): HTMLElement {
-  const start = block.direction === 'rtl' ? 'right' : 'left'
   const wrapper = createBlockShell(block, 'block block--inline', contentInsetX, start)
 
   for (let lineIndex = 0; lineIndex < block.lines.length; lineIndex++) {
@@ -300,12 +302,13 @@ function renderInlineBlock(
 function renderCodeBlock(
   block: Extract<BlockLayout, { kind: 'code' }>,
   contentInsetX: number,
+  start: 'left' | 'right',
 ): HTMLElement {
-  const wrapper = createBlockShell(block, 'block block--code-shell', contentInsetX, 'left')
+  const wrapper = createBlockShell(block, 'block block--code-shell', contentInsetX, start)
 
   const codeBox = document.createElement('div')
   codeBox.className = 'code-box'
-  codeBox.style.left = `${contentInsetX + block.contentLeft}px`
+  codeBox.style[start] = `${contentInsetX + block.contentLeft}px`
   codeBox.style.width = `${block.width}px`
   codeBox.style.height = `${block.height}px`
 
@@ -313,6 +316,7 @@ function renderCodeBlock(
     const line = block.lines[lineIndex]!
     const row = document.createElement('div')
     row.className = 'code-line'
+    // Code reads left to right inside its box, whichever side the box starts from.
     row.style.left = `${CODE_BLOCK_PADDING_X}px`
     row.style.top = `${CODE_BLOCK_PADDING_Y + lineIndex * CODE_LINE_HEIGHT}px`
     row.textContent = line.text
@@ -326,11 +330,12 @@ function renderCodeBlock(
 function renderRuleBlock(
   block: Extract<BlockLayout, { kind: 'rule' }>,
   contentInsetX: number,
+  start: 'left' | 'right',
 ): HTMLElement {
-  const wrapper = createBlockShell(block, 'block block--rule-shell', contentInsetX, 'left')
+  const wrapper = createBlockShell(block, 'block block--rule-shell', contentInsetX, start)
   const rule = document.createElement('div')
   rule.className = 'rule-line'
-  rule.style.left = `${contentInsetX + block.contentLeft}px`
+  rule.style[start] = `${contentInsetX + block.contentLeft}px`
   rule.style.top = `${Math.floor(block.height / 2)}px`
   rule.style.width = `${block.width}px`
   wrapper.append(rule)
