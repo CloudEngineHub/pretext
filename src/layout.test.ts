@@ -607,6 +607,38 @@ describe('boundary-policy regressions', () => {
     }
   })
 
+  test('the Gecko profile keeps a hyphen with the number after it', async () => {
+    const { analyzeText, getBreakablePreferredBreaks } = await import('./analysis.ts')
+    const gecko = { ...baseProfile, geckoAsciiLineBreaks: true, keepAllPairModel: 'icu4x-classes' as const, breakAroundEastAsianQuotes: false, wordInitialHyphenLetters: 'none' as const }
+    // ICU4X keeps a hyphen-minus (HY) with a following number (NU), ASCII or not
+    // (LB25): Firefox moves `log-2026` to the next line whole and breaks
+    // `crash-log-2026-09-12.txt` only after `crash-`. The pair tables of Chromium
+    // and WebKit break `-` before an ASCII digit.
+    for (const [text, geckoTexts, blinkTexts] of [
+      ['log-2026', ['log-2026'], ['log-', '2026']],
+      ['crash-log-2026-09-12.txt', ['crash-', 'log-2026-09-12.txt'], ['crash-', 'log-', '2026-', '09-', '12.txt']],
+      ['2025-08-01 00:00:00\uFF0C2025-08-01 00:00:00', ['2025-08-01', ' ', '00:00:00\uFF0C', '2025-08-01', ' ', '00:00:00'],
+        ['2025-', '08-', '01', ' ', '00:00:00\uFF0C', '2025-', '08-', '01', ' ', '00:00:00']],
+      ['n2-1o(r)', ['n2-1o(r)'], ['n2-', '1o(r)']],
+      ['x--1', ['x--1'], ['x--', '1']],
+      ['a-\u0661\u0662', ['a-\u0661\u0662'], ['a-', '\u0661\u0662']],
+    ] as const) {
+      expect(analyzeText(text, gecko).texts).toEqual([...geckoTexts])
+      expect(analyzeText(text, baseProfile).texts).toEqual([...blinkTexts])
+    }
+    expect(analyzeText('log-2026', gecko, 'normal', 'keep-all').texts).toEqual(['log-2026'])
+    expect(analyzeText('a 2025-08-01', gecko, 'pre-wrap').texts).toEqual(['a', ' ', '2025-08-01'])
+    // Fullwidth digits are ID, and U+2010 and U+2013 aren't HY, so the pair
+    // doesn't apply; Firefox still breaks there, as before a letter or `+`.
+    for (const text of ['a-\uFF11\uFF12', 'a\u20101', 'a\u20131', 'x-y', '1-+2']) {
+      expect(analyzeText(text, gecko).texts).toEqual(analyzeText(text, baseProfile).texts)
+    }
+    // An overflowing word fills graphemes there instead of preferring the break.
+    expect(getBreakablePreferredBreaks('crash-log-2026', gecko)).toEqual([6])
+    expect(getBreakablePreferredBreaks('crash-log-2026', baseProfile)).toEqual([6, 10])
+    expect(getBreakablePreferredBreaks('a-\u0661\u0662', gecko)).toBeNull()
+  })
+
   test('ZWJ and a word-initial hyphen keep the following character', async () => {
     const { analyzeText, getBreakablePreferredBreaks } = await import('./analysis.ts')
     const profile = baseProfile

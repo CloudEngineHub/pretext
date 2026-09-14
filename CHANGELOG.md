@@ -43,6 +43,7 @@
 - Rich-inline layout now keeps text, or a `break: 'never'` item, on a line when it overflows by no more than 0.005px, or 1/64px in Safari, as it already did inside one item. Previously, at some widths, layout took one more line than at a slightly narrower width (#281).
 - In Firefox, rich-inline layout now breaks between items only where their joined text has a break opportunity, as in Chrome. Punctuation such as `,` or `)` at the start of an item stays with the word before it, and a word split across items wraps as one word. Items without a space between them can also break where the joined text allows it, such as between CJK characters, at Thai word boundaries or after `-` (#287).
 - CJK text that stays together on a line, such as `漢。`, `「漢` or a `word-break: keep-all` group, now breaks between characters when it doesn't fit a line, as browsers do, instead of overflowing. Lines also no longer break between a run of opening brackets and the word after it, as in `「「tail`, or inside that word, as in `「tail`, or before a combining mark that ends a word before CJK text or an opening bracket, such as U+3099 after `ト` (#288).
+- In Firefox, a hyphen now stays on the same line as a number after it, as in `2025-08-01`, `log-2026` or `8:30-4:30`, as Firefox does. A word that doesn't fit a line breaks between characters there instead (#289).
 
 ## 0.0.9 - 2026-09-07
 
