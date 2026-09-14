@@ -398,6 +398,37 @@ function isEastAsianCodePointAt(text: string, index: number): boolean {
   return emojiPresentationAtRe.test(text) && getLineBreakClass(text.codePointAt(index)!) !== LineBreakClass.RI
 }
 
+// Punctuation that attaches to the CJK text before it: CL, CP, EX, IS and SY
+// (LB13), QU (LB19), BA and NS (LB21), IN (LB22) and PO (LB23a).
+const cjkMarkClasses =
+  (1 << LineBreakClass.CL) | (1 << LineBreakClass.CP) | (1 << LineBreakClass.EX) | (1 << LineBreakClass.IS) |
+  (1 << LineBreakClass.SY) | (1 << LineBreakClass.QU) | (1 << LineBreakClass.BA) | (1 << LineBreakClass.NS) |
+  (1 << LineBreakClass.IN) | (1 << LineBreakClass.PO)
+
+// Whether UAX #14 keeps the text after a mark that ends CJK text, such as `first`
+// after `丙.`: IS (LB25, LB29), CP (LB25, LB30), PO (LB24, LB25), a straight QU
+// (LB19) and SY before a number (LB25). LB19 doesn't keep the text after a closing
+// curly quote, and Chrome breaks there. Engines differ where the rules allow a
+// break: Blink's pair table also keeps `!`, `}`, `/` and `|` before a letter or a
+// number, and WebKit keeps them before a number.
+function keepsTextAfterCJKMark(text: string, boundary: number): boolean {
+  const base = lineBreakBaseBefore(text, boundary)
+  if (base < 0) return false
+  cjkAtRe.lastIndex = base
+  if (cjkAtRe.test(text)) return false
+  const before = getLineBreakClass(text.codePointAt(base)!)
+  if (((1 << before) & cjkMarkClasses) === 0) return false
+  if (before === LineBreakClass.QU) {
+    openingQuoteAtRe.lastIndex = base
+    closingQuoteAtRe.lastIndex = base
+    if (openingQuoteAtRe.test(text) || closingQuoteAtRe.test(text)) return false
+  }
+  const afterCodePoint = text.codePointAt(boundary)!
+  const after = getLineBreakClass(afterCodePoint)
+  if (after === LineBreakClass.CJ) return false
+  return !lineBreakClassesBreak(before, after === LineBreakClass.SA ? LineBreakClass.AL : after, afterCodePoint)
+}
+
 // ICU 77 and 78 break before an opening quotation mark (QU and \p{Pi})
 // between East Asian characters, looking past marks on either side (LB19a).
 function breaksBeforeEastAsianOpeningQuote(text: string, boundary: number, base: number, baseClass: number): boolean {
@@ -1677,6 +1708,7 @@ function buildMergedSegmentation(
         (tailContainsCJK || pieceContainsCJK ? null :
           openingPunctuationJoinsPrevious(normalized, piece.text, profile, piece.start))
       let appendToTail = false
+      let joinsTextAfterCJKMark = false
 
       // First-pass keeps: no-space script-specific joins and punctuation glue
       // that depend on the immediately preceding text run.
@@ -1709,6 +1741,16 @@ function buildMergedSegmentation(
         isCJKLineStartProhibitedSegment(piece.text, profile)
       ) {
         appendToTail = true
+      } else if (
+        isText &&
+        hasTail &&
+        tailKind === 'text' &&
+        tailContainsCJK &&
+        !pieceContainsCJK &&
+        keepsTextAfterCJKMark(normalized, piece.start)
+      ) {
+        appendToTail = true
+        joinsTextAfterCJKMark = true
       } else if (
         isText &&
         hasTail &&
@@ -1756,7 +1798,9 @@ function buildMergedSegmentation(
         tailEnd = pieceEnd
         tailWordLike = tailWordLike || piece.isWordLike
         tailSingleCharRunChar = null
-        tailContainsCJK = tailContainsCJK || pieceContainsCJK
+        // Text joined after a mark that ends CJK text follows the rules for
+        // ordinary text at its end, as `first-` does after `丙.`.
+        tailContainsCJK = !joinsTextAfterCJKMark && (tailContainsCJK || pieceContainsCJK)
         tailContainsArabicScript = tailContainsArabicScript || pieceContainsArabicScript
         tailEndsWithClosingQuote = pieceEndsWithClosingQuote
         tailEndsWithMyanmarMedialGlue = pieceEndsWithMyanmarMedialGlue
@@ -2077,13 +2121,16 @@ function buildBaseCjkUnits(
   let unitIsSingleKinsokuEnd = false
   let unitHasHyphen = false
   let unitHasNumericHyphen = false
+  // Whether the unit has taken text after a mark that ends CJK text, such as
+  // `first` after `丙.`. That text keeps grapheme breaks for an overlong run.
+  let unitJoinsText = false
 
   function pushUnit(): void {
     if (unitEnd === unitStart) return
     units.push({
       text: segText.slice(unitStart, unitEnd),
       start: unitStart,
-      overflow: unitContainsCJK ? (unitHasHyphen ? 'grapheme' : 'none') : 'word-like',
+      overflow: unitContainsCJK ? (unitHasHyphen || unitJoinsText ? 'grapheme' : 'none') : 'word-like',
     })
     unitStart = unitEnd
     unitContainsCJK = false
@@ -2091,6 +2138,7 @@ function buildBaseCjkUnits(
     unitIsSingleKinsokuEnd = false
     unitHasHyphen = false
     unitHasNumericHyphen = false
+    unitJoinsText = false
   }
 
   function startUnit(grapheme: string, start: number, graphemeContainsCJK: boolean): void {
@@ -2105,6 +2153,7 @@ function buildBaseCjkUnits(
   function appendToUnit(grapheme: string, graphemeContainsCJK: boolean): void {
     unitEnd += grapheme.length
     unitContainsCJK = unitContainsCJK || graphemeContainsCJK
+    unitJoinsText = unitJoinsText && !graphemeContainsCJK
     unitHasHyphen = unitHasHyphen || grapheme === '-'
     const graphemeEndsWithClosingQuote = endsWithClosingQuote(grapheme)
     if (grapheme.length === 1 && leftStickyPunctuation.has(grapheme)) {
@@ -2144,6 +2193,12 @@ function buildBaseCjkUnits(
 
     if (!unitContainsCJK && !graphemeContainsCJK) {
       appendToUnit(grapheme, graphemeContainsCJK)
+      continue
+    }
+
+    if (!graphemeContainsCJK && (unitJoinsText || keepsTextAfterCJKMark(segText, gs.index))) {
+      appendToUnit(grapheme, graphemeContainsCJK)
+      unitJoinsText = true
       continue
     }
 

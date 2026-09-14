@@ -81,12 +81,19 @@ function renderBody(lines: RichLine[]): void {
 
     for (let fragmentIndex = 0; fragmentIndex < line.fragments.length; fragmentIndex++) {
       const part = line.fragments[fragmentIndex]!
-      const element = document.createElement('span')
+      const element = part.href === null
+        ? document.createElement('span')
+        : document.createElement('a')
       element.className = part.className
       // Paint with the font the item was measured with.
       element.style.setProperty('--font', part.font)
       element.textContent = part.text
       if (part.leadingGap > 0) element.style.marginLeft = `${part.leadingGap}px`
+      if (element instanceof HTMLAnchorElement && part.href !== null) {
+        element.href = part.href
+        element.target = '_blank'
+        element.rel = 'noreferrer'
+      }
       row.appendChild(element)
     }
 

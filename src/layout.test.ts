@@ -1487,6 +1487,32 @@ describe('prepare invariants', () => {
     expect(prepareWithSegments('테스트입니다.', FONT).segments.at(-1)).toBe('다.')
   })
 
+  test('keeps text after a mark that ends CJK text where UAX #14 keeps the pair', () => {
+    // #274. IS, CP, PO and QU keep a following letter or number; EX and
+    // full-width marks don't, and a hyphen keeps its own rules.
+    for (const [text, expected] of [
+      ['甲乙丙.first_week_voltage}户', ['甲', '乙', '丙.first_week_voltage}', '户']],
+      ['甲乙丙,1234户', ['甲', '乙', '丙,1234', '户']],
+      ['甲乙丙)first户', ['甲', '乙', '丙)first', '户']],
+      ['甲乙丙%first户', ['甲', '乙', '丙%first', '户']],
+      ['가나다.first', ['가', '나', '다.first']],
+      ['甲乙丙.foo-bar', ['甲', '乙', '丙.foo-', 'bar']],
+      ['甲乙丙?first户', ['甲', '乙', '丙?', 'first', '户']],
+      ['甲乙丙。first户', ['甲', '乙', '丙。', 'first', '户']],
+      // LB19 doesn't keep the text after a closing curly quote, and Chrome breaks there.
+      ['中文””tail', ['中', '文””', 'tail']],
+    ] as const) {
+      expect(prepareWithSegments(text, FONT).segments).toEqual([...expected])
+    }
+    // A joined run that doesn't fit an empty line still breaks between graphemes.
+    const prepared = prepareWithSegments('丙.first_week_voltage', FONT)
+    const width = measureWidth('丙.first', FONT) + 0.1
+    const lines = layoutWithLines(prepared, width, LINE_HEIGHT).lines
+    expect(lines.length).toBeGreaterThan(1)
+    expect(lines.map(line => line.text).join('')).toBe('丙.first_week_voltage')
+    expect(collectStreamedLines(prepared, width)).toEqual(lines)
+  })
+
   test('engine profiles follow the layout engine the user agent names', async () => {
     const { getLayoutEngine } = await import('./measurement.ts')
     const mac = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)'
@@ -2168,6 +2194,44 @@ describe('rich-inline invariants', () => {
       lineCount,
       maxLineWidth: Math.max(...widths),
     })
+  })
+
+  test('rich line counts do not go up where an item fits within the fit epsilon', async () => {
+    // Where the walk over the second item takes `on the` only within the fit
+    // epsilon, wrapping before that whole item took one more line than 0.1px
+    // narrower, where the walk takes only `on`.
+    const { getEngineProfile } = await import('./measurement.ts')
+    const epsilon = getEngineProfile().lineFitEpsilon
+    const lineTexts = (prepared: ReturnType<typeof prepareRichInline>, maxWidth: number): string[] => {
+      const streamed: NonNullable<ReturnType<typeof layoutNextRichInlineLineRange>>[] = []
+      let range = layoutNextRichInlineLineRange(prepared, maxWidth)
+      while (range !== null) {
+        streamed.push(range)
+        range = layoutNextRichInlineLineRange(prepared, maxWidth, range.end)
+      }
+      const walked: typeof streamed = []
+      expect(walkRichInlineLineRanges(prepared, maxWidth, line => walked.push(structuredClone(line)))).toBe(streamed.length)
+      expect(walked).toEqual(streamed)
+      expect(measureRichInlineStats(prepared, maxWidth)).toEqual({
+        lineCount: streamed.length,
+        maxLineWidth: Math.max(...streamed.map(line => line.width)),
+      })
+      return streamed.map(line => materializeRichInlineLineRange(prepared, line).fragments
+        .map(fragment => (fragment.gapBefore === 0 ? '' : ' ') + fragment.text).join('').trimEnd())
+    }
+    const words = prepareRichInline([
+      { text: 'Is that ', font: FONT },
+      { text: 'on the roadmap?', font: '700 16px Test Sans' },
+    ])
+    const wider = measureWidth('Is that on the', FONT) - epsilon / 2
+    expect(lineTexts(words, wider - 0.1)).toEqual(['Is that on', 'the roadmap?'])
+    expect(lineTexts(words, wider)).toEqual(['Is that on the', 'roadmap?'])
+    // An atomic item that overflows by less than the epsilon stays on the line too.
+    const chip = prepareRichInline([
+      { text: 'Tag ', font: FONT },
+      { text: '@maya', font: FONT, break: 'never', extraWidth: 18 },
+    ])
+    expect(lineTexts(chip, measureWidth('Tag @maya', FONT) + 18 - epsilon / 2)).toEqual(['Tag @maya'])
   })
 
   test('the Chromium profile breaks rich items only where their joined text breaks', async () => {

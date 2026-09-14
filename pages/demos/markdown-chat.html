@@ -50,6 +50,9 @@
       position: absolute;
       inset: 0;
       overflow: auto;
+      /* The chat is sized from this box's width, and no event fires when a
+         classic scrollbar appears, so its room is kept from the first frame. */
+      scrollbar-gutter: stable;
     }
     .chat-canvas {
       position: relative;

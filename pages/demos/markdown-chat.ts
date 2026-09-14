@@ -393,6 +393,7 @@ function appendMarker(
 
   const marker = document.createElement('span')
   marker.className = block.markerClassName
+  marker.dir = block.direction
   marker.style[start] = `${contentInsetX + block.markerLeft}px`
   marker.style.top = `${markerTop(block)}px`
   marker.textContent = block.markerText

@@ -359,6 +359,18 @@ function addReportedCases(add: (input: Omit<WrappingCase, 'id'>) => void, measur
     ...installed, font: '20px Arial', lineHeight: 28, whiteSpace: 'pre-wrap',
     origins: ['issue/#214-#215', 'reported-reproduction/#214'], required: ['height', 'lineCount', 'source', 'api'],
   })
+  // #274: every engine keeps the mark and the text after it together, so the
+  // run moves to its own line.
+  report('#274', '甲乙丙.first_week_voltage}户', measure('丙.first_week_voltage}', numericFont, 0) + 0.1, {
+    ...installed, font: numericFont, lineHeight: 20, origins: ['issue/#274', 'reported-reproduction/#274'],
+    required: ['height', 'lineCount', 'source', 'api'],
+  })
+  for (const [text, run] of [
+    ['甲乙丙,1234户', '丙,1234'], ['甲乙丙)first_week户', '丙)first_week'], ['甲乙丙%first_week户', '丙%first_week'],
+    ['あいう"first_week户', 'う"first_week'], ['가나다.first_week户', '다.first_week'],
+  ] as const) {
+    report('#274', text, measure(run, numericFont, 0) + 0.1, { ...installed, font: numericFont, lineHeight: 20, origins: ['issue/#274'] })
+  }
   // #225 paginates with the reporter's CJK fallback font. A time stays whole with
   // its full-width comma. At the bare comma's width, browsers break before it
   // only as an emergency break.

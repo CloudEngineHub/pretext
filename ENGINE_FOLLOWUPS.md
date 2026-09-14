@@ -25,6 +25,7 @@ Open engine work: decisions for the maintainer, known gaps and harness debt.
 - Split numeric runs after en and em dashes (`10–20`, `1990—2000`), as it already does for `-`, so lines can break after the dash.
 - Safari and Firefox keep `n2-1o(r)` together where Pretext breaks after the hyphen. Trace their rules for a hyphen between a digit and a letter before deciding whether real text needs a rule; realistic items such as `v2` followed by `-1 or later` already match.
 - After Latin letters, Pretext still allows a break before closing punctuation (CL, CP, EX, IS) and NS such as `，`, `」` or `：`, which UAX #14 forbids (LB13, LB21). Numeric runs already keep it. #245 tried attaching them: it creates kinsoku units that get no emergency breaks, so it lost 42 Chrome, 52 Safari and 52 Firefox LTR rows, mostly shapes like `739x「value」! end`. Land it after emergency breaks inside kinsoku clusters.
+- After CJK text, Pretext keeps a mark with the text after it only where UAX #14 keeps the pair (#274). Chrome also keeps `!`, `}`, `/` and `|` with a following letter or number. Safari keeps `!`, `}` and `|` with a number, and `}` with a letter after an ideograph or Hangul syllable but not after kana (RESEARCH.md). Pretext still breaks before `'`, `/` and `|` after CJK text, which UAX #14 forbids (LB13, LB19, LB21). Installed browsers keep them with the CJK text; Safari and Firefox then break after `/` and `|` before a letter, and Firefox after `|` before a number too.
 - A time inside brackets such as `(10:30)，b` still allows a break before the full-width comma, because the bracketed run doesn't count as a numeric run.
 - Firefox keeps a date such as `2025-08-01` whole, where Chrome and Safari break after its hyphens. Pretext splits it for every engine, so #225's first reproduction is only observed in Firefox.
 - Treat U+2000-U+200A and U+205F as break-after spaces that count their width: break after the last one in a run, never before (LB21). Narrow widths need the emergency permission below first.
@@ -65,7 +66,7 @@ Open engine work: decisions for the maintainer, known gaps and harness debt.
 
 - Blink's shaping-cluster overflow units change no suite rows and help only letter-spaced complex scripts. A result-identical plain-text screen exists, but V8 builds 172 script regexes on first use, adding about 26-66ms to the first complex-script preparations on a page. Fix that cold start, then land it with the letter-spacing work that uses it.
 - Allow emergency breaks in non-word runs, as all three browsers do at narrow widths: glued text, emoji and symbols, digits that Safari marks non-word, and a letter plus word joiner that Firefox's segmenter marks non-word inside spaced text. Derive permission from Pretext's own grapheme data.
-- Measure emergency fits in context, per engine: Chrome by right-context positions, Safari by line-start prefixes, Firefox by shaped advances (#195).
+- Measure emergency fits in context, per engine: Chrome by right-context positions, Safari by line-start prefixes, Firefox by shaped advances (#195). At 248px, `'ه'.repeat(140)` in `400 14px Helvetica, Arial, sans-serif` fits 62 letters per line at isolated widths (3.95px) in Chrome and Firefox, where the browsers fit 44 joined letters (5.52px), so lines overflow. Above 96 letters Safari's fit widths come from pairs, which for this word charge 7.6px a letter: 96 letters break after 44 and 88, as Safari does, but 97 break after 33 and 65.
 - In narrow boxes, Safari keeps two joined Arabic graphemes on a line where Pretext splits them. Trace WebKit's complex-path emergency search.
 - Chrome keeps kerning when it breaks an overflowing word (`'AV'.repeat(116)` at 109px gives 22 lines, not 24). Legacy split kerning isn't observable from Canvas.
 - Safari carries an overflowing word's remaining width, so the last letter overflows (`'AV'.repeat(17)` gives 3 lines, not 4). Modeling it needs a Safari fit model that loses nothing.
@@ -80,6 +81,7 @@ Open engine work: decisions for the maintainer, known gaps and harness debt.
 - Skip letter spacing inside cursive scripts, per engine. Chrome versions before 149 lack the rule or apply it differently, so choose between a README limitation and a version gate.
 - Arabic letters joined across a soft hyphen are measured at isolated widths; the Chrome widths are recoverable for joining fonts. Prototype the gated per-grapheme ZWJ recipe for the Gecko profile (FONT_DIAGNOSTICS.md), together with the Firefox halves of the planned rules that wait on it.
 - Chrome and Firefox shape and kern across rich-inline item boundaries, so per-item widths miss by about 1px there; Safari doesn't. Consider a prepare-time boundary correction for Blink and Gecko.
+- Rich-inline layout clamps the line width and an item's available width to at least 1px, while the plain line walkers clamp to 0, so widths below 1px lay out differently in rich-inline.
 
 ## Per-browser gaps
 
