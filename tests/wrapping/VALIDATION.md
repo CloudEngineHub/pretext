@@ -38,6 +38,13 @@ or new API or rich failures.
 `bun test` and `bun run check` pass. The baseline advances to `63600ad`, and the
 ordinary snapshots were regenerated against it.
 
+Chrome and Safari benchmark snapshots were refreshed from this branch: three
+foreground runs each at DPR 2, visible and focused, with Chrome on the 2560x1440
+screen and Safari on the 2560x1440 screen. Chrome reads `prepare()` at 8.60 ms
+(8.50 on the parent branch) and hot `layout()` at 0.0885 ms (0.0877); Safari reads
+12.0 ms (11.0) and 0.105 ms (0.105). Long-form corpus totals read 111.9 ms in
+Chrome (116.8) and 362 ms in Safari (362).
+
 ## Text after a mark that ends CJK text
 
 This change starts from main after #275. After CJK text, Pretext attached punctuation that
