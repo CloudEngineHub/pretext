@@ -52,7 +52,7 @@ const MONO_FAMILY = '"SF Mono", ui-monospace, Menlo, Monaco, monospace'
 const HEADING_LETTER_SPACING_EM = -0.01
 const INLINE_CODE_EXTRA_WIDTH = 12
 const IMAGE_EXTRA_WIDTH = 14
-// A block takes the direction of its first strong character, the way HTML
+// A paragraph takes the direction of its first strong character, the way HTML
 // dir=auto reads text. Scripts stand in for bidi classes: letters of these
 // right-to-left scripts, RLM and ALM count as right-to-left, and any other
 // letter, spacing mark or LRM as left-to-right.
@@ -528,9 +528,11 @@ function buildPreparedInlineBlocks(
   ctx: ParseContext,
 ): PreparedBlock[] {
   const blocks: PreparedBlock[] = []
+  // Hard breaks split a paragraph into blocks, but the paragraph has one direction.
+  const direction = resolveDirection(lines)
 
   for (let index = 0; index < lines.length; index++) {
-    const block = buildPreparedInlineBlock(lines[index]!, variant, ctx)
+    const block = buildPreparedInlineBlock(lines[index]!, variant, direction, ctx)
     if (block === null) continue
     blocks.push({
       ...block,
@@ -544,13 +546,14 @@ function buildPreparedInlineBlocks(
 function buildPreparedInlineBlock(
   pieces: InlinePiece[],
   variant: InlineVariant,
+  direction: 'ltr' | 'rtl',
   ctx: ParseContext,
 ): PreparedInlineBlock | null {
   if (pieces.length === 0) return null
 
   return {
     ...createBlockBase(ctx),
-    direction: resolveDirection(pieces),
+    direction,
     flow: prepareRichInline(pieces.map(piece => ({
       text: piece.text,
       font: piece.style.font,
@@ -566,10 +569,13 @@ function buildPreparedInlineBlock(
   }
 }
 
-function resolveDirection(pieces: readonly InlinePiece[]): 'ltr' | 'rtl' {
-  for (let index = 0; index < pieces.length; index++) {
-    const strong = STRONG_CHARACTER.exec(pieces[index]!.text)
-    if (strong !== null) return RIGHT_TO_LEFT_CHARACTER.test(strong[0]) ? 'rtl' : 'ltr'
+function resolveDirection(lines: readonly InlinePiece[][]): 'ltr' | 'rtl' {
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    const pieces = lines[lineIndex]!
+    for (let index = 0; index < pieces.length; index++) {
+      const strong = STRONG_CHARACTER.exec(pieces[index]!.text)
+      if (strong !== null) return RIGHT_TO_LEFT_CHARACTER.test(strong[0]) ? 'rtl' : 'ltr'
+    }
   }
   return 'ltr'
 }
