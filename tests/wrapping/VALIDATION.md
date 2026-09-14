@@ -17,6 +17,25 @@ All accuracy, letter-spacing and corpus result payloads are unchanged; refreshed
 snapshots change only provenance and environment records. Runtime sources and
 the baseline pin are unchanged, so no runtime benchmark was needed.
 
+## Keep-all URL query text
+
+This change starts from main after #268. `mergeUrlRuns` gave a URL's query segment the start of an inner
+`www.` or scheme segment instead of the position after the whole URL run. With
+`word-break: keep-all` in the Chrome and Firefox profiles, `アwww.¿www.?־` prepared as
+`["アwww.¿", "־"]` and lost `www.?`, and an inner `https://` lost text the same way. The
+fix removes that override. In Chrome and Safari, rich-inline layout no longer breaks such a
+URL where its text has no break opportunity, as before the second `www.` in items `字` and
+`www.a/www.b?q=1`. A counting fake canvas over `src/test-data.ts` and whole corpora under
+desktop Chrome, Safari, Firefox and Android user agents found no other change.
+
+The installed gate ran against the previous pin `b510ce1`: Chrome 153 through the
+Playwright transport, Safari 26.5.2 and Firefox 155 natively, both directions.
+No leg fixes a metric. No leg loses a metric, and none has required failures, execution errors,
+or new API or rich failures.
+
+`bun test` and `bun run check` pass. The baseline advances to `ee5607e`, and the
+ordinary snapshots were regenerated against it.
+
 ## Removing segLevels
 
 This change starts from main after #256. `prepareWithSegments()` no longer

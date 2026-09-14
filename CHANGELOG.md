@@ -34,7 +34,7 @@
 - In Safari, small kana and `ー` after CJK text can now start a line only on pages whose `<html lang>` is Japanese or Korean, as Safari does (#249).
 - In Chrome, `ー` can now start a line after CJK text, as Chrome does (#250).
 - In Firefox, and in engines Pretext doesn't recognize, small kana no longer start a line after CJK text, as Firefox does (#250).
-- With `word-break: keep-all` in Chrome and Firefox, a URL containing a second `www.` or scheme such as `https://` before its query, as in `x中www.a/www.b?q`, no longer loses text. In Chrome and Safari, rich-inline layout no longer breaks such a URL where its text has no break opportunity, as before the second `www.` in items `字` and `www.a/www.b?q=1`.
+- With `word-break: keep-all` in Chrome and Firefox, a URL containing a second `www.` or scheme such as `https://` before its query, as in `x中www.a/www.b?q`, no longer loses text. In Chrome and Safari, rich-inline layout no longer breaks such a URL where its text has no break opportunity, as before the second `www.` in items `字` and `www.a/www.b?q=1` (#269).
 
 ## 0.0.9 - 2026-09-07
 
