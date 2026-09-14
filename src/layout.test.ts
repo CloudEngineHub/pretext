@@ -921,6 +921,37 @@ describe('boundary-policy regressions', () => {
     }
   })
 
+  test('the forward carry keeps combining marks with their base', async () => {
+    const { analyzeText } = await import('./analysis.ts')
+    for (const [text, expected] of [
+      ['ب\u0650ب\u0650「「tail', ['ب\u0650ب\u0650', '「「tail']],
+      ['漢字\u0301日本', ['漢字\u0301', '日本']],
+      ['ガイト\u3099を読む', ['ガイト\u3099', 'を', '読む']],
+      ['e\u0301e\u0301「「tail', ['e\u0301e\u0301', '「「tail']],
+      // A mark after an opener still moves with it.
+      ['漢字「\u0301日本', ['漢字', '「\u0301日本']],
+    ] as const) {
+      expect(analyzeText(text, baseProfile).texts).toEqual([...expected])
+    }
+  })
+
+  test('a run of openers and the text after an opener stay in one CJK unit', async () => {
+    const { getCjkTextUnits } = await import('./analysis.ts')
+    const units = (source: string) => getCjkTextUnits(source, baseProfile, 'normal').map(unit => unit.text)
+    for (const source of ['「tail', '「「tail', '「「「「字']) expect(units(source)).toEqual([source])
+    // Units without an opener keep their boundaries.
+    expect(units('漢\u00A0abc')).toEqual(['漢', '\u00A0abc'])
+    expect(units('中文))tail')).toEqual(['中', '文))tail'])
+
+    const text = 'e\u0301e\u0301「「tail'
+    const width = measureWidth('「「tail', FONT) + 0.1
+    const prepared = prepareWithSegments(text, FONT)
+    const result = layoutWithLines(prepared, width, LINE_HEIGHT)
+    expect(result.lines.map(line => line.text)).toEqual(['e\u0301e\u0301', '「「tail'])
+    expect(collectStreamedLines(prepared, width)).toEqual(result.lines)
+    expect(layout(prepare(text, FONT), width, LINE_HEIGHT).lineCount).toBe(2)
+  })
+
   test('a collapsible space or zero-width space after an overflowing first glyph ends that line', () => {
     // A soft hyphen later in the text moves the handle off the simple line
     // walker, which must not move where the first line ends.
@@ -1919,6 +1950,81 @@ describe('prepare invariants', () => {
     }
   })
 
+  test('kinsoku clusters stay ordinary units but still take emergency grapheme breaks', async () => {
+    const text = '漢。字'
+    const prepared = prepareWithSegments(text, FONT)
+    expect(prepared.segments).toEqual(['漢。', '字'])
+    const clusterWidth = measureWidth('漢。', FONT)
+    for (const [width, expected] of [
+      [clusterWidth + 0.1, ['漢。', '字']],
+      [clusterWidth - 0.1, ['漢', '。', '字']],
+    ] as const) {
+      const result = layoutWithLines(prepared, width, LINE_HEIGHT)
+      expect(result.lines.map(line => line.text)).toEqual([...expected])
+      expect(collectStreamedLines(prepared, width)).toEqual(result.lines)
+      const walked: string[] = []
+      walkLineRanges(prepared, width, line => walked.push(slicePreparedText(prepared, line.start, line.end)))
+      expect(walked).toEqual([...expected])
+      expect(layout(prepare(text, FONT), width, LINE_HEIGHT).lineCount).toBe(expected.length)
+    }
+
+    const lines = (source: string, width: number) =>
+      layoutWithLines(prepareWithSegments(source, FONT), width, LINE_HEIGHT).lines.map(line => line.text)
+    const graphemeWidth = measureWidth('漢', FONT)
+    expect(lines('「漢字」。', graphemeWidth + 0.1)).toEqual(['「', '漢', '字', '」', '。'])
+    // A number keeps the punctuation after it until only the number fits.
+    expect(lines('1234。b', (measureWidth('1234', FONT) + measureWidth('1234。', FONT)) / 2)).toEqual(['1234', '。b'])
+
+    const { getEngineProfile } = await import('./measurement.ts')
+    const profile = getEngineProfile()
+    const previous = profile.breakBeforeConditionalJapaneseStarter
+    try {
+      // Where U+30FC can't start a line, `本ーー` is one unit that still breaks in an emergency.
+      profile.breakBeforeConditionalJapaneseStarter = false
+      expect(lines('日本ーー', graphemeWidth * 2.5)).toEqual(['日', '本ー', 'ー'])
+    } finally {
+      profile.breakBeforeConditionalJapaneseStarter = previous
+    }
+  })
+
+  test('keep-all punctuation groups keep emergency permission without being words', async () => {
+    const { getCjkTextUnits } = await import('./analysis.ts')
+    const { getEngineProfile } = await import('./measurement.ts')
+    const profile = { ...getEngineProfile(), keepAllPairModel: 'webkit-spaces' as const }
+    expect(getCjkTextUnits('「」「」', profile, 'keep-all')).toEqual([{ text: '「」「」', start: 0, overflow: 'grapheme' }])
+  })
+
+  test('keep-all letter groups take emergency breaks where the word segmenter marks CJK as not a word', async () => {
+    const { clearAnalysisCaches, getCjkTextUnits } = await import('./analysis.ts')
+    const { getEngineProfile } = await import('./measurement.ts')
+    expect(getCjkTextUnits('漢字', getEngineProfile(), 'keep-all')).toEqual([{ text: '漢字', start: 0, overflow: 'grapheme' }])
+    // Firefox's word segmenter doesn't mark some CJK text as a word.
+    const Segmenter = Intl.Segmenter
+    Reflect.set(Intl, 'Segmenter', class extends Segmenter {
+      override segment(input: string): Intl.Segments {
+        const segments = super.segment(input)
+        if (this.resolvedOptions().granularity !== 'word') return segments
+        const pieces = Array.from(segments, piece => isCJK(piece.segment) ? { ...piece, isWordLike: false } : piece)
+        return Object.assign(pieces, { containing: (index?: number) => segments.containing(index) }) as unknown as Intl.Segments
+      }
+    })
+    clearAnalysisCaches()
+    try {
+      for (const text of ['漢字漢字', '한국어텍스트']) {
+        const graphemes = getSegmentGraphemes(text)
+        const width = measureWidth(graphemes[0]!, FONT) + 0.1
+        const prepared = prepareWithSegments(text, FONT, { wordBreak: 'keep-all' })
+        const result = layoutWithLines(prepared, width, LINE_HEIGHT)
+        expect(result.lines.map(line => line.text)).toEqual(graphemes)
+        expect(collectStreamedLines(prepared, width)).toEqual(result.lines)
+        expect(layout(prepare(text, FONT, { wordBreak: 'keep-all' }), width, LINE_HEIGHT).lineCount).toBe(graphemes.length)
+      }
+    } finally {
+      Reflect.set(Intl, 'Segmenter', Segmenter)
+      clearAnalysisCaches()
+    }
+  })
+
   test('isCJK covers Hangul compatibility jamo and the newer CJK extension blocks', () => {
     expect(isCJK('ㅋ')).toBe(true)
     expect(isCJK('\u{2EBF0}')).toBe(true)
@@ -2265,6 +2371,33 @@ describe('rich-inline invariants', () => {
         expect(richLines).toEqual(flat.lines.map(line => line.text.trimEnd()))
         expect(measureRichInlineStats(prepared, width).lineCount).toBe(flat.lineCount)
       }
+    } finally {
+      profile.inlineItemBreaks = previous
+    }
+  })
+
+  test('rich item boundaries keep their breaks while kinsoku units take emergency breaks', async () => {
+    const { getEngineProfile } = await import('./measurement.ts')
+    const profile = getEngineProfile()
+    const previous = profile.inlineItemBreaks
+    const richLines = (parts: string[], width: number) => {
+      const prepared = prepareRichInline(parts.map(text => ({ text, font: FONT })))
+      const lines: string[] = []
+      walkRichInlineLineRanges(prepared, width, range => {
+        lines.push(materializeRichInlineLineRange(prepared, range).fragments.map(fragment => fragment.text).join(''))
+      })
+      expect(measureRichInlineStats(prepared, width).lineCount).toBe(lines.length)
+      return lines
+    }
+    try {
+      for (const mode of ['item-boundary', 'joined-text'] as const) {
+        profile.inlineItemBreaks = mode
+        expect(richLines(['漢', '。字'], measureWidth('漢。', FONT) + 0.1)).toEqual(['漢。', '字'])
+        expect(richLines(['漢', '。字'], measureWidth('漢。', FONT) - 0.1)).toEqual(['漢', '。', '字'])
+      }
+      profile.inlineItemBreaks = 'joined-text'
+      expect(richLines(['漢', '字。字'], measureWidth('字。', FONT) + 0.1)).toEqual(['漢', '字。', '字'])
+      expect(richLines(['漢', '字。字'], measureWidth('字', FONT) + 0.1)).toEqual(['漢', '字', '。', '字'])
     } finally {
       profile.inlineItemBreaks = previous
     }

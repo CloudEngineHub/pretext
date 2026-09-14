@@ -739,9 +739,18 @@ function splitTrailingForwardStickyCluster(text: string): { head: string, tail: 
   let splitIndex = text.length
 
   while (splitIndex > 0) {
-    const start = previousCodePointStart(text, splitIndex)
-    const ch = text.slice(start, splitIndex)
-    if (combiningMarkRe.test(ch) || kinsokuEnd.has(ch) || forwardStickyGlue.has(ch)) {
+    // Look past marks to their base: marks move only together with an opener
+    // or apostrophe before them, never apart from their base (LB9).
+    let baseEnd = splitIndex
+    while (baseEnd > 0) {
+      const markStart = previousCodePointStart(text, baseEnd)
+      if (!combiningMarkRe.test(text.slice(markStart, baseEnd))) break
+      baseEnd = markStart
+    }
+    if (baseEnd === 0) break
+    const start = previousCodePointStart(text, baseEnd)
+    const ch = text.slice(start, baseEnd)
+    if (kinsokuEnd.has(ch) || forwardStickyGlue.has(ch)) {
       splitIndex = start
       continue
     }
@@ -2105,7 +2114,7 @@ function isNumericHyphen(text: string, index: number): boolean {
 type TextBreakUnit = {
   text: string
   start: number
-  overflow: 'none' | 'word-like' | 'grapheme'
+  overflow: 'word-like' | 'grapheme'
 }
 
 function buildBaseCjkUnits(
@@ -2117,51 +2126,50 @@ function buildBaseCjkUnits(
   let unitStart = 0
   let unitEnd = 0
   let unitContainsCJK = false
+  let unitEndsWithCJK = false
   let unitEndsWithClosingQuote = false
-  let unitIsSingleKinsokuEnd = false
-  let unitHasHyphen = false
+  let unitEndsWithKinsokuEnd = false
   let unitHasNumericHyphen = false
-  // Whether the unit has taken text after a mark that ends CJK text, such as
-  // `first` after `丙.`. That text keeps grapheme breaks for an overlong run.
-  let unitJoinsText = false
 
   function pushUnit(): void {
     if (unitEnd === unitStart) return
     units.push({
       text: segText.slice(unitStart, unitEnd),
       start: unitStart,
-      overflow: unitContainsCJK ? (unitHasHyphen || unitJoinsText ? 'grapheme' : 'none') : 'word-like',
+      // Kinsoku keeps ordinary breaks out of a CJK unit. overflow-wrap still
+      // breaks it between graphemes when it cannot fit a line by itself.
+      overflow: unitContainsCJK ? 'grapheme' : 'word-like',
     })
     unitStart = unitEnd
     unitContainsCJK = false
+    unitEndsWithCJK = false
     unitEndsWithClosingQuote = false
-    unitIsSingleKinsokuEnd = false
-    unitHasHyphen = false
+    unitEndsWithKinsokuEnd = false
     unitHasNumericHyphen = false
-    unitJoinsText = false
   }
 
   function startUnit(grapheme: string, start: number, graphemeContainsCJK: boolean): void {
     unitStart = start
     unitEnd = start + grapheme.length
     unitContainsCJK = graphemeContainsCJK
-    unitHasHyphen = grapheme === '-'
+    unitEndsWithCJK = graphemeContainsCJK
     unitEndsWithClosingQuote = endsWithClosingQuote(grapheme)
-    unitIsSingleKinsokuEnd = kinsokuEnd.has(grapheme)
+    unitEndsWithKinsokuEnd = kinsokuEnd.has(grapheme)
   }
 
   function appendToUnit(grapheme: string, graphemeContainsCJK: boolean): void {
     unitEnd += grapheme.length
     unitContainsCJK = unitContainsCJK || graphemeContainsCJK
-    unitJoinsText = unitJoinsText && !graphemeContainsCJK
-    unitHasHyphen = unitHasHyphen || grapheme === '-'
+    unitEndsWithCJK = graphemeContainsCJK
     const graphemeEndsWithClosingQuote = endsWithClosingQuote(grapheme)
     if (grapheme.length === 1 && leftStickyPunctuation.has(grapheme)) {
       unitEndsWithClosingQuote = unitEndsWithClosingQuote || graphemeEndsWithClosingQuote
     } else {
       unitEndsWithClosingQuote = graphemeEndsWithClosingQuote
     }
-    unitIsSingleKinsokuEnd = false
+    // No break follows an opener (LB14), so a run of openers stays with the
+    // grapheme after the last one.
+    unitEndsWithKinsokuEnd = kinsokuEnd.has(grapheme)
   }
 
   for (const gs of getSharedGraphemeSegmenter().segment(segText)) {
@@ -2177,7 +2185,7 @@ function buildBaseCjkUnits(
     if (attachHyphen && isNumericHyphen(segText, gs.index)) unitHasNumericHyphen = true
 
     if (
-      unitIsSingleKinsokuEnd ||
+      unitEndsWithKinsokuEnd ||
       prohibitsCJKLineStart(grapheme, profile) ||
       leftStickyPunctuation.has(grapheme) ||
       attachHyphen ||
@@ -2191,14 +2199,16 @@ function buildBaseCjkUnits(
       continue
     }
 
-    if (!unitContainsCJK && !graphemeContainsCJK) {
+    // A unit that ends in text without CJK, such as `「t`, keeps the text after
+    // it (LB28). Analysis puts that text in a CJK segment only where it stays
+    // with the CJK text, as after an opener.
+    if (!unitEndsWithCJK && !graphemeContainsCJK) {
       appendToUnit(grapheme, graphemeContainsCJK)
       continue
     }
 
-    if (!graphemeContainsCJK && (unitJoinsText || keepsTextAfterCJKMark(segText, gs.index))) {
+    if (!graphemeContainsCJK && keepsTextAfterCJKMark(segText, gs.index)) {
       appendToUnit(grapheme, graphemeContainsCJK)
-      unitJoinsText = true
       continue
     }
 
@@ -2233,7 +2243,9 @@ function mergeKeepAllTextUnits(
     merged.push({
       text: segText.slice(sourceStart, sourceEnd),
       start: sourceStart,
-      overflow: 'word-like',
+      // Keep-all removes ordinary breaks only; overflow-wrap still breaks the
+      // run between graphemes, whether or not it holds a word.
+      overflow: 'grapheme',
     })
   }
 
@@ -2286,7 +2298,9 @@ function isPlainKeepAllLetterText(text: string): boolean {
 // Ordinary CJK boundaries and emergency overflow permission are separate facts.
 // Keep these decisions in preprocessing; measurement only observes their units.
 export function getCjkTextUnits(text: string, profile: AnalysisProfile, wordBreak: WordBreakMode): TextBreakUnit[] {
-  if (wordBreak === 'keep-all' && isPlainKeepAllLetterText(text)) return [{ text, start: 0, overflow: 'word-like' }]
+  // Like a merged keep-all run, this run breaks between graphemes whether or not
+  // Intl marks it as a word, which Firefox doesn't for some CJK text.
+  if (wordBreak === 'keep-all' && isPlainKeepAllLetterText(text)) return [{ text, start: 0, overflow: 'grapheme' }]
   const units = buildBaseCjkUnits(text, profile, wordBreak)
   return wordBreak === 'keep-all'
     ? mergeKeepAllTextUnits(text, units, profile)

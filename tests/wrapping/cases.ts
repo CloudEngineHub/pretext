@@ -235,6 +235,78 @@ export function generateCases(measure: Measure, selection: CaseSelection): Wrapp
     ['control/latin-newline', 'abc\ndef', 'abcdef', '20px Arial'],
   ] as const) contentLanguage(label, text, prefix, font, ['en'])
 
+  // Kinsoku units under emergency breaks. A unit keeps a character that can't
+  // start a line with the character before it, and an opener with the character
+  // after it. When a unit doesn't fit, Chrome, Safari and Firefox break it between
+  // graphemes under `overflow-wrap: break-word`. Each sweep runs from 1px until
+  // the text fits one line. The carry and opener-run shapes keep marks with their
+  // base and openers with the text after them; the owner shapes pass in the suite
+  // only while two errors cancel. Nothing is required.
+  const kinsokuFamily = 'maintained/kinsoku-units'
+  const widthRange = (from: number, to: number, step = 1): number[] => {
+    const widths: number[] = []
+    for (let width = from; width <= to; width += step) widths.push(width)
+    return widths
+  }
+  const sweep = (text: string, font: string, letterSpacing = 0): number[] => widthRange(1, Math.max(64, Math.ceil(measure(text, font, letterSpacing)) + 1))
+  // Fixture fonts such as Amiri load only on the fixture page, which uses `en`.
+  const kinsokuUnits = (label: string, text: string, font: string, widths: readonly number[], options: Partial<Omit<WrappingCase, 'id' | 'text' | 'font' | 'width'>> = {}, page: 'installed' | 'fixtures' = 'installed'): void => {
+    const lang = options.lang ?? 'en'
+    for (const width of widths) {
+      add({ ...defaults, family: kinsokuFamily, origins: [`${kinsokuFamily}/${label}`], scope: 'research',
+        ...(page === 'installed' ? { context: { kind: 'installed' as const, lang } } : {}), ...options, lang, text, font, width,
+        note: 'Observation only: emergency breaks inside kinsoku units, opener runs and the forward carry.' }, false)
+    }
+  }
+  const hiragino = '16px "Hiragino Sans"'
+  const arial = '16px Arial'
+  const pageLanguages = ['en', 'ja', 'zh'] as const
+  for (const [label, text] of [
+    ['stop', '漢。字'], ['stop-after-two', '漢字。字字'], ['brackets', '「漢字」。'], ['close-stop', '漢」。字'],
+    ['close-stop-close', '漢字」。」字'], ['close', '文文」文文'], ['astral-stop', '𠀋。字'], ['prolonged', 'ーーーー'],
+    ['ideographs-prolonged', '日本ーー'], ['exclamation-prolonged', '日本！ーー'], ['digits-stop', '1234。b'], ['latin-close-stop', 'abc」。d'],
+  ] as const) {
+    for (const lang of pageLanguages) kinsokuUnits(`cluster/${label}`, text, hiragino, sweep(text, hiragino), { lang })
+    kinsokuUnits(`cluster/${label}/pre-wrap`, text, hiragino, sweep(text, hiragino), { whiteSpace: 'pre-wrap' })
+    for (const letterSpacing of [-2, 2]) kinsokuUnits(`cluster/${label}/letter-spacing`, text, hiragino, sweep(text, hiragino, letterSpacing), { letterSpacing })
+    kinsokuUnits(`cluster/${label}/rtl`, text, hiragino, sweep(text, hiragino), { direction: 'rtl' })
+  }
+  for (const lang of pageLanguages) {
+    kinsokuUnits('cluster/hangul-stop', '가。나', '16px "Apple SD Gothic Neo"', sweep('가。나', '16px "Apple SD Gothic Neo"'), { lang })
+    kinsokuUnits('cluster/stop-after-space', 'ab 漢。字', hiragino, sweep('ab 漢。字', hiragino), { lang })
+    for (const [label, text] of [['brackets', '「」「」「」'], ['exclamations', '！？！？'], ['close-stop', '漢字」。漢字']] as const) {
+      kinsokuUnits(`keep-all/${label}`, text, hiragino, sweep(text, hiragino), { lang, wordBreak: 'keep-all' })
+    }
+    // WebKit trunk keeps a character that can't start a line with the glyph
+    // before it below one glyph's width; Safari 26.5.2 doesn't.
+    for (const text of ['漢。字', '漢,字', '中」字']) kinsokuUnits('sub-glyph', text, hiragino, [1, 8, 15.5], { lang })
+  }
+  for (const [label, text] of [
+    ['carry/kasra-before-openers', '\u0628\u0650\u0628\u0650「「tail'], ['carry/acute-before-openers', 'e\u0301e\u0301「「tail'],
+    ['carry/acute-before-opener', 'ab\u0301「漢'], ['carry/vertical-tab', 'a\u000B\u0628\u0650\u0628\u0650「「tail'], ['carry/dakuten', 'ガイト\u3099を読む'],
+    ['opener-run/one', '「tail'], ['opener-run/two', '「「tail'], ['opener-run/four', '「「「「字'], ['opener-run/parens', 'e\u0301e\u0301（（tail'],
+  ] as const) for (const whiteSpace of ['normal', 'pre-wrap'] as const) kinsokuUnits(label, text, arial, sweep(text, arial), { whiteSpace })
+  for (const text of ['\u0628\u0650\u0628\u0650「「tail', 'a\u000B\u0628\u0650\u0628\u0650「「tail']) for (const whiteSpace of ['normal', 'pre-wrap'] as const) {
+    kinsokuUnits('carry/amiri', text, '24px Amiri', sweep(text, '24px Amiri'), { whiteSpace, lineHeight: 48 }, 'fixtures')
+  }
+  // Headless Chromium lost W40-49.5 for these followers with emergency breaks
+  // stacked on #234, and nobody traced why.
+  for (const follower of ['〞', '〟', '］', '｝']) {
+    kinsokuUnits('bracket-follower', `文文」${follower}文文`, '20px "PingFang SC"', widthRange(30, 100, 0.5), { lineHeight: 28 })
+  }
+  // The U+3000 hang, joined Arabic emergency widths and raw controls.
+  for (const [label, text] of [
+    ['owner/ideographic-space', 'a\u3000?b'], ['owner/ellipsis-ideographic-space', '…\u3000?”'], ['owner/ideographic-space-mark', 'a\u3000\u0301?b'],
+    ['owner/hebrew-arabic', 'a\u05D0\u05D1\u0628\u0650\u0628\u0650「「tail\u0628\u0628'],
+  ] as const) for (const whiteSpace of ['normal', 'pre-wrap'] as const) kinsokuUnits(label, text, arial, sweep(text, arial), { whiteSpace })
+  for (const direction of ['ltr', 'rtl'] as const) for (const letterSpacing of [-2, 0, 1.5]) {
+    const text = '中（\u0627\u0628\u0628）\u202F'
+    kinsokuUnits('owner/arabic-in-brackets', text, arial, sweep(text, arial, letterSpacing), { direction, letterSpacing })
+  }
+  for (const whiteSpace of ['normal', 'pre-wrap'] as const) {
+    kinsokuUnits('owner/amiri-ideographic-space-mark', 'a\u3000\u0301?b', '24px Amiri', [8, 24, 40], { whiteSpace, letterSpacing: 1.5, lineHeight: 48 }, 'fixtures')
+  }
+
   const recipeMeasure = (text: string, font: string): number => measure(text, font, 0)
   for (const recipe of [policyCases, generateLanguageCases, generateSeamCases, generateAcceptanceCases]) {
     for (const input of recipe(recipeMeasure)) {
