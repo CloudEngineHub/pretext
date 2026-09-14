@@ -681,7 +681,7 @@ function measureAnalysis(
           unit.text,
           getTextMetrics(unit.text, followingSpaceTail),
           'text',
-          unit.overflow === 'grapheme' || (analysis.isWordLike[mi]! && (wordBreak === 'keep-all' || unit.overflow === 'word-like')),
+          unit.overflow === 'grapheme' || analysis.isWordLike[mi]!,
           followingSpaceTail,
         )
       }

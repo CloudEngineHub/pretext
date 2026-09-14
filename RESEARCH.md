@@ -34,7 +34,17 @@ Preserve neighboring source characters until break policy has used them. Merging
 punctuation, URLs or numeric expressions too early erases context that later
 passes cannot recover. In particular, an ASCII hyphen after CJK attaches left,
 while a numeric sign stays with its suffix. Keeping an ordinary unit together
-does not forbid emergency grapheme progress when it is overlong. Firefox can
+does not forbid emergency grapheme progress when it is overlong. Kinsoku clusters
+such as `漢。` or `「漢`, and keep-all groups, are no exception: under
+`overflow-wrap: break-word`, Chromium retries an overflowing line with grapheme
+breaks, WebKit in Safari 26.5.2 breaks at an arbitrary position once the line has
+no earlier wrap opportunity, and Firefox admits a word-wrap break at every cluster
+start, all ignoring line-break classes. WebKit trunk keeps `漢。` together when not
+even `漢` fits (`firstCharacterBreakRespectingLineStartProhibitions`), which Safari
+26.5.2 doesn't have. Several narrow rows passed only while this
+missing break cancelled another error, such as a combining mark detached from its
+base by the forward carry, U+3000 not hanging, joined Arabic widths, raw controls
+or Chrome's text-spacing-trim. Firefox can
 segment Hangul plus Latin as one word where other runtimes separate it; policy
 must not depend on those incidental storage differences.
 Extending Firefox's ASCII opener/numeric rules to wider Unicode cases exposed
@@ -79,11 +89,11 @@ No break follows ZWJ (LB8a), so a ZWJ at the start of the text or after a ZWSP,
 tab or hard break stays with the next word. A ZWJ right after a space belongs to
 that space's grapheme cluster. Browsers break between them, but a line that
 starts there splits the cluster, so Pretext keeps its earlier boundaries. CJK
-units still break after a ZWJ: a unit that joins graphemes is atomic in the
-walker, while browsers can still split it in an emergency, as they also split
-`日！々` at narrow widths. After U+3000 the break following the ZWJ also stands in
-for the break after the ideographic space, and Pretext keeps an ordinary break
-before U+3000 that UAX #14 forbids (LB21), so both need a U+3000 model first.
+units still break after a ZWJ. A unit that joins graphemes still takes emergency
+grapheme breaks, as browsers split `日！々` at narrow widths, but after U+3000 the
+break following the ZWJ also stands in for the break after the ideographic space,
+and Pretext keeps an ordinary break before U+3000 that UAX #14 forbids (LB21), so
+both need a U+3000 model first.
 
 A hyphen after a space, ZWSP, hard break or the text start keeps a following
 alphabetic (AL) or Hebrew (HL) letter (LB20a) in Chrome and Safari: always for
