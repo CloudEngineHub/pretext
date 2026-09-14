@@ -68,9 +68,12 @@ table (`BreakablePositions.h`). So ICU's rules decide before a letter and the
 table before a number: `丙!|a` breaks and `丙!1` doesn't. WebKit skips ICU
 entirely when CL or CP follows an ideograph, so `}` keeps a letter after Han and
 Hangul, but not after kana. Firefox sends those words to ICU4X. Where UAX #14 keeps
-the pair, as IS, CP, PO and QU do before a letter or number, all three engines keep
-it, and Pretext joins that text to the CJK text's last unit, which still takes
-grapheme breaks when it doesn't fit.
+the pair, as IS, CP, PO and straight quotes do before a letter or number, all three
+engines keep it, and Pretext joins that text to the CJK text's last unit, which
+still takes grapheme breaks when it doesn't fit. Only punctuation joins, never a
+letter inside a CJK unit such as the Arabic in `中（ابب）`, and a closing curly
+quote doesn't: LB19 no longer keeps the text after it, and Chrome breaks before
+`tail` in `中文中文””tail`.
 
 No break follows ZWJ (LB8a), so a ZWJ at the start of the text or after a ZWSP,
 tab or hard break stays with the next word. A ZWJ right after a space belongs to

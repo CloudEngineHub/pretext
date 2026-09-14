@@ -398,18 +398,31 @@ function isEastAsianCodePointAt(text: string, index: number): boolean {
   return emojiPresentationAtRe.test(text) && getLineBreakClass(text.codePointAt(index)!) !== LineBreakClass.RI
 }
 
+// Punctuation that attaches to the CJK text before it: CL, CP, EX, IS and SY
+// (LB13), QU (LB19), BA and NS (LB21), IN (LB22) and PO (LB23a).
+const cjkMarkClasses =
+  (1 << LineBreakClass.CL) | (1 << LineBreakClass.CP) | (1 << LineBreakClass.EX) | (1 << LineBreakClass.IS) |
+  (1 << LineBreakClass.SY) | (1 << LineBreakClass.QU) | (1 << LineBreakClass.BA) | (1 << LineBreakClass.NS) |
+  (1 << LineBreakClass.IN) | (1 << LineBreakClass.PO)
+
 // Whether UAX #14 keeps the text after a mark that ends CJK text, such as `first`
-// after `丙.`: IS (LB25, LB29), CP (LB25, LB30), PO (LB24, LB25), QU (LB19) and SY
-// before a number (LB25). Engines differ where the rules allow a break: Blink's
-// pair table also keeps `!`, `}`, `/` and `|` before a letter or a number, and
-// WebKit keeps them before a number. Hyphens keep their own rules.
+// after `丙.`: IS (LB25, LB29), CP (LB25, LB30), PO (LB24, LB25), a straight QU
+// (LB19) and SY before a number (LB25). LB19 doesn't keep the text after a closing
+// curly quote, and Chrome breaks there. Engines differ where the rules allow a
+// break: Blink's pair table also keeps `!`, `}`, `/` and `|` before a letter or a
+// number, and WebKit keeps them before a number.
 function keepsTextAfterCJKMark(text: string, boundary: number): boolean {
   const base = lineBreakBaseBefore(text, boundary)
   if (base < 0) return false
   cjkAtRe.lastIndex = base
   if (cjkAtRe.test(text)) return false
   const before = getLineBreakClass(text.codePointAt(base)!)
-  if (before === LineBreakClass.HY || before === LineBreakClass.HH || before === LineBreakClass.SA || before === LineBreakClass.CJ) return false
+  if (((1 << before) & cjkMarkClasses) === 0) return false
+  if (before === LineBreakClass.QU) {
+    openingQuoteAtRe.lastIndex = base
+    closingQuoteAtRe.lastIndex = base
+    if (openingQuoteAtRe.test(text) || closingQuoteAtRe.test(text)) return false
+  }
   const afterCodePoint = text.codePointAt(boundary)!
   const after = getLineBreakClass(afterCodePoint)
   if (after === LineBreakClass.CJ) return false

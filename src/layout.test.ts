@@ -1499,6 +1499,8 @@ describe('prepare invariants', () => {
       ['甲乙丙.foo-bar', ['甲', '乙', '丙.foo-', 'bar']],
       ['甲乙丙?first户', ['甲', '乙', '丙?', 'first', '户']],
       ['甲乙丙。first户', ['甲', '乙', '丙。', 'first', '户']],
+      // LB19 doesn't keep the text after a closing curly quote, and Chrome breaks there.
+      ['中文””tail', ['中', '文””', 'tail']],
     ] as const) {
       expect(prepareWithSegments(text, FONT).segments).toEqual([...expected])
     }
