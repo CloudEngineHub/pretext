@@ -14,7 +14,8 @@ export type TextStyleName = 'body' | 'link' | 'code'
 export type ChipTone = 'mention' | 'status' | 'priority' | 'time' | 'count'
 
 export type RichInlineSpec =
-  | { kind: 'text'; text: string; style: TextStyleName }
+  | { kind: 'text'; text: string; style: Exclude<TextStyleName, 'link'> }
+  | { kind: 'text'; text: string; style: 'link'; href: string }
   | { kind: 'chip'; label: string; tone: ChipTone }
 
 type TextStyleModel = {
@@ -27,11 +28,13 @@ export type PreparedRichInlineNote = {
   classNames: string[]
   flow: PreparedRichInline
   fonts: string[]
+  hrefs: Array<string | null>
 }
 
 export type RichLineFragment = {
   className: string
   font: string
+  href: string | null
   leadingGap: number
   text: string
 }
@@ -104,7 +107,7 @@ export const DEFAULT_RICH_NOTE_SPECS: RichInlineSpec[] = [
   { kind: 'text', text: ' lands. Status ', style: 'body' },
   { kind: 'chip', label: 'blocked', tone: 'status' },
   { kind: 'text', text: ' by ', style: 'body' },
-  { kind: 'text', text: 'vertical text', style: 'link' },
+  { kind: 'text', text: 'vertical text', style: 'link', href: 'https://x.com/_chenglou' },
   { kind: 'text', text: ' research, but 北京 copy and Arabic QA are both green ✅. Keep ', style: 'body' },
   { kind: 'chip', label: 'جاهز', tone: 'status' },
   { kind: 'text', text: ' for ', style: 'body' },
@@ -118,7 +121,7 @@ export const DEFAULT_RICH_NOTE_SPECS: RichInlineSpec[] = [
   { kind: 'text', text: ', keep ', style: 'body' },
   { kind: 'chip', label: '3 reviewers', tone: 'count' },
   { kind: 'text', text: ', and route feedback to ', style: 'body' },
-  { kind: 'text', text: 'design sync', style: 'link' },
+  { kind: 'text', text: 'design sync', style: 'link', href: 'https://x.com/_chenglou' },
   { kind: 'text', text: '.', style: 'body' },
 ]
 
@@ -129,6 +132,9 @@ export function prepareRichInlineNote(
     spec.kind === 'chip'
       ? CHIP_CLASS_NAMES[spec.tone]
       : TEXT_STYLES[spec.style].className,
+  )
+  const hrefs = specs.map(spec =>
+    spec.kind === 'text' && spec.style === 'link' ? spec.href : null,
   )
 
   const items: RichInlineItem[] = specs.map(spec => {
@@ -150,7 +156,7 @@ export function prepareRichInlineNote(
   })
 
   // The painter reads each item's font from the items Pretext measured.
-  return { classNames, flow: prepareRichInline(items), fonts: items.map(item => item.font) }
+  return { classNames, flow: prepareRichInline(items), fonts: items.map(item => item.font), hrefs }
 }
 
 export function layoutRichInlineItems(
@@ -164,6 +170,7 @@ export function layoutRichInlineItems(
       fragments: line.fragments.map(fragment => ({
         className: prepared.classNames[fragment.itemIndex]!,
         font: prepared.fonts[fragment.itemIndex]!,
+        href: prepared.hrefs[fragment.itemIndex] ?? null,
         leadingGap: fragment.gapBefore,
         text: fragment.text,
       })),
