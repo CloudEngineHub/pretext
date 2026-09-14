@@ -65,6 +65,13 @@ profile, and all 18 corpora from 52,811 to 53,092 in the Chrome profile, from
 profile. Under `keep-all` the totals don't change. The baseline advances to
 `01daf37`, and the ordinary snapshots were regenerated against it.
 
+Chrome and Safari benchmark snapshots were refreshed from this branch: three
+foreground runs each at DPR 2, visible and focused, with Chrome on the 2560x1440
+screen and Safari on the 2560x1440 screen. Chrome reads `prepare()` at 8.85 ms
+(8.75 on the parent branch) and hot `layout()` at 0.0885 ms (0.0890); Safari reads
+11.0 ms (11.0) and 0.105 ms (0.105). Long-form corpus totals read 111.6 ms in
+Chrome (119.9) and 346 ms in Safari (345).
+
 ## Rich-inline boundaries in Firefox
 
 This change starts from main after #281. `prepareRichInline()` still let every item
