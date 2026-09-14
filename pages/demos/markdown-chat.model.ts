@@ -17,11 +17,8 @@ import {
 } from '../../src/rich-inline.ts'
 import { BASE_MESSAGE_SPECS } from './markdown-chat.data.ts'
 
-export const MIN_CHAT_WIDTH = 360
-export const DEFAULT_CHAT_WIDTH = 640
 export const MAX_CHAT_WIDTH = 860
 export const TOTAL_MESSAGE_COUNT = 10_000
-export const CHAT_VIEWPORT_HEIGHT = 560
 export const OCCLUSION_BANNER_HEIGHT = 61
 export const PAGE_MARGIN = 28
 export const MESSAGE_SIDE_PADDING = 22
@@ -158,14 +155,12 @@ type InlineBlockLayout = {
   lineHeight: number
   lines: Array<{
     fragments: InlineFragmentLayout[]
-    width: number
   }>
   markerClassName: string | null
   markerLeft: number | null
   markerText: string | null
   quoteRailLefts: number[]
   top: number
-  usedWidth: number
 }
 
 type CodeBlockLayout = {
@@ -178,7 +173,6 @@ type CodeBlockLayout = {
   markerText: string | null
   quoteRailLefts: number[]
   top: number
-  usedWidth: number
   width: number
 }
 
@@ -203,7 +197,6 @@ export type MessageFrame = {
   frameWidth: number
   layoutContentWidth: number
   role: 'assistant' | 'user'
-  totalHeight: number
 }
 
 export type ChatMessageInstance = {
@@ -275,7 +268,7 @@ export function buildConversationFrame(
     const contentWidth = Math.max(120, frameWidth - contentInsetX * 2)
     const messageFrame = layoutMessageFrame(preparedMessage, frameWidth, contentWidth, contentInsetX)
     const top = y
-    const bottom = top + messageFrame.totalHeight
+    const bottom = top + messageFrame.bubbleHeight
 
     messages[ordinal] = {
       bottom,
@@ -345,10 +338,6 @@ export function findVisibleRange(
   }
 
   return { start, end: low }
-}
-
-export function formatPixelCount(value: number): string {
-  return `${Math.round(value).toLocaleString()}px`
 }
 
 function parseMarkdownBlocks(markdown: string): PreparedBlock[] {
@@ -939,7 +928,6 @@ function layoutMessageFrame(
     frameWidth,
     layoutContentWidth: maxContentWidth,
     role: preparedMessage.role,
-    totalHeight: bubbleHeight,
   }
 }
 
@@ -1029,7 +1017,7 @@ function materializeBlockLayout(
     case 'inline': {
       if (block.kind !== 'inline') throw new Error('Inline block/frame mismatch')
       const lineWidth = Math.max(1, contentWidth - frame.contentLeft)
-      const lines: Array<{ fragments: InlineFragmentLayout[]; width: number }> = []
+      const lines: InlineBlockLayout['lines'] = []
       walkRichInlineLineRanges(block.flow, lineWidth, range => {
         const line = materializeRichInlineLineRange(block.flow, range)
         lines.push({
@@ -1039,7 +1027,6 @@ function materializeBlockLayout(
             leadingGap: fragment.gapBefore,
             text: fragment.text,
           })),
-          width: line.width,
         })
       })
 
@@ -1054,7 +1041,6 @@ function materializeBlockLayout(
         markerText: frame.markerText,
         quoteRailLefts: frame.quoteRailLefts,
         top: frame.top,
-        usedWidth: frame.usedWidth,
       }
     }
 
@@ -1073,7 +1059,6 @@ function materializeBlockLayout(
         markerText: frame.markerText,
         quoteRailLefts: frame.quoteRailLefts,
         top: frame.top,
-        usedWidth: frame.width,
         width: frame.width,
       }
     }
