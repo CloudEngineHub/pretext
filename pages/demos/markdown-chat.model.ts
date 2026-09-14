@@ -83,11 +83,16 @@ export type TextStyle = {
   letterSpacing: number // CSS px
 }
 
+// A quote paints one rail at its absolute left, beside every block it holds.
+type Quote = {
+  railLeft: number
+}
+
 // Geometry of the enclosing lists and quotes, in the order they nest.
 type ParseContext = {
   contentLeft: number
   listDepth: number
-  quoteRailLefts: number[]
+  quotes: Quote[]
 }
 
 type InlinePiece = {
@@ -104,7 +109,7 @@ type PreparedBlockBase = {
   markerClassName: string | null
   markerLeft: number | null
   markerText: string | null
-  quoteRailLefts: number[]
+  quotes: Quote[]
 }
 
 type PreparedInlineBlock = PreparedBlockBase & {
@@ -146,7 +151,6 @@ type BlockFrameBase = {
   markerClassName: string | null
   markerLeft: number | null
   markerText: string | null
-  quoteRailLefts: number[]
   top: number
 }
 
@@ -179,7 +183,6 @@ type InlineBlockLayout = {
   markerClassName: string | null
   markerLeft: number | null
   markerText: string | null
-  quoteRailLefts: number[]
   top: number
 }
 
@@ -191,7 +194,6 @@ type CodeBlockLayout = {
   markerClassName: string | null
   markerLeft: number | null
   markerText: string | null
-  quoteRailLefts: number[]
   top: number
   width: number
 }
@@ -203,12 +205,17 @@ type RuleBlockLayout = {
   markerClassName: string | null
   markerLeft: number | null
   markerText: string | null
-  quoteRailLefts: number[]
   top: number
   width: number
 }
 
 export type BlockLayout = InlineBlockLayout | CodeBlockLayout | RuleBlockLayout
+
+export type QuoteRailLayout = {
+  height: number
+  left: number
+  top: number
+}
 
 export type MessageFrame = {
   blocks: BlockFrame[]
@@ -363,7 +370,7 @@ export function findVisibleRange(
 
 function parseMarkdownBlocks(markdown: string): PreparedBlock[] {
   const tokens = marked.lexer(markdown, { gfm: true })
-  return parseBlockTokens(tokens, { contentLeft: 0, listDepth: 0, quoteRailLefts: [] })
+  return parseBlockTokens(tokens, { contentLeft: 0, listDepth: 0, quotes: [] })
 }
 
 function parseBlockTokens(tokens: readonly Token[], ctx: ParseContext): PreparedBlock[] {
@@ -412,7 +419,7 @@ function parseBlockTokens(tokens: readonly Token[], ctx: ParseContext): Prepared
           parseBlockTokens(token.tokens ?? [], {
             contentLeft: ctx.contentLeft + BLOCKQUOTE_INDENT,
             listDepth: ctx.listDepth,
-            quoteRailLefts: [...ctx.quoteRailLefts, ctx.contentLeft + RAIL_OFFSET],
+            quotes: [...ctx.quotes, { railLeft: ctx.contentLeft + RAIL_OFFSET }],
           }),
           RICH_BLOCK_GAP,
         )
@@ -472,7 +479,7 @@ function buildListBlocks(token: Tokens.List, ctx: ParseContext): PreparedBlock[]
     const itemCtx: ParseContext = {
       contentLeft: markerLeft + measureMarkerWidth(markerText) + LIST_MARKER_GAP,
       listDepth: ctx.listDepth + 1,
-      quoteRailLefts: ctx.quoteRailLefts,
+      quotes: ctx.quotes,
     }
     let itemBlocks = parseBlockTokens(item.tokens, itemCtx)
     if (itemBlocks.length === 0) {
@@ -579,7 +586,7 @@ function createBlockBase(ctx: ParseContext): PreparedBlockBase {
     markerClassName: null,
     markerLeft: null,
     markerText: null,
-    quoteRailLefts: ctx.quoteRailLefts,
+    quotes: ctx.quotes,
   }
 }
 
@@ -947,7 +954,6 @@ function layoutBlockFrame(
         markerClassName: block.markerClassName,
         markerLeft: block.markerLeft,
         markerText: block.markerText,
-        quoteRailLefts: block.quoteRailLefts,
         top,
         usedWidth: maxLineWidth,
       }
@@ -965,7 +971,6 @@ function layoutBlockFrame(
         markerClassName: block.markerClassName,
         markerLeft: block.markerLeft,
         markerText: block.markerText,
-        quoteRailLefts: block.quoteRailLefts,
         top,
         width: maxLineWidth + CODE_BLOCK_PADDING_X * 2,
       }
@@ -979,7 +984,6 @@ function layoutBlockFrame(
         markerClassName: block.markerClassName,
         markerLeft: block.markerLeft,
         markerText: block.markerText,
-        quoteRailLefts: block.quoteRailLefts,
         top,
       }
     }
@@ -1004,6 +1008,28 @@ export function materializeMessageBlocks(message: ChatMessageInstance): BlockLay
   return message.prepared.blocks.map((block, index) =>
     materializeBlockLayout(block, frame.blocks[index]!, frame.layoutContentWidth, bubbleContentWidth),
   )
+}
+
+// One rail per quote, from the top of its first block to the bottom of its
+// last, across the gaps between them. A quote's blocks are consecutive, so its
+// first block opens the rail and each later one extends it.
+export function materializeQuoteRails(message: ChatMessageInstance): QuoteRailLayout[] {
+  const rails = new Map<Quote, QuoteRailLayout>()
+  const { blocks } = message.prepared
+  for (let index = 0; index < blocks.length; index++) {
+    const frame = message.frame.blocks[index]!
+    const quotes = blocks[index]!.quotes
+    for (let depth = 0; depth < quotes.length; depth++) {
+      const quote = quotes[depth]!
+      const rail = rails.get(quote)
+      if (rail === undefined) {
+        rails.set(quote, { height: frame.height, left: quote.railLeft, top: frame.top })
+      } else {
+        rail.height = frame.top + frame.height - rail.top
+      }
+    }
+  }
+  return Array.from(rails.values())
 }
 
 function materializeBlockLayout(
@@ -1038,7 +1064,6 @@ function materializeBlockLayout(
         markerClassName: frame.markerClassName,
         markerLeft: frame.markerLeft,
         markerText: frame.markerText,
-        quoteRailLefts: frame.quoteRailLefts,
         top: frame.top,
       }
     }
@@ -1056,7 +1081,6 @@ function materializeBlockLayout(
         markerClassName: frame.markerClassName,
         markerLeft: frame.markerLeft,
         markerText: frame.markerText,
-        quoteRailLefts: frame.quoteRailLefts,
         top: frame.top,
         width: frame.width,
       }
@@ -1071,7 +1095,6 @@ function materializeBlockLayout(
         markerClassName: frame.markerClassName,
         markerLeft: frame.markerLeft,
         markerText: frame.markerText,
-        quoteRailLefts: frame.quoteRailLefts,
         top: frame.top,
         width: Math.max(1, bubbleContentWidth - frame.contentLeft),
       }
