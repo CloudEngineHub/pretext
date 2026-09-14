@@ -88,11 +88,12 @@
     }
     .note-shell {
       width: var(--note-width);
-      border: 1px solid var(--rule);
       border-radius: 20px;
-      padding: 20px;
+      padding-block: 20px;
+      padding-inline: var(--note-padding-x);
       background: color-mix(in srgb, var(--panel) 94%, white 6%);
-      box-shadow: 0 18px 40px rgb(54 40 23 / 0.08);
+      /* The ring is a shadow, so it adds no width to the card. */
+      box-shadow: inset 0 0 0 1px var(--rule), 0 18px 40px rgb(54 40 23 / 0.08);
     }
     .note-body {
       position: relative;
@@ -111,7 +112,8 @@
     .frag {
       display: inline-block;
       white-space: pre;
-      font: 500 17px/1 "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font: var(--font);
+      line-height: 1;
       color: var(--ink);
       vertical-align: baseline;
     }
@@ -125,7 +127,6 @@
       padding: 2px 7px 3px;
       border-radius: 3px;
       background: rgba(17, 31, 43, 0.08);
-      font: 600 14px/1 "SF Mono", ui-monospace, Menlo, monospace;
       letter-spacing: 0;
     }
     .chip {
@@ -134,7 +135,6 @@
       padding: 0 10px;
       min-height: 24px;
       border-radius: 999px;
-      font: 700 12px/1 "Helvetica Neue", Helvetica, Arial, sans-serif;
       white-space: nowrap;
       border: 1px solid transparent;
       vertical-align: baseline;
@@ -167,7 +167,6 @@
       }
       .note-shell {
         border-radius: 24px;
-        padding-inline: 14px;
       }
     }
   </style>

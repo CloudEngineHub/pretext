@@ -3,6 +3,7 @@ import {
   prepareRichInline,
   walkRichInlineLineRanges,
   type PreparedRichInline,
+  type RichInlineItem,
 } from '../../src/rich-inline.ts'
 
 // Local layout model for this demo. It keeps the page readable and shows how
@@ -25,10 +26,12 @@ type TextStyleModel = {
 export type PreparedRichInlineNote = {
   classNames: string[]
   flow: PreparedRichInline
+  fonts: string[]
 }
 
 export type RichLineFragment = {
   className: string
+  font: string
   leadingGap: number
   text: string
 }
@@ -45,14 +48,19 @@ export type RichNoteLayout = {
   noteWidth: number
 }
 
+// The page paints text with the fonts Pretext measured, so typography lives here
+// and the CSS doesn't restate it.
 export const BODY_FONT = '500 17px "Helvetica Neue", Helvetica, Arial, sans-serif'
-export const LINK_FONT = '600 17px "Helvetica Neue", Helvetica, Arial, sans-serif'
 export const CODE_FONT = '600 14px "SF Mono", ui-monospace, Menlo, Monaco, monospace'
 export const CHIP_FONT = '700 12px "Helvetica Neue", Helvetica, Arial, sans-serif'
 
 export const LINE_HEIGHT = 34
 export const LAST_LINE_BLOCK_HEIGHT = 24
-export const NOTE_SHELL_CHROME_X = 40
+// The card's side padding, which the page paints from here. The card's ring is
+// an inset shadow, so the padding is all the width the card adds to the body.
+export const NOTE_PADDING_X = 20
+export const NARROW_NOTE_PADDING_X = 14
+export const NARROW_VIEWPORT_WIDTH = 640 // the page's other narrow styles start here too
 export const BODY_MIN_WIDTH = 260
 export const BODY_DEFAULT_WIDTH = 516
 export const BODY_MAX_WIDTH = 760
@@ -70,10 +78,11 @@ export const TEXT_STYLES = {
     extraWidth: 14,
     font: CODE_FONT,
   },
+  // Links keep the body weight; color and underline mark them.
   link: {
     className: 'frag frag--link',
     extraWidth: 0,
-    font: LINK_FONT,
+    font: BODY_FONT,
   },
 } satisfies Record<TextStyleName, TextStyleModel>
 
@@ -122,27 +131,26 @@ export function prepareRichInlineNote(
       : TEXT_STYLES[spec.style].className,
   )
 
-  const flow = prepareRichInline(
-    specs.map(spec => {
-      if (spec.kind === 'chip') {
-        return {
-          text: spec.label,
-          font: CHIP_FONT,
-          break: 'never' as const,
-          extraWidth: CHIP_CHROME_WIDTH,
-        }
-      }
-
-      const style = TEXT_STYLES[spec.style]
+  const items: RichInlineItem[] = specs.map(spec => {
+    if (spec.kind === 'chip') {
       return {
-        text: spec.text,
-        font: style.font,
-        extraWidth: style.extraWidth,
+        text: spec.label,
+        font: CHIP_FONT,
+        break: 'never' as const,
+        extraWidth: CHIP_CHROME_WIDTH,
       }
-    }),
-  )
+    }
 
-  return { classNames, flow }
+    const style = TEXT_STYLES[spec.style]
+    return {
+      text: spec.text,
+      font: style.font,
+      extraWidth: style.extraWidth,
+    }
+  })
+
+  // The painter reads each item's font from the items Pretext measured.
+  return { classNames, flow: prepareRichInline(items), fonts: items.map(item => item.font) }
 }
 
 export function layoutRichInlineItems(
@@ -155,6 +163,7 @@ export function layoutRichInlineItems(
     lines.push({
       fragments: line.fragments.map(fragment => ({
         className: prepared.classNames[fragment.itemIndex]!,
+        font: prepared.fonts[fragment.itemIndex]!,
         leadingGap: fragment.gapBefore,
         text: fragment.text,
       })),
@@ -169,20 +178,24 @@ export function resolveRichNoteBodyWidth(
 ): {
   bodyWidth: number
   maxBodyWidth: number
+  notePaddingX: number
 } {
+  const notePaddingX = viewportWidth <= NARROW_VIEWPORT_WIDTH ? NARROW_NOTE_PADDING_X : NOTE_PADDING_X
   const maxBodyWidth = Math.max(
     BODY_MIN_WIDTH,
-    Math.min(BODY_MAX_WIDTH, viewportWidth - PAGE_MARGIN * 2 - NOTE_SHELL_CHROME_X),
+    Math.min(BODY_MAX_WIDTH, viewportWidth - PAGE_MARGIN * 2 - notePaddingX * 2),
   )
   return {
     bodyWidth: Math.max(BODY_MIN_WIDTH, Math.min(maxBodyWidth, requestedWidth)),
     maxBodyWidth,
+    notePaddingX,
   }
 }
 
 export function layoutRichNote(
   prepared: PreparedRichInlineNote,
   bodyWidth: number,
+  notePaddingX: number,
 ): RichNoteLayout {
   const lines = layoutRichInlineItems(prepared, bodyWidth)
   const lineCount = lines.length
@@ -193,6 +206,6 @@ export function layoutRichNote(
     lines,
     noteBodyHeight:
       lineCount === 0 ? LAST_LINE_BLOCK_HEIGHT : (lineCount - 1) * LINE_HEIGHT + LAST_LINE_BLOCK_HEIGHT,
-    noteWidth: bodyWidth + NOTE_SHELL_CHROME_X,
+    noteWidth: bodyWidth + notePaddingX * 2,
   }
 }

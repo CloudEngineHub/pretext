@@ -83,6 +83,8 @@ function renderBody(lines: RichLine[]): void {
       const part = line.fragments[fragmentIndex]!
       const element = document.createElement('span')
       element.className = part.className
+      // Paint with the font the item was measured with.
+      element.style.setProperty('--font', part.font)
       element.textContent = part.text
       if (part.leadingGap > 0) element.style.marginLeft = `${part.leadingGap}px`
       row.appendChild(element)
@@ -103,8 +105,8 @@ function render(): void {
   if (st.events.sliderValue !== null) requestedWidth = st.events.sliderValue
 
   // Layout
-  const { bodyWidth, maxBodyWidth } = resolveRichNoteBodyWidth(viewportWidth, requestedWidth)
-  const layout = layoutRichNote(richInline, bodyWidth)
+  const { bodyWidth, maxBodyWidth, notePaddingX } = resolveRichNoteBodyWidth(viewportWidth, requestedWidth)
+  const layout = layoutRichNote(richInline, bodyWidth, notePaddingX)
 
   // Commit state
   st.requestedWidth = bodyWidth
@@ -116,6 +118,7 @@ function render(): void {
   domCache.widthSlider.value = String(bodyWidth)
   domCache.widthValue.textContent = `${Math.round(bodyWidth)}px`
   domCache.root.style.setProperty('--note-width', `${layout.noteWidth}px`)
+  domCache.root.style.setProperty('--note-padding-x', `${notePaddingX}px`)
   domCache.root.style.setProperty('--note-content-width', `${bodyWidth}px`)
   domCache.noteBody.style.height = `${layout.noteBodyHeight}px`
 
