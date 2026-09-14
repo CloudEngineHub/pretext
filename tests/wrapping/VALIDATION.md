@@ -17,6 +17,93 @@ All accuracy, letter-spacing and corpus result payloads are unchanged; refreshed
 snapshots change only provenance and environment records. Runtime sources and
 the baseline pin are unchanged, so no runtime benchmark was needed.
 
+## Closing punctuation joins the text before it
+
+This runtime change starts from published main `52cc87c` (#290). A text segment that
+starts with closing punctuation or a nonstarter, such as `，`, `」`, `：`, `。` or `！`,
+now joins the text segment before it, whatever that text is (UAX #14 LB13, LB21), as
+Chromium, WebKit in Safari 26.5.2 and Gecko keep the mark with a word, a number, an
+emoji or a symbol whenever the two fit an empty line. Small kana and `ー` follow the
+profile there, as after CJK text. The join runs after the URL, numeric and no-space
+merges, so `(10:30)，` and `foo@bar.com，` stay whole, and before the forward carry,
+which then moves `「` from `739x「` onto `value」!`. In the Gecko profile a run of two
+or more complex-script code points keeps its break: ICU4X reports the end of such a
+run as a break, and Firefox paints `a ខ្មែរ / ，b`. The new research family
+`maintained/closing-punctuation` puts twelve marks after ten kinds of text and
+sweeps two bracket shapes and three shapes with an opener after text.
+
+The installed gate ran this change against pinned `1269f5e`, whose runtime source
+equals `52cc87c`: Chrome 153 through the Playwright transport, Safari 26.5.2 and
+Firefox 155 natively, both directions, at DPR 2. In supported scope Chrome fixes 486
+LTR and 221 RTL metrics and loses 1 and 1; Safari fixes 518 and 227 and loses none;
+Firefox fixes 490 and 221 and loses 1 and 1. In research scope Chrome fixes 4,293
+and 1,098 metrics and loses 697 and 58, Safari fixes 4,850 and 1,316 and loses none,
+and Firefox fixes 5,160 and 955 and loses 660 and 36. No leg has required failures,
+execution errors or new API or rich failures, and five numeric profiles have no new
+failures. Safari moves 156 LTR and 12 RTL source metrics from failing to unobserved,
+132 of them in the new family, and Firefox 24 and 12, and metrics that still fail
+change detail in Chrome (294 and 196), Firefox (36 and 28) and Safari (1 and 1).
+#225's reproductions still pass in all three browsers. In
+`maintained/content-language`, Firefox now matches small kana and `ー` after a digit
+or a Latin letter on every page (15 rows), and Safari on `en`, `zh` and `zh-Hant`
+pages (9 rows); Chrome's rows and Safari's `ja` and `ko` rows don't change. Suite
+hash `c0f0b1148e3f1cabc02b3234e22580a969c0ab841b87d9356f04fc7258288877`; rows are in
+`/private/tmp/pretext-eng-20260912/gate-cl-b-{chrome,safari,firefox}`, and the
+family's own runs in
+`/private/tmp/pretext-eng-20260912/cl-closing-punctuation-{chrome,safari,firefox}`.
+
+Chrome loses 296 LTR and 28 RTL rows: 116 and 8 to joined Arabic emergency widths,
+87 and 16 to text-spacing-trim, 81 LTR to emergency fits without context, 8 LTR to
+Chrome's `zh` rule for `〜` and `゠`, 3 and 3 to letter spacing inside Arabic, and 1
+and 1 to a pre-wrap space hang. Firefox loses 273 LTR and 21 RTL rows: 160 and 16 to
+joined Arabic emergency widths, 108 LTR to emergency fits, 4 and 4 to letter spacing
+inside Arabic, and 1 and 1 to the space hang. For example, Chrome paints `a عربي，b`
+at 30.55px as `a / عربي / ，b`, as main gives, and this branch gives `a / عرب / ي， /
+b`. On 258 and 16 of Chrome's rows and 268 and 16 of Firefox's, main's lines equal
+the native lines; on the others main passed only while two errors cancelled. In the
+joined Arabic, emergency-fit and trim rows, a boundary this branch adds that the
+native lines don't have is an emergency break inside a unit that no longer fits:
+Pretext charges isolated grapheme advances where Chrome and Firefox join Arabic
+letters or kern Latin letters, or where Chrome trims `」。`. In the other rows this
+branch takes a break main already allows: before U+202F, once `（ابب）` is charged
+letter spacing that Chrome and Firefox skip, and after `a ` on `zh` pages, where
+Chrome breaks before `〜` and `゠` instead. No lost row uses a break main doesn't
+allow. The supported row lost per direction in Chrome and Firefox is `})x「value」!
+end` at 34.77px in pre-wrap with letter spacing −1: this branch's lines equal the
+native `})x / 「val / ue」! / end`, but the natives hang the space after `ue」!` where
+this branch starts the fourth line with it, and main passed with `})x「 / value / 」!
+/ end`.
+
+In `maintained/closing-punctuation`, this branch is wrong on 790 of 6,128 Firefox
+rows, where main is wrong on 2,400, on 870 Safari rows (main 2,684) and on 984
+Chrome rows (main 2,380). Safari loses no row, and Firefox's 252 and Chrome's 221
+lost rows are the Arabic, `foo@bar.com`, trim and `zh` rows above. A mark after
+Latin letters, digits, a time in parentheses, an emoji, `★`, a Khmer word, a quoted
+word or a URL matches Firefox and Safari at every width, and Chrome except at
+trimmed widths and before `〜` and `゠` on `zh` pages, with two exceptions that main
+shares: Safari still breaks `a (10: / 30)，b` inside the bracketed time (276 rows),
+and after a closing curly quote Chrome on `en` and `ja` pages and Safari on `ja`
+pages keep `ー`, `ァ` and `ヶ` with the quote, where Pretext breaks before them (24 and
+12 rows). `739x「value」! end` and `한글x（value）! end` match Firefox and Safari at every
+width from 1px to 160px in both directions, and Chrome except at 68 trimmed widths
+each. In `x「hello world」`, `x「value` and `go xyzx「hello world」!`, all three browsers
+end a line with `「` only at 1-26px, where the opener and the letter after it don't
+fit together, while Pretext ends a line with it at up to 57-114px, before and after
+this change. In `maintained/kinsoku-units`, `abc」。d` now matches Safari and Firefox
+at every width, where main is wrong on 120 of 446 Safari rows and 114 of 441 Firefox
+rows; at 26px both paint `ab / c」 / 。 / d`. Chrome stays wrong on 118 of 401 rows
+(main 162), all at widths where it trims `」` or `。`.
+
+`bun test` and `bun run check` pass. Under a counting fake canvas, Canvas calls per
+cold `prepare()` change only on zh-zhufu in the Chrome and Firefox profiles, from
+1,699 to 1,700, and on zh-guxiang in the Safari profile, from 1,424 to 1,426, where
+`——` before `」` and a digit before `）` now join the mark after them. All 18 corpora
+go from 53,092 to 53,093 calls in the Chrome profile, from 116,304 to 116,306 in the
+Safari profile and from 53,107 to 53,108 in the Firefox profile. Under `keep-all`
+zh-zhufu adds one call in the Chrome and Firefox profiles, and mixed-app-text and
+the accuracy grid don't change. The baseline advances to `b69f72e`, and the ordinary
+snapshots were regenerated against it.
+
 ## Firefox breaks after a slash before a letter
 
 This runtime change starts from published main `3f6bf0c` (#289). Installed Firefox
