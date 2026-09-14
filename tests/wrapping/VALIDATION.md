@@ -17,6 +17,27 @@ All accuracy, letter-spacing and corpus result payloads are unchanged; refreshed
 snapshots change only provenance and environment records. Runtime sources and
 the baseline pin are unchanged, so no runtime benchmark was needed.
 
+## A space after an overflowing first word
+
+This change starts from main after #271. Pretext walks lines with a fast loop for plain text
+and a general loop when the text anywhere contains soft hyphens, letter spacing, glue or
+similar. When a line's first word was wider than the line and a space or zero-width space
+followed, the fast loop kept the space on that line and the general loop moved it to the next,
+so adding a soft hyphen elsewhere changed line text and line-end cursors. The general loop now
+follows the fast one. Browsers draw that space at zero width, so no native observation decides
+which line owns it, and plain-text line counts and widths don't change. A negative width now
+lays out like 0 in every fit limit, so both loops agree there too. With `letterSpacing`,
+rich-inline layout can take fewer lines where invisible characters such as a zero-width space
+took a line of their own.
+
+The installed gate ran against the previous pin `8ab3383`: Chrome 153 through the
+Playwright transport, Safari 26.5.2 and Firefox 155 natively, both directions.
+No leg fixes a metric. No leg loses a metric, and none has required failures, execution errors,
+or new API or rich failures.
+
+`bun test` and `bun run check` pass. The baseline advances to `b569d86`, and the
+ordinary snapshots were regenerated against it.
+
 ## Safari kerning across paragraphs
 
 This change starts from main after #270. In the Safari profile, a word ending in an invisible
