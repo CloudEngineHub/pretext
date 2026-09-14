@@ -64,6 +64,15 @@ test('content-language observations run only on full, under each page language, 
   expect(perLanguage).toEqual({ en: 36, ja: 31, ko: 31, zh: 31, 'zh-Hant': 31 })
 })
 
+test('kinsoku-unit observations run only on full, require nothing and merge with no other input', () => {
+  expect(ordinary.some(input => input.family === 'maintained/kinsoku-units')).toBe(false)
+  const rows = full.filter(input => input.origins.some(origin => origin.startsWith('maintained/kinsoku-units/')))
+  expect(rows.length).toBeGreaterThan(0)
+  expect(rows.every(input => input.family === 'maintained/kinsoku-units' && input.scope === 'research' && input.required === undefined
+    && input.origins.every(origin => origin.startsWith('maintained/kinsoku-units/')))).toBe(true)
+  expect([...new Set(rows.map(input => input.context?.lang ?? 'fixtures'))].sort()).toEqual(['en', 'fixtures', 'ja', 'zh'])
+})
+
 test('boundary, rich and flat #210 reproductions are required', () => {
   const exact = ordinary.filter(input => input.origins.some(origin => /^reported-reproduction\/#\d+$/.test(origin)))
   expect(exact.map(input => ({ text: input.text, font: input.font, width: input.width, lineHeight: input.lineHeight, whiteSpace: input.whiteSpace }))).toEqual([
