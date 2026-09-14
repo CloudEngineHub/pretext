@@ -601,7 +601,8 @@ whole-item fit before reserving the item's gap and extra width admitted it, but
 lost nine Safari forced-overflow matches: a negative next item could undo forced
 overflow. A broader guard on prior overflow lost 62 matches where item and style
 boundaries differed. Reservation therefore stays first and rejects only a reserved
-width strictly greater than the remaining width (`>` rather than `>=`).
+width greater than the remaining width plus the line walker's fit epsilon (`>`
+rather than `>=`).
 
 An item boundary is not a break opportunity by itself. Chrome runs one line-break
 iterator over the text of the whole inline formatting context, and Gecko keeps
@@ -660,10 +661,13 @@ A run that began the line still takes overflow breaks at item boundaries, as bef
 Restricting those to units that `prepare()` would split lost the `a`/ZWSP/`hello`
 witness at width 1: Chrome and Firefox break before that ZWSP even in a single text
 node, while the flat walker keeps it with `a`; Safari agreed on the line count only.
-Item admission compares raw widths, so an item that fits only within the fit
-epsilon still wraps before it. Atomic `break: 'never'` items allow a break on both
-sides. css-text requires this for atomic inlines, and headless Chromium and WebKit
-inline-blocks agreed.
+Item admission fits within the line walker's fit epsilon, as the walk inside an
+item does. It used to compare raw widths, and line counts then went up as the width
+grew, in bands as wide as the epsilon: the item walk took a longer part of the next
+item within the epsilon, and the raw check moved the whole item to the next line
+instead of keeping the shorter part. No browser witness backed the raw comparison.
+Atomic `break: 'never'` items allow a break on both sides. css-text requires this
+for atomic inlines, and headless Chromium and WebKit inline-blocks agreed.
 
 Items are measured separately. Chromium shapes neighboring same-font spans
 together, so Arial `community` + `,` natively fits about a pixel earlier than the

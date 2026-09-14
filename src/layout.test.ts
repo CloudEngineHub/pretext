@@ -2196,6 +2196,44 @@ describe('rich-inline invariants', () => {
     })
   })
 
+  test('rich line counts do not go up where an item fits within the fit epsilon', async () => {
+    // Where the walk over the second item takes `on the` only within the fit
+    // epsilon, wrapping before that whole item took one more line than 0.1px
+    // narrower, where the walk takes only `on`.
+    const { getEngineProfile } = await import('./measurement.ts')
+    const epsilon = getEngineProfile().lineFitEpsilon
+    const lineTexts = (prepared: ReturnType<typeof prepareRichInline>, maxWidth: number): string[] => {
+      const streamed: NonNullable<ReturnType<typeof layoutNextRichInlineLineRange>>[] = []
+      let range = layoutNextRichInlineLineRange(prepared, maxWidth)
+      while (range !== null) {
+        streamed.push(range)
+        range = layoutNextRichInlineLineRange(prepared, maxWidth, range.end)
+      }
+      const walked: typeof streamed = []
+      expect(walkRichInlineLineRanges(prepared, maxWidth, line => walked.push(structuredClone(line)))).toBe(streamed.length)
+      expect(walked).toEqual(streamed)
+      expect(measureRichInlineStats(prepared, maxWidth)).toEqual({
+        lineCount: streamed.length,
+        maxLineWidth: Math.max(...streamed.map(line => line.width)),
+      })
+      return streamed.map(line => materializeRichInlineLineRange(prepared, line).fragments
+        .map(fragment => (fragment.gapBefore === 0 ? '' : ' ') + fragment.text).join('').trimEnd())
+    }
+    const words = prepareRichInline([
+      { text: 'Is that ', font: FONT },
+      { text: 'on the roadmap?', font: '700 16px Test Sans' },
+    ])
+    const wider = measureWidth('Is that on the', FONT) - epsilon / 2
+    expect(lineTexts(words, wider - 0.1)).toEqual(['Is that on', 'the roadmap?'])
+    expect(lineTexts(words, wider)).toEqual(['Is that on the', 'roadmap?'])
+    // An atomic item that overflows by less than the epsilon stays on the line too.
+    const chip = prepareRichInline([
+      { text: 'Tag ', font: FONT },
+      { text: '@maya', font: FONT, break: 'never', extraWidth: 18 },
+    ])
+    expect(lineTexts(chip, measureWidth('Tag @maya', FONT) + 18 - epsilon / 2)).toEqual(['Tag @maya'])
+  })
+
   test('the Chromium profile breaks rich items only where their joined text breaks', async () => {
     // Same-font runs from a product page: native text keeps "community," whole,
     // so the comma that starts the third run moves with the word before it.
