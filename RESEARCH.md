@@ -609,13 +609,14 @@ iterator over the text of the whole inline formatting context, and Gecko keeps
 collecting a word across text frames until whitespace. `prepareRichInline()`
 analyzes the text that items join between collapsible spaces, as `prepare()`
 would, and an ordinary break falls only where a joined break unit starts. In the
-Chromium profile every break fact near a boundary comes from that joined
-analysis, not only the boundary itself. Splitting a word changes each item's own
-segmentation: Thai `ความสวยง` splits into `ความ/สวย/ง` alone but `ความ/สวยงาม`
-joined. Joined break positions therefore map into item cursors, down to a grapheme
-inside an item segment when needed. Where an item's segments hide a joined break,
-or offer one inside a joined word, the walker ends at the joined break or fills
-graphemes back to a preferred break, as the flat walker splits a word.
+Chromium and Gecko profiles every break fact near a boundary comes from that
+joined analysis, not only the boundary itself. Splitting a word changes each
+item's own segmentation: Thai `ความสวยง` splits into `ความ/สวย/ง` alone but
+`ความ/สวยงาม` joined. Joined break positions therefore map into item cursors, down
+to a grapheme inside an item segment when needed. Where an item's segments hide a
+joined break, or offer one inside a joined word, the walker ends at the joined
+break or fills graphemes back to a preferred break, as the flat walker splits a
+word.
 
 WebKit breaks differently, and `inlineItemBreaks` records that. Its inline items
 builder runs a break iterator over each inline box's own text, and a boundary
@@ -640,15 +641,33 @@ than it fixed. The analysis still differs from WebKit's scan inside some boxes:
 WebKit breaks `-"rt` after the hyphen and `-1o(r)` before the parenthesis, and
 neither the item's segments nor the joined text do.
 
-Gecko segments words with ICU4X, and its segmentation of the joined Myanmar text
-(`မြန်|မာ|ဘာသာ|သည်|လှပသောဘာ|သာ|ဖြစ်သည်`) differs from Chromium's. With the joined
-rule, installed Firefox spans in Myanmar Sangam MN wrapped like one text node and
-like the flat prediction, where the rich prediction added a line. Headless Chromium
-with a Firefox user agent reproduces neither Gecko's segmentation nor its widths
-for this font, so that difference is not modeled. The Gecko profile, like engines
-Pretext doesn't recognize, therefore keeps breaking at every item boundary. Firefox
-gives up the joined rule's gains: a `)` or `,` that starts an item, a word split
-across items, kinsoku across items and Thai words split across items.
+Gecko's line breaker keeps extending a word across text frames until a SPACE, TAB
+or CR, computes that word's breaks once with ICU4X's line segmenter, and hands each
+frame its slice. A font or style change ends the shaped text run, not the word, and
+css-text ignores inline box boundaries when it decides adjacency for line breaking.
+In every same-font case of a September 14, 2026 probe, installed Firefox 155 spans
+wrapped like one text node. The Gecko profile therefore uses the joined analysis
+too, with its own break rules across boundaries: small kana don't start a line, so
+items `ちょっと待` and `ってください` keep `待って` together where the Chromium
+profile breaks before `っ`. Engines Pretext doesn't recognize keep breaking at
+every item boundary.
+
+An earlier prototype of the joined rule lost 40 installed Firefox Myanmar
+split-word rows, which were attributed to Gecko's segmentation. But Gecko breaks
+lines with ICU4X's line segmenter, not the word segmenter behind `Intl.Segmenter`,
+and the flat prediction already gave Firefox's lines at 41 of 52 probed widths,
+including the suite row's 88px. The extra line comes from widths. The second item
+starts with U+102C, a spacing vowel sign that Unicode graphemes split from the
+consonant before it and browsers shape with it. In 16px Myanmar Sangam MN, Canvas
+and the DOM agree that `ဘာသ` measures 41.02px and `ာသည်` 50.78px, while the joined
+text and the same two parts as spans both measure 82.03px, so measuring the items
+separately overstates this boundary by 9.77px. Breaking at every item boundary
+matched those line counts only by breaking where Firefox never starts a line.
+Chrome has the same width gap: its rich prediction starts a line at this boundary
+where its spans don't. Breaking at every item boundary also matched some Firefox
+heights of links and paths split across items by accident: Firefox breaks after
+`/` before a letter, as in `https://|example.com`, where the flat prediction keeps
+the unit whole.
 
 When following items continue an item's last run, the run moves to the next line
 if the line already has an earlier break. The continuation's width is measured to
@@ -673,8 +692,8 @@ Items are measured separately. Chromium shapes neighboring same-font spans
 together, so Arial `community` + `,` natively fits about a pixel earlier than the
 sum of the two measurements; Gecko frames kern there too, while WebKit spans do
 not. That is a measurement topic, not a break fact. Where the flat walker and one
-native text node disagree, rich-inline in the Chromium and WebKit profiles now
-follows the flat walker: Japanese dialogue in Hiragino Sans after `」`, numeric
+native text node disagree, rich-inline in the Chromium, Gecko and WebKit profiles
+now follows the flat walker: Japanese dialogue in Hiragino Sans after `」`, numeric
 signs that WebKit keeps with the digit, and fit thresholds. Breaking at every item
 boundary matched some of those rows only by accident.
 

@@ -3038,12 +3038,15 @@ test('the Safari profile breaks inside rich items from each item alone', () => {
   ])
 })
 
-test('the Firefox profile keeps breaking rich items at every item boundary', () => {
+test('the Firefox profile breaks rich items only where their joined text breaks', () => {
   // The engine profile is computed once per process, so Firefox runs in a child
-  // process. Letters and parentheses are 8px and spaces 4px. Gecko keeps a word
-  // together across text frames too, but its segmentation of joined text is not
-  // modeled, so the parenthesis that starts the third item can still start a
-  // line. The joined text would keep "(docs)" whole.
+  // process. Every character but a space is 8px, and a space 4px. Gecko collects
+  // a word across text frames until a space and breaks it in one pass, so rich
+  // lines follow the flat lines of the joined text under the Gecko profile's own
+  // rules. At each width, breaking at every item boundary gives other lines.
+  // Small kana don't start a line in the Gecko profile, so in the fifth row the
+  // joined text keeps a small kana with the ideograph before it, where the
+  // Chromium profile breaks before the kana.
   const measurementUrl = new URL('./measurement.ts', import.meta.url).href
   const layoutUrl = new URL('./layout.ts', import.meta.url).href
   const richInlineUrl = new URL('./rich-inline.ts', import.meta.url).href
@@ -3062,25 +3065,45 @@ test('the Firefox profile keeps breaking rich items at every item boundary', () 
     }
     globalThis.OffscreenCanvas = class { getContext() { return new Context() } }
     const { getEngineProfile } = await import(${JSON.stringify(measurementUrl)})
-    const { prepareRichInline, walkRichInlineLineRanges, materializeRichInlineLineRange } = await import(${JSON.stringify(richInlineUrl)})
-    const prepared = prepareRichInline(['see (', 'docs', ') now please'].map(text => ({ text, font: '16px Test' })))
-    const lines = []
-    walkRichInlineLineRanges(prepared, 70, range => {
-      lines.push(materializeRichInlineLineRange(prepared, range).fragments.map(fragment => fragment.text))
-    })
-    const { prepareWithSegments } = await import(${JSON.stringify(layoutUrl)})
+    const { layoutWithLines, prepareWithSegments } = await import(${JSON.stringify(layoutUrl)})
+    const { prepareRichInline, walkRichInlineLineRanges, materializeRichInlineLineRange, measureRichInlineStats } = await import(${JSON.stringify(richInlineUrl)})
+    const rows = []
+    for (const [parts, width] of [
+      [['see (', 'docs', ') now please'], 70],
+      [['We like ', 'Pretext', "'s speed a lot"], 112],
+      [['now 50', '% faster than before'], 48],
+      [['\u4E2D\u6587\u4E2D\u6587', '\u3002\u65E5\u672C\u8A9E'], 36],
+      [['\u3061\u3087\u3063\u3068\u5F85', '\u3063\u3066\u304F\u3060\u3055\u3044'], 44],
+      [['he said \u201Chello', '\u201D and left'], 108],
+    ]) {
+      const prepared = prepareRichInline(parts.map(text => ({ text, font: '16px Test' })))
+      const rich = []
+      walkRichInlineLineRanges(prepared, width, range => {
+        rich.push(materializeRichInlineLineRange(prepared, range).fragments
+          .map(fragment => (fragment.gapBefore === 0 ? '' : ' ') + fragment.text).join('').trimEnd())
+      })
+      const flat = layoutWithLines(prepareWithSegments(parts.join(''), '16px Test'), width, 20)
+      rows.push({
+        rich: [rich, measureRichInlineStats(prepared, width).lineCount],
+        flat: [flat.lines.map(line => line.text.trimEnd()), flat.lineCount],
+      })
+    }
     const marks = ['\\u064B$', 'x\\n\\u064B$', 'x \\u064B$'].map(text => prepareWithSegments(text, '16px Test', { whiteSpace: 'pre-wrap' }).segments)
-    console.log(JSON.stringify({ inlineItemBreaks: getEngineProfile().inlineItemBreaks, lines, marks }))
+    console.log(JSON.stringify({ inlineItemBreaks: getEngineProfile().inlineItemBreaks, rows, marks }))
   `
   const child = Bun.spawnSync([process.execPath, '-e', script])
   if (child.exitCode !== 0) throw new Error(child.stderr.toString())
-  expect(JSON.parse(child.stdout.toString())).toEqual({
-    inlineItemBreaks: 'item-boundary',
-    lines: [['see (', 'docs'], [') now '], ['please']],
-    // A mark after a line break or a space has no base and counts as a letter,
-    // as at the start of the text, so it stays with a following numeric prefix.
-    marks: [['\u064B$'], ['x', '\n', '\u064B$'], ['x', ' ', '\u064B$']],
-  })
+  const result = JSON.parse(child.stdout.toString()) as {
+    inlineItemBreaks: string
+    rows: Array<{ rich: [string[], number], flat: [string[], number] }>
+    marks: string[][]
+  }
+  expect(result.inlineItemBreaks).toBe('joined-text')
+  expect(result.rows).toHaveLength(6)
+  for (const row of result.rows) expect(row.rich).toEqual(row.flat)
+  // A mark after a line break or a space has no base and counts as a letter,
+  // as at the start of the text, so it stays with a following numeric prefix.
+  expect(result.marks).toEqual([['\u064B$'], ['x', '\n', '\u064B$'], ['x', ' ', '\u064B$']])
 })
 
 test('the Safari profile keeps the kerning between a word and a following space', () => {
