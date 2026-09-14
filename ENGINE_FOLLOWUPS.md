@@ -72,7 +72,7 @@ Open engine work: decisions for the maintainer, known gaps and harness debt.
 - Measure brackets and other neutral characters with their neighbouring script: Chrome's `(` is 6.12px alone but 11px inside an Arabic run.
 - Neutral characters at soft-hyphen, space and ZWSP boundaries resolve against the paragraph direction instead of their strong neighbour.
 - In Chrome, text is measured under the page direction (`<html dir>`) from when Pretext first measured, or last saw `<html lang>` change. Text whose direction differs from the page, like an Arabic paragraph on an LTR page, can wrap slightly differently around brackets and other neutral characters.
-- Fit Chrome lines on its 1/64px LayoutUnit grid, keeping the epsilon when `devicePixelRatio` is unavailable. Round bidi runs, controls and rich items separately.
+- Fit Chrome lines on its 1/64px LayoutUnit grid, keeping the epsilon when `devicePixelRatio` is unavailable. Round bidi runs, controls and rich items separately. In installed Chrome 153 at DPR 1, `14.1px "Helvetica Neue"` at 112px kept `over the lazy dog.` on one line although Canvas measured it at 112.0103px; at DPR 2 Chrome broke before `dog.`, as Pretext does.
 - Letter-spaced Shantell widths are 0.016px wider than Canvas with `letterSpacing` set, likely because ligatures turn off. Probe before changing measurement.
 - Safari's Canvas gives isolated and fallback-font combining marks an advance they don't have in context.
 - Chrome's Canvas gives VS16 about 4.9px that the DOM doesn't, and one Safari Myanmar corpus row diverges at a cluster boundary.

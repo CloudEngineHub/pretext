@@ -230,8 +230,9 @@ Pretext doesn't try to be a full font rendering engine (yet?). It currently targ
 - Page language changes fonts and line breaks, and without `lang` Chrome and Firefox use the browser's or system's language. A generic font like `sans-serif`, or a character missing from a named font, may use a different font from the one Pretext measures, and curly quotes can wrap differently per language. Set `lang` on `<html>`, use a named font that covers your text, and check the result in your browser. If you change `<html lang>`, prepare your text again; existing prepared handles keep the widths and line-break rules from before the change.
 - Runtime requires `Intl.Segmenter`, Canvas 2D text measurement, and Unicode property escapes (`\p{...}`). Browsers without these features aren't supported. Without Unicode property escapes, Pretext can't load and throws a `SyntaxError`.
 - Pretext uses the canvas `font` string. Separate CSS settings such as `font-optical-sizing`, `font-feature-settings`, and `font-variation-settings` aren't supported. Variable-font settings only apply when expressed through that string, such as font weight.
-- Pass font sizes in px. If your CSS sizes text in `rem` or `em`, resolve them to px once, higher up in your app (for example, when the root font size changes), and pass that string to Pretext.
-- Pretext assumes default font kerning. Text painted with a different `font-kerning` can wrap differently.
+- Pass font sizes in px. If your CSS sizes text in `rem` or `em`, resolve them to px once, higher up in your app (for example, when the root font size changes), and pass that string to Pretext. Firefox measures canvas text at a rounded font size, so a fractional size like `13.33px` can wrap differently there; prefer whole-pixel sizes.
+- Pretext assumes default font kerning and word spacing. Text painted with a different `font-kerning` or `word-spacing`, including word spacing inherited from the page, can wrap differently.
+- Chrome and Firefox let people set a minimum font size. Text below it paints at the minimum, while Pretext measures the size you pass. If your app uses small sizes, measure the height of an element with `font-size: 1px; line-height: 1` once and pass Pretext the larger size.
 
 ## Develop
 
