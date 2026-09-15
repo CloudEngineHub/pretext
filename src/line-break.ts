@@ -65,8 +65,9 @@ export function breaksAfter(kind: SegmentBreakKind): boolean {
 
 // Preserved spaces and tabs at the end of a line hang past it (CSS Text 3
 // §4.1.2), so they take no room when fitting and don't size the line (§8.2).
-function isHangingWhiteSpace(kind: SegmentBreakKind): boolean {
-  return kind === 'preserved-space' || kind === 'tab'
+// Gecko doesn't hang tabs.
+function isHangingWhiteSpace(kind: SegmentBreakKind, hangTabs: boolean): boolean {
+  return kind === 'preserved-space' || (hangTabs && kind === 'tab')
 }
 
 function normalizeLineStartSegmentIndex(
@@ -109,8 +110,8 @@ function getTrailingLetterSpacing(
 }
 
 // A line that ends after a whole segment charges its advance and the letter
-// spacing gap after it. Break segments hang, and zero-width text owns no gap,
-// though NEL does. The walker handles soft hyphens before this.
+// spacing gap after it. Spaces and zero-width breaks hang, and zero-width text
+// owns no gap, though NEL does. The walker handles soft hyphens before this.
 function getWholeSegmentFitContribution(
   prepared: PreparedLineBreakData,
   kind: SegmentBreakKind,
@@ -119,7 +120,7 @@ function getWholeSegmentFitContribution(
   leadingSpacing: number,
   segmentWidth: number,
 ): number {
-  if (breakAfter || (segmentWidth === 0 && kind !== 'control')) return 0
+  if (breakAfter ? kind !== 'tab' : segmentWidth === 0 && kind !== 'control') return 0
   return getLineEndContribution(leadingSpacing, segmentWidth + getTrailingLetterSpacing(prepared, segmentIndex))
 }
 
@@ -183,7 +184,7 @@ function getTerminalLetterSpacing(
   if (
     endSegmentIndex < prepared.kinds.length &&
     prepared.kinds[endSegmentIndex] !== 'hard-break' &&
-    isHangingWhiteSpace(prepared.kinds[endSegmentIndex - 1]!)
+    isHangingWhiteSpace(prepared.kinds[endSegmentIndex - 1]!, getEngineProfile().hangTabs)
   ) {
     return 0
   }
@@ -567,6 +568,7 @@ function walkPreparedComplexLines(
   } = prepared
   const engineProfile = getEngineProfile()
   const lineFitEpsilon = engineProfile.lineFitEpsilon
+  const hangTabs = engineProfile.hangTabs
   // A negative width lays out as 0, as in the simple walker.
   const availableWidth = Math.max(0, maxWidth)
   const fitLimit = availableWidth + lineFitEpsilon
@@ -690,9 +692,9 @@ function walkPreparedComplexLines(
   ): void {
     if (!breakAfter) return
     pendingBreakSegmentIndex = segmentIndex + 1
-    // The break segment hangs with the gap before it, and a run of preserved
-    // spaces and tabs hangs whole.
-    pendingBreakWidth = isHangingWhiteSpace(kind) ? hangStartWidth : lineW - advance
+    // The break segment hangs with the gap before it, a run of preserved spaces
+    // and tabs hangs whole, and a tab that doesn't hang counts whole.
+    pendingBreakWidth = isHangingWhiteSpace(kind, hangTabs) ? hangStartWidth : kind === 'tab' ? lineW : lineW - advance
     pendingBreakKind = kind
   }
 
@@ -845,7 +847,7 @@ function walkPreparedComplexLines(
         }
 
         const fitAdvance = getWholeSegmentFitContribution(prepared, kind, breakAfter, i, leadingSpacing, w)
-        const hangs = breakAfter && isHangingWhiteSpace(kind)
+        const hangs = breakAfter && isHangingWhiteSpace(kind, hangTabs)
         if (hangs) {
           if (hangEndSegmentIndex !== i) hangStartWidth = lineW + leadingSpacing
           hangEndSegmentIndex = i + 1
@@ -890,7 +892,7 @@ function walkPreparedComplexLines(
           // the simple walker does; a preserved space there starts the next line.
           if (breakAfter && (lineW <= fitLimit ||
             (pendingBreakSegmentIndex < 0 && (kind === 'space' || kind === 'zero-width-break')))) {
-            const currentBreakWidth = hangs ? hangStartWidth : lineW
+            const currentBreakWidth = hangs ? hangStartWidth : kind === 'tab' ? lineW + advance : lineW
             appendWholeSegment(i, advance)
             lineWidth = finishLine(i + 1, 0, currentBreakWidth)
             break lineLoop

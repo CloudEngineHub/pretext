@@ -2991,6 +2991,28 @@ describe('layout invariants', () => {
     }
   })
 
+  test('the Gecko profile counts a pre-wrap tab in the fit and the width, as Firefox does not hang tabs', async () => {
+    const { getEngineProfile } = await import('./measurement.ts')
+    const profile = getEngineProfile()
+    const previous = profile.hangTabs
+    const foo = measureWidth('foo', FONT)
+    const tab = prepareWithSegments('foo\tbar', FONT, { whiteSpace: 'pre-wrap' })
+    const mixed = prepareWithSegments('foo \t bar', FONT, { whiteSpace: 'pre-wrap' })
+    try {
+      profile.hangTabs = false
+      const gecko = layoutWithLines(tab, 50, LINE_HEIGHT).lines
+      expect(gecko.map(line => line.text)).toEqual(['foo\t', 'bar'])
+      expect(gecko[0]!.width).toBeCloseTo(measureWidth(' ', FONT) * 8, 9)
+      // A tab that doesn't fit after a space starts the next line, and the space hangs.
+      expect(layoutWithLines(mixed, foo + 1, LINE_HEIGHT).lines.map(line => [line.text, line.width])).toEqual([['foo ', foo], ['\t', measureWidth(' ', FONT) * 8], [' ', 0], ['bar', measureWidth('bar', FONT)]])
+      profile.hangTabs = true
+      expect(layoutWithLines(tab, 50, LINE_HEIGHT).lines.map(line => [line.text, line.width])).toEqual([['foo\t', foo], ['bar', measureWidth('bar', FONT)]])
+      expect(layoutWithLines(mixed, foo + 1, LINE_HEIGHT).lines.map(line => line.text)).toEqual(['foo \t ', 'bar'])
+    } finally {
+      profile.hangTabs = previous
+    }
+  })
+
   test('pre-wrap spaces and tabs before a hard break or the end of the text count as far as they fit', () => {
     const foo = measureWidth('foo', FONT)
     const withSpaces = measureWidth('foo   ', FONT)

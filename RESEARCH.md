@@ -359,7 +359,11 @@ again at its widest line wraps differently. While the walker counted the space
 before fitting the tab after it, `foo \t bar` laid out again at its 28.8px widest
 line gave `foo ` / `\t` / ` ` / `bar`. Subtracting the last space's width in the
 Markdown chat (#267) couldn't cover tabs, whose advance depends on the pen
-position, runs of several segments or letter spacing (#294).
+position, runs of several segments or letter spacing (#294). Firefox doesn't hang
+tabs: hanging them in every profile lost 332 left-to-right and 100 right-to-left
+installed Firefox rows where main matched, such as `abc\tdef` at 20px in 16px Arial
+with letter spacing −2, which Firefox paints as `abc` / `\t` / `def`. The Gecko
+profile keeps main's tab rule, so a tab counts in the fit and the width there.
 
 Chrome and Firefox keep NEL as ordinary text. In Chrome the same rule lost rows
 that main matched only because two errors cancelled: Chrome joins Arabic across
