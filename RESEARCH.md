@@ -717,8 +717,9 @@ In every same-font case of a September 14, 2026 probe, installed Firefox 155 spa
 wrapped like one text node. The Gecko profile therefore uses the joined analysis
 too, with its own break rules across boundaries: small kana don't start a line, so
 items `ちょっと待` and `ってください` keep `待って` together where the Chromium
-profile breaks before `っ`. Engines Pretext doesn't recognize keep breaking at
-every item boundary.
+profile breaks before `っ`. Engines Pretext doesn't recognize use the joined
+analysis too, with their own break rules. They used to break at every item
+boundary, which no major engine does.
 
 An earlier prototype of the joined rule lost 40 installed Firefox Myanmar
 split-word rows, which were attributed to Gecko's segmentation. But Gecko breaks

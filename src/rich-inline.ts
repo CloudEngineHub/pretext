@@ -94,9 +94,7 @@ type InternalPreparedRichInline = PreparedRichInline & {
 type PreparedRichInlineItem = {
   break: 'normal' | 'never'
   // An ordinary break at the boundary before this item: collapsed whitespace,
-  // or a break the joined text offers there. In engines Pretext doesn't
-  // recognize, where every item boundary breaks, only collapsed whitespace or a
-  // trailing ZWSP before the item sets it.
+  // or a break the joined text offers there.
   breakBefore: boolean
   // Following items can continue this item's last unbreakable run. This is
   // the width they add to that run before the next ordinary break.
@@ -454,10 +452,6 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
   // A collapsed SPACE can have zero or negative advance. Its existence and
   // ordinary break opportunity must survive independently of that number.
   let pendingGapWidth: number | null = null
-  // In engines Pretext doesn't recognize, every item boundary breaks, and a
-  // trailing ZWSP still marks the break before the next item, so the line wraps
-  // there before splitting that item.
-  let breakAfterPreviousItem = false
   let previousItem: PreparedRichInlineItem | null = null
   // Collapsible spaces always break and atomic items always allow a break on
   // both sides. Only the text between them joins across item boundaries.
@@ -570,7 +564,7 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
 
     const preparedItem = {
       break: item.break ?? 'normal',
-      breakBefore: whitespaceBefore || breakAfterPreviousItem,
+      breakBefore: whitespaceBefore,
       carryWidth: 0,
       establishesLine,
       extraWidth: item.extraWidth ?? 0,
@@ -583,70 +577,61 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
     } satisfies PreparedRichInlineItem
     preparedItems[index] = preparedItem
 
-    if (inlineItemBreaks === 'item-boundary') {
-      if (establishesLine) {
-        const lastKind = prepared.kinds.at(-1)
-        breakAfterPreviousItem = lastKind === 'zero-width-break' || lastKind === 'control'
-      }
+    if (previousItem === null || whitespaceBefore || preparedItem.break === 'never' || previousItem.break === 'never') {
+      finishJoinedText(whitespaceBefore)
+      preparedItem.breakBefore = whitespaceBefore || previousItem !== null
+    }
+    if (preparedItem.break === 'never') {
+      finishJoinedText(false)
     } else {
-      if (previousItem === null || whitespaceBefore || preparedItem.break === 'never' || previousItem.break === 'never') {
-        finishJoinedText(whitespaceBefore)
-        preparedItem.breakBefore = whitespaceBefore || previousItem !== null
-      }
-      if (preparedItem.break === 'never') {
-        finishJoinedText(false)
-      } else {
-        // Normal-mode segments hold single collapsed spaces. Text beyond the
-        // first and last of them cannot reach a neighboring item's boundary.
-        const { kinds } = prepared
-        const firstSpace = kinds.indexOf('space')
+      // Normal-mode segments hold single collapsed spaces. Text beyond the
+      // first and last of them cannot reach a neighboring item's boundary.
+      const { kinds } = prepared
+      const firstSpace = kinds.indexOf('space')
+      joinedPortions.push({
+        item: preparedItem,
+        itemIndex: index,
+        start: 0,
+        startSegmentIndex: 0,
+        spaceEndSegmentIndex: firstSpace < 0 ? -1 : firstSpace + 1,
+      })
+      if (firstSpace >= 0) {
+        finishJoinedText(true)
         joinedPortions.push({
           item: preparedItem,
           itemIndex: index,
           start: 0,
-          startSegmentIndex: 0,
-          spaceEndSegmentIndex: firstSpace < 0 ? -1 : firstSpace + 1,
+          startSegmentIndex: kinds.lastIndexOf('space') + 1,
+          spaceEndSegmentIndex: -1,
         })
-        if (firstSpace >= 0) {
-          finishJoinedText(true)
-          joinedPortions.push({
-            item: preparedItem,
-            itemIndex: index,
-            start: 0,
-            startSegmentIndex: kinds.lastIndexOf('space') + 1,
-            spaceEndSegmentIndex: -1,
-          })
-        }
       }
-      previousItem = preparedItem
     }
+    previousItem = preparedItem
 
     pendingGapWidth = hasTrailingWhitespace
       ? getCollapsedSpaceWidth(item.font, letterSpacing, documentLanguage)
       : null
   }
 
-  if (inlineItemBreaks !== 'item-boundary') {
-    finishJoinedText(false)
+  finishJoinedText(false)
 
-    // Without a break at the next boundary, the next item's leading run stays
-    // with this item's last run. A run that spans a whole item continues further.
-    let nextItem: PreparedRichInlineItem | null = null
-    let nextIndex = -1
-    for (let index = preparedItems.length - 1; index >= 0; index--) {
-      const item = preparedItems[index]
-      if (item === undefined || !item.establishesLine) continue
-      if (nextItem !== null && !nextItem.breakBefore) {
-        const runWidth = leadingRunWidths[nextIndex] ?? null
-        item.carryWidth = nextItem.extraWidth + (
-          runWidth === null
-            ? nextItem.naturalWidth + nextItem.carryWidth
-            : runWidth
-        )
-      }
-      nextItem = item
-      nextIndex = index
+  // Without a break at the next boundary, the next item's leading run stays
+  // with this item's last run. A run that spans a whole item continues further.
+  let nextItem: PreparedRichInlineItem | null = null
+  let nextIndex = -1
+  for (let index = preparedItems.length - 1; index >= 0; index--) {
+    const item = preparedItems[index]
+    if (item === undefined || !item.establishesLine) continue
+    if (nextItem !== null && !nextItem.breakBefore) {
+      const runWidth = leadingRunWidths[nextIndex] ?? null
+      item.carryWidth = nextItem.extraWidth + (
+        runWidth === null
+          ? nextItem.naturalWidth + nextItem.carryWidth
+          : runWidth
+      )
     }
+    nextItem = item
+    nextIndex = index
   }
 
   return {

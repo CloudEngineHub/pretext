@@ -108,8 +108,8 @@ export type EngineProfile = {
   // so every break fact near a boundary comes from the joined text. WebKit finds
   // breaks inside each inline box from that box's own text, and decides a
   // boundary between boxes from the previous box's last two characters. Engines
-  // Pretext doesn't recognize keep breaking at every item boundary.
-  inlineItemBreaks: 'joined-text' | 'item-text' | 'item-boundary'
+  // Pretext doesn't recognize use the joined text, as Blink and Gecko do.
+  inlineItemBreaks: 'joined-text' | 'item-text'
 }
 
 export type BreakableFitMode = 'sum-graphemes' | 'segment-prefixes' | 'pair-context'
