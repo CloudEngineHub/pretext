@@ -99,6 +99,12 @@ export type EngineProfile = {
   // text whose direction differs from the page's it keeps spacing Safari omits.
   // Blink spaces NEL outside cursive runs.
   breakOnlyAfterNextLine: boolean
+  // After CJK text, WebKit's pair scan reaches ICU at the CJK character and skips
+  // ahead over ASCII letters to ICU's next break without reading its pair table, so
+  // ICU's rules decide the break after a mark before a letter (`丙!|first`), while the
+  // table still keeps `丙!1234` and `丙.!first`. Blink reads its table for any two code
+  // units up to U+00FF, and Gecko sends the word to ICU4X.
+  icuDecidesLetterAfterCJKMark: boolean
   // WebKit moves a tab to the following stop when less than half a space would
   // remain before the next one (FontCascade::tabWidth).
   skipNarrowTabStops: boolean
@@ -304,6 +310,7 @@ export function getEngineProfile(language: BreakLanguage = 'root'): EngineProfil
     letterSpaceDiscretionaryHyphen: engine !== 'blink',
     unfitHyphenRetreat: engine === 'blink' ? 'reduced-width' : 'none',
     breakOnlyAfterNextLine: engine === 'webkit',
+    icuDecidesLetterAfterCJKMark: engine === 'webkit',
     skipNarrowTabStops: engine === 'webkit',
     hangTabs: engine !== 'gecko',
     inlineItemBreaks: engine === 'webkit' ? 'item-text' : 'joined-text',

@@ -527,6 +527,7 @@ describe('boundary-policy regressions', () => {
     breakHyphenAfterCollapsedTab: false,
     segmentBreakRemovalRun: 'none' as const,
     breakOnlyAfterNextLine: false,
+    icuDecidesLetterAfterCJKMark: false,
   }
 
   test('independent symbols use grapheme overflow without splitting attached marks', () => {
@@ -720,8 +721,8 @@ describe('boundary-policy regressions', () => {
       ['a/\u0639\u0631\u0628\u064a', ['a/', '\u0639\u0631\u0628\u064a'], ['a/\u0639\u0631\u0628\u064a']],
       ['a/\u0e44\u0e17\u0e22', ['a/', '\u0e44\u0e17\u0e22'], ['a/\u0e44\u0e17\u0e22']],
       ['https://example.com/2026/09/docs', ['https://', 'example.com/2026/09/', 'docs'], ['https://example.com/2026/09/docs']],
-      // Pretext still breaks before `/` after CJK text, which UAX #14 forbids (ENGINE_FOLLOWUPS.md:29).
-      ['\u6f22/abc', ['\u6f22', '/', 'abc'], ['\u6f22', '/abc']],
+      // No break before `/` after CJK text either (LB13).
+      ['\u6f22/abc', ['\u6f22/', 'abc'], ['\u6f22/abc']],
     ] as const) {
       expect(analyzeText(text, gecko).texts).toEqual([...geckoTexts])
       expect(analyzeText(text, baseProfile).texts).toEqual([...blinkTexts])
@@ -732,6 +733,49 @@ describe('boundary-policy regressions', () => {
     // No break before a quote, IS, BA, a Hebrew letter (LB21b) or a number (LB25).
     for (const text of ['a/"b"', 'a/.b', 'a/|b', 'a/\u05e2\u05d1\u05e8', '1/2', 'a/1', 'docs/']) {
       expect(analyzeText(text, gecko).texts).toEqual(analyzeText(text, baseProfile).texts)
+    }
+  })
+
+  test('a mark after CJK text stays with it, and each engine keeps the text after the mark as its pair rules do (#293)', async () => {
+    const { analyzeText } = await import('./analysis.ts')
+    const webkit = { ...baseProfile, keepAllPairModel: 'webkit-spaces' as const, icuDecidesLetterAfterCJKMark: true }
+    const gecko = { ...baseProfile, geckoAsciiLineBreaks: true, keepAllPairModel: 'icu4x-classes' as const, breakAroundEastAsianQuotes: false, wordInitialHyphenLetters: 'none' as const }
+    // No engine breaks before these marks after CJK text (LB13, LB19, LB21). Blink's
+    // pair table keeps an ASCII mark with an ASCII letter or digit, except `?`.
+    // WebKit's table decides before a digit, and ICU before a letter where the mark
+    // follows a character that reached ICU; CL and CP after an ideograph or Hangul
+    // syllable skip ICU. Gecko follows UAX #14.
+    for (const [text, blinkTexts, webkitTexts, geckoTexts] of [
+      ["\u4e19'first", ["\u4e19'first"], ["\u4e19'first"], ["\u4e19'first"]],
+      ['\u4e19/first', ['\u4e19/first'], ['\u4e19/', 'first'], ['\u4e19/', 'first']],
+      ['\u4e19|first', ['\u4e19|first'], ['\u4e19|', 'first'], ['\u4e19|', 'first']],
+      ['\u4e19!first', ['\u4e19!first'], ['\u4e19!', 'first'], ['\u4e19!', 'first']],
+      ['\u4e19}first', ['\u4e19}first'], ['\u4e19}first'], ['\u4e19}', 'first']],
+      ['\ub2e4}first', ['\ub2e4}first'], ['\ub2e4}first'], ['\ub2e4}', 'first']],
+      ['\u3046}first', ['\u3046}first'], ['\u3046}', 'first'], ['\u3046}', 'first']],
+      ['\u4e19|1234', ['\u4e19|1234'], ['\u4e19|1234'], ['\u4e19|', '1234']],
+      ['\u4e19!1234', ['\u4e19!1234'], ['\u4e19!1234'], ['\u4e19!', '1234']],
+      ['\u4e19/1234', ['\u4e19/1234'], ['\u4e19/1234'], ['\u4e19/1234']],
+      // The table decides the pair after a mark that follows another mark.
+      ['\u4e19.!first', ['\u4e19.!first'], ['\u4e19.!first'], ['\u4e19.!', 'first']],
+      ['\u4e19?first', ['\u4e19?', 'first'], ['\u4e19?', 'first'], ['\u4e19?', 'first']],
+      ['\u4e19}\u03b1\u03b2', ['\u4e19}', '\u03b1\u03b2'], ['\u4e19}', '\u03b1\u03b2'], ['\u4e19}', '\u03b1\u03b2']],
+      ["\u4e19'\u03b1\u03b2", ["\u4e19'\u03b1\u03b2"], ["\u4e19'\u03b1\u03b2"], ["\u4e19'\u03b1\u03b2"]],
+    ] as const) {
+      expect(analyzeText(text, baseProfile).texts).toEqual([...blinkTexts])
+      expect(analyzeText(text, webkit).texts).toEqual([...webkitTexts])
+      expect(analyzeText(text, gecko).texts).toEqual([...geckoTexts])
+    }
+    // Punctuation attaches by its class, such as NS and PO, but an opening curly quote
+    // and U+3000 still start a line, and a hyphen keeps its own rules.
+    for (const [text, expected] of [
+      ['\u4e19\u203cfirst', ['\u4e19\u203c', 'first']],
+      ['\u6587\uff05\u6587', ['\u6587\uff05', '\u6587']],
+      ['\u4e19\u201cfirst\u201d', ['\u4e19', '\u201cfirst\u201d']],
+      ['\u4e19\u3000first', ['\u4e19', '\u3000', 'first']],
+      ['\u4e19-first', ['\u4e19-', 'first']],
+    ] as const) {
+      expect(analyzeText(text, baseProfile).texts).toEqual([...expected])
     }
   })
 
@@ -1646,14 +1690,18 @@ describe('prepare invariants', () => {
     expect(prepareWithSegments('테스트입니다.', FONT).segments.at(-1)).toBe('다.')
   })
 
-  test('keeps text after a mark that ends CJK text where UAX #14 keeps the pair', () => {
-    // #274. IS, CP, PO and QU keep a following letter or number; EX and
-    // full-width marks don't, and a hyphen keeps its own rules.
+  test('keeps text after a mark that ends CJK text where the engine keeps the pair', () => {
+    // #274 and #293. IS, CP, PO and QU keep a following letter or number, and
+    // Blink's pair table, which this profile follows, also keeps `/`, `|`, `!` and
+    // `}`. `?` and full-width marks don't, and a hyphen keeps its own rules.
     for (const [text, expected] of [
       ['甲乙丙.first_week_voltage}户', ['甲', '乙', '丙.first_week_voltage}', '户']],
       ['甲乙丙,1234户', ['甲', '乙', '丙,1234', '户']],
       ['甲乙丙)first户', ['甲', '乙', '丙)first', '户']],
       ['甲乙丙%first户', ['甲', '乙', '丙%first', '户']],
+      ["甲乙丙'first_week户", ['甲', '乙', "丙'first_week", '户']],
+      ['甲乙丙|first_week户', ['甲', '乙', '丙|first_week', '户']],
+      ['甲乙丙/first_week户', ['甲', '乙', '丙/first_week', '户']],
       ['가나다.first', ['가', '나', '다.first']],
       ['甲乙丙.foo-bar', ['甲', '乙', '丙.foo-', 'bar']],
       ['甲乙丙?first户', ['甲', '乙', '丙?', 'first', '户']],
