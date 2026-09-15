@@ -102,6 +102,10 @@ export type EngineProfile = {
   // WebKit moves a tab to the following stop when less than half a space would
   // remain before the next one (FontCascade::tabWidth).
   skipNarrowTabStops: boolean
+  // A run of preserved spaces and tabs at the end of a pre-wrap line hangs in Blink
+  // and WebKit (CSS Text 3 §4.1.2). Gecko doesn't hang a tab that doesn't fit, so a
+  // tab counts in the line's fit and width there, as spaces do not.
+  hangTabs: boolean
   // Where rich-inline items break near a boundary. Blink runs one line-break
   // iterator over the text of the whole inline formatting context, and Gecko
   // collects a word across text frames until a space and breaks it in one pass,
@@ -301,6 +305,7 @@ export function getEngineProfile(language: BreakLanguage = 'root'): EngineProfil
     unfitHyphenRetreat: engine === 'blink' ? 'reduced-width' : 'none',
     breakOnlyAfterNextLine: engine === 'webkit',
     skipNarrowTabStops: engine === 'webkit',
+    hangTabs: engine !== 'gecko',
     inlineItemBreaks: engine === 'webkit' ? 'item-text' : 'joined-text',
   }
   // Apple ICU opens its normal line rules for Japanese and Korean content.

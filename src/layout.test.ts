@@ -2957,6 +2957,77 @@ describe('layout invariants', () => {
     expect(layout(prepared, width, LINE_HEIGHT).lineCount).toBe(2)
   })
 
+  test('pre-wrap line widths leave out the spaces and tabs a wrapped line ends on', () => {
+    const foo = measureWidth('foo', FONT)
+    const bar = measureWidth('bar', FONT)
+    const cases: Array<[string, number]> = [
+      ['foo   bar', foo + 0.1],
+      ['foo\tbar', foo + 0.1],
+      ['foo\tbar', 50],
+      // Main put the tab and the space after it on lines of their own here.
+      ['foo \t bar', foo],
+      ['foo \t bar', 60],
+    ]
+    for (const [text, width] of cases) {
+      const prepared = prepareWithSegments(text, FONT, { whiteSpace: 'pre-wrap' })
+      const { lines } = layoutWithLines(prepared, width, LINE_HEIGHT)
+      expect(lines.map(line => line.text)).toEqual([text.slice(0, -3), 'bar'])
+      expect(lines.map(line => line.width)).toEqual([foo, bar])
+      const walked: number[] = []
+      walkLineRanges(prepared, width, line => walked.push(line.width))
+      expect(walked).toEqual([foo, bar])
+      expect(collectStreamedLines(prepared, width)).toEqual(lines)
+      expect(measureLineStats(prepared, width)).toEqual({ lineCount: 2, maxLineWidth: Math.max(foo, bar) })
+      // Laid out at its widest line, the text wraps the same way.
+      expect(layoutWithLines(prepared, Math.max(foo, bar), LINE_HEIGHT).lines.map(line => line.text)).toEqual([text.slice(0, -3), 'bar'])
+    }
+
+    // With letter spacing the width keeps the gap after the last letter, as in normal mode.
+    for (const letterSpacing of [2, -1]) {
+      const preWrap = layoutWithLines(prepareWithSegments('foo bar', FONT, { whiteSpace: 'pre-wrap', letterSpacing }), 50, LINE_HEIGHT).lines
+      const normal = layoutWithLines(prepareWithSegments('foo bar', FONT, { letterSpacing }), 50, LINE_HEIGHT).lines
+      expect(preWrap.map(line => line.text)).toEqual(['foo ', 'bar'])
+      expect(preWrap.map(line => line.width)).toEqual(normal.map(line => line.width))
+    }
+  })
+
+  test('the Gecko profile counts a pre-wrap tab in the fit and the width, as Firefox does not hang tabs', async () => {
+    const { getEngineProfile } = await import('./measurement.ts')
+    const profile = getEngineProfile()
+    const previous = profile.hangTabs
+    const foo = measureWidth('foo', FONT)
+    const tab = prepareWithSegments('foo\tbar', FONT, { whiteSpace: 'pre-wrap' })
+    const mixed = prepareWithSegments('foo \t bar', FONT, { whiteSpace: 'pre-wrap' })
+    try {
+      profile.hangTabs = false
+      const gecko = layoutWithLines(tab, 50, LINE_HEIGHT).lines
+      expect(gecko.map(line => line.text)).toEqual(['foo\t', 'bar'])
+      expect(gecko[0]!.width).toBeCloseTo(measureWidth(' ', FONT) * 8, 9)
+      // A tab that doesn't fit after a space starts the next line, and the space hangs.
+      expect(layoutWithLines(mixed, foo + 1, LINE_HEIGHT).lines.map(line => [line.text, line.width])).toEqual([['foo ', foo], ['\t', measureWidth(' ', FONT) * 8], [' ', 0], ['bar', measureWidth('bar', FONT)]])
+      profile.hangTabs = true
+      expect(layoutWithLines(tab, 50, LINE_HEIGHT).lines.map(line => [line.text, line.width])).toEqual([['foo\t', foo], ['bar', measureWidth('bar', FONT)]])
+      expect(layoutWithLines(mixed, foo + 1, LINE_HEIGHT).lines.map(line => line.text)).toEqual(['foo \t ', 'bar'])
+    } finally {
+      profile.hangTabs = previous
+    }
+  })
+
+  test('pre-wrap spaces and tabs before a hard break or the end of the text count as far as they fit', () => {
+    const foo = measureWidth('foo', FONT)
+    const withSpaces = measureWidth('foo   ', FONT)
+    const prepared = prepareWithSegments('foo   \nbar', FONT, { whiteSpace: 'pre-wrap' })
+    expect(layoutWithLines(prepared, 200, LINE_HEIGHT).lines.map(line => line.width)).toEqual([withSpaces, measureWidth('bar', FONT)])
+    expect(layoutWithLines(prepared, foo + 5, LINE_HEIGHT).lines.map(line => [line.text, line.width])).toEqual([['foo   ', foo + 5], ['bar', measureWidth('bar', FONT)]])
+    expect(measureNaturalWidth(prepared)).toBe(withSpaces)
+
+    // Two tabs at the end stay on one line, which the width clamps to.
+    const tabs = prepareWithSegments('foo\t\t', FONT, { whiteSpace: 'pre-wrap' })
+    expect(layoutWithLines(tabs, 60, LINE_HEIGHT).lines.map(line => [line.text, line.width])).toEqual([['foo\t\t', 60]])
+    expect(layout(tabs, 60, LINE_HEIGHT).lineCount).toBe(1)
+    expect(measureNaturalWidth(tabs)).toBeCloseTo(measureWidth(' ', FONT) * 16, 9)
+  })
+
   test('pre-wrap mode treats hard breaks as forced line boundaries', () => {
     const prepared = prepareWithSegments('a\nb', FONT, { whiteSpace: 'pre-wrap' })
     const lines = layoutWithLines(prepared, 200, LINE_HEIGHT)

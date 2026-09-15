@@ -350,6 +350,21 @@ at negative spacing, such as `ab cd\tef gh\tij` at -1px in 16px Arial: Safari
 moves the tab to the second stop and hangs it, and Pretext breaks before it. Only
 the Safari profile models the threshold.
 
+In pre-wrap, a run of preserved spaces and tabs at the end of a line hangs (CSS
+Text 3 §4.1.2, §8.2): it takes no room when fitting and doesn't count in the
+line's width. Before a hard break or the end of the text, only the part past the
+available width hangs. Fitting and the reported width have to use the same width,
+the one before the run with the gap after the glyph before it, or a text laid out
+again at its widest line wraps differently. While the walker counted the space
+before fitting the tab after it, `foo \t bar` laid out again at its 28.8px widest
+line gave `foo ` / `\t` / ` ` / `bar`. Subtracting the last space's width in the
+Markdown chat (#267) couldn't cover tabs, whose advance depends on the pen
+position, runs of several segments or letter spacing (#294). Firefox doesn't hang
+tabs: hanging them in every profile lost 332 left-to-right and 100 right-to-left
+installed Firefox rows where main matched, such as `abc\tdef` at 20px in 16px Arial
+with letter spacing −2, which Firefox paints as `abc` / `\t` / `def`. The Gecko
+profile keeps main's tab rule, so a tab counts in the fit and the width there.
+
 Chrome and Firefox keep NEL as ordinary text. In Chrome the same rule lost rows
 that main matched only because two errors cancelled: Chrome joins Arabic across
 a soft hyphen that Pretext measures as separate segments, hangs preserved spaces

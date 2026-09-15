@@ -105,13 +105,13 @@ export type LineStats = {
 
 export type LayoutLine = {
   text: string // Full text content of this line, e.g. 'hello world'
-  width: number // Measured width of this line, e.g. 87.5
+  width: number // Measured width of this line, e.g. 87.5, leaving out spaces and tabs that hang past its end
   start: LayoutCursor // Inclusive start cursor in prepared segments/graphemes
   end: LayoutCursor // Exclusive end cursor in prepared segments/graphemes
 }
 
 export type LayoutLineRange = {
-  width: number // Measured width of this line, e.g. 87.5
+  width: number // Measured width of this line, e.g. 87.5, leaving out spaces and tabs that hang past its end
   start: LayoutCursor // Inclusive start cursor in prepared segments/graphemes
   end: LayoutCursor // Exclusive end cursor in prepared segments/graphemes
 }

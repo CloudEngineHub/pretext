@@ -17,6 +17,102 @@ All accuracy, letter-spacing and corpus result payloads are unchanged; refreshed
 snapshots change only provenance and environment records. Runtime sources and
 the baseline pin are unchanged, so no runtime benchmark was needed.
 
+## Pre-wrap spaces and tabs that hang
+
+This runtime change starts from main `0c12ece` (#307). In `pre-wrap`, a run of
+preserved spaces and tabs at the end of a line hangs past it, as CSS Text 3 asks
+(§4.1.2, §8.2). A line that wraps after such a run now reports the width before the
+run, with the letter-spacing gap after the glyph before it, and the run fits
+wherever the text before it fits, so the whole run stays on that line. Before a
+newline or at the end of the text the run counts only as far as it fits, between the
+width before it and the width with it, so `measureNaturalWidth()` still counts it.
+Main counted every preserved space and each tab's full advance, fit a tab by its own
+advance and later white space by the width after the earlier part of the run, so
+`foo \t bar` laid out again at its 28.8px widest line gave `foo ` / `\t` / ` ` /
+`bar` where 60px gave `foo \t ` / `bar`. The Markdown chat drops
+`measureCodeLineStats()`, which subtracted the last space's width (#267) and
+couldn't see tabs (#294), and sizes code boxes with `measureLineStats()`. Firefox
+doesn't hang tabs, so the Gecko profile keeps main's tab rule through a new profile
+field, `hangTabs`, and only preserved spaces hang there.
+
+Before the browsers, the test fake canvas compared this branch with main over 20,000
+random pre-wrap texts in each engine profile. Batch, streaming, walker, stats and
+`layout()` agree in every profile. Widths change only on lines that end in preserved
+spaces or, outside the Gecko profile, tabs. Where such a line wraps its width equals
+the natural width of its text without them, and before a newline or at the end of
+the text it lies between that and the width with them. Laid out again at its widest
+line, a text that fits keeps its lines except with a zero-width space or a soft
+hyphen under negative letter spacing, or at the Chromium profile's return from an
+unfit hyphen: 165 texts in the Chrome profile and 70 in the Safari profile fail,
+where main fails on 379 and 70, and normal mode on main fails in the same ways. The
+Gecko profile fails on 427 texts, where main fails on 332, all with negative letter
+spacing, since its tabs keep main's fit. The screen's 1,380 keys over the corpora,
+the accuracy grid, hyphen and slash shapes, analysis, preferred breaks and
+rich-inline cases are byte-identical in all four profiles; the screen records line
+text but not widths.
+
+The installed gate ran this change on `bc72c6d` against pinned `ebc3414`, whose
+runtime source equals main: Chrome 153 through the Playwright transport, Safari
+26.5.2 and Firefox 155 natively, both directions, at DPR 2. In supported scope
+Chrome fixes 2,611 LTR and 883 RTL metrics and loses 97 and 25, Safari fixes 1,988
+and 670 and loses 125 and 51, and Firefox fixes 438 and 248 and loses 69 and 31. No
+leg has required failures, execution errors or new API or rich failures, and five
+numeric profiles have no new failures. Most fixes are in the discretionary, tab,
+terminal-spacing and negative-spacing families, where the browsers hang a whole run
+of spaces and tabs, or a space by the negative gap after the letter before it:
+Chrome paints `abc\tdef` at 20px in 16px Arial with letter spacing −2 as `abc\t` /
+`def`, where main gave `abc` / `\t` / `def`. The two pre-wrap rows ENGINE_FOLLOWUPS
+kept as losses from earlier changes now pass: `})x「value」! end` at 34.77px with
+letter spacing −1 in Chrome and Firefox, where the space after `ue」!` hangs, and
+`a\u05D0\u05D1aabb((\u0628\u0628\u0628\u0628\t\tword` at 64px in Safari, where both
+tabs hang (#240). Suite hash
+`cdaf225961c92a952d86c4c4f244e359241e11dd97d8699893e361e881413317`; rows are in
+`/private/tmp/pretext-eng-20260912/gate-prewrap-hanging-width-{chrome,safari,firefox}`.
+
+A first gate on `e162b31`, before the Gecko profile kept main's tab rule, gave the
+same Chrome and Safari rows, but Firefox lost 1,119 LTR and 367 RTL metrics in 332
+and 100 rows. Of those rows 307 and 90 contain a tab, and on 219 and 80 of them
+main's lines equal Firefox's: Firefox gives a tab that doesn't fit a line of its
+own, and paints `abc\tdef` above as `abc` / `\t` / `def`. Every Firefox row lost on
+`bc72c6d` was lost there too.
+
+Chrome loses 50 rows, Safari 67 and Firefox 35, all with negative letter spacing or
+Arabic and Amiri emergency breaks. In 40 of Chrome's, 64 of Safari's and 30 of
+Firefox's, main passed only while a line it gave to a space or tab cancelled another
+error. That error was an emergency break Pretext places differently in Amiri (10
+Chrome and 6 Safari rows, such as `بِبِ((tail \tword` at 24px, where Chrome paints
+`((` / `tai` / `l \t` and this branch `((t` / `ail \t`), a lam-alef or bracket split
+in Arabic with letter spacing −1 (15 Chrome, 9 Safari and 7 Firefox rows), or a line
+the browser gives a raw CR or form feed (2 Firefox and 2 Safari rows). With letter
+spacing −6 the browsers don't fit the next word after a hanging space (6 Chrome, 38
+Safari and 12 Firefox rows): Chrome paints ` A B` at 6.5px as `A` / `B` and Safari
+as ` A ` / `B`, where this branch keeps one line and main started the second line
+with the space. With letter spacing −4 they give a space after a word joiner and
+combining mark, or after U+FEFF, a line of its own, where this branch charges the
+invisible character a negative gap and hangs the space, where main matched only
+while it fit the space without that gap (9 rows in each browser). Chrome ends `a`,
+U+00AD, space, `b` before the space at 7-10px with letter spacing −1 to −6 (10
+rows), where main chose the hyphen. The remaining 13 rows are true losses, where
+main's lines equal the native ones apart from a painted hyphen: 5 of those Chrome
+soft hyphen rows; in Safari `a`, U+007F, space, `b` in 24px Amiri in both directions
+and `a لا ب` at 1px in 32px Arial; and in Firefox that Arabic row and `To To` and
+`AV AV` with letter spacing −1 in both directions, where Firefox gives the space a
+line of its own. ENGINE_FOLLOWUPS records these shapes.
+
+`bun test` and `bun run check` pass. Under a counting fake canvas, Canvas calls per
+cold `prepare()` don't change in any profile, since only the line walker changes:
+the 18 corpora take 53,093 calls in the Chrome profile, 116,306 in the Safari
+profile and 53,108 in the Firefox profile, 57,041, 135,791 and 57,071 under
+`keep-all`, and 53,101, 116,314 and 53,116 under `pre-wrap`. The baseline advances
+to `11c440b`, and the ordinary snapshots were regenerated against it.
+
+Chrome and Safari benchmark snapshots were refreshed from this branch: three
+foreground runs each at DPR 2, visible and focused, with Chrome on the 2560x1440
+screen and Safari on the 2560x1440 screen. Chrome reads `prepare()` at 9.10 ms
+(9.05 on the parent branch) and hot `layout()` at 0.0883 ms (0.0887); Safari reads
+12.0 ms (11.5) and 0.105 ms (0.105). Long-form corpus totals read 115.2 ms in
+Chrome (115.0) and 358 ms in Safari (368).
+
 ## Rich-inline item-boundary mode removed
 
 This change starts from main after #300 and removes rich-inline's `'item-boundary'`
