@@ -209,6 +209,7 @@ function render(_now: number): boolean {
   // DOM writes
   domCache.page.style.width = `${pageWidth}px`
   domCache.page.toggleAttribute('data-narrow', narrow)
+  domCache.page.toggleAttribute('data-ready', true)
   for (let index = 0; index < items.length; index++) {
     const item = items[index]!
     const itemDom = domCache.items[index]!

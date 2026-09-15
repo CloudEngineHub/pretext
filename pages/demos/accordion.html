@@ -38,6 +38,12 @@
         padding: 32px 0 48px;
       }
 
+      /* Hidden until accordion.ts's first render writes the width and sets data-ready, so no frame
+         paints the page at the window's width. */
+      .page:not([data-ready]) {
+        visibility: hidden;
+      }
+
       .intro {
         margin-bottom: 20px;
       }
