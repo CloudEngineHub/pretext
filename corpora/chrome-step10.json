@@ -1,9 +1,9 @@
 [
   {
-    "generatedAt": "2026-09-14T20:46:46.663Z",
-    "suiteHash": "8dff524da9a6cd7c95c956aa4c617781e062358a846fc3858547c07e716887b4",
+    "generatedAt": "2026-09-15T17:11:29.044Z",
+    "suiteHash": "cdaf225961c92a952d86c4c4f244e359241e11dd97d8699893e361e881413317",
     "source": {
-      "revision": "b69f72ea6055fd015c129cdf6556de3a17b82c32",
+      "revision": "5b47eedad934fe9f6f54f4269dad265688df6201",
       "files": {
         "analysis.ts": "93366be3cd9820008c2dd454cb191311d163493e0f9a75b680fd08292d8e21d8",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
@@ -13,8 +13,8 @@
         "layout.ts": "08031bf293e3bdc482ead8146c477a91f418d8418ecfeb3b170b0b6474b2eb81",
         "line-break.ts": "9d06f9d6c8b2eac44e36557bdb533328e2466d495962488ad639e6775c0880d6",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
-        "measurement.ts": "8a8f73ae9e82c6ed222d5b8e42c872e98f8d471bdcdd237c9474a0fa0b2ea400",
-        "rich-inline.ts": "0492b02a16d38fb3cf9562ea0f69dccbc3dc4ddafd645fb58b8317f9429234a8",
+        "measurement.ts": "ea4790bc9c94fc81887ddf49d1452ded205901291b125cd38e9c334f3776eb67",
+        "rich-inline.ts": "d48625969cb5bbcf2e53475a55febfccc6a5902a184c643de23286d45ed47657",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -26,12 +26,12 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
@@ -44,12 +44,12 @@
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
@@ -85,10 +85,10 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-14T20:46:46.663Z",
-    "suiteHash": "8dff524da9a6cd7c95c956aa4c617781e062358a846fc3858547c07e716887b4",
+    "generatedAt": "2026-09-15T17:11:29.044Z",
+    "suiteHash": "cdaf225961c92a952d86c4c4f244e359241e11dd97d8699893e361e881413317",
     "source": {
-      "revision": "b69f72ea6055fd015c129cdf6556de3a17b82c32",
+      "revision": "5b47eedad934fe9f6f54f4269dad265688df6201",
       "files": {
         "analysis.ts": "93366be3cd9820008c2dd454cb191311d163493e0f9a75b680fd08292d8e21d8",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
@@ -98,8 +98,8 @@
         "layout.ts": "08031bf293e3bdc482ead8146c477a91f418d8418ecfeb3b170b0b6474b2eb81",
         "line-break.ts": "9d06f9d6c8b2eac44e36557bdb533328e2466d495962488ad639e6775c0880d6",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
-        "measurement.ts": "8a8f73ae9e82c6ed222d5b8e42c872e98f8d471bdcdd237c9474a0fa0b2ea400",
-        "rich-inline.ts": "0492b02a16d38fb3cf9562ea0f69dccbc3dc4ddafd645fb58b8317f9429234a8",
+        "measurement.ts": "ea4790bc9c94fc81887ddf49d1452ded205901291b125cd38e9c334f3776eb67",
+        "rich-inline.ts": "d48625969cb5bbcf2e53475a55febfccc6a5902a184c643de23286d45ed47657",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -111,12 +111,12 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
@@ -129,22 +129,28 @@
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
-            "visibility": "visible",
+            "visibility": "hidden",
             "focused": false,
             "language": "en",
             "direction": "ltr"
           },
-          "changes": []
+          "changes": [
+            {
+              "field": "visibility",
+              "value": "hidden",
+              "evidence": "snapshot"
+            }
+          ]
         },
         "context": {
           "kind": "installed",
@@ -153,7 +159,7 @@
         "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
         "dpr": 2,
         "locale": "zh-CN",
-        "visibility": "visible",
+        "visibility": "hidden",
         "focused": false,
         "fonts": []
       }
@@ -259,10 +265,10 @@
     ]
   },
   {
-    "generatedAt": "2026-09-14T20:46:46.663Z",
-    "suiteHash": "8dff524da9a6cd7c95c956aa4c617781e062358a846fc3858547c07e716887b4",
+    "generatedAt": "2026-09-15T17:11:29.044Z",
+    "suiteHash": "cdaf225961c92a952d86c4c4f244e359241e11dd97d8699893e361e881413317",
     "source": {
-      "revision": "b69f72ea6055fd015c129cdf6556de3a17b82c32",
+      "revision": "5b47eedad934fe9f6f54f4269dad265688df6201",
       "files": {
         "analysis.ts": "93366be3cd9820008c2dd454cb191311d163493e0f9a75b680fd08292d8e21d8",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
@@ -272,8 +278,8 @@
         "layout.ts": "08031bf293e3bdc482ead8146c477a91f418d8418ecfeb3b170b0b6474b2eb81",
         "line-break.ts": "9d06f9d6c8b2eac44e36557bdb533328e2466d495962488ad639e6775c0880d6",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
-        "measurement.ts": "8a8f73ae9e82c6ed222d5b8e42c872e98f8d471bdcdd237c9474a0fa0b2ea400",
-        "rich-inline.ts": "0492b02a16d38fb3cf9562ea0f69dccbc3dc4ddafd645fb58b8317f9429234a8",
+        "measurement.ts": "ea4790bc9c94fc81887ddf49d1452ded205901291b125cd38e9c334f3776eb67",
+        "rich-inline.ts": "d48625969cb5bbcf2e53475a55febfccc6a5902a184c643de23286d45ed47657",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -285,12 +291,12 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
@@ -303,12 +309,12 @@
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
@@ -377,10 +383,10 @@
     ]
   },
   {
-    "generatedAt": "2026-09-14T20:46:46.663Z",
-    "suiteHash": "8dff524da9a6cd7c95c956aa4c617781e062358a846fc3858547c07e716887b4",
+    "generatedAt": "2026-09-15T17:11:29.044Z",
+    "suiteHash": "cdaf225961c92a952d86c4c4f244e359241e11dd97d8699893e361e881413317",
     "source": {
-      "revision": "b69f72ea6055fd015c129cdf6556de3a17b82c32",
+      "revision": "5b47eedad934fe9f6f54f4269dad265688df6201",
       "files": {
         "analysis.ts": "93366be3cd9820008c2dd454cb191311d163493e0f9a75b680fd08292d8e21d8",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
@@ -390,8 +396,8 @@
         "layout.ts": "08031bf293e3bdc482ead8146c477a91f418d8418ecfeb3b170b0b6474b2eb81",
         "line-break.ts": "9d06f9d6c8b2eac44e36557bdb533328e2466d495962488ad639e6775c0880d6",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
-        "measurement.ts": "8a8f73ae9e82c6ed222d5b8e42c872e98f8d471bdcdd237c9474a0fa0b2ea400",
-        "rich-inline.ts": "0492b02a16d38fb3cf9562ea0f69dccbc3dc4ddafd645fb58b8317f9429234a8",
+        "measurement.ts": "ea4790bc9c94fc81887ddf49d1452ded205901291b125cd38e9c334f3776eb67",
+        "rich-inline.ts": "d48625969cb5bbcf2e53475a55febfccc6a5902a184c643de23286d45ed47657",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -403,12 +409,12 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
@@ -421,12 +427,12 @@
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
@@ -495,10 +501,10 @@
     ]
   },
   {
-    "generatedAt": "2026-09-14T20:46:46.663Z",
-    "suiteHash": "8dff524da9a6cd7c95c956aa4c617781e062358a846fc3858547c07e716887b4",
+    "generatedAt": "2026-09-15T17:11:29.044Z",
+    "suiteHash": "cdaf225961c92a952d86c4c4f244e359241e11dd97d8699893e361e881413317",
     "source": {
-      "revision": "b69f72ea6055fd015c129cdf6556de3a17b82c32",
+      "revision": "5b47eedad934fe9f6f54f4269dad265688df6201",
       "files": {
         "analysis.ts": "93366be3cd9820008c2dd454cb191311d163493e0f9a75b680fd08292d8e21d8",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
@@ -508,8 +514,8 @@
         "layout.ts": "08031bf293e3bdc482ead8146c477a91f418d8418ecfeb3b170b0b6474b2eb81",
         "line-break.ts": "9d06f9d6c8b2eac44e36557bdb533328e2466d495962488ad639e6775c0880d6",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
-        "measurement.ts": "8a8f73ae9e82c6ed222d5b8e42c872e98f8d471bdcdd237c9474a0fa0b2ea400",
-        "rich-inline.ts": "0492b02a16d38fb3cf9562ea0f69dccbc3dc4ddafd645fb58b8317f9429234a8",
+        "measurement.ts": "ea4790bc9c94fc81887ddf49d1452ded205901291b125cd38e9c334f3776eb67",
+        "rich-inline.ts": "d48625969cb5bbcf2e53475a55febfccc6a5902a184c643de23286d45ed47657",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -521,12 +527,12 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
@@ -539,12 +545,12 @@
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
@@ -580,10 +586,10 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-14T20:46:46.663Z",
-    "suiteHash": "8dff524da9a6cd7c95c956aa4c617781e062358a846fc3858547c07e716887b4",
+    "generatedAt": "2026-09-15T17:11:29.044Z",
+    "suiteHash": "cdaf225961c92a952d86c4c4f244e359241e11dd97d8699893e361e881413317",
     "source": {
-      "revision": "b69f72ea6055fd015c129cdf6556de3a17b82c32",
+      "revision": "5b47eedad934fe9f6f54f4269dad265688df6201",
       "files": {
         "analysis.ts": "93366be3cd9820008c2dd454cb191311d163493e0f9a75b680fd08292d8e21d8",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
@@ -593,8 +599,8 @@
         "layout.ts": "08031bf293e3bdc482ead8146c477a91f418d8418ecfeb3b170b0b6474b2eb81",
         "line-break.ts": "9d06f9d6c8b2eac44e36557bdb533328e2466d495962488ad639e6775c0880d6",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
-        "measurement.ts": "8a8f73ae9e82c6ed222d5b8e42c872e98f8d471bdcdd237c9474a0fa0b2ea400",
-        "rich-inline.ts": "0492b02a16d38fb3cf9562ea0f69dccbc3dc4ddafd645fb58b8317f9429234a8",
+        "measurement.ts": "ea4790bc9c94fc81887ddf49d1452ded205901291b125cd38e9c334f3776eb67",
+        "rich-inline.ts": "d48625969cb5bbcf2e53475a55febfccc6a5902a184c643de23286d45ed47657",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -606,12 +612,12 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
@@ -624,12 +630,12 @@
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
@@ -665,10 +671,10 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-14T20:46:46.663Z",
-    "suiteHash": "8dff524da9a6cd7c95c956aa4c617781e062358a846fc3858547c07e716887b4",
+    "generatedAt": "2026-09-15T17:11:29.044Z",
+    "suiteHash": "cdaf225961c92a952d86c4c4f244e359241e11dd97d8699893e361e881413317",
     "source": {
-      "revision": "b69f72ea6055fd015c129cdf6556de3a17b82c32",
+      "revision": "5b47eedad934fe9f6f54f4269dad265688df6201",
       "files": {
         "analysis.ts": "93366be3cd9820008c2dd454cb191311d163493e0f9a75b680fd08292d8e21d8",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
@@ -678,8 +684,8 @@
         "layout.ts": "08031bf293e3bdc482ead8146c477a91f418d8418ecfeb3b170b0b6474b2eb81",
         "line-break.ts": "9d06f9d6c8b2eac44e36557bdb533328e2466d495962488ad639e6775c0880d6",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
-        "measurement.ts": "8a8f73ae9e82c6ed222d5b8e42c872e98f8d471bdcdd237c9474a0fa0b2ea400",
-        "rich-inline.ts": "0492b02a16d38fb3cf9562ea0f69dccbc3dc4ddafd645fb58b8317f9429234a8",
+        "measurement.ts": "ea4790bc9c94fc81887ddf49d1452ded205901291b125cd38e9c334f3776eb67",
+        "rich-inline.ts": "d48625969cb5bbcf2e53475a55febfccc6a5902a184c643de23286d45ed47657",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -691,12 +697,12 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
@@ -709,12 +715,12 @@
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
@@ -750,10 +756,10 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-14T20:46:46.663Z",
-    "suiteHash": "8dff524da9a6cd7c95c956aa4c617781e062358a846fc3858547c07e716887b4",
+    "generatedAt": "2026-09-15T17:11:29.044Z",
+    "suiteHash": "cdaf225961c92a952d86c4c4f244e359241e11dd97d8699893e361e881413317",
     "source": {
-      "revision": "b69f72ea6055fd015c129cdf6556de3a17b82c32",
+      "revision": "5b47eedad934fe9f6f54f4269dad265688df6201",
       "files": {
         "analysis.ts": "93366be3cd9820008c2dd454cb191311d163493e0f9a75b680fd08292d8e21d8",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
@@ -763,8 +769,8 @@
         "layout.ts": "08031bf293e3bdc482ead8146c477a91f418d8418ecfeb3b170b0b6474b2eb81",
         "line-break.ts": "9d06f9d6c8b2eac44e36557bdb533328e2466d495962488ad639e6775c0880d6",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
-        "measurement.ts": "8a8f73ae9e82c6ed222d5b8e42c872e98f8d471bdcdd237c9474a0fa0b2ea400",
-        "rich-inline.ts": "0492b02a16d38fb3cf9562ea0f69dccbc3dc4ddafd645fb58b8317f9429234a8",
+        "measurement.ts": "ea4790bc9c94fc81887ddf49d1452ded205901291b125cd38e9c334f3776eb67",
+        "rich-inline.ts": "d48625969cb5bbcf2e53475a55febfccc6a5902a184c643de23286d45ed47657",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -776,12 +782,12 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
@@ -794,12 +800,12 @@
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
@@ -835,10 +841,10 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-14T20:46:46.663Z",
-    "suiteHash": "8dff524da9a6cd7c95c956aa4c617781e062358a846fc3858547c07e716887b4",
+    "generatedAt": "2026-09-15T17:11:29.044Z",
+    "suiteHash": "cdaf225961c92a952d86c4c4f244e359241e11dd97d8699893e361e881413317",
     "source": {
-      "revision": "b69f72ea6055fd015c129cdf6556de3a17b82c32",
+      "revision": "5b47eedad934fe9f6f54f4269dad265688df6201",
       "files": {
         "analysis.ts": "93366be3cd9820008c2dd454cb191311d163493e0f9a75b680fd08292d8e21d8",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
@@ -848,8 +854,8 @@
         "layout.ts": "08031bf293e3bdc482ead8146c477a91f418d8418ecfeb3b170b0b6474b2eb81",
         "line-break.ts": "9d06f9d6c8b2eac44e36557bdb533328e2466d495962488ad639e6775c0880d6",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
-        "measurement.ts": "8a8f73ae9e82c6ed222d5b8e42c872e98f8d471bdcdd237c9474a0fa0b2ea400",
-        "rich-inline.ts": "0492b02a16d38fb3cf9562ea0f69dccbc3dc4ddafd645fb58b8317f9429234a8",
+        "measurement.ts": "ea4790bc9c94fc81887ddf49d1452ded205901291b125cd38e9c334f3776eb67",
+        "rich-inline.ts": "d48625969cb5bbcf2e53475a55febfccc6a5902a184c643de23286d45ed47657",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -861,12 +867,12 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
@@ -879,22 +885,28 @@
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
-            "visibility": "visible",
+            "visibility": "hidden",
             "focused": false,
             "language": "th",
             "direction": "ltr"
           },
-          "changes": []
+          "changes": [
+            {
+              "field": "visibility",
+              "value": "hidden",
+              "evidence": "snapshot"
+            }
+          ]
         },
         "context": {
           "kind": "installed",
@@ -903,7 +915,7 @@
         "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
         "dpr": 2,
         "locale": "zh-CN",
-        "visibility": "visible",
+        "visibility": "hidden",
         "focused": false,
         "fonts": []
       }
@@ -937,10 +949,10 @@
     ]
   },
   {
-    "generatedAt": "2026-09-14T20:46:46.663Z",
-    "suiteHash": "8dff524da9a6cd7c95c956aa4c617781e062358a846fc3858547c07e716887b4",
+    "generatedAt": "2026-09-15T17:11:29.044Z",
+    "suiteHash": "cdaf225961c92a952d86c4c4f244e359241e11dd97d8699893e361e881413317",
     "source": {
-      "revision": "b69f72ea6055fd015c129cdf6556de3a17b82c32",
+      "revision": "5b47eedad934fe9f6f54f4269dad265688df6201",
       "files": {
         "analysis.ts": "93366be3cd9820008c2dd454cb191311d163493e0f9a75b680fd08292d8e21d8",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
@@ -950,8 +962,8 @@
         "layout.ts": "08031bf293e3bdc482ead8146c477a91f418d8418ecfeb3b170b0b6474b2eb81",
         "line-break.ts": "9d06f9d6c8b2eac44e36557bdb533328e2466d495962488ad639e6775c0880d6",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
-        "measurement.ts": "8a8f73ae9e82c6ed222d5b8e42c872e98f8d471bdcdd237c9474a0fa0b2ea400",
-        "rich-inline.ts": "0492b02a16d38fb3cf9562ea0f69dccbc3dc4ddafd645fb58b8317f9429234a8",
+        "measurement.ts": "ea4790bc9c94fc81887ddf49d1452ded205901291b125cd38e9c334f3776eb67",
+        "rich-inline.ts": "d48625969cb5bbcf2e53475a55febfccc6a5902a184c643de23286d45ed47657",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -963,12 +975,12 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
@@ -981,22 +993,28 @@
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
-            "visibility": "visible",
+            "visibility": "hidden",
             "focused": false,
             "language": "th",
             "direction": "ltr"
           },
-          "changes": []
+          "changes": [
+            {
+              "field": "visibility",
+              "value": "hidden",
+              "evidence": "snapshot"
+            }
+          ]
         },
         "context": {
           "kind": "installed",
@@ -1005,7 +1023,7 @@
         "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
         "dpr": 2,
         "locale": "zh-CN",
-        "visibility": "visible",
+        "visibility": "hidden",
         "focused": false,
         "fonts": []
       }
@@ -1031,10 +1049,10 @@
     ]
   },
   {
-    "generatedAt": "2026-09-14T20:46:46.663Z",
-    "suiteHash": "8dff524da9a6cd7c95c956aa4c617781e062358a846fc3858547c07e716887b4",
+    "generatedAt": "2026-09-15T17:11:29.044Z",
+    "suiteHash": "cdaf225961c92a952d86c4c4f244e359241e11dd97d8699893e361e881413317",
     "source": {
-      "revision": "b69f72ea6055fd015c129cdf6556de3a17b82c32",
+      "revision": "5b47eedad934fe9f6f54f4269dad265688df6201",
       "files": {
         "analysis.ts": "93366be3cd9820008c2dd454cb191311d163493e0f9a75b680fd08292d8e21d8",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
@@ -1044,8 +1062,8 @@
         "layout.ts": "08031bf293e3bdc482ead8146c477a91f418d8418ecfeb3b170b0b6474b2eb81",
         "line-break.ts": "9d06f9d6c8b2eac44e36557bdb533328e2466d495962488ad639e6775c0880d6",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
-        "measurement.ts": "8a8f73ae9e82c6ed222d5b8e42c872e98f8d471bdcdd237c9474a0fa0b2ea400",
-        "rich-inline.ts": "0492b02a16d38fb3cf9562ea0f69dccbc3dc4ddafd645fb58b8317f9429234a8",
+        "measurement.ts": "ea4790bc9c94fc81887ddf49d1452ded205901291b125cd38e9c334f3776eb67",
+        "rich-inline.ts": "d48625969cb5bbcf2e53475a55febfccc6a5902a184c643de23286d45ed47657",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -1057,12 +1075,12 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
@@ -1075,12 +1093,12 @@
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
@@ -1116,10 +1134,10 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-14T20:46:46.663Z",
-    "suiteHash": "8dff524da9a6cd7c95c956aa4c617781e062358a846fc3858547c07e716887b4",
+    "generatedAt": "2026-09-15T17:11:29.044Z",
+    "suiteHash": "cdaf225961c92a952d86c4c4f244e359241e11dd97d8699893e361e881413317",
     "source": {
-      "revision": "b69f72ea6055fd015c129cdf6556de3a17b82c32",
+      "revision": "5b47eedad934fe9f6f54f4269dad265688df6201",
       "files": {
         "analysis.ts": "93366be3cd9820008c2dd454cb191311d163493e0f9a75b680fd08292d8e21d8",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
@@ -1129,8 +1147,8 @@
         "layout.ts": "08031bf293e3bdc482ead8146c477a91f418d8418ecfeb3b170b0b6474b2eb81",
         "line-break.ts": "9d06f9d6c8b2eac44e36557bdb533328e2466d495962488ad639e6775c0880d6",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
-        "measurement.ts": "8a8f73ae9e82c6ed222d5b8e42c872e98f8d471bdcdd237c9474a0fa0b2ea400",
-        "rich-inline.ts": "0492b02a16d38fb3cf9562ea0f69dccbc3dc4ddafd645fb58b8317f9429234a8",
+        "measurement.ts": "ea4790bc9c94fc81887ddf49d1452ded205901291b125cd38e9c334f3776eb67",
+        "rich-inline.ts": "d48625969cb5bbcf2e53475a55febfccc6a5902a184c643de23286d45ed47657",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -1142,12 +1160,12 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
@@ -1160,12 +1178,12 @@
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
@@ -1201,10 +1219,10 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-14T20:46:46.663Z",
-    "suiteHash": "8dff524da9a6cd7c95c956aa4c617781e062358a846fc3858547c07e716887b4",
+    "generatedAt": "2026-09-15T17:11:29.044Z",
+    "suiteHash": "cdaf225961c92a952d86c4c4f244e359241e11dd97d8699893e361e881413317",
     "source": {
-      "revision": "b69f72ea6055fd015c129cdf6556de3a17b82c32",
+      "revision": "5b47eedad934fe9f6f54f4269dad265688df6201",
       "files": {
         "analysis.ts": "93366be3cd9820008c2dd454cb191311d163493e0f9a75b680fd08292d8e21d8",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
@@ -1214,8 +1232,8 @@
         "layout.ts": "08031bf293e3bdc482ead8146c477a91f418d8418ecfeb3b170b0b6474b2eb81",
         "line-break.ts": "9d06f9d6c8b2eac44e36557bdb533328e2466d495962488ad639e6775c0880d6",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
-        "measurement.ts": "8a8f73ae9e82c6ed222d5b8e42c872e98f8d471bdcdd237c9474a0fa0b2ea400",
-        "rich-inline.ts": "0492b02a16d38fb3cf9562ea0f69dccbc3dc4ddafd645fb58b8317f9429234a8",
+        "measurement.ts": "ea4790bc9c94fc81887ddf49d1452ded205901291b125cd38e9c334f3776eb67",
+        "rich-inline.ts": "d48625969cb5bbcf2e53475a55febfccc6a5902a184c643de23286d45ed47657",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -1227,12 +1245,12 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
@@ -1245,12 +1263,12 @@
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
@@ -1286,10 +1304,10 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-14T20:46:46.663Z",
-    "suiteHash": "8dff524da9a6cd7c95c956aa4c617781e062358a846fc3858547c07e716887b4",
+    "generatedAt": "2026-09-15T17:11:29.044Z",
+    "suiteHash": "cdaf225961c92a952d86c4c4f244e359241e11dd97d8699893e361e881413317",
     "source": {
-      "revision": "b69f72ea6055fd015c129cdf6556de3a17b82c32",
+      "revision": "5b47eedad934fe9f6f54f4269dad265688df6201",
       "files": {
         "analysis.ts": "93366be3cd9820008c2dd454cb191311d163493e0f9a75b680fd08292d8e21d8",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
@@ -1299,8 +1317,8 @@
         "layout.ts": "08031bf293e3bdc482ead8146c477a91f418d8418ecfeb3b170b0b6474b2eb81",
         "line-break.ts": "9d06f9d6c8b2eac44e36557bdb533328e2466d495962488ad639e6775c0880d6",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
-        "measurement.ts": "8a8f73ae9e82c6ed222d5b8e42c872e98f8d471bdcdd237c9474a0fa0b2ea400",
-        "rich-inline.ts": "0492b02a16d38fb3cf9562ea0f69dccbc3dc4ddafd645fb58b8317f9429234a8",
+        "measurement.ts": "ea4790bc9c94fc81887ddf49d1452ded205901291b125cd38e9c334f3776eb67",
+        "rich-inline.ts": "d48625969cb5bbcf2e53475a55febfccc6a5902a184c643de23286d45ed47657",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -1312,12 +1330,12 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
@@ -1330,22 +1348,28 @@
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
-            "visibility": "visible",
+            "visibility": "hidden",
             "focused": false,
             "language": "ar",
             "direction": "rtl"
           },
-          "changes": []
+          "changes": [
+            {
+              "field": "visibility",
+              "value": "hidden",
+              "evidence": "snapshot"
+            }
+          ]
         },
         "context": {
           "kind": "installed",
@@ -1354,7 +1378,7 @@
         "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
         "dpr": 2,
         "locale": "zh-CN",
-        "visibility": "visible",
+        "visibility": "hidden",
         "focused": false,
         "fonts": []
       }
@@ -1371,10 +1395,10 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-14T20:46:46.663Z",
-    "suiteHash": "8dff524da9a6cd7c95c956aa4c617781e062358a846fc3858547c07e716887b4",
+    "generatedAt": "2026-09-15T17:11:29.044Z",
+    "suiteHash": "cdaf225961c92a952d86c4c4f244e359241e11dd97d8699893e361e881413317",
     "source": {
-      "revision": "b69f72ea6055fd015c129cdf6556de3a17b82c32",
+      "revision": "5b47eedad934fe9f6f54f4269dad265688df6201",
       "files": {
         "analysis.ts": "93366be3cd9820008c2dd454cb191311d163493e0f9a75b680fd08292d8e21d8",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
@@ -1384,8 +1408,8 @@
         "layout.ts": "08031bf293e3bdc482ead8146c477a91f418d8418ecfeb3b170b0b6474b2eb81",
         "line-break.ts": "9d06f9d6c8b2eac44e36557bdb533328e2466d495962488ad639e6775c0880d6",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
-        "measurement.ts": "8a8f73ae9e82c6ed222d5b8e42c872e98f8d471bdcdd237c9474a0fa0b2ea400",
-        "rich-inline.ts": "0492b02a16d38fb3cf9562ea0f69dccbc3dc4ddafd645fb58b8317f9429234a8",
+        "measurement.ts": "ea4790bc9c94fc81887ddf49d1452ded205901291b125cd38e9c334f3776eb67",
+        "rich-inline.ts": "d48625969cb5bbcf2e53475a55febfccc6a5902a184c643de23286d45ed47657",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -1397,12 +1421,12 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
@@ -1415,22 +1439,28 @@
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
-            "visibility": "visible",
+            "visibility": "hidden",
             "focused": false,
             "language": "ar",
             "direction": "rtl"
           },
-          "changes": []
+          "changes": [
+            {
+              "field": "visibility",
+              "value": "hidden",
+              "evidence": "snapshot"
+            }
+          ]
         },
         "context": {
           "kind": "installed",
@@ -1439,7 +1469,7 @@
         "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
         "dpr": 2,
         "locale": "zh-CN",
-        "visibility": "visible",
+        "visibility": "hidden",
         "focused": false,
         "fonts": []
       }
@@ -1456,10 +1486,10 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-14T20:46:46.663Z",
-    "suiteHash": "8dff524da9a6cd7c95c956aa4c617781e062358a846fc3858547c07e716887b4",
+    "generatedAt": "2026-09-15T17:11:29.044Z",
+    "suiteHash": "cdaf225961c92a952d86c4c4f244e359241e11dd97d8699893e361e881413317",
     "source": {
-      "revision": "b69f72ea6055fd015c129cdf6556de3a17b82c32",
+      "revision": "5b47eedad934fe9f6f54f4269dad265688df6201",
       "files": {
         "analysis.ts": "93366be3cd9820008c2dd454cb191311d163493e0f9a75b680fd08292d8e21d8",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
@@ -1469,8 +1499,8 @@
         "layout.ts": "08031bf293e3bdc482ead8146c477a91f418d8418ecfeb3b170b0b6474b2eb81",
         "line-break.ts": "9d06f9d6c8b2eac44e36557bdb533328e2466d495962488ad639e6775c0880d6",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
-        "measurement.ts": "8a8f73ae9e82c6ed222d5b8e42c872e98f8d471bdcdd237c9474a0fa0b2ea400",
-        "rich-inline.ts": "0492b02a16d38fb3cf9562ea0f69dccbc3dc4ddafd645fb58b8317f9429234a8",
+        "measurement.ts": "ea4790bc9c94fc81887ddf49d1452ded205901291b125cd38e9c334f3776eb67",
+        "rich-inline.ts": "d48625969cb5bbcf2e53475a55febfccc6a5902a184c643de23286d45ed47657",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -1482,12 +1512,12 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
@@ -1500,12 +1530,12 @@
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
@@ -1541,10 +1571,10 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-14T20:46:46.663Z",
-    "suiteHash": "8dff524da9a6cd7c95c956aa4c617781e062358a846fc3858547c07e716887b4",
+    "generatedAt": "2026-09-15T17:11:29.044Z",
+    "suiteHash": "cdaf225961c92a952d86c4c4f244e359241e11dd97d8699893e361e881413317",
     "source": {
-      "revision": "b69f72ea6055fd015c129cdf6556de3a17b82c32",
+      "revision": "5b47eedad934fe9f6f54f4269dad265688df6201",
       "files": {
         "analysis.ts": "93366be3cd9820008c2dd454cb191311d163493e0f9a75b680fd08292d8e21d8",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
@@ -1554,8 +1584,8 @@
         "layout.ts": "08031bf293e3bdc482ead8146c477a91f418d8418ecfeb3b170b0b6474b2eb81",
         "line-break.ts": "9d06f9d6c8b2eac44e36557bdb533328e2466d495962488ad639e6775c0880d6",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
-        "measurement.ts": "8a8f73ae9e82c6ed222d5b8e42c872e98f8d471bdcdd237c9474a0fa0b2ea400",
-        "rich-inline.ts": "0492b02a16d38fb3cf9562ea0f69dccbc3dc4ddafd645fb58b8317f9429234a8",
+        "measurement.ts": "ea4790bc9c94fc81887ddf49d1452ded205901291b125cd38e9c334f3776eb67",
+        "rich-inline.ts": "d48625969cb5bbcf2e53475a55febfccc6a5902a184c643de23286d45ed47657",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -1567,12 +1597,12 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
@@ -1585,12 +1615,12 @@
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
@@ -1626,10 +1656,10 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-14T20:46:46.663Z",
-    "suiteHash": "8dff524da9a6cd7c95c956aa4c617781e062358a846fc3858547c07e716887b4",
+    "generatedAt": "2026-09-15T17:11:29.044Z",
+    "suiteHash": "cdaf225961c92a952d86c4c4f244e359241e11dd97d8699893e361e881413317",
     "source": {
-      "revision": "b69f72ea6055fd015c129cdf6556de3a17b82c32",
+      "revision": "5b47eedad934fe9f6f54f4269dad265688df6201",
       "files": {
         "analysis.ts": "93366be3cd9820008c2dd454cb191311d163493e0f9a75b680fd08292d8e21d8",
         "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
@@ -1639,8 +1669,8 @@
         "layout.ts": "08031bf293e3bdc482ead8146c477a91f418d8418ecfeb3b170b0b6474b2eb81",
         "line-break.ts": "9d06f9d6c8b2eac44e36557bdb533328e2466d495962488ad639e6775c0880d6",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
-        "measurement.ts": "8a8f73ae9e82c6ed222d5b8e42c872e98f8d471bdcdd237c9474a0fa0b2ea400",
-        "rich-inline.ts": "0492b02a16d38fb3cf9562ea0f69dccbc3dc4ddafd645fb58b8317f9429234a8",
+        "measurement.ts": "ea4790bc9c94fc81887ddf49d1452ded205901291b125cd38e9c334f3776eb67",
+        "rich-inline.ts": "d48625969cb5bbcf2e53475a55febfccc6a5902a184c643de23286d45ed47657",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -1652,12 +1682,12 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
@@ -1670,12 +1700,12 @@
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2320,
-            "innerHeight": 1268,
-            "outerWidth": 2560,
-            "outerHeight": 1315,
-            "screenX": 0,
-            "screenY": 30,
+            "innerWidth": 960,
+            "innerHeight": 853,
+            "outerWidth": 1200,
+            "outerHeight": 900,
+            "screenX": 60,
+            "screenY": 60,
             "screenWidth": 2560,
             "screenHeight": 1440,
             "screenAvailWidth": 2560,
