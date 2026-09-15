@@ -181,7 +181,9 @@ function render(_now: number): boolean {
   if (domCache === null) return false
 
   // DOM reads
-  const viewportWidth = document.documentElement.clientWidth
+  // body.clientWidth leaves out the scrollbar gutter. Chrome's documentElement.clientWidth includes
+  // the gutter while the page doesn't overflow.
+  const viewportWidth = document.body.clientWidth
 
   let openItemId = st.openItemId
   if (st.events.clickedItemId !== null) {

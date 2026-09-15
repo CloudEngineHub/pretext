@@ -5,9 +5,13 @@
 <body>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    /* Keeps a classic scrollbar's room from the first frame, so the width index.ts reads doesn't
+       change when the page starts overflowing. */
+    html {
+      scrollbar-gutter: stable;
+    }
     body {
       background: #f0f0f0;
-      overflow-y: scroll;
     }
     /* index.ts writes the font, line height and padding its heights come from.
        overflow-wrap is Pretext's wrapping mode. */
