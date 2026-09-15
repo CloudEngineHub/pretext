@@ -6,6 +6,10 @@
 
 - Rich-inline fragments now have `gapItemIndex`, the index of the item whose collapsed space `gapBefore` measures, or -1 when no space precedes the fragment on its line. A painter can draw that space inside the element of the item whose font measured it, and can tell a zero-width space apart from no space (#310).
 
+### Changed
+
+- Bundles that import Pretext are about 5 KB smaller gzipped and 16 KB smaller minified, since Safari's check for keeping a word's kerning with a following space no longer uses a generated bidi class table (#311).
+
 ### Removed
 
 - `prepareWithSegments()` no longer returns `segLevels`. Those approximate bidi levels per segment couldn't produce visual order, and computing them slowed every `prepareWithSegments()` and rich-inline preparation, most for Arabic and Hebrew text. To draw mixed bidi text, render each paragraph as one DOM element with its direction set, and the browser orders every line. Lines drawn separately, such as with Canvas `fillText()`, are each ordered as their own paragraph, so numbers or punctuation next to a line break can come out in a different order (#258).

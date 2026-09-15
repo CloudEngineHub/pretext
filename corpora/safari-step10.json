@@ -1,16 +1,14 @@
 [
   {
-    "generatedAt": "2026-09-15T21:00:19.741Z",
-    "suiteHash": "03b5cdfc772b52c1519882e3bbd963434087f3e3f6f65af1e0a3edd932885fa5",
+    "generatedAt": "2026-09-15T21:54:47.193Z",
+    "suiteHash": "c70e0e78ce8bdef01906d7b1b8bbe8bb8443330634e4c45321e332fbf3dee4ba",
     "source": {
-      "revision": "4672c581b3467061fb58228a677bed582e00349b",
+      "revision": "fcd9b4e6b3e6102f748e3e4009793b6383f35254",
       "files": {
         "analysis.ts": "8e5ab9fb0ce5dbdf7b71a325381607bf04c650d473e3272101ae9d1c7002a0e3",
-        "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
         "generated/line-break-data.ts": "3a42caa6039e2d59df4830d3d713d8e5692aae79e40d34c0b7f7f49e294fdd8a",
-        "layout.ts": "b5ab897f09b75b35709df04b28fe7a0056aefad22e5ec6410463b863facbc37a",
+        "layout.ts": "5afb8662a52d8089fcbabb933f158b2e2ede31cec26a273fedf9feb95c0a24e1",
         "line-break.ts": "f23e34dbf46dc8284b45cdb9538002678ec74617b97af16374bd4117e1e844c1",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
         "measurement.ts": "5f171de04c5c4553e7dade0dc24304a18a8a22312ba7a98d3b32c106ff741068",
@@ -37,7 +35,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "mul",
             "direction": "ltr"
           },
@@ -55,7 +53,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "mul",
             "direction": "ltr"
           },
@@ -69,7 +67,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -85,17 +83,15 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-15T21:00:19.741Z",
-    "suiteHash": "03b5cdfc772b52c1519882e3bbd963434087f3e3f6f65af1e0a3edd932885fa5",
+    "generatedAt": "2026-09-15T21:54:47.193Z",
+    "suiteHash": "c70e0e78ce8bdef01906d7b1b8bbe8bb8443330634e4c45321e332fbf3dee4ba",
     "source": {
-      "revision": "4672c581b3467061fb58228a677bed582e00349b",
+      "revision": "fcd9b4e6b3e6102f748e3e4009793b6383f35254",
       "files": {
         "analysis.ts": "8e5ab9fb0ce5dbdf7b71a325381607bf04c650d473e3272101ae9d1c7002a0e3",
-        "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
         "generated/line-break-data.ts": "3a42caa6039e2d59df4830d3d713d8e5692aae79e40d34c0b7f7f49e294fdd8a",
-        "layout.ts": "b5ab897f09b75b35709df04b28fe7a0056aefad22e5ec6410463b863facbc37a",
+        "layout.ts": "5afb8662a52d8089fcbabb933f158b2e2ede31cec26a273fedf9feb95c0a24e1",
         "line-break.ts": "f23e34dbf46dc8284b45cdb9538002678ec74617b97af16374bd4117e1e844c1",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
         "measurement.ts": "5f171de04c5c4553e7dade0dc24304a18a8a22312ba7a98d3b32c106ff741068",
@@ -122,7 +118,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "en",
             "direction": "ltr"
           },
@@ -140,7 +136,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "en",
             "direction": "ltr"
           },
@@ -154,7 +150,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -195,17 +191,15 @@
     ]
   },
   {
-    "generatedAt": "2026-09-15T21:00:19.741Z",
-    "suiteHash": "03b5cdfc772b52c1519882e3bbd963434087f3e3f6f65af1e0a3edd932885fa5",
+    "generatedAt": "2026-09-15T21:54:47.193Z",
+    "suiteHash": "c70e0e78ce8bdef01906d7b1b8bbe8bb8443330634e4c45321e332fbf3dee4ba",
     "source": {
-      "revision": "4672c581b3467061fb58228a677bed582e00349b",
+      "revision": "fcd9b4e6b3e6102f748e3e4009793b6383f35254",
       "files": {
         "analysis.ts": "8e5ab9fb0ce5dbdf7b71a325381607bf04c650d473e3272101ae9d1c7002a0e3",
-        "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
         "generated/line-break-data.ts": "3a42caa6039e2d59df4830d3d713d8e5692aae79e40d34c0b7f7f49e294fdd8a",
-        "layout.ts": "b5ab897f09b75b35709df04b28fe7a0056aefad22e5ec6410463b863facbc37a",
+        "layout.ts": "5afb8662a52d8089fcbabb933f158b2e2ede31cec26a273fedf9feb95c0a24e1",
         "line-break.ts": "f23e34dbf46dc8284b45cdb9538002678ec74617b97af16374bd4117e1e844c1",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
         "measurement.ts": "5f171de04c5c4553e7dade0dc24304a18a8a22312ba7a98d3b32c106ff741068",
@@ -232,7 +226,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "ja",
             "direction": "ltr"
           },
@@ -250,7 +244,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "ja",
             "direction": "ltr"
           },
@@ -264,7 +258,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -280,17 +274,15 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-15T21:00:19.741Z",
-    "suiteHash": "03b5cdfc772b52c1519882e3bbd963434087f3e3f6f65af1e0a3edd932885fa5",
+    "generatedAt": "2026-09-15T21:54:47.193Z",
+    "suiteHash": "c70e0e78ce8bdef01906d7b1b8bbe8bb8443330634e4c45321e332fbf3dee4ba",
     "source": {
-      "revision": "4672c581b3467061fb58228a677bed582e00349b",
+      "revision": "fcd9b4e6b3e6102f748e3e4009793b6383f35254",
       "files": {
         "analysis.ts": "8e5ab9fb0ce5dbdf7b71a325381607bf04c650d473e3272101ae9d1c7002a0e3",
-        "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
         "generated/line-break-data.ts": "3a42caa6039e2d59df4830d3d713d8e5692aae79e40d34c0b7f7f49e294fdd8a",
-        "layout.ts": "b5ab897f09b75b35709df04b28fe7a0056aefad22e5ec6410463b863facbc37a",
+        "layout.ts": "5afb8662a52d8089fcbabb933f158b2e2ede31cec26a273fedf9feb95c0a24e1",
         "line-break.ts": "f23e34dbf46dc8284b45cdb9538002678ec74617b97af16374bd4117e1e844c1",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
         "measurement.ts": "5f171de04c5c4553e7dade0dc24304a18a8a22312ba7a98d3b32c106ff741068",
@@ -317,7 +309,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "ja",
             "direction": "ltr"
           },
@@ -335,7 +327,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "ja",
             "direction": "ltr"
           },
@@ -349,7 +341,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -365,17 +357,15 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-15T21:00:19.741Z",
-    "suiteHash": "03b5cdfc772b52c1519882e3bbd963434087f3e3f6f65af1e0a3edd932885fa5",
+    "generatedAt": "2026-09-15T21:54:47.193Z",
+    "suiteHash": "c70e0e78ce8bdef01906d7b1b8bbe8bb8443330634e4c45321e332fbf3dee4ba",
     "source": {
-      "revision": "4672c581b3467061fb58228a677bed582e00349b",
+      "revision": "fcd9b4e6b3e6102f748e3e4009793b6383f35254",
       "files": {
         "analysis.ts": "8e5ab9fb0ce5dbdf7b71a325381607bf04c650d473e3272101ae9d1c7002a0e3",
-        "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
         "generated/line-break-data.ts": "3a42caa6039e2d59df4830d3d713d8e5692aae79e40d34c0b7f7f49e294fdd8a",
-        "layout.ts": "b5ab897f09b75b35709df04b28fe7a0056aefad22e5ec6410463b863facbc37a",
+        "layout.ts": "5afb8662a52d8089fcbabb933f158b2e2ede31cec26a273fedf9feb95c0a24e1",
         "line-break.ts": "f23e34dbf46dc8284b45cdb9538002678ec74617b97af16374bd4117e1e844c1",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
         "measurement.ts": "5f171de04c5c4553e7dade0dc24304a18a8a22312ba7a98d3b32c106ff741068",
@@ -402,7 +392,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "ko",
             "direction": "ltr"
           },
@@ -420,7 +410,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "ko",
             "direction": "ltr"
           },
@@ -434,7 +424,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -450,17 +440,15 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-15T21:00:19.741Z",
-    "suiteHash": "03b5cdfc772b52c1519882e3bbd963434087f3e3f6f65af1e0a3edd932885fa5",
+    "generatedAt": "2026-09-15T21:54:47.193Z",
+    "suiteHash": "c70e0e78ce8bdef01906d7b1b8bbe8bb8443330634e4c45321e332fbf3dee4ba",
     "source": {
-      "revision": "4672c581b3467061fb58228a677bed582e00349b",
+      "revision": "fcd9b4e6b3e6102f748e3e4009793b6383f35254",
       "files": {
         "analysis.ts": "8e5ab9fb0ce5dbdf7b71a325381607bf04c650d473e3272101ae9d1c7002a0e3",
-        "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
         "generated/line-break-data.ts": "3a42caa6039e2d59df4830d3d713d8e5692aae79e40d34c0b7f7f49e294fdd8a",
-        "layout.ts": "b5ab897f09b75b35709df04b28fe7a0056aefad22e5ec6410463b863facbc37a",
+        "layout.ts": "5afb8662a52d8089fcbabb933f158b2e2ede31cec26a273fedf9feb95c0a24e1",
         "line-break.ts": "f23e34dbf46dc8284b45cdb9538002678ec74617b97af16374bd4117e1e844c1",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
         "measurement.ts": "5f171de04c5c4553e7dade0dc24304a18a8a22312ba7a98d3b32c106ff741068",
@@ -487,7 +475,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "ko",
             "direction": "ltr"
           },
@@ -505,7 +493,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "ko",
             "direction": "ltr"
           },
@@ -519,7 +507,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -535,17 +523,15 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-15T21:00:19.741Z",
-    "suiteHash": "03b5cdfc772b52c1519882e3bbd963434087f3e3f6f65af1e0a3edd932885fa5",
+    "generatedAt": "2026-09-15T21:54:47.193Z",
+    "suiteHash": "c70e0e78ce8bdef01906d7b1b8bbe8bb8443330634e4c45321e332fbf3dee4ba",
     "source": {
-      "revision": "4672c581b3467061fb58228a677bed582e00349b",
+      "revision": "fcd9b4e6b3e6102f748e3e4009793b6383f35254",
       "files": {
         "analysis.ts": "8e5ab9fb0ce5dbdf7b71a325381607bf04c650d473e3272101ae9d1c7002a0e3",
-        "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
         "generated/line-break-data.ts": "3a42caa6039e2d59df4830d3d713d8e5692aae79e40d34c0b7f7f49e294fdd8a",
-        "layout.ts": "b5ab897f09b75b35709df04b28fe7a0056aefad22e5ec6410463b863facbc37a",
+        "layout.ts": "5afb8662a52d8089fcbabb933f158b2e2ede31cec26a273fedf9feb95c0a24e1",
         "line-break.ts": "f23e34dbf46dc8284b45cdb9538002678ec74617b97af16374bd4117e1e844c1",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
         "measurement.ts": "5f171de04c5c4553e7dade0dc24304a18a8a22312ba7a98d3b32c106ff741068",
@@ -572,7 +558,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "zh",
             "direction": "ltr"
           },
@@ -590,7 +576,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "zh",
             "direction": "ltr"
           },
@@ -604,7 +590,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -620,17 +606,15 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-15T21:00:19.741Z",
-    "suiteHash": "03b5cdfc772b52c1519882e3bbd963434087f3e3f6f65af1e0a3edd932885fa5",
+    "generatedAt": "2026-09-15T21:54:47.193Z",
+    "suiteHash": "c70e0e78ce8bdef01906d7b1b8bbe8bb8443330634e4c45321e332fbf3dee4ba",
     "source": {
-      "revision": "4672c581b3467061fb58228a677bed582e00349b",
+      "revision": "fcd9b4e6b3e6102f748e3e4009793b6383f35254",
       "files": {
         "analysis.ts": "8e5ab9fb0ce5dbdf7b71a325381607bf04c650d473e3272101ae9d1c7002a0e3",
-        "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
         "generated/line-break-data.ts": "3a42caa6039e2d59df4830d3d713d8e5692aae79e40d34c0b7f7f49e294fdd8a",
-        "layout.ts": "b5ab897f09b75b35709df04b28fe7a0056aefad22e5ec6410463b863facbc37a",
+        "layout.ts": "5afb8662a52d8089fcbabb933f158b2e2ede31cec26a273fedf9feb95c0a24e1",
         "line-break.ts": "f23e34dbf46dc8284b45cdb9538002678ec74617b97af16374bd4117e1e844c1",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
         "measurement.ts": "5f171de04c5c4553e7dade0dc24304a18a8a22312ba7a98d3b32c106ff741068",
@@ -657,7 +641,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "zh",
             "direction": "ltr"
           },
@@ -675,7 +659,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "zh",
             "direction": "ltr"
           },
@@ -689,7 +673,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -705,17 +689,15 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-15T21:00:19.741Z",
-    "suiteHash": "03b5cdfc772b52c1519882e3bbd963434087f3e3f6f65af1e0a3edd932885fa5",
+    "generatedAt": "2026-09-15T21:54:47.193Z",
+    "suiteHash": "c70e0e78ce8bdef01906d7b1b8bbe8bb8443330634e4c45321e332fbf3dee4ba",
     "source": {
-      "revision": "4672c581b3467061fb58228a677bed582e00349b",
+      "revision": "fcd9b4e6b3e6102f748e3e4009793b6383f35254",
       "files": {
         "analysis.ts": "8e5ab9fb0ce5dbdf7b71a325381607bf04c650d473e3272101ae9d1c7002a0e3",
-        "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
         "generated/line-break-data.ts": "3a42caa6039e2d59df4830d3d713d8e5692aae79e40d34c0b7f7f49e294fdd8a",
-        "layout.ts": "b5ab897f09b75b35709df04b28fe7a0056aefad22e5ec6410463b863facbc37a",
+        "layout.ts": "5afb8662a52d8089fcbabb933f158b2e2ede31cec26a273fedf9feb95c0a24e1",
         "line-break.ts": "f23e34dbf46dc8284b45cdb9538002678ec74617b97af16374bd4117e1e844c1",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
         "measurement.ts": "5f171de04c5c4553e7dade0dc24304a18a8a22312ba7a98d3b32c106ff741068",
@@ -742,7 +724,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "th",
             "direction": "ltr"
           },
@@ -760,7 +742,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "th",
             "direction": "ltr"
           },
@@ -774,7 +756,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -790,17 +772,15 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-15T21:00:19.741Z",
-    "suiteHash": "03b5cdfc772b52c1519882e3bbd963434087f3e3f6f65af1e0a3edd932885fa5",
+    "generatedAt": "2026-09-15T21:54:47.193Z",
+    "suiteHash": "c70e0e78ce8bdef01906d7b1b8bbe8bb8443330634e4c45321e332fbf3dee4ba",
     "source": {
-      "revision": "4672c581b3467061fb58228a677bed582e00349b",
+      "revision": "fcd9b4e6b3e6102f748e3e4009793b6383f35254",
       "files": {
         "analysis.ts": "8e5ab9fb0ce5dbdf7b71a325381607bf04c650d473e3272101ae9d1c7002a0e3",
-        "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
         "generated/line-break-data.ts": "3a42caa6039e2d59df4830d3d713d8e5692aae79e40d34c0b7f7f49e294fdd8a",
-        "layout.ts": "b5ab897f09b75b35709df04b28fe7a0056aefad22e5ec6410463b863facbc37a",
+        "layout.ts": "5afb8662a52d8089fcbabb933f158b2e2ede31cec26a273fedf9feb95c0a24e1",
         "line-break.ts": "f23e34dbf46dc8284b45cdb9538002678ec74617b97af16374bd4117e1e844c1",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
         "measurement.ts": "5f171de04c5c4553e7dade0dc24304a18a8a22312ba7a98d3b32c106ff741068",
@@ -827,7 +807,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "th",
             "direction": "ltr"
           },
@@ -845,7 +825,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "th",
             "direction": "ltr"
           },
@@ -859,7 +839,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -875,17 +855,15 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-15T21:00:19.741Z",
-    "suiteHash": "03b5cdfc772b52c1519882e3bbd963434087f3e3f6f65af1e0a3edd932885fa5",
+    "generatedAt": "2026-09-15T21:54:47.193Z",
+    "suiteHash": "c70e0e78ce8bdef01906d7b1b8bbe8bb8443330634e4c45321e332fbf3dee4ba",
     "source": {
-      "revision": "4672c581b3467061fb58228a677bed582e00349b",
+      "revision": "fcd9b4e6b3e6102f748e3e4009793b6383f35254",
       "files": {
         "analysis.ts": "8e5ab9fb0ce5dbdf7b71a325381607bf04c650d473e3272101ae9d1c7002a0e3",
-        "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
         "generated/line-break-data.ts": "3a42caa6039e2d59df4830d3d713d8e5692aae79e40d34c0b7f7f49e294fdd8a",
-        "layout.ts": "b5ab897f09b75b35709df04b28fe7a0056aefad22e5ec6410463b863facbc37a",
+        "layout.ts": "5afb8662a52d8089fcbabb933f158b2e2ede31cec26a273fedf9feb95c0a24e1",
         "line-break.ts": "f23e34dbf46dc8284b45cdb9538002678ec74617b97af16374bd4117e1e844c1",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
         "measurement.ts": "5f171de04c5c4553e7dade0dc24304a18a8a22312ba7a98d3b32c106ff741068",
@@ -912,7 +890,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "my",
             "direction": "ltr"
           },
@@ -930,7 +908,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "my",
             "direction": "ltr"
           },
@@ -944,7 +922,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -985,17 +963,15 @@
     ]
   },
   {
-    "generatedAt": "2026-09-15T21:00:19.741Z",
-    "suiteHash": "03b5cdfc772b52c1519882e3bbd963434087f3e3f6f65af1e0a3edd932885fa5",
+    "generatedAt": "2026-09-15T21:54:47.193Z",
+    "suiteHash": "c70e0e78ce8bdef01906d7b1b8bbe8bb8443330634e4c45321e332fbf3dee4ba",
     "source": {
-      "revision": "4672c581b3467061fb58228a677bed582e00349b",
+      "revision": "fcd9b4e6b3e6102f748e3e4009793b6383f35254",
       "files": {
         "analysis.ts": "8e5ab9fb0ce5dbdf7b71a325381607bf04c650d473e3272101ae9d1c7002a0e3",
-        "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
         "generated/line-break-data.ts": "3a42caa6039e2d59df4830d3d713d8e5692aae79e40d34c0b7f7f49e294fdd8a",
-        "layout.ts": "b5ab897f09b75b35709df04b28fe7a0056aefad22e5ec6410463b863facbc37a",
+        "layout.ts": "5afb8662a52d8089fcbabb933f158b2e2ede31cec26a273fedf9feb95c0a24e1",
         "line-break.ts": "f23e34dbf46dc8284b45cdb9538002678ec74617b97af16374bd4117e1e844c1",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
         "measurement.ts": "5f171de04c5c4553e7dade0dc24304a18a8a22312ba7a98d3b32c106ff741068",
@@ -1022,7 +998,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "my",
             "direction": "ltr"
           },
@@ -1040,7 +1016,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "my",
             "direction": "ltr"
           },
@@ -1054,7 +1030,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -1087,17 +1063,15 @@
     ]
   },
   {
-    "generatedAt": "2026-09-15T21:00:19.741Z",
-    "suiteHash": "03b5cdfc772b52c1519882e3bbd963434087f3e3f6f65af1e0a3edd932885fa5",
+    "generatedAt": "2026-09-15T21:54:47.193Z",
+    "suiteHash": "c70e0e78ce8bdef01906d7b1b8bbe8bb8443330634e4c45321e332fbf3dee4ba",
     "source": {
-      "revision": "4672c581b3467061fb58228a677bed582e00349b",
+      "revision": "fcd9b4e6b3e6102f748e3e4009793b6383f35254",
       "files": {
         "analysis.ts": "8e5ab9fb0ce5dbdf7b71a325381607bf04c650d473e3272101ae9d1c7002a0e3",
-        "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
         "generated/line-break-data.ts": "3a42caa6039e2d59df4830d3d713d8e5692aae79e40d34c0b7f7f49e294fdd8a",
-        "layout.ts": "b5ab897f09b75b35709df04b28fe7a0056aefad22e5ec6410463b863facbc37a",
+        "layout.ts": "5afb8662a52d8089fcbabb933f158b2e2ede31cec26a273fedf9feb95c0a24e1",
         "line-break.ts": "f23e34dbf46dc8284b45cdb9538002678ec74617b97af16374bd4117e1e844c1",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
         "measurement.ts": "5f171de04c5c4553e7dade0dc24304a18a8a22312ba7a98d3b32c106ff741068",
@@ -1124,7 +1098,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "km",
             "direction": "ltr"
           },
@@ -1142,7 +1116,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "km",
             "direction": "ltr"
           },
@@ -1156,7 +1130,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -1172,17 +1146,15 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-15T21:00:19.741Z",
-    "suiteHash": "03b5cdfc772b52c1519882e3bbd963434087f3e3f6f65af1e0a3edd932885fa5",
+    "generatedAt": "2026-09-15T21:54:47.193Z",
+    "suiteHash": "c70e0e78ce8bdef01906d7b1b8bbe8bb8443330634e4c45321e332fbf3dee4ba",
     "source": {
-      "revision": "4672c581b3467061fb58228a677bed582e00349b",
+      "revision": "fcd9b4e6b3e6102f748e3e4009793b6383f35254",
       "files": {
         "analysis.ts": "8e5ab9fb0ce5dbdf7b71a325381607bf04c650d473e3272101ae9d1c7002a0e3",
-        "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
         "generated/line-break-data.ts": "3a42caa6039e2d59df4830d3d713d8e5692aae79e40d34c0b7f7f49e294fdd8a",
-        "layout.ts": "b5ab897f09b75b35709df04b28fe7a0056aefad22e5ec6410463b863facbc37a",
+        "layout.ts": "5afb8662a52d8089fcbabb933f158b2e2ede31cec26a273fedf9feb95c0a24e1",
         "line-break.ts": "f23e34dbf46dc8284b45cdb9538002678ec74617b97af16374bd4117e1e844c1",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
         "measurement.ts": "5f171de04c5c4553e7dade0dc24304a18a8a22312ba7a98d3b32c106ff741068",
@@ -1209,7 +1181,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "ar",
             "direction": "rtl"
           },
@@ -1227,7 +1199,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "ar",
             "direction": "rtl"
           },
@@ -1241,7 +1213,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -1257,17 +1229,15 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-15T21:00:19.741Z",
-    "suiteHash": "03b5cdfc772b52c1519882e3bbd963434087f3e3f6f65af1e0a3edd932885fa5",
+    "generatedAt": "2026-09-15T21:54:47.193Z",
+    "suiteHash": "c70e0e78ce8bdef01906d7b1b8bbe8bb8443330634e4c45321e332fbf3dee4ba",
     "source": {
-      "revision": "4672c581b3467061fb58228a677bed582e00349b",
+      "revision": "fcd9b4e6b3e6102f748e3e4009793b6383f35254",
       "files": {
         "analysis.ts": "8e5ab9fb0ce5dbdf7b71a325381607bf04c650d473e3272101ae9d1c7002a0e3",
-        "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
         "generated/line-break-data.ts": "3a42caa6039e2d59df4830d3d713d8e5692aae79e40d34c0b7f7f49e294fdd8a",
-        "layout.ts": "b5ab897f09b75b35709df04b28fe7a0056aefad22e5ec6410463b863facbc37a",
+        "layout.ts": "5afb8662a52d8089fcbabb933f158b2e2ede31cec26a273fedf9feb95c0a24e1",
         "line-break.ts": "f23e34dbf46dc8284b45cdb9538002678ec74617b97af16374bd4117e1e844c1",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
         "measurement.ts": "5f171de04c5c4553e7dade0dc24304a18a8a22312ba7a98d3b32c106ff741068",
@@ -1294,7 +1264,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "ar",
             "direction": "rtl"
           },
@@ -1312,7 +1282,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "ar",
             "direction": "rtl"
           },
@@ -1326,7 +1296,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -1342,17 +1312,15 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-15T21:00:19.741Z",
-    "suiteHash": "03b5cdfc772b52c1519882e3bbd963434087f3e3f6f65af1e0a3edd932885fa5",
+    "generatedAt": "2026-09-15T21:54:47.193Z",
+    "suiteHash": "c70e0e78ce8bdef01906d7b1b8bbe8bb8443330634e4c45321e332fbf3dee4ba",
     "source": {
-      "revision": "4672c581b3467061fb58228a677bed582e00349b",
+      "revision": "fcd9b4e6b3e6102f748e3e4009793b6383f35254",
       "files": {
         "analysis.ts": "8e5ab9fb0ce5dbdf7b71a325381607bf04c650d473e3272101ae9d1c7002a0e3",
-        "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
         "generated/line-break-data.ts": "3a42caa6039e2d59df4830d3d713d8e5692aae79e40d34c0b7f7f49e294fdd8a",
-        "layout.ts": "b5ab897f09b75b35709df04b28fe7a0056aefad22e5ec6410463b863facbc37a",
+        "layout.ts": "5afb8662a52d8089fcbabb933f158b2e2ede31cec26a273fedf9feb95c0a24e1",
         "line-break.ts": "f23e34dbf46dc8284b45cdb9538002678ec74617b97af16374bd4117e1e844c1",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
         "measurement.ts": "5f171de04c5c4553e7dade0dc24304a18a8a22312ba7a98d3b32c106ff741068",
@@ -1379,7 +1347,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "hi",
             "direction": "ltr"
           },
@@ -1397,7 +1365,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "hi",
             "direction": "ltr"
           },
@@ -1411,7 +1379,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -1427,17 +1395,15 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-15T21:00:19.741Z",
-    "suiteHash": "03b5cdfc772b52c1519882e3bbd963434087f3e3f6f65af1e0a3edd932885fa5",
+    "generatedAt": "2026-09-15T21:54:47.193Z",
+    "suiteHash": "c70e0e78ce8bdef01906d7b1b8bbe8bb8443330634e4c45321e332fbf3dee4ba",
     "source": {
-      "revision": "4672c581b3467061fb58228a677bed582e00349b",
+      "revision": "fcd9b4e6b3e6102f748e3e4009793b6383f35254",
       "files": {
         "analysis.ts": "8e5ab9fb0ce5dbdf7b71a325381607bf04c650d473e3272101ae9d1c7002a0e3",
-        "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
         "generated/line-break-data.ts": "3a42caa6039e2d59df4830d3d713d8e5692aae79e40d34c0b7f7f49e294fdd8a",
-        "layout.ts": "b5ab897f09b75b35709df04b28fe7a0056aefad22e5ec6410463b863facbc37a",
+        "layout.ts": "5afb8662a52d8089fcbabb933f158b2e2ede31cec26a273fedf9feb95c0a24e1",
         "line-break.ts": "f23e34dbf46dc8284b45cdb9538002678ec74617b97af16374bd4117e1e844c1",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
         "measurement.ts": "5f171de04c5c4553e7dade0dc24304a18a8a22312ba7a98d3b32c106ff741068",
@@ -1464,7 +1430,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "he",
             "direction": "rtl"
           },
@@ -1482,7 +1448,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "he",
             "direction": "rtl"
           },
@@ -1496,7 +1462,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -1512,17 +1478,15 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-15T21:00:19.741Z",
-    "suiteHash": "03b5cdfc772b52c1519882e3bbd963434087f3e3f6f65af1e0a3edd932885fa5",
+    "generatedAt": "2026-09-15T21:54:47.193Z",
+    "suiteHash": "c70e0e78ce8bdef01906d7b1b8bbe8bb8443330634e4c45321e332fbf3dee4ba",
     "source": {
-      "revision": "4672c581b3467061fb58228a677bed582e00349b",
+      "revision": "fcd9b4e6b3e6102f748e3e4009793b6383f35254",
       "files": {
         "analysis.ts": "8e5ab9fb0ce5dbdf7b71a325381607bf04c650d473e3272101ae9d1c7002a0e3",
-        "bidi.ts": "16cf74e483e91bc778da86e5c6c07e7158b2b10893d685ddb9f92994db63aab7",
         "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "generated/bidi-data.ts": "67fc96938bf7cac9637867308756f364b01e3acefffc6af7bf1fe474ae1be7d1",
         "generated/line-break-data.ts": "3a42caa6039e2d59df4830d3d713d8e5692aae79e40d34c0b7f7f49e294fdd8a",
-        "layout.ts": "b5ab897f09b75b35709df04b28fe7a0056aefad22e5ec6410463b863facbc37a",
+        "layout.ts": "5afb8662a52d8089fcbabb933f158b2e2ede31cec26a273fedf9feb95c0a24e1",
         "line-break.ts": "f23e34dbf46dc8284b45cdb9538002678ec74617b97af16374bd4117e1e844c1",
         "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
         "measurement.ts": "5f171de04c5c4553e7dade0dc24304a18a8a22312ba7a98d3b32c106ff741068",
@@ -1549,7 +1513,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "ur",
             "direction": "rtl"
           },
@@ -1567,7 +1531,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1315,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "ur",
             "direction": "rtl"
           },
@@ -1581,7 +1545,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],

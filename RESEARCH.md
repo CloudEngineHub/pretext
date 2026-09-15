@@ -602,9 +602,25 @@ they are measured, and format characters between a word and the space resolve
 with that space. On an RTL page, emoji, space, `A`, WJ, space, Hebrew therefore
 paints the unkerned letter, while an LTR page kerns it.
 Without the paragraph direction, preparation keeps the kerning across format
-characters only when the neutral characters around the space lie between the
-word and a strong character of the word's direction, with no paired bracket
-among them. A closed bracket pair takes the paragraph direction when it
+characters only when the word's last letter and the first letter after the
+space have the same direction, with only spaces and format characters between,
+so the characters between the two letters resolve to that direction (UAX #9
+N1). LRM, RLM and ALM are strong characters, so they count as letters of their
+direction, and a word that ends in one keeps its kerning. An ASCII digit after
+the space keeps it too, since it resolves the space to the word's direction
+either way (UAX #9 W7 and N1). Letters in the right-to-left blocks have bidi
+class R or AL, and every other letter except modifier letters has class L, so no
+bidi class table is needed. A generated table also kept the kerning before other
+digits, after symbols and across neutral punctuation after the space. Under a
+fake Canvas that kerns every glyph with a following space, the letter rule gives
+the same segments, widths and lines as the table on all 239,063 Safari suite
+inputs. In the installed gate, dropping the kerning across format characters
+altogether lost 33 Safari rows (17 LTR, 16 RTL), each a Latin letter, WJ, one or
+two spaces and a Latin letter, which both rules keep. A rule that took only
+letters before the format characters and only spaces and a letter after them
+passed those rows but lost the kerning that installed Safari keeps for `A`, LRM,
+space, Hebrew, for `A`, WJ, space, WJ, `b` and for `A`, WJ, space, `1`. A
+closed bracket pair takes the paragraph direction when it
 contains text of that direction, so on an RTL page `A`, WJ, space, then a
 parenthesized Latin letter and Hebrew letter paints the unkerned letter too. On
 an RTL page headless WebKit also needs about a hyphen's width more to fit a word
@@ -896,8 +912,9 @@ Every rich preparation still paid for the pass, including each rich-inline item.
 Skipping it made `prepareWithSegments()` about 3% faster on the Latin corpora,
 8.5% on the Arabic, Hebrew and Urdu corpora and 16% on short Arabic texts, and
 `prepareRichInline()` 15% faster with Arabic items (Node V8 with a fake Canvas,
-medians of 31 interleaved rounds). The generated bidi class table stayed,
-because the WebKit following-space kerning guard reads it.
+medians of 31 interleaved rounds). The generated bidi class table stayed for the
+WebKit following-space kerning guard, until that guard came to need only letters,
+direction marks and the right-to-left blocks (see Kerning At Line Edges).
 
 A DOM element that renders the whole paragraph needs only a paragraph direction,
 since the browser resolves the paragraph and reorders each line itself. A string

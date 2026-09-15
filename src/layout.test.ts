@@ -3549,8 +3549,8 @@ test('the Safari profile keeps the kerning between a word and a following space'
       measureText(text) {
         measured.push(text)
         let width = 0
-        for (const ch of text) width += ch === ' ' ? 4 : /[\\u00AD\\u200B\\u2060]/.test(ch) ? 0 : ch === 'A' ? 10 : 8
-        return { width: width - (text.match(/A[\\u00AD\\u200B\\u2060]* /g) ?? []).length }
+        for (const ch of text) width += ch === ' ' ? 4 : /[\\u00AD\\u200B\\u200E\\u2060]/.test(ch) ? 0 : ch === 'A' ? 10 : 8
+        return { width: width - (text.match(/A[\\u00AD\\u200B\\u200E\\u2060]* /g) ?? []).length }
       }
     }
     globalThis.OffscreenCanvas = class { getContext() { return new Context() } }
@@ -3559,7 +3559,8 @@ test('the Safari profile keeps the kerning between a word and a following space'
     const { prepareRichInline, walkRichInlineLineRanges } = await import(${JSON.stringify(richInlineUrl)})
     const kerning = []
     for (const [text, letterSpacing] of [
-      ['AA B', 0], ['AA\\u200B B', 0], ['AA\\u200B \\u05D0', 0], ['AA\\u2060 (x\\u05D0)', 0], ['AA\\u00AD B', 0], ['AA B', 1],
+      ['AA B', 0], ['AA\\u200B B', 0], ['AA\\u200E \\u05D0', 0], ['AA\\u2060 \\u2060B', 0], ['AA\\u2060 1', 0],
+      ['AA\\u200B \\u05D0', 0], ['AA\\u2060 (x\\u05D0)', 0], ['AA\\u00AD B', 0], ['AA B', 1],
     ]) {
       const lines = layoutWithLines(prepareWithSegments(text, '16px Test', { letterSpacing }), 19.5, 20).lines
       kerning.push({ lines: lines.map(line => [line.text, line.width]), lineCount: layout(prepare(text, '16px Test', { letterSpacing }), 19.5, 20).lineCount })
@@ -3595,6 +3596,12 @@ test('the Safari profile keeps the kerning between a word and a following space'
     // The kerned word fits and the space hangs.
     { lines: [['AA ', 19], ['B', 8]], lineCount: 2 },
     { lines: [['AA\u200B ', 19], ['B', 8]], lineCount: 2 },
+    // A direction mark is a strong character that ends the word like a letter,
+    // and format characters after the space are skipped to the next letter.
+    { lines: [['AA\u200E ', 19], ['\u05D0', 8]], lineCount: 2 },
+    { lines: [['AA\u2060 ', 19], ['\u2060B', 8]], lineCount: 2 },
+    // An ASCII digit after the space takes the word's direction either way.
+    { lines: [['AA\u2060 ', 19], ['1', 8]], lineCount: 2 },
     // Before right-to-left text the zero-width space may leave the word's bidi
     // run, which is unknown without the paragraph direction.
     { lines: [['A', 10], ['A\u200B ', 10], ['\u05D0', 8]], lineCount: 3 },
