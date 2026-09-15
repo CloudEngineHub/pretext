@@ -21,6 +21,10 @@ Changelog updates guideline: don't add dev-facing notes, only user-facing ones. 
 - Keep script-specific break-policy fixes, including `{ wordBreak: 'keep-all' }` policy, in preprocessing, not `layout()`. See `RESEARCH.md` for the rules and rejected approaches. Keep stricter editorial whole-word handling in userland instead of changing the library default.
 - The bidi classes read by the WebKit following-space kerning guard and the UAX #14 line-break classes come from checked-in generated data. Refresh them manually with `bun run generate:bidi-data` and `bun run generate:line-break-data`; do not turn that into a normal build step. Pretext doesn't resolve bidi levels; see `RESEARCH.md` before adding them back.
 
+### Demos
+
+- In `pages/demos/`, the model owns every value Pretext measures or a layout width depends on: fonts, letter spacing, the text as painted (for example upper-cased), padding and borders inside a model width, and breakpoints. The painter writes them inline instead of restating them in CSS, and a border inside a model width is drawn as an inset box-shadow. A page that scrolls reserves classic scrollbar room with `html { scrollbar-gutter: stable }` and reads its width from `document.body.clientWidth`; an inner scroller reads its own `clientWidth` and gets `scrollbar-gutter: stable`. When a demo fix lands, check the sibling demos for the same bug.
+
 ### Validation
 
 - The maintained accuracy cases in `bun run test:wrapping --browser=all` should be green in all three installed browsers on fresh runs. Treat headless replays as hypotheses.
