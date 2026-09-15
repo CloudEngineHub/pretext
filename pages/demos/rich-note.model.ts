@@ -63,7 +63,10 @@ export const LAST_LINE_BLOCK_HEIGHT = 24
 // an inset shadow, so the padding is all the width the card adds to the body.
 export const NOTE_PADDING_X = 20
 export const NARROW_NOTE_PADDING_X = 14
-export const NARROW_VIEWPORT_WIDTH = 640 // the page's other narrow styles start here too
+// The page's other narrow styles use the same media query. The page asks it
+// instead of comparing clientWidth with 640: a media query counts a classic
+// scrollbar and clientWidth doesn't, so the two would disagree by its width.
+export const NARROW_VIEWPORT_QUERY = '(max-width: 640px)'
 export const BODY_MIN_WIDTH = 260
 export const BODY_DEFAULT_WIDTH = 516
 export const BODY_MAX_WIDTH = 760
@@ -181,13 +184,14 @@ export function layoutRichInlineItems(
 
 export function resolveRichNoteBodyWidth(
   viewportWidth: number,
+  narrowViewport: boolean,
   requestedWidth: number,
 ): {
   bodyWidth: number
   maxBodyWidth: number
   notePaddingX: number
 } {
-  const notePaddingX = viewportWidth <= NARROW_VIEWPORT_WIDTH ? NARROW_NOTE_PADDING_X : NOTE_PADDING_X
+  const notePaddingX = narrowViewport ? NARROW_NOTE_PADDING_X : NOTE_PADDING_X
   const maxBodyWidth = Math.max(
     BODY_MIN_WIDTH,
     Math.min(BODY_MAX_WIDTH, viewportWidth - PAGE_MARGIN * 2 - notePaddingX * 2),

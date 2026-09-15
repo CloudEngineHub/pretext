@@ -5,6 +5,7 @@ import {
   prepareRichInlineNote,
   layoutRichNote,
   LINE_HEIGHT,
+  NARROW_VIEWPORT_QUERY,
   resolveRichNoteBodyWidth,
   type RichLine,
 } from './rich-note.model.ts'
@@ -18,6 +19,7 @@ type State = {
 
 const domCache = {
   root: document.documentElement, // cache lifetime: page
+  narrowViewport: window.matchMedia(NARROW_VIEWPORT_QUERY), // cache lifetime: page
   noteBody: getRequiredDiv('note-body'), // cache lifetime: page
   widthSlider: getRequiredInput('width-slider'), // cache lifetime: page
   widthValue: getRequiredSpan('width-value'), // cache lifetime: page
@@ -106,13 +108,14 @@ function renderBody(lines: RichLine[]): void {
 function render(): void {
   // DOM reads
   const viewportWidth = document.documentElement.clientWidth
+  const narrowViewport = domCache.narrowViewport.matches
 
   // Handle inputs
   let requestedWidth = st.requestedWidth
   if (st.events.sliderValue !== null) requestedWidth = st.events.sliderValue
 
   // Layout
-  const { bodyWidth, maxBodyWidth, notePaddingX } = resolveRichNoteBodyWidth(viewportWidth, requestedWidth)
+  const { bodyWidth, maxBodyWidth, notePaddingX } = resolveRichNoteBodyWidth(viewportWidth, narrowViewport, requestedWidth)
   const layout = layoutRichNote(richInline, bodyWidth, notePaddingX)
 
   // Commit state
