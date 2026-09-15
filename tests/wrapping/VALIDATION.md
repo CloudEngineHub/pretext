@@ -113,6 +113,13 @@ CJK lines with marks, whose marks join fewer segments, and is 4-12% slower on on
 text of 20,000 marks after CJK text, which stays linear. The baseline advances to
 `1691168`, and the ordinary snapshots were regenerated against it.
 
+Chrome and Safari benchmark snapshots were refreshed from this branch: three
+foreground runs each at DPR 2, visible and focused, with Chrome on the 2560x1440
+screen and Safari on the 2560x1440 screen. Chrome reads `prepare()` at 8.80 ms
+(9.10 on the parent branch) and hot `layout()` at 0.0887 ms (0.0883); Safari reads
+11.0 ms (12.0) and 0.105 ms (0.105). Long-form corpus totals read 125.0 ms in
+Chrome (115.2) and 352 ms in Safari (358).
+
 ## Pre-wrap spaces and tabs that hang
 
 This runtime change starts from main `0c12ece` (#307). In `pre-wrap`, a run of
