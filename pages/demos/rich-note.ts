@@ -8,6 +8,7 @@ import {
   LINE_HEIGHT,
   NARROW_VIEWPORT_QUERY,
   resolveRichNoteBodyWidth,
+  type PreparedRichInlineNote,
   type RichNoteLayout,
 } from './rich-note.model.ts'
 
@@ -72,14 +73,14 @@ function scheduleRender(): void {
   })
 }
 
-function renderBody(layout: RichNoteLayout): void {
+function renderBody(note: PreparedRichInlineNote, layout: RichNoteLayout): void {
   domCache.noteBody.textContent = ''
   const fragment = document.createDocumentFragment()
 
   for (let lineIndex = 0; lineIndex < layout.lines.length; lineIndex++) {
     const line = layout.lines[lineIndex]!
     // Each Pretext line is one line box, so the browser orders its bidi runs.
-    // The body font paints the collapsed spaces.
+    // The body font sets the baseline.
     const row = document.createElement('div')
     row.className = 'line-row'
     row.dir = layout.direction
@@ -88,18 +89,17 @@ function renderBody(layout: RichNoteLayout): void {
 
     for (let fragmentIndex = 0; fragmentIndex < line.fragments.length; fragmentIndex++) {
       const part = line.fragments[fragmentIndex]!
-      if (part.spaceBefore) row.append(' ')
-      const element = part.href === null
-        ? document.createElement('span')
-        : document.createElement('a')
-      element.className = part.className
-      // Paint with the font the item was measured with.
-      element.style.setProperty('--font', part.font)
-      element.textContent = part.text
-      if (element instanceof HTMLAnchorElement && part.href !== null) {
-        element.href = part.href
-        element.target = '_blank'
-        element.rel = 'noreferrer'
+      const element = renderPart(part.className, part.font, part.href, part.text)
+      // A collapsed space paints inside the element of the item whose font
+      // measured it: this fragment's, the previous fragment's, or, for an item
+      // holding only whitespace, an element of its own.
+      const gapItemIndex = part.gapItemIndex
+      if (gapItemIndex === part.itemIndex) {
+        element.prepend(' ')
+      } else if (gapItemIndex >= 0 && gapItemIndex === line.fragments[fragmentIndex - 1]?.itemIndex) {
+        row.lastElementChild!.append(' ')
+      } else if (gapItemIndex >= 0) {
+        row.appendChild(renderPart(note.classNames[gapItemIndex]!, note.fonts[gapItemIndex]!, note.hrefs[gapItemIndex] ?? null, ' '))
       }
       row.appendChild(element)
     }
@@ -108,6 +108,22 @@ function renderBody(layout: RichNoteLayout): void {
   }
 
   domCache.noteBody.appendChild(fragment)
+}
+
+function renderPart(className: string, font: string, href: string | null, text: string): HTMLElement {
+  const element = href === null
+    ? document.createElement('span')
+    : document.createElement('a')
+  element.className = className
+  // Paint with the font the item was measured with.
+  element.style.setProperty('--font', font)
+  element.textContent = text
+  if (element instanceof HTMLAnchorElement && href !== null) {
+    element.href = href
+    element.target = '_blank'
+    element.rel = 'noreferrer'
+  }
+  return element
 }
 
 function render(): void {
@@ -139,5 +155,5 @@ function render(): void {
   domCache.root.style.setProperty('--note-content-width', `${bodyWidth}px`)
   domCache.noteBody.style.height = `${layout.noteBodyHeight}px`
 
-  renderBody(layout)
+  renderBody(richInline, layout)
 }

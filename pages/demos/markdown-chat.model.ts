@@ -127,7 +127,7 @@ type PreparedInlineBlock = PreparedBlockBase & {
   flow: PreparedRichInline
   hrefs: Array<string | null>
   lineHeight: number
-  paragraphStyle: TextStyle // unmarked text, which paints the spaces between items
+  paragraphStyle: TextStyle // unmarked text, which sets each line's baseline
   styles: TextStyle[]
 }
 
@@ -150,8 +150,9 @@ export type PreparedChatMessage = {
 }
 
 export type InlineFragmentLayout = {
+  gapItemIndex: number // the item whose collapsed space precedes it on its line, or -1
   href: string | null
-  spaceBefore: boolean // a collapsed space precedes it on its line
+  itemIndex: number
   style: TextStyle
   text: string
 }
@@ -187,6 +188,7 @@ type InlineBlockLayout = {
   contentLeft: number
   direction: 'ltr' | 'rtl'
   height: number
+  hrefs: Array<string | null>
   kind: 'inline'
   lineHeight: number
   lines: Array<{
@@ -196,6 +198,9 @@ type InlineBlockLayout = {
   markerLeft: number | null
   markerText: string | null
   paragraphStyle: TextStyle
+  // Per item, as hrefs, so a space made by an item holding only whitespace
+  // paints in that item's style.
+  styles: TextStyle[]
   top: number
   width: number
 }
@@ -1169,8 +1174,9 @@ function materializeBlockLayout(
         const line = materializeRichInlineLineRange(block.flow, range)
         lines.push({
           fragments: line.fragments.map(fragment => ({
+            gapItemIndex: fragment.gapItemIndex,
             href: block.hrefs[fragment.itemIndex] ?? null,
-            spaceBefore: fragment.gapBefore > 0,
+            itemIndex: fragment.itemIndex,
             style: block.styles[fragment.itemIndex]!,
             text: fragment.text,
           })),
@@ -1181,6 +1187,7 @@ function materializeBlockLayout(
         contentLeft: frame.contentLeft,
         direction: block.direction,
         height: frame.height,
+        hrefs: block.hrefs,
         kind: 'inline',
         lineHeight: frame.lineHeight,
         lines,
@@ -1188,6 +1195,7 @@ function materializeBlockLayout(
         markerLeft: frame.markerLeft,
         markerText: frame.markerText,
         paragraphStyle: block.paragraphStyle,
+        styles: block.styles,
         top: frame.top,
         // Rows span the final bubble, so they stay inside a shrinkwrapped one.
         width: Math.max(1, bubbleContentWidth - frame.contentLeft),

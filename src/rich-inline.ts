@@ -57,6 +57,7 @@ export type RichInlineFragment = {
   itemIndex: number // Index into the original RichInlineItem array
   text: string // Text slice for this fragment
   gapBefore: number // Collapsed inter-item gap paid before this fragment on this line
+  gapItemIndex: number // Item whose collapsed whitespace made gapBefore, or -1 when no gap precedes this fragment on this line
   occupiedWidth: number // Text width plus the item's extraWidth contribution
   start: LayoutCursor // Start cursor within the item's prepared text
   end: LayoutCursor // End cursor within the item's prepared text
@@ -65,6 +66,7 @@ export type RichInlineFragment = {
 export type RichInlineFragmentRange = {
   itemIndex: number // Index into the original RichInlineItem array
   gapBefore: number // Collapsed inter-item gap paid before this fragment on this line
+  gapItemIndex: number // Item whose collapsed whitespace made gapBefore, or -1 when no gap precedes this fragment on this line
   occupiedWidth: number // Text width plus the item's extraWidth contribution
   start: LayoutCursor // Start cursor within the item's prepared text
   end: LayoutCursor // End cursor within the item's prepared text
@@ -102,6 +104,8 @@ type PreparedRichInlineItem = {
   establishesLine: boolean
   extraWidth: number
   gapBefore: number
+  // The item whose collapsed whitespace made gapBefore, or -1 without one.
+  gapItemIndex: number
   // Where the last ordinary break inside this item falls; the item start when
   // the last run starts at or before it. Set with a carry.
   lastRunStart: LayoutCursor
@@ -433,6 +437,7 @@ function getLeadingRunWidth(portion: JoinedPortion, end: LayoutCursor | null): n
 type RichInlineFragmentCollector = (
   itemIndex: number,
   gapBefore: number,
+  gapItemIndex: number,
   occupiedWidth: number,
   start: LayoutCursor,
   end: LayoutCursor,
@@ -452,6 +457,7 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
   // A collapsed SPACE can have zero or negative advance. Its existence and
   // ordinary break opportunity must survive independently of that number.
   let pendingGapWidth: number | null = null
+  let pendingGapItemIndex = -1
   let previousItem: PreparedRichInlineItem | null = null
   // Collapsible spaces always break and atomic items always allow a break on
   // both sides. Only the text between them joins across item boundaries.
@@ -532,6 +538,7 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
     if (start === text.length) {
       if (start > 0 && pendingGapWidth === null) {
         pendingGapWidth = getCollapsedSpaceWidth(item.font, letterSpacing, documentLanguage)
+        pendingGapItemIndex = index
       }
       continue
     }
@@ -548,6 +555,7 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
     const gapBefore = pendingGapWidth ?? (
       hasLeadingWhitespace ? getCollapsedSpaceWidth(item.font, letterSpacing, documentLanguage) : 0
     )
+    const gapItemIndex = pendingGapWidth !== null ? pendingGapItemIndex : hasLeadingWhitespace ? index : -1
     // Normalization already drops boundary whitespace, so the item's own text
     // yields the same segments while analysis keeps the source before them:
     // a leading SPACE or TAB is break context inside the item's text node.
@@ -569,6 +577,7 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
       establishesLine,
       extraWidth: item.extraWidth ?? 0,
       gapBefore,
+      gapItemIndex,
       lastRunStart: EMPTY_LAYOUT_CURSOR,
       joinedBreaks: null,
       localOnlyBreaks: null,
@@ -611,6 +620,7 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
     pendingGapWidth = hasTrailingWhitespace
       ? getCollapsedSpaceWidth(item.font, letterSpacing, documentLanguage)
       : null
+    pendingGapItemIndex = hasTrailingWhitespace ? index : -1
   }
 
   finishJoinedText(false)
@@ -645,9 +655,10 @@ function collectWholeItem(
   itemIndex: number,
   item: PreparedRichInlineItem,
   gapBefore: number,
+  gapItemIndex: number,
   occupiedWidth: number,
 ): void {
-  collectFragment?.(itemIndex, gapBefore, occupiedWidth, cloneCursor(EMPTY_LAYOUT_CURSOR), {
+  collectFragment?.(itemIndex, gapBefore, gapItemIndex, occupiedWidth, cloneCursor(EMPTY_LAYOUT_CURSOR), {
     segmentIndex: item.prepared.segments.length,
     graphemeIndex: 0,
   })
@@ -685,11 +696,12 @@ function stepRichInlineLine(
     // turning their mere presence into a line. Their prior layout behavior is
     // unchanged; a following line can still expose their consumed source.
     if (!item.establishesLine) {
-      collectWholeItem(collectFragment, itemIndex, item, 0, 0)
+      collectWholeItem(collectFragment, itemIndex, item, 0, -1, 0)
       continue
     }
 
     const gapBefore = hasContent ? item.gapBefore : 0
+    const gapItemIndex = hasContent ? item.gapItemIndex : -1
     const atItemStart = isLineStartCursor(cursor)
 
     if (item.break === 'never') {
@@ -699,7 +711,7 @@ function stepRichInlineLine(
       const totalWidth = gapBefore + occupiedWidth
       if (hasContent && totalWidth > remainingWidth + lineFitEpsilon) break lineLoop
 
-      collectWholeItem(collectFragment, itemIndex, item, gapBefore, occupiedWidth)
+      collectWholeItem(collectFragment, itemIndex, item, gapBefore, gapItemIndex, occupiedWidth)
       hasContent = true
       lineWidth += totalWidth
       remainingWidth = safeWidth - lineWidth
@@ -726,7 +738,7 @@ function stepRichInlineLine(
           (isLineStartCursor(item.lastRunStart) && !(hasContent && item.breakBefore))
         )
       ) {
-        collectWholeItem(collectFragment, itemIndex, item, gapBefore, item.naturalWidth + item.extraWidth)
+        collectWholeItem(collectFragment, itemIndex, item, gapBefore, gapItemIndex, item.naturalWidth + item.extraWidth)
         hasContent = true
         lineWidth += totalWidth
         remainingWidth = safeWidth - lineWidth
@@ -817,6 +829,7 @@ function stepRichInlineLine(
     collectFragment?.(
       itemIndex,
       gapBefore,
+      gapItemIndex,
       itemOccupiedWidth,
       cloneCursor(cursor),
       {
@@ -858,10 +871,11 @@ export function layoutNextRichInlineLineRange(
     graphemeIndex: start.graphemeIndex,
   }
   const fragments: RichInlineFragmentRange[] = []
-  const width = stepRichInlineLine(flow, maxWidth, end, (itemIndex, gapBefore, occupiedWidth, fragmentStart, fragmentEnd) => {
+  const width = stepRichInlineLine(flow, maxWidth, end, (itemIndex, gapBefore, gapItemIndex, occupiedWidth, fragmentStart, fragmentEnd) => {
     fragments.push({
       itemIndex,
       gapBefore,
+      gapItemIndex,
       occupiedWidth,
       start: fragmentStart,
       end: fragmentEnd,
@@ -910,6 +924,7 @@ export function materializeRichInlineLineRange(
       itemIndex: fragment.itemIndex,
       text: materializeFragmentText(item, fragment),
       gapBefore: fragment.gapBefore,
+      gapItemIndex: fragment.gapItemIndex,
       occupiedWidth: fragment.occupiedWidth,
       start: fragment.start,
       end: fragment.end,

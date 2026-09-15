@@ -198,7 +198,9 @@
     }
     .inline-line {
       position: absolute;
-      white-space: pre;
+      /* Spaces collapse as in the text Pretext laid out, so a line that wraps
+         inside an item doesn't paint the space it ends on. */
+      white-space: nowrap;
       font: var(--font);
     }
     .frag {

@@ -35,8 +35,9 @@ export type PreparedRichInlineNote = {
 export type RichLineFragment = {
   className: string
   font: string
+  gapItemIndex: number // the item whose collapsed space precedes it on its line, or -1
   href: string | null
-  spaceBefore: boolean
+  itemIndex: number
   text: string
 }
 
@@ -195,8 +196,9 @@ export function layoutRichInlineItems(
       fragments: line.fragments.map(fragment => ({
         className: prepared.classNames[fragment.itemIndex]!,
         font: prepared.fonts[fragment.itemIndex]!,
+        gapItemIndex: fragment.gapItemIndex,
         href: prepared.hrefs[fragment.itemIndex] ?? null,
-        spaceBefore: fragment.gapBefore > 0,
+        itemIndex: fragment.itemIndex,
         text: fragment.text,
       })),
     })

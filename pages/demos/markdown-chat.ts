@@ -18,7 +18,6 @@ import {
   TOP_SCROLL_ANCHOR,
   type BlockLayout,
   type ConversationLayout,
-  type InlineFragmentLayout,
   type MessageFrame,
   type PreparedChatMessage,
   type QuoteRailLayout,
@@ -321,7 +320,7 @@ function renderInlineBlock(
   for (let lineIndex = 0; lineIndex < block.lines.length; lineIndex++) {
     const line = block.lines[lineIndex]!
     // Each Pretext line is one line box, so the browser orders its bidi runs.
-    // The paragraph style sets the baseline and paints the collapsed spaces.
+    // The paragraph style sets the baseline.
     const row = document.createElement('div')
     row.className = 'inline-line'
     row.dir = block.direction
@@ -333,8 +332,19 @@ function renderInlineBlock(
 
     for (let fragmentIndex = 0; fragmentIndex < line.fragments.length; fragmentIndex++) {
       const fragment = line.fragments[fragmentIndex]!
-      if (fragment.spaceBefore) row.append(' ')
-      row.append(renderInlineFragment(fragment))
+      const node = renderInlineFragment(fragment.style, fragment.href, fragment.text)
+      // A collapsed space paints inside the element of the item whose font
+      // measured it: this fragment's, the previous fragment's, or, for an item
+      // holding only whitespace, an element of its own.
+      const gapItemIndex = fragment.gapItemIndex
+      if (gapItemIndex === fragment.itemIndex) {
+        node.prepend(' ')
+      } else if (gapItemIndex >= 0 && gapItemIndex === line.fragments[fragmentIndex - 1]?.itemIndex) {
+        row.lastElementChild!.append(' ')
+      } else if (gapItemIndex >= 0) {
+        row.append(renderInlineFragment(block.styles[gapItemIndex]!, block.hrefs[gapItemIndex] ?? null, ' '))
+      }
+      row.append(node)
     }
     wrapper.append(row)
   }
@@ -438,17 +448,17 @@ function markerTop(block: BlockLayout): number {
   }
 }
 
-function renderInlineFragment(fragment: InlineFragmentLayout): HTMLElement {
-  const node = fragment.href === null
+function renderInlineFragment(style: TextStyle, href: string | null, text: string): HTMLElement {
+  const node = href === null
     ? document.createElement('span')
     : document.createElement('a')
 
-  node.className = fragment.style.className
-  applyTextStyle(node, fragment.style)
-  node.textContent = fragment.text
+  node.className = style.className
+  applyTextStyle(node, style)
+  node.textContent = text
 
-  if (node instanceof HTMLAnchorElement && fragment.href !== null) {
-    node.href = fragment.href
+  if (node instanceof HTMLAnchorElement && href !== null) {
+    node.href = href
     node.target = '_blank'
     node.rel = 'noreferrer'
   }
