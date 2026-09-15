@@ -17,6 +17,89 @@ All accuracy, letter-spacing and corpus result payloads are unchanged; refreshed
 snapshots change only provenance and environment records. Runtime sources and
 the baseline pin are unchanged, so no runtime benchmark was needed.
 
+## Safari kerning without the bidi class table
+
+This runtime change starts from main `1262b4f` (#310). The Safari profile keeps a
+word's kerning with a following space across format characters such as a word joiner
+only when the space resolves to the word's direction. That check read bidi classes
+from the generated table in `src/generated/bidi-data.ts`, and nothing else did. It
+now reads Unicode letter properties and the right-to-left blocks: format characters
+stand for class BN, except LRM, RLM and ALM, which count as letters of their
+direction. Across format characters, a word keeps its kerning when its last letter
+or direction mark, with no soft hyphen after it, has the direction of the first
+letter or direction mark after the space, past spaces and format characters, or when
+an ASCII digit follows, which resolves the space to the word's direction either way
+(UAX #9 W7 and N1). An explicit bidi control in the space's paragraph still leaves
+the direction unknown. The table, `src/bidi.ts`, the generator, both Unicode source
+files and `generate:bidi-data` are removed, and the minified `layout` bundle goes
+from 95,701 to 79,647 bytes, 26,261 to 20,973 gzipped.
+
+Before the browsers, a fake canvas that kerns every glyph with a following space,
+also across zero-width characters, ran all 239,063 full-schedule Safari suite inputs
+through main and this branch, and no prepared handle, line or rich-inline line
+changes. The table also kept the kerning before other digits, after symbols such as
+`!` or modifier letters, and across punctuation, other spaces or combining marks
+after the space. No suite row shows those shapes, and ENGINE_FOLLOWUPS records them.
+The fake-canvas screen's 1,380 keys over the corpora, the accuracy grid, hyphen and
+slash shapes, analysis, preferred breaks and rich-inline cases are identical in all
+four profiles.
+
+An installed probe in Safari 26.5.2 at DPR 2, on a `lang="en"` page with main and
+this branch bundled into it, laid out three shapes and six controls in 18px Times
+New Roman and 16px Arial, with `A` and with `a`, which doesn't kern with a space, in
+LTR and RTL paragraphs, normal and pre-wrap, at every 0.1px width up to the natural
+width plus 4px. Main and this branch give the same lines at every width. Safari
+paints `A`, LRM, space / `א` on 2 lines at 12-12.9px in Times New Roman, between the
+letter's kerned and unkerned widths, as both predict, and so it paints `A`, WJ,
+space / WJ, `b` and `A`, WJ, space / `1`. An earlier table-free rule, which took
+only a letter before the format characters and only spaces and a letter after them,
+passed every suite row but predicted 3 lines there: on the same page the LRM and
+double word joiner shapes failed at 20 Times New Roman and 17-18 Arial widths per
+sweep, and without the digit rule this branch failed `A`, WJ, space, `1` at 80 of
+1,200 Times New Roman widths and 68 of 1,120 Arial widths. The controls `A` + space
++ `B`, `A` + WJ + space + `B`, `A` + LRM + space + `b`, `A` + space + Hebrew and `A`
++ RLM + WJ + space + `B` match native at every width on both builds, and `A` + WJ +
+space + Hebrew in an LTR paragraph fails on both at the same 20 Times New Roman and
+18 Arial widths per sweep, where Safari keeps a kerning whose direction preparation
+can't know. Results are in
+`scratchpad/library-fixes/bidi-table-narrowed-probe/results/`.
+
+The installed gate ran this change on `c2dfd08` against pinned `4672c58`, whose
+runtime source equals main: Chrome 153 through the Playwright transport, Safari
+26.5.2 and Firefox 155 natively, both directions, at DPR 2. No leg fixes or loses a
+metric or has required failures, execution errors, or new API or rich failures, and
+five numeric profiles have no new failures. Only the WebKit profiles run this check,
+so no Chrome or Firefox prediction changes. In Safari 12 rows in each direction
+change predicted widths by at most 0.0000005px, all where a lone NUL or DEL comes
+before a space, which is now measured together with the space, and no metric's
+status changes. The 17 LTR and 16 RTL Safari rows that dropping the kerning across
+format characters lost, `maintained/space-kerning` among them, pass height, line
+count and source on main and on this branch. Suite hash
+`03b5cdfc772b52c1519882e3bbd963434087f3e3f6f65af1e0a3edd932885fa5`; rows are in
+`/private/tmp/pretext-eng-20260912/gate-bidi-table-narrowed-{chrome,safari,firefox}`.
+
+No row is lost, so there is nothing to attribute.
+
+`bun test` and `bun run check` pass. A unit test pins `AA`, LRM, space, Hebrew,
+`AA`, WJ, space, WJ, `B` and `AA`, WJ, space, `1`, which keep the kerning here and
+on main but not under the earlier rule. Under a counting fake canvas, Canvas calls
+per cold `prepare()` don't change in any profile: the 18 corpora take 53,093 calls
+in the Chrome profile, 116,306 in the Safari profile and 53,108 in the Firefox
+profile, 57,041, 135,791 and 57,071 under `keep-all`, and 53,101, 116,314 and 53,116
+under `pre-wrap`, and the accuracy grid takes 9,136, 13,984 and 9,160. The 25,675
+distinct Safari suite preparations take 382,948 calls on main and on this branch; in
+18 of them a lone NUL or DEL before a space, a control character but not a format
+character, is measured together with the space instead of alone. In Bun, cold
+`prepare()` under a fake canvas in the Safari profile stays within 2% of main over
+the corpora in normal and pre-wrap white space, over two alternating runs of 15
+rounds. One text of 20,000 words that each end in a word joiner before a space is
+9-10% slower, and 4-5% when each word also ends in LRM and the next starts with a
+word joiner, since the check matches regular expressions where main walked the
+table. A word joiner run of 20,000 before one space, 20,000 spaces after one, and
+5,000 paragraphs with an explicit bidi control stay within 8% of main, faster on
+some and slower on others. The baseline advances to `fcd9b4e`, and the ordinary
+snapshots were regenerated against it.
+
 ## Rich-inline gaps name the item whose space they measure
 
 This runtime change starts from main `aaea18c` (#309). Rich-inline fragments and

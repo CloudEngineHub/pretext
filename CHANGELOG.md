@@ -8,7 +8,7 @@
 
 ### Changed
 
-- Bundles that import Pretext are about 5 KB smaller gzipped and 16 KB smaller minified, since Safari's check for keeping a word's kerning with a following space no longer uses a generated bidi class table.
+- Bundles that import Pretext are about 5 KB smaller gzipped and 16 KB smaller minified, since Safari's check for keeping a word's kerning with a following space no longer uses a generated bidi class table (#311).
 
 ### Removed
 
