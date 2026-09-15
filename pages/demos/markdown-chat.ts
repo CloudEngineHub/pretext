@@ -4,6 +4,7 @@ import {
   CODE_FONT,
   CODE_LINE_HEIGHT,
   createPreparedChatMessages,
+  findScrollAnchor,
   findVisibleRange,
   getMaxChatWidth,
   getOcclusionBannerHeight,
@@ -14,12 +15,14 @@ import {
   materializeQuoteRails,
   MESSAGE_SIDE_PADDING,
   OCCLUSION_BANNER_HEIGHT,
+  TOP_SCROLL_ANCHOR,
   type BlockLayout,
   type ConversationLayout,
   type InlineFragmentLayout,
   type MessageFrame,
   type PreparedChatMessage,
   type QuoteRailLayout,
+  type ScrollAnchor,
   type TextStyle,
 } from './markdown-chat.model.ts'
 
@@ -29,6 +32,8 @@ type State = {
     toggleVisualization: boolean
   }
   isVisualizationOn: boolean
+  scrollAnchor: ScrollAnchor
+  scrollTop: number // where the last frame left the scroll position, as read back
 }
 
 type CachedRow = {
@@ -54,6 +59,8 @@ const st: State = {
     toggleVisualization: false,
   },
   isVisualizationOn: false,
+  scrollAnchor: TOP_SCROLL_ANCHOR,
+  scrollTop: 0,
 }
 
 let scheduledRaf: number | null = null
@@ -111,22 +118,27 @@ function render(): void {
 
   const chatWidth = getMaxChatWidth(viewportWidth)
   const previousConversation = st.conversation
-  const canReuseConversation =
-    previousConversation !== null
-    && previousConversation.chatWidth === chatWidth
-    && previousConversation.occlusionBannerHeight === occlusionBannerHeight
+  const canReuseConversation = previousConversation !== null && previousConversation.chatWidth === chatWidth
   const conversation = canReuseConversation
     ? previousConversation
-    : layoutConversation(preparedMessages, chatWidth, occlusionBannerHeight)
+    : layoutConversation(preparedMessages, chatWidth)
   const needsRelayout = !canReuseConversation
 
-  const { start, end } = findVisibleRange(
-    conversation,
-    scrollTop,
-    viewportHeight,
-    occlusionBannerHeight,
-    occlusionBannerHeight,
+  // st.scrollTop is where the last frame left the scroll position, so any other
+  // value is the user's scroll: anchor the first message whose top shows below
+  // the top banner, in the layout they scrolled. Otherwise keep the anchor.
+  // Either way, scroll so its top keeps its distance below the banner, within
+  // the range.
+  const scrollAnchor = scrollTop === st.scrollTop
+    ? st.scrollAnchor
+    : findScrollAnchor(previousConversation ?? conversation, scrollTop, viewportHeight, occlusionBannerHeight)
+  const canvasHeight = conversation.totalHeight + occlusionBannerHeight * 2
+  const adjustedScrollTop = Math.min(
+    Math.max(0, canvasHeight - viewportHeight),
+    Math.max(0, conversation.tops[scrollAnchor.index]! - scrollAnchor.offset),
   )
+
+  const { start, end } = findVisibleRange(conversation, adjustedScrollTop, viewportHeight, occlusionBannerHeight)
   const visibleFrames = new Array<MessageFrame>(end - start)
   for (let index = start; index < end; index++) {
     visibleFrames[index - start] = layoutMessageFrame(preparedMessages[index]!, chatWidth)
@@ -134,6 +146,7 @@ function render(): void {
 
   st.conversation = conversation
   st.isVisualizationOn = isVisualizationOn
+  st.scrollAnchor = scrollAnchor
   st.events.toggleVisualization = false
 
   domCache.root.style.setProperty('--chat-width', `${chatWidth}px`)
@@ -143,23 +156,36 @@ function render(): void {
   domCache.root.style.setProperty('--virtualization-toggle-padding-inline', isCompactOcclusionChrome ? '12px' : '14px')
   domCache.root.style.setProperty('--virtualization-toggle-font-size', isCompactOcclusionChrome ? '11px' : '12px')
   domCache.shell.dataset['visualization'] = isVisualizationOn ? 'on' : 'off'
-  domCache.canvas.style.height = `${conversation.totalHeight}px`
+  // The canvas takes its height before the scroll below, which the browser
+  // would otherwise clamp to the old height.
+  domCache.canvas.style.height = `${canvasHeight}px`
   domCache.toggleButton.textContent = isVisualizationOn
     ? 'Hide virtualization mask'
     : 'Show virtualization mask'
   domCache.toggleButton.setAttribute('aria-pressed', String(isVisualizationOn))
 
-  projectVisibleRows(conversation.tops, conversation.heights, visibleFrames, start, end, needsRelayout)
+  projectVisibleRows(conversation, occlusionBannerHeight, visibleFrames, start, end, needsRelayout)
+
+  // The last effect. Browsers round scrollTop, so store the position read back,
+  // not the one asked for, or the next frame would take it for a user scroll.
+  // The read forces layout, so nothing touches the DOM after it.
+  if (adjustedScrollTop === scrollTop) {
+    st.scrollTop = scrollTop
+  } else {
+    domCache.viewport.scrollTo({ top: adjustedScrollTop, behavior: 'instant' })
+    st.scrollTop = domCache.viewport.scrollTop
+  }
 }
 
 function projectVisibleRows(
-  tops: Float64Array,
-  heights: Float64Array,
+  conversation: ConversationLayout,
+  occlusionBannerHeight: number,
   visibleFrames: readonly MessageFrame[],
   start: number,
   end: number,
   needsRelayout: boolean,
 ): void {
+  const { heights, tops } = conversation
   const previousStart = domCache.mountedStart
   const previousEnd = domCache.mountedEnd
   const overlapStart = Math.max(start, previousStart)
@@ -182,14 +208,14 @@ function projectVisibleRows(
   if (overlapStart >= overlapEnd) {
     for (let index = start; index < end; index++) {
       const cachedRow = prepareRow(index, visibleFrames[index - start]!, needsRelayout)
-      projectMessageNode(cachedRow, visibleFrames[index - start]!, tops[index]!, heights[index]!)
+      projectMessageNode(cachedRow, visibleFrames[index - start]!, occlusionBannerHeight + tops[index]!, heights[index]!)
       if (cachedRow.row.parentNode === null) domCache.canvas.append(cachedRow.row)
     }
   } else {
     let anchorRow = domCache.rows[overlapStart]?.row ?? null
     for (let index = overlapStart - 1; index >= start; index--) {
       const cachedRow = prepareRow(index, visibleFrames[index - start]!, needsRelayout)
-      projectMessageNode(cachedRow, visibleFrames[index - start]!, tops[index]!, heights[index]!)
+      projectMessageNode(cachedRow, visibleFrames[index - start]!, occlusionBannerHeight + tops[index]!, heights[index]!)
       if (anchorRow === null) {
         if (cachedRow.row.parentNode === null) domCache.canvas.append(cachedRow.row)
       } else if (cachedRow.row.parentNode !== domCache.canvas || cachedRow.row.nextSibling !== anchorRow) {
@@ -200,12 +226,12 @@ function projectVisibleRows(
 
     for (let index = overlapStart; index < overlapEnd; index++) {
       const cachedRow = prepareRow(index, visibleFrames[index - start]!, needsRelayout)
-      projectMessageNode(cachedRow, visibleFrames[index - start]!, tops[index]!, heights[index]!)
+      projectMessageNode(cachedRow, visibleFrames[index - start]!, occlusionBannerHeight + tops[index]!, heights[index]!)
     }
 
     for (let index = overlapEnd; index < end; index++) {
       const cachedRow = prepareRow(index, visibleFrames[index - start]!, needsRelayout)
-      projectMessageNode(cachedRow, visibleFrames[index - start]!, tops[index]!, heights[index]!)
+      projectMessageNode(cachedRow, visibleFrames[index - start]!, occlusionBannerHeight + tops[index]!, heights[index]!)
       if (cachedRow.row.parentNode === null) domCache.canvas.append(cachedRow.row)
     }
   }
