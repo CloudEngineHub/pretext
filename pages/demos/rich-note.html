@@ -108,7 +108,9 @@
       position: absolute;
       left: 0;
       right: 0;
-      white-space: pre;
+      /* Spaces collapse as in the text Pretext laid out, so a line that wraps
+         inside an item doesn't paint the space it ends on. */
+      white-space: nowrap;
       font: var(--font);
       /* As on each fragment, so a line with a chip is 24px, the chip's
          height, which the body counts for the last line. */
