@@ -100,6 +100,14 @@ table. A word joiner run of 20,000 before one space, 20,000 spaces after one, an
 some and slower on others. The baseline advances to `fcd9b4e`, and the ordinary
 snapshots were regenerated against it.
 
+Chrome and Safari benchmark snapshots were refreshed from this branch: three
+foreground runs each at DPR 2, visible and focused, with Chrome on the 2560x1440
+screen and Safari on the 2560x1440 screen (the parent branch's runs used the
+1440x2560 screen). Chrome reads `prepare()` at 8.95 ms (9.15 on the parent branch)
+and hot `layout()` at 0.0885 ms (0.0868); Safari reads 11.0 ms (11.0) and 0.105 ms
+(0.100). Long-form corpus totals read 115.0 ms in Chrome (124.1) and 351 ms in
+Safari (347).
+
 ## Rich-inline gaps name the item whose space they measure
 
 This runtime change starts from main `aaea18c` (#309). Rich-inline fragments and
