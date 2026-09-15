@@ -60,9 +60,7 @@ export const CODE_FONT = '600 14px "SF Mono", ui-monospace, Menlo, Monaco, monos
 export const CHIP_FONT = '700 12px "Helvetica Neue", Helvetica, Arial, sans-serif'
 
 export const LINE_HEIGHT = 34
-// Each line paints in a 24px line box, a chip's height, and lines start
-// LINE_HEIGHT apart, so the body ends at the bottom of the last line box.
-export const LINE_BOX_HEIGHT = 24
+export const LAST_LINE_BLOCK_HEIGHT = 24
 // The card's side padding, which the page paints from here. The card's ring is
 // an inset shadow, so the padding is all the width the card adds to the body.
 export const NOTE_PADDING_X = 20
@@ -241,7 +239,7 @@ export function layoutRichNote(
     lineCount,
     lines,
     noteBodyHeight:
-      lineCount === 0 ? LINE_BOX_HEIGHT : (lineCount - 1) * LINE_HEIGHT + LINE_BOX_HEIGHT,
+      lineCount === 0 ? LAST_LINE_BLOCK_HEIGHT : (lineCount - 1) * LINE_HEIGHT + LAST_LINE_BLOCK_HEIGHT,
     noteWidth: bodyWidth + notePaddingX * 2,
   }
 }

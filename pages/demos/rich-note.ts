@@ -3,7 +3,6 @@ import {
   BODY_FONT,
   BODY_MIN_WIDTH,
   DEFAULT_RICH_NOTE_SPECS,
-  LINE_BOX_HEIGHT,
   prepareRichInlineNote,
   layoutRichNote,
   LINE_HEIGHT,
@@ -80,12 +79,11 @@ function renderBody(layout: RichNoteLayout): void {
   for (let lineIndex = 0; lineIndex < layout.lines.length; lineIndex++) {
     const line = layout.lines[lineIndex]!
     // Each Pretext line is one line box, so the browser orders its bidi runs.
-    // The body font sets the baseline and paints the collapsed spaces.
+    // The body font paints the collapsed spaces.
     const row = document.createElement('div')
     row.className = 'line-row'
     row.dir = layout.direction
     row.style.setProperty('--font', BODY_FONT)
-    row.style.lineHeight = `${LINE_BOX_HEIGHT}px`
     row.style.top = `${lineIndex * LINE_HEIGHT}px`
 
     for (let fragmentIndex = 0; fragmentIndex < line.fragments.length; fragmentIndex++) {
