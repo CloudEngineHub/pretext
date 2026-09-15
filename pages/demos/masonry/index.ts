@@ -104,6 +104,9 @@ function getOrCreateCardNode(cardIndex: number): HTMLDivElement {
 
   const node = document.createElement('div')
   node.className = 'card'
+  node.style.font = font
+  node.style.lineHeight = `${lineHeight}px`
+  node.style.padding = `${cardPadding}px`
   node.textContent = st.cards[cardIndex]!.text
   domCache.container.appendChild(node)
   domCache.cards[cardIndex] = node
