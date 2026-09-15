@@ -242,16 +242,26 @@ export type MessageFrame = {
   layoutContentWidth: number
 }
 
-// Every message's bubble height at one chat width, and its top, which also
-// depends on the banner height, in typed arrays. Only visible messages get a
-// MessageFrame.
+// Every message's bubble height at one chat width, and its top, in typed
+// arrays. Tops and totalHeight leave out the banners: the canvas puts the top
+// banner's height above the messages and both banners' heights in its own, so
+// a banner change needs no new pass. Only visible messages get a MessageFrame.
 export type ConversationLayout = {
   chatWidth: number
   heights: Float64Array
-  occlusionBannerHeight: number
   tops: Float64Array
   totalHeight: number
 }
+
+// A message, and how far its top sits below the top banner's edge, negative
+// when the banner hides its top. Scrolling keeps it there across relayouts.
+export type ScrollAnchor = {
+  index: number
+  offset: number
+}
+
+// The chat scrolled to its top.
+export const TOP_SCROLL_ANCHOR: ScrollAnchor = { index: 0, offset: CHAT_TOP_PADDING_OFFSET }
 
 const EMPTY_MARK_STATE: MarkState = {
   bold: false,
@@ -292,16 +302,13 @@ export function getMaxChatWidth(viewportWidth: number): number {
 export function layoutConversation(
   preparedMessages: readonly PreparedChatMessage[],
   chatWidth: number,
-  occlusionBannerHeight: number,
 ): ConversationLayout {
   const heights = new Float64Array(preparedMessages.length)
   const tops = new Float64Array(preparedMessages.length)
   const assistantContentWidth = getMessageWidths('assistant', chatWidth).contentWidth
   const userContentWidth = getMessageWidths('user', chatWidth).contentWidth
-  const chatTopPadding = occlusionBannerHeight + CHAT_TOP_PADDING_OFFSET
-  const chatBottomPadding = occlusionBannerHeight + CHAT_BOTTOM_PADDING_OFFSET
 
-  let y = chatTopPadding
+  let y = CHAT_TOP_PADDING_OFFSET
   for (let ordinal = 0; ordinal < preparedMessages.length; ordinal++) {
     const preparedMessage = preparedMessages[ordinal]!
     const contentWidth = preparedMessage.role === 'assistant' ? assistantContentWidth : userContentWidth
@@ -314,13 +321,12 @@ export function layoutConversation(
 
   const totalHeight =
     preparedMessages.length === 0
-      ? chatTopPadding + chatBottomPadding
-      : y - MESSAGE_GAP + chatBottomPadding
+      ? CHAT_TOP_PADDING_OFFSET + CHAT_BOTTOM_PADDING_OFFSET
+      : y - MESSAGE_GAP + CHAT_BOTTOM_PADDING_OFFSET
 
   return {
     chatWidth,
     heights,
-    occlusionBannerHeight,
     tops,
     totalHeight,
   }
@@ -332,34 +338,24 @@ export function getOcclusionBannerHeight(viewportHeight: number): number {
     : OCCLUSION_BANNER_HEIGHT
 }
 
+// The messages showing between the banners. A message's top in the canvas is
+// the top banner's height plus its entry in tops, so the room below the top
+// banner starts at scrollTop in tops.
 export function findVisibleRange(
   conversation: ConversationLayout,
   scrollTop: number,
   viewportHeight: number,
-  topOcclusionHeight: number,
-  bottomOcclusionHeight: number,
+  occlusionBannerHeight: number,
 ): {
   end: number
   start: number
 } {
-  const { heights, tops } = conversation
-  const minY = Math.max(0, scrollTop + topOcclusionHeight)
-  const maxY = Math.max(minY, scrollTop + viewportHeight - bottomOcclusionHeight)
-  let low = 0
+  const { tops } = conversation
+  const start = findFirstMessageBelow(conversation, scrollTop)
+  const maxY = Math.max(scrollTop, scrollTop + viewportHeight - occlusionBannerHeight * 2)
+
+  let low = start
   let high = tops.length
-
-  while (low < high) {
-    const mid = (low + high) >> 1
-    if (tops[mid]! + heights[mid]! > minY) {
-      high = mid
-    } else {
-      low = mid + 1
-    }
-  }
-  const start = low
-
-  low = start
-  high = tops.length
   while (low < high) {
     const mid = (low + high) >> 1
     if (tops[mid]! >= maxY) {
@@ -370,6 +366,30 @@ export function findVisibleRange(
   }
 
   return { start, end: low }
+}
+
+// The first message showing below the top banner at scrollTop. Past the last
+// message, which a viewport shorter than both banners can scroll to, it's the
+// last message.
+export function findScrollAnchor(conversation: ConversationLayout, scrollTop: number): ScrollAnchor {
+  const index = Math.min(findFirstMessageBelow(conversation, scrollTop), conversation.tops.length - 1)
+  return { index, offset: conversation.tops[index]! - scrollTop }
+}
+
+// The first message whose bottom is below y.
+function findFirstMessageBelow(conversation: ConversationLayout, y: number): number {
+  const { heights, tops } = conversation
+  let low = 0
+  let high = tops.length
+  while (low < high) {
+    const mid = (low + high) >> 1
+    if (tops[mid]! + heights[mid]! > y) {
+      high = mid
+    } else {
+      low = mid + 1
+    }
+  }
+  return low
 }
 
 function parseMarkdownBlocks(markdown: string): PreparedBlock[] {
