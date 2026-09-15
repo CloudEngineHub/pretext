@@ -4,7 +4,7 @@
 
 ### Added
 
-- Rich-inline fragments now have `gapItemIndex`, the index of the item whose collapsed space `gapBefore` measures, or -1 when no space precedes the fragment on its line. A painter can draw that space inside the element of the item whose font measured it, and can tell a zero-width space apart from no space.
+- Rich-inline fragments now have `gapItemIndex`, the index of the item whose collapsed space `gapBefore` measures, or -1 when no space precedes the fragment on its line. A painter can draw that space inside the element of the item whose font measured it, and can tell a zero-width space apart from no space (#310).
 
 ### Removed
 

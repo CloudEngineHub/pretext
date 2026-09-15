@@ -17,6 +17,84 @@ All accuracy, letter-spacing and corpus result payloads are unchanged; refreshed
 snapshots change only provenance and environment records. Runtime sources and
 the baseline pin are unchanged, so no runtime benchmark was needed.
 
+## Rich-inline gaps name the item whose space they measure
+
+This runtime change starts from main `aaea18c` (#309). Rich-inline fragments and
+fragment ranges now carry `gapItemIndex`, the index of the item whose collapsed
+whitespace made `gapBefore`, or -1 when no space precedes the fragment on its line.
+`prepareRichInline()` takes it from the order that already picks the gap's width:
+the previous item's trailing whitespace, else the first whitespace-only item after
+that item, else the item's own leading whitespace. A zero or negative gap keeps its
+item, where `gapBefore` alone reads 0 both for such a gap and for no gap. The
+Markdown chat and rich-note now paint each collapsed space inside the element of
+that item, at the start of the fragment's own element, at the end of the previous
+fragment's, or in a span in the style of an item holding only whitespace, instead of
+as a text node in the row's paragraph style (#295). Their rows also take
+`white-space: nowrap` instead of `pre`, so a line that wraps inside an item no
+longer paints the space it ends on under a link's underline, a strike-through or a
+code pill's fill.
+
+An installed probe in Chrome 153, Safari 26.5.2 and Firefox 155 at DPR 2 loaded the
+Markdown chat, built from main and from this branch, with #295's four messages, a
+heading and an Arabic paragraph whose code spans hold their own space, `**bold**
+**more**`, links with a boundary space, and an English and an Arabic message whose
+link, strike-through and code span wrap, at chat widths 640 and 360. Next to each
+message it laid out the same pieces natively, in a `white-space: normal` paragraph
+with the demo's classes and fonts. Measured with every word in its own span, main's
+user lines end 3.30-3.33px short of the bubble's content edge in Chrome and Firefox
+and 3.51-3.52px in Safari, 2.28-2.54px for the heading, and its words sit up to
+3.34px off native, 3.53px in Safari. On this branch every user line ends within
+0.05px of the edge, and every word sits where native puts it, within 0.01px. With
+the rows' old `white-space: pre`, a line that wraps inside an item ends with its
+element one space past the last word, 3.88-5.47px for body text and 7.22-8.31px for
+a code span. With `nowrap` that element ends at its last word within 0.02px, as
+native line boxes do, and no word or other element edge moves in any browser, in the
+chat or in rich-note's default note at body widths 516 and 260, whose words paint
+where main paints them. Safari's Range rectangles snap some word edges to whole
+pixels, so there Ranges alone showed moves of up to 1.52px that spans don't. Results
+are in
+`scratchpad/browser-probes/results/{chrome,safari,firefox}-i295-2026-09-15T20-3*`;
+the `T20-37` runs load this branch's committed rows, and the earlier ones inject
+`nowrap` into its first commit.
+
+Before the browsers, the fake-canvas screen compared this branch with main over the
+corpora, the accuracy grid, hyphen and slash shapes, analysis, preferred breaks and
+rich-inline cases in all four profiles, and all 1,380 keys are identical in each.
+Over the chat's 10,000 messages at chat widths 640 and 360, main and this branch
+paint the same fragments with a space before the same ones in all four profiles. At
+640 in the Chrome profile 4,470 fragments have a gap: the fragment's own item holds
+the space for 1,304, the previous fragment's item for 3,155, and an item holding
+only whitespace for 11. None of those items has a style other than the paragraph's,
+so the #295 shape needs typed Markdown. At that width 23 link lines and 14
+strike-through lines wrap inside the item, where `pre` painted the space.
+
+The installed gate ran this change on `7b8ade9` against pinned `1691168`, whose
+runtime source equals main: Chrome 153 through the Playwright transport, Safari
+26.5.2 and Firefox 155 natively, both directions, at DPR 2 on the 2560x1440 screen.
+No leg fixes or loses a metric or has required failures, execution errors, or new
+API or rich failures, and the numeric companion finds no new failures in five
+profiles. The suite doesn't read `gapItemIndex` or paint the demos, so its rich
+rows, the `rich`, `rich-more`, `maintained/rich-boundaries` and signed-spacing rich
+families, 210 left to right and 90 right to left in each browser, pass and fail as
+on main. Suite hash
+`a72c647e17140b0585d31016c8e4fa71f0d8f33561e922d5f75a389312c399b3`; rows are in
+`/private/tmp/pretext-eng-20260912/gate-rich-gap-owner-{chrome,safari,firefox}`.
+
+No row is lost, so there is nothing to attribute.
+
+`bun test` and `bun run check` pass. Under a counting fake canvas, Canvas calls per
+cold `prepare()` don't change in any profile, since no corpus or accuracy-grid
+segment changes: the 18 corpora take 53,093 calls in the Chrome profile, 116,306 in
+the Safari profile and 53,108 in the Firefox profile, 57,041, 135,791 and 57,071
+under `keep-all`, and 53,101, 116,314 and 53,116 under `pre-wrap`, and the accuracy
+grid takes 9,136, 13,984 and 9,160. Preparing the chat's 10,000 messages takes
+25,370, 98,530 and 25,386 calls on main and on this branch, since naming the gap's
+item measures nothing. In Bun under a fake canvas, over seven alternating runs,
+preparing those messages and streaming, measuring and materializing their lines at
+chat widths 640 and 360 stay within 4% of main in the Chrome and Safari profiles,
+faster on some rows and slower on others. The baseline advances to `4672c58`, and
+the ordinary snapshots were regenerated against it.
+
 ## Marks after CJK text follow each engine
 
 This runtime change starts from main `8a26c56` (#308). After CJK text, punctuation
