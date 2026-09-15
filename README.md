@@ -139,12 +139,12 @@ type LineStats = {
 }
 type LayoutLine = {
   text: string // Full text content of this line, e.g. 'hello world'
-  width: number // Measured width of this line, e.g. 87.5
+  width: number // Measured width of this line, e.g. 87.5, leaving out spaces and tabs that hang past its end
   start: LayoutCursor // Inclusive start cursor in prepared segments/graphemes
   end: LayoutCursor // Exclusive end cursor in prepared segments/graphemes
 }
 type LayoutLineRange = {
-  width: number // Measured width of this line, e.g. 87.5
+  width: number // Measured width of this line, e.g. 87.5, leaving out spaces and tabs that hang past its end
   start: LayoutCursor // Inclusive start cursor in prepared segments/graphemes
   end: LayoutCursor // Exclusive end cursor in prepared segments/graphemes
 }
@@ -212,6 +212,7 @@ setLocale(locale?: string): void // optional (by default we use the current loca
 
 Notes:
 - `LayoutCursor` is a segment/grapheme cursor, not a raw string offset.
+- A line's `width` leaves out spaces and tabs that hang past its end, as browsers draw them: all of them where the line wraps, and in `pre-wrap` before a newline or at the end of the text, only the part that doesn't fit in `maxWidth`. `measureNaturalWidth()` still counts spaces before a newline, like CSS max-content.
 - `layout()` with an empty string returns `{ lineCount: 0, height: 0 }`. Browsers still size an empty block to one `line-height`, so clamp with `Math.max(1, lineCount) * lineHeight` if you need that behavior.
 - Pretext doesn't compute bidi levels. If you're drawing mixed bidi text, like English and Arabic, render each paragraph as one DOM element with its direction set, and the browser orders every line. If you draw lines separately, such as with Canvas `fillText()`, each line is ordered as its own paragraph, so numbers or punctuation next to a line break, or bidi controls that span lines, can come out in a different order.
 - Segment widths are browser-canvas widths for line breaking. They aren't enough to position individual characters correctly in Arabic or mixed bidi text.

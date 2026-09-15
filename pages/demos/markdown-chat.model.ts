@@ -3,11 +3,10 @@ import { marked, type Token, type Tokens } from 'marked'
 import {
   layout,
   layoutWithLines,
+  measureLineStats,
   measureNaturalWidth,
   prepareWithSegments,
-  walkLineRanges,
   type LayoutLine,
-  type LineStats,
   type PreparedTextWithSegments,
 } from '../../src/layout.ts'
 import {
@@ -1079,7 +1078,7 @@ function layoutBlockFrame(
     }
 
     case 'code': {
-      const { lineCount, maxLineWidth } = measureCodeLineStats(block.prepared, getBlockLineWidth(block, contentWidth))
+      const { lineCount, maxLineWidth } = measureLineStats(block.prepared, getBlockLineWidth(block, contentWidth))
       return {
         contentLeft: block.contentLeft,
         height: getBlockHeight(block, lineCount),
@@ -1105,25 +1104,6 @@ function layoutBlockFrame(
       }
     }
   }
-}
-
-// A pre-wrap line that soft-wraps after a space keeps the space, and Pretext
-// counts it in the line's width. Browsers hang that space past the end of the
-// line (CSS Text 3 §4.1.2, §8.2), so it paints nothing and never sizes a box.
-// Spaces before a newline or the end of the code still count, as in a browser's
-// max-content width.
-function measureCodeLineStats(prepared: PreparedTextWithSegments, maxWidth: number): LineStats {
-  let maxLineWidth = 0
-  const lineCount = walkLineRanges(prepared, maxWidth, line => {
-    const last = line.end.segmentIndex - 1
-    const isSoftWrapAfterSpace =
-      line.end.graphemeIndex === 0 &&
-      line.end.segmentIndex < prepared.segments.length &&
-      prepared.kinds[last] === 'preserved-space'
-    const width = isSoftWrapAfterSpace ? line.width - prepared.widths[last]! : line.width
-    if (width > maxLineWidth) maxLineWidth = width
-  })
-  return { lineCount, maxLineWidth }
 }
 
 function getUsedBlockWidth(block: BlockFrame): number {
