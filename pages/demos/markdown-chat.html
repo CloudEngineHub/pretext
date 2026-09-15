@@ -76,7 +76,8 @@
       position: absolute;
       left: 0;
       right: 0;
-      width: var(--chat-width);
+      /* Until the first frame, --chat-width is the 860px default above. */
+      width: min(100%, var(--chat-width));
       margin-inline: auto;
       height: var(--occlusion-banner-height);
       background: var(--page);
