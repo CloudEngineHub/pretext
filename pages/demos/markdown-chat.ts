@@ -125,12 +125,13 @@ function render(): void {
   const needsRelayout = !canReuseConversation
 
   // st.scrollTop is where the last frame left the scroll position, so any other
-  // value is the user's scroll: anchor the first message showing below the top
-  // banner, in the layout they scrolled. Otherwise keep the anchor. Either way,
-  // scroll so its top keeps its distance below the banner, within the range.
+  // value is the user's scroll: anchor the first message whose top shows below
+  // the top banner, in the layout they scrolled. Otherwise keep the anchor.
+  // Either way, scroll so its top keeps its distance below the banner, within
+  // the range.
   const scrollAnchor = scrollTop === st.scrollTop
     ? st.scrollAnchor
-    : findScrollAnchor(previousConversation ?? conversation, scrollTop)
+    : findScrollAnchor(previousConversation ?? conversation, scrollTop, viewportHeight, occlusionBannerHeight)
   const canvasHeight = conversation.totalHeight + occlusionBannerHeight * 2
   const adjustedScrollTop = Math.min(
     Math.max(0, canvasHeight - viewportHeight),

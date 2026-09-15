@@ -350,12 +350,23 @@ export function findVisibleRange(
   end: number
   start: number
 } {
-  const { tops } = conversation
-  const start = findFirstMessageBelow(conversation, scrollTop)
+  const { heights, tops } = conversation
   const maxY = Math.max(scrollTop, scrollTop + viewportHeight - occlusionBannerHeight * 2)
-
-  let low = start
+  let low = 0
   let high = tops.length
+
+  while (low < high) {
+    const mid = (low + high) >> 1
+    if (tops[mid]! + heights[mid]! > scrollTop) {
+      high = mid
+    } else {
+      low = mid + 1
+    }
+  }
+  const start = low
+
+  low = start
+  high = tops.length
   while (low < high) {
     const mid = (low + high) >> 1
     if (tops[mid]! >= maxY) {
@@ -368,28 +379,29 @@ export function findVisibleRange(
   return { start, end: low }
 }
 
-// The first message showing below the top banner at scrollTop. Past the last
-// message, which a viewport shorter than both banners can scroll to, it's the
-// last message.
-export function findScrollAnchor(conversation: ConversationLayout, scrollTop: number): ScrollAnchor {
-  const index = Math.min(findFirstMessageBelow(conversation, scrollTop), conversation.tops.length - 1)
-  return { index, offset: conversation.tops[index]! - scrollTop }
-}
-
-// The first message whose bottom is below y.
-function findFirstMessageBelow(conversation: ConversationLayout, y: number): number {
-  const { heights, tops } = conversation
+// The first message whose top shows between the banners at scrollTop. If no
+// top shows, as when one tall message fills the room, the last message whose
+// top is above the room, or the first message when there's none.
+export function findScrollAnchor(
+  conversation: ConversationLayout,
+  scrollTop: number,
+  viewportHeight: number,
+  occlusionBannerHeight: number,
+): ScrollAnchor {
+  const { tops } = conversation
   let low = 0
   let high = tops.length
   while (low < high) {
     const mid = (low + high) >> 1
-    if (tops[mid]! + heights[mid]! > y) {
+    if (tops[mid]! >= scrollTop) {
       high = mid
     } else {
       low = mid + 1
     }
   }
-  return low
+  const maxY = scrollTop + viewportHeight - occlusionBannerHeight * 2
+  const index = low < tops.length && tops[low]! < maxY ? low : Math.max(0, low - 1)
+  return { index, offset: tops[index]! - scrollTop }
 }
 
 function parseMarkdownBlocks(markdown: string): PreparedBlock[] {
