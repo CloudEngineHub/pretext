@@ -112,7 +112,9 @@ function renderBody(layout: RichNoteLayout): void {
 
 function render(): void {
   // DOM reads
-  const viewportWidth = document.documentElement.clientWidth
+  // Chrome's root clientWidth ignores an empty gutter. body has no margin,
+  // border or padding, so its clientWidth is the room the page lays out in.
+  const viewportWidth = document.body.clientWidth
   const narrowViewport = domCache.narrowViewport.matches
 
   // Handle inputs
