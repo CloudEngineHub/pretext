@@ -94,7 +94,7 @@ type TextProjection = {
   headlineFont: string
   headlineLineHeight: number
   headlineLines: PositionedLine[]
-  creditLeft: number
+  creditLeft: number | null
   creditTop: number
   creditLetterSpacing: number
   bodyFont: string
@@ -454,7 +454,8 @@ function projectTextProjection(projection: TextProjection): void {
 
   projectHeadlineLines(projection.headlineLines, projection.headlineFont, projection.headlineLineHeight)
 
-  domCache.credit.style.left = `${projection.creditLeft}px`
+  domCache.credit.style.display = projection.creditLeft === null ? 'none' : 'block'
+  domCache.credit.style.left = `${projection.creditLeft ?? 0}px`
   domCache.credit.style.top = `${projection.creditTop}px`
   domCache.credit.style.width = 'auto'
   domCache.credit.style.font = CREDIT_FONT
@@ -682,7 +683,7 @@ function evaluateLayout(
   preparedBody: PreparedTextWithSegments,
 ): {
   headlineLines: PositionedLine[]
-  creditLeft: number
+  creditLeft: number | null
   creditTop: number
   leftLines: PositionedLine[]
   rightLines: PositionedLine[]
@@ -755,7 +756,8 @@ function evaluateLayout(
     layout.isNarrow ? creditBlocked.concat(claudeCreditBlocked) : creditBlocked,
   )
   const creditWidth = Math.ceil(getPreparedSingleLineWidth(getPrepared(CREDIT_TEXT, CREDIT_FONT, layout.creditLetterSpacing)))
-  let creditLeft = creditRegion.x
+  // When no slot fits, the credit isn't painted, rather than painted over a logo or past the page.
+  let creditLeft: number | null = null
   for (let index = 0; index < creditSlots.length; index++) {
     const slot = creditSlots[index]!
     if (slot.right - slot.left >= creditWidth) {
