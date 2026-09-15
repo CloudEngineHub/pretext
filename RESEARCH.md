@@ -50,40 +50,60 @@ must not depend on those incidental storage differences.
 Extending Firefox's ASCII opener/numeric rules to wider Unicode cases exposed
 trailing-space fit failures, so the accepted rules remain narrow.
 
-Question and exclamation marks are UAX #14 class EX. ICU and ICU4X break after EX
-unless the next character's class forbids a break before it (LB31), and Firefox
-sends every word containing EX to ICU4X: its ASCII shortcut covers only AL, IS, NU
-and QU words. Chrome and Safari first consult a pair table for characters up to
-U+00FF. It follows ICU except for printable ASCII, where `?` breaks before
-everything except `! " ' ) , . / : ; ? ] }`, and `!` breaks only before `(`, `<`,
-`[` and `{`. Every merge that could join across that boundary asks the same rule:
-the punctuation, hyphen and numeric-affix appends, the forward carry and symbol
-chains. So `x?|$b`, `x?|-|b` and `x!|©b` break as in Chrome and Safari, while
-Firefox keeps `x?-|b`. A URL query unit still joins everything after `?`, so in
-`https://x.com/p?-a` it keeps `-a`, while browsers also break after that hyphen.
-Above U+00FF Pretext reads the LineBreak.txt class of a following letter, number
-or symbol, so an iteration mark such as `々` (NS) stays after `！`, while numeric
-affixes and opening punctuation break; other punctuation keeps its existing
-attachment. Small kana and `ー` (CJ) after EX follow the engine and page
-language; see Content Language. Safari's keep-all still breaks only at spaces. U+061B
-ARABIC SEMICOLON is EX too, while `:`, `.` and U+060C are IS and keep a
-following Arabic word (LB29). Firefox also breaks after BA such as `|` before a
-letter, which symbol chains do not model.
+Question and exclamation marks are UAX #14 class EX. ICU and ICU4X break after
+EX unless the next character's class forbids a break before it (LB31), and
+Firefox sends every word containing EX to ICU4X: its ASCII shortcut covers only
+AL, IS, NU and QU words. Chrome and Safari first consult a pair table for
+characters up to U+00FF. It follows ICU except for printable ASCII, where `?`
+breaks before everything except `! " ' ) , . / : ; ? ] }`, and `!` breaks only
+before `(`, `<`, `[` and `{`. Every merge that could join across that boundary
+asks the same rule: the punctuation, hyphen and numeric-affix appends, the
+forward carry, symbol chains, URL and numeric runs and keep-all run ends. So
+`x?|$b`, `x?|-|b` and `x!|©b` break as in Chrome and Safari, while Firefox keeps
+`x?-|b`. A URL query unit joins the text after `?` up to the next break this
+rule allows, such as a second `?` before a letter, so in `https://x.com/p?-a` it
+keeps `-a`, while browsers also break after that hyphen. Above U+00FF Pretext
+reads the LineBreak.txt class of a following letter, number or symbol, so an
+iteration mark such as `々` (NS) stays after `！`, while numeric affixes and
+opening punctuation break; other punctuation keeps its existing attachment.
+Small kana and `ー` (CJ) after EX follow the engine and page language; see
+Content Language. Safari's keep-all still breaks only at spaces. U+061B ARABIC
+SEMICOLON is EX too, while `:`, `.` and U+060C are IS and keep a following
+Arabic word (LB29). Firefox also breaks after BA such as `|` and CL such as `}`
+before a letter or digit, which symbol chains do not model: installed Firefox
+155 paints `xy abc} / 1234`, and ` 丙` after the word doesn't change it, since
+ICU4X decides each word alone.
 
-After CJK text, engines don't decide those pairs alike (#274). Blink reads its
-pair table for any two characters up to U+00FF, whatever comes before them, so
-`丙!a` keeps `!` with `a`, as `x!a` does. WebKit reaches ICU at the CJK character,
-takes ICU's next break, and skips ahead over ASCII letters without reading its
-table (`BreakablePositions.h`). So ICU's rules decide before a letter and the
-table before a number: `丙!|a` breaks and `丙!1` doesn't. WebKit skips ICU
-entirely when CL or CP follows an ideograph, so `}` keeps a letter after Han and
-Hangul, but not after kana. Firefox sends those words to ICU4X. Where UAX #14 keeps
-the pair, as IS, CP, PO and straight quotes do before a letter or number, all three
-engines keep it, and Pretext joins that text to the CJK text's last unit, which
-still takes grapheme breaks when it doesn't fit. Only punctuation joins, never a
-letter inside a CJK unit such as the Arabic in `中（ابب）`, and a closing curly
-quote doesn't: LB19 no longer keeps the text after it, and Chrome breaks before
-`tail` in `中文中文””tail`.
+After CJK text, no engine breaks before punctuation that UAX #14 keeps with the
+text before it, such as `'`, `/` or `|` (LB13, LB19, LB21), so Pretext attaches
+punctuation to CJK text by its class. Opening curly quotes don't attach, since
+they can start a line next to East Asian text (LB19a), and neither do U+3000 and
+the other space separators, which hang or trim at a line end. The text after
+such a mark is decided differently by each engine (#274, #293). Blink reads its
+pair table for any two code units up to U+00FF, whatever comes before them, so
+`丙!a` keeps `!` with `a`, as `x!a` does. WebKit reaches ICU at the CJK
+character, takes ICU's next break, and skips ahead over ASCII letters without
+reading its table (`BreakablePositions.h`). So ICU's rules decide before a
+letter and the table before a number: `丙!|a` breaks and `丙!1` doesn't. The skip
+reaches only the pair right after the character that reached ICU, so the table
+keeps `丙!!first` and `丙.!first`, and a letter between the CJK text and the mark,
+as in `丙a}first`, puts the pair back on the table. WebKit skips ICU entirely
+when CL or CP follows an ideograph or Hangul syllable, so `}` keeps a letter
+after Han and Hangul, but not after kana. Firefox sends those words to ICU4X.
+The September 15 installed probe (Chrome 153, Safari 26.5.2, Firefox 155; `甲乙丙`,
+`あいう` or `가나다` before 32 ASCII marks and `first_week`, `FirstWeek`, `1234` or
+`αβγδεζη`) matched each rule: Chrome keeps `!`, `}`, `/`, `|` and `'` with an
+ASCII letter or digit and breaks after all but `'` before Greek, Safari breaks
+after `!`, `/` and `|` before a letter and after `}` only after kana, and
+Firefox follows UAX #14. The boundary rule that answers the exclamation and
+Gecko pairs answers these too, for Chrome and Safari only before an ASCII letter
+or digit: Pretext doesn't model their tables before ASCII symbols. Where UAX #14
+keeps the pair, as IS, CP, PO and straight quotes do before a letter or number,
+all three engines keep it, and Pretext joins that text to the CJK text's last
+unit, which still takes grapheme breaks when it doesn't fit. Only punctuation
+joins, never a letter inside a CJK unit such as the Arabic in `中（ابب）`, and a
+closing curly quote doesn't: LB19 no longer keeps the text after it, and Chrome
+breaks before `tail` in `中文中文””tail`.
 
 No break precedes closing punctuation or a nonstarter, whatever comes before it
 (LB13, LB21). For these marks above U+00FF all three engines reach ICU or ICU4X, and
