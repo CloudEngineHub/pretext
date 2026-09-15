@@ -17,6 +17,58 @@ All accuracy, letter-spacing and corpus result payloads are unchanged; refreshed
 snapshots change only provenance and environment records. Runtime sources and
 the baseline pin are unchanged, so no runtime benchmark was needed.
 
+## Rich-inline item-boundary mode removed
+
+This change starts from main after #300 and removes rich-inline's `'item-boundary'`
+mode. No installed browser has used it since #287: the Blink and Gecko profiles use
+`'joined-text'`, and the WebKit profile `'item-text'`. It still ran in engines
+Pretext doesn't recognize, including Bun, Node and jsdom, and where there is no
+`navigator`. There every item boundary allowed a break, the joined text around a
+boundary was never analyzed, and a trailing ZWSP or NEL marked a break before the
+next item. Those engines now use `'joined-text'`, as Blink and Gecko do, and
+`prepareRichInline()` loses the mode's branches and its `breakAfterPreviousItem`
+state, 15 runtime lines. This fixes the wrong result ENGINE_FOLLOWUPS recorded,
+where items `漢` and `丙.first` gave `漢丙.fir` / `st` though `丙.first` fits the next
+line. The rich-inline unit tests that set no profile run under Bun's user agent, so
+they now test the mode Chrome and Firefox use; they pass unchanged, and the test
+that pinned both modes keeps its `'joined-text'` half.
+
+The installed gate ran this change on `a36ce1b` against pinned `b69f72e`, whose
+runtime source equals main: Chrome 153 through the Playwright transport, Safari
+26.5.2 and Firefox 155 natively, both directions, at DPR 2 on the 2560x1440 screen.
+No leg fixes or loses a metric or changes a failure, and every leg's metric totals
+equal main's, as expected, since no installed profile used the mode. None has
+required failures, execution errors, or new API or rich failures, and five numeric
+profiles have no new failures. Suite hash
+`8dff524da9a6cd7c95c956aa4c617781e062358a846fc3858547c07e716887b4`; rows are in
+`/private/tmp/pretext-eng-20260912/gate-ablate-rich-item-boundary-{chrome,safari,firefox}`.
+
+Before the browsers, a counting fake canvas compared this branch with main. Under
+the Chrome, Safari and Firefox user agents, 1,380 keys covering the corpora, the
+accuracy grid, hyphen and slash shapes, analysis, preferred breaks and 26
+rich-inline cases are byte-identical, and so are 46 more rich-inline shapes and 18
+corpus prefixes split into 5-character items. Under an unrecognized user agent 23 of
+the 1,380 keys change, all of them rich-inline cases, at 450 of 2,262 widths, and
+every flat output stays the same; the extra rich shapes change 28 shapes and all 18
+prefixes, at 748 of 5,648 widths, with the same results when there is no
+`navigator`. No native browser observes that profile, so its lines were compared
+with the three major profiles at the same widths. Of the 748 widths, the branch
+matches at least one of them where main matched none at 697, and all three at 510;
+at no width does main match one of them while the branch matches none. At the other
+51, main matched one engine by accident and the branch matches the other two: main
+broke Thai, Lao and Myanmar split words at the item boundary as Safari does (15
+widths), before small kana and `ー` as Chrome does (25), and after `/` in a URL or
+path as Firefox does (11).
+
+`bun test` and `bun run check` pass. Under a counting fake canvas, Canvas calls per
+cold `prepare()` don't change in any profile: the 18 corpora take 53,093 calls in
+the Chrome profile, 116,306 in the Safari profile and 53,108 in the Firefox profile,
+and 57,041, 135,791 and 57,071 under `keep-all`. Canvas calls per cold
+`prepareRichInline()` over the 64 rich screen inputs don't change either: 4,136 in
+the Chrome profile, 4,944 in the Safari profile, 4,147 in the Firefox profile and
+4,144 under an unrecognized user agent or with no `navigator`. The baseline advances
+to `ebc3414`, and the ordinary snapshots were regenerated against it.
+
 ## Closing punctuation joins the text before it
 
 This runtime change starts from published main `52cc87c` (#290). A text segment that
