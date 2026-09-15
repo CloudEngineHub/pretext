@@ -69,6 +69,13 @@ the Chrome profile, 4,944 in the Safari profile, 4,147 in the Firefox profile an
 4,144 under an unrecognized user agent or with no `navigator`. The baseline advances
 to `ebc3414`, and the ordinary snapshots were regenerated against it.
 
+Chrome and Safari benchmark snapshots were refreshed from this branch: three
+foreground runs each at DPR 2, visible and focused, with Chrome on the 2560x1440
+screen and Safari on the 2560x1440 screen. Chrome reads `prepare()` at 9.05 ms
+(8.95 on the parent branch) and hot `layout()` at 0.0887 ms (0.0882); Safari reads
+11.5 ms (12.0) and 0.105 ms (0.105). Long-form corpus totals read 115.0 ms in
+Chrome (114.9) and 368 ms in Safari (350).
+
 ## Closing punctuation joins the text before it
 
 This runtime change starts from published main `52cc87c` (#290). A text segment that
