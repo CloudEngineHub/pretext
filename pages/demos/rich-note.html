@@ -6,6 +6,9 @@
   <meta name="description" content="Rich text rendered as text runs, links, code spans, and atomic chips, with live width changes powered by Pretext.">
   <title>Rich Text</title>
   <style>
+    /* A classic scrollbar keeps its room from the first frame, so the width the
+       page reads doesn't change when the note grows past the window. */
+    html { overflow-y: scroll; }
     * { box-sizing: border-box; margin: 0; }
     :root {
       color-scheme: light;
@@ -28,7 +31,7 @@
       min-height: 100vh;
     }
     .page {
-      width: min(940px, calc(100vw - 32px));
+      width: min(940px, calc(100% - 32px));
       margin: 0 auto;
       padding: 32px 0 48px;
     }
@@ -152,7 +155,7 @@
     }
     @media (max-width: 640px) {
       .page {
-        width: min(100vw - 20px, 940px);
+        width: min(100% - 20px, 940px);
         padding-top: 22px;
       }
       h1 { font-size: 30px; }
