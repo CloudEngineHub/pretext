@@ -17,6 +17,102 @@ All accuracy, letter-spacing and corpus result payloads are unchanged; refreshed
 snapshots change only provenance and environment records. Runtime sources and
 the baseline pin are unchanged, so no runtime benchmark was needed.
 
+## Marks after CJK text follow each engine
+
+This runtime change starts from main `8a26c56` (#308). After CJK text, punctuation
+whose UAX #14 class forbids a break before it now attaches to the CJK text, in the
+first merge pass and in the CJK unit builder, where main attached only a
+hand-written list plus CL, EX and NS inside CJK blocks: `'`, `/`, `|`, `‼`, `％` and
+`°` no longer start a line after `丙` (LB13, LB19, LB21, LB23a). Opening curly quotes
+and U+3000 and the other space separators still don't attach, and `-` keeps its own
+rules. The text after such a mark follows each engine (#293). One boundary rule,
+`pairBoundary()`, now answers the exclamation-mark rows, the Gecko rows and these
+rows, and every merge and the unit builder ask it. After an ASCII mark before an
+ASCII letter or digit, the Chromium profile keeps the pair from Blink's pair table,
+except after `?`. The WebKit profile keeps it before a digit, and before a letter
+follows UAX #14, since WebKit's scan reaches ICU at the CJK character and skips
+ahead over ASCII letters, unless the mark follows a code unit up to U+00FF or is CL
+or CP after an ideograph or Hangul syllable, where WebKit reads its table. The Gecko
+profile follows UAX #14. A new profile field, `icuDecidesLetterAfterCJKMark`, is
+true for WebKit. The URL query unit no longer asks about the boundary right after
+`?`, which it never joins.
+
+An installed probe on an `en` page in 16px Arial, Chrome 153, Safari 26.5.2 and
+Firefox 155 at DPR 2, reran #274's rows with longer followers: `甲乙丙`, `あいう` or `가나다`
+before 32 ASCII marks and `first_week`, `FirstWeek`, `1234` or `αβγδεζη`, at the
+width where the CJK text and the mark fit and the follower doesn't. Chrome keeps
+`!`, `}`, `/`, `|` and `'` with the letters and digits and breaks after all but `'`
+before the Greek. Safari breaks after `!`, `/` and `|` before a letter, after `}`
+before a letter only after kana, and keeps digits. Firefox breaks after `!`, `}` and
+`|` and after `/` before a letter. No browser breaks before any of those marks. A
+second probe checked the context rule: Safari, like Chrome, keeps `丙a}first`,
+`丙a!first`, `丙!!first`, `丙.!first` and `丙.}first` whole, so its table decides a pair
+unless the mark directly follows the character that reached ICU, and Firefox breaks
+after the mark in all of them. A third put `}`, `|`, `!`, `/` and `'` after `xy abc`
+before `1234` or `first`, with ` 丙`, `丙` or nothing after the word: Firefox breaks
+after `}`, `|` and `!` before either and after `/` before `first`, whatever follows
+the word, since ICU4X decides each word alone, and Chrome and Safari keep every word
+whole. Over the 1,296 probe rows at the width that splits the mark from what
+follows, this branch's analysis matches Chrome and Safari on every row, where main
+is wrong on 48 and 52, and misses 12 Firefox rows, where main misses 24. The 12 are
+`丙a}`, `丙a|` and their kana and Hangul copies before `first_week` or `1234`, where a
+letter comes between the CJK text and the mark: every Gecko profile, before and
+after this change, keeps `a}first` and `a|1234` whole, as it does after Latin text
+(ENGINE_FOLLOWUPS.md). Results are in
+`scratchpad/browser-probes/results/{chrome,safari,firefox}-i293-2026-09-15T19-01-*`,
+and the rerun with both bundles in `…-i293-2026-09-15T19-3*`.
+
+Before the browsers, the fake-canvas screen compared this branch with main over the
+corpora, the accuracy grid, hyphen and slash shapes, analysis, preferred breaks and
+rich-inline cases in all four profiles. Only `/` after CJK text changes: `see 漢/abc
+now`, `see 漢字/abc now`, `see かな/abc now`, `see 漢/1 now` and `see 中文/中文 now` in
+normal, pre-wrap and letter-spaced modes and in analysis, and the rich-inline split
+`see 漢` + `/abc now`, 21 keys in each profile. Main broke before `/` in every
+profile. Now the Chromium and unrecognized profiles keep `漢/abc`, the WebKit and
+Gecko profiles give `漢/ | abc`, and every profile keeps `漢/1` and breaks `文/ | 中`.
+
+The installed gate ran this change on `e7fb206` against pinned `11c440b`, whose
+runtime source equals main: Chrome 153 through the Playwright transport, Safari
+26.5.2 and Firefox 155 natively, both directions, at DPR 2 on the 2560x1440 screen.
+No leg loses a metric or has required failures, execution errors, or new API or rich
+failures, and five numeric profiles have no new failures. Chrome fixes 82 LTR and 46
+RTL metrics, Safari 85 and 46, and Firefox 82 and 46, all in supported scope and all
+on straight single quotes after CJK text: `中文中文''tail`, `あいあい''tail` and
+`가나가나''tail`, with letter spacing 0, −1 or 1.5, in normal white space and pre-wrap,
+where main started a line with `''` and each browser keeps the quotes and `tail`
+with the character before them. Chrome paints `中文中 / 文''tail` at 67.15px, as this
+branch gives, where main gave `中文中文 / ''tail`, and Safari also fixes both
+`policy/straight-single` rows, `가나가 / 나''tail` at 58.51px. Over the full suite's
+`maintained/closing-punctuation` rows, 4,528 left to right and 1,600 right to left
+in each browser, and `reported/#274`'s 6 rows, main and this branch predict the same
+lines. Suite hash
+`b1d38173d4d4a84d70164b0537c3d578296b1a26a39dd9906d32c35d6310c766`; rows are in
+`/private/tmp/pretext-eng-20260912/gate-cjk-mark-pairs-by-engine-{chrome,safari,firefox}`.
+
+No row is lost, so there is nothing to attribute. Rerun with main's and this
+branch's bundles side by side, the installed probe gives this branch's lines on all
+1,038 Safari rows, where main matches 862. Chrome matches this branch on 1,036 rows
+and main on 845, and Firefox on 973 and 907, and no row that main matches differs on
+this branch. Chrome's other 2 rows are fits main misses too: at 45.08px Chrome
+paints `가나 / 다'Firs / tWeek / 户` and this branch `가나 / 다'Firs / tWee / k户`, and at
+47.70px Chrome fits `δεζη户` on one line where both give `δεζη / 户`. Of Firefox's
+other 65, 64 put `}` or `|` after a letter, as in `xy abc}1234` or
+`甲乙丙a|first_week户`, where Firefox breaks after the mark and the Gecko profile keeps
+the word whole on main and this branch. In the last, `가나다|FirstWeek户` at 46.15px,
+this branch now breaks after `|` as Firefox does, but Firefox fills `FirstW / eek户`
+where this branch gives `First / Week / 户`.
+
+`bun test` and `bun run check` pass. Under a counting fake canvas, Canvas calls per
+cold `prepare()` don't change in any profile, since no corpus or accuracy-grid
+segment changes: the 18 corpora take 53,093 calls in the Chrome profile, 116,306 in
+the Safari profile and 53,108 in the Firefox profile, 57,041, 135,791 and 57,071
+under `keep-all`, and 53,101, 116,314 and 53,116 under `pre-wrap`, and the accuracy
+grid takes 9,136, 13,984 and 9,160. In Bun, cold `prepare()` under a fake canvas
+stays within 3% of main over the corpora in each profile, is 16-18% faster on 500
+CJK lines with marks, whose marks join fewer segments, and is 4-12% slower on one
+text of 20,000 marks after CJK text, which stays linear. The baseline advances to
+`1691168`, and the ordinary snapshots were regenerated against it.
+
 ## Pre-wrap spaces and tabs that hang
 
 This runtime change starts from main `0c12ece` (#307). In `pre-wrap`, a run of
