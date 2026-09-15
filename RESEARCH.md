@@ -694,10 +694,17 @@ shaping across styled items or solve flat ZWSP wrapping inside an item.
 
 A collapsed space's presence and advance are separate. Its style comes from the
 first whitespace at the boundary, and a zero or negative advance still provides
-a break opportunity. `measureText('A A') - measureText('AA')` includes the change
-in A–A kerning, so it is not a clean space measurement. Measure the space itself.
-After forced overflow, preserve the negative remaining width; clamping it to zero
-gives a following negative gap room it did not have.
+a break opportunity. Fragments name that whitespace's item as `gapItemIndex`,
+which is -1 only where no space precedes the fragment on its line. A painter
+draws the space inside that item's element, as native layout does. Painting
+every space in the paragraph's style moved the text after a code span's own
+space by the difference between the two space widths (#295). Margins or spacer
+boxes keep the width, but leave the space out of copied text, and margins put
+mixed-direction lines out of order (#273). `measureText('A A') -
+measureText('AA')` includes the change in A–A kerning, so it is not a clean
+space measurement. Measure the space itself. After forced overflow, preserve the
+negative remaining width; clamping it to zero gives a following negative gap
+room it did not have.
 
 A whole zero-width item fits at the end of an exactly filled line. Checking
 whole-item fit before reserving the item's gap and extra width admitted it, but

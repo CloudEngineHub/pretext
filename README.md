@@ -109,7 +109,7 @@ const prepared = prepareRichInline([
 
 walkRichInlineLineRanges(prepared, 320, range => {
   const line = materializeRichInlineLineRange(prepared, range)
-  // each fragment keeps its source item index, text slice, gapBefore, and cursors
+  // each fragment keeps its source item index, text slice, gapBefore, gapItemIndex, and cursors
 })
 ```
 
@@ -177,6 +177,7 @@ type RichInlineFragment = {
   itemIndex: number // index back into the original RichInlineItem array
   text: string // Text slice for this fragment
   gapBefore: number // collapsed space before this fragment, in pixels; can be zero or negative
+  gapItemIndex: number // index of the item whose collapsed space gapBefore measures, or -1 when no space precedes this fragment on this line
   occupiedWidth: number // text width plus extraWidth
   start: LayoutCursor // Start cursor within the item's prepared text
   end: LayoutCursor // End cursor within the item's prepared text
@@ -189,6 +190,7 @@ type RichInlineLine = {
 type RichInlineFragmentRange = {
   itemIndex: number // index back into the original RichInlineItem array
   gapBefore: number // collapsed space before this fragment, in pixels; can be zero or negative
+  gapItemIndex: number // index of the item whose collapsed space gapBefore measures, or -1 when no space precedes this fragment on this line
   occupiedWidth: number // text width plus extraWidth
   start: LayoutCursor // Start cursor within the item's prepared text
   end: LayoutCursor // End cursor within the item's prepared text
@@ -215,6 +217,7 @@ Notes:
 - A line's `width` leaves out spaces and tabs that hang past its end, as browsers draw them: all of them where the line wraps, and in `pre-wrap` before a newline or at the end of the text, only the part that doesn't fit in `maxWidth`. Firefox doesn't hang tabs, so there a tab counts. `measureNaturalWidth()` still counts spaces before a newline, like CSS max-content.
 - `layout()` with an empty string returns `{ lineCount: 0, height: 0 }`. Browsers still size an empty block to one `line-height`, so clamp with `Math.max(1, lineCount) * lineHeight` if you need that behavior.
 - Pretext doesn't compute bidi levels. If you're drawing mixed bidi text, like English and Arabic, render each paragraph as one DOM element with its direction set, and the browser orders every line. If you draw lines separately, such as with Canvas `fillText()`, each line is ordered as its own paragraph, so numbers or punctuation next to a line break, or bidi controls that span lines, can come out in a different order.
+- A rich-inline fragment's `gapBefore` is a space in the font and letter spacing of item `gapItemIndex`: the fragment's own item, the previous fragment's item, or an item holding only whitespace, which gets no fragment. Draw the space inside that item's element so it paints at that width.
 - Segment widths are browser-canvas widths for line breaking. They aren't enough to position individual characters correctly in Arabic or mixed bidi text.
 
 ## Caveats

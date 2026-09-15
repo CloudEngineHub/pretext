@@ -955,7 +955,7 @@ describe('boundary-policy regressions', () => {
         ] as const) {
           const rich = prepareRichInline([{ text, font: FONT }, { text: 'cd', font: FONT }])
           const line = layoutNextRichInlineLineRange(rich, Number.POSITIVE_INFINITY)
-          expect(line?.fragments.map(fragment => fragment.gapBefore > 0)).toEqual([false, gaps[column]])
+          expect(line?.fragments.map(fragment => fragment.gapItemIndex >= 0)).toEqual([false, gaps[column]])
         }
       }
     } finally {
@@ -2355,6 +2355,52 @@ describe('rich-inline invariants', () => {
     }
   })
 
+  test('a rich fragment names the item whose collapsed whitespace made its gap', () => {
+    const gapItems = (items: Array<{ text: string, font?: string, break?: 'never', letterSpacing?: number }>, maxWidth = Infinity) => {
+      const prepared = prepareRichInline(items.map(item => ({ font: FONT, ...item })))
+      const lines: Array<Array<[number, number]>> = []
+      walkRichInlineLineRanges(prepared, maxWidth, range => {
+        lines.push(range.fragments.map(fragment => [fragment.itemIndex, fragment.gapItemIndex]))
+      })
+      return lines
+    }
+    // The previous item's trailing whitespace, else the first whitespace-only
+    // item after it, else the item's own leading whitespace.
+    for (const [texts, fragments] of [
+      [['a', 'b'], [[0, -1], [1, -1]]],
+      [['a ', ' b'], [[0, -1], [1, 0]]],
+      [['a', ' b'], [[0, -1], [1, 1]]],
+      [['a', ' ', '  ', 'b'], [[0, -1], [3, 1]]],
+      [['a ', '\t', 'b'], [[0, -1], [2, 0]]],
+      [['a', '', '\n b'], [[0, -1], [2, 2]]],
+      [['a ', '\u200B', 'b'], [[0, -1], [1, 0], [2, -1]]],
+      // An item holding only a soft hyphen isn't line content: its fragment
+      // has no gap, and it ends the pending space.
+      [['a ', '\u00AD', ' b'], [[0, -1], [1, -1], [2, 2]]],
+    ] as const) {
+      expect(gapItems(texts.map(text => ({ text })))).toEqual([fragments.map(fragment => [...fragment])])
+    }
+    expect(gapItems([{ text: 'Tag' }, { text: ' @maya', break: 'never' }])).toEqual([[[0, -1], [1, 1]]])
+    // A gap of zero or negative advance still names its item.
+    for (const letterSpacing of [-measureWidth(' ', FONT), -measureWidth(' ', FONT) - 2]) {
+      expect(gapItems([{ text: 'A' }, { text: ' B', letterSpacing }])).toEqual([[[0, -1], [1, 1]]])
+    }
+    // A line's first fragment has no gap.
+    expect(gapItems([{ text: 'A ' }, { text: 'B' }], measureWidth('A', FONT))).toEqual([[[0, -1]], [[1, -1]]])
+    // Materialized fragments keep the item, and the gap takes that item's font.
+    const codeFont = '12px Test Sans'
+    const prepared = prepareRichInline([
+      { text: 'Call', font: FONT },
+      { text: ' make build', font: codeFont },
+      { text: ' now', font: FONT },
+    ])
+    const range = layoutNextRichInlineLineRange(prepared, Infinity)!
+    expect(materializeRichInlineLineRange(prepared, range).fragments.map(fragment => [fragment.text, fragment.gapItemIndex])).toEqual([
+      ['Call', -1], ['make build', 1], ['now', 2],
+    ])
+    expect(range.fragments[1]!.gapBefore).toBeCloseTo(measureWidth(' ', codeFont), 8)
+  })
+
   test('rich ordinary break rights survive zero and negative SPACE advances', () => {
     for (const gap of [-2, 0, 2]) {
       const prepared = prepareRichInline([
@@ -2499,7 +2545,7 @@ describe('rich-inline invariants', () => {
         maxLineWidth: Math.max(...streamed.map(line => line.width)),
       })
       return streamed.map(line => materializeRichInlineLineRange(prepared, line).fragments
-        .map(fragment => (fragment.gapBefore === 0 ? '' : ' ') + fragment.text).join('').trimEnd())
+        .map(fragment => (fragment.gapItemIndex < 0 ? '' : ' ') + fragment.text).join('').trimEnd())
     }
     const words = prepareRichInline([
       { text: 'Is that ', font: FONT },
@@ -2542,7 +2588,7 @@ describe('rich-inline invariants', () => {
         const richLines: string[] = []
         walkRichInlineLineRanges(prepared, width, range => {
           const line = materializeRichInlineLineRange(prepared, range)
-          richLines.push(line.fragments.map(fragment => (fragment.gapBefore === 0 ? '' : ' ') + fragment.text).join('').trimEnd())
+          richLines.push(line.fragments.map(fragment => (fragment.gapItemIndex < 0 ? '' : ' ') + fragment.text).join('').trimEnd())
         })
         const flat = layoutWithLines(prepareWithSegments(parts.join(''), FONT), width, LINE_HEIGHT)
         expect(richLines).toEqual(flat.lines.map(line => line.text.trimEnd()))
@@ -3459,7 +3505,7 @@ test('the Firefox profile breaks rich items only where their joined text breaks'
       const rich = []
       walkRichInlineLineRanges(prepared, width, range => {
         rich.push(materializeRichInlineLineRange(prepared, range).fragments
-          .map(fragment => (fragment.gapBefore === 0 ? '' : ' ') + fragment.text).join('').trimEnd())
+          .map(fragment => (fragment.gapItemIndex < 0 ? '' : ' ') + fragment.text).join('').trimEnd())
       })
       const flat = layoutWithLines(prepareWithSegments(parts.join(''), '16px Test'), width, 20)
       rows.push({
