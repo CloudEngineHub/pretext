@@ -1,13 +1,15 @@
 import {
   BODY_DEFAULT_WIDTH,
+  BODY_FONT,
   BODY_MIN_WIDTH,
   DEFAULT_RICH_NOTE_SPECS,
+  LINE_BOX_HEIGHT,
   prepareRichInlineNote,
   layoutRichNote,
   LINE_HEIGHT,
   NARROW_VIEWPORT_QUERY,
   resolveRichNoteBodyWidth,
-  type RichLine,
+  type RichNoteLayout,
 } from './rich-note.model.ts'
 
 type State = {
@@ -71,18 +73,24 @@ function scheduleRender(): void {
   })
 }
 
-function renderBody(lines: RichLine[]): void {
+function renderBody(layout: RichNoteLayout): void {
   domCache.noteBody.textContent = ''
   const fragment = document.createDocumentFragment()
 
-  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
-    const line = lines[lineIndex]!
+  for (let lineIndex = 0; lineIndex < layout.lines.length; lineIndex++) {
+    const line = layout.lines[lineIndex]!
+    // Each Pretext line is one line box, so the browser orders its bidi runs.
+    // The body font sets the baseline and paints the collapsed spaces.
     const row = document.createElement('div')
     row.className = 'line-row'
+    row.dir = layout.direction
+    row.style.setProperty('--font', BODY_FONT)
+    row.style.lineHeight = `${LINE_BOX_HEIGHT}px`
     row.style.top = `${lineIndex * LINE_HEIGHT}px`
 
     for (let fragmentIndex = 0; fragmentIndex < line.fragments.length; fragmentIndex++) {
       const part = line.fragments[fragmentIndex]!
+      if (part.spaceBefore) row.append(' ')
       const element = part.href === null
         ? document.createElement('span')
         : document.createElement('a')
@@ -90,7 +98,6 @@ function renderBody(lines: RichLine[]): void {
       // Paint with the font the item was measured with.
       element.style.setProperty('--font', part.font)
       element.textContent = part.text
-      if (part.leadingGap > 0) element.style.marginLeft = `${part.leadingGap}px`
       if (element instanceof HTMLAnchorElement && part.href !== null) {
         element.href = part.href
         element.target = '_blank'
@@ -132,5 +139,5 @@ function render(): void {
   domCache.root.style.setProperty('--note-content-width', `${bodyWidth}px`)
   domCache.noteBody.style.height = `${layout.noteBodyHeight}px`
 
-  renderBody(layout.lines)
+  renderBody(layout)
 }

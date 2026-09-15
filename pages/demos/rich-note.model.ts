@@ -26,6 +26,7 @@ type TextStyleModel = {
 
 export type PreparedRichInlineNote = {
   classNames: string[]
+  direction: 'ltr' | 'rtl'
   flow: PreparedRichInline
   fonts: string[]
   hrefs: Array<string | null>
@@ -35,7 +36,7 @@ export type RichLineFragment = {
   className: string
   font: string
   href: string | null
-  leadingGap: number
+  spaceBefore: boolean
   text: string
 }
 
@@ -45,6 +46,7 @@ export type RichLine = {
 
 export type RichNoteLayout = {
   bodyWidth: number
+  direction: 'ltr' | 'rtl'
   lineCount: number
   lines: RichLine[]
   noteBodyHeight: number
@@ -58,7 +60,9 @@ export const CODE_FONT = '600 14px "SF Mono", ui-monospace, Menlo, Monaco, monos
 export const CHIP_FONT = '700 12px "Helvetica Neue", Helvetica, Arial, sans-serif'
 
 export const LINE_HEIGHT = 34
-export const LAST_LINE_BLOCK_HEIGHT = 24
+// Each line paints in a 24px line box, a chip's height, and lines start
+// LINE_HEIGHT apart, so the body ends at the bottom of the last line box.
+export const LINE_BOX_HEIGHT = 24
 // The card's side padding, which the page paints from here. The card's ring is
 // an inset shadow, so the padding is all the width the card adds to the body.
 export const NOTE_PADDING_X = 20
@@ -72,6 +76,12 @@ export const BODY_DEFAULT_WIDTH = 516
 export const BODY_MAX_WIDTH = 760
 export const PAGE_MARGIN = 28
 export const CHIP_CHROME_WIDTH = 22
+// A note takes the direction of its first strong character, the way HTML
+// dir=auto reads text. Scripts stand in for bidi classes: letters of these
+// right-to-left scripts, RLM and ALM count as right-to-left, and any other
+// letter, spacing mark or LRM as left-to-right.
+const STRONG_CHARACTER = /[\p{L}\p{Mc}\u200E\u200F\u061C]/u
+const RIGHT_TO_LEFT_CHARACTER = /[\p{Script=Hebrew}\p{Script=Arabic}\p{Script=Syriac}\p{Script=Thaana}\p{Script=Nko}\p{Script=Samaritan}\p{Script=Mandaic}\p{Script=Adlam}\p{Script=Hanifi_Rohingya}\u200F\u061C]/u
 
 export const TEXT_STYLES = {
   body: {
@@ -159,7 +169,21 @@ export function prepareRichInlineNote(
   })
 
   // The painter reads each item's font from the items Pretext measured.
-  return { classNames, flow: prepareRichInline(items), fonts: items.map(item => item.font), hrefs }
+  return {
+    classNames,
+    direction: resolveDirection(items),
+    flow: prepareRichInline(items),
+    fonts: items.map(item => item.font),
+    hrefs,
+  }
+}
+
+function resolveDirection(items: readonly RichInlineItem[]): 'ltr' | 'rtl' {
+  for (let index = 0; index < items.length; index++) {
+    const strong = STRONG_CHARACTER.exec(items[index]!.text)
+    if (strong !== null) return RIGHT_TO_LEFT_CHARACTER.test(strong[0]) ? 'rtl' : 'ltr'
+  }
+  return 'ltr'
 }
 
 export function layoutRichInlineItems(
@@ -174,7 +198,7 @@ export function layoutRichInlineItems(
         className: prepared.classNames[fragment.itemIndex]!,
         font: prepared.fonts[fragment.itemIndex]!,
         href: prepared.hrefs[fragment.itemIndex] ?? null,
-        leadingGap: fragment.gapBefore,
+        spaceBefore: fragment.gapBefore > 0,
         text: fragment.text,
       })),
     })
@@ -213,10 +237,11 @@ export function layoutRichNote(
 
   return {
     bodyWidth,
+    direction: prepared.direction,
     lineCount,
     lines,
     noteBodyHeight:
-      lineCount === 0 ? LAST_LINE_BLOCK_HEIGHT : (lineCount - 1) * LINE_HEIGHT + LAST_LINE_BLOCK_HEIGHT,
+      lineCount === 0 ? LINE_BOX_HEIGHT : (lineCount - 1) * LINE_HEIGHT + LINE_BOX_HEIGHT,
     noteWidth: bodyWidth + notePaddingX * 2,
   }
 }
