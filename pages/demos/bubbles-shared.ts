@@ -33,18 +33,23 @@ export type BubblesPageGeometry = {
 
 declare global {
   // Defined by the classic script after the controls in bubbles.html, so the first paint has the
-  // page's geometry before this module loads.
+  // page's geometry and the bubbles' font and padding before this module loads.
   const bubblesPage: {
     defaultChatWidth: number
+    bubbleFont: string
+    bubbleLineHeight: number
+    bubblePaddingX: number
+    bubblePaddingY: number
     getGeometry(viewportWidth: number, requestedChatWidth: number): BubblesPageGeometry
     paint(geometry: BubblesPageGeometry): void
   }
 }
 
-export const FONT = '15px "Helvetica Neue", Helvetica, Arial, sans-serif'
-export const LINE_HEIGHT = 20
-export const PADDING_H = 12
-export const PADDING_V = 8
+// The same font and padding the page's classic script paints on the bubbles.
+export const FONT = bubblesPage.bubbleFont
+export const LINE_HEIGHT = bubblesPage.bubbleLineHeight
+export const PADDING_H = bubblesPage.bubblePaddingX
+export const PADDING_V = bubblesPage.bubblePaddingY
 
 export function prepareBubbleTexts(texts: string[]): PreparedBubble[] {
   return texts.map(text => ({

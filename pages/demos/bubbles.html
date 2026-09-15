@@ -124,10 +124,11 @@
     background: #1c1c1e;
   }
   .msg {
-    padding: 8px 12px;
+    padding: var(--bubble-padding);
     border-radius: 16px;
     width: fit-content;
-    font: 15px/20px "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font: var(--bubble-font);
+    line-height: var(--bubble-line-height);
     max-width: var(--bubble-max-width);
     overflow-wrap: break-word;
     word-break: normal;
@@ -182,10 +183,16 @@
       <span class="val" id="val"></span>
     </section>
     <script>
-      // The page's geometry. It's a classic script so the first paint has it before bubbles.ts
-      // loads, and bubbles.ts calls the same getGeometry() and paint() on every render.
+      // The page's geometry, and the bubbles' font and padding. It's a classic script so the first
+      // paint has them before bubbles.ts loads, and bubbles.ts calls the same getGeometry() and
+      // paint() on every render.
       const bubblesPage = {
         defaultChatWidth: 340,
+        // Pretext measures the bubbles in this font, and a bubble's width includes this padding.
+        bubbleFont: '15px "Helvetica Neue", Helvetica, Arial, sans-serif',
+        bubbleLineHeight: 20,
+        bubblePaddingX: 12,
+        bubblePaddingY: 8,
         dom: {
           root: document.documentElement,
           slider: document.getElementById('slider'),
@@ -220,6 +227,9 @@
           root.style.setProperty('--panel-padding-x', `${geometry.panelPaddingX}px`)
           root.style.setProperty('--chat-width', `${geometry.chatWidth}px`)
           root.style.setProperty('--bubble-max-width', `${geometry.bubbleMaxWidth}px`)
+          root.style.setProperty('--bubble-font', bubblesPage.bubbleFont)
+          root.style.setProperty('--bubble-line-height', `${bubblesPage.bubbleLineHeight}px`)
+          root.style.setProperty('--bubble-padding', `${bubblesPage.bubblePaddingY}px ${bubblesPage.bubblePaddingX}px`)
           slider.min = String(geometry.minChatWidth)
           slider.max = String(geometry.maxChatWidth)
           slider.value = String(geometry.chatWidth)
