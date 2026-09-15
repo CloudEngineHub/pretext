@@ -78,7 +78,8 @@ function scheduleRender(): void {
 }
 
 function render(): void {
-  const viewportWidth = document.documentElement.clientWidth
+  // The body's width, not the root's: see the geometry script in bubbles.html.
+  const viewportWidth = document.body.clientWidth
   let requestedChatWidth = st.requestedChatWidth
   if (st.events.sliderValue !== null) requestedChatWidth = st.events.sliderValue
   const geometry = bubblesPage.getGeometry(viewportWidth, requestedChatWidth)

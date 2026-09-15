@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- Keeps a classic scrollbar's room from the start, so clientWidth doesn't change when the page grows past the window. -->
-<style>html { overflow-y: scroll; }</style>
+<!-- Reserves a classic scrollbar's room from the start without painting a track, so the page's width doesn't change when it grows past the window. Overlay scrollbars ignore it. -->
+<style>html { scrollbar-gutter: stable; }</style>
 <title>Shrinkwrap Showdown</title>
 <script type="module" src="./bubbles.ts"></script>
 <style>
@@ -236,7 +236,9 @@
           label.textContent = `${geometry.chatWidth}px`
         },
       }
-      bubblesPage.paint(bubblesPage.getGeometry(document.documentElement.clientWidth, bubblesPage.defaultChatWidth))
+      // The body has no margin, border or padding, so its width is the room the page lays out in.
+      // Chrome's root clientWidth ignores an empty scrollbar gutter and reports the full window.
+      bubblesPage.paint(bubblesPage.getGeometry(document.body.clientWidth, bubblesPage.defaultChatWidth))
     </script>
 
     <section class="grid">
