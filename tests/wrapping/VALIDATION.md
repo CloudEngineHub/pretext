@@ -95,6 +95,14 @@ chat widths 640 and 360 stay within 4% of main in the Chrome and Safari profiles
 faster on some rows and slower on others. The baseline advances to `4672c58`, and
 the ordinary snapshots were regenerated against it.
 
+Chrome and Safari benchmark snapshots were refreshed from this branch: three
+foreground runs each at DPR 2, visible and focused, with Chrome on the 2560x1440
+screen and Safari on the 1440x2560 screen (the parent branch's runs used the
+2560x1440 screen). Chrome reads `prepare()` at 9.15 ms (8.80 on the parent branch)
+and hot `layout()` at 0.0868 ms (0.0887); Safari reads 11.0 ms (11.0) and 0.100 ms
+(0.105). Long-form corpus totals read 124.1 ms in Chrome (125.0) and 347 ms in
+Safari (352).
+
 ## Marks after CJK text follow each engine
 
 This runtime change starts from main `8a26c56` (#308). After CJK text, punctuation
