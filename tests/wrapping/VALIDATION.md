@@ -106,6 +106,13 @@ profile and 53,108 in the Firefox profile, 57,041, 135,791 and 57,071 under
 `keep-all`, and 53,101, 116,314 and 53,116 under `pre-wrap`. The baseline advances
 to `11c440b`, and the ordinary snapshots were regenerated against it.
 
+Chrome and Safari benchmark snapshots were refreshed from this branch: three
+foreground runs each at DPR 2, visible and focused, with Chrome on the 2560x1440
+screen and Safari on the 2560x1440 screen. Chrome reads `prepare()` at 9.10 ms
+(9.05 on the parent branch) and hot `layout()` at 0.0883 ms (0.0887); Safari reads
+12.0 ms (11.5) and 0.105 ms (0.105). Long-form corpus totals read 115.2 ms in
+Chrome (115.0) and 358 ms in Safari (368).
+
 ## Rich-inline item-boundary mode removed
 
 This change starts from main after #300 and removes rich-inline's `'item-boundary'`
