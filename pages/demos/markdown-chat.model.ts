@@ -167,11 +167,12 @@ export type QuoteRailLayout = {
   top: number
 }
 
-// The blocks, quote rails and bubble width a visible message paints with. Its
-// bubble height is the message's entry in ConversationLayout.heights.
+// The blocks, quote rails and bubble placement a visible message paints with.
+// Its bubble height is the message's entry in ConversationLayout.heights.
 export type MessageLayout = {
   blocks: BlockLayout[]
   contentInsetX: number
+  left: number // from the chat's left edge
   rails: QuoteRailLayout[]
   width: number
 }
@@ -972,5 +973,8 @@ export function layoutMessage(preparedMessage: PreparedChatMessage, chatWidth: n
   const width = preparedMessage.role === 'assistant'
     ? maxFrameWidth
     : Math.min(maxFrameWidth, contentInsetX * 2 + Math.max(1, usedContentWidth))
-  return { blocks, contentInsetX, rails, width }
+  // An assistant bubble starts at the lane's left edge, a user bubble ends at its
+  // right edge.
+  const left = preparedMessage.role === 'assistant' ? MESSAGE_SIDE_PADDING : chatWidth - MESSAGE_SIDE_PADDING - width
+  return { blocks, contentInsetX, left, rails, width }
 }

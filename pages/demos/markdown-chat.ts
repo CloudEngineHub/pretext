@@ -13,7 +13,6 @@ import {
   layoutConversation,
   layoutMessage,
   MARKER_FONT,
-  MESSAGE_SIDE_PADDING,
   OCCLUSION_BANNER_HEIGHT,
   TOP_SCROLL_ANCHOR,
   type BlockLayout,
@@ -34,18 +33,13 @@ type State = {
   scrollTop: number // where the last frame left the scroll position, as read back
 }
 
-type CachedRow = {
-  bubble: HTMLDivElement
-  row: HTMLElement
-}
-
 const domCache = {
   root: document.documentElement,
   shell: getRequiredElement('chat-shell'),
   viewport: getRequiredDiv('chat-viewport'),
   canvas: getRequiredDiv('chat-canvas'),
   toggleButton: getRequiredButton('virtualization-toggle'),
-  rows: [] as Array<CachedRow | undefined>, // cache lifetime: on visibility changes
+  rows: [] as Array<HTMLElement | undefined>, // cache lifetime: on visibility changes
   mountedStart: 0, // cache lifetime: on visibility changes
   mountedEnd: 0, // cache lifetime: on visibility changes
 }
@@ -63,7 +57,6 @@ const st: State = {
 
 let scheduledRaf: number | null = null
 
-domCache.root.style.setProperty('--message-side-padding', `${MESSAGE_SIDE_PADDING}px`)
 domCache.root.style.setProperty('--marker-font', MARKER_FONT)
 domCache.root.style.setProperty('--code-font', CODE_FONT)
 domCache.root.style.setProperty('--code-line-height', `${CODE_LINE_HEIGHT}px`)
@@ -186,50 +179,41 @@ function projectVisibleRows(
   const previousEnd = domCache.mountedEnd
   for (let index = previousStart; index < previousEnd; index++) {
     if (index >= start && index < end) continue
-    domCache.rows[index]!.row.remove()
+    domCache.rows[index]!.remove()
     domCache.rows[index] = undefined
   }
 
   const keptStart = Math.max(start, previousStart)
-  const firstKeptRow = keptStart < Math.min(end, previousEnd) ? domCache.rows[keptStart]!.row : null
+  const firstKeptRow = keptStart < Math.min(end, previousEnd) ? domCache.rows[keptStart]! : null
   for (let index = start; index < end; index++) {
     const preparedMessage = preparedMessages[index]!
-    let cachedRow = domCache.rows[index]
-    if (cachedRow === undefined) {
-      cachedRow = createMessageShell(preparedMessage.role)
-      domCache.rows[index] = cachedRow
-      renderMessageContents(cachedRow, preparedMessage, chatWidth, heights[index]!)
-      domCache.canvas.insertBefore(cachedRow.row, index < keptStart ? firstKeptRow : null)
+    let row = domCache.rows[index]
+    if (row === undefined) {
+      row = document.createElement('article')
+      row.className = `msg msg--${preparedMessage.role}`
+      domCache.rows[index] = row
+      renderMessageContents(row, preparedMessage, chatWidth, heights[index]!)
+      domCache.canvas.insertBefore(row, index < keptStart ? firstKeptRow : null)
     } else if (needsRelayout) {
-      renderMessageContents(cachedRow, preparedMessage, chatWidth, heights[index]!)
+      renderMessageContents(row, preparedMessage, chatWidth, heights[index]!)
     }
-    cachedRow.row.style.top = `${occlusionBannerHeight + tops[index]!}px`
+    row.style.top = `${occlusionBannerHeight + tops[index]!}px`
   }
 
   domCache.mountedStart = start
   domCache.mountedEnd = end
 }
 
-function createMessageShell(role: PreparedChatMessage['role']): CachedRow {
-  const row = document.createElement('article')
-  row.className = `msg msg--${role}`
-
-  const bubble = document.createElement('div')
-  bubble.className = 'msg-bubble'
-
-  row.append(bubble)
-  return { bubble, row }
-}
-
-// A message's contents and size follow the chat width, so they're laid out and
-// written when its row is created and when the chat width changes.
+// A row is its message's bubble. Its contents, side and size follow the chat
+// width, so they're laid out and written when the row is created and when the
+// chat width changes.
 function renderMessageContents(
-  cachedRow: CachedRow,
+  row: HTMLElement,
   preparedMessage: PreparedChatMessage,
   chatWidth: number,
   height: number,
 ): void {
-  const { blocks, contentInsetX, rails, width } = layoutMessage(preparedMessage, chatWidth)
+  const { blocks, contentInsetX, left, rails, width } = layoutMessage(preparedMessage, chatWidth)
   // Lines and rules span the final bubble, so they stay inside a shrinkwrapped one.
   const contentWidth = width - contentInsetX * 2
   const fragment = document.createDocumentFragment()
@@ -237,36 +221,42 @@ function renderMessageContents(
     fragment.append(renderQuoteRail(rails[index]!, contentInsetX))
   }
   for (let index = 0; index < blocks.length; index++) {
-    fragment.append(renderBlock(blocks[index]!, contentInsetX, contentWidth))
+    renderBlock(fragment, blocks[index]!, contentInsetX, contentWidth)
   }
-  cachedRow.bubble.replaceChildren(fragment)
-  cachedRow.row.style.height = `${height}px`
-  cachedRow.bubble.style.width = `${width}px`
-  cachedRow.bubble.style.height = `${height}px`
+  row.replaceChildren(fragment)
+  row.style.left = `${left}px`
+  row.style.width = `${width}px`
+  row.style.height = `${height}px`
 }
 
-function renderBlock(layout: BlockLayout, contentInsetX: number, contentWidth: number): HTMLElement {
+// A block's nodes go straight into the bubble, offset by the block's top.
+function renderBlock(
+  parent: DocumentFragment,
+  layout: BlockLayout,
+  contentInsetX: number,
+  contentWidth: number,
+): void {
   // A right-to-left block starts its indent and marker from the right.
   const start = layout.direction === 'rtl' ? 'right' : 'left'
+  appendMarker(parent, layout, contentInsetX, start)
   switch (layout.kind) {
     case 'inline':
-      return renderInlineBlock(layout, contentInsetX, contentWidth, start)
+      return renderInlineBlock(parent, layout, contentInsetX, contentWidth, start)
     case 'code':
-      return renderCodeBlock(layout, contentInsetX, start)
+      return renderCodeBlock(parent, layout, contentInsetX, start)
     case 'rule':
-      return renderRuleBlock(layout, contentInsetX, contentWidth, start)
+      return renderRuleBlock(parent, layout, contentInsetX, contentWidth, start)
   }
 }
 
 function renderInlineBlock(
+  parent: DocumentFragment,
   layout: Extract<BlockLayout, { kind: 'inline' }>,
   contentInsetX: number,
   contentWidth: number,
   start: 'left' | 'right',
-): HTMLElement {
+): void {
   const { block } = layout
-  const wrapper = createBlockShell(layout, 'block block--inline', contentInsetX, start)
-
   for (let lineIndex = 0; lineIndex < layout.lines.length; lineIndex++) {
     const line = layout.lines[lineIndex]!
     // Each Pretext line is one line box, so the browser orders its bidi runs.
@@ -277,7 +267,7 @@ function renderInlineBlock(
     applyTextStyle(row, block.paragraphStyle)
     row.style.lineHeight = `${block.lineHeight}px`
     row.style[start] = `${contentInsetX + block.contentLeft}px`
-    row.style.top = `${lineIndex * block.lineHeight}px`
+    row.style.top = `${layout.top + lineIndex * block.lineHeight}px`
     row.style.width = `${Math.max(1, contentWidth - block.contentLeft)}px`
 
     let previousNode: HTMLElement | null = null
@@ -298,22 +288,20 @@ function renderInlineBlock(
       row.append(node)
       previousNode = node
     }
-    wrapper.append(row)
+    parent.append(row)
   }
-
-  return wrapper
 }
 
 function renderCodeBlock(
+  parent: DocumentFragment,
   layout: Extract<BlockLayout, { kind: 'code' }>,
   contentInsetX: number,
   start: 'left' | 'right',
-): HTMLElement {
-  const wrapper = createBlockShell(layout, 'block block--code-shell', contentInsetX, start)
-
+): void {
   const codeBox = document.createElement('div')
   codeBox.className = 'code-box'
   codeBox.style[start] = `${contentInsetX + layout.block.contentLeft}px`
+  codeBox.style.top = `${layout.top}px`
   codeBox.style.width = `${layout.width}px`
   codeBox.style.height = `${layout.height}px`
 
@@ -328,39 +316,22 @@ function renderCodeBlock(
     codeBox.append(row)
   }
 
-  wrapper.append(codeBox)
-  return wrapper
+  parent.append(codeBox)
 }
 
 function renderRuleBlock(
+  parent: DocumentFragment,
   layout: Extract<BlockLayout, { kind: 'rule' }>,
   contentInsetX: number,
   contentWidth: number,
   start: 'left' | 'right',
-): HTMLElement {
-  const wrapper = createBlockShell(layout, 'block block--rule-shell', contentInsetX, start)
+): void {
   const rule = document.createElement('div')
   rule.className = 'rule-line'
   rule.style[start] = `${contentInsetX + layout.block.contentLeft}px`
-  rule.style.top = `${Math.floor(layout.height / 2)}px`
+  rule.style.top = `${layout.top + Math.floor(layout.height / 2)}px`
   rule.style.width = `${Math.max(1, contentWidth - layout.block.contentLeft)}px`
-  wrapper.append(rule)
-  return wrapper
-}
-
-function createBlockShell(
-  layout: BlockLayout,
-  className: string,
-  contentInsetX: number,
-  start: 'left' | 'right',
-): HTMLDivElement {
-  const wrapper = document.createElement('div')
-  wrapper.className = className
-  wrapper.style.top = `${layout.top}px`
-  wrapper.style.height = `${layout.height}px`
-
-  appendMarker(wrapper, layout, contentInsetX, start)
-  return wrapper
+  parent.append(rule)
 }
 
 // A rail starts from the side of the blocks it runs beside.
@@ -374,7 +345,7 @@ function renderQuoteRail(rail: QuoteRailLayout, contentInsetX: number): HTMLElem
 }
 
 function appendMarker(
-  wrapper: HTMLDivElement,
+  parent: DocumentFragment,
   layout: BlockLayout,
   contentInsetX: number,
   start: 'left' | 'right',
@@ -386,9 +357,9 @@ function appendMarker(
   node.className = 'block-marker'
   node.dir = layout.direction
   node.style[start] = `${contentInsetX + marker.left}px`
-  node.style.top = `${markerTop(layout)}px`
+  node.style.top = `${layout.top + markerTop(layout)}px`
   node.textContent = marker.text
-  wrapper.append(node)
+  parent.append(node)
 }
 
 function markerTop(layout: BlockLayout): number {

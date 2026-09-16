@@ -147,30 +147,13 @@
     }
     .msg {
       position: absolute;
-      left: 0;
-      width: 100%;
-      padding-inline: var(--message-side-padding);
-      display: flex;
     }
-    .msg--assistant { justify-content: flex-start; }
-    .msg--user { justify-content: flex-end; }
-    .msg-bubble {
-      position: relative;
-      flex: 0 0 auto;
-      max-width: 100%;
+    .msg--user {
       border-radius: 16px;
-      background: transparent;
-    }
-    .msg--user .msg-bubble {
       background: var(--user-bubble);
       box-shadow:
         inset 0 0 0 1px var(--user-bubble-border),
         0 6px 14px rgb(0 0 0 / 0.09);
-    }
-    .block {
-      position: absolute;
-      left: 0;
-      width: 100%;
     }
     .quote-rail {
       position: absolute;
@@ -224,7 +207,6 @@
     .is-del { text-decoration: line-through; text-decoration-thickness: 1px; }
     .code-box {
       position: absolute;
-      top: 0;
       border-radius: 10px;
       background: var(--assistant-code);
       /* A shadow ring takes no room, so lines sit the model's padding from the edge. */
