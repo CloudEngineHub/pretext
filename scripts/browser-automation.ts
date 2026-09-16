@@ -466,7 +466,7 @@ async function initializeFirefoxSession(options: BrowserSessionOptions): Promise
       '--remote-debugging-port',
       String(bidiPort),
       'about:blank',
-    ], { stdio: 'ignore', timeout: 15_000 })
+    ], { stdio: ['ignore', 'ignore', 'pipe'], encoding: 'utf8', timeout: 15_000 })
     for (let i = 0; i < 50 && firefoxPid === null; i++) {
       firefoxPid = findFirefoxPid(profileDir)
       if (firefoxPid === null) await sleep(100)
