@@ -124,7 +124,7 @@ Open engine work: decisions for the maintainer, known gaps and harness debt.
 - Rich-inline research lacks several loss shapes, such as an emoji modifier split across items and bold items. Its Latin rows were never compared against the maintained witnesses' page type.
 - Compare Arabic corpus line placement near 320-780px in installed browsers with a Range-based diagnostic; the gate scores counts, not placement.
 - Observe hyphen placement beyond the tiny discretionary protocol, so a wrong hyphen with the right line count fails.
-- Add benchmark cases for U+3000 indentation, VS16 emoji paragraphs, long invisible tails and letter-spaced CJK, and numeric recipes for soft-hyphen, mark and control shapes.
+- Add numeric recipes for soft-hyphen, mark and control shapes.
 - Settle shared representations once before combining engine rules: one per-grapheme letter-spacing unit and lazily allocated per-segment arrays.
 - The Blink and WebKit rules that hide each other's errors (soft hyphens, U+3000, Arabic widths, controls, kinsoku, letter spacing, line fit) can only gate together. Build them in layers, with a replay after each layer. The public output changes they need are approved: segment kinds for controls (landed for NEL in the WebKit profile) and for U+3000, raw CR, FF and VT kept in `line.text`, and U+00AD stripped from `line.text` when an unhyphenated soft hyphen stays inside text.
 - Name the origin set behind VALIDATION's 3,635 LTR recipe rows, which include 51 issue #212 and #214 rows.
