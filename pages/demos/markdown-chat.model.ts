@@ -3,7 +3,6 @@ import { marked, type Token, type Tokens } from 'marked'
 import {
   layout,
   layoutWithLines,
-  measureLineStats,
   measureNaturalWidth,
   prepareWithSegments,
   type LayoutLine,
@@ -15,6 +14,7 @@ import {
   prepareRichInline,
   walkRichInlineLineRanges,
   type PreparedRichInline,
+  type RichInlineLine,
 } from '../../src/rich-inline.ts'
 import { createMarkdownChatSpecs } from './markdown-chat.data.ts'
 
@@ -127,6 +127,8 @@ type PreparedInlineBlock = PreparedBlockBase & {
   hrefs: Array<string | null>
   lineHeight: number
   paragraphStyle: TextStyle // unmarked text, which sets each line's baseline
+  // Per item, as hrefs, so a space made by an item holding only whitespace
+  // paints in that item's style.
   styles: TextStyle[]
 }
 
@@ -146,79 +148,17 @@ export type PreparedChatMessage = {
   role: 'assistant' | 'user'
 }
 
-export type InlineFragmentLayout = {
-  gapItemIndex: number // the item whose collapsed space precedes it on its line, or -1
-  href: string | null
-  itemIndex: number
-  style: TextStyle
-  text: string
-}
-
-type BlockFrameBase = {
-  contentLeft: number
-  height: number
-  marker: { left: number; text: string } | null
-  top: number
-}
-
-type InlineBlockFrame = BlockFrameBase & {
-  kind: 'inline'
-  lineHeight: number
-  usedWidth: number
-}
-
-type CodeBlockFrame = BlockFrameBase & {
-  kind: 'code'
-  width: number
-}
-
-type RuleBlockFrame = BlockFrameBase & {
-  kind: 'rule'
-}
-
-type BlockFrame = InlineBlockFrame | CodeBlockFrame | RuleBlockFrame
-
-type InlineBlockLayout = {
-  contentLeft: number
+// A block placed in its message, its top from the bubble's top edge. A code
+// block's width is its box's.
+export type BlockLayout = {
   direction: 'ltr' | 'rtl'
   height: number
-  hrefs: Array<string | null>
-  kind: 'inline'
-  lineHeight: number
-  lines: Array<{
-    fragments: InlineFragmentLayout[]
-  }>
-  marker: { left: number; text: string } | null
-  paragraphStyle: TextStyle
-  // Per item, as hrefs, so a space made by an item holding only whitespace
-  // paints in that item's style.
-  styles: TextStyle[]
   top: number
-  width: number
-}
-
-type CodeBlockLayout = {
-  contentLeft: number
-  direction: 'ltr' | 'rtl'
-  height: number
-  kind: 'code'
-  lines: LayoutLine[]
-  marker: { left: number; text: string } | null
-  top: number
-  width: number
-}
-
-type RuleBlockLayout = {
-  contentLeft: number
-  direction: 'ltr' | 'rtl'
-  height: number
-  kind: 'rule'
-  marker: { left: number; text: string } | null
-  top: number
-  width: number
-}
-
-export type BlockLayout = InlineBlockLayout | CodeBlockLayout | RuleBlockLayout
+} & (
+  | { kind: 'inline'; block: PreparedInlineBlock; lines: RichInlineLine[] }
+  | { kind: 'code'; block: PreparedCodeBlock; lines: LayoutLine[]; width: number }
+  | { kind: 'rule'; block: PreparedRuleBlock }
+)
 
 export type QuoteRailLayout = {
   direction: 'ltr' | 'rtl'
@@ -227,17 +167,19 @@ export type QuoteRailLayout = {
   top: number
 }
 
-export type MessageFrame = {
-  blocks: BlockFrame[]
+// The blocks, quote rails and bubble width a visible message paints with. Its
+// bubble height is the message's entry in ConversationLayout.heights.
+export type MessageLayout = {
+  blocks: BlockLayout[]
   contentInsetX: number
-  frameWidth: number
-  layoutContentWidth: number
+  rails: QuoteRailLayout[]
+  width: number
 }
 
 // Every message's bubble height at one chat width, and its top, in typed
 // arrays. Tops and totalHeight leave out the banners: the canvas puts the top
 // banner's height above the messages and both banners' heights in its own, so
-// a banner change needs no new pass. Only visible messages get a MessageFrame.
+// a banner change needs no new pass. Only visible messages get a MessageLayout.
 export type ConversationLayout = {
   chatWidth: number
   heights: Float64Array
@@ -921,7 +863,7 @@ function getMessageWidths(role: PreparedChatMessage['role'], chatWidth: number):
 }
 
 // A message's bubble height, from line counts alone, so a width change builds
-// no block objects. layoutMessageFrame() places the blocks with the same top
+// no block objects. layoutMessage() places the blocks with the same top
 // padding and block margins.
 function measureMessageHeight(preparedMessage: PreparedChatMessage, contentWidth: number): number {
   let y = BUBBLE_PADDING_Y
@@ -937,34 +879,6 @@ function measureMessageHeight(preparedMessage: PreparedChatMessage, contentWidth
     y += getBlockHeight(block, lineCount)
   }
   return y + BUBBLE_PADDING_Y
-}
-
-// The blocks and bubble width a visible message paints with. Its bubble height
-// is the message's entry in ConversationLayout.heights.
-export function layoutMessageFrame(preparedMessage: PreparedChatMessage, chatWidth: number): MessageFrame {
-  const { contentInsetX, contentWidth, maxFrameWidth } = getMessageWidths(preparedMessage.role, chatWidth)
-  let y = BUBBLE_PADDING_Y
-  const blocks: BlockFrame[] = []
-  let usedContentWidth = 0
-
-  for (let index = 0; index < preparedMessage.blocks.length; index++) {
-    const block = preparedMessage.blocks[index]!
-    y += block.marginTop
-    const blockFrame = layoutBlockFrame(block, contentWidth, y)
-    blocks.push(blockFrame)
-    y += blockFrame.height
-    usedContentWidth = Math.max(usedContentWidth, getUsedBlockWidth(blockFrame))
-  }
-
-  const frameWidth = preparedMessage.role === 'assistant'
-    ? maxFrameWidth
-    : Math.min(maxFrameWidth, contentInsetX * 2 + Math.max(1, usedContentWidth))
-  return {
-    blocks,
-    contentInsetX,
-    frameWidth,
-    layoutContentWidth: contentWidth,
-  }
 }
 
 // The width a block's lines wrap at: past its indent, and for code, inside its
@@ -987,165 +901,76 @@ function getBlockHeight(block: PreparedBlock, lineCount: number): number {
   }
 }
 
-function layoutBlockFrame(
-  block: PreparedBlock,
-  contentWidth: number,
-  top: number,
-): BlockFrame {
-  switch (block.kind) {
-    case 'inline': {
-      const { lineCount, maxLineWidth } = measureRichInlineStats(block.flow, getBlockLineWidth(block, contentWidth))
-      return {
-        contentLeft: block.contentLeft,
-        height: getBlockHeight(block, lineCount),
-        kind: 'inline',
-        lineHeight: block.lineHeight,
-        marker: block.marker,
-        top,
-        usedWidth: maxLineWidth,
-      }
-    }
-
-    case 'code': {
-      const { lineCount, maxLineWidth } = measureLineStats(block.prepared, getBlockLineWidth(block, contentWidth))
-      return {
-        contentLeft: block.contentLeft,
-        height: getBlockHeight(block, lineCount),
-        kind: 'code',
-        marker: block.marker,
-        top,
-        width: maxLineWidth + CODE_BLOCK_PADDING_X * 2,
-      }
-    }
-
-    case 'rule': {
-      return {
-        contentLeft: block.contentLeft,
-        height: getBlockHeight(block, 0),
-        kind: 'rule',
-        marker: block.marker,
-        top,
-      }
-    }
-  }
-}
-
-function getUsedBlockWidth(block: BlockFrame): number {
-  switch (block.kind) {
-    case 'inline':
-      return block.contentLeft + block.usedWidth
-    case 'code':
-      return block.contentLeft + block.width
-    case 'rule':
-      // A rule has no width of its own. It stretches across the final bubble.
-      return block.contentLeft
-  }
-}
-
-export function materializeMessageBlocks(preparedMessage: PreparedChatMessage, frame: MessageFrame): BlockLayout[] {
-  const bubbleContentWidth = frame.frameWidth - frame.contentInsetX * 2
-  return preparedMessage.blocks.map((block, index) =>
-    materializeBlockLayout(block, frame.blocks[index]!, frame.layoutContentWidth, bubbleContentWidth),
-  )
-}
-
+// The lines, quote rails and bubble width a visible message paints with, from
+// one walk over each block's lines.
+//
 // A quote's rail runs beside its blocks, from the top of the first to the
 // bottom of the last, across the gaps between them. Each block starts from its
 // own side, indented past every enclosing quote's rail, so a quote with blocks
 // on both sides paints one rail per run of blocks on the same side. A quote's
 // blocks are consecutive, so each block extends its quote's last rail, or opens
 // a new one where the side changes.
-export function materializeQuoteRails(preparedMessage: PreparedChatMessage, frame: MessageFrame): QuoteRailLayout[] {
+export function layoutMessage(preparedMessage: PreparedChatMessage, chatWidth: number): MessageLayout {
+  const { contentInsetX, contentWidth, maxFrameWidth } = getMessageWidths(preparedMessage.role, chatWidth)
+  const blocks: BlockLayout[] = []
   const rails: QuoteRailLayout[] = []
   const lastRails = new Map<Quote, QuoteRailLayout>()
-  const { blocks } = preparedMessage
-  for (let index = 0; index < blocks.length; index++) {
-    const block = blocks[index]!
-    const blockFrame = frame.blocks[index]!
+  let y = BUBBLE_PADDING_Y
+  let usedContentWidth = 0
+
+  for (let index = 0; index < preparedMessage.blocks.length; index++) {
+    const block = preparedMessage.blocks[index]!
+    y += block.marginTop
     // A message with no paragraph at all is left-to-right.
     const direction = block.direction ?? 'ltr'
+    let blockLayout: BlockLayout
+    switch (block.kind) {
+      case 'inline': {
+        const lines: RichInlineLine[] = []
+        let maxLineWidth = 0
+        walkRichInlineLineRanges(block.flow, getBlockLineWidth(block, contentWidth), range => {
+          lines.push(materializeRichInlineLineRange(block.flow, range))
+          maxLineWidth = Math.max(maxLineWidth, range.width)
+        })
+        usedContentWidth = Math.max(usedContentWidth, block.contentLeft + maxLineWidth)
+        blockLayout = { block, direction, height: getBlockHeight(block, lines.length), kind: 'inline', lines, top: y }
+        break
+      }
+      case 'code': {
+        const { lines } = layoutWithLines(block.prepared, getBlockLineWidth(block, contentWidth), CODE_LINE_HEIGHT)
+        let maxLineWidth = 0
+        for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+          maxLineWidth = Math.max(maxLineWidth, lines[lineIndex]!.width)
+        }
+        const width = maxLineWidth + CODE_BLOCK_PADDING_X * 2
+        usedContentWidth = Math.max(usedContentWidth, block.contentLeft + width)
+        blockLayout = { block, direction, height: getBlockHeight(block, lines.length), kind: 'code', lines, top: y, width }
+        break
+      }
+      case 'rule':
+        // A rule has no width of its own. It stretches across the final bubble.
+        usedContentWidth = Math.max(usedContentWidth, block.contentLeft)
+        blockLayout = { block, direction, height: getBlockHeight(block, 0), kind: 'rule', top: y }
+        break
+    }
+    blocks.push(blockLayout)
+
     for (let depth = 0; depth < block.quotes.length; depth++) {
       const quote = block.quotes[depth]!
       const rail = lastRails.get(quote)
       if (rail === undefined || rail.direction !== direction) {
-        const opened = { direction, height: blockFrame.height, left: quote.railLeft, top: blockFrame.top }
+        const opened = { direction, height: blockLayout.height, left: quote.railLeft, top: y }
         lastRails.set(quote, opened)
         rails.push(opened)
       } else {
-        rail.height = blockFrame.top + blockFrame.height - rail.top
+        rail.height = y + blockLayout.height - rail.top
       }
     }
+    y += blockLayout.height
   }
-  return rails
-}
 
-function materializeBlockLayout(
-  block: PreparedBlock,
-  frame: BlockFrame,
-  contentWidth: number,
-  bubbleContentWidth: number,
-): BlockLayout {
-  switch (frame.kind) {
-    case 'inline': {
-      if (block.kind !== 'inline') throw new Error('Inline block/frame mismatch')
-      const lines: InlineBlockLayout['lines'] = []
-      walkRichInlineLineRanges(block.flow, getBlockLineWidth(block, contentWidth), range => {
-        const line = materializeRichInlineLineRange(block.flow, range)
-        lines.push({
-          fragments: line.fragments.map(fragment => ({
-            gapItemIndex: fragment.gapItemIndex,
-            href: block.hrefs[fragment.itemIndex] ?? null,
-            itemIndex: fragment.itemIndex,
-            style: block.styles[fragment.itemIndex]!,
-            text: fragment.text,
-          })),
-        })
-      })
-
-      return {
-        contentLeft: frame.contentLeft,
-        direction: block.direction,
-        height: frame.height,
-        hrefs: block.hrefs,
-        kind: 'inline',
-        lineHeight: frame.lineHeight,
-        lines,
-        marker: frame.marker,
-        paragraphStyle: block.paragraphStyle,
-        styles: block.styles,
-        top: frame.top,
-        // Rows span the final bubble, so they stay inside a shrinkwrapped one.
-        width: Math.max(1, bubbleContentWidth - frame.contentLeft),
-      }
-    }
-
-    case 'code': {
-      if (block.kind !== 'code') throw new Error('Code block/frame mismatch')
-      const { lines } = layoutWithLines(block.prepared, getBlockLineWidth(block, contentWidth), CODE_LINE_HEIGHT)
-      return {
-        contentLeft: frame.contentLeft,
-        // A message with no paragraph at all is left-to-right.
-        direction: block.direction ?? 'ltr',
-        height: frame.height,
-        kind: 'code',
-        lines,
-        marker: frame.marker,
-        top: frame.top,
-        width: frame.width,
-      }
-    }
-
-    case 'rule': {
-      if (block.kind !== 'rule') throw new Error('Rule block/frame mismatch')
-      return {
-        contentLeft: frame.contentLeft,
-        direction: block.direction ?? 'ltr',
-        height: frame.height,
-        kind: 'rule',
-        marker: frame.marker,
-        top: frame.top,
-        width: Math.max(1, bubbleContentWidth - frame.contentLeft),
-      }
-    }
-  }
+  const width = preparedMessage.role === 'assistant'
+    ? maxFrameWidth
+    : Math.min(maxFrameWidth, contentInsetX * 2 + Math.max(1, usedContentWidth))
+  return { blocks, contentInsetX, rails, width }
 }
