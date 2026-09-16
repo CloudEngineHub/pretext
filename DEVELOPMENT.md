@@ -49,11 +49,11 @@ controls next to spaces. Each row reports ms per text for its first cold batch,
 the median cold batch after `clearCache()`, a warm batch with filled caches and
 a hot `layout()` pass. Apart from the first batch, each sample repeats its work
 for at least 20ms so Safari's 1ms timer resolves it. `canvasCalls` counts
-`measureText()` in one cold batch. The last row
-is shaped like virtualization: 1,000 distinct sentences in a font no other row
-measures, so its first batch is the fresh-text prepare. WebKit's width cache can
-speed up repeated cold batches of the same strings, so compare Canvas calls and
-first batches before trusting a difference only the median cold batch shows.
+`measureText()` in one cold batch. The last row is shaped like virtualization:
+1,000 distinct sentences in a font no other row measures, so its first batch is
+the fresh-text prepare. WebKit's width cache can speed up repeated cold batches
+of the same strings, so compare Canvas calls and first batches before trusting a
+difference only the median cold batch shows.
 
 Benchmarks require a visible, focused page throughout and reject observed window,
 viewport or screen changes. The three runs must have matching environments before

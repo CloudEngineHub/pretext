@@ -47,19 +47,8 @@ const CORPUS_METADATA_KEYS = [
   'lineCount',
 ] as const
 
-const SHAPE_COUNT_KEYS = [
-  'texts',
-  'segments',
-  'lineCount',
-  'canvasCalls',
-] as const
-
-const SHAPE_TIMING_KEYS = [
-  'firstMs',
-  'prepareMs',
-  'warmMs',
-  'layoutMs',
-] as const
+const SHAPE_COUNT_KEYS = ['texts', 'segments', 'lineCount', 'canvasCalls'] as const
+const SHAPE_TIMING_KEYS = ['firstMs', 'prepareMs', 'warmMs', 'layoutMs'] as const
 
 function parseStringFlag(name: string): string | null {
   const prefix = `--${name}=`

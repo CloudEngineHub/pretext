@@ -5,8 +5,7 @@ import zhGuxiang from '../corpora/zh-guxiang.txt' with { type: 'text' }
 import zhZhufu from '../corpora/zh-zhufu.txt' with { type: 'text' }
 
 // Texts for the /benchmark shape rows: batches of many texts over preparation
-// paths the short shared corpus rarely reaches. The row type lives here, not in
-// shared/benchmark-report.ts, because the wrapping suite hash covers shared/.
+// paths the short shared corpus rarely reaches.
 export type ShapeBenchmarkResult = {
   id: string
   texts: number
