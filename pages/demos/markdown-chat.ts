@@ -138,8 +138,9 @@ function render(): void {
     adjustedScrollTop = conversation.tops[scrollAnchor.index]! - scrollAnchor.offset
   }
 
-  // Rows mount for the position kept between 0 and the canvas's end. The browser
-  // keeps a scroll there, and a bounce past an end shows no message the end doesn't.
+  // Rows mount for the position clamped between 0 and the canvas's end. The
+  // browser clamps the scroll below the same way, and a bounce past an end shows
+  // no message the end doesn't.
   const { start, end } = findVisibleRange(
     conversation,
     Math.max(0, Math.min(endScrollTop, adjustedScrollTop)),
