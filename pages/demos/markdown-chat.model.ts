@@ -61,7 +61,8 @@ const RIGHT_TO_LEFT_CHARACTER = /[\p{Script=Hebrew}\p{Script=Arabic}\p{Script=Sy
 // The page paints text with the fonts and letter spacing Pretext measured, and
 // pills with the side padding their widths count, so typography lives here and
 // the CSS doesn't restate it.
-export const MARKER_FONT = `600 11px ${MONO_FAMILY}`
+export const MARKER_FONT_SIZE = 11
+export const MARKER_FONT = `600 ${MARKER_FONT_SIZE}px ${MONO_FAMILY}`
 export const CODE_FONT = `500 12px ${MONO_FAMILY}`
 export const INLINE_CODE_PADDING_X = 6
 export const IMAGE_PADDING_X = 7

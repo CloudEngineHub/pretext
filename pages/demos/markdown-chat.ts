@@ -13,6 +13,7 @@ import {
   layoutConversation,
   layoutMessage,
   MARKER_FONT,
+  MARKER_FONT_SIZE,
   OCCLUSION_BANNER_HEIGHT,
   TOP_SCROLL_ANCHOR,
   type BlockLayout,
@@ -362,14 +363,16 @@ function appendMarker(
   parent.append(node)
 }
 
+// A marker's box is one em of the marker font tall. Its center sits on the
+// center of the first line it marks, or of a rule's block.
 function markerTop(layout: BlockLayout): number {
   switch (layout.kind) {
-    case 'code':
-      return CODE_BLOCK_PADDING_Y
     case 'inline':
-      return Math.max(0, Math.round((layout.block.lineHeight - 12) / 2))
+      return (layout.block.lineHeight - MARKER_FONT_SIZE) / 2
+    case 'code':
+      return CODE_BLOCK_PADDING_Y + (CODE_LINE_HEIGHT - MARKER_FONT_SIZE) / 2
     case 'rule':
-      return 0
+      return (layout.height - MARKER_FONT_SIZE) / 2
   }
 }
 
