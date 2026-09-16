@@ -51,8 +51,6 @@ const SANS_FAMILY = 'Helvetica, Arial, sans-serif'
 const SERIF_FAMILY = '"Iowan Old Style", Georgia, "Times New Roman", serif'
 const MONO_FAMILY = '"SF Mono", ui-monospace, Menlo, Monaco, monospace'
 const HEADING_LETTER_SPACING_EM = -0.01
-const INLINE_CODE_EXTRA_WIDTH = 12
-const IMAGE_EXTRA_WIDTH = 14
 // A paragraph takes the direction of its first strong character, the way HTML
 // dir=auto reads text. Scripts stand in for bidi classes: letters of these
 // right-to-left scripts, RLM and ALM count as right-to-left, and any other
@@ -60,10 +58,13 @@ const IMAGE_EXTRA_WIDTH = 14
 const STRONG_CHARACTER = /[\p{L}\p{Mc}\u200E\u200F\u061C]/u
 const RIGHT_TO_LEFT_CHARACTER = /[\p{Script=Hebrew}\p{Script=Arabic}\p{Script=Syriac}\p{Script=Thaana}\p{Script=Nko}\p{Script=Samaritan}\p{Script=Mandaic}\p{Script=Adlam}\p{Script=Hanifi_Rohingya}\u200F\u061C]/u
 
-// The page paints text with the fonts and letter spacing Pretext measured, so
-// typography lives here and the CSS doesn't restate it.
+// The page paints text with the fonts and letter spacing Pretext measured, and
+// pills with the side padding their widths count, so typography lives here and
+// the CSS doesn't restate it.
 export const MARKER_FONT = `600 11px ${MONO_FAMILY}`
 export const CODE_FONT = `500 12px ${MONO_FAMILY}`
+export const INLINE_CODE_PADDING_X = 6
+export const IMAGE_PADDING_X = 7
 const INLINE_CODE_STYLE: TextStyle = {
   className: 'frag frag--code',
   font: `600 12px ${MONO_FAMILY}`,
@@ -752,7 +753,7 @@ function createCodePiece(text: string): InlinePiece | null {
 
   return {
     breakMode: 'normal',
-    extraWidth: INLINE_CODE_EXTRA_WIDTH,
+    extraWidth: INLINE_CODE_PADDING_X * 2,
     href: null,
     style: INLINE_CODE_STYLE,
     text,
@@ -762,7 +763,7 @@ function createCodePiece(text: string): InlinePiece | null {
 function createImagePiece(text: string): InlinePiece {
   return {
     breakMode: 'never',
-    extraWidth: IMAGE_EXTRA_WIDTH,
+    extraWidth: IMAGE_PADDING_X * 2,
     href: null,
     style: IMAGE_STYLE,
     text: text.length > 0 ? text : 'image',

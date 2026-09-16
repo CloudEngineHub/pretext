@@ -2,6 +2,8 @@ import {
   BODY_DEFAULT_WIDTH,
   BODY_FONT,
   BODY_MIN_WIDTH,
+  CHIP_PADDING_X,
+  CODE_PADDING_X,
   DEFAULT_RICH_NOTE_SPECS,
   prepareRichInlineNote,
   layoutRichNote,
@@ -37,6 +39,9 @@ const st: State = {
 }
 
 let scheduledRaf: number | null = null
+
+domCache.root.style.setProperty('--code-padding-x', `${CODE_PADDING_X}px`)
+domCache.root.style.setProperty('--chip-padding-x', `${CHIP_PADDING_X}px`)
 
 domCache.widthSlider.addEventListener('input', () => {
   st.events.sliderValue = Number.parseInt(domCache.widthSlider.value, 10)

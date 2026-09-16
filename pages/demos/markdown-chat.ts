@@ -8,6 +8,8 @@ import {
   findVisibleRange,
   getMaxChatWidth,
   getOcclusionBannerHeight,
+  IMAGE_PADDING_X,
+  INLINE_CODE_PADDING_X,
   layoutConversation,
   layoutMessageFrame,
   MARKER_FONT,
@@ -67,6 +69,9 @@ let scheduledRaf: number | null = null
 domCache.root.style.setProperty('--message-side-padding', `${MESSAGE_SIDE_PADDING}px`)
 domCache.root.style.setProperty('--marker-font', MARKER_FONT)
 domCache.root.style.setProperty('--code-font', CODE_FONT)
+domCache.root.style.setProperty('--code-line-height', `${CODE_LINE_HEIGHT}px`)
+domCache.root.style.setProperty('--inline-code-padding-x', `${INLINE_CODE_PADDING_X}px`)
+domCache.root.style.setProperty('--image-padding-x', `${IMAGE_PADDING_X}px`)
 
 domCache.toggleButton.addEventListener('click', () => {
   st.events.toggleVisualization = true
