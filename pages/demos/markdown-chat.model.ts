@@ -850,18 +850,18 @@ function stripSingleTrailingNewline(text: string): string {
 type MessageWidths = {
   contentInsetX: number
   contentWidth: number // the width its blocks lay out in
-  maxFrameWidth: number
+  maxBubbleWidth: number
 }
 
 // An assistant message spans the lane. A user bubble is at most
 // BUBBLE_MAX_RATIO of the chat wide, and its padding insets its content.
 function getMessageWidths(role: PreparedChatMessage['role'], chatWidth: number): MessageWidths {
   const laneWidth = Math.max(120, chatWidth - MESSAGE_SIDE_PADDING * 2)
-  const maxFrameWidth = role === 'assistant'
+  const maxBubbleWidth = role === 'assistant'
     ? laneWidth
     : Math.min(laneWidth, Math.max(240, Math.floor(chatWidth * BUBBLE_MAX_RATIO)))
   const contentInsetX = role === 'assistant' ? 0 : BUBBLE_PADDING_X
-  return { contentInsetX, contentWidth: Math.max(120, maxFrameWidth - contentInsetX * 2), maxFrameWidth }
+  return { contentInsetX, contentWidth: Math.max(120, maxBubbleWidth - contentInsetX * 2), maxBubbleWidth }
 }
 
 // A message's bubble height, from line counts alone, so a width change builds
@@ -903,8 +903,8 @@ function getBlockHeight(block: PreparedBlock, lineCount: number): number {
   }
 }
 
-// The lines, quote rails and bubble width a visible message paints with, from
-// one walk over each block's lines.
+// The blocks, quote rails and bubble placement a visible message paints with,
+// from one walk over each block's lines.
 //
 // A quote's rail runs beside its blocks, from the top of the first to the
 // bottom of the last, across the gaps between them. Each block starts from its
@@ -913,7 +913,7 @@ function getBlockHeight(block: PreparedBlock, lineCount: number): number {
 // blocks are consecutive, so each block extends its quote's last rail, or opens
 // a new one where the side changes.
 export function layoutMessage(preparedMessage: PreparedChatMessage, chatWidth: number): MessageLayout {
-  const { contentInsetX, contentWidth, maxFrameWidth } = getMessageWidths(preparedMessage.role, chatWidth)
+  const { contentInsetX, contentWidth, maxBubbleWidth } = getMessageWidths(preparedMessage.role, chatWidth)
   const blocks: BlockLayout[] = []
   const rails: QuoteRailLayout[] = []
   const lastRails = new Map<Quote, QuoteRailLayout>()
@@ -972,8 +972,8 @@ export function layoutMessage(preparedMessage: PreparedChatMessage, chatWidth: n
   }
 
   const width = preparedMessage.role === 'assistant'
-    ? maxFrameWidth
-    : Math.min(maxFrameWidth, contentInsetX * 2 + Math.max(1, usedContentWidth))
+    ? maxBubbleWidth
+    : Math.min(maxBubbleWidth, contentInsetX * 2 + Math.max(1, usedContentWidth))
   // An assistant bubble starts at the lane's left edge, a user bubble ends at its
   // right edge.
   const left = preparedMessage.role === 'assistant' ? MESSAGE_SIDE_PADDING : chatWidth - MESSAGE_SIDE_PADDING - width

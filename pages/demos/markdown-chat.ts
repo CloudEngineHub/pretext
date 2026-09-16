@@ -151,7 +151,7 @@ function render(): void {
     : 'Show virtualization mask'
   domCache.toggleButton.setAttribute('aria-pressed', String(isVisualizationOn))
 
-  projectVisibleRows(conversation, chatWidth, occlusionBannerHeight, start, end, needsRelayout)
+  projectVisibleRows(conversation, occlusionBannerHeight, start, end, needsRelayout)
 
   // The last effect. Browsers round scrollTop, so store the position read back,
   // not the one asked for, or the next frame would take it for a user scroll.
@@ -169,13 +169,12 @@ function render(): void {
 // message order.
 function projectVisibleRows(
   conversation: ConversationLayout,
-  chatWidth: number,
   occlusionBannerHeight: number,
   start: number,
   end: number,
   needsRelayout: boolean,
 ): void {
-  const { heights, tops } = conversation
+  const { chatWidth, heights, tops } = conversation
   const previousStart = domCache.mountedStart
   const previousEnd = domCache.mountedEnd
   for (let index = previousStart; index < previousEnd; index++) {
