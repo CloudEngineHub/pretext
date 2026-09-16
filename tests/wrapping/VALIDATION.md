@@ -54,6 +54,13 @@ cold `prepare()` don't change in any profile, since the change is in line breaki
 and reads only cached advances. The baseline advances to `7c2ec51`, and the ordinary
 snapshots were regenerated against it.
 
+Chrome and Safari benchmark snapshots were refreshed from this branch: three
+foreground runs each at DPR 2, visible and focused, with Chrome on the 2560x1440
+screen and Safari on the 2560x1440 screen. Chrome reads `prepare()` at 9.15 ms
+(8.95 on the parent branch) and hot `layout()` at 0.0885 ms (0.0895); Safari reads
+11.5 ms (11.0) and 0.105 ms (0.102). Long-form corpus totals read 125.4 ms in
+Chrome (122.5) and 349 ms in Safari (348).
+
 ## Emoji correction counts U+FE0F only after an emoji character
 
 This runtime change starts from main `5810820` (#311). Chrome and Firefox on macOS
