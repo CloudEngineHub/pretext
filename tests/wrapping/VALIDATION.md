@@ -70,6 +70,13 @@ don't change in any profile, since the rule only decides how many corrections a
 measured segment subtracts. The baseline advances to `acba4c5`, and the ordinary
 snapshots were regenerated against it.
 
+Chrome and Safari benchmark snapshots were refreshed from this branch: three
+foreground runs each at DPR 2, visible and focused, with Chrome on the 2560x1440
+screen and Safari on the 2560x1440 screen. Chrome reads `prepare()` at 8.95 ms
+(8.95 on the parent branch) and hot `layout()` at 0.0895 ms (0.0885); Safari reads
+11.0 ms (11.0) and 0.102 ms (0.105). Long-form corpus totals read 122.5 ms in
+Chrome (115.0) and 348 ms in Safari (351).
+
 ## Safari kerning without the bidi class table
 
 This runtime change starts from main `1262b4f` (#310). The Safari profile keeps a
