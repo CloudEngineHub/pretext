@@ -76,7 +76,6 @@ domCache.toggleButton.addEventListener('click', () => {
 domCache.viewport.addEventListener('scroll', scheduleRender, { passive: true })
 window.addEventListener('resize', scheduleRender)
 
-await document.fonts.ready
 scheduleRender()
 
 function getRequiredDiv(id: string): HTMLDivElement {
@@ -151,7 +150,6 @@ function render(): void {
   domCache.root.style.setProperty('--chat-width', `${chatWidth}px`)
   domCache.root.style.setProperty('--chat-viewport-width', `${viewportWidth}px`)
   domCache.root.style.setProperty('--occlusion-banner-height', `${occlusionBannerHeight}px`)
-  domCache.root.style.setProperty('--occlusion-banner-padding-block', isCompactOcclusionChrome ? '6px' : '12px')
   domCache.root.style.setProperty('--virtualization-toggle-padding-block', isCompactOcclusionChrome ? '8px' : '10px')
   domCache.root.style.setProperty('--virtualization-toggle-padding-inline', isCompactOcclusionChrome ? '12px' : '14px')
   domCache.root.style.setProperty('--virtualization-toggle-font-size', isCompactOcclusionChrome ? '11px' : '12px')
@@ -330,6 +328,7 @@ function renderInlineBlock(
     row.style.top = `${lineIndex * block.lineHeight}px`
     row.style.width = `${block.width}px`
 
+    let previousNode: HTMLElement | null = null
     for (let fragmentIndex = 0; fragmentIndex < line.fragments.length; fragmentIndex++) {
       const fragment = line.fragments[fragmentIndex]!
       const node = renderInlineFragment(fragment.style, fragment.href, fragment.text)
@@ -340,11 +339,12 @@ function renderInlineBlock(
       if (gapItemIndex === fragment.itemIndex) {
         node.prepend(' ')
       } else if (gapItemIndex >= 0 && gapItemIndex === line.fragments[fragmentIndex - 1]?.itemIndex) {
-        row.lastElementChild!.append(' ')
+        previousNode!.append(' ')
       } else if (gapItemIndex >= 0) {
         row.append(renderInlineFragment(block.styles[gapItemIndex]!, block.hrefs[gapItemIndex] ?? null, ' '))
       }
       row.append(node)
+      previousNode = node
     }
     wrapper.append(row)
   }
@@ -426,15 +426,16 @@ function appendMarker(
   contentInsetX: number,
   start: 'left' | 'right',
 ): void {
-  if (block.markerText === null || block.markerLeft === null || block.markerClassName === null) return
+  const { marker } = block
+  if (marker === null) return
 
-  const marker = document.createElement('span')
-  marker.className = block.markerClassName
-  marker.dir = block.direction
-  marker.style[start] = `${contentInsetX + block.markerLeft}px`
-  marker.style.top = `${markerTop(block)}px`
-  marker.textContent = block.markerText
-  wrapper.append(marker)
+  const node = document.createElement('span')
+  node.className = 'block-marker'
+  node.dir = block.direction
+  node.style[start] = `${contentInsetX + marker.left}px`
+  node.style.top = `${markerTop(block)}px`
+  node.textContent = marker.text
+  wrapper.append(node)
 }
 
 function markerTop(block: BlockLayout): number {

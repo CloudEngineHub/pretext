@@ -87,6 +87,7 @@ function renderBody(note: PreparedRichInlineNote, layout: RichNoteLayout): void 
     row.style.setProperty('--font', BODY_FONT)
     row.style.top = `${lineIndex * LINE_HEIGHT}px`
 
+    let previousElement: HTMLElement | null = null
     for (let fragmentIndex = 0; fragmentIndex < line.fragments.length; fragmentIndex++) {
       const part = line.fragments[fragmentIndex]!
       const element = renderPart(part.className, part.font, part.href, part.text)
@@ -97,11 +98,12 @@ function renderBody(note: PreparedRichInlineNote, layout: RichNoteLayout): void 
       if (gapItemIndex === part.itemIndex) {
         element.prepend(' ')
       } else if (gapItemIndex >= 0 && gapItemIndex === line.fragments[fragmentIndex - 1]?.itemIndex) {
-        row.lastElementChild!.append(' ')
+        previousElement!.append(' ')
       } else if (gapItemIndex >= 0) {
         row.appendChild(renderPart(note.classNames[gapItemIndex]!, note.fonts[gapItemIndex]!, note.hrefs[gapItemIndex] ?? null, ' '))
       }
       row.appendChild(element)
+      previousElement = element
     }
 
     fragment.appendChild(row)

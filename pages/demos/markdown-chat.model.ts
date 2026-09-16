@@ -115,9 +115,7 @@ type PreparedBlockBase = {
   contentLeft: number
   direction: 'ltr' | 'rtl' | null // a code block or rule has none until inheritDirection
   marginTop: number
-  markerClassName: string | null
-  markerLeft: number | null
-  markerText: string | null
+  marker: { left: number; text: string } | null // a list item's first block paints its marker
   quotes: Quote[]
 }
 
@@ -133,13 +131,11 @@ type PreparedInlineBlock = PreparedBlockBase & {
 
 type PreparedCodeBlock = PreparedBlockBase & {
   kind: 'code'
-  lineHeight: number
   prepared: PreparedTextWithSegments
 }
 
 type PreparedRuleBlock = PreparedBlockBase & {
   kind: 'rule'
-  height: number
 }
 
 type PreparedBlock = PreparedInlineBlock | PreparedCodeBlock | PreparedRuleBlock
@@ -160,9 +156,7 @@ export type InlineFragmentLayout = {
 type BlockFrameBase = {
   contentLeft: number
   height: number
-  markerClassName: string | null
-  markerLeft: number | null
-  markerText: string | null
+  marker: { left: number; text: string } | null
   top: number
 }
 
@@ -174,7 +168,6 @@ type InlineBlockFrame = BlockFrameBase & {
 
 type CodeBlockFrame = BlockFrameBase & {
   kind: 'code'
-  lineHeight: number
   width: number
 }
 
@@ -194,9 +187,7 @@ type InlineBlockLayout = {
   lines: Array<{
     fragments: InlineFragmentLayout[]
   }>
-  markerClassName: string | null
-  markerLeft: number | null
-  markerText: string | null
+  marker: { left: number; text: string } | null
   paragraphStyle: TextStyle
   // Per item, as hrefs, so a space made by an item holding only whitespace
   // paints in that item's style.
@@ -211,9 +202,7 @@ type CodeBlockLayout = {
   height: number
   kind: 'code'
   lines: LayoutLine[]
-  markerClassName: string | null
-  markerLeft: number | null
-  markerText: string | null
+  marker: { left: number; text: string } | null
   top: number
   width: number
 }
@@ -223,9 +212,7 @@ type RuleBlockLayout = {
   direction: 'ltr' | 'rtl'
   height: number
   kind: 'rule'
-  markerClassName: string | null
-  markerLeft: number | null
-  markerText: string | null
+  marker: { left: number; text: string } | null
   top: number
   width: number
 }
@@ -323,10 +310,7 @@ export function layoutConversation(
     y += MESSAGE_GAP
   }
 
-  const totalHeight =
-    preparedMessages.length === 0
-      ? CHAT_TOP_PADDING_OFFSET + CHAT_BOTTOM_PADDING_OFFSET
-      : y - MESSAGE_GAP + CHAT_BOTTOM_PADDING_OFFSET
+  const totalHeight = y - MESSAGE_GAP + CHAT_BOTTOM_PADDING_OFFSET
 
   return {
     chatWidth,
@@ -482,7 +466,7 @@ function parseBlockTokens(tokens: readonly Token[], ctx: ParseContext): Prepared
         if (token.block || isPre) {
           appendBlockGroup(blocks, [buildCodeBlock(htmlText, ctx)], RICH_BLOCK_GAP)
         } else {
-          appendBlockGroup(blocks, buildPlainTextBlocks(htmlText, 'body', ctx), BLOCK_GAP)
+          appendBlockGroup(blocks, buildPlainTextBlocks(htmlText, ctx), BLOCK_GAP)
         }
         continue
       }
@@ -491,7 +475,7 @@ function parseBlockTokens(tokens: readonly Token[], ctx: ParseContext): Prepared
         if (Array.isArray(token.tokens) && token.tokens.length > 0) {
           appendBlockGroup(blocks, buildInlineBlocks(token.tokens, 'body', ctx), BLOCK_GAP)
         } else {
-          appendBlockGroup(blocks, buildPlainTextBlocks(token.text, 'body', ctx), BLOCK_GAP)
+          appendBlockGroup(blocks, buildPlainTextBlocks(token.text, ctx), BLOCK_GAP)
         }
         continue
       }
@@ -499,7 +483,7 @@ function parseBlockTokens(tokens: readonly Token[], ctx: ParseContext): Prepared
       default: {
         const fallbackText = fallbackTextForToken(token)
         if (fallbackText.length > 0) {
-          appendBlockGroup(blocks, buildPlainTextBlocks(fallbackText, 'body', ctx), BLOCK_GAP)
+          appendBlockGroup(blocks, buildPlainTextBlocks(fallbackText, ctx), BLOCK_GAP)
         }
       }
     }
@@ -524,16 +508,11 @@ function buildListBlocks(token: Tokens.List, ctx: ParseContext): PreparedBlock[]
     }
     let itemBlocks = parseBlockTokens(item.tokens, itemCtx)
     if (itemBlocks.length === 0) {
-      itemBlocks = buildPlainTextBlocks(item.text, 'body', itemCtx)
+      itemBlocks = buildPlainTextBlocks(item.text, itemCtx)
     }
     if (itemBlocks.length === 0) continue
 
-    itemBlocks[0] = {
-      ...itemBlocks[0]!,
-      markerClassName: resolveListMarkerClassName(token, item),
-      markerLeft,
-      markerText,
-    } satisfies PreparedBlock
+    itemBlocks[0]!.marker = { left: markerLeft, text: markerText }
     appendBlockGroup(blocks, itemBlocks, LIST_ITEM_GAP)
   }
 
@@ -555,14 +534,10 @@ function inheritDirection(blocks: PreparedBlock[]): void {
   }
 }
 
-function buildPlainTextBlocks(
-  text: string,
-  variant: InlineVariant,
-  ctx: ParseContext,
-): PreparedBlock[] {
-  const piece = createTextPiece(text, EMPTY_MARK_STATE, variant)
+function buildPlainTextBlocks(text: string, ctx: ParseContext): PreparedBlock[] {
+  const piece = createTextPiece(text, EMPTY_MARK_STATE, 'body')
   if (piece === null) return []
-  return buildPreparedInlineBlocks([[piece]], variant, ctx)
+  return buildPreparedInlineBlocks([[piece]], 'body', ctx)
 }
 
 function buildInlineBlocks(
@@ -586,10 +561,8 @@ function buildPreparedInlineBlocks(
   for (let index = 0; index < lines.length; index++) {
     const block = buildPreparedInlineBlock(lines[index]!, variant, direction, ctx)
     if (block === null) continue
-    blocks.push({
-      ...block,
-      marginTop: blocks.length === 0 ? 0 : HARD_BREAK_GAP,
-    } satisfies PreparedBlock)
+    block.marginTop = blocks.length === 0 ? 0 : HARD_BREAK_GAP
+    blocks.push(block)
   }
 
   return blocks
@@ -636,7 +609,6 @@ function buildCodeBlock(text: string, ctx: ParseContext): PreparedCodeBlock {
   return {
     ...createBlockBase(ctx),
     kind: 'code',
-    lineHeight: CODE_LINE_HEIGHT,
     prepared: prepareWithSegments(stripSingleTrailingNewline(text), CODE_FONT, {
       whiteSpace: 'pre-wrap',
     }),
@@ -646,7 +618,6 @@ function buildCodeBlock(text: string, ctx: ParseContext): PreparedCodeBlock {
 function buildRuleBlock(ctx: ParseContext): PreparedRuleBlock {
   return {
     ...createBlockBase(ctx),
-    height: RULE_HEIGHT,
     kind: 'rule',
   }
 }
@@ -656,9 +627,7 @@ function createBlockBase(ctx: ParseContext): PreparedBlockBase {
     contentLeft: ctx.contentLeft,
     direction: null,
     marginTop: 0,
-    markerClassName: null,
-    markerLeft: null,
-    markerText: null,
+    marker: null,
     quotes: ctx.quotes,
   }
 }
@@ -669,17 +638,9 @@ function collectInlinePieceLines(
 ): InlinePiece[][] {
   const lines: InlinePiece[][] = [[]]
 
-  function currentLine(): InlinePiece[] {
-    return lines[lines.length - 1]!
-  }
-
-  function pushLineBreak(): void {
-    lines.push([])
-  }
-
   function pushPiece(piece: InlinePiece | null): void {
     if (piece === null) return
-    const line = currentLine()
+    const line = lines[lines.length - 1]!
     const previous = line[line.length - 1]
     if (previous !== undefined && canMergeInlinePieces(previous, piece)) {
       previous.text += piece.text
@@ -738,7 +699,7 @@ function collectInlinePieceLines(
         }
 
         case 'br': {
-          pushLineBreak()
+          lines.push([])
           continue
         }
 
@@ -817,19 +778,23 @@ function canMergeInlinePieces(a: InlinePiece, b: InlinePiece): boolean {
   )
 }
 
-const textStyleCache = new Map<string, TextStyle>()
+// One style object per variant and marks, so pieces in the same style merge.
+const textStyles: Record<InlineVariant, Array<TextStyle | undefined>> = { body: [], 'heading-1': [], 'heading-2': [] }
 
 function resolveTextStyle(variant: InlineVariant, marks: MarkState): TextStyle {
-  const className = resolveTextClassName(variant, marks)
-  let style = textStyleCache.get(className)
+  const styles = textStyles[variant]
+  const index = (marks.bold ? 8 : 0) + (marks.italic ? 4 : 0) + (marks.strike ? 2 : 0) + (marks.href === null ? 0 : 1)
+  let style = styles[index]
   if (style === undefined) {
-    style = createTextStyle(className, variant, marks)
-    textStyleCache.set(className, style)
+    style = createTextStyle(variant, marks)
+    styles[index] = style
   }
   return style
 }
 
-function createTextStyle(className: string, variant: InlineVariant, marks: MarkState): TextStyle {
+function createTextStyle(variant: InlineVariant, marks: MarkState): TextStyle {
+  // Bold and italic are in the font, so only links and deletions add a class.
+  const className = `frag${marks.href === null ? '' : ' is-link'}${marks.strike ? ' is-del' : ''}`
   const italicPrefix = marks.italic ? 'italic ' : ''
   // Links keep the body weight; color and underline mark them.
   if (variant === 'body') {
@@ -842,28 +807,6 @@ function createTextStyle(className: string, variant: InlineVariant, marks: MarkS
     font: `${italicPrefix}700 ${size}px ${SERIF_FAMILY}`,
     letterSpacing: size * HEADING_LETTER_SPACING_EM,
   }
-}
-
-function resolveTextClassName(variant: InlineVariant, marks: MarkState): string {
-  let className = 'frag'
-
-  switch (variant) {
-    case 'heading-1':
-      className += ' frag--heading-1'
-      break
-    case 'heading-2':
-      className += ' frag--heading-2'
-      break
-    case 'body':
-      className += ' frag--body'
-      break
-  }
-
-  if (marks.href !== null) className += ' is-link'
-  if (marks.bold) className += ' is-strong'
-  if (marks.italic) className += ' is-em'
-  if (marks.strike) className += ' is-del'
-  return className
 }
 
 function headingVariant(depth: number): InlineVariant {
@@ -889,14 +832,8 @@ function appendBlockGroup(
   firstMargin: number,
 ): void {
   if (group.length === 0) return
-
-  for (let index = 0; index < group.length; index++) {
-    const block = group[index]!
-    target.push({
-      ...block,
-      marginTop: index === 0 ? (target.length === 0 ? 0 : firstMargin) : block.marginTop,
-    } satisfies PreparedBlock)
-  }
+  group[0]!.marginTop = target.length === 0 ? 0 : firstMargin
+  for (let index = 0; index < group.length; index++) target.push(group[index]!)
 }
 
 function resolveListMarkerText(
@@ -910,16 +847,6 @@ function resolveListMarkerText(
     return `${start + index}.`
   }
   return '•'
-}
-
-function resolveListMarkerClassName(
-  list: Tokens.List,
-  item: Tokens.ListItem,
-): string {
-  if (item.task) return 'block-marker block-marker--task'
-  return list.ordered
-    ? 'block-marker block-marker--ordered'
-    : 'block-marker block-marker--bullet'
 }
 
 function measureMarkerWidth(text: string): number {
@@ -958,13 +885,11 @@ function inlineTokensToPlainText(tokens: readonly Token[]): string {
       case 'escape':
       case 'text':
       case 'html':
+      case 'image':
         text += token.text
         break
       case 'br':
         text += '\n'
-        break
-      case 'image':
-        text += token.text
         break
       default:
         text += fallbackTextForToken(token)
@@ -1006,7 +931,7 @@ function measureMessageHeight(preparedMessage: PreparedChatMessage, contentWidth
     if (block.kind === 'inline') {
       lineCount = measureRichInlineStats(block.flow, getBlockLineWidth(block, contentWidth)).lineCount
     } else if (block.kind === 'code') {
-      lineCount = layout(block.prepared, getBlockLineWidth(block, contentWidth), block.lineHeight).lineCount
+      lineCount = layout(block.prepared, getBlockLineWidth(block, contentWidth), CODE_LINE_HEIGHT).lineCount
     }
     y += getBlockHeight(block, lineCount)
   }
@@ -1055,9 +980,9 @@ function getBlockHeight(block: PreparedBlock, lineCount: number): number {
     case 'inline':
       return lineCount * block.lineHeight
     case 'code':
-      return lineCount * block.lineHeight + CODE_BLOCK_PADDING_Y * 2
+      return lineCount * CODE_LINE_HEIGHT + CODE_BLOCK_PADDING_Y * 2
     case 'rule':
-      return block.height
+      return RULE_HEIGHT
   }
 }
 
@@ -1074,9 +999,7 @@ function layoutBlockFrame(
         height: getBlockHeight(block, lineCount),
         kind: 'inline',
         lineHeight: block.lineHeight,
-        markerClassName: block.markerClassName,
-        markerLeft: block.markerLeft,
-        markerText: block.markerText,
+        marker: block.marker,
         top,
         usedWidth: maxLineWidth,
       }
@@ -1088,10 +1011,7 @@ function layoutBlockFrame(
         contentLeft: block.contentLeft,
         height: getBlockHeight(block, lineCount),
         kind: 'code',
-        lineHeight: block.lineHeight,
-        markerClassName: block.markerClassName,
-        markerLeft: block.markerLeft,
-        markerText: block.markerText,
+        marker: block.marker,
         top,
         width: maxLineWidth + CODE_BLOCK_PADDING_X * 2,
       }
@@ -1102,9 +1022,7 @@ function layoutBlockFrame(
         contentLeft: block.contentLeft,
         height: getBlockHeight(block, 0),
         kind: 'rule',
-        markerClassName: block.markerClassName,
-        markerLeft: block.markerLeft,
-        markerText: block.markerText,
+        marker: block.marker,
         top,
       }
     }
@@ -1191,9 +1109,7 @@ function materializeBlockLayout(
         kind: 'inline',
         lineHeight: frame.lineHeight,
         lines,
-        markerClassName: frame.markerClassName,
-        markerLeft: frame.markerLeft,
-        markerText: frame.markerText,
+        marker: frame.marker,
         paragraphStyle: block.paragraphStyle,
         styles: block.styles,
         top: frame.top,
@@ -1204,7 +1120,7 @@ function materializeBlockLayout(
 
     case 'code': {
       if (block.kind !== 'code') throw new Error('Code block/frame mismatch')
-      const { lines } = layoutWithLines(block.prepared, getBlockLineWidth(block, contentWidth), frame.lineHeight)
+      const { lines } = layoutWithLines(block.prepared, getBlockLineWidth(block, contentWidth), CODE_LINE_HEIGHT)
       return {
         contentLeft: frame.contentLeft,
         // A message with no paragraph at all is left-to-right.
@@ -1212,9 +1128,7 @@ function materializeBlockLayout(
         height: frame.height,
         kind: 'code',
         lines,
-        markerClassName: frame.markerClassName,
-        markerLeft: frame.markerLeft,
-        markerText: frame.markerText,
+        marker: frame.marker,
         top: frame.top,
         width: frame.width,
       }
@@ -1227,9 +1141,7 @@ function materializeBlockLayout(
         direction: block.direction ?? 'ltr',
         height: frame.height,
         kind: 'rule',
-        markerClassName: frame.markerClassName,
-        markerLeft: frame.markerLeft,
-        markerText: frame.markerText,
+        marker: frame.marker,
         top: frame.top,
         width: Math.max(1, bubbleContentWidth - frame.contentLeft),
       }

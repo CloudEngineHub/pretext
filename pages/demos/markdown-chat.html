@@ -20,9 +20,7 @@
       --assistant-code: #313840;
       --user-code: #323840;
       --chat-width: 860px;
-      --message-side-padding: 22px;
       --occlusion-banner-height: 61px;
-      --occlusion-banner-padding-block: 12px;
       --virtualization-toggle-padding-block: 10px;
       --virtualization-toggle-padding-inline: 14px;
       --virtualization-toggle-font-size: 12px;
@@ -57,7 +55,6 @@
     .chat-canvas {
       position: relative;
       width: var(--chat-width);
-      min-height: 100%;
       margin: 0 auto;
     }
     /* The chat is centered in the viewport's client width, which leaves out a
@@ -91,7 +88,7 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      padding: var(--occlusion-banner-padding-block) 20px;
+      padding-inline: 20px;
       background:
         linear-gradient(
           to bottom,
@@ -170,11 +167,6 @@
         inset 0 0 0 1px var(--user-bubble-border),
         0 6px 14px rgb(0 0 0 / 0.09);
     }
-    .msg--assistant .msg-bubble {
-      border: 0;
-      border-radius: 0;
-      box-shadow: none;
-    }
     .block {
       position: absolute;
       left: 0;
@@ -192,9 +184,6 @@
       color: var(--muted);
       font: var(--marker-font);
       line-height: 1;
-    }
-    .block-marker--task {
-      color: var(--muted);
     }
     .inline-line {
       position: absolute;
@@ -231,9 +220,6 @@
       text-decoration: underline;
       text-decoration-thickness: 1px;
       text-underline-offset: 0.14em;
-    }
-    .msg--user .is-link {
-      color: var(--accent);
     }
     .is-del { text-decoration: line-through; text-decoration-thickness: 1px; }
     .code-box {

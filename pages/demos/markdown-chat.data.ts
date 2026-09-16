@@ -258,7 +258,7 @@ const BASE_MESSAGE_SPECS: MarkdownChatSeed[] = [
   ),
   message(
     'assistant',
-    'That is one of the better parts of the demo right now: width changes rebuild the frame and remount only the visible window.',
+    'That is one of the better parts of the demo right now: width changes recompute every height and re-render only the visible window.',
   ),
   message(
     'user',
