@@ -581,7 +581,7 @@ describe('boundary-policy regressions', () => {
       analyzeText(text, profile, 'normal', 'normal', language).normalized
     // Between two wide characters other than Hangul, past default-ignorables.
     expect(normalized('中文\n中文', geckoProfile)).toBe('中文中文')
-    expect(normalized('中文 \n ­中文', geckoProfile)).toBe('中文­中文')
+    expect(normalized('中文 \n \u00AD中文', geckoProfile)).toBe('中文\u00AD中文')
     expect(normalized('中\n\u{20000}', geckoProfile)).toBe('中\u{20000}')
     expect(normalized('한\n한', geckoProfile)).toBe('한 한')
     expect(normalized('中\nabc', geckoProfile)).toBe('中 abc')
@@ -978,7 +978,7 @@ describe('boundary-policy regressions', () => {
     const profile = getEngineProfile()
     const previous = profile.hidesControlCharacters
     try {
-      for (const control of [' ', '', '', '', '\u0085', '\u009f', '\u2028', '\u2029']) {
+      for (const control of ['\u0000', '\u000B', '\u001C', '\u007F', '\u0085', '\u009f', '\u2028', '\u2029']) {
         profile.hidesControlCharacters = true
         clearCache()
         const hidden = prepareWithSegments(`ab${control}cd`, FONT, { letterSpacing: 2 })
@@ -1004,12 +1004,12 @@ describe('boundary-policy regressions', () => {
       profile.hidesControlCharacters = true
       // Gecko records a soft-hyphen break only where its hyphen fits, and any other
       // break where its line fits, such as the break after a hidden control.
-      const text = 'trans­ic'
+      const text = '\u000Btrans\u00ADic'
       const width = measureWidth('trans', FONT) + 0.1
       for (const [unfitHyphenRetreat, expected] of [
-        ['none', ['trans-', 'ic']],
-        ['reduced-width', ['trans-', 'ic']],
-        ['full-width', ['', 'trans-', 'ic']],
+        ['none', ['\u000Btrans-', 'ic']],
+        ['reduced-width', ['\u000Btrans-', 'ic']],
+        ['full-width', ['\u000B', 'trans-', 'ic']],
       ] as const) {
         profile.unfitHyphenRetreat = unfitHyphenRetreat
         clearCache()
@@ -1062,7 +1062,7 @@ describe('boundary-policy regressions', () => {
       // Gecko drops the soft hyphen before it clusters, so ZWJ continues the woman's
       // cluster and joins the rocket to it, where Unicode graphemes split ZWJ off.
       profile.lineBreakScan = 'gecko'
-      const text = 'a\u{1F469}­‍\u{1F680}b'
+      const text = 'a\u{1F469}\u00AD‍\u{1F680}b'
       const prepared = prepareWithSegments(text, FONT)
       const zwj = prepared.segments.indexOf('‍\u{1F680}')
       expect(getSegmentGraphemes(prepared.segments[zwj]!).length).toBe(2)
@@ -1093,15 +1093,15 @@ describe('boundary-policy regressions', () => {
       // break-anywhere retry gives the soft hyphen a line of its own, as Chrome paints it.
       profile.lineBreakScan = 'blink'
       profile.zeroWidthGlueTakesLine = true
-      expect(prepareWithSegments('ab­)c', FONT).kinds[1]).toBe('zero-width-glue')
-      expect(lines('ab­)c', 1)).toEqual(['a', 'b', '­', ')', 'c'])
+      expect(prepareWithSegments('ab\u00AD)c', FONT).kinds[1]).toBe('zero-width-glue')
+      expect(lines('ab\u00AD)c', 1)).toEqual(['a', 'b', '\u00AD', ')', 'c'])
       // Gecko drops a soft hyphen from its text run, so one at the start offers no break
       // and holds no line.
       profile.lineBreakScan = 'gecko'
       profile.zeroWidthGlueTakesLine = false
-      expect(prepareWithSegments('­a­b', FONT).kinds[0]).toBe('zero-width-glue')
-      expect(lines('­a­b', 0)).toEqual(['­a­', 'b'])
-      expect(lines('­b', 1)).toEqual(['­b'])
+      expect(prepareWithSegments('\u00ADa\u00ADb', FONT).kinds[0]).toBe('zero-width-glue')
+      expect(lines('\u00ADa\u00ADb', 0)).toEqual(['\u00ADa\u00AD', 'b'])
+      expect(lines('\u00ADb', 1)).toEqual(['\u00ADb'])
     } finally {
       profile.lineBreakScan = previous.lineBreakScan
       profile.zeroWidthGlueTakesLine = previous.zeroWidthGlueTakesLine
@@ -1137,7 +1137,7 @@ describe('boundary-policy regressions', () => {
         // with WJ, which fits, as both browsers paint it.
         expect(lines('a\u00AD\u2060b', 0)).toEqual(['a', '\u00AD\u2060', 'b'])
         // With no break on the line, graphemes fill it across a control.
-        expect(lines('abcd', measureWidth('abc', FONT) + 0.1)).toEqual(['abc', 'd'])
+        expect(lines('ab\u000Bcd', measureWidth('ab\u000Bc', FONT) + 0.1)).toEqual(['ab\u000Bc', 'd'])
         // With one, the line returns to it instead of ending before the control.
         expect(lines('a\u00ADb\u0080b', measureWidth('b\u0080', FONT) + 0.1)).toEqual(['a\u00AD', 'b\u0080', 'b'])
         // WebKit breaks before the CR after the space, which is a break after the
@@ -1146,7 +1146,7 @@ describe('boundary-policy regressions', () => {
 
         // A mark after zero-width glue or a control adds the source before it with the
         // mark, minus that source, and takes no letter spacing of its own.
-        for (const [text, markIndex] of [['aaaa\u00AD\u0301tail', 2], ['ab \u0301cd', 2]] as const) {
+        for (const [text, markIndex] of [['aaaa\u00AD\u0301tail', 2], ['ab\u0000\u0301cd', 2]] as const) {
           const prepared = prepareWithSegments(text, FONT, { letterSpacing: 1 })
           expect(prepared.segments[markIndex]).toBe('\u0301')
           expect(prepared.widths[markIndex]).toBe(0)
@@ -1166,8 +1166,8 @@ describe('boundary-policy regressions', () => {
         // shapes the mark with `a` and gives it no advance; Safari draws the circle.
         drawsDottedCircles = true
         clearCache()
-        const circled = 'a­́b'
-        expect(lines(circled, measureWidth('ab', FONT) + 0.1)).toEqual(scan === 'blink' ? [circled] : ['a­́', 'b'])
+        const circled = 'a\u00AD́b'
+        expect(lines(circled, measureWidth('ab', FONT) + 0.1)).toEqual(scan === 'blink' ? [circled] : ['a\u00AD́', 'b'])
         drawsDottedCircles = false
         clearCache()
       }
@@ -1483,7 +1483,7 @@ describe('engine break scans', () => {
       ['a )', false, [2]],
       ['a-$', false, []],
       ['a\u00A0b', false, []],
-      ['a­b', false, [2]],
+      ['a\u00ADb', false, [2]],
       ['ABCD-1234', false, [5]],
       ['a -1', false, [2]],
       ['a -eb', false, [2, 3]],
@@ -3824,7 +3824,7 @@ describe('layout invariants', () => {
     }
   })
 
-  test('line counts retain source replay after preferred internal cuts', () => {
+  test('line counts follow the break segments of a hyphenated URL across widths', () => {
     const text = 'https://a-bc-defgh-ij'
     const width = measureWidth('bc-def', FONT) + 0.1
     const prepared = prepareWithSegments(text, FONT)

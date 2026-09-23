@@ -15,11 +15,12 @@
 //   the data libicucore 78.1 reads, the same bytes as on macOS 26.5.2.
 // - BreakablePositions.cpp: WebKit's checked-in pair table (safari-7625.1.29.11-branch,
 //   unchanged since Safari 26.5.2's safari-7624.2.5.11-branch).
-// - locales.json: for every locale libicucore lists, the line table ubrk_open(UBRK_LINE)
-//   opens and the four quotation delimiters ulocdata_getDelimiter reports. Dumped on
-//   macOS 26.5.2; macOS 27 lists a few locales more or fewer, all with root's table and
-//   delimiters, which generate the same module.
-// - quotation.json: the code points libicucore gives Line_Break=QU.
+// - locales.json: for every locale uloc_getAvailable lists, the line table ubrk_open(UBRK_LINE)
+//   opens (its ubrk_getBinaryRules bytes matched against the three tables) and the four
+//   quotation delimiters ulocdata_getDelimiter reports under uloc_getName's name. Dumped on
+//   macOS 26.5.2 by a small C program against libicucore; macOS 27 lists a few locales more
+//   or fewer, all with root's table and delimiters, which generate the same module.
+// - quotation.json: the code points libicucore's u_getIntPropertyValue gives Line_Break=QU.
 // firefox-156/, from Firefox 155.0.1's source tree. Firefox 156.0's XUL holds the same line
 // data and icu_properties Bidi_Class data byte for byte:
 // - segmenter_break_line_v1.rs.data: intl/icu_segmenter_data/data/, Firefox's baked ICU4X
@@ -27,8 +28,9 @@
 //   (icu_segmenter 2.1.2 src/provider/mod.rs:151-180).
 // - properties.json: icu_properties 2.1.2's compiled data (Unicode 17), the crate Firefox
 //   vendors, as [first, last, value] ranges over every code point: Bidi_Class and
-//   East_Asian_Width in ICU4C numbering, General_Category Ps, every Bidi_Mirroring_Glyph
-//   pair, and script short names the generator no longer reads.
+//   East_Asian_Width in ICU4C numbering (CodePointMapData::get32(cp).to_icu4c_value()),
+//   General_Category Ps, and every Bidi_Mirroring_Glyph pair. Dumped by a small Rust
+//   program that depends on that crate alone.
 // - property_enum_script_v1.rs.data and property_name_short_script_v1.rs.data:
 //   third_party/rust/icu_properties_data/data/, icu_properties 2.1.2's baked Script values and
 //   their short names, the Unicode 17 data ICU4C 78.3's uscript_getScript answers from.

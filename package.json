@@ -48,7 +48,7 @@
   "scripts": {
     "benchmark-check": "bun run scripts/benchmark-check.ts",
     "build:package": "rm -rf dist && tsc -p tsconfig.build.json",
-    "check": "tsc && oxlint --type-aware src tests/wrapping scripts/wrapping-check.ts && knip",
+    "check": "tsc && oxlint --type-aware src tests/wrapping scripts/wrapping-check.ts && knip && bun run scripts/generate-engine-break-data.ts --check",
     "test:wrapping": "bun run scripts/wrapping-check.ts",
     "corpus-check": "bun run scripts/corpus-check.ts",
     "corpus-font-matrix": "bun run scripts/corpus-font-matrix.ts",

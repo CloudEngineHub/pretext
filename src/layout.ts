@@ -595,7 +595,7 @@ function measureAnalysis(
     const markContext = getMarkContext(mi)
     if (markContext !== null) {
       const joined = markContext + segText
-      const width = engineProfile.shapesMarksAcrossSoftHyphen && analysis.texts[mi - 1] === '­' && nonspacingMarkRunRe.test(segText)
+      const width = engineProfile.shapesMarksAcrossSoftHyphen && analysis.texts[mi - 1] === '\u00AD' && nonspacingMarkRunRe.test(segText)
         ? 0
         : getCorrectedSegmentWidth(joined, getSegmentMetrics(joined, cache), emojiCorrection) -
           getCorrectedSegmentWidth(markContext, getSegmentMetrics(markContext, cache), emojiCorrection)
@@ -614,7 +614,7 @@ function measureAnalysis(
 
   // An engine's scan makes one prepared segment per analysis segment. Only the
   // complex walker reads where it gives no break.
-  const breaksBefore = analysis.breaksBefore ?? null
+  const breaksBefore = analysis.breaksBefore
   if (breaksBefore !== null) simpleLineWalkFastPath = false
   // A segment's width is its width between the text before and after it; one that starts
   // a line takes back the halt Blink gives its first character there.
@@ -672,7 +672,7 @@ function measureAnalysis(
   return prepared
 }
 
-// Blink hangs a run of U+3000 that ends a line, as it hangs spaces: ShapingLineBreaker
+// Blink (Chrome 153) hangs a run of U+3000 that ends a line, as it hangs spaces: ShapingLineBreaker
 // counts U+3000 as a breakable space (IsBreakableSpace, shaping_line_breaker.cc:38-41, with
 // Character::IsOtherSpaceSeparator, character.h:156-158), so a line whose width runs out on
 // the run ends after it and fits without it (shaping_line_breaker.cc:384-452), and the line

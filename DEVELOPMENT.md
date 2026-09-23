@@ -10,7 +10,7 @@ bun install
 
 - `bun start` — stable local page server at <http://localhost:3000>
 - `bun run start:windows` — Windows-friendly fallback without automatic port cleanup
-- `bun run check` — typecheck, lint, and dead-code scan (`knip`)
+- `bun run check` — typecheck, lint, dead-code scan (`knip`) and a check that the generated engine break data is current
 - `bun test` — durable invariant suite
 - `bun run test:wrapping --browser=all` — complete maintained checks and selected regressions against a fresh pinned-main comparison
 - `bun run test:wrapping --suite=full --browser=all` — also run the broad exploratory wrapping matrices

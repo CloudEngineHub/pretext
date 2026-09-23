@@ -1,4 +1,4 @@
-import { getGeckoLineBreaks, isDefaultIgnorable, isDiscardable, isEastAsianPunctuation, isJapaneseOrChinese, isSegmentBreakSkipChar, isSpaceCombiningSequenceTail } from './gecko-line-breaks.js'
+import { getGeckoLineBreaks, isDiscardable, isEastAsianSegmentBreak, isJapaneseOrChinese, isSpaceCombiningSequenceTail } from './gecko-line-breaks.js'
 import { canWebKitLineStartWith, getBlinkLineBreaks, getWebKitLineBreaks } from './line-breaks.js'
 
 export type WhiteSpaceMode = 'normal' | 'pre-wrap'
@@ -97,34 +97,6 @@ export function removeSkippableSegmentBreaks(text: string, profile: AnalysisProf
 
 // Every East Asian wide, fullwidth or halfwidth character is at or above U+1100.
 const maybeEastAsianRe = /[\u1100-\uFFFF]/
-
-// Gecko's East Asian test for the run [start, end): the code points before and after
-// it, past default-ignorable ones, both segment-break skip characters, or on a `ja` or
-// `zh` page either one East Asian punctuation. Only an interior run qualifies.
-function isEastAsianSegmentBreak(text: string, start: number, end: number, japaneseOrChinese: boolean): boolean {
-  if (start === 0 || end >= text.length) return false
-  let before: number
-  let pos = start
-  do {
-    const low = text.charCodeAt(pos - 1)
-    const high = pos > 1 ? text.charCodeAt(pos - 2) : 0
-    if ((high & 0xFC00) === 0xD800 && (low & 0xFC00) === 0xDC00) {
-      before = ((high - 0xD800) << 10) + low - 0xDC00 + 0x10000
-      pos -= 2
-    } else {
-      before = low
-      pos--
-    }
-  } while (isDefaultIgnorable(before) && pos > 0)
-  let after: number
-  pos = end
-  do {
-    after = text.codePointAt(pos)!
-    pos += after > 0xFFFF ? 2 : 1
-  } while (isDefaultIgnorable(after) && pos < text.length)
-  return (isSegmentBreakSkipChar(before) && isSegmentBreakSkipChar(after)) ||
-    (japaneseOrChinese && (isEastAsianPunctuation(before) || isEastAsianPunctuation(after)))
-}
 
 export function normalizeWhitespaceNormal(text: string, profile: AnalysisProfile, language: string | null = null): string {
   if (!needsWhitespaceNormalizationRe.test(text)) return text

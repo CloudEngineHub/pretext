@@ -100,7 +100,7 @@ export type EngineProfile = {
   measureUnderDefaultLocale: boolean
   // Release Gecko draws C0 and C1 controls, U+2028 and U+2029 with no advance plus letter
   // spacing (gfxFont.cpp:3877-3892), where its Canvas measures VT, FS-US, NEL and U+2029 as a
-  // space (CanvasRenderingContext2D.cpp:4570-4573) and other controls as a hexbox. Chrome and
+  // space (CanvasRenderingContext2D.cpp:4634-4637) and other controls as a hexbox. Chrome and
   // Safari give most controls an advance on the page, as their Canvas does.
   hidesControlCharacters: boolean
 }

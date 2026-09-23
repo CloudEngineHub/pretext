@@ -4,8 +4,7 @@
 // which scripts/generate-engine-break-data.ts writes to src/generated/engine-break-data.ts.
 //
 // Sources, cited as file:line:
-// - Gecko in mozilla-firefox at FIREFOX_155_0_1_RELEASE (fb95137a). Firefox 156.0 ships the
-//   same line and Bidi_Class data.
+// - Gecko in mozilla-firefox at Firefox 156.0 (3bf8f4682).
 // - icu_segmenter 2.1.2 src/line.rs, byte-identical to Firefox's third_party/rust copy, and
 //   icu_collections 2.1.1 src/codepointtrie/cptrie.rs.
 //
@@ -216,6 +215,29 @@ export function isJapaneseOrChinese(language: string | null): boolean {
   return (first === 0x6a && second === 0x61) || (first === 0x7a && second === 0x68)
 }
 
+// Gecko's East Asian test for the white-space run [start, end) (TransformWhiteSpaces,
+// nsTextFrameUtils.cpp:120-150): the code points before and after it, past default-ignorable
+// ones, both segment-break skip characters, or on a `ja` or `zh` page either one East Asian
+// punctuation. Only an interior run qualifies.
+export function isEastAsianSegmentBreak(text: string, start: number, end: number, japaneseOrChinese: boolean): boolean {
+  if (start === 0 || end >= text.length) return false
+  let before: number
+  let pos = start
+  do {
+    const low = text.charCodeAt(pos - 1)
+    const high = pos > 1 ? text.charCodeAt(pos - 2) : 0
+    if (isSurrogatePair(high, low)) { before = combine(high, low); pos -= 2 } else { before = low; pos-- }
+  } while (isDefaultIgnorable(before) && pos > 0)
+  let after: number
+  pos = end
+  do {
+    after = text.codePointAt(pos)!
+    pos += after > 0xffff ? 2 : 1
+  } while (isDefaultIgnorable(after) && pos < text.length)
+  return (isSegmentBreakSkipChar(before) && isSegmentBreakSkipChar(after)) ||
+    (japaneseOrChinese && (isEastAsianPunctuation(before) || isEastAsianPunctuation(after)))
+}
+
 function transformText(input: string, raw: Uint16Array, is8bit: boolean, preserveWhiteSpace: boolean, japaneseOrChinese: boolean): Transformed {
   const len = raw.length
   const units = new Uint16Array(len)
@@ -256,26 +278,8 @@ function transformText(input: string, raw: Uint16Array, is8bit: boolean, preserv
     const transformWhiteSpaces = (begin: number, end: number, hasSegmentBreak: boolean) => {
       let segmentBreakSkippable = false
       if (!is8bit) {
-        if ((begin > 0 && raw[begin - 1] === 0x200b) || (end < len && raw[end] === 0x200b)) {
-          segmentBreakSkippable = true
-        } else if (begin > 0 && end < len) {
-          let before: number
-          let pos = begin
-          for (;;) {
-            if (pos > 1 && isSurrogatePair(raw[pos - 2]!, raw[pos - 1]!)) { before = combine(raw[pos - 2]!, raw[pos - 1]!); pos -= 2 }
-            else { before = raw[pos - 1]!; pos -= 1 }
-            if (!(isDefaultIgnorable(before) && pos > 0)) break
-          }
-          let after: number
-          pos = end
-          for (;;) {
-            if (pos + 1 < len && isSurrogatePair(raw[pos]!, raw[pos + 1]!)) { after = combine(raw[pos]!, raw[pos + 1]!); pos += 2 }
-            else { after = raw[pos]!; pos += 1 }
-            if (!(isDefaultIgnorable(after) && pos < len)) break
-          }
-          segmentBreakSkippable = (isSegmentBreakSkipChar(before) && isSegmentBreakSkipChar(after)) ||
-            (japaneseOrChinese && (isEastAsianPunctuation(before) || isEastAsianPunctuation(after)))
-        }
+        segmentBreakSkippable = (begin > 0 && raw[begin - 1] === 0x200b) || (end < len && raw[end] === 0x200b) ||
+          isEastAsianSegmentBreak(input, begin, end, japaneseOrChinese)
       }
       for (let i = begin; i < end; i++) {
         const ch = raw[i]!
@@ -585,7 +589,7 @@ function isSameScript(run: number, current: number, ch: number): boolean {
   return canMergeWithContext(run) || canMergeWithContext(current) || current === run || isClusterExtender(ch) || hasScript(ch, run)
 }
 
-// gfxFontGroup::InitTextRun, gfxTextRun.cpp:2673-2831. 8-bit text (:2731-2779) is all Latin and
+// gfxFontGroup::InitTextRun, gfxTextRun.cpp:2676-2835. 8-bit text (:2734-2782) is all Latin and
 // Common, so it takes the single-run branch.
 function initTextRun(g: Glyphs, units: Uint16Array, start: number, end: number, words: number[]): void {
   let allCommonOrLatin = true
@@ -955,7 +959,7 @@ export function getGeckoLineBreaks(
   for (let k = 0; k < runStarts.length; k++) initTextRun(g, tr.units, runStarts[k]!, k + 1 < runStarts.length ? runStarts[k + 1]! : n, words)
   markGraphemes(g, tr.text, tr.units, words, graphemeSegmenter)
   for (let k = 0; k < words.length; k += 2) setupClusterBoundaries(g, tr.units, words[k]!, words[k + 1]!)
-  for (let k = 0; k < runStarts.length; k++) g.clusterStart[runStarts[k]!] = 1 // gfxTextRun.cpp:2824-2831
+  for (let k = 0; k < runStarts.length; k++) g.clusterStart[runStarts[k]!] = 1 // gfxTextRun.cpp:2828-2835
 
   const state = getBreakStates(tr.text, tr.units, is8bit, hasCompressedLeadingWhitespace(source, tr.skipped, is8bit, preserveWhiteSpace), keepAll, wordSegmenter)
   for (let t = 1; t < n; t++) {
