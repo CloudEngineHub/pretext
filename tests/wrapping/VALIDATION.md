@@ -17,6 +17,62 @@ All accuracy, letter-spacing and corpus result payloads are unchanged; refreshed
 snapshots change only provenance and environment records. Runtime sources and
 the baseline pin are unchanged, so no runtime benchmark was needed.
 
+## Safari 27
+
+This test-only change starts from main `2e5e2bd` (#333). macOS 27 brought Safari
+27.0, and its first installed full gate broke lines differently from the Safari
+26.5.2 rows of September 14 on 6,230 LTR and 3,599 RTL suite rows, 5,660 and 2,883
+of them with a different line count; the two #210 rows changed only in height.
+WebKit 27 changed four break rules: punctuation after an overflowing first
+character, curly quotes and guillemets, keep-all after punctuation, and
+U+2028/U+2029 ending lines. It also keeps fractional line boxes. ICU didn't
+change. Main failed two required Safari rows.
+
+`reported/#210-#211` at 20.96px keeps Safari 26's lines, but Safari 27 truncates
+the block and the strut to 1/64px, so the observer read 3.000746 lines. For
+fractional CSS line heights, a block within 1/64px per line of k strut advances
+now counts as k lines. Safari 27's heights for one to six lines at 17.3, 20.5,
+20.96 and 32px all read whole, and Safari 26's 60px over a 20px strut still reads 3.
+The height check still compares the block with the predicted lines' strut advances,
+which holds for the #210 rows' one and three lines; ENGINE_FOLLOWUPS records where
+taller fractional blocks would outgrow it.
+
+The Safari keep-all case `foo。bar日本語` read per-character spans. Safari 27 breaks
+after `。` (WebKit #312099) only inside one text node, so spans kept Safari 26's four
+lines where the paragraph has five. The case now reads the text node with Range
+rects, so `wrap-06c1e0111950efed` becomes `wrap-8bb19504eadc995e` with the same
+origin, and requires nothing until the WebKit profile models the fix.
+
+The WebKit profile will follow Safari 27 only. Safari 26, still on macOS 26 and iOS
+26, becomes a known gap, and the profile won't detect the version from the user agent.
+Safari 27's break rules reach main with break opportunities taken from WebKit's own
+data (#321), not as new hand-written rules; that change makes the keep-all case
+required again.
+
+Only the two #210 rows have a fractional line height, so the whole-count rule can't
+reach any other row. The full installed gate ran in the background on September 23
+against the pin `7c2ec51`: Chrome 153 through the Playwright transport, Safari 27.0
+and Firefox 156 natively, both directions, at DPR 2, once from this branch's harness
+and once from main's with this branch as the candidate. That is 161,739 LTR and
+73,671 RTL rows in Chrome, 162,489 and 73,680 in Safari, and 162,136 and 73,716 in
+Firefox. From this branch no leg fixes or loses a metric, and none has required
+failures or execution errors. From main's harness only Safari's LTR leg fails, on the
+two required rows above. Row by row, main's assessments differ between the two
+harnesses only in Safari LTR: `wrap-4faaad4b08f18c01`'s line count, which now passes,
+and the keep-all case. With spans main passed line count and breaks and failed
+height, source and widths; from the text node it also fails line count and breaks.
+In all six legs, the only native count that differs between the harnesses is
+`wrap-4faaad4b08f18c01`'s. `bun test` and `bun run check` pass, and the pin stays.
+
+The ordinary snapshots were regenerated from this branch in Chrome 153, Safari 27.0
+and Firefox 156. No result moved: accuracy stays 7,680 of 7,680 in each browser,
+letter spacing 28 of 28, and the corpus sweeps 1,076, 1,090 and 984 of 1,098 in
+Chrome, Safari and Firefox, with the same mismatches. None of these rows is among
+those Safari 27 moved, and all use whole-pixel line heights, which the harness
+change leaves alone. Only provenance and environment records change, including
+Safari's user agent, from 26.5.2 to 27.0. Runtime sources are unchanged, so no
+runtime benchmark was needed.
+
 ## Rich inline keeps a line at an unfit soft hyphen as plain text does
 
 This runtime change starts from main `491c7f1` (#324). In `prepareRichInline()`,

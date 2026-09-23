@@ -39,9 +39,10 @@ such as `漢。` or `「漢`, and keep-all groups, are no exception: under
 `overflow-wrap: break-word`, Chromium retries an overflowing line with grapheme
 breaks, WebKit in Safari 26.5.2 breaks at an arbitrary position once the line has
 no earlier wrap opportunity, and Firefox admits a word-wrap break at every cluster
-start, all ignoring line-break classes. WebKit trunk keeps `漢。` together when not
-even `漢` fits (`firstCharacterBreakRespectingLineStartProhibitions`), which Safari
-26.5.2 doesn't have. Several narrow rows passed only while this
+start, all ignoring line-break classes. WebKit keeps `漢。` together when not even
+`漢` fits (`firstCharacterBreakRespectingLineStartProhibitions`); Safari 27 has this
+for text holding a character above U+00FF, and Safari 26.5.2 doesn't. Several
+narrow rows passed only while this
 missing break cancelled another error, such as a combining mark detached from its
 base by the forward carry, U+3000 not hanging, joined Arabic widths, raw controls
 or Chrome's text-spacing-trim. Firefox can
@@ -67,7 +68,8 @@ reads the LineBreak.txt class of a following letter, number or symbol, so an
 iteration mark such as `々` (NS) stays after `！`, while numeric affixes and
 opening punctuation break; other punctuation keeps its existing attachment.
 Small kana and `ー` (CJ) after EX follow the engine and page language; see
-Content Language. Safari's keep-all still breaks only at spaces. U+061B ARABIC
+Content Language. Safari 26's keep-all still breaks only at spaces; Safari 27's also
+breaks after punctuation in text holding a character above U+00FF. U+061B ARABIC
 SEMICOLON is EX too, while `:`, `.` and U+060C are IS and keep a following
 Arabic word (LB29). Firefox also breaks after BA such as `|` and CL such as `}`
 before a letter or digit, which symbol chains do not model: installed Firefox
@@ -233,9 +235,9 @@ Hangul classes and CJ), where a mark takes its base's class. It keeps `ー`, sym
 such as `★`, supplementary ideographs and, after an ideograph, `〵` or an
 ideographic variation selector, but breaks after NS letters such as `々` or `〼`,
 and after `〵` following a closing bracket. `keepAllPairModel` picks Blink's rule,
-ICU4X's, or WebKit's, whose keep-all breaks only at spaces; newer WebKit source
-also breaks after opening, closing and other punctuation there, but not after
-letters.
+ICU4X's, or Safari 26's, whose keep-all breaks only at spaces; Safari 27 also
+breaks after opening, closing and other punctuation that isn't the text's last
+character, in text holding a character above U+00FF, but not after letters.
 
 Where the engine does not keep a pair, Pretext ends a keep-all run where UAX #14
 allows a break between the two line-break classes. The classes come from a table

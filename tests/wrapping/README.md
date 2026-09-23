@@ -24,7 +24,8 @@ foreground benchmark rules.
 ## Gates and observations
 
 Maintained cases preserve their original modes, content widths, locale, browser
-scope, extraction method and tolerances. Their required metrics and the exact
+scope, extraction method and tolerances; the Safari keep-all case that now reads
+the text node is the one exception. Their required metrics and the exact
 filed-report obligations in [INVENTORY.md](INVENTORY.md) must pass even when main fails them. Elsewhere, the gate rejects lost passing main metrics and
 lost observation coverage. All source execution errors fail the run. A candidate
 fix does not offset an unrelated regression. Differences found only outside the
@@ -36,8 +37,10 @@ harness and also runs once from main's harness, so contract-masked losses stay
 visible.
 
 For fractional CSS line heights, a separate two-line strut observes the browser’s
-used line-box advance. This keeps Safari’s integer rounding out of the wrapping
-comparison; the API contract still requires the explicit requested line height.
+used line-box advance. Safari 26 rounds line boxes to whole pixels, and Safari 27
+truncates the block height to 1/64px, so a block within 1/64px per line of k line
+boxes counts as k lines. The API contract still requires the explicit requested
+line height.
 
 Height, extracted line count/boundaries, source placement, whitespace, widths,
 selected hyphens, public API contracts and selected native rich-item heights
