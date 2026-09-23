@@ -769,14 +769,20 @@ function findNextBreakablePosition(pairs: Uint8Array, f: Factory, startPosition:
 
 // ubrk_open(UBRK_LINE, locale) in libicucore (TBIICU.h:63-67): line_normal.brk for ja and
 // ko, line_cj.brk for zh and line.brk otherwise, plus the locale's quotation remap
-// (apple-brkiter.cpp:458-473, apple-rbbi.cpp:406-487), looked up with ICU's parent fallback.
+// (apple-brkiter.cpp:458-473, apple-rbbi.cpp:406-487), looked up with ICU's parent fallback
+// under ICU's case: lowercase language, title-case script, uppercase region (uloc_getName).
 function getWebKitLineIterator(language: string | null): RuleBreakIterator {
   const locale = language ?? ''
   let iterator = webkitIterators.get(locale)
   if (iterator !== undefined) return iterator
   const breakLanguage = getBreakLanguage(locale)
   const rules = getLineRules(breakLanguage === 'ja' || breakLanguage === 'ko' ? 'apple/line_normal' : breakLanguage === 'zh' ? 'apple/line_cj' : 'apple/line')
-  let name = locale.replace(/-/g, '_')
+  const subtags = locale.split(/[-_]/)
+  let name = subtags[0]!.toLowerCase()
+  for (let k = 1; k < subtags.length; k++) {
+    const subtag = subtags[k]!
+    name += '_' + (subtag.length === 4 ? subtag[0]!.toUpperCase() + subtag.slice(1).toLowerCase() : subtag.toUpperCase())
+  }
   let remap = appleQuoteRemaps[name]
   while (remap === undefined) {
     const cut = name.lastIndexOf('_')

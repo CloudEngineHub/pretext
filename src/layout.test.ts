@@ -2423,6 +2423,10 @@ describe('prepare invariants', () => {
     expect(segments('£€£€““tail', 'webkit', 'en')).toBe('£|€|£|€|““tail')
     expect(segments('£€£€““tail', 'webkit', 'ja')).toBe('£|€|£|€““tail')
     expect(segments('中文“abc”中文', 'webkit', 'ja')).toBe('中|文|“abc”|中|文')
+    // The remap is looked up under ICU's case, then with its parent fallback: pt_PT
+    // doesn't remap ‘, where pt, through root, does.
+    for (const language of ['pt-PT', 'pt-pt', 'PT_pt', 'pt-pt-x-a']) expect(segments('£€£€‘‘tail', 'webkit', language)).toBe('£|€|£|€‘‘tail')
+    expect(segments('£€£€‘‘tail', 'webkit', 'pt')).toBe('£|€|£|€|‘‘tail')
   })
 
   test('treats Hangul compatibility jamo as CJK break units', () => {
