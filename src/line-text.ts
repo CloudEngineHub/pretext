@@ -40,9 +40,13 @@ export function buildLineTextFromRange(
 ): string {
   let text = ''
   for (let i = startSegmentIndex; i < endSegmentIndex; i++) {
-    // A soft hyphen shows only as the hyphen of a line that ends at it.
+    // A soft hyphen shows only as the hyphen of a line that ends at it, and one the
+    // Gecko scan takes as a zero-width break never does.
     const kind = prepared.kinds[i]
-    if (kind === 'soft-hyphen' || kind === 'hard-break' || (kind === 'zero-width-glue' && prepared.segments[i]!.charCodeAt(0) === 0x00AD)) continue
+    if (
+      kind === 'soft-hyphen' || kind === 'hard-break' ||
+      ((kind === 'zero-width-glue' || kind === 'zero-width-break') && prepared.segments[i]!.charCodeAt(0) === 0x00AD)
+    ) continue
     if (i === startSegmentIndex && startGraphemeIndex > 0) {
       const offsets = getSegmentGraphemeOffsets(i, prepared.segments, cache)
       text += prepared.segments[i]!.slice(offsets[startGraphemeIndex]!)

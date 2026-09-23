@@ -1102,6 +1102,11 @@ describe('boundary-policy regressions', () => {
       expect(prepareWithSegments('\u00ADa\u00ADb', FONT).kinds[0]).toBe('zero-width-glue')
       expect(lines('\u00ADa\u00ADb', 0)).toEqual(['\u00ADa\u00AD', 'b'])
       expect(lines('\u00ADb', 1)).toEqual(['\u00ADb'])
+      // A soft hyphen taken as a zero-width break leaves line text, drawing no hyphen.
+      const cjk = prepareWithSegments('漢字\u00ADabc', FONT)
+      const cjkWidth = measureWidth('漢字', FONT) + 0.1
+      expect(layoutWithLines(cjk, cjkWidth, LINE_HEIGHT).lines.map(line => line.text)).toEqual(['漢字', 'abc'])
+      expect(collectStreamedLines(cjk, cjkWidth).map(line => line.text)).toEqual(['漢字', 'abc'])
     } finally {
       profile.lineBreakScan = previous.lineBreakScan
       profile.zeroWidthGlueTakesLine = previous.zeroWidthGlueTakesLine
