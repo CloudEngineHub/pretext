@@ -406,19 +406,37 @@ function extendCluster(g: Glyphs, i: number): void {
   g.isSpace[i] = 0
 }
 
+// Whether a code unit can share a grapheme cluster with a neighbour, asked of the segmenter once per
+// unit: whether it joins a letter on either side (Extend, ZWJ, SpacingMark, Prepend) or a copy of
+// itself (Hangul jamo). In every pair UAX #29 keeps together, one unit does one of these. Nothing
+// below U+0300 does, and a surrogate is taken to.
+let clusterJoiners: Uint8Array | null = null
+function mayJoinCluster(unit: number, graphemeSegmenter: Intl.Segmenter): boolean {
+  if (unit < 0x300) return false
+  if ((unit & 0xf800) === 0xd800) return true
+  const joiners = clusterJoiners ??= new Uint8Array(0x10000)
+  if (joiners[unit] === 0) {
+    const ch = String.fromCharCode(unit)
+    let clusters = 0
+    for (const _ of graphemeSegmenter.segment(`a${ch}a${ch}${ch}`)) clusters++
+    joiners[unit] = clusters === 5 ? 1 : 2
+  }
+  return joiners[unit] === 2
+}
+
 // Cluster starts inside shaped words, as GraphemeClusterBreakIteratorUtf16 gives them per word in
-// SetupClusterBoundaries (gfxFont.cpp:708-769, intl/lwbrk/Segmenter.cpp:174-187). A word with every
-// unit below U+0300 has a cluster at every unit. The other words are joined, each followed by LF,
-// and segmented once: LF is a cluster on its own (UAX #29 GB4, GB5) and the segmenter continues from
-// each boundary without looking back, so every word gets the boundaries it gets alone. Clears
-// clusterStart where a unit continues a cluster.
+// SetupClusterBoundaries (gfxFont.cpp:708-769, intl/lwbrk/Segmenter.cpp:174-187). A word with no
+// unit that can join a cluster has a cluster at every unit. The other words are joined, each
+// followed by LF, and segmented once: LF is a cluster on its own (UAX #29 GB4, GB5) and the segmenter
+// continues from each boundary without looking back, so every word gets the boundaries it gets
+// alone. Clears clusterStart where a unit continues a cluster.
 function markGraphemes(g: Glyphs, text: string, units: Uint16Array, words: number[], graphemeSegmenter: Intl.Segmenter): void {
   let joined = ''
   const joinedWords: number[] = []
   for (let k = 0; k < words.length; k += 2) {
     const from = words[k]!, to = words[k + 1]!
     let i = from
-    while (i < to && units[i]! < 0x300) i++
+    while (i < to && !mayJoinCluster(units[i]!, graphemeSegmenter)) i++
     if (i === to) continue
     g.clusterStart.fill(0, from + 1, to)
     joined += text.slice(from, to) + '\n'

@@ -369,9 +369,10 @@ function resolveWeak(text: Uint16Array, seq: Sequence, pc: Uint8Array): void {
           etRun.push(i)
         }
       }
-      bnRun.length = 0
+      // Emptying an empty array still costs a property write, so only nonempty runs are reset.
+      if (bnRun.length !== 0) bnRun.length = 0
       prevBeforeW5 = pc[i]!
-      if (prevBeforeW5 !== ET) { // W6 terminators
+      if (prevBeforeW5 !== ET && etRun.length !== 0) { // W6 terminators
         for (let k = 0; k < etRun.length; k++) pc[etRun[k]!] = ON
         etRun.length = 0
       }
