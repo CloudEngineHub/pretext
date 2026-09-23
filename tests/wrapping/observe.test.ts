@@ -108,6 +108,9 @@ test('fractional CSS line heights read whole line counts within 1/64px per line'
   for (const [lineHeight, strut, heights] of safari27) {
     for (let index = 0; index < heights.length; index++) expect(wholeLineCount(heights[index]!, lineHeight, strut)).toBe(index + 1)
   }
+  // Safari 27's heights, floor(64 × n × lineHeight) / 64, can also fall below n
+  // strut advances: one 14.4px line is 14.390625px over a 14.3984375px strut.
+  expect(wholeLineCount(14.390625, 14.4, 14.3984375)).toBe(1)
   // Safari 26 rounds each 20.96px line box to 20px.
   expect(wholeLineCount(60, 20.96, 20)).toBe(3)
   // A line box taller than the strut still reads fractional, and whole-pixel
