@@ -141,6 +141,12 @@ Canvas that halts CJK punctuation pairs, finds no difference.
 The layout bundle grows from 80,306 to 119,936 bytes minified (21,172 to 55,946
 gzipped), and runtime source from 6,391 to 6,624 lines.
 
+The baseline advances to `f4374a3`, and the ordinary snapshots were regenerated
+against it in Chrome 153, Safari 27.0 and Firefox 156, with no regressions,
+required failures or execution errors. Accuracy stays 7,680 of 7,680 in each
+browser and letter spacing 28 of 28, and the corpus sweeps rise from 1,076, 1,090
+and 984 to 1,093, 1,098 and 1,098 of 1,098 in Chrome, Safari and Firefox.
+
 ## Firefox newlines between East Asian characters
 
 For Firefox, `normalizeSource()` now removes a collapsible run holding LF between
@@ -160,9 +166,9 @@ content-language rows had failed `source-normalization` for the same reason.
 
 In the full Firefox gate the profile with the removal now gains those 125 rows over
 the one without it and loses none. Main loses them, since it keeps a space there.
-No checked-in snapshot was rewritten: the gate observes main and every candidate
-afresh. `corpora/firefox-step10.json` still holds main's corpus rows under the old
-form.
+No checked-in snapshot was rewritten with this change: the gate observes main and
+every candidate afresh. The snapshots regenerated with the break scans (previous
+section) hold Firefox's corpus rows under the new form.
 
 ## `layout()` counts lines with a count-only walker
 

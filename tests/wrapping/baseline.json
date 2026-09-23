@@ -1,4 +1,4 @@
 {
-  "revision": "7c2ec519922e364ecc80dcb88596047fd3b54e3c",
-  "description": "Reviewed boundary, rich-inline, shared complex-walker, leading-ZWSP, exclamation-break, figure-space glue, pair-table gap, CJK closing-bracket, Safari line-edge kerning, WebKit engine routing, segment-break removal and Blink soft-hyphen retreat fixes. The runner measures this source and every candidate against the same fresh browser observations; existing mismatches remain observations, never expected answers."
+  "revision": "f4374a340b3be5b6ca06fd0bb7e2627940b521ff",
+  "description": "Reviewed boundary, rich-inline, shared complex-walker, leading-ZWSP, exclamation-break, figure-space glue, pair-table gap, CJK closing-bracket, Safari line-edge kerning, WebKit engine routing, segment-break removal and Blink soft-hyphen retreat fixes, then each browser's own line breaker: ports of Blink's, WebKit's and Gecko's scans over their own tables. The runner measures this source and every candidate against the same fresh browser observations; existing mismatches remain observations, never expected answers."
 }
