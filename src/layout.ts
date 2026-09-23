@@ -678,9 +678,10 @@ function measureAnalysis(
 // the run ends after it and fits without it (shaping_line_breaker.cc:384-452), and the line
 // breaker keeps the run as trailing space (HandleTrailingSpaces, line_breaker.cc:2447-2514),
 // in normal and pre-wrap white space alike. A text segment that ends in such a run, where a
-// line can end after it, drops the run and its letter spacing at a line end. The line then
-// ends where the run starts (shaping_line_breaker.cc:490-493), so after a soft hyphen it ends
-// with a hyphen (SetBreakOffset, shaping_line_breaker.cc:212-216), which has to fit.
+// line can end after it or a collapsible space follows, which hangs with it, drops the run
+// and its letter spacing at a line end. The line then ends where the run starts
+// (shaping_line_breaker.cc:490-493), so after a soft hyphen it ends with a hyphen
+// (SetBreakOffset, shaping_line_breaker.cc:212-216), which has to fit.
 function addIdeographicSpaceHangs(
   trims: number[] | null,
   texts: readonly string[],
@@ -694,7 +695,7 @@ function addIdeographicSpaceHangs(
     const text = texts[i]!
     if (kinds[i] !== 'text' || text.charCodeAt(text.length - 1) !== 0x3000) continue
     const next = i + 1 < kinds.length ? kinds[i + 1]! : null
-    if (next !== null && next !== 'hard-break' && !(next === 'text' && breaksBefore?.[i + 1] !== false)) continue
+    if (next !== null && next !== 'hard-break' && next !== 'space' && !(next === 'text' && breaksBefore?.[i + 1] !== false)) continue
     let start = text.length - 1
     while (start > 0 && text.charCodeAt(start - 1) === 0x3000) start--
     const run = text.slice(start)

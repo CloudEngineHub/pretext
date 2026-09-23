@@ -3980,6 +3980,9 @@ describe('layout invariants', () => {
       ['中中\u3000中', 48, ['中中\u3000', '中'], [48, 16]],
       ['中中\u3000中', 40, ['中中\u3000', '中'], [32, 16]],
       ['中中\u3000中', 31, ['中', '中\u3000', '中'], [16, 16, 16]],
+      // A collapsible space after the run hangs with it.
+      ['中中\u3000 中', 40, ['中中\u3000 ', '中'], [32, 16]],
+      ['中中\u3000 中', 31, ['中', '中\u3000 ', '中'], [16, 16, 16]],
     ] as const) {
       const prepared = prepareWithSegments(text, FONT)
       const lines = layoutWithLines(prepared, width, LINE_HEIGHT)
