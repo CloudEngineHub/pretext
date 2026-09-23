@@ -60,6 +60,15 @@ height; from the text node it fails height, line count, breaks, source and width
 In all six legs, the only native count that differs between the harnesses is
 `wrap-4faaad4b08f18c01`'s. `bun test` and `bun run check` pass, and the pin stays.
 
+The ordinary snapshots were regenerated from this branch in Chrome 153, Safari 27.0
+and Firefox 156. No result moved: accuracy stays 7,680 of 7,680 in each browser,
+letter spacing 28 of 28, and the corpus sweeps 1,076, 1,090 and 984 of 1,098 in
+Chrome, Safari and Firefox, with the same mismatches. None of these rows is among
+those Safari 27 moved, and all use whole-pixel line heights, which the harness
+change leaves alone. Only provenance and environment records change, including
+Safari's user agent, from 26.5.2 to 27.0. Runtime sources are unchanged, so no
+runtime benchmark was needed.
+
 ## Rich inline keeps a line at an unfit soft hyphen as plain text does
 
 This runtime change starts from main `491c7f1` (#324). In `prepareRichInline()`,
