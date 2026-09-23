@@ -17,6 +17,130 @@ All accuracy, letter-spacing and corpus result payloads are unchanged; refreshed
 snapshots change only provenance and environment records. Runtime sources and
 the baseline pin are unchanged, so no runtime benchmark was needed.
 
+## Each browser's own line breaker
+
+This runtime change starts from main `b17a7ac` (#338). Chrome, Safari and Firefox
+take their break opportunities from ports of Blink's, WebKit's and Gecko's line
+breakers over the tables those browsers ship (`src/line-breaks.ts`,
+`src/gecko-line-breaks.ts`, `src/generated/engine-break-data.ts`), in place of
+the merged segmentation, the UAX #14 class table and the hand-written rules
+those three engines used. On top of the scans: Safari 27's break rules; Chrome's
+`zh` line table, chosen from `<html lang>` or, on a page without one, from
+Chrome's UI language; Chrome's `text-spacing-trim`; U+3000 hanging at a Chrome
+or Firefox line end; Firefox's newline removal between East Asian characters;
+Gecko prefix fitting in segments at least 80px wide; and a Gecko soft hyphen at a
+normal break taken as a zero-width break. The count-only walker from #338 counts
+the scans' segments.
+
+The installed full gate ran in the background on September 23 from this
+branch's harness, against the pin `7c2ec51` and with main `b17a7ac` as a
+candidate: Chrome 153 through the Playwright transport, Safari 27.0 and Firefox
+156 natively, both directions, at DPR 2. Main and the pin give the same
+assessment on every row. Line-count passes:
+
+| Leg | Main | This branch | Fixed | Lost |
+| --- | ---: | ---: | ---: | ---: |
+| Chrome LTR | 111,364 / 147,709 | 115,861 | 5,318 | 161 |
+| Chrome RTL | 46,996 / 70,974 | 49,727 | 2,991 | 96 |
+| Firefox LTR | 117,973 / 147,669 | 128,615 | 11,930 | 768 |
+| Firefox RTL | 54,227 / 70,972 | 61,505 | 7,918 | 532 |
+| Safari LTR | 115,944 / 148,051 | 122,794 | 9,730 | 1,222 |
+| Safari RTL | 47,513 / 70,974 | 51,408 | 4,910 | 724 |
+
+No leg has required failures, execution errors, or new API or rich failures for
+this branch. Main fails six required Safari checks, height, line count and
+breaks on the keep-all case `foo。bar日本語` and on its new 16-bit control
+`aa.bbbbbā`, which this branch requires since the WebKit scan follows Safari
+27's keep-all; the Latin-1 control `aa.bbbbbb` passes in both. Firefox counts
+come from this branch's harness, whose normalized form follows Firefox's newline
+rule (next section); from main's harness Firefox's corpus rows add 106 losses
+that are the old form's error, not the prediction's.
+
+Every lost row was then observed again alone, in a fresh browser process and
+document, and attributed on every visible character through the harness's
+`sourceSpans`, with installed Safari repeating webkit-host's Safari
+observations. Of Chrome's 257 lost rows, 31 are true losses, 220 were main's
+accidents (107 of them only a soft hyphen's or a space's placement, which the
+harness ignores) and 6 depend on page history, where main is wrong alone in a
+fresh document. Of Firefox's 1,300, 755 are true losses and 545 accidents; of
+Safari's 1,946, 841 are true losses (839 confirmed in installed Safari) and
+1,105 accidents. Every true loss is at 55.7px or narrower, and none is text a
+page would show; each shape is recorded in
+[ENGINE_FOLLOWUPS.md](../../ENGINE_FOLLOWUPS.md):
+
+| Shape | Chrome | Firefox | Safari | Widths |
+| --- | ---: | ---: | ---: | --- |
+| An Arabic or Hebrew word glued to brackets or quotes and Latin, as `بِبِ((tail` | 2 | 247 | 506 | 1-55.7px |
+| A combining mark after a word joiner, ZWSP, ZWJ or soft hyphen | 17 | 48 | 215 | 1-40px |
+| C0 or C1 controls or DEL | 0 | 192 | 52 | 0-48px |
+| A ZWJ before a space, as `آگ`, ZWJ, space, `ب` | 0 | 186 | 0 | 8-12px |
+| U+0600 before U+3000, or U+1680 before `?` | 0 | 33 | 16 | 8-40px |
+| CJK punctuation in a line narrower than one character, as `1234。b` | 0 | 0 | 37 | 1-15px |
+| A currency sign before an opening curly quote, as `£€£€““tail` | 6 | 0 | 0 | 35.7-38.7px |
+| A soft hyphen before U+3000 | 6 | 0 | 0 | 1-8px |
+| Word joiners, ZWSP or soft hyphens among Latin letters, and others | 0 | 49 | 15 | 1-40px |
+
+On the lab's real-text sets, fresh natives against predict-only runs, this branch
+loses no row to main in any browser. Cells are rows whose line count fails ·
+rows with a wrong count or any visible character on the wrong line, for main /
+this branch:
+
+| Set | Rows | Chrome | Firefox | Safari (webkit-host) |
+| --- | ---: | --- | --- | --- |
+| Census paragraphs | 4,686 | 2·7 / 0·0 | 2·58 / 0·0 | 0·7 / 0·0 |
+| Books | 72 | 2·8 / 0·2 | 21·35 / 0·0 | 2·4 / 0·0 |
+| Step-10 giants | 1,118 | 27·246 / 10·90 | 223·614 / 0·1 | |
+| CJK corpus paragraphs | 4,566 | 43·169 / 0·0 | 8·40 / 0·0 | 6·25 / 0·0 |
+| CJK under Latin-first fonts | 5,736 | 110·423 / 0·0 | 15·53 / 0·0 | 11·44 / 0·0 |
+| CJK in PingFang on the other script's pages | 4,560 | 174·476 / 0·0 | 16·56 / 0·0 | 12·44 / 0·0 |
+| Chat messages at 200-380px | 9,536 | 24·124 / 0·29 | 2·13 / 0·0 | 7·19 / 0·1 |
+| Phone widths in seven scripts | 2,079 | 0·6 / 0·3 | 36·132 / 0·0 | 7·19 / 0·0 |
+| Suite rows at 80px and over | 27,155 | 719·1,489 / 559·1,132 | 806·1,647 / 575·827 | 357·1,002 / 300·692 |
+
+The Chrome chat failures are one URL at 320px, which main fails too. At 80px and
+over no browser loses a line count; Firefox's 13 lost rows there are main's
+accidents, and the 3 Firefox and 17 Safari rows lost on line placement alone are
+a TAB after `www.ex.com?` in pre-wrap, marks after a ZWSP at 100px and
+`😀((()))tail` at 80px. In `holes2`, under a Chinese UI, Chrome lays out
+`lang=""` paragraphs on an English page under the UI language, which Pretext
+can't see: main passes those 168 rows only under a Chinese UI and fails them all
+under an English one, where this branch passes.
+
+Beyond the combined parents, the last commits change these rows in the gate,
+and move nothing else:
+
+- The U+3000 run before a collapsible space hangs in Chrome: 24 line counts
+  fixed in each direction, none lost, and 48 more in the lab's CJK suite.
+  Installed Chrome 153 agrees on the normal white-space probes; pre-wrap before
+  a preserved space or tab is still open.
+- U+3000 hangs at a Firefox line end: 214 left-to-right and 198 right-to-left
+  line counts fixed and none lost, 4 of them former losses; 14 right-to-left
+  rows where a line holds only U+3000 lose their width check, since the hung
+  run reports no width. It also fixes 412 rows' line counts in the lab's CJK
+  suite.
+- A Gecko soft hyphen after a space or tab is a zero-width break: no metric
+  moves in the gate. Firefox 156 paints `ab ` / `cd` for `ab`, space, U+00AD,
+  `cd` at 30px, where the profile drew and fitted a hyphen. A first version
+  also made one at the start of the text such a break and lost 24 line counts
+  in each direction; one with only soft hyphens before it on its chunk stays a
+  soft hyphen.
+- The Safari keep-all case and its controls are required, as above.
+- The quotation remap follows ICU's locale case, the Gecko scan skips the
+  grapheme segmenter for words no unit of which can join a cluster, WebKit's
+  line-start prohibitions are cached with a segment's metrics, and a numeric
+  run is tested with one RegExp. These predict the same everywhere:
+  `prepareWithSegments()` returns the same data in all three profiles on the
+  suite's 15,881 texts and every corpus paragraph, and the three scans the same
+  breaks on 23,193 inputs.
+
+`bun test` and `bun run check` pass, and `bun run check` now also checks that
+the generated engine break data is current. A fuzz of `layout()` against
+`walkLineRanges()` over 60,000 text and width pairs per engine, with a fake
+Canvas that halts CJK punctuation pairs, finds no difference.
+
+The layout bundle grows from 80,306 to 119,936 bytes minified (21,172 to 55,946
+gzipped), and runtime source from 6,391 to 6,624 lines.
+
 ## Firefox newlines between East Asian characters
 
 For Firefox, `normalizeSource()` now removes a collapsible run holding LF between
