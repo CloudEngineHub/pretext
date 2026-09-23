@@ -681,7 +681,10 @@ function measureAnalysis(
 // line can end after it or a collapsible space follows, which hangs with it, drops the run
 // and its letter spacing at a line end. The line then ends where the run starts
 // (shaping_line_breaker.cc:490-493), so after a soft hyphen it ends with a hyphen
-// (SetBreakOffset, shaping_line_breaker.cc:212-216), which has to fit.
+// (SetBreakOffset, shaping_line_breaker.cc:212-216), which has to fit. Gecko (Firefox 156)
+// marks U+3000 as a space glyph, like SPACE (SetupClusterBoundaries, gfxFont.cpp:749-750), and
+// BreakAndMeasureText fits a line without its trailing space glyphs (gfxTextRun.cpp:1152-1160,
+// 1175), so Firefox hangs the run too.
 function addIdeographicSpaceHangs(
   trims: number[] | null,
   texts: readonly string[],

@@ -89,8 +89,8 @@ export type EngineProfile = {
   // next to other punctuation and at line ends (src/han-kerning.ts). WebKit and Gecko
   // don't trim them by default.
   hanKerning: boolean
-  // Blink hangs U+3000 at a line end as it hangs spaces (addIdeographicSpaceHangs in
-  // src/layout.ts). WebKit and Gecko are unverified and keep counting it.
+  // Blink and Gecko hang U+3000 at a line end as they hang spaces (addIdeographicSpaceHangs
+  // in src/layout.ts). WebKit is unverified and keeps counting it.
   hangsIdeographicSpace: boolean
   // Blink lays out content without a language under its default locale, Chrome's UI
   // language, which Intl shows (getBlinkLineBreaks in src/line-breaks.ts): its line table,
@@ -290,7 +290,7 @@ export function getEngineProfile(): EngineProfile {
     zeroWidthGlueTakesLine: engine !== 'gecko',
     hidesControlCharacters: engine === 'gecko',
     hanKerning: engine !== 'webkit' && engine !== 'gecko',
-    hangsIdeographicSpace: engine !== 'webkit' && engine !== 'gecko',
+    hangsIdeographicSpace: engine !== 'webkit',
     measureUnderDefaultLocale: engine !== 'webkit' && engine !== 'gecko',
   }
   cachedEngineProfile = profile

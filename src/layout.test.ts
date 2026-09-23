@@ -3980,7 +3980,7 @@ describe('layout invariants', () => {
     }
   })
 
-  test('Blink hangs U+3000 at a line end, where a hyphen before it has to fit', () => {
+  test('Blink and Gecko hang U+3000 at a line end, where a hyphen before it has to fit in Blink', () => {
     for (const [text, width, expected, widths] of [
       ['中中\u3000中', 48, ['中中\u3000', '中'], [48, 16]],
       ['中中\u3000中', 40, ['中中\u3000', '中'], [32, 16]],
