@@ -150,7 +150,6 @@ export function setAnalysisLocale(locale?: string): void {
 }
 
 const combiningMarkRe = /\p{M}/u
-const decimalDigitRe = /\p{Nd}/u
 
 function classifySegmentBreakCode(code: number, whiteSpace: WhiteSpaceMode, breakOnlyAfterNextLine: boolean): SegmentBreakKind {
   if (whiteSpace === 'pre-wrap') {
@@ -169,19 +168,11 @@ function classifySegmentBreakCode(code: number, whiteSpace: WhiteSpaceMode, brea
   return 'text'
 }
 
-const numericJoinerChars = new Set([
-  ':', '-', '/', '×', ',', '.', '+',
-  '\u2013',
-  '\u2014',
-])
+// Decimal digits and the joiners of numbers, times and dates.
+const numericRunRe = /^[\p{Nd}:\-/×,.+\u2013\u2014]+$/u
 
 export function isNumericRunSegment(text: string): boolean {
-  if (text.length === 0) return false
-  for (const ch of text) {
-    if (decimalDigitRe.test(ch) || numericJoinerChars.has(ch)) continue
-    return false
-  }
-  return true
+  return numericRunRe.test(text)
 }
 
 // The graphemes after the first that WebKit doesn't start a line with when a line
