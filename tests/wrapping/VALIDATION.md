@@ -17,6 +17,29 @@ All accuracy, letter-spacing and corpus result payloads are unchanged; refreshed
 snapshots change only provenance and environment records. Runtime sources and
 the baseline pin are unchanged, so no runtime benchmark was needed.
 
+## Firefox newlines between East Asian characters
+
+For Firefox, `normalizeSource()` now removes a collapsible run holding LF between
+two East Asian characters and, when the paragraph's language (else the page's) is
+`ja` or `zh`, next to East Asian punctuation, as Gecko's `TransformWhiteSpaces`
+does. It reads East_Asian_Width from Firefox's own ICU4X data and is coded apart
+from the library. 263 Firefox rows change form: 19 `maintained/content-language`
+rows, whose native paragraphs are raw, and the four ja/zh corpora at their 61
+widths each, which Firefox observes from the documented form.
+
+A Firefox 156 re-observation laid out each of those 244 corpus paragraphs from its
+raw source, the old form and the new one. The new form matched the raw source at
+all 244, in height and in the line of every visible character. The old form's
+height differed at 106, and those are the 106 corpus rows the Gecko profile's
+newline removal had lost: the oracle, not the prediction, was wrong. The 19
+content-language rows had failed `source-normalization` for the same reason.
+
+In the full Firefox gate the profile with the removal now gains those 125 rows over
+the one without it and loses none. Main loses them, since it keeps a space there.
+No checked-in snapshot was rewritten: the gate observes main and every candidate
+afresh. `corpora/firefox-step10.json` still holds main's corpus rows under the old
+form.
+
 ## `layout()` counts lines with a count-only walker
 
 This runtime change starts from main `c22181c` (#337). `layout()` counted lines

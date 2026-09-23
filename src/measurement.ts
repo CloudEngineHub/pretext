@@ -1,9 +1,5 @@
-import {
-  getSharedGraphemeSegmenter,
-  type BreakLanguage,
-  type KeepAllPairModel,
-  type SegmentBreakRemovalRun,
-} from './analysis.js'
+import { getSharedGraphemeSegmenter } from './analysis.js'
+import { getBlinkDefaultLocale } from './line-breaks.js'
 import type { SegmentEntryGeometry } from './entry-geometry.js'
 
 type EntryMeasurement = {
@@ -29,82 +25,54 @@ export type SegmentMetrics = {
 
 export type EngineProfile = {
   entryFitBasis: 'fresh' | 'original' | 'disabled' // original whole minus consumed prefixes
-  geckoAsciiLineBreaks: boolean
+  // Where preparation finds break opportunities: each engine's own scan. Blink and WebKit
+  // scan the text with their pair tables and ICU line rules (src/line-breaks.ts), Gecko
+  // with nsLineBreaker over ICU4X's rules (src/gecko-line-breaks.ts), and engines Pretext
+  // doesn't recognize take Blink's scan.
+  lineBreakScan: 'blink' | 'webkit' | 'gecko'
   lineFitEpsilon: number
-  carryCJKAfterClosingQuote: boolean
-  // Which pairs keep-all keeps. Blink keeps letters and numbers by general
-  // category, tested per UTF-16 code unit. Gecko's ICU4X keeps pairs by
-  // line-break class, so it also keeps symbols such as U+2605 but breaks after
-  // NS letters such as U+3005. WebKit breaks only at spaces.
-  keepAllPairModel: KeepAllPairModel
-  // WebKit keeps a basic combining mark after a ZWSP that starts a text node or
-  // follows a mandatory break. Gecko keeps ZWSP with any following cluster
-  // extender in every position; that granularity is not modeled.
-  keepZeroWidthSpaceMarkAtScanStart: boolean
-  // Small kana and U+30FC are UAX #14 CJ. ICU's normal rules resolve CJ to ID, so
-  // both may start a line, and its strict rules to NS, so neither may. Chromium's
-  // ICU data opens normal rules for every language, `line_normal_cj` for Chinese.
-  // Apple ICU opens the normal rules for Japanese and Korean pages and strict
-  // rules for others. Gecko's auto is strict, as are ICU's root rules, which
-  // engines Pretext doesn't recognize follow.
-  breakBeforeConditionalJapaneseStarter: boolean
-  // ICU's line rules break before an opening quotation mark such as U+201C and
-  // after a closing one such as U+201D between East Asian characters (UAX #14
-  // LB19a), identically in ICU 77 and 78. Gecko's ICU4X rules follow Unicode
-  // 15.0, with no break next to a quotation mark. Only keep-all runs model it,
-  // and WebKit's keep-all breaks only at spaces, so only Blink reads it.
-  breakAroundEastAsianQuotes: boolean
-  // Letters that keep a word-initial hyphen (LB20a). 'alphabetic-and-hebrew'
-  // models ICU 78, which Chromium and WebKit use: AL and HL letters after
-  // U+002D or any Unicode 17 HH dash. It is also the default without a
-  // navigator. 'none' models Gecko, whose ICU4X rules have no LB20a.
-  // 'alphabetic' keeps only AL letters, as ICU 77 did, but ICU 77 also counted
-  // only U+2010 as HH, so no engine profile selects it.
-  wordInitialHyphenLetters: 'none' | 'alphabetic' | 'alphabetic-and-hebrew'
-  // WebKit's line-break scan reads the source text, where a TAB that normal
-  // white space collapses is still UAX #14 BA, not a LB20a context. Chromium
-  // breaks the collapsed text, where it is a space.
-  breakHyphenAfterCollapsedTab: boolean
-  preferPrefixWidthsForBreakableRuns: boolean
+  // Where an emergency break falls inside a segment. WebKit measures the word's grapheme
+  // prefixes (TextUtil::breakWord), and Gecko adds the advances of the word shaped whole
+  // (gfxTextRun::BreakAndMeasureText), which prefixes follow in joined scripts where
+  // standalone graphemes don't. Blink sums standalone graphemes. Segments at least this
+  // wide fit from prefixes, narrower ones from standalone graphemes.
+  prefixFitMinWidth: number
   // WebKit measures a text item together with a directly following U+0020 and
   // subtracts one unshaped space, so the item keeps its kerning with that space
   // wherever the line ends. Blink also kerns there, but in its default state its
   // Canvas splits words at spaces and shows none of it; Gecko shapes words
   // without their spaces.
   measureTextWithFollowingSpace: boolean
-  // Blink and Gecko remove a collapsible newline run next to a ZWSP, each
-  // through its own run. WebKit turns it into a space.
-  segmentBreakRemovalRun: SegmentBreakRemovalRun
   // WebKit and Gecko letter-space the visible discretionary hyphen itself.
   // Blink shapes it separately, without spacing.
   letterSpaceDiscretionaryHyphen: boolean
+  // Blink's page shapes a soft hyphen inside its text, so nonspacing marks after
+  // one shape with the text before it and take no advance. Its Canvas turns the soft
+  // hyphen into a ZWSP and shapes each word alone, where such a mark can take a
+  // dotted circle. WebKit's page gives the marks the advance its Canvas measures.
+  shapesMarksAcrossSoftHyphen: boolean
   // When a selected discretionary hyphen does not fit, Blink retries the text
   // item against the width minus the hyphen, so the line ends at the latest
   // earlier opportunity that leaves room for it. Pretext has no Blink item
   // boundaries and applies the reduced width to every earlier opportunity.
-  // WebKit and Gecko also return to an earlier opportunity, at the full width,
-  // but that is not modeled: their installed losses come from letter spacing
-  // on invisibles and from marks after a soft hyphen, which isolated widths do
-  // not show. They keep the overflowing hyphen.
-  unfitHyphenRetreat: 'reduced-width' | 'none'
+  // Gecko records a soft-hyphen break only where its hyphen fits, and any other
+  // break where its line fits (gfxTextRun.cpp:1086-1101), so the line returns to
+  // the latest opportunity that fits at the full width. WebKit also returns, but
+  // that is not modeled: its installed losses come from letter spacing on
+  // invisibles and from marks after a soft hyphen, which isolated widths do not
+  // show. It keeps the overflowing hyphen.
+  unfitHyphenRetreat: 'reduced-width' | 'full-width' | 'none'
   // NEL (U+0085, UAX #14 NL) offers a break after itself and no ordinary break
-  // before it (LB5, LB6). Blink and Gecko break there too, but keep NEL as
-  // ordinary text for now: Blink joins Arabic across a soft hyphen that Pretext
-  // measures as separate segments, which the break before NEL was hiding, and
-  // release Gecko draws NEL with no advance while its Canvas measures a space.
-  // WebKit's simple text path gives NEL no letter spacing, at either sign, and
-  // its complex path spaces it. A NEL control segment takes spacing after text
-  // or glue in WebKit's complex ranges, or before such text that starts with a
-  // combining mark. Preparation cannot see the page direction, so after complex
-  // text whose direction differs from the page's it keeps spacing Safari omits.
-  // Blink spaces NEL outside cursive runs.
+  // before it (LB5, LB6), as the scans find. The WebKit profile gives NEL its own
+  // control segment for letter spacing: WebKit's simple text path gives NEL no
+  // letter spacing, at either sign, and its complex path spaces it. A NEL control
+  // segment takes spacing after text or glue in WebKit's complex ranges, or before
+  // such text that starts with a combining mark. Preparation cannot see the page
+  // direction, so after complex text whose direction differs from the page's it
+  // keeps spacing Safari omits. Blink spaces NEL outside cursive runs, and release
+  // Gecko draws NEL with no advance while its Canvas measures a space, so both keep
+  // NEL as ordinary text.
   breakOnlyAfterNextLine: boolean
-  // After CJK text, WebKit's pair scan reaches ICU at the CJK character and skips
-  // ahead over ASCII letters to ICU's next break without reading its pair table, so
-  // ICU's rules decide the break after a mark before a letter (`丙!|first`), while the
-  // table still keeps `丙!1234` and `丙.!first`. Blink reads its table for any two code
-  // units up to U+00FF, and Gecko sends the word to ICU4X.
-  icuDecidesLetterAfterCJKMark: boolean
   // WebKit moves a tab to the following stop when less than half a space would
   // remain before the next one (FontCascade::tabWidth).
   skipNarrowTabStops: boolean
@@ -112,14 +80,29 @@ export type EngineProfile = {
   // and WebKit (CSS Text 3 §4.1.2). Gecko doesn't hang a tab that doesn't fit, so a
   // tab counts in the line's fit and width there, as spaces do not.
   hangTabs: boolean
-  // Where rich-inline items break near a boundary. Blink runs one line-break
-  // iterator over the text of the whole inline formatting context, and Gecko
-  // collects a word across text frames until a space and breaks it in one pass,
-  // so every break fact near a boundary comes from the joined text. WebKit finds
-  // breaks inside each inline box from that box's own text, and decides a
-  // boundary between boxes from the previous box's last two characters. Engines
-  // Pretext doesn't recognize use the joined text, as Blink and Gecko do.
-  inlineItemBreaks: 'joined-text' | 'item-text'
+  // Blink's break-anywhere retry and WebKit's grapheme search can end a line after
+  // zero-width glue when the grapheme after it doesn't fit, so the glue takes a line of
+  // its own. Gecko drops soft hyphens from its text run and clusters a ZWSP with the marks
+  // after it, so glue at a line start can't hold the line: the segment after it starts it.
+  zeroWidthGlueTakesLine: boolean
+  // Blink's HanKerning under text-spacing-trim: normal halts CJK opening and closing marks
+  // next to other punctuation and at line ends (src/han-kerning.ts). WebKit and Gecko
+  // don't trim them by default.
+  hanKerning: boolean
+  // Blink hangs U+3000 at a line end as it hangs spaces (addIdeographicSpaceHangs in
+  // src/layout.ts). WebKit and Gecko are unverified and keep counting it.
+  hangsIdeographicSpace: boolean
+  // Blink lays out content without a language under its default locale, Chrome's UI
+  // language, which Intl shows (getBlinkLineBreaks in src/line-breaks.ts): its line table,
+  // font fallback and HanKerning's punctuation types follow it. Canvas under an empty page
+  // language doesn't, so the Chromium profile gives the context that locale. WebKit and
+  // Gecko take process languages a page can't read and keep the page's.
+  measureUnderDefaultLocale: boolean
+  // Release Gecko draws C0 and C1 controls, U+2028 and U+2029 with no advance plus letter
+  // spacing (gfxFont.cpp:3877-3892), where its Canvas measures VT, FS-US, NEL and U+2029 as a
+  // space (CanvasRenderingContext2D.cpp:4570-4573) and other controls as a hexbox. Chrome and
+  // Safari give most controls an advance on the page, as their Canvas does.
+  hidesControlCharacters: boolean
 }
 
 export type BreakableFitMode = 'sum-graphemes' | 'segment-prefixes' | 'pair-context'
@@ -133,9 +116,7 @@ const segmentMetricCaches = new Map<string, Map<string, SegmentMetrics>>()
 // Per font, metrics of a text item measured together with one following
 // U+0020, keyed by the item alone. The width includes that space.
 const followingSpaceMetricCaches = new Map<string, Map<string, SegmentMetrics>>()
-// One profile per break language, created once. Languages whose rules match root
-// share its object, so preparation allocates none.
-let cachedEngineProfiles: Record<BreakLanguage, EngineProfile> | null = null
+let cachedEngineProfile: EngineProfile | null = null
 
 // Safari's prefix-fit policy is useful for ordinary word-sized runs, but letting
 // it measure every growing prefix of a giant segment recreates a pathological
@@ -169,15 +150,13 @@ function createMeasureContext(language: string | null): CanvasRenderingContext2D
 
   if (typeof OffscreenCanvas !== 'undefined') {
     measureContext = new OffscreenCanvas(1, 1).getContext('2d')!
-    return measureContext
-  }
-
-  if (typeof document !== 'undefined') {
+  } else if (typeof document !== 'undefined') {
     measureContext = document.createElement('canvas').getContext('2d')!
-    return measureContext
+  } else {
+    throw new Error('Text measurement requires OffscreenCanvas or a DOM canvas context.')
   }
-
-  throw new Error('Text measurement requires OffscreenCanvas or a DOM canvas context.')
+  if (language === '' && getEngineProfile().measureUnderDefaultLocale && 'lang' in measureContext) measureContext.lang = getBlinkDefaultLocale()
+  return measureContext
 }
 
 export function getEntryMeasurementProfile(): EntryMeasurement['profile'] | null {
@@ -288,8 +267,8 @@ export function getLayoutEngine(userAgent: string): LayoutEngine | null {
   return userAgent.includes('AppleWebKit/') ? 'webkit' : null
 }
 
-export function getEngineProfile(language: BreakLanguage = 'root'): EngineProfile {
-  if (cachedEngineProfiles !== null) return cachedEngineProfiles[language]
+export function getEngineProfile(): EngineProfile {
+  if (cachedEngineProfile !== null) return cachedEngineProfile
 
   const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent
   const engine = getLayoutEngine(ua)
@@ -298,30 +277,24 @@ export function getEngineProfile(language: BreakLanguage = 'root'): EngineProfil
 
   const profile: EngineProfile = {
     entryFitBasis: isDesktop && engine === 'blink' ? 'fresh' : isDesktop && engine === 'gecko' ? 'original' : 'disabled',
-    geckoAsciiLineBreaks: engine === 'gecko',
+    lineBreakScan: engine === 'gecko' || engine === 'webkit' ? engine : 'blink',
     lineFitEpsilon: engine === 'webkit' ? 1 / 64 : 0.005,
-    carryCJKAfterClosingQuote: engine === 'blink',
-    keepAllPairModel: engine === 'gecko' ? 'icu4x-classes' : engine === 'webkit' ? 'webkit-spaces' : 'blink-general-category',
-    keepZeroWidthSpaceMarkAtScanStart: engine === 'webkit',
-    breakBeforeConditionalJapaneseStarter: engine === 'blink',
-    breakAroundEastAsianQuotes: engine !== 'gecko',
-    wordInitialHyphenLetters: engine === 'gecko' ? 'none' : 'alphabetic-and-hebrew',
-    breakHyphenAfterCollapsedTab: engine === 'webkit',
-    preferPrefixWidthsForBreakableRuns: engine === 'webkit',
+    prefixFitMinWidth: engine === 'webkit' ? 0 : engine === 'gecko' ? 80 : Infinity,
     measureTextWithFollowingSpace: engine === 'webkit',
-    segmentBreakRemovalRun: engine === 'blink' ? 'blink' : engine === 'gecko' ? 'gecko' : 'none',
     letterSpaceDiscretionaryHyphen: engine !== 'blink',
-    unfitHyphenRetreat: engine === 'blink' ? 'reduced-width' : 'none',
+    shapesMarksAcrossSoftHyphen: engine !== 'webkit' && engine !== 'gecko',
+    unfitHyphenRetreat: engine === 'blink' ? 'reduced-width' : engine === 'gecko' ? 'full-width' : 'none',
     breakOnlyAfterNextLine: engine === 'webkit',
-    icuDecidesLetterAfterCJKMark: engine === 'webkit',
     skipNarrowTabStops: engine === 'webkit',
     hangTabs: engine !== 'gecko',
-    inlineItemBreaks: engine === 'webkit' ? 'item-text' : 'joined-text',
+    zeroWidthGlueTakesLine: engine !== 'gecko',
+    hidesControlCharacters: engine === 'gecko',
+    hanKerning: engine !== 'webkit' && engine !== 'gecko',
+    hangsIdeographicSpace: engine !== 'webkit' && engine !== 'gecko',
+    measureUnderDefaultLocale: engine !== 'webkit' && engine !== 'gecko',
   }
-  // Apple ICU opens its normal line rules for Japanese and Korean content.
-  const normalRules = engine === 'webkit' ? { ...profile, breakBeforeConditionalJapaneseStarter: true } : profile
-  cachedEngineProfiles = { root: profile, ja: normalRules, ko: normalRules, zh: profile }
-  return cachedEngineProfiles[language]
+  cachedEngineProfile = profile
+  return profile
 }
 
 export function parseFontSize(font: string): number {

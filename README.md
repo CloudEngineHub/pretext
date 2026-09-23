@@ -29,7 +29,7 @@ const prepared = prepare('AGI 春天到了. بدأت الرحلة 🚀‎', '16p
 const { height, lineCount } = layout(prepared, 320, 20) // pure arithmetic. No DOM layout & reflow!
 ```
 
-`prepare()` does the one-time work: normalize whitespace, segment the text, apply glue rules, measure the segments with canvas, and return an opaque handle. `layout()` is the cheap hot path after that: pure arithmetic over cached widths. Do not rerun `prepare()` for the same text and configs; that'd defeat its precomputation. For example, on resize, only rerun `layout()`.
+`prepare()` does the one-time work: normalize whitespace, segment the text at its break opportunities, measure the segments with canvas, and return an opaque handle. `layout()` is the cheap hot path after that: pure arithmetic over cached widths. Do not rerun `prepare()` for the same text and configs; that'd defeat its precomputation. For example, on resize, only rerun `layout()`.
 
 If you want textarea-like text where ordinary spaces, `\t` tabs, and `\n` hard breaks stay visible, pass `{ whiteSpace: 'pre-wrap' }` to `prepare()`:
 
@@ -226,7 +226,7 @@ Notes:
 Pretext doesn't try to be a full font rendering engine (yet?). It currently targets the common text setup:
 - `white-space: normal` and `pre-wrap`
 - `word-break: normal` and `keep-all`
-- `overflow-wrap: break-word`. Very narrow widths can still break inside words, independent symbol runs, `keep-all` groups and kinsoku clusters such as `漢。`, but only at grapheme boundaries.
+- `overflow-wrap: break-word`. Very narrow widths can still break inside words, symbol runs, `keep-all` groups and kinsoku clusters such as `漢。`, but only at grapheme boundaries.
 - `line-break: auto`
 - `letter-spacing` as a numeric pixel value passed to `prepare()` / `prepareWithSegments()`
 - Tabs follow the default browser-style `tab-size: 8`
