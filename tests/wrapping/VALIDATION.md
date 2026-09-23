@@ -35,6 +35,13 @@ and assessments, so no leg fixes or loses a metric, and there are no required
 failures, execution errors, or new API or rich failures. The numeric API checks
 find no new failures in any of the five profiles.
 
+The ordinary snapshots were regenerated from this branch in Chrome 153, Safari 27.0
+and Firefox 156. No result moved: accuracy stays 7,680 of 7,680 in each browser,
+letter spacing 28 of 28, and the corpus sweeps 1,076, 1,090 and 984 of 1,098 in
+Chrome, Safari and Firefox, with the same mismatches. Only provenance and
+environment records change, including the hashes of `layout.ts` and
+`line-break.ts`.
+
 Outside the browsers, the counter, the old walker and main's `layout()` agree on
 every width of every input: the ordinary and full suite inputs plus each corpus
 whole, under keep-all and by paragraph, 26,395 inputs, in the Chrome, Safari,
