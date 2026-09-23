@@ -1003,6 +1003,15 @@ An arbitrary continuation must seek to its starting boundary; an already
 positioned scan can carry its index. The shared complex walker's preferred-break
 lookup work is O(lines × log(cuts)); the simple batch walker carries the next cut.
 
+`layout()` needs only a count. On simple text, `countPreparedLines()` keeps just
+the line width and whether the line has content, with no line ends, pending
+breaks, paint widths or visitor calls. It keeps the simple walker's order: a
+whole segment is tried before its graphemes, each line takes at least one
+grapheme, and a line that overflows after a preferred cut resumes at that cut.
+It already holds the next cut after the one it resumes at, so it doesn't
+search. Other text still counts through the full walker. This removes work from
+the resize path without changing preparation or what it measures.
+
 Count total submitted Canvas text, not just calls. Measuring every prefix or
 suffix is quadratic even if each position triggers only one query. Safari's
 production prefix policy caps each segment at 96 graphemes, using pair context
