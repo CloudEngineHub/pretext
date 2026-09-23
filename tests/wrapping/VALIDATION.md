@@ -39,15 +39,26 @@ lines where the paragraph has five. The case now reads the text node with Range
 rects, so `wrap-06c1e0111950efed` becomes `wrap-8bb19504eadc995e` with the same
 origin, and requires nothing until the WebKit profile models the fix.
 
-The Safari leg of the full gate ran in the background against the pin `7c2ec51`,
-once from this branch's harness and once from main's: 162,489 LTR and 73,680 RTL
-rows. From this branch neither direction fixes or loses a metric, and none has
-required failures or execution errors. From main's harness the LTR leg fails the
-two required rows above. Between the two harnesses, main's assessments differ only
-in `wrap-4faaad4b08f18c01`'s line count, which now passes, and in the keep-all case:
-with spans main passed line count and breaks and failed height; from the text node
-it fails height, line count, breaks, source and widths. `bun test` and
-`bun run check` pass, and the pin stays.
+The WebKit profile follows Safari 27 only. Safari 26, still on macOS 26 and iOS 26,
+is a known gap, and the profile doesn't detect the version from the user agent.
+Safari 27's break rules reach main with break opportunities taken from WebKit's own
+data (#321), not as new hand-written rules; that change makes the keep-all case
+required again.
+
+Only the two #210 rows have a fractional line height, so the whole-count rule can't
+reach any other row. The full installed gate ran in the background on September 23
+against the pin `7c2ec51`: Chrome 153 through the Playwright transport, Safari 27.0
+and Firefox 156 natively, both directions, at DPR 2, once from this branch's harness
+and once from main's with this branch as the candidate. That is 161,739 LTR and
+73,671 RTL rows in Chrome, 162,489 and 73,680 in Safari, and 162,136 and 73,716 in
+Firefox. From this branch no leg fixes or loses a metric, and none has required
+failures or execution errors. From main's harness only Safari's LTR leg fails, on the
+two required rows above. Row by row, main's assessments differ between the two
+harnesses only in Safari LTR: `wrap-4faaad4b08f18c01`'s line count, which now passes,
+and the keep-all case. With spans main passed line count and breaks and failed
+height; from the text node it fails height, line count, breaks, source and widths.
+In all six legs, the only native count that differs between the harnesses is
+`wrap-4faaad4b08f18c01`'s. `bun test` and `bun run check` pass, and the pin stays.
 
 ## Rich inline keeps a line at an unfit soft hyphen as plain text does
 
