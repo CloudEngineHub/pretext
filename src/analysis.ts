@@ -263,10 +263,17 @@ function isControlSegmentCode(code: number): boolean {
 function segmentAtLineBreaks(normalized: string, breaks: Uint8Array, whiteSpace: WhiteSpaceMode, breakOnlyAfterNextLine: boolean, scan: AnalysisProfile['lineBreakScan']): Segmentation {
   // A break is an odd value. The WebKit scan's 2 after U+2028 or U+2029 makes the separator a hard
   // break in every white-space mode, and the Gecko scan's 3 after a soft hyphen makes it a zero-width
-  // break: the line can end there without a hyphen.
+  // break: the line can end there without a hyphen. One with only soft hyphens before it on its
+  // chunk stays a soft hyphen, since a zero-width break there holds a line and Firefox, which drops
+  // soft hyphens from its text runs, gives it none.
+  const followsChunkContent = (i: number): boolean => {
+    let j = i - 1
+    while (j >= 0 && normalized.charCodeAt(j) === 0x00AD) j--
+    return j >= 0 && normalized.charCodeAt(j) !== 0x0A
+  }
   const classify = (code: number, i: number): SegmentBreakKind => scan === 'webkit' && breaks[i + 1] === 2 && (code === 0x2028 || code === 0x2029)
     ? 'hard-break'
-    : scan === 'gecko' && breaks[i + 1] === 3 && code === 0x00AD
+    : scan === 'gecko' && breaks[i + 1] === 3 && code === 0x00AD && followsChunkContent(i)
       ? 'zero-width-break'
       : classifySegmentBreakCode(code, whiteSpace, breakOnlyAfterNextLine)
   const starts = [0]

@@ -573,8 +573,11 @@ describe('boundary-policy regressions', () => {
     expect(kinds('ab\u00AD漢')).toEqual([['ab', 'text'], ['\u00AD', 'zero-width-break'], ['漢', 'text']])
     // Inside a Latin word the soft hyphen is the only break and keeps its hyphen.
     expect(kinds('cd\u00ADef')).toEqual([['cd', 'text'], ['\u00AD', 'soft-hyphen'], ['ef', 'text']])
-    // After a space the break is normal too, but a soft hyphen starting a pre-wrap chunk stays one.
+    // After a space the break is normal too, but a soft hyphen that starts the text or a pre-wrap
+    // line stays one, as a zero-width break there would hold a line.
     expect(kinds('ab \u00ADcd')).toEqual([['ab', 'text'], [' ', 'space'], ['\u00AD', 'zero-width-break'], ['cd', 'text']])
+    expect(kinds(' \u00ADcd')[0]).toEqual(['\u00AD', 'soft-hyphen'])
+    expect(kinds(' \u00AD\u00ADcd').map(([, kind]) => kind)).toEqual(['soft-hyphen', 'text'])
     const preWrap = analyzeText('ab\n\u00ADcd', geckoProfile, 'pre-wrap')
     expect(preWrap.kinds).toEqual(['text', 'hard-break', 'soft-hyphen', 'text'])
   })
