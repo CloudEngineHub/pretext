@@ -24,7 +24,8 @@ foreground benchmark rules.
 ## Gates and observations
 
 Maintained cases preserve their original modes, content widths, locale, browser
-scope, extraction method and tolerances. Their required metrics and the exact
+scope, extraction method and tolerances; the Safari keep-all case that now reads
+the text node is the one exception. Their required metrics and the exact
 filed-report obligations in [INVENTORY.md](INVENTORY.md) must pass even when main fails them. Elsewhere, the gate rejects lost passing main metrics and
 lost observation coverage. All source execution errors fail the run. A candidate
 fix does not offset an unrelated regression. Differences found only outside the
