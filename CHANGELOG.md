@@ -8,6 +8,9 @@
 
 ### Changed
 
+- Chrome, Safari and Firefox now find where lines can break with ports of each browser's own line breaker and its data, in place of Pretext's own rules, so lines break where the browser breaks them in many more cases, such as around CJK punctuation and quotes, dashes, URLs and Thai. `prepare()` and `layout()` are also faster on most text. Bundles that import Pretext grow by about 35 KB gzipped (40 KB minified) for that data.
+- Safari's line breaking follows Safari 27. Safari 26, on macOS 26 and iOS 26, breaks differently around curly quotes and guillemets, after punctuation with `word-break: keep-all`, at U+2028 and U+2029, and after a first character too wide for its line.
+- In Chrome, text on a page without a `lang` now breaks and measures under Chrome's UI language, as Chrome lays it out: under a Chinese UI, curly double quotes wrap as brackets.
 - `layout()` is two to three times faster in Chrome and Safari on text without letter spacing, preserved spaces, tabs, hard breaks, soft hyphens, no-break spaces or invisible controls other than zero-width spaces, which covers most prose (#338).
 - Bundles that import Pretext are about 5 KB smaller gzipped and 16 KB smaller minified, since Safari's check for keeping a word's kerning with a following space no longer uses a generated bidi class table (#311).
 
@@ -17,6 +20,10 @@
 
 ### Fixed
 
+- In Chrome, CJK punctuation next to other punctuation or at a line end now takes the narrower width Chrome's `text-spacing-trim` gives it.
+- In Chrome and Firefox, ideographic spaces (U+3000) at a line end now hang past it, as spaces do, instead of wrapping to the next line.
+- In Firefox, a newline between East Asian characters no longer adds a space, and on `ja` and `zh` pages neither does one next to East Asian punctuation.
+- In Firefox, a soft hyphen where the line could break anyway, as after a space or between an ideograph and a Latin letter, no longer draws a hyphen or needs room for one.
 - Narrow wrapping around invisible controls and combining marks now more closely matches desktop Chrome and Firefox.
 - Paragraphs made only of zero-width spaces now occupy one line instead of disappearing (#223).
 - A zero-width space at the start of a paragraph or after a hard line break no longer disappears when the following text wraps to the next line (#227).

@@ -547,6 +547,18 @@ installed Firefox rows where main matched, such as `abc\tdef` at 20px in 16px Ar
 with letter spacing −2, which Firefox paints as `abc` / `\t` / `def`. The Gecko
 profile keeps main's tab rule, so a tab counts in the fit and the width there.
 
+U+3000 hangs at a line end in Chrome and Firefox, as a space does, and not in
+Safari. Blink counts it as a breakable space (`IsBreakableSpace`), so a run of
+U+3000 and the spaces after it hang together; Gecko marks it as a space glyph and
+fits a line without its trailing space glyphs. The Chromium and Gecko profiles
+hang a U+3000 run that ends a text segment before a break, a hard break, the end
+of the text or a collapsible space. `中文`, U+3000, `中文` at 33px in 16px
+PingFang SC takes 2 lines in installed Chrome 153 and Firefox 156 and 3 in
+Safari 27's WebKit; `日本語`, U+3000, `日本語`, U+3000, `日本語` at 60px in 16px Hiragino Sans takes
+3 lines in Firefox, where the profile took 4 before it hung the run. Hanging it in
+the Gecko profile fixed 214 left-to-right and 198 right-to-left line counts in the
+installed Firefox gate and lost none.
+
 Chrome and Firefox keep NEL as ordinary text. In Chrome the same rule lost rows
 that main matched only because two errors cancelled: Chrome joins Arabic across
 a soft hyphen that Pretext measures as separate segments, hangs preserved spaces
