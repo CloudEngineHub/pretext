@@ -10,6 +10,7 @@ Open engine work: decisions for the maintainer, known gaps and harness debt.
 
 ## Line breaking
 
+- Follow Safari 27 in the WebKit profile (approved). Safari 27 gives curly quotes and guillemets opening and closing classes, ends lines at U+2028 and U+2029, breaks after punctuation under keep-all (WebKit #312099), and keeps punctuation, NBSP, U+2010 and U+2013 after a first character that overflows an empty line; the last two only in text holding a character above U+00FF. These rules reach main with break opportunities taken from each engine's own data (#321), not as new hand-written rules in the current profile. Until then main follows Safari 26 on quotes, keep-all and overflowing first characters.
 - Follow the page language in the remaining line-break rules (approved). Preparation reads `<html lang>` once and resolves it to `ja`, `ko`, `zh` or root, with no `prepare()` option; only Safari's small-kana and `ー` rule uses it so far. Remaining layers: Safari's quote rules on `ja` pages, and Chrome's quote, `〜` and `゠` rules on `zh` pages (RESEARCH.md). Pretext keeps `〜` and `゠` with any text before them, so on `zh` pages Chrome paints `a xxxx / 〜b` where Pretext gives `a / xxxx〜 / b`. Build them on the generated line-break class table, keep `setLocale()` segmenter-only, and rerun the family in each installed browser before each layer.
 - On every page, Chrome breaks after a closing curly quote before CJK text (`他说“你好”` / `然后走了`), while Pretext's closing-quote carry keeps the CJK attached. No browser treats curly single quotes around Latin text as brackets, and Firefox doesn't treat double quotes as brackets, but Pretext does. Narrow the closing-quote carry and the boundary before opening quotes to UAX #14 LB19 and LB19a.
 - After a closing curly quote, installed Chrome on `en` and `ja` pages and Safari on `ja` pages keep small kana and `ー` with the quote, as in `a / x“value”ー / b`, where the profiles that let them start a line give `a x“value” / ーb` (`maintained/closing-punctuation`).
@@ -112,7 +113,8 @@ Open engine work: decisions for the maintainer, known gaps and harness debt.
 - Find a witness for whether `direction: rtl` alone enables Firefox document bidi.
 - Record `Intl.Segmenter` word-likeness for emoji, U+2605 and digit strings in installed Safari and Firefox.
 - The iOS profile patch has no device evidence: iOS fonts, older iOS ICU without the Hebrew LB20a rule, EU alternative engines, and Edge's iPad desktop user agent.
-- On each new Safari, recheck WebKit changes that haven't shipped yet: first-glyph kinsoku and the 0.5ch tab minimum.
+- On each new Safari, recheck WebKit changes that haven't shipped yet: the 0.5ch tab minimum. Safari 27 shipped first-glyph kinsoku.
+- Safari 26, still on macOS 26 and iOS 26, is a known gap: the WebKit profile follows Safari 27 only, so once Safari 27's break rules land, Safari 26 differs on those shapes. The profile doesn't detect the version: only Safari's own user agent names one, and Chrome, Firefox and Edge on iOS and in-app web views name none.
 - No canvas follows an element's own `lang`, a Worker's context, or a runtime Content-Language change. Add a short README note.
 - Safari page-language attribution left two things open: why Amiri `il` at a line start measures 2.544px or 7.416px, and 1,117 Japanese width-only differences. Revisit with the content-language decision.
 

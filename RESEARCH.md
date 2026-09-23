@@ -39,9 +39,10 @@ such as `漢。` or `「漢`, and keep-all groups, are no exception: under
 `overflow-wrap: break-word`, Chromium retries an overflowing line with grapheme
 breaks, WebKit in Safari 26.5.2 breaks at an arbitrary position once the line has
 no earlier wrap opportunity, and Firefox admits a word-wrap break at every cluster
-start, all ignoring line-break classes. WebKit trunk keeps `漢。` together when not
-even `漢` fits (`firstCharacterBreakRespectingLineStartProhibitions`), which Safari
-26.5.2 doesn't have. Several narrow rows passed only while this
+start, all ignoring line-break classes. WebKit keeps `漢。` together when not even
+`漢` fits (`firstCharacterBreakRespectingLineStartProhibitions`); Safari 27 has this
+for text holding a character above U+00FF, and Safari 26.5.2 doesn't. Several
+narrow rows passed only while this
 missing break cancelled another error, such as a combining mark detached from its
 base by the forward carry, U+3000 not hanging, joined Arabic widths, raw controls
 or Chrome's text-spacing-trim. Firefox can
