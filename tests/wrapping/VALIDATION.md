@@ -17,6 +17,78 @@ All accuracy, letter-spacing and corpus result payloads are unchanged; refreshed
 snapshots change only provenance and environment records. Runtime sources and
 the baseline pin are unchanged, so no runtime benchmark was needed.
 
+## `layout()` counts lines with a count-only walker
+
+This runtime change starts from main `c22181c` (#337). `layout()` counted lines
+with the simple walker that the range APIs share, which also tracks each line's
+ends, the pending break and its paint width, and calls a visitor. On text that
+takes the simple path, `countPreparedLines()` now keeps only the line width and
+whether the line has content, in the same order as that walker. Other text still
+counts through the full walker, and preparation doesn't change.
+
+The installed full gate ran this change in the background against pinned
+`7c2ec51`, whose runtime sources match main: Chrome 153 through the Playwright transport,
+Safari 27.0 and Firefox 156 natively, both directions, at DPR 2. That is 161,739
+LTR and 73,671 RTL rows in Chrome, 162,489 and 73,680 in Safari, and 162,136 and
+73,716 in Firefox. On every row main and this branch return the same predictions
+and assessments, so no leg fixes or loses a metric, and there are no required
+failures, execution errors, or new API or rich failures. The numeric API checks
+find no new failures in any of the five profiles.
+
+The ordinary snapshots were regenerated from this branch in Chrome 153, Safari 27.0
+and Firefox 156. No result moved: accuracy stays 7,680 of 7,680 in each browser,
+letter spacing 28 of 28, and the corpus sweeps 1,076, 1,090 and 984 of 1,098 in
+Chrome, Safari and Firefox, with the same mismatches. Only provenance and
+environment records change, including the hashes of `layout.ts` and
+`line-break.ts`.
+
+Outside the browsers, the counter, the old walker on this branch and on main,
+and both `layout()` entry points agree at every width of 63,009 inputs: the
+ordinary and full suite inputs for each browser, each corpus whole and by
+paragraph under normal and keep-all, the benchmark texts at three sizes, and
+25,000 random strings built from zero-width spaces, hyphens, dashes, URLs, CJK,
+Thai, Arabic, emoji, combining marks, soft hyphens, tabs and newlines. They ran
+in the Chrome, Safari, Firefox, iOS, Android and unrecognized profiles, each
+with three fake Canvases: the unit tests' widths, irregular fractional widths
+with pair kerning, and the same rounded to 1/64 px, which makes exact ties
+common. The widths include negative, 0, NaN, Infinity, a sweep across the
+natural width, and exact fits at segment and grapheme ends from real line
+starts, each also moved by the fit epsilon and by a hair either side: 371
+million comparisons, 274 million of them on the simple path. Every sequence of
+up to five of 11 short tokens also agrees at every exact-fit and tie width under
+the Safari profile's fit epsilon, 88.4 million more. Preparation returns the
+same data as main, and `layout()` makes no Canvas calls.
+
+`bun test` and `bun run check` pass. A unit test compares the counter with the
+walker at every half pixel up to 400px and around each segment end, including
+the width where the text up to there fits with nothing to spare, for texts with
+leading and resumed zero-width spaces, a space after a zero-width space,
+preferred cuts in URLs and CJK. It fails when the leading zero-width space rule,
+the skipped space at a line start, the return to a preferred cut or the fit
+epsilon is removed, or when a line that fits exactly is counted as overflowing.
+Five more pin leading and resumed zero-width spaces at emergency widths, the
+return to a preferred cut in a URL, a shaped whole that fits where its isolated
+letters don't (it fails when the whole-segment admission is removed), a negative
+width laid out as 0 over text that measures 0, and the complex path's letter
+spacing, tabs, hard breaks and soft hyphens, each without Canvas calls during
+layout.
+
+Chrome and Safari benchmark snapshots were refreshed from this branch: three
+foreground runs each at DPR 2, visible and focused, with Chrome 153 on the
+2560x1440 screen and Safari 27.0 on the 1440x2560 screen. Main `c22181c` ran
+three runs in each browser in the same session. Every run but this branch's
+Safari runs waited for the machine to go quiet; those started while another
+job kept two CPU cores busy. Hot `layout()` reads 0.029 ms in Chrome (0.087 on
+main, 0.088 in main's snapshot) and 0.030 ms in Safari (0.100). Long-form corpus
+`layout()` totals read 0.35 ms in Chrome (0.81) and 0.26 ms in Safari (0.97).
+`prepare()` reads 9.15 ms in Chrome (9.05) and 10.5 ms in Safari (10.5). The
+line-range and rich-inline rows don't change beyond timer resolution, and
+neither do the shape rows that take the full walker, `soft-hyphens` and the
+letter-spaced `cjk-indent-spaced`. Main's Safari snapshot came from Safari
+26.5.2, so eight Safari shape and corpus rows change their segment or Canvas
+call counts here, such as `dashes` going from 2,294 to 2,911 Canvas calls; main
+in Safari 27.0 gives the same counts as this branch on every row.
+
 ## Safari 27
 
 This test-only change starts from main `2e5e2bd` (#333). macOS 27 brought Safari

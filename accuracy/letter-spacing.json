@@ -1,14 +1,14 @@
 {
-  "generatedAt": "2026-09-23T12:31:42.472Z",
+  "generatedAt": "2026-09-23T14:54:03.709Z",
   "suiteHash": "2a39f76ab6e2d148ee3382446b9ba8fe8341b0eda322bded7db1a65cf008d875",
   "source": {
-    "revision": "bd93b0ab1a73c51269a793cd43044c44f856a2a4",
+    "revision": "45c2739cff63bc76377c58a262eb62e27941177e",
     "files": {
       "analysis.ts": "8e5ab9fb0ce5dbdf7b71a325381607bf04c650d473e3272101ae9d1c7002a0e3",
       "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
       "generated/line-break-data.ts": "3a42caa6039e2d59df4830d3d713d8e5692aae79e40d34c0b7f7f49e294fdd8a",
-      "layout.ts": "5afb8662a52d8089fcbabb933f158b2e2ede31cec26a273fedf9feb95c0a24e1",
-      "line-break.ts": "8effa5b25734868f9da3626eb156e3bea7d41e82495400b8fdafe7bc30716c07",
+      "layout.ts": "9ffb7a9d59064fc5c2760ad5ffc918c30c49b312106f10063ed826f4bdea284a",
+      "line-break.ts": "6f16d9538f39d09398cc053c789c3d345c8715917c9cb9a6dd4cec06414aa601",
       "line-text.ts": "31abd7a69c9e4a4dbba57d2791038349e803e65813a819e4e3128e0544d25ae1",
       "measurement.ts": "db1d78c8cd804d2e2cd67be2dc894a56d34ce8519aa31fc6bbaac5e8336c8a19",
       "rich-inline.ts": "e72da6ab1caee350f230589b5772846b508a5020f6d4202ae505a25d5522b504",
@@ -305,7 +305,7 @@
           "screenAvailWidth": 1440,
           "screenAvailHeight": 2530,
           "visibility": "visible",
-          "focused": false,
+          "focused": true,
           "language": "en",
           "direction": "ltr"
         },
@@ -323,7 +323,7 @@
           "screenAvailWidth": 1440,
           "screenAvailHeight": 2530,
           "visibility": "visible",
-          "focused": false,
+          "focused": true,
           "language": "en",
           "direction": "ltr"
         },
@@ -337,7 +337,7 @@
       "dpr": 2,
       "locale": "zh-CN",
       "visibility": "visible",
-      "focused": false,
+      "focused": true,
       "fonts": []
     },
     {
@@ -359,7 +359,7 @@
           "screenAvailWidth": 1440,
           "screenAvailHeight": 2530,
           "visibility": "visible",
-          "focused": false,
+          "focused": true,
           "language": "he",
           "direction": "ltr"
         },
@@ -377,7 +377,7 @@
           "screenAvailWidth": 1440,
           "screenAvailHeight": 2530,
           "visibility": "visible",
-          "focused": false,
+          "focused": true,
           "language": "he",
           "direction": "ltr"
         },
@@ -391,7 +391,7 @@
       "dpr": 2,
       "locale": "zh-CN",
       "visibility": "visible",
-      "focused": false,
+      "focused": true,
       "fonts": []
     },
     {
@@ -413,7 +413,7 @@
           "screenAvailWidth": 1440,
           "screenAvailHeight": 2530,
           "visibility": "visible",
-          "focused": false,
+          "focused": true,
           "language": "ja",
           "direction": "ltr"
         },
@@ -431,7 +431,7 @@
           "screenAvailWidth": 1440,
           "screenAvailHeight": 2530,
           "visibility": "visible",
-          "focused": false,
+          "focused": true,
           "language": "ja",
           "direction": "ltr"
         },
@@ -445,7 +445,7 @@
       "dpr": 2,
       "locale": "zh-CN",
       "visibility": "visible",
-      "focused": false,
+      "focused": true,
       "fonts": []
     },
     {
@@ -467,7 +467,7 @@
           "screenAvailWidth": 1440,
           "screenAvailHeight": 2530,
           "visibility": "visible",
-          "focused": false,
+          "focused": true,
           "language": "zh",
           "direction": "ltr"
         },
@@ -485,7 +485,7 @@
           "screenAvailWidth": 1440,
           "screenAvailHeight": 2530,
           "visibility": "visible",
-          "focused": false,
+          "focused": true,
           "language": "zh",
           "direction": "ltr"
         },
@@ -499,7 +499,7 @@
       "dpr": 2,
       "locale": "zh-CN",
       "visibility": "visible",
-      "focused": false,
+      "focused": true,
       "fonts": []
     },
     {
@@ -521,7 +521,7 @@
           "screenAvailWidth": 1440,
           "screenAvailHeight": 2530,
           "visibility": "visible",
-          "focused": false,
+          "focused": true,
           "language": "ar",
           "direction": "rtl"
         },
@@ -539,7 +539,7 @@
           "screenAvailWidth": 1440,
           "screenAvailHeight": 2530,
           "visibility": "visible",
-          "focused": false,
+          "focused": true,
           "language": "ar",
           "direction": "rtl"
         },
@@ -553,7 +553,7 @@
       "dpr": 2,
       "locale": "zh-CN",
       "visibility": "visible",
-      "focused": false,
+      "focused": true,
       "fonts": []
     }
   ],

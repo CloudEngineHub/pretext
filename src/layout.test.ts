@@ -3454,24 +3454,167 @@ describe('layout invariants', () => {
     }
   })
 
-  test('countPreparedLines stays aligned with the walked line counter', () => {
+  test('countPreparedLines stays aligned with the walked line counter', async () => {
+    const { getEngineProfile } = await import('./measurement.ts')
+    const epsilon = getEngineProfile().lineFitEpsilon
     const texts = [
       'The quick brown fox jumps over the lazy dog.',
       'said "hello" to 世界 and waved.',
       'مرحبا، عالم؟',
       'author 7:00-9:00 only',
       'alpha\u200Bbeta gamma',
+      'a\u200B b',
+      'https://a-bc-defgh-ij/klm-nopq',
+      '\u200Balpha-beta \u200B\u200Bgamma',
+      '\u6625\u7720\u4E0D\u89C9\u6653\uFF0C\u5904\u5904\u95FB\u557C\u9E1F\u3002',
     ]
-    const widths = [40, 80, 120, 200]
 
+    // The count-only walker must agree with the simple walker at every width,
+    // including emergency widths and widths around each segment end. At the
+    // end minus the fit epsilon, the text up to there fits with nothing to spare.
     for (let textIndex = 0; textIndex < texts.length; textIndex++) {
       const prepared = prepareWithSegments(texts[textIndex]!, FONT)
+      const { widths: segmentWidths } = prepared as unknown as { widths: number[] }
+      const widths = [-5, 0]
+      for (let width = 1; width <= 400; width += 0.5) widths.push(width)
+      let prefix = 0
+      for (let i = 0; i < segmentWidths.length; i++) {
+        prefix += segmentWidths[i]!
+        widths.push(prefix - epsilon, prefix - 0.001, prefix, prefix + 0.001)
+      }
       for (let widthIndex = 0; widthIndex < widths.length; widthIndex++) {
         const width = widths[widthIndex]!
         const counted = countPreparedLines(prepared, width)
         const walked = walkPreparedLinesRaw(prepared, width)
         expect(counted).toBe(walked)
       }
+    }
+  })
+
+  test('line counts preserve leading and resumed zero-width spaces at emergency widths', () => {
+    for (const [text, expected] of [
+      [' \u200Babc', ['\u200B', 'a', 'b', 'c']],
+      ['a \u200Babc', ['a ', 'a', 'b', 'c']],
+      ['\u200B\u200Bab', ['\u200B\u200B', 'a', 'b']],
+      ['abc', ['a', 'b', 'c']],
+      ['字\u200B字', ['字\u200B', '字']],
+    ] as const) {
+      const prepared = prepareWithSegments(text, FONT)
+      const compact = prepare(text, FONT)
+      const measured = canvasMeasurementCount
+      // Each first grapheme must consume source even when wider than the line.
+      for (const width of [0, -5, 0]) {
+        const lines = layoutWithLines(prepared, width, LINE_HEIGHT)
+        expect(lines.lines.map(line => line.text)).toEqual([...expected])
+        const streamed = collectStreamedLines(prepared, width)
+        // The two APIs sum paint widths differently; compare source cuts exactly.
+        expect(streamed.map(({ text, start, end }) => ({ text, start, end }))).toEqual(
+          lines.lines.map(({ text, start, end }) => ({ text, start, end })),
+        )
+        expect(countPreparedLines(prepared, width)).toBe(expected.length)
+        expect(walkPreparedLinesRaw(prepared, width)).toBe(expected.length)
+        expect(layout(compact, width, LINE_HEIGHT)).toEqual({ lineCount: expected.length, height: expected.length * LINE_HEIGHT })
+      }
+      expect(canvasMeasurementCount).toBe(measured)
+    }
+  })
+
+  test('line counts retain source replay after preferred internal cuts', () => {
+    const text = 'https://a-bc-defgh-ij'
+    const width = measureWidth('bc-def', FONT) + 0.1
+    const prepared = prepareWithSegments(text, FONT)
+    const compact = prepare(text, FONT)
+    const measured = canvasMeasurementCount
+    const expected = ['https:', '//a-', 'bc-', 'defgh-', 'ij']
+    const lines = layoutWithLines(prepared, width, LINE_HEIGHT)
+    expect(lines.lines.map(line => line.text)).toEqual(expected)
+    expect(collectStreamedLines(prepared, width)).toEqual(lines.lines)
+    for (const nextWidth of [width + 20, 0, width, width + 20, width]) {
+      const ranges = layoutWithLines(prepared, nextWidth, LINE_HEIGHT)
+      expect(countPreparedLines(prepared, nextWidth)).toBe(ranges.lineCount)
+      expect(layout(compact, nextWidth, LINE_HEIGHT).lineCount).toBe(ranges.lineCount)
+    }
+    expect(countPreparedLines(prepared, width)).toBe(expected.length)
+    expect(canvasMeasurementCount).toBe(measured)
+  })
+
+  test('line counts admit a shaped whole before using isolated emergency advances', () => {
+    const measureText = Object.getOwnPropertyDescriptor(TestCanvasRenderingContext2D.prototype, 'measureText')!
+    // The whole AV is 17.2px, while its isolated letters add up to 19.2px.
+    Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', {
+      ...measureText,
+      value(this: TestCanvasRenderingContext2D, text: string) {
+        canvasMeasurementCount++
+        return { width: measureWidth(text, this.font) - 2 * (text.match(/AV/g) ?? []).length }
+      },
+    })
+    try {
+      const font = '16px Count Admission Test Sans'
+      const prepared = prepareWithSegments('AV', font)
+      const compact = prepare('AV', font)
+      const measured = canvasMeasurementCount
+      for (const [width, expected] of [[18, ['AV']], [0, ['A', 'V']], [18, ['AV']]] as const) {
+        const lines = layoutWithLines(prepared, width, LINE_HEIGHT)
+        expect(lines.lines.map(line => line.text)).toEqual([...expected])
+        expect(collectStreamedLines(prepared, width)).toEqual(lines.lines)
+        expect(countPreparedLines(prepared, width)).toBe(expected.length)
+        expect(layout(compact, width, LINE_HEIGHT).lineCount).toBe(expected.length)
+      }
+      expect(canvasMeasurementCount).toBe(measured)
+    } finally {
+      Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', measureText)
+    }
+  })
+
+  test('line counts lay out a negative width as 0 across zero-width graphemes', () => {
+    const measureText = Object.getOwnPropertyDescriptor(TestCanvasRenderingContext2D.prototype, 'measureText')!
+    // Invisible text: the word and each of its letters measure 0, so all of it
+    // fits on a line of width 0.
+    Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', {
+      ...measureText,
+      value() {
+        canvasMeasurementCount++
+        return { width: 0 }
+      },
+    })
+    try {
+      const font = '16px Zero Width Test Sans'
+      const prepared = prepareWithSegments('abc', font)
+      const compact = prepare('abc', font)
+      const measured = canvasMeasurementCount
+      for (const width of [0, -5]) {
+        expect(layoutWithLines(prepared, width, LINE_HEIGHT).lines.map(line => line.text)).toEqual(['abc'])
+        expect(countPreparedLines(prepared, width)).toBe(1)
+        expect(layout(compact, width, LINE_HEIGHT).lineCount).toBe(1)
+      }
+      expect(canvasMeasurementCount).toBe(measured)
+    } finally {
+      Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', measureText)
+    }
+  })
+
+  test('line counts preserve spacing, tabs, hard breaks and selected soft hyphens', () => {
+    for (const [text, options, width, expected] of [
+      ['abc', { letterSpacing: -2 }, 16, ['ab', 'c']],
+      ['abc', { letterSpacing: 2 }, 23.3, ['ab', 'c']],
+      ['ab\n\ncd', { whiteSpace: 'pre-wrap', letterSpacing: -1 }, 100, ['ab', '', 'cd']],
+      ['a\tb\nc\u00ADd', { whiteSpace: 'pre-wrap', letterSpacing: 2 }, 100, ['a\tb', 'cd']],
+      ['foo trans\u00ADatlantic', {}, measureWidth('foo trans-', FONT) + 0.1, ['foo trans-', 'atlantic']],
+    ] as const) {
+      const prepared = prepareWithSegments(text, FONT, options)
+      const compact = prepare(text, FONT, options)
+      const measured = canvasMeasurementCount
+      const lines = layoutWithLines(prepared, width, LINE_HEIGHT)
+      expect(lines.lines.map(line => line.text)).toEqual([...expected])
+      expect(collectStreamedLines(prepared, width)).toEqual(lines.lines)
+      expect(countPreparedLines(prepared, width)).toBe(expected.length)
+      expect(layout(compact, width, LINE_HEIGHT).lineCount).toBe(expected.length)
+      for (const nextWidth of [0, width / 2, width, 0]) {
+        const next = layoutWithLines(prepared, nextWidth, LINE_HEIGHT)
+        expect(countPreparedLines(prepared, nextWidth)).toBe(next.lineCount)
+        expect(layout(compact, nextWidth, LINE_HEIGHT).lineCount).toBe(next.lineCount)
+      }
+      expect(canvasMeasurementCount).toBe(measured)
     }
   })
 })
