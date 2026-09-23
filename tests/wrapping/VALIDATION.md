@@ -17,6 +17,53 @@ All accuracy, letter-spacing and corpus result payloads are unchanged; refreshed
 snapshots change only provenance and environment records. Runtime sources and
 the baseline pin are unchanged, so no runtime benchmark was needed.
 
+## `layout()` counts lines with a count-only walker
+
+This runtime change starts from main `c22181c` (#337). `layout()` counted lines
+with the simple walker that the range APIs share, which also tracks each line's
+ends, the pending break and its paint width, and calls a visitor. On text that
+takes the simple path, `countPreparedLines()` now keeps only the line width and
+whether the line has content, in the same order as that walker. Other text still
+counts through the full walker, and preparation doesn't change.
+
+The installed full gate ran this change in the background against pinned
+`7c2ec51`, whose `src/` matches main: Chrome 153 through the Playwright transport,
+Safari 27.0 and Firefox 156 natively, both directions, at DPR 2. That is 161,739
+LTR and 73,671 RTL rows in Chrome, 162,489 and 73,680 in Safari, and 162,136 and
+73,716 in Firefox. On every row main and this branch return the same predictions
+and assessments, so no leg fixes or loses a metric, and there are no required
+failures, execution errors, or new API or rich failures. The numeric API checks
+find no new failures in any of the five profiles.
+
+Outside the browsers, the counter, the old walker and main's `layout()` agree on
+every width of every input: the ordinary and full suite inputs plus each corpus
+whole, under keep-all and by paragraph, 26,395 inputs, in the Chrome, Safari,
+Firefox and unrecognized profiles, each with the unit tests' Canvas widths and
+with irregular fractional widths. Each input runs at about 100 widths, including
+negative, 0, a sweep across its natural width and exact fits at segment ends:
+21.3 million comparisons, 10.6 million of them on the simple path.
+
+`bun test` and `bun run check` pass. A unit test compares the counter with the
+walker at every half pixel up to 400px and at exact fits for texts with leading
+and resumed zero-width spaces, preferred cuts in URLs and CJK; it fails when the
+leading zero-width space rule, the return to a preferred cut or the whole-segment
+admission is removed. Four more pin leading and resumed zero-width spaces at
+emergency widths, the return to a preferred cut in a URL, a shaped whole that fits
+where its isolated letters don't, and the complex path's letter spacing, tabs, hard
+breaks and soft hyphens, each without Canvas calls during layout.
+
+Chrome and Safari benchmark snapshots were refreshed from this branch before it
+moved onto #337, which changes neither the runtime nor the benchmark page's texts:
+three foreground runs each at DPR 2, visible and focused, with Chrome 153 on the
+2560x1440 screen and Safari 27.0 on the 1440x2560 screen. Main ran in the same
+session: six Safari runs, and one Chrome run before the next two lost focus. Hot
+`layout()` reads 0.0295 ms in Chrome (0.089 on main, 0.088 in main's snapshot) and
+0.035 ms in Safari (0.105). Long-form corpus `layout()` totals read 0.39 ms in
+Chrome (0.82) and 0.33 ms in Safari (0.97). `prepare()` reads 9.0 ms in Chrome
+(9.45) and 10.5 ms in Safari (10.25). The line-range and rich-inline rows don't
+change, and neither do the shape rows that take the full walker, `soft-hyphens`
+and the letter-spaced `cjk-indent-spaced`.
+
 ## Safari 27
 
 This test-only change starts from main `2e5e2bd` (#333). macOS 27 brought Safari
