@@ -14,6 +14,7 @@ export type SegmentMetrics = {
   emojiCount?: number
   breakableFitMode?: BreakableFitMode
   breakableFitAdvances?: number[] | null
+  lineStartProhibitions?: number[] | null
   entryGeometry?: {
     letterSpacing: number
     advances: readonly number[]
@@ -90,7 +91,8 @@ export type EngineProfile = {
   // don't trim them by default.
   hanKerning: boolean
   // Blink and Gecko hang U+3000 at a line end as they hang spaces (addIdeographicSpaceHangs
-  // in src/layout.ts). WebKit is unverified and keeps counting it.
+  // in src/layout.ts). WebKit counts it: Safari 27 lays out 中文, U+3000, 中文 at 33px
+  // in 16px PingFang SC in 3 lines.
   hangsIdeographicSpace: boolean
   // Blink lays out content without a language under its default locale, Chrome's UI
   // language, which Intl shows (getBlinkLineBreaks in src/line-breaks.ts): its line table,

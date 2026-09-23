@@ -192,6 +192,12 @@ function isParagraphSeparatorCode(code: number): boolean {
   return code === 0x0a || code === 0x0d || (code >= 0x1c && code <= 0x1e) || code === 0x85 || code === 0x2029
 }
 
+// A segment's WebKit line-start prohibitions depend only on its text, so its metrics keep them.
+function getCachedLineStartProhibitions(text: string, metrics: SegmentMetrics): number[] | null {
+  if (metrics.lineStartProhibitions === undefined) metrics.lineStartProhibitions = getLineStartProhibitions(text)
+  return metrics.lineStartProhibitions
+}
+
 function measureAnalysis(
   analysis: TextAnalysis,
   font: string,
@@ -506,7 +512,7 @@ function measureAnalysis(
         spacingGraphemeCount,
         engineProfile.entryFitBasis !== 'disabled' && kind === 'text' && fitAdvances !== null
           ? getEntryGeometry(text, textMetrics, fitAdvances, width, engineProfile.entryFitBasis) : null,
-        keepsLineStartPunctuation && fitAdvances !== null ? getLineStartProhibitions(text) : null,
+        keepsLineStartPunctuation && fitAdvances !== null ? getCachedLineStartProhibitions(text, textMetrics) : null,
       )
       return
     }
