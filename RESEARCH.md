@@ -618,9 +618,11 @@ and paints none (gfxTextRun.cpp:1053-1063). Firefox ends `漢字\u00ADabc`,
 `ab字\u00ADabc`, `かな\u00ADabc` and `漢字\u00AD漢字` after the soft hyphen at the width
 of the text before it, in CJK and fallback fonts alike, but returns to the space in
 `ab cd\u00ADef`. The Gecko scan marks those breaks, and analysis makes the soft hyphen
-a zero-width break; after white space it stays a soft hyphen, since the white space
-ends the line there. That fixed 16 left-to-right and 15 right-to-left line counts in
-the installed Firefox gate and lost none.
+a zero-width break. That fixed 16 left-to-right and 15 right-to-left line counts in
+the installed Firefox gate and lost none. A soft hyphen right after a space or tab is
+such a break too: Firefox 156 paints `ab ` / `cd` for `ab \u00ADcd` at 30px in 16px
+Arial, with no hyphen. Only after a preserved newline does it stay a soft hyphen, as a
+zero-width break starting a chunk would hold a line of its own.
 Isolated widths cannot show what WebKit needs: letter
 spacing on U+2060, which WebKit and Gecko do not apply, and combining marks after a
 soft hyphen, where Safari breaks between the soft hyphen and the mark and Firefox

@@ -934,7 +934,7 @@ function getBreakStates(text: string, units: Uint16Array, is8bit: boolean, after
 // Where a line may start in a text node's source: flags[i] = 1 for 0 < i < source.length, at a
 // normal break (FLAG_BREAK_TYPE_NORMAL) or after a soft hyphen. gfxTextRun::SetPotentialLineBreaks
 // (gfxTextRun.cpp:210-236) keeps a break only at a cluster start or after a space. flags[i] = 3 at a
-// normal break right after a soft hyphen that doesn't follow white space: BreakAndMeasureText takes it as
+// normal break right after a soft hyphen that doesn't follow a preserved newline: BreakAndMeasureText takes it as
 // the normal break, which neither fits nor draws a hyphen (gfxTextRun.cpp:1053-1063). flags[i] = 2 where a cluster starts
 // without a break, where only break-word can wrap (gfxTextRun.cpp:1068-1074).
 export function getGeckoLineBreaks(
@@ -985,9 +985,9 @@ export function getGeckoLineBreaks(
     const normal = state[t] === 1 && (g.clusterStart[t] === 1 || g.isSpace[t - 1] === 1)
     const afterSoftHyphen = tr.skipped[rawPos - 1] === 1 && raw[rawPos - 1] === CH_SHY
     if (normal || afterSoftHyphen) {
-      // After white space, which already ends the line there, it stays a soft hyphen.
-      const afterWhiteSpace = g.isSpace[t - 1] === 1 || tr.units[t - 1] === 0x09 || tr.units[t - 1] === 0x0a
-      flags[rawPos] = normal && afterSoftHyphen && !afterWhiteSpace ? 3 : 1
+      // After a preserved newline, where the soft hyphen starts a chunk, it stays a soft hyphen,
+      // so it holds no line there.
+      flags[rawPos] = normal && afterSoftHyphen && tr.units[t - 1] !== 0x0a ? 3 : 1
     } else if (g.clusterStart[t] === 1) {
       flags[rawPos] = 2
     }
