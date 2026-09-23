@@ -27,7 +27,7 @@ whether the line has content, in the same order as that walker. Other text still
 counts through the full walker, and preparation doesn't change.
 
 The installed full gate ran this change in the background against pinned
-`7c2ec51`, whose `src/` matches main: Chrome 153 through the Playwright transport,
+`7c2ec51`, whose runtime sources match main: Chrome 153 through the Playwright transport,
 Safari 27.0 and Firefox 156 natively, both directions, at DPR 2. That is 161,739
 LTR and 73,671 RTL rows in Chrome, 162,489 and 73,680 in Safari, and 162,136 and
 73,716 in Firefox. On every row main and this branch return the same predictions
@@ -51,13 +51,18 @@ negative, 0, a sweep across its natural width and exact fits at segment ends:
 21.3 million comparisons, 10.6 million of them on the simple path.
 
 `bun test` and `bun run check` pass. A unit test compares the counter with the
-walker at every half pixel up to 400px and at exact fits for texts with leading
-and resumed zero-width spaces, preferred cuts in URLs and CJK; it fails when the
-leading zero-width space rule, the return to a preferred cut or the whole-segment
-admission is removed. Four more pin leading and resumed zero-width spaces at
-emergency widths, the return to a preferred cut in a URL, a shaped whole that fits
-where its isolated letters don't, and the complex path's letter spacing, tabs, hard
-breaks and soft hyphens, each without Canvas calls during layout.
+walker at every half pixel up to 400px and around each segment end, including
+the width where the text up to there fits with nothing to spare, for texts with
+leading and resumed zero-width spaces, a space after a zero-width space,
+preferred cuts in URLs and CJK. It fails when the leading zero-width space rule,
+the skipped space at a line start, the return to a preferred cut or the fit
+epsilon is removed, or when a line that fits exactly is counted as overflowing.
+Five more pin leading and resumed zero-width spaces at emergency widths, the
+return to a preferred cut in a URL, a shaped whole that fits where its isolated
+letters don't (it fails when the whole-segment admission is removed), a negative
+width laid out as 0 over text that measures 0, and the complex path's letter
+spacing, tabs, hard breaks and soft hyphens, each without Canvas calls during
+layout.
 
 Chrome and Safari benchmark snapshots were refreshed from this branch before it
 moved onto #337, which changes neither the runtime nor the benchmark page's texts:
