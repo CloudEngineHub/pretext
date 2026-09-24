@@ -240,6 +240,16 @@ function buildParagraph(c: Case): { element: HTMLDivElement; nodes: Text[]; refu
     span.style.letterSpacing = `${run.letterSpacing}px`
     span.style.wordSpacing = `${run.wordSpacing}px`
     if (run.lang !== null) span.lang = run.lang
+    // Padding repeats on every line the span reaches, as rich-inline's extraWidth does.
+    if (run.padding !== undefined) {
+      span.style.paddingInline = `${run.padding}px`
+      span.style.setProperty('box-decoration-break', 'clone')
+      span.style.setProperty('-webkit-box-decoration-break', 'clone')
+    }
+    if (run.atomic === true) {
+      span.style.display = 'inline-block'
+      span.style.whiteSpace = 'nowrap'
+    }
     span.append(text)
     element.append(span)
   }

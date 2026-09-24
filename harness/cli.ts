@@ -158,6 +158,9 @@ async function check(browser: BrowserKind, cases: Case[]): Promise<Scored> {
   const byId = new Map<string, Case>()
   const draws: Array<{ group: string; weight: number; pass: boolean }> = []
   let sampleWeight = 0
+  let standInWeight = 0
+  // Per set of the behaviour catalog (catalog, facts, rich): whether every width of each behaviour passes.
+  const behaviours = new Map<string, Map<string, boolean>>()
   let shortBubbles = 0
   let calls = 0
   let units = 0
@@ -176,6 +179,13 @@ async function check(browser: BrowserKind, cases: Case[]): Promise<Scored> {
     if (c.sample !== undefined) {
       draws.push({ group: c.sample.group, weight: c.sample.weight, pass: outcome.status === 'pass' })
       sampleWeight += c.sample.weight
+      if (c.sample.standIn === true) standInWeight += c.sample.weight
+    }
+    if (c.behaviour !== undefined) {
+      const set = c.family.split('/')[0]!
+      let list = behaviours.get(set)
+      if (list === undefined) behaviours.set(set, list = new Map())
+      list.set(c.behaviour, (list.get(c.behaviour) ?? true) && outcome.status === 'pass')
     }
     if (outcome.status === 'pass' && shrinkWrapShort(recording, prediction)) shortBubbles++
   }
@@ -197,7 +207,12 @@ async function check(browser: BrowserKind, cases: Case[]): Promise<Scored> {
   out.push(`  pass ${counts.pass} | wrong line count ${counts.count} | right count, wrong breaks ${counts.breaks} | error ${counts.error}`)
   out.push(`  not pinned: ${historyCount} page history, ${unobservable} with nothing visible or unrecordable, ${unrecorded} not recorded`)
   const head = headline(draws)
-  if (head !== null) out.push(`  real-usage sample: ${(100 * head.share).toFixed(2)}% of real paragraphs right, 95% interval ${(100 * head.low).toFixed(2)}-${(100 * head.high).toFixed(2)}% (${draws.length} draws; macOS rendering only)`)
+  if (head !== null) out.push(`  real-usage sample: ${(100 * head.share).toFixed(2)}% of real paragraphs right, 95% interval ${(100 * head.low).toFixed(2)}-${(100 * head.high).toFixed(2)}% (${draws.length} draws, ${percent(standInWeight, sampleWeight)} of their weight stand-ins; macOS rendering only)`)
+  for (const [set, list] of [...behaviours].sort((x, y) => (x[0] < y[0] ? -1 : 1))) {
+    let modelled = 0
+    for (const ok of list.values()) if (ok) modelled++
+    out.push(`  ${set}: ${modelled} of ${list.size} behaviours modelled at every width where the lines change`)
+  }
   const reasons = [...verdict.byReason].sort((x, y) => y[1].length - x[1].length)
   for (let i = 0; i < reasons.length; i++) {
     const [reason, ids] = reasons[i]!

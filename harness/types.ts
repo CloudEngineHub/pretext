@@ -17,6 +17,10 @@ export type TextRun = {
   wordSpacing: number
   // The span's lang attribute; null inherits the paragraph's.
   lang: string | null
+  // A span only: an atomic chip (inline-block, no break inside, rich-inline's `break: 'never'`), and horizontal padding
+  // on each side, repeated on every line the span reaches (rich-inline's `extraWidth` is twice it).
+  atomic?: true
+  padding?: number
 }
 
 export type Paragraph = {
@@ -46,11 +50,13 @@ export type Case = {
   paragraph: Paragraph
   // Browsers the case applies to; absent means all.
   browsers?: BrowserKind[]
-  // Web fonts the page loads before anything measures, by family in tests/wrapping/fonts/fonts.json.
+  // Web fonts the page loads before anything measures, by family in harness/fonts/fonts.json.
   fontFixtures?: string[]
-  // A draw of the real-usage sample: its group, which the interval resamples within, and the share of real paragraphs
-  // it stands for.
-  sample?: { group: string; weight: number }
+  // A draw of the real-usage sample: its group, which the interval resamples within, the share of real paragraphs it
+  // stands for, and whether its text only stands in for the kind the draw asked for (harness/sets/sample.ts).
+  sample?: { group: string; weight: number; standIn?: true }
+  // A behaviour-catalog entry: the behaviour's name. Its cases are the widths where the browser's lines change.
+  behaviour?: string
 }
 
 export type Rect = { x: number; y: number; width: number; height: number }

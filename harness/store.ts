@@ -160,8 +160,12 @@ export function caseProblem(c: Case): string | null {
     const run = p.runs[i]!
     if (typeof run.text !== 'string' || (run.node !== 'span' && run.node !== 'text')) return `run ${i}: bad text or node`
     if (fontProblem(run.font) !== null || typeof run.letterSpacing !== 'number' || typeof run.wordSpacing !== 'number') return `run ${i}: bad font or spacing`
+    if ((run.atomic !== undefined || run.padding !== undefined) && run.node !== 'span') return `run ${i}: only a span can be atomic or padded`
+    if (run.atomic !== undefined && run.atomic !== true) return `run ${i}: atomic must be true or absent`
+    if (run.padding !== undefined && !(run.padding > 0)) return `run ${i}: padding must be positive or absent`
   }
-  if (c.sample !== undefined && (typeof c.sample.group !== 'string' || !(c.sample.weight > 0))) return 'sample needs a group and a positive weight'
+  if (c.sample !== undefined && (typeof c.sample.group !== 'string' || !(c.sample.weight > 0) || (c.sample.standIn !== undefined && c.sample.standIn !== true))) return 'sample needs a group, a positive weight and standIn true or absent'
+  if (c.behaviour !== undefined && (typeof c.behaviour !== 'string' || c.behaviour === '')) return 'behaviour must be a non-empty string'
   return null
 }
 

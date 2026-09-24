@@ -1,6 +1,7 @@
 // The library used the way an app uses it, in the page: one Canvas font string per run style, maxWidth = the case's
-// width, and the prepare options main documents. A case with several run styles goes through rich-inline, one item per
-// run. Line cursors index the library's segments, which are the source after white-space normalization, so the adapter
+// width, and the prepare options main documents. A case an app would write with inline elements (spans among other runs,
+// several styles, a chip or padding) goes through rich-inline, one item per run: a chip is `break: 'never'`, padding is
+// `extraWidth`. Line cursors index the library's segments, which are the source after white-space normalization, so the adapter
 // aligns them with the source and returns UTF-16 source offsets. `run.ts --lib` bundles another build in place of src/.
 import { prepareWithSegments, setLocale, walkLineRanges, type LayoutCursor, type PrepareOptions, type PreparedTextWithSegments } from '../src/layout.ts'
 import { prepareRichInline, walkRichInlineLineRanges, type RichInlineItem } from '../src/rich-inline.ts'
@@ -11,6 +12,14 @@ function sameStyle(a: TextRun, b: TextRun): boolean {
     && a.font.style === b.font.style && a.letterSpacing === b.letterSpacing && a.wordSpacing === b.wordSpacing
 }
 
+function isRich(runs: readonly TextRun[]): boolean {
+  for (let i = 0; i < runs.length; i++) {
+    const run = runs[i]!
+    if ((runs.length > 1 && run.node === 'span') || !sameStyle(run, runs[0]!) || run.atomic === true || run.padding !== undefined) return true
+  }
+  return false
+}
+
 // Why the library can't express the case, or null.
 export function unsupported(c: Case): string | null {
   const p = c.paragraph
@@ -19,15 +28,13 @@ export function unsupported(c: Case): string | null {
   if (p.wordBreak !== 'normal' && p.wordBreak !== 'keep-all') reasons.push(`word-break ${p.wordBreak}`)
   if (p.overflowWrap !== 'break-word') reasons.push(`overflow-wrap ${p.overflowWrap}`)
   if (p.lineBreak !== 'auto') reasons.push(`line-break ${p.lineBreak}`)
-  let rich = false
   for (let i = 0; i < p.runs.length; i++) {
     const run = p.runs[i]!
     if (run.wordSpacing !== 0) reasons.push('word-spacing')
     if (run.lang !== null && run.lang !== p.lang) reasons.push('a span lang differs from the paragraph\'s')
-    if (!sameStyle(run, p.runs[0]!)) rich = true
     if (run.text.includes('\t') && p.whiteSpace === 'pre-wrap' && p.tabSize !== 8) reasons.push(`tab-size ${p.tabSize}`)
   }
-  if (rich && (p.whiteSpace !== 'normal' || p.wordBreak !== 'normal')) reasons.push('rich-inline takes white-space: normal and word-break: normal only')
+  if (isRich(p.runs) && (p.whiteSpace !== 'normal' || p.wordBreak !== 'normal')) reasons.push('rich-inline takes white-space: normal and word-break: normal only')
   return reasons.length === 0 ? null : `unsupported: ${[...new Set(reasons)].join('; ')}`
 }
 
@@ -137,8 +144,7 @@ export function predict(c: Case): Prediction {
   }
   const whiteSpace = p.whiteSpace === 'pre-wrap' ? 'pre-wrap' : 'normal'
   const runs = p.runs
-  let rich = false
-  for (let i = 1; i < runs.length; i++) if (!sameStyle(runs[i]!, runs[0]!)) rich = true
+  const rich = isRich(runs)
   const lines: PredictedLine[] = []
   calls = 0
   counting = true
@@ -158,7 +164,13 @@ export function predict(c: Case): Prediction {
       for (let i = 0; i < ranges.length; i++) lines.push({ ...range(ranges[i]!.start, ranges[i]!.end), width: ranges[i]!.width })
     } else {
       const items: RichInlineItem[] = []
-      for (let i = 0; i < runs.length; i++) items.push({ text: runs[i]!.text, font: canvasFont(runs[i]!.font), ...(runs[i]!.letterSpacing === 0 ? {} : { letterSpacing: runs[i]!.letterSpacing }) })
+      for (let i = 0; i < runs.length; i++) {
+        const run = runs[i]!
+        items.push({
+          text: run.text, font: canvasFont(run.font), ...(run.letterSpacing === 0 ? {} : { letterSpacing: run.letterSpacing }),
+          ...(run.atomic === true ? { break: 'never' as const } : {}), ...(run.padding === undefined ? {} : { extraWidth: 2 * run.padding }),
+        })
+      }
       const ranges: Array<{ fragments: Array<{ itemIndex: number; start: LayoutCursor; end: LayoutCursor }>; width: number }> = []
       walkRichInlineLineRanges(prepareRichInline(items), p.width, line => { ranges.push(line) })
       counting = false
