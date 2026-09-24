@@ -180,6 +180,12 @@ function getWebKitGenericFamilies(language: string, ctx: CanvasRenderingContext2
   }
   const families: string[] = []
   for (let i = 0; i < row.length; i++) {
+    // Keywords with the same entry share its family, and the context is asked once.
+    const first = row.indexOf(row[i]!)
+    if (first < i) {
+      families.push(families[first]!)
+      continue
+    }
     const name = webkitGenericFamilyNames[row[i]!]!
     const pair = name.indexOf('|')
     const family = pair < 0 ? name : hasFamily(ctx, name.slice(0, pair)) ? name.slice(0, pair) : name.slice(pair + 1)
