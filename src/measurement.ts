@@ -152,24 +152,22 @@ function createMeasureContext(language: string | null): CanvasRenderingContext2D
   return measureContext
 }
 
-// Borrow the primary context only for each synchronous direct measurement.
-// These observations never enter the unspaced segment cache, and letterSpacing
-// is restored even when assignment or measurement fails.
-export function createEntryMeasurement(letterSpacing: number, emojiCorrection: number): ((text: string) => number | null) | null {
-  if (!Number.isFinite(letterSpacing)) return null
+// A direct measurement under letter spacing, borrowing the primary context for
+// the synchronous call. It never enters the unspaced segment cache, and
+// letterSpacing is restored even when assignment or measurement fails. Null
+// where the context can't take the spacing.
+export function measureWithLetterSpacing(text: string, letterSpacing: number, emojiCorrection: number): number | null {
   const primary = getMeasureContext()
   if (!('letterSpacing' in primary)) return null
-  return text => {
-    const previous = primary.letterSpacing
-    if (typeof previous !== 'string') return null
-    try {
-      primary.letterSpacing = `${letterSpacing}px`
-      if (Number.parseFloat(primary.letterSpacing) !== letterSpacing) return null
-      const width = getCorrectedSegmentWidth(text, { width: primary.measureText(text).width }, emojiCorrection)
-      return Number.isFinite(width) ? width : null
-    } finally {
-      primary.letterSpacing = previous
-    }
+  const previous = primary.letterSpacing
+  if (typeof previous !== 'string') return null
+  try {
+    primary.letterSpacing = `${letterSpacing}px`
+    if (Number.parseFloat(primary.letterSpacing) !== letterSpacing) return null
+    const width = getCorrectedSegmentWidth(text, { width: primary.measureText(text).width }, emojiCorrection)
+    return Number.isFinite(width) ? width : null
+  } finally {
+    primary.letterSpacing = previous
   }
 }
 

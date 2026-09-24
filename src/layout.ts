@@ -20,7 +20,6 @@ import {
   type BreakableFitMode,
   type EngineProfile,
   clearMeasurementCaches,
-  createEntryMeasurement,
   getCorrectedSegmentWidth,
   getDocumentLanguage,
   getSegmentBreakableFitAdvances,
@@ -30,6 +29,7 @@ import {
   getFontMeasurement,
   getMeasureContext,
   getSegmentMetrics,
+  measureWithLetterSpacing,
   textMayContainEmoji,
   type SegmentMetrics,
 } from './measurement.js'
@@ -318,11 +318,6 @@ function measureAnalysis(
   // 222-233), by its scan's line-start table. Blink and Gecko end the line after the
   // first grapheme.
   const keepsLineStartPunctuation = engineProfile.lineBreakScan === 'webkit' && /[\u0100-\uFFFF]/.test(analysis.source)
-  let measureEntry: ReturnType<typeof createEntryMeasurement> | undefined
-  const getEntryMeasurement = () => {
-    if (measureEntry === undefined) measureEntry = createEntryMeasurement(letterSpacing, emojiCorrection)
-    return measureEntry
-  }
   const spacingGraphemeCounts: number[] = []
   const segments = includeSegments ? [] as string[] : null
   const chunks: PreparedLineBreakData['chunks'] = []
@@ -366,8 +361,7 @@ function measureAnalysis(
       cached.advances === advances && cached.emojiCorrection === emojiCorrection) return cached.geometry
     let complete = true
     const geometry = observeSegmentEntries(text, advances, letterSpacing, width, fitBasis, source => {
-      const measure = getEntryMeasurement()
-      const measured = measure === null ? null : measure(source)
+      const measured = measureWithLetterSpacing(source, letterSpacing, emojiCorrection)
       if (measured === null) complete = false
       return measured
     })
