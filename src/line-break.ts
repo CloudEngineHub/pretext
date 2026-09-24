@@ -14,8 +14,8 @@ export type PreparedLineBreakData = {
   simpleLineWalkFastPath: boolean // Normal text can use the simple line stepper across all layout APIs
   breakableFitAdvances: (number[] | null)[] // Per-grapheme fit advances for breakable segments, else null
   entryGeometry: (SegmentEntryGeometry | null)[] | null // Per segment, how its tails fit on a fresh line; null without any
-  // Per segment, false where an engine's scan gives no break before text, glue,
-  // zero-width glue or a control, so no line ends there. Null without one.
+  // Per segment, false where an engine's scan gives no break before text, zero-width
+  // glue or a control, so no line ends there. Null without one.
   breaksBefore: boolean[] | null
   // Per segment with breakable fit advances, the graphemes that can't start a line, which
   // a line holding only an overflowing first grapheme keeps. Null without any.

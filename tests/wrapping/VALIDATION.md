@@ -224,6 +224,44 @@ U+3000, spaces and no-break spaces, the full walker and the simple walkers disag
 at 82,678 widths under the Blink profile and 51,015 under the Gecko profile before,
 and agree everywhere after. Runtime source grows by 2 lines.
 
+No-break glue is text now. NBSP, U+2007, U+202F, WJ and U+FEFF had a `glue` kind of
+their own. The scans already give no break next to them, so the kind only kept a
+segment made only of glue, such as NBSPs between spaces, from taking emergency
+breaks and the simple walkers, and kept a U+3000 run before it from hanging. The
+installed gate fixes 118 left-to-right line counts in Chrome, 124 in Firefox and 144
+in Safari (2, 2 and 4 of them at 24px or wider), loses 24, 18 and 18, all under
+24px, and moves no right-to-left row. Each loss is a row the base passed only while
+the run couldn't break: runs made only of word joiners or U+FEFF at letter spacing 1
+and 1px, 18 in each browser, which the browsers paint with no advance and in Chrome
+and Safari no gap, and in Chrome six runs of U+202F at letter spacing 1, which Chrome
+paints with no gap, where Pretext charges those gaps. The same trees with WJ and
+U+FEFF unspaced keep the 18 (ENGINE_FOLLOWUPS.md). In the lab, 1,323 texts in Chrome,
+1,320 in Firefox and 1,207 in Safari change, generated strings and 392-394 suite
+texts, no corpus paragraph. At the widths where they change, the natives fix 1,735,
+3,095 and 2,565 line counts (80, 144 and 15 of them at 24px or wider). Of the losses,
+590, 630 and 264 are widths 0.005-0.02px under a line's width that the browsers still
+fit; 572, 112 and 165 are rows whose base line starts already differed from the
+natives'; and 638, 439 and 655 are rows whose base line widths were more than 1px
+off, mostly the gaps on word joiners and U+FEFF, and in Chrome U+202F's gap and
+unspaced Arabic, which the runs' missing breaks and hangs had cancelled. The rest are
+rows the base had right: 2 in Chrome, NBSP, U+202F, NBSP in 16px Courier New at
+letter spacing 1 at 26px, U+202F's gap again; 25 in Firefox, all under 3px, which
+pass with WJ and U+FEFF unspaced; and 41 in Safari, all under 3px, where Safari keeps
+a word joiner with the NBSP after it. Chrome also doesn't hang a U+3000 run after a
+collapsible space, which the profile does before and after this commit, so `1`,
+space, U+3000, U+202F, space, `中` loses at 24-33px where the kind had blocked the
+hang. Rich-inline gains 64, 73 and 47 line counts (15, 14 and 6 at 24px or wider) and
+loses one exact fit in Chrome, three accidents and one exact fit in Firefox and three
+of Safari's word-joiner rows. Pinned Chrome 153 hung natively on a text holding
+U+3000 and NBSP again, so 813 of the 1,138 such cases went unobserved there; the 325
+it laid out fix 41 and lose 13 accidents. Runtime source shrinks by 9 lines, the
+layout bundle by 242 bytes minified and 64 gzipped. Glue-only segments now measure
+their graphemes, 634 more Canvas calls over 79,412 offline inputs under the Blink
+profile and none on corpus text. In interleaved offline timing under JavaScriptCore
+and V8, neither commit moves `prepare()` or `layout()` beyond the spread between
+runs, up to 14% on unchanged code, except that `layout()` of text with NBSP runs between spaces takes 0.16 to
+0.23 of the time, as it now takes the simple walkers.
+
 The baseline advances to `f4374a3`, and the ordinary snapshots were regenerated
 against it in Chrome 153, Safari 27.0 and Firefox 156, with no regressions,
 required failures or execution errors. Accuracy stays 7,680 of 7,680 in each

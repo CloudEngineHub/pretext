@@ -105,7 +105,7 @@ export type PrepareOptions = {
 
 // --- Public API ---
 
-// Text, glue and spaces take letter spacing after each grapheme; a ZWSP takes none.
+// Text and spaces take letter spacing after each grapheme; a ZWSP takes none.
 function countRenderedSpacingGraphemes(text: string, kind: SegmentBreakKind): number {
   if (kind === 'zero-width-break') return 0
   let count = 0
@@ -286,7 +286,7 @@ function measureAnalysis(
       const kind = analysis.kinds[k]!
       const text = analysis.texts[k]!
       if (kind === 'zero-width-glue' || ((kind === 'text' || kind === 'control') && controlOrMarkRunRe.test(text))) continue
-      if (kind !== 'text' && kind !== 'glue') return null
+      if (kind !== 'text') return null
       const base = getSharedGraphemeSegmenter().segment(text).containing(text.length - 1)!
       return analysis.normalized.slice(analysis.starts[k]! + base.index, analysis.starts[analysisIndex]!)
     }
@@ -325,7 +325,7 @@ function measureAnalysis(
     while (next < analysis.kinds.length && analysis.kinds[next] === 'soft-hyphen') next++
     if (next >= analysis.kinds.length) return 0
     const nextKind = analysis.kinds[next]!
-    if (nextKind !== 'text' && nextKind !== 'glue') return 0
+    if (nextKind !== 'text') return 0
     const after = analysis.texts[next]!
     const joined = before + after
     const apart =
@@ -383,7 +383,7 @@ function measureAnalysis(
     if (hasLetterSpacing) spacingGraphemeCounts.push(spacingGraphemeCount)
     if (segments !== null) segments.push(text)
     discretionaryHyphenContexts?.push(0)
-    if (kind !== 'text' && kind !== 'glue' && kind !== 'soft-hyphen') previousJoinablePiece = null
+    if (kind !== 'text' && kind !== 'soft-hyphen') previousJoinablePiece = null
   }
 
   // With an empty following-space tail, textMetrics measured the text together
@@ -395,7 +395,7 @@ function measureAnalysis(
     allowOverflowBreaks: boolean,
     followingSpaceTail: string | null,
   ): void {
-    if (kind === 'text' || kind === 'glue') {
+    if (kind === 'text') {
       previousJoinablePiece = text
       previousJoinableMetrics = textMetrics
     }
@@ -502,14 +502,14 @@ function measureAnalysis(
 
     if (segKind === 'control') {
       const width = getCorrectedSegmentWidth(segText, getSegmentMetrics(segText, cache), emojiCorrection)
-      // NEL shares a WebKit text item with the text or glue before it and with
+      // NEL shares a WebKit text item with the text before it and with
       // combining marks after it, and the complex text path spaces it. Complex
       // text shares the item only when its direction matches the page's, which
       // preparation cannot see, so NEL next to complex text keeps its spacing.
       const previousKind = mi > 0 ? analysis.kinds[mi - 1] : undefined
       const nextText = mi + 1 < analysis.kinds.length ? analysis.texts[mi + 1]! : ''
       const takesLetterSpacing = hasLetterSpacing && (
-        ((previousKind === 'text' || previousKind === 'glue') && needsComplexTextPath(analysis.texts[mi - 1]!)) ||
+        (previousKind === 'text' && needsComplexTextPath(analysis.texts[mi - 1]!)) ||
         (leadingCombiningMarkRe.test(nextText) && needsComplexTextPath(nextText))
       )
       pushMeasuredSegment(segText, width, segKind, null, takesLetterSpacing ? 1 : 0)
@@ -535,7 +535,7 @@ function measureAnalysis(
       continue
     }
 
-    const followingSpaceTail = segKind === 'text' || segKind === 'glue' ? getFollowingSpaceTail(mi, segText) : null
+    const followingSpaceTail = segKind === 'text' ? getFollowingSpaceTail(mi, segText) : null
     // Under break-word, Blink retries an overflowing line with a break allowed between
     // any two graphemes (line_breaker.cc), WebKit searches the word's grapheme prefixes
     // (TextUtil::breakWord) and Gecko may wrap before any cluster (gfxTextRun.cpp:1069-1072),

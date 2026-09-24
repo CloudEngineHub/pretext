@@ -1714,10 +1714,17 @@ describe('prepare invariants', () => {
     expect(prepared.kinds).toEqual(['text', 'tab', 'text'])
   })
 
-  test('keeps standalone non-breaking spaces as visible glue content', () => {
+  test('a run of no-break spaces is visible text that takes emergency breaks', () => {
     const prepared = prepareWithSegments('\u00A0', FONT)
     expect(prepared.segments).toEqual(['\u00A0'])
     expect(layout(prepared, 200, LINE_HEIGHT)).toEqual({ lineCount: 1, height: LINE_HEIGHT })
+    // Between spaces the run is its own segment, which browsers split where it overflows.
+    const run = prepareWithSegments('a \u00A0\u202F\u2007 b', FONT)
+    expect(run.segments).toEqual(['a', ' ', '\u00A0\u202F\u2007', ' ', 'b'])
+    expect(run.kinds).toEqual(['text', 'space', 'text', 'space', 'text'])
+    const width = measureWidth('\u00A0\u202F', FONT) + 0.1
+    expect(layoutWithLines(run, width, LINE_HEIGHT).lines.map(line => line.text)).toEqual(['a ', '\u00A0\u202F', '\u2007 ', 'b'])
+    expect(layout(prepare('a \u00A0\u202F\u2007 b', FONT), width, LINE_HEIGHT).lineCount).toBe(4)
   })
 
   test('pre-wrap mode keeps whitespace-only input visible', () => {

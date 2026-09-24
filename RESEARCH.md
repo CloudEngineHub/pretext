@@ -402,6 +402,19 @@ CR, so U+2007, like the rest of U+2000..U+200B, stays inside the word it sends
 to ICU4X, which applies the same GL rules. Treating it as plain text let
 `Intl.Segmenter`'s word boundaries around it become break opportunities.
 
+NBSP, U+2007, U+202F, WJ and U+FEFF are plain text to the walkers as well. The
+scans give no break next to them, so they join the text around them, and a run made
+only of them sits between two breaks, as NBSPs between spaces do. Such a run takes
+emergency breaks like other text, as all three browsers do: two NBSPs at 1px in
+16px Arial take 2 lines in Chrome 153, Firefox 156 and Safari 27. Main's `glue` kind
+kept a run made only of them whole and off the simple walkers, and kept a U+3000 run
+before it from hanging, where Chrome and Firefox hang it (`a`, U+3000, U+202F,
+space, `word` at 20px: `a`, U+3000 / U+202F, space / ...). Word joiners and U+FEFF
+paint with no advance, and Chrome and Safari give them no letter spacing, so a run
+of them never overflows there, while Pretext charges each a gap (ENGINE_FOLLOWUPS.md):
+with letter spacing 1 at 1px, WJ, WJ keeps one line in the browsers, and Pretext
+splits it.
+
 Chromium breaks between a fullwidth closing bracket such as `」` or `）` (UAX #14
 CL) and a following ideograph. Blink's scan takes the quote rules from ICU:
 UAX #14 LB19a allows a break after a quote between East Asian

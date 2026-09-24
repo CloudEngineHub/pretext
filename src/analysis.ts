@@ -9,17 +9,16 @@ export type SegmentBreakKind =
   | 'space'
   | 'preserved-space'
   | 'tab'
-  | 'glue'
   | 'zero-width-break'
   | 'soft-hyphen'
   // A ZWSP or soft hyphen the engine's scan doesn't break after: zero width, no
-  // letter spacing, no break on either side, unlike glue measured with its text.
+  // letter spacing, no break on either side.
   | 'zero-width-glue'
   | 'hard-break'
   | 'control'
 
-// `breaksBefore` is false where the engine's scan gives no break before text, glue,
-// zero-width glue or a control, other than at a line start. Null where it always does.
+// `breaksBefore` is false where the engine's scan gives no break before text, zero-width
+// glue or a control, other than at a line start. Null where it always does.
 // `clusterSplits` is false for a segment the engine's clusters don't split, which no
 // emergency break splits either. Null where the scan has no clusters of its own.
 export type Segmentation = {
@@ -154,9 +153,6 @@ function classifySegmentBreakCode(code: number, whiteSpace: WhiteSpaceMode, scan
     if (code === 0x0A) return 'hard-break'
   }
   if (code === 0x20) return 'space'
-  if (code === 0x00A0 || code === 0x2007 || code === 0x202F || code === 0x2060 || code === 0xFEFF) {
-    return 'glue'
-  }
   if (code === 0x200B) return 'zero-width-break'
   if (code === 0x00AD) return 'soft-hyphen'
   // NEL (UAX #14 NL) offers a break after itself and no ordinary break before it (LB5, LB6),
@@ -218,14 +214,10 @@ function mapSourceLineBreaks(source: string, normalizedLength: number, sourceBre
   return breaks
 }
 
-function isTextLikeKind(kind: SegmentBreakKind): boolean {
-  return kind === 'text' || kind === 'glue'
-}
-
 // Characters of these kinds share a segment when no break falls between them. Each
 // tab, hard break, ZWSP and NEL control stays its own segment.
 function gathersKind(kind: SegmentBreakKind): boolean {
-  return kind === 'text' || kind === 'glue' || kind === 'space' || kind === 'preserved-space' || kind === 'soft-hyphen'
+  return kind === 'text' || kind === 'space' || kind === 'preserved-space' || kind === 'soft-hyphen'
 }
 
 // A control character that stays its own text segment, measured alone: the C0 and C1
@@ -236,10 +228,10 @@ function isControlSegmentCode(code: number): boolean {
 }
 
 // Segments are the text between an engine's break opportunities, split where the
-// break kind changes; text and glue share a segment, and a control stays alone. A ZWSP
-// or soft hyphen that the scan doesn't break after, as at the start of a WebKit scan,
-// before a combining mark or a closing bracket, or under keep-all, is zero-width glue:
-// it stays its own zero-width segment, takes no letter spacing and doesn't end a line.
+// break kind changes, and a control stays alone. A ZWSP or soft hyphen that the scan
+// doesn't break after, as at the start of a WebKit scan, before a combining mark or a
+// closing bracket, or under keep-all, is zero-width glue: it stays its own zero-width
+// segment, takes no letter spacing and doesn't end a line.
 // Combining marks right after it, or after a control, stay apart from the text after
 // them, since they shape on the grapheme before it (measureAnalysis). Where the Gecko
 // scan marks cluster starts (2), a segment records whether one falls inside it.
@@ -271,9 +263,8 @@ function segmentAtLineBreaks(normalized: string, breaks: Uint8Array, whiteSpace:
     const last = kinds.length - 1
     if (
       (breaks[i]! & 1) === 0 && !alone && !lastAlone && !(markRun && !combiningMarkRe.test(normalized[i]!)) &&
-      (kind === kinds[last] ? gathersKind(kind) : isTextLikeKind(kind) && isTextLikeKind(kinds[last]!))
+      kind === kinds[last] && gathersKind(kind)
     ) {
-      if (kind === 'text') kinds[last] = 'text'
       if (clusterSplits !== null && breaks[i] === 2) clusterSplits[last] = true
       continue
     }
@@ -285,7 +276,7 @@ function segmentAtLineBreaks(normalized: string, breaks: Uint8Array, whiteSpace:
     lastAlone = alone
   }
   // A line ends only where the scan breaks, so the walkers learn where it doesn't:
-  // before text, glue, zero-width glue or a control, other than at a line start. A
+  // before text, zero-width glue or a control, other than at a line start. A
   // ZWSP or soft hyphen there is zero-width glue. Before a space, tab or hard break
   // the scan has no break either, but the line can still end there, so it keeps its kind.
   const len = kinds.length
@@ -293,7 +284,7 @@ function segmentAtLineBreaks(normalized: string, breaks: Uint8Array, whiteSpace:
   for (let j = len - 2; j >= 0; j--) {
     const kind = kinds[j]!
     const next = kinds[j + 1]!
-    if ((breaks[starts[j + 1]!]! & 1) === 1 || kind === 'hard-break' || !(isTextLikeKind(next) || next === 'zero-width-glue' || next === 'control')) continue
+    if ((breaks[starts[j + 1]!]! & 1) === 1 || kind === 'hard-break' || !(next === 'text' || next === 'zero-width-glue' || next === 'control')) continue
     if (kind === 'zero-width-break' || kind === 'soft-hyphen') kinds[j] = 'zero-width-glue'
     breaksBefore ??= Array.from({ length: len }, () => true)
     breaksBefore[j + 1] = false
