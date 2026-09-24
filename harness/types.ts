@@ -72,9 +72,18 @@ export type Recording = { lines: RecordedLine[]; height: number } | { error: str
 
 export type PredictedLine = { start: number; end: number; width: number }
 
-// What a library build predicted, with the measureText calls it made; `error` when the adapter can't express the case
-// or the library threw.
-export type Prediction = { lines: PredictedLine[]; calls: number } | { error: string }
+// How a pinned case fared (score.ts): 'count', a wrong line count; 'breaks', the right count with a visible character on
+// another line; 'error', no prediction.
+export type Status = 'pass' | 'count' | 'breaks' | 'error'
+export type Failure = Exclude<Status, 'pass'>
+
+// What a library build predicted: the walk's lines (predict.ts), the measureText calls made while preparing and while
+// the line APIs ran (they should make none), and the first way another line API disagrees with the walk, or null.
+// `unsupported`: the adapter can't express the case. `error`: the library threw.
+export type Prediction =
+  | { lines: PredictedLine[]; prepareCalls: number; lineCalls: number; disagreement: string | null }
+  | { unsupported: string }
+  | { error: string }
 
 // What the page reports about the browser it runs in. Part of the environment key.
 export type PageEnv = { userAgent: string; devicePixelRatio: number; languages: string[] }

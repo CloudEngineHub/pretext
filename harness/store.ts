@@ -6,8 +6,10 @@
 // - harness/recordings/<browser>.history.txt: the cases whose two recordings differ (page history), both recordings, as
 //   `<id>\t<A|B>\t...`. They are never pinned.
 // - harness/accepted/<browser>.txt: the failures a change accepted, under `## <reason>` headings, one `<id> <status>` per line.
+// - harness/varying/<browser>.txt: the cases whose predictions move with the browser's state, under `## <reason>`
+//   headings, one `<id>` per line. They are predicted and printed, never judged.
 import { readFileSync, writeFileSync } from 'node:fs'
-import type { BrowserKind, Case, Recording, RecordedLine } from './types.ts'
+import type { BrowserKind, Case, Failure, Recording, RecordedLine } from './types.ts'
 
 export function recordingText(recording: Recording): string {
   if ('error' in recording) return `error\t${recording.error.replace(/\s+/g, ' ')}`
@@ -42,6 +44,7 @@ export type HistoryFile = { env: string; cases: Map<string, [Recording, Recordin
 export const recordingsPath = (browser: BrowserKind): string => `${import.meta.dir}/recordings/${browser}.txt`
 export const historyPath = (browser: BrowserKind): string => `${import.meta.dir}/recordings/${browser}.history.txt`
 export const acceptedPath = (browser: BrowserKind): string => `${import.meta.dir}/accepted/${browser}.txt`
+export const varyingPath = (browser: BrowserKind): string => `${import.meta.dir}/varying/${browser}.txt`
 
 function readLines(path: string): string[] | null {
   try {
@@ -100,12 +103,11 @@ export function writeHistory(path: string, file: HistoryFile): void {
   writeFileSync(path, text)
 }
 
-// An accepted failure: the reason it was accepted under, and the failure it was (score.ts Status).
-export type Accepted = Map<string, { reason: string; status: string }>
-
-export function readAccepted(path: string): Accepted {
-  const accepted: Accepted = new Map()
+// Lines of `fields` words under `## <reason>` headings, each with its reason. An id is listed once.
+function readUnderReasons(path: string, fields: number): Array<{ reason: string; words: string[] }> {
+  const out: Array<{ reason: string; words: string[] }> = []
   const lines = readLines(path) ?? []
+  const ids = new Set<string>()
   let reason: string | null = null
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!
@@ -113,12 +115,36 @@ export function readAccepted(path: string): Accepted {
       reason = line.slice(3).trim()
       continue
     }
-    const [id, status, extra] = line.trim().split(/\s+/)
-    if (reason === null || id === undefined || status === undefined || extra !== undefined) throw new Error(`${path}:${i + 1}: expected '<id> <status>' under a '## <reason>' heading`)
-    if (accepted.has(id)) throw new Error(`${path}:${i + 1}: ${id} is listed twice`)
-    accepted.set(id, { reason, status })
+    const words = line.trim().split(/\s+/)
+    if (reason === null || words.length !== fields) throw new Error(`${path}:${i + 1}: expected ${fields === 1 ? '<id>' : '<id> <status>'} under a '## <reason>' heading`)
+    if (ids.has(words[0]!)) throw new Error(`${path}:${i + 1}: ${words[0]} is listed twice`)
+    ids.add(words[0]!)
+    out.push({ reason, words })
+  }
+  return out
+}
+
+// An accepted failure: the reason it was accepted under, and the failure it was.
+export type Accepted = Map<string, { reason: string; status: Failure }>
+const FAILURES: readonly string[] = ['count', 'breaks', 'error'] satisfies Failure[]
+
+export function readAccepted(path: string): Accepted {
+  const accepted: Accepted = new Map()
+  const entries = readUnderReasons(path, 2)
+  for (let i = 0; i < entries.length; i++) {
+    const [id, status] = entries[i]!.words as [string, string]
+    if (!FAILURES.includes(status)) throw new Error(`${path}: ${id} has status ${status}, not one of ${FAILURES.join(', ')}`)
+    accepted.set(id, { reason: entries[i]!.reason, status: status as Failure })
   }
   return accepted
+}
+
+// The varying predictions: each listed id with its reason.
+export function readVarying(path: string): Map<string, string> {
+  const varying = new Map<string, string>()
+  const entries = readUnderReasons(path, 1)
+  for (let i = 0; i < entries.length; i++) varying.set(entries[i]!.words[0]!, entries[i]!.reason)
+  return varying
 }
 
 export function writeAccepted(path: string, accepted: Accepted): void {
@@ -161,6 +187,10 @@ export function caseProblem(c: Case): string | null {
     if (typeof run.text !== 'string' || (run.node !== 'span' && run.node !== 'text')) return `run ${i}: bad text or node`
     if (fontProblem(run.font) !== null || typeof run.letterSpacing !== 'number' || typeof run.wordSpacing !== 'number') return `run ${i}: bad font or spacing`
     if ((run.atomic !== undefined || run.padding !== undefined) && run.node !== 'span') return `run ${i}: only a span can be atomic or padded`
+    // A bare text node takes the paragraph's styles in the browser, and the adapter reads them from the run.
+    const f = run.font
+    if (run.node === 'text' && (f.family !== p.font.family || f.size !== p.font.size || f.weight !== p.font.weight || f.style !== p.font.style
+      || run.letterSpacing !== p.letterSpacing || run.wordSpacing !== p.wordSpacing || run.lang !== null)) return `run ${i}: a bare text run must carry the paragraph's font and spacing, and no lang`
     if (run.atomic !== undefined && run.atomic !== true) return `run ${i}: atomic must be true or absent`
     if (run.padding !== undefined && !(run.padding > 0)) return `run ${i}: padding must be positive or absent`
   }

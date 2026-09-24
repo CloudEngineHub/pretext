@@ -40,7 +40,6 @@ old-gate-2831b45a3a3ed47d count
 old-gate-28e863e078e08eeb count
 old-gate-29d2c73df0829e55 count
 old-gate-2a34e377a5fae1e3 count
-old-gate-307fd76f099a43ea count
 old-gate-30a34c09e3d8ea80 count
 old-gate-365fb3bef0105655 count
 old-gate-37e0e5f9af770d70 count
@@ -52,7 +51,6 @@ old-gate-484429cf51c62bd0 breaks
 old-gate-4906fe99d07bfa42 count
 old-gate-498a46b76aff93c1 count
 old-gate-4dcc4cd4497014df count
-old-gate-4dd4ada94b0cc2ce count
 old-gate-4dfd077b6fb9759b count
 old-gate-54a211cc83ce39d2 count
 old-gate-550afb15363f61ec count
@@ -65,7 +63,6 @@ old-gate-6bbe91af3606d5d8 count
 old-gate-700c0541864d7882 count
 old-gate-713d5df33b1bf6b7 count
 old-gate-7384aa574151d315 breaks
-old-gate-739b18e51c1d20d3 count
 old-gate-7fcdb5e8881356ad count
 old-gate-83ff58c2f0b15a45 count
 old-gate-87293e80327cc301 count
@@ -89,11 +86,9 @@ old-gate-b36583fbfed1ac81 count
 old-gate-b52a4f66fc06b7e3 count
 old-gate-b66ab0e048ffb5fd count
 old-gate-b852156e28ec557c count
-old-gate-b91bd6ffeef40383 count
 old-gate-ba20066fd705515b count
 old-gate-bc33a9b702359ae3 count
 old-gate-c5410b8be027256d count
-old-gate-c81cecb0b25d0d2f count
 old-gate-ccae53781147433b count
 old-gate-cebb2654acc6127d count
 old-gate-d2cb70668e398c55 count
@@ -487,7 +482,6 @@ old-gate-026b50419f1ced08 count
 old-gate-04910e99e8b1f5c3 count
 old-gate-06dd88c3b0ab7013 count
 old-gate-0923034c676eeddc count
-old-gate-0f4ab6085302b5fe breaks
 old-gate-101f07ad5f22eefc count
 old-gate-1acf2b8b501fc534 count
 old-gate-1cd5062602658a30 count

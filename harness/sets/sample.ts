@@ -18,7 +18,7 @@
 // No chat that users wrote is here: the public sets whose licenses allow it (WildChat-1M, OpenAssistant) aren't
 // downloaded yet. So every chat draw, and every draw whose script has no real text for its surface, is marked as a
 // stand-in, and the check prints their share.
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { marked, type Token } from 'marked'
 import { createMarkdownChatSpecs } from '../../pages/demos/markdown-chat.data.ts'
@@ -104,7 +104,9 @@ function checkSources(value: unknown, path: string): void {
     const last = value[value.length - 1]
     if (value.length >= 2 && typeof last === 'string' && typeof value[value.length - 2] === 'number') {
       const key = /^([A-Z0-9]+)(?::|$)/.exec(last)?.[1]
-      if (key !== undefined ? WEIGHTS.sources[key] === undefined : !/^(guess|the )/.test(last)) throw new Error(`weights.json ${path}: unknown source "${last}"`)
+      const file = /^([\w./-]+\.\w+)(?::|$)/.exec(last)?.[1]
+      const known = key !== undefined ? WEIGHTS.sources[key] !== undefined : file !== undefined ? existsSync(join(ROOT, file)) : /^guess\b/.test(last)
+      if (!known) throw new Error(`weights.json ${path}: unknown source "${last}"`)
     }
     for (let i = 0; i < value.length; i++) checkSources(value[i], `${path}[${i}]`)
   } else if (value !== null && typeof value === 'object') {

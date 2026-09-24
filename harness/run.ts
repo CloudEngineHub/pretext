@@ -47,18 +47,30 @@ function asciiJson(value: unknown): Response {
   return new Response(body, { headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } })
 }
 
-function documents(cases: Case[], size: number): Case[][] {
-  const groups = new Map<string, Case[]>()
+// Once a document has laid out a text-presentation emoji (U+FE0E), Firefox lays color emoji out 1 px wider in the
+// documents after it in the same process, in most runs, and lays out and measures the other U+FE0E cases otherwise too.
+// So in Firefox such a case is page history, which check never pins, and every job lays it out in documents after all
+// the others, where it can't move them.
+export function firefoxTextEmoji(browser: BrowserKind, c: Case): boolean {
+  if (browser !== 'firefox') return false
+  for (let i = 0; i < c.paragraph.runs.length; i++) if (c.paragraph.runs[i]!.text.includes('\uFE0E')) return true
+  return false
+}
+
+export function documents(browser: BrowserKind, cases: Case[], size: number): Case[][] {
+  const groups = new Map<string, { late: boolean; cases: Case[] }>()
   for (let i = 0; i < cases.length; i++) {
     const c = cases[i]!
-    const key = JSON.stringify([c.pageLang, [...(c.fontFixtures ?? [])].sort()])
+    const late = firefoxTextEmoji(browser, c)
+    const key = JSON.stringify([late, c.pageLang, [...(c.fontFixtures ?? [])].sort()])
     let group = groups.get(key)
-    if (group === undefined) groups.set(key, group = [])
-    group.push(c)
+    if (group === undefined) groups.set(key, group = { late, cases: [] })
+    group.cases.push(c)
   }
   const docs: Case[][] = []
-  for (const group of groups.values()) for (let i = 0; i < group.length; i += size) docs.push(group.slice(i, i + size))
-  return docs
+  const late: Case[][] = []
+  for (const group of groups.values()) for (let i = 0; i < group.cases.length; i += size) (group.late ? late : docs).push(group.cases.slice(i, i + size))
+  return docs.concat(late)
 }
 
 function pageHtml(doc: Case[]): string {
@@ -89,7 +101,7 @@ function serve(fetch: (request: Request) => Promise<Response>): ReturnType<typeo
 export async function runJob<T extends Recording | Prediction>(job: Job): Promise<JobResult<T>> {
   const start = Date.now()
   const id = randomUUID()
-  const docs = documents(job.cases, job.documentSize)
+  const docs = documents(job.browser, job.cases, job.documentSize)
   const results = new Map<string, T>()
   if (docs.length === 0) return { env: '', results, ms: 0 }
   const script = await bundle(job.lib)

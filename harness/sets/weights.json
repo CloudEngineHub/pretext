@@ -56,15 +56,15 @@
       "scripts": "ai",
       "mixedScripts": [11.63, "WILDCHAT: 11.63% of assistant turns mix scripts"],
       "blocks": [["paragraph", 51, "guess"], ["list-item", 34.3, "WILDCHAT: lists in 34.32% of assistant turns"], ["heading", 3.9, "WILDCHAT: 3.87%"], ["code", 11.1, "WILDCHAT: fenced code in 11.1%"]],
-      "whiteSpace": [["normal", 100, "the markdown-chat demo lays prose out in white-space normal and code in pre-wrap"]],
-      "sizes": [[14, 50, "the markdown-chat demo: 14px body"], [15, 20, "guess"], [16, 30, "guess"]],
+      "whiteSpace": [["normal", 100, "pages/demos/markdown-chat.model.ts: prose in white-space normal, code in pre-wrap"]],
+      "sizes": [[14, 50, "pages/demos/markdown-chat.model.ts: 14px body"], [15, 20, "guess"], [16, 30, "guess"]],
       "width": "lane"
     },
     "cards": {
       "scripts": "web",
       "mixedScripts": [5, "guess"],
-      "whiteSpace": [["normal", 100, "the masonry demo"]],
-      "sizes": [[14, 30, "guess"], [15, 40, "the masonry demo"], [16, 30, "guess"]],
+      "whiteSpace": [["normal", 100, "pages/demos/masonry/index.ts"]],
+      "sizes": [[14, 30, "guess"], [15, 40, "pages/demos/masonry/index.ts: 15px"], [16, 30, "guess"]],
       "width": "card"
     },
     "documents": {
@@ -111,7 +111,7 @@
       "indic": [["\"Kohinoor Devanagari\", \"Kohinoor Bangla\", \"Tamil Sangam MN\", \"Kohinoor Telugu\", sans-serif", 100, "guess"]],
       "thai": [["Thonburi, sans-serif", 90, "guess"], ["\"Noto Sans Thai\", Thonburi, sans-serif", 10, "guess"]],
       "sea": [["\"Khmer Sangam MN\", \"Myanmar MN\", \"Lao Sangam MN\", sans-serif", 100, "guess"]],
-      "mixed": [["\"Helvetica Neue\", Arial, \"PingFang SC\", \"Apple SD Gothic Neo\", \"Geeza Pro\", \"Kohinoor Devanagari\", Thonburi, sans-serif", 100, "the census's mixed-app-text stack"]]
+      "mixed": [["\"Helvetica Neue\", Arial, \"PingFang SC\", \"Apple SD Gothic Neo\", \"Geeza Pro\", \"Kohinoor Devanagari\", Thonburi, sans-serif", 100, "harness/cases/census.ndjson: the mixed-app-text paragraphs' stack"]]
     },
     "windows": {
       "latin": [["\"Segoe UI\", sans-serif", 70, "E17: Segoe UI 11.4% of pages"], ["Calibri, sans-serif", 30, "ISSUES: #210's 12px Calibri"]],

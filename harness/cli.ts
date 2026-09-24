@@ -3,18 +3,21 @@
 //                            --sample=N --seed=S records N of them, drawn from every set
 //   check [--accept=<why>]   predict every pinned case in the browser and score it against the recordings
 //   gate [--sample=N]        check, plus a prediction in reverse order, N cases recorded again, and attribution
+// record and gate draw with --seed=S (default 20260924).
 //   equal <ref>              whether this tree's src/ and <ref>'s predict the same lines for every case
 //   explain <id>             one case's recorded lines against the predicted ones, character by character
 // --lib=<dir> predicts with another build's src/ directory. Default browsers: chrome, firefox and webkit-host, side by side.
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, readdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { accept, headline, judge, observable, outsideClaims, predictionChange, score, shrinkWrapShort, widthBand, type Outcome } from './score.ts'
-import { LIB, runJob } from './run.ts'
+import {
+  accept, attribute, freshRecordings, headline, judge, libraryFaults, observable, outsideClaims, predictionChange, reverseOrder, score, shrinkWrapShort, widthBand, type Outcome,
+} from './score.ts'
+import { firefoxTextEmoji, LIB, runJob, type Mode } from './run.ts'
 import { createRng } from './sets/build.ts'
 import {
-  acceptedPath, assertSameEnvironment, caseText, historyPath, readAccepted, readCases, readHistory, readRecordings, recordingText, recordingsPath,
-  splitHistory, writeAccepted, writeHistory, writeRecordings,
+  acceptedPath, assertSameEnvironment, caseText, historyPath, readAccepted, readCases, readHistory, readRecordings, readVarying, recordingText,
+  recordingsPath, splitHistory, varyingPath, writeAccepted, writeHistory, writeRecordings,
 } from './store.ts'
 import { BROWSERS, type BrowserKind, type Case, type Prediction, type Recording } from './types.ts'
 
@@ -23,6 +26,10 @@ const RECORD_DOCUMENT = 200
 const ALONE = 1
 const WHOLE = Number.MAX_SAFE_INTEGER
 const ATTRIBUTE_AT_MOST = 200
+// A fixed default, so a gate's result doesn't depend on the clock.
+const SEED = 20260924
+// Installed Safari is recorded on a sample (its window must stay uncovered), so cases it has no recording of are expected.
+const SAMPLED: readonly BrowserKind[] = ['safari']
 
 const args = process.argv.slice(2)
 const flags = new Map<string, string>()
@@ -37,10 +44,10 @@ const browserFlag = flags.get('browser') ?? (command === 'explain' ? 'chrome' : 
 const browsers: BrowserKind[] = browserFlag === 'all' ? ['chrome', 'firefox', 'webkit-host'] : browserFlag.split(',') as BrowserKind[]
 for (let i = 0; i < browsers.length; i++) if (!BROWSERS.includes(browsers[i]!)) throw new Error(`Unknown browser ${browsers[i]}`)
 const lib = resolve(flags.get('lib') ?? LIB)
+const seed = Number(flags.get('seed') ?? SEED)
+const CASE_FILES = readdirSync(join(import.meta.dir, 'cases')).filter(name => name.endsWith('.ndjson')).sort().map(name => join(import.meta.dir, 'cases', name))
 
-function loadCases(): Case[] {
-  const dir = join(import.meta.dir, 'cases')
-  const files = flags.has('cases') ? [flags.get('cases')!] : readdirSync(dir).filter(name => name.endsWith('.ndjson')).sort().map(name => join(dir, name))
+function loadCases(files: readonly string[]): Case[] {
   const cases: Case[] = []
   const ids = new Set<string>()
   for (let f = 0; f < files.length; f++) {
@@ -88,7 +95,6 @@ async function record(browser: BrowserKind, cases: Case[]): Promise<number> {
   let list = cases.filter(c => applies(c, browser))
   if (flags.has('only-new')) list = list.filter(c => old?.recordings.has(c.id) !== true && oldHistory?.cases.has(c.id) !== true)
   let sorted = list.slice().sort((a, b) => (a.id < b.id ? -1 : 1))
-  const seed = Number(flags.get('seed') ?? Date.now() % 1_000_000)
   // A seeded sample of every set, for installed Safari, whose window has to stay uncovered while it records.
   if (flags.has('sample')) sorted = shuffled(sorted, seed).slice(0, Number(flags.get('sample'))).sort((a, b) => (a.id < b.id ? -1 : 1))
   // One browser instance at a time per browser. The second order is shuffled, so each case sits among other cases in
@@ -131,9 +137,16 @@ async function record(browser: BrowserKind, cases: Case[]): Promise<number> {
 
 // ---- check and gate ----
 
+function printFaults(label: string, faults: { disagree: string[]; measuring: string[] }, out: string[]): boolean {
+  if (faults.disagree.length > 0) out.push(`  BLOCKS: ${faults.disagree.length} cases${label} where another line API disagrees with the walk`, ...faults.disagree.slice(0, 10).map(line => `    ${line}`))
+  if (faults.measuring.length > 0) out.push(`  BLOCKS: ${faults.measuring.length} cases${label} whose line APIs called measureText after preparing (layout must ask Canvas nothing)`, ...faults.measuring.slice(0, 10).map(line => `    ${line} calls`))
+  return faults.disagree.length > 0 || faults.measuring.length > 0
+}
+
 type Scored = {
   browser: BrowserKind
   pinned: Case[]
+  varying: Map<string, string>
   recordings: Map<string, Recording>
   predictions: Map<string, Prediction>
   outcomes: Map<string, Outcome>
@@ -147,7 +160,8 @@ async function check(browser: BrowserKind, cases: Case[]): Promise<Scored> {
   const history = readHistory(historyPath(browser))?.cases ?? new Map<string, [Recording, Recording]>()
   const path = acceptedPath(browser)
   const accepted = readAccepted(path)
-  let unrecorded = 0
+  const varying = readVarying(varyingPath(browser))
+  const unrecorded: string[] = []
   let unobservable = 0
   let historyCount = 0
   const pinned: Case[] = []
@@ -155,8 +169,8 @@ async function check(browser: BrowserKind, cases: Case[]): Promise<Scored> {
     const c = cases[i]!
     if (!applies(c, browser)) continue
     const recording = recorded.recordings.get(c.id)
-    if (history.has(c.id)) historyCount++
-    else if (recording === undefined) unrecorded++
+    if (history.has(c.id) || firefoxTextEmoji(browser, c)) historyCount++
+    else if (recording === undefined) unrecorded.push(c.id)
     else if (!observable(recording)) unobservable++
     else pinned.push(c)
   }
@@ -184,8 +198,8 @@ async function check(browser: BrowserKind, cases: Case[]): Promise<Scored> {
     const outcome = score(recording, prediction)
     outcomes.set(c.id, outcome)
     counts[outcome.status]++
-    if (!('error' in prediction)) {
-      calls += prediction.calls
+    if ('lines' in prediction) {
+      calls += prediction.prepareCalls
       units += caseText(c).length
     }
     if (c.sample !== undefined) {
@@ -211,19 +225,22 @@ async function check(browser: BrowserKind, cases: Case[]): Promise<Scored> {
   const loaded = new Set<string>()
   for (let i = 0; i < cases.length; i++) loaded.add(cases[i]!.id)
   const scope = flags.has('cases') ? (id: string) => loaded.has(id) : null
-  const verdict = judge(outcomes, accepted, scope)
+  const verdict = judge(outcomes, accepted, varying, scope)
   const acceptReason = flags.get('accept') ?? ''
   const updated = acceptReason !== ''
   if (updated) {
     mkdirSync(join(import.meta.dir, 'accepted'), { recursive: true })
-    writeAccepted(path, accept(outcomes, accepted, acceptReason, scope))
+    const judged = new Map(outcomes)
+    for (const id of varying.keys()) judged.delete(id)
+    writeAccepted(path, accept(judged, accepted, acceptReason, scope))
     console.log(`${browser}: accepted ${verdict.newFailures.length} new failures as "${acceptReason}", dropped ${verdict.fixed.length} entries`)
   }
 
   const out: string[] = []
   out.push(`${browser}: ${pinned.length} pinned cases predicted in ${(job.ms / 1000).toFixed(1)} s`)
   out.push(`  pass ${counts.pass} | wrong line count ${counts.count} | right count, wrong breaks ${counts.breaks} | error ${counts.error}`)
-  out.push(`  not pinned: ${historyCount} page history, ${unobservable} with nothing visible or unrecordable, ${unrecorded} not recorded`)
+  out.push(`  not pinned: ${historyCount} page history, ${unobservable} with nothing visible or unrecordable, ${unrecorded.length} not recorded`)
+  if (varying.size > 0) out.push(`  varying, predicted but not judged (harness/varying): ${verdict.varying.pass} pass, ${verdict.varying.fail} fail, ${varying.size - verdict.varying.pass - verdict.varying.fail} not pinned`)
   const head = headline(draws)
   const inClaims = headline(drawsInClaims)
   if (head !== null) out.push(`  real-usage sample: ${(100 * head.share).toFixed(2)}% of real paragraphs right, 95% interval ${(100 * head.low).toFixed(2)}-${(100 * head.high).toFixed(2)}% (${draws.length} draws, ${percent(standInWeight, sampleWeight)} of their weight stand-ins; macOS rendering only)`)
@@ -244,66 +261,81 @@ async function check(browser: BrowserKind, cases: Case[]): Promise<Scored> {
     for (let k = 0; k < ids.length; k++) weight += byId.get(ids[k]!)!.sample?.weight ?? 0
     out.push(`  accepted ${ids.length}${sampleWeight > 0 ? ` (${percent(weight, sampleWeight)} of real paragraphs)` : ''}: ${reason}`)
   }
-  for (let i = 0; i < verdict.changed.length; i++) out.push(`  failure changed (accepted, not blocking): ${verdict.changed[i]}`)
+  if (verdict.changed.length > 0) out.push(`  ${verdict.changed.length} accepted failures changed kind (not blocking): ${verdict.changed.slice(0, 10).join(', ')}${verdict.changed.length > 10 ? ' ...' : ''}`)
   out.push(`  shrink-wrap, report only: ${shortBubbles} passing cases predict a widest line narrower than the browser's`)
-  out.push(`  Canvas: ${units === 0 ? '-' : (1000 * calls / units).toFixed(1)} measureText calls per 1,000 units`)
+  out.push(`  Canvas: ${units === 0 ? '-' : (1000 * calls / units).toFixed(1)} measureText calls per 1,000 units while preparing`)
+  let blocked = printFaults('', libraryFaults(pinned.map(c => c.id), job.results), out)
   const fixed = verdict.fixed
   const newFailures = verdict.newFailures.map(id => byId.get(id)!)
-  if (!updated && fixed.length > 0) out.push(`  BLOCKS: ${fixed.length} accepted cases pass or are no longer pinned; take them off with --accept: ${fixed.slice(0, 10).join(' ')}${fixed.length > 10 ? ' ...' : ''}`)
+  // A case without a recording is unpinned silently otherwise, as when a generator change renames ids.
+  if (unrecorded.length > 0 && !SAMPLED.includes(browser)) {
+    blocked = true
+    out.push(`  BLOCKS: ${unrecorded.length} cases have no recording; record them with record --only-new: ${unrecorded.slice(0, 10).join(' ')}${unrecorded.length > 10 ? ' ...' : ''}`)
+  }
+  if (!updated && fixed.length > 0) {
+    blocked = true
+    out.push(`  BLOCKS: ${fixed.length} accepted cases pass or are no longer pinned; take them off with --accept: ${fixed.slice(0, 10).join(' ')}${fixed.length > 10 ? ' ...' : ''}`)
+  }
   if (!updated && newFailures.length > 0) {
+    blocked = true
     out.push(`  BLOCKS: ${newFailures.length} new failures (accept them with --accept="<reason>")`)
     for (let i = 0; i < newFailures.length && i < 30; i++) out.push(`    ${describe(newFailures[i]!, outcomes.get(newFailures[i]!.id)!)}`)
   }
   console.log(out.join('\n'))
-  return { browser, pinned, recordings: recorded.recordings, predictions: job.results, outcomes, newFailures: updated ? [] : newFailures, blocked: !updated && (newFailures.length > 0 || fixed.length > 0) }
+  return { browser, pinned, varying, recordings: recorded.recordings, predictions: job.results, outcomes, newFailures: updated ? [] : newFailures, blocked }
+}
+
+function job<T extends Recording | Prediction>(browser: BrowserKind, mode: Mode, cases: Case[], documentSize: number): Promise<Map<string, T>> {
+  return runJob<T>({ browser, mode, cases, documentSize, lib }).then(result => result.results)
 }
 
 async function gate(browser: BrowserKind, cases: Case[]): Promise<boolean> {
   const scored = await check(browser, cases)
   let blocked = scored.blocked
+  const ids = scored.pinned.map(c => c.id)
+  const show = (list: readonly string[]): string => `${list.slice(0, 10).join(' ')}${list.length > 10 ? ' ...' : ''}`
+  const out: string[] = []
   // The same predictions in reverse order: moved breaks mean results depend on what was prepared before. Widths alone
   // move with Chrome's per-canvas shape caches and Firefox's kept contexts (PLATFORM_BUGS.md), in main too; they only
-  // reach the shrink-wrap check, which reports.
-  const reverse = await runJob<Prediction>({ browser, mode: 'predict', cases: scored.pinned.slice().reverse(), documentSize: WHOLE, lib })
-  const orderDependent: Case[] = []
-  const widthsOnly: Case[] = []
-  for (let i = 0; i < scored.pinned.length; i++) {
-    const c = scored.pinned[i]!
-    const change = predictionChange(reverse.results.get(c.id)!, scored.predictions.get(c.id)!)
-    if (change === 'lines') orderDependent.push(c)
-    else if (change === 'widths') widthsOnly.push(c)
-  }
-  if (widthsOnly.length > 0) console.log(`${browser}: ${widthsOnly.length} predictions change only their line widths in reverse order (report only): ${widthsOnly.slice(0, 10).map(c => c.id).join(' ')}`)
-  if (orderDependent.length > 0) {
+  // reach the shrink-wrap check, which reports. A case whose breaks the browser's state moves is listed in harness/varying.
+  const reverse = await job<Prediction>(browser, 'predict', scored.pinned.slice().reverse(), WHOLE)
+  const order = reverseOrder(ids, scored.predictions, reverse, scored.varying)
+  if (order.widths.length > 0) out.push(`  ${order.widths.length} predictions change only their line widths in reverse order (report only): ${show(order.widths)}`)
+  if (order.listed.length > 0) out.push(`  ${order.listed.length} varying predictions break differently in reverse order (listed, not blocking)`)
+  if (order.moved.length > 0) {
     blocked = true
-    console.log(`${browser}: BLOCKS: ${orderDependent.length} predictions break differently in reverse order: ${orderDependent.slice(0, 10).map(c => c.id).join(' ')}`)
+    out.push(`  BLOCKS: ${order.moved.length} predictions break differently in reverse order: ${show(order.moved)}`)
   }
-  // A fresh recording of a random sample: a difference means the stored recordings no longer describe this browser.
-  const seed = Number(flags.get('seed') ?? Date.now() % 1_000_000)
+  if (printFaults(' in reverse order', libraryFaults(ids, reverse), out)) blocked = true
+  // A fresh recording of a seeded sample, then each case that differs alone, in forward and in reverse order: blocks
+  // where the browser lays it out differently from the recording every time.
   const sample = shuffled(scored.pinned, seed).slice(0, Number(flags.get('sample') ?? 1000))
-  const fresh = await runJob<Recording>({ browser, mode: 'record', cases: sample, documentSize: RECORD_DOCUMENT, lib })
-  const stale = sample.filter(c => recordingText(fresh.results.get(c.id)!) !== recordingText(scored.recordings.get(c.id)!))
-  console.log(`${browser}: ${sample.length} cases recorded again (seed ${seed}): ${stale.length} differ from the recordings`)
-  if (stale.length > 0) {
-    blocked = true
-    console.log(`  BLOCKS: ${stale.slice(0, 10).map(c => c.id).join(' ')}`)
+  const attempts = [await job<Recording>(browser, 'record', sample, RECORD_DOCUMENT)]
+  const differ = sample.filter(c => recordingText(attempts[0]!.get(c.id)!) !== recordingText(scored.recordings.get(c.id)!))
+  if (differ.length > 0) {
+    attempts.push(await job<Recording>(browser, 'record', differ, ALONE))
+    attempts.push(await job<Recording>(browser, 'record', differ.slice().reverse(), ALONE))
   }
-  // Each new failure alone: recorded in a fresh document, then predicted in one.
+  const fresh = freshRecordings(sample.map(c => c.id), scored.recordings, attempts)
+  out.push(`  ${sample.length} cases recorded again (seed ${seed}): ${differ.length} differ from the recordings; ${fresh.history.length} of those laid out as recorded alone (page history the recordings missed, not blocking)${fresh.history.length > 0 ? `: ${show(fresh.history)}` : ''}`)
+  if (fresh.stale.length > 0) {
+    blocked = true
+    out.push(`  BLOCKS: ${fresh.stale.length} laid out differently from the recordings every time, alone too: ${show(fresh.stale)}`)
+  }
+  // Each new failure recorded alone, and predicted alone twice, each in a fresh document of its own.
   const failures = scored.newFailures.slice(0, ATTRIBUTE_AT_MOST)
-  if (scored.newFailures.length > ATTRIBUTE_AT_MOST) console.log(`${browser}: ${scored.newFailures.length} new failures; attributing the first ${ATTRIBUTE_AT_MOST} (more than that usually means the change is wrong)`)
+  if (scored.newFailures.length > ATTRIBUTE_AT_MOST) out.push(`  ${scored.newFailures.length} new failures; attributing the first ${ATTRIBUTE_AT_MOST} (more than that usually means the change is wrong)`)
   if (failures.length > 0) {
-    const alone = await runJob<Recording>({ browser, mode: 'record', cases: failures, documentSize: ALONE, lib })
-    const kept = failures.filter(c => recordingText(alone.results.get(c.id)!) === recordingText(scored.recordings.get(c.id)!))
-    const predictedAlone = await runJob<Prediction>({ browser, mode: 'predict', cases: kept, documentSize: ALONE, lib })
-    console.log(`${browser}: attribution of ${failures.length} new failures`)
+    const alone = await job<Recording>(browser, 'record', failures, ALONE)
+    const predicted = [await job<Prediction>(browser, 'predict', failures, ALONE), await job<Prediction>(browser, 'predict', failures, ALONE)] as const
+    out.push(`  attribution of ${failures.length} new failures (a prediction that moves may be the library's caches or the browser's Canvas state; the browser's go in harness/varying with a reason)`)
     for (let i = 0; i < failures.length; i++) {
       const c = failures[i]!
-      const verdict = !kept.includes(c) ? 'page history: laid out differently alone in a fresh document'
-        : predictionChange(predictedAlone.results.get(c.id)!, scored.predictions.get(c.id)!) === 'lines' ? 'depends on order: predicted differently alone (a library defect)'
-        : 'true loss'
-      console.log(`  ${verdict}  ${describe(c, scored.outcomes.get(c.id)!)}`)
+      const verdict = attribute(scored.recordings.get(c.id)!, alone.get(c.id)!, scored.predictions.get(c.id)!, [predicted[0].get(c.id)!, predicted[1].get(c.id)!])
+      out.push(`    ${verdict}  ${describe(c, scored.outcomes.get(c.id)!)}`)
     }
   }
+  console.log(`${browser} gate:\n${out.join('\n')}`)
   return blocked
 }
 
@@ -323,8 +355,8 @@ async function equal(browser: BrowserKind, cases: Case[], ref: string): Promise<
   for (let i = 0; i < list.length; i++) {
     const a = mine.results.get(list[i]!.id)!
     const b = theirs.results.get(list[i]!.id)!
-    if (!('error' in a)) callsMine += a.calls
-    if (!('error' in b)) callsTheirs += b.calls
+    if ('lines' in a) callsMine += a.prepareCalls + a.lineCalls
+    if ('lines' in b) callsTheirs += b.prepareCalls + b.lineCalls
   }
   console.log(`${browser}: ${differ.length} of ${list.length} predictions differ from ${ref} (${sha.slice(0, 10)}); measureText calls ${callsMine} here, ${callsTheirs} there`)
   for (let i = 0; i < differ.length && i < 20; i++) console.log(`  ${differ[i]!.id}  ${differ[i]!.family}`)
@@ -342,10 +374,11 @@ async function explain(browser: BrowserKind, cases: Case[], id: string): Promise
   const p = c.paragraph
   const text = caseText(c)
   console.log(`${id}  ${c.family}  ${browser}  width ${p.width}  ${p.runs.length} runs, first font ${p.runs[0]!.font.size}px ${p.runs[0]!.font.family}  ${p.whiteSpace} ${p.wordBreak} ${p.direction} lang ${p.lang}`)
-  if ('error' in prediction) {
-    console.log(`prediction error: ${prediction.error}`)
+  if (!('lines' in prediction)) {
+    console.log('unsupported' in prediction ? `unsupported: ${prediction.unsupported}` : `prediction error: ${prediction.error}`)
     return
   }
+  if (prediction.disagreement !== null) console.log(`another line API disagrees with the walk: ${prediction.disagreement}`)
   const outcome = observable(recording) ? score(recording, prediction) : { status: 'nothing visible', line: -1, detail: '' }
   console.log(`native ${recording.lines.length} lines, predicted ${prediction.lines.length}: ${outcome.status}${outcome.line >= 0 ? ` at line ${outcome.line}` : ''} ${outcome.detail}`)
   const show = (from: number, to: number): string => JSON.stringify(text.slice(from, to)).slice(1, -1)
@@ -370,7 +403,7 @@ async function explain(browser: BrowserKind, cases: Case[], id: string): Promise
 }
 
 async function main(): Promise<number> {
-  const cases = loadCases()
+  const cases = loadCases(flags.has('cases') ? [flags.get('cases')!] : CASE_FILES)
   switch (command) {
     case 'record':
       await Promise.all(browsers.map(b => record(b, cases)))
