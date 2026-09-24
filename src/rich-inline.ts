@@ -25,7 +25,7 @@ import {
   type PreparedLineBreakData,
   stepPreparedLineGeometry,
 } from './line-break.js'
-import { getDocumentLanguage, getEngineProfile, getFontMeasurementState, getSegmentMetrics } from './measurement.js'
+import { getDocumentLanguage, getEngineProfile, getFontMeasurement, getSegmentMetrics } from './measurement.js'
 
 // Helper for rich-text inline flow under `white-space: normal`.
 // It keeps the core layout API low-level while taking over the boring shared
@@ -158,8 +158,7 @@ function isBeforeCursor(cursor: LayoutCursor, target: LayoutCursor): boolean {
 }
 
 function getCollapsedSpaceWidth(font: string, letterSpacing: number, documentLanguage: string | null): number {
-  const { cache } = getFontMeasurementState(font, false, documentLanguage)
-  return getSegmentMetrics(' ', cache).width + letterSpacing
+  return getSegmentMetrics(' ', getFontMeasurement(font, documentLanguage).metrics).width + letterSpacing
 }
 
 function measureWholeItem(prepared: PreparedTextWithSegments): number | null {

@@ -25,9 +25,9 @@ import {
   getDocumentLanguage,
   getSegmentBreakableFitAdvances,
   getEngineProfile,
-  getFollowingSpaceMetricCache,
+  getEmojiCorrection,
   getFollowingSpaceMetrics,
-  getFontMeasurementState,
+  getFontMeasurement,
   getMeasureContext,
   getSegmentMetrics,
   textMayContainEmoji,
@@ -193,11 +193,9 @@ function measureAnalysis(
   engineProfile: EngineProfile,
   documentLanguage: string | null,
 ): InternalPreparedText | PreparedTextWithSegments {
-  const { cache, emojiCorrection } = getFontMeasurementState(
-    font,
-    textMayContainEmoji(analysis.normalized),
-    documentLanguage,
-  )
+  const fontMeasurement = getFontMeasurement(font, documentLanguage)
+  const cache = fontMeasurement.metrics
+  const emojiCorrection = textMayContainEmoji(analysis.normalized) ? getEmojiCorrection(font, fontMeasurement) : 0
   // The gap before the hyphen, plus the hyphen's own spacing where the engine
   // letter-spaces it.
   const discretionaryHyphenWidth =
@@ -241,18 +239,15 @@ function measureAnalysis(
   // Text directly before such a space is measured together with the space
   // instead of alone, so its kerned width costs no extra Canvas call. Other
   // occurrences of the same text measure it alone.
-  let followingSpaceCache: Map<string, SegmentMetrics> | null = null
   function getTextMetrics(text: string, followingSpaceTail: string | null): SegmentMetrics {
     if (followingSpaceTail !== '') return getSegmentMetrics(text, cache)
-    followingSpaceCache ??= getFollowingSpaceMetricCache(font)
-    return getFollowingSpaceMetrics(text, followingSpaceCache)
+    return getFollowingSpaceMetrics(text, fontMeasurement.followingSpaceMetrics)
   }
 
   // A zero-width break before the space ends the measured item, so only the
   // item's kerning with the space is added to the text's own width.
   function getTailKerning(item: string): number {
-    followingSpaceCache ??= getFollowingSpaceMetricCache(font)
-    return getFollowingSpaceMetrics(item, followingSpaceCache).width - getSegmentMetrics(item, cache).width - spaceWidth
+    return getFollowingSpaceMetrics(item, fontMeasurement.followingSpaceMetrics).width - getSegmentMetrics(item, cache).width - spaceWidth
   }
 
   // WebKit splits text items where resolved bidi levels change before it
@@ -585,7 +580,7 @@ function measureAnalysis(
   if (engineProfile.hanKerning && textMayHanKern(analysis.normalized)) {
     hanKerning = getHanKerningTrims(
       getMeasureContext(),
-      cache,
+      fontMeasurement,
       analysis.texts,
       i => kinds[i] === 'text',
       i => i === 0 ? -1 : analysis.normalized.charCodeAt(analysis.starts[i]! - 1),

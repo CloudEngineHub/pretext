@@ -1,6 +1,7 @@
 import { getSharedGraphemeSegmenter } from './analysis.js'
 import { canWebKitLineStartWith, getBlinkDefaultLocale } from './line-breaks.js'
 import type { SegmentEntryGeometry } from './entry-geometry.js'
+import type { HanKerningFontData } from './han-kerning.js'
 
 export type SegmentMetrics = {
   width: number
@@ -98,10 +99,17 @@ let measureContext: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
 // font while its font string is unchanged, so the context, and every width
 // measured through it, belong to the language it was created under.
 let measureContextLanguage: string | null = null
-const segmentMetricCaches = new Map<string, Map<string, SegmentMetrics>>()
-// Per font, metrics of a text item measured together with one following
-// U+0020, keyed by the item alone. The width includes that space.
-const followingSpaceMetricCaches = new Map<string, Map<string, SegmentMetrics>>()
+// What preparation keeps per font. It all goes together, when the caches clear or the
+// page language changes.
+export type FontMeasurement = {
+  metrics: Map<string, SegmentMetrics>
+  // Metrics of a text item measured together with one following U+0020, keyed by
+  // the item alone. The width includes that space.
+  followingSpaceMetrics: Map<string, SegmentMetrics>
+  emojiCorrection: number | null // Probed for the first text that may hold emoji
+  hanKerning: HanKerningFontData | null | undefined // Read for the first text that may kern
+}
+const fontMeasurements = new Map<string, FontMeasurement>()
 let cachedEngineProfile: EngineProfile | null = null
 
 // Safari's prefix-fit policy is useful for ordinary word-sized runs, but letting
@@ -115,7 +123,6 @@ const MAX_PREFIX_FIT_GRAPHEMES = 96
 // keycap base like `1`. U+FE0F after a letter or a space changes nothing.
 const emojiGraphemeRe = /\p{Emoji_Presentation}|\p{Emoji}\uFE0F/u
 const maybeEmojiRe = /[\p{Emoji_Presentation}\p{Extended_Pictographic}\p{Regional_Indicator}\uFE0F\u20E3]/u
-const emojiCorrectionCache = new Map<string, number>()
 
 // Preparation reads the page language once and shares it between break rules
 // and the measurement context.
@@ -164,24 +171,6 @@ export function createEntryMeasurement(letterSpacing: number, emojiCorrection: n
       primary.letterSpacing = previous
     }
   }
-}
-
-export function getSegmentMetricCache(font: string): Map<string, SegmentMetrics> {
-  let cache = segmentMetricCaches.get(font)
-  if (!cache) {
-    cache = new Map()
-    segmentMetricCaches.set(font, cache)
-  }
-  return cache
-}
-
-export function getFollowingSpaceMetricCache(font: string): Map<string, SegmentMetrics> {
-  let cache = followingSpaceMetricCaches.get(font)
-  if (!cache) {
-    cache = new Map()
-    followingSpaceMetricCaches.set(font, cache)
-  }
-  return cache
 }
 
 // Metrics of seg measured together with one following U+0020.
@@ -270,9 +259,9 @@ export function textMayContainEmoji(text: string): boolean {
   return maybeEmojiRe.test(text)
 }
 
-function getEmojiCorrection(font: string): number {
-  let correction = emojiCorrectionCache.get(font)
-  if (correction !== undefined) return correction
+export function getEmojiCorrection(font: string, measurement: FontMeasurement): number {
+  let correction = measurement.emojiCorrection
+  if (correction !== null) return correction
 
   const fontSize = parseFontSize(font)
   const ctx = getMeasureContext()
@@ -297,7 +286,7 @@ function getEmojiCorrection(font: string): number {
       correction = canvasW - domW
     }
   }
-  emojiCorrectionCache.set(font, correction)
+  measurement.emojiCorrection = correction
   return correction
 }
 
@@ -423,10 +412,7 @@ function addFollowingSpaceKerning(
   advances[last] = advances[last]! + followingSpaceMetrics.width - getSegmentMetrics(seg, cache).width - followingSpaceWidth
 }
 
-export function getFontMeasurementState(font: string, needsEmojiCorrection: boolean, documentLanguage: string | null): {
-  cache: Map<string, SegmentMetrics>
-  emojiCorrection: number
-} {
+export function getFontMeasurement(font: string, documentLanguage: string | null): FontMeasurement {
   // Preparation starts here, with the page language it read. After that language
   // changes, start again with a new context and empty caches; clearing the caches
   // alone would re-measure with fonts resolved under the old language.
@@ -436,13 +422,14 @@ export function getFontMeasurementState(font: string, needsEmojiCorrection: bool
   }
   const ctx = measureContext ?? createMeasureContext(documentLanguage)
   ctx.font = font
-  const cache = getSegmentMetricCache(font)
-  const emojiCorrection = needsEmojiCorrection ? getEmojiCorrection(font) : 0
-  return { cache, emojiCorrection }
+  let measurement = fontMeasurements.get(font)
+  if (measurement === undefined) {
+    measurement = { metrics: new Map(), followingSpaceMetrics: new Map(), emojiCorrection: null, hanKerning: undefined }
+    fontMeasurements.set(font, measurement)
+  }
+  return measurement
 }
 
 export function clearMeasurementCaches(): void {
-  segmentMetricCaches.clear()
-  followingSpaceMetricCaches.clear()
-  emojiCorrectionCache.clear()
+  fontMeasurements.clear()
 }
