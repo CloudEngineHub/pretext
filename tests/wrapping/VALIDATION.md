@@ -262,6 +262,20 @@ and V8, neither commit moves `prepare()` or `layout()` beyond the spread between
 runs, up to 14% on unchanged code, except that `layout()` of text with NBSP runs between spaces takes 0.16 to
 0.23 of the time, as it now takes the simple walkers.
 
+The Gecko scan no longer splits text runs where the script changes, as Firefox's
+script itemizer does, which removes 189 runtime lines, Firefox's Script data and two
+engine files. Under the Gecko profile no suite or corpus text changes: over 79,412
+inputs at many widths, `prepareWithSegments()` output and every line API differ only
+on 70 of the emulation study's generated inputs, and the harness's predictions on 499,422
+inputs, rich inline on 17,681 and the scans on 23,193 don't differ, with the same
+Canvas calls warm and cold. Of the study's 19,893 fuzz strings, 48 analyze
+differently, and installed Firefox 156 sides with the splits on them. At the 1,106
+widths where their lines differ, in 16px Arial, 20px Times New Roman and 15px
+Helvetica, every visible character is on Firefox's line only with the splits in 556
+cases and only without them in 12, with both in 35 and with neither in 503, and the
+line count is right only with them in 370 and only without them in 58. Of the 33
+strings whose lines move, 22 side with the splits, 6 mostly, and 5 with neither.
+
 The baseline advances to `f4374a3`, and the ordinary snapshots were regenerated
 against it in Chrome 153, Safari 27.0 and Firefox 156, with no regressions,
 required failures or execution errors. Accuracy stays 7,680 of 7,680 in each
