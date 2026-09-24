@@ -21,10 +21,8 @@ import {
   type EngineProfile,
   clearMeasurementCaches,
   createEntryMeasurement,
-  entryMeasurementProfilesMatch,
   getCorrectedSegmentWidth,
   getDocumentLanguage,
-  getEntryMeasurementProfile,
   getSegmentBreakableFitAdvances,
   getEngineProfile,
   getFollowingSpaceMetricCache,
@@ -325,14 +323,9 @@ function measureAnalysis(
   // 222-233), by its scan's line-start table. Blink and Gecko end the line after the
   // first grapheme.
   const keepsLineStartPunctuation = engineProfile.lineBreakScan === 'webkit' && /[\u0100-\uFFFF]/.test(analysis.source)
-  let entryProfile: ReturnType<typeof getEntryMeasurementProfile> | undefined
   let measureEntry: ReturnType<typeof createEntryMeasurement> | undefined
-  const getEntryProfile = () => {
-    if (entryProfile === undefined) entryProfile = getEntryMeasurementProfile()
-    return entryProfile
-  }
   const getEntryMeasurement = () => {
-    if (measureEntry === undefined) measureEntry = createEntryMeasurement(letterSpacing, emojiCorrection, getEntryProfile())
+    if (measureEntry === undefined) measureEntry = createEntryMeasurement(letterSpacing, emojiCorrection)
     return measureEntry
   }
   const spacingGraphemeCounts: number[] = []
@@ -372,26 +365,19 @@ function measureAnalysis(
     width: number,
     fitBasis: 'fresh' | 'original',
   ): SegmentEntryGeometry | null {
+    // The cache owner fixes the text and font, and Pretext sets no other context state.
     const cached = metrics.entryGeometry
     if (cached !== undefined && cached.letterSpacing === letterSpacing &&
-      cached.advances === advances && cached.emojiCorrection === emojiCorrection) {
-      const profile = getEntryProfile()
-      if (profile === null) return null
-      if (entryMeasurementProfilesMatch(cached.profile, profile)) return cached.geometry
-    }
+      cached.advances === advances && cached.emojiCorrection === emojiCorrection) return cached.geometry
     let complete = true
     const geometry = observeSegmentEntries(text, advances, letterSpacing, width, fitBasis, source => {
-      const measurement = getEntryMeasurement()
-      const measured = measurement === null ? null : measurement.measure(source)
+      const measure = getEntryMeasurement()
+      const measured = measure === null ? null : measure(source)
       if (measured === null) complete = false
       return measured
     })
-    // The cache owner fixes the text/font, and the engine's basis is fixed.
     // Replacing this last successful observation leaves prepared copies intact.
-    if (geometry !== null && complete) {
-      metrics.entryGeometry = { letterSpacing, advances, emojiCorrection,
-        profile: getEntryMeasurement()!.profile, geometry }
-    }
+    if (geometry !== null && complete) metrics.entryGeometry = { letterSpacing, advances, emojiCorrection, geometry }
     return geometry
   }
 
