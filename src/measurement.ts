@@ -249,10 +249,6 @@ export function parseFontSize(font: string): number {
   return m ? parseFloat(m[1]!) : 16
 }
 
-function isEmojiGrapheme(g: string): boolean {
-  return emojiGraphemeRe.test(g)
-}
-
 export function textMayContainEmoji(text: string): boolean {
   return maybeEmojiRe.test(text)
 }
@@ -292,7 +288,7 @@ function countEmojiGraphemes(text: string): number {
   let count = 0
   const graphemeSegmenter = getSharedGraphemeSegmenter()
   for (const g of graphemeSegmenter.segment(text)) {
-    if (isEmojiGrapheme(g.segment)) count++
+    if (emojiGraphemeRe.test(g.segment)) count++
   }
   return count
 }
