@@ -35,7 +35,7 @@ import {
   geckoScriptTrieIndexPacked,
 } from './generated/engine-break-data.js'
 import { getBidiPairs, getParagraphLevels } from './gecko-bidi-levels.js'
-import { getSmallTrieValue, unpackTable, unpackUint32Table } from './line-breaks.js'
+import { getBreakLanguage, getSmallTrieValue, unpackTable, unpackUint32Table } from './line-breaks.js'
 
 const CH_SHY = 0x00ad
 
@@ -208,12 +208,10 @@ export function isSpaceCombiningSequenceTail(text: string, from: number): boolea
   return false
 }
 
-// aLangIsJapaneseOrChinese, nsTextFrameUtils.cpp:273-285
+// aLangIsJapaneseOrChinese, nsTextFrameUtils.cpp:273-285, which takes only `-` after the subtag.
 export function isJapaneseOrChinese(language: string | null): boolean {
-  if (language === null || language.length < 2 || (language.length > 2 && language.charCodeAt(2) !== 0x2d)) return false
-  const first = language.charCodeAt(0) | 0x20
-  const second = language.charCodeAt(1) | 0x20
-  return (first === 0x6a && second === 0x61) || (first === 0x7a && second === 0x68)
+  const breakLanguage = getBreakLanguage(language)
+  return (breakLanguage === 'ja' || breakLanguage === 'zh') && language!.charCodeAt(2) !== 0x5f
 }
 
 // Gecko's East Asian test for the white-space run [start, end) (TransformWhiteSpaces,
@@ -239,7 +237,7 @@ export function isEastAsianSegmentBreak(text: string, start: number, end: number
     (japaneseOrChinese && (isEastAsianPunctuation(before) || isEastAsianPunctuation(after)))
 }
 
-function transformText(input: string, raw: Uint16Array, is8bit: boolean, preserveWhiteSpace: boolean, japaneseOrChinese: boolean): Transformed {
+function transformText(input: string, raw: Uint16Array, is8bit: boolean, preserveWhiteSpace: boolean): Transformed {
   const len = raw.length
   const units = new Uint16Array(len)
   const orig = new Int32Array(len)
@@ -275,26 +273,18 @@ function transformText(input: string, raw: Uint16Array, is8bit: boolean, preserv
   } else {
     // COMPRESS_WHITESPACE_NEWLINE, :272-387
     let inWhitespace = false
-    // TransformWhiteSpaces, :84-209
+    // TransformWhiteSpaces, :84-209. The runs it deletes whole, next to a ZWSP or between East
+    // Asian characters (:120-150), are gone already (removeSkippableSegmentBreaks in
+    // src/analysis.ts), so a run keeps one space.
     const transformWhiteSpaces = (begin: number, end: number, hasSegmentBreak: boolean) => {
-      let segmentBreakSkippable = false
-      if (!is8bit) {
-        segmentBreakSkippable = (begin > 0 && raw[begin - 1] === 0x200b) || (end < len && raw[end] === 0x200b) ||
-          isEastAsianSegmentBreak(input, begin, end, japaneseOrChinese)
-      }
       for (let i = begin; i < end; i++) {
         const ch = raw[i]!
         if (isDiscardable(ch, is8bit)) { skipped[i] = 1; continue }
-        if (isSpaceOrTab(ch)) {
-          if (hasSegmentBreak || inWhitespace) { skipped[i] = 1; continue } // :152-162
-          keep(i, 0x20)
-          inWhitespace = true
-        } else {
-          if (segmentBreakSkippable || inWhitespace) { skipped[i] = 1; continue } // :181-193
-          segmentBreakSkippable = true
-          keep(i, 0x20)
-          inWhitespace = true
-        }
+        // A space or tab in a run with a segment break goes (:152-162), and the run's first
+        // segment break stays as a space (:181-193).
+        if (inWhitespace || (hasSegmentBreak && isSpaceOrTab(ch))) { skipped[i] = 1; continue }
+        keep(i, 0x20)
+        inWhitespace = true
       }
     }
     let i = 0
@@ -927,7 +917,8 @@ function getBreakStates(text: string, units: Uint16Array, is8bit: boolean, after
   return state
 }
 
-// Where a line may start in a text node's source: flags[i] = 1 for 0 < i < source.length, at a
+// Where a line may start in a text node's source, after the segment break transformation that
+// removeSkippableSegmentBreaks applies: flags[i] = 1 for 0 < i < source.length, at a
 // normal break (FLAG_BREAK_TYPE_NORMAL) or after a soft hyphen. gfxTextRun::SetPotentialLineBreaks
 // (gfxTextRun.cpp:210-236) keeps a break only at a cluster start or after a space. flags[i] = 3 at a
 // normal break right after a soft hyphen: BreakAndMeasureText takes it as
@@ -937,7 +928,6 @@ export function getGeckoLineBreaks(
   source: string,
   preserveWhiteSpace: boolean,
   keepAll: boolean,
-  language: string | null,
   graphemeSegmenter: Intl.Segmenter,
   wordSegmenter: Intl.Segmenter,
 ): Uint8Array {
@@ -952,7 +942,7 @@ export function getGeckoLineBreaks(
     if (u >= 0x100) is8bit = false
   }
   // CharacterDataBuffer::SetTo stores 1b text when every unit is below 256 (CharacterDataBuffer.cpp:235-286).
-  const tr = transformText(source, raw, is8bit, preserveWhiteSpace, isJapaneseOrChinese(language))
+  const tr = transformText(source, raw, is8bit, preserveWhiteSpace)
   const n = tr.units.length
   if (n === 0) return flags
 

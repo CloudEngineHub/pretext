@@ -1,5 +1,5 @@
 import { getGeckoLineBreaks, isDiscardable, isEastAsianSegmentBreak, isJapaneseOrChinese, isSpaceCombiningSequenceTail } from './gecko-line-breaks.js'
-import { canWebKitLineStartWith, getBlinkLineBreaks, getWebKitLineBreaks } from './line-breaks.js'
+import { getBlinkLineBreaks, getWebKitLineBreaks } from './line-breaks.js'
 
 export type WhiteSpaceMode = 'normal' | 'pre-wrap'
 export type WordBreakMode = 'normal' | 'keep-all'
@@ -23,7 +23,6 @@ export type SegmentBreakKind =
 // `clusterSplits` is false for a segment the engine's clusters don't split, which no
 // emergency break splits either. Null where the scan has no clusters of its own.
 export type Segmentation = {
-  len: number
   texts: string[]
   kinds: SegmentBreakKind[]
   starts: number[]
@@ -31,11 +30,12 @@ export type Segmentation = {
   clusterSplits: boolean[] | null
 }
 
-export type TextAnalysis = { source: string; normalized: string } & Segmentation
+// `spaceSources` holds, in the WebKit profile where normal white space collapsed, the source
+// unit each normalized unit starts from, such as the TAB or LF a space came from. Null otherwise.
+export type TextAnalysis = { source: string; normalized: string; spaceSources: Uint16Array | null } & Segmentation
 
 export type AnalysisProfile = {
   lineBreakScan: 'blink' | 'webkit' | 'gecko'
-  breakOnlyAfterNextLine: boolean
 }
 
 const collapsibleWhitespaceRunRe = /[ \t\n\r\f]+/g
@@ -98,10 +98,12 @@ export function removeSkippableSegmentBreaks(text: string, profile: AnalysisProf
 // Every East Asian wide, fullwidth or halfwidth character is at or above U+1100.
 const maybeEastAsianRe = /[\u1100-\uFFFF]/
 
-export function normalizeWhitespaceNormal(text: string, profile: AnalysisProfile, language: string | null = null): string {
+// Normal white space after the segment break transformation: each run of SPACE, TAB, LF,
+// CR and FF becomes one space, or nothing at either end.
+function collapseWhitespaceNormal(text: string): string {
   if (!needsWhitespaceNormalizationRe.test(text)) return text
 
-  let normalized = removeSkippableSegmentBreaks(text, profile, language).replace(collapsibleWhitespaceRunRe, ' ')
+  let normalized = text.replace(collapsibleWhitespaceRunRe, ' ')
   if (normalized.charCodeAt(0) === 0x20) {
     normalized = normalized.slice(1)
   }
@@ -127,12 +129,13 @@ export function getSharedGraphemeSegmenter(): Intl.Segmenter {
   return sharedGraphemeSegmenter
 }
 
+// The scans read word boundaries only inside runs of Thai, Lao, Khmer and Myanmar
+// letters, where no locale changes them.
 let sharedWordSegmenter: Intl.Segmenter | null = null
-let segmenterLocale: string | undefined
 
 export function getSharedWordSegmenter(): Intl.Segmenter {
   if (sharedWordSegmenter === null) {
-    sharedWordSegmenter = new Intl.Segmenter(segmenterLocale, { granularity: 'word' })
+    sharedWordSegmenter = new Intl.Segmenter(undefined, { granularity: 'word' })
   }
   return sharedWordSegmenter
 }
@@ -142,16 +145,9 @@ export function clearAnalysisCaches(): void {
   sharedWordSegmenter = null
 }
 
-export function setAnalysisLocale(locale?: string): void {
-  const nextLocale = locale && locale.length > 0 ? locale : undefined
-  if (segmenterLocale === nextLocale) return
-  segmenterLocale = nextLocale
-  sharedWordSegmenter = null
-}
-
 const combiningMarkRe = /\p{M}/u
 
-function classifySegmentBreakCode(code: number, whiteSpace: WhiteSpaceMode, breakOnlyAfterNextLine: boolean): SegmentBreakKind {
+function classifySegmentBreakCode(code: number, whiteSpace: WhiteSpaceMode, scan: AnalysisProfile['lineBreakScan']): SegmentBreakKind {
   if (whiteSpace === 'pre-wrap') {
     if (code === 0x20) return 'preserved-space'
     if (code === 0x09) return 'tab'
@@ -163,35 +159,20 @@ function classifySegmentBreakCode(code: number, whiteSpace: WhiteSpaceMode, brea
   }
   if (code === 0x200B) return 'zero-width-break'
   if (code === 0x00AD) return 'soft-hyphen'
-  // UAX #14 NL: visible content with a break after it and none before it.
-  if (code === 0x0085 && breakOnlyAfterNextLine) return 'control'
+  // NEL (UAX #14 NL) offers a break after itself and no ordinary break before it (LB5, LB6),
+  // as the scans find. The WebKit profile gives NEL its own control segment for letter
+  // spacing: WebKit's simple text path gives NEL no letter spacing, at either sign, and its
+  // complex path spaces it. A NEL control segment takes spacing after text in WebKit's
+  // complex ranges, or before such text that starts with a combining mark. Preparation
+  // cannot see the page direction, so after complex text whose direction differs from the
+  // page's it keeps spacing Safari omits. Blink spaces NEL outside cursive runs, and release
+  // Gecko draws NEL with no advance while its Canvas measures a space, so both keep NEL as
+  // ordinary text.
+  if (code === 0x0085 && scan === 'webkit') return 'control'
   return 'text'
 }
 
-// Decimal digits and the joiners of numbers, times and dates.
-const numericRunRe = /^[\p{Nd}:\-/×,.+\u2013\u2014]+$/u
-
-export function isNumericRunSegment(text: string): boolean {
-  return numericRunRe.test(text)
-}
-
-// The graphemes after the first that WebKit doesn't start a line with when a line
-// holds only an overflowing first character, by their first code unit, as ascending
-// grapheme indices. Null without any.
-export function getLineStartProhibitions(text: string): number[] | null {
-  let any = false
-  for (let i = 1; i < text.length && !any; i++) any = !canWebKitLineStartWith(text.charCodeAt(i))
-  if (!any) return null
-  const prohibitions: number[] = []
-  let graphemeIndex = 0
-  for (const gs of getSharedGraphemeSegmenter().segment(text)) {
-    if (graphemeIndex > 0 && !canWebKitLineStartWith(gs.segment.charCodeAt(0))) prohibitions.push(graphemeIndex)
-    graphemeIndex++
-  }
-  return prohibitions.length === 0 ? null : prohibitions
-}
-
-function isCollapsibleSpaceCode(code: number): boolean {
+export function isCollapsibleSpaceCode(code: number): boolean {
   return code === 0x20 || code === 0x09 || code === 0x0A || code === 0x0D || code === 0x0C
 }
 
@@ -202,7 +183,8 @@ function isCollapsibleSpaceCode(code: number): boolean {
 // space, follows white space, so it is a break after what the run became. A 2 goes with
 // its unit: Gecko's cluster start without a break, which only a unit that stays text
 // reads, and WebKit's forced break after a separator, which keeps its 2 at the end too.
-function mapSourceLineBreaks(source: string, normalizedLength: number, sourceBreaks: Uint8Array, whiteSpace: WhiteSpaceMode): Uint8Array {
+// Fills spaceSources, when given, in normal white space.
+function mapSourceLineBreaks(source: string, normalizedLength: number, sourceBreaks: Uint8Array, whiteSpace: WhiteSpaceMode, spaceSources: Uint16Array | null): Uint8Array {
   const breaks = new Uint8Array(normalizedLength + 1)
   let normalizedIndex = 0
   if (whiteSpace === 'pre-wrap') {
@@ -225,6 +207,7 @@ function mapSourceLineBreaks(source: string, normalizedLength: number, sourceBre
       if (end === source.length) break
     }
     if (sourceBreaks[i] === 2 && breaks[normalizedIndex] === 0) breaks[normalizedIndex] = 2
+    if (spaceSources !== null) spaceSources[normalizedIndex] = source.charCodeAt(i)
     const start = i
     for (; i < end; i++) {
       if ((sourceBreaks[i]! & 1) === 1) breaks[i === start ? normalizedIndex : normalizedIndex + 1] = sourceBreaks[i]!
@@ -260,7 +243,7 @@ function isControlSegmentCode(code: number): boolean {
 // Combining marks right after it, or after a control, stay apart from the text after
 // them, since they shape on the grapheme before it (measureAnalysis). Where the Gecko
 // scan marks cluster starts (2), a segment records whether one falls inside it.
-function segmentAtLineBreaks(normalized: string, breaks: Uint8Array, whiteSpace: WhiteSpaceMode, breakOnlyAfterNextLine: boolean, scan: AnalysisProfile['lineBreakScan']): Segmentation {
+function segmentAtLineBreaks(normalized: string, breaks: Uint8Array, whiteSpace: WhiteSpaceMode, scan: AnalysisProfile['lineBreakScan']): Segmentation {
   // A break is an odd value. The WebKit scan's 2 after U+2028 or U+2029 makes the separator a hard
   // break in every white-space mode, and the Gecko scan's 3 after a soft hyphen makes it a zero-width
   // break: the line can end there without a hyphen. One with only soft hyphens before it on its
@@ -275,7 +258,7 @@ function segmentAtLineBreaks(normalized: string, breaks: Uint8Array, whiteSpace:
     ? 'hard-break'
     : scan === 'gecko' && breaks[i + 1] === 3 && code === 0x00AD && followsChunkContent(i)
       ? 'zero-width-break'
-      : classifySegmentBreakCode(code, whiteSpace, breakOnlyAfterNextLine)
+      : classifySegmentBreakCode(code, whiteSpace, scan)
   const starts = [0]
   const kinds = [classify(normalized.charCodeAt(0), 0)]
   const clusterSplits = scan === 'gecko' ? [false] : null
@@ -317,7 +300,7 @@ function segmentAtLineBreaks(normalized: string, breaks: Uint8Array, whiteSpace:
   }
   const texts: string[] = []
   for (let j = 0; j < len; j++) texts.push(normalized.slice(starts[j]!, j + 1 < len ? starts[j + 1]! : normalized.length))
-  return { len, texts, kinds, starts, breaksBefore, clusterSplits }
+  return { texts, kinds, starts, breaksBefore, clusterSplits }
 }
 
 export function analyzeText(
@@ -329,14 +312,15 @@ export function analyzeText(
   // quotation remap and Gecko's rule for newlines next to East Asian punctuation.
   language: string | null = null,
 ): TextAnalysis {
-  const normalized = whiteSpace === 'pre-wrap'
-    ? normalizeWhitespacePreWrap(text)
-    : normalizeWhitespaceNormal(text, profile, language)
+  const preserve = whiteSpace === 'pre-wrap'
+  // The source a text node's engine scans, after the segment break transformation.
+  const source = preserve ? text : removeSkippableSegmentBreaks(text, profile, language)
+  const normalized = preserve ? normalizeWhitespacePreWrap(text) : collapseWhitespaceNormal(source)
   if (normalized.length === 0) {
     return {
       source: text,
       normalized,
-      len: 0,
+      spaceSources: null,
       texts: [],
       kinds: [],
       starts: [],
@@ -346,22 +330,21 @@ export function analyzeText(
   }
   const keepAll = wordBreak === 'keep-all'
   let breaks: Uint8Array
+  let spaceSources: Uint16Array | null = null
   if (profile.lineBreakScan === 'blink') {
     breaks = getBlinkLineBreaks(normalized, keepAll, language, getSharedWordSegmenter())
   } else {
-    // WebKit and Gecko scan a text node's source. Gecko's scan transforms its white space
-    // as Firefox does, which removes the segment breaks next to a ZWSP that normalization
-    // removed first.
-    const preserve = whiteSpace === 'pre-wrap'
-    const source = preserve ? text : removeSkippableSegmentBreaks(text, profile, language)
+    // WebKit and Gecko scan the source. Gecko's scan collapses its white space as Firefox does.
     const sourceBreaks = profile.lineBreakScan === 'webkit'
       ? getWebKitLineBreaks(source, preserve, keepAll, language, getSharedWordSegmenter())
-      : getGeckoLineBreaks(source, preserve, keepAll, language, getSharedGraphemeSegmenter(), getSharedWordSegmenter())
-    breaks = source === normalized ? sourceBreaks : mapSourceLineBreaks(source, normalized.length, sourceBreaks, whiteSpace)
+      : getGeckoLineBreaks(source, preserve, keepAll, getSharedGraphemeSegmenter(), getSharedWordSegmenter())
+    if (profile.lineBreakScan === 'webkit' && !preserve && source !== normalized) spaceSources = new Uint16Array(normalized.length)
+    breaks = source === normalized ? sourceBreaks : mapSourceLineBreaks(source, normalized.length, sourceBreaks, whiteSpace, spaceSources)
   }
   return {
     source: text,
     normalized,
-    ...segmentAtLineBreaks(normalized, breaks, whiteSpace, profile.breakOnlyAfterNextLine, profile.lineBreakScan),
+    spaceSources,
+    ...segmentAtLineBreaks(normalized, breaks, whiteSpace, profile.lineBreakScan),
   }
 }

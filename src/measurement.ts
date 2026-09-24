@@ -1,25 +1,21 @@
 import { getSharedGraphemeSegmenter } from './analysis.js'
-import { getBlinkDefaultLocale } from './line-breaks.js'
+import { canWebKitLineStartWith, getBlinkDefaultLocale } from './line-breaks.js'
 import type { SegmentEntryGeometry } from './entry-geometry.js'
-
-type EntryMeasurement = {
-  profile: readonly (string | null)[]
-  measure: (text: string) => number | null
-}
-
-const entryContextProperties = ['font', 'direction', 'fontKerning', 'fontStretch', 'fontVariantCaps', 'textRendering', 'wordSpacing', 'lang'] as const
+import type { HanKerningFontData } from './han-kerning.js'
 
 export type SegmentMetrics = {
   width: number
   emojiCount?: number
   breakableFitMode?: BreakableFitMode
   breakableFitAdvances?: number[] | null
+  // With breakable fit advances in the WebKit profile, the graphemes after the first that
+  // WebKit doesn't start a line with when a line holds only an overflowing first character,
+  // by their first code unit, as ascending grapheme indices. Null without any.
   lineStartProhibitions?: number[] | null
   entryGeometry?: {
     letterSpacing: number
     advances: readonly number[]
     emojiCorrection: number
-    profile: EntryMeasurement['profile']
     geometry: SegmentEntryGeometry
   }
 }
@@ -63,17 +59,6 @@ export type EngineProfile = {
   // invisibles and from marks after a soft hyphen, which isolated widths do not
   // show. It keeps the overflowing hyphen.
   unfitHyphenRetreat: 'reduced-width' | 'full-width' | 'none'
-  // NEL (U+0085, UAX #14 NL) offers a break after itself and no ordinary break
-  // before it (LB5, LB6), as the scans find. The WebKit profile gives NEL its own
-  // control segment for letter spacing: WebKit's simple text path gives NEL no
-  // letter spacing, at either sign, and its complex path spaces it. A NEL control
-  // segment takes spacing after text or glue in WebKit's complex ranges, or before
-  // such text that starts with a combining mark. Preparation cannot see the page
-  // direction, so after complex text whose direction differs from the page's it
-  // keeps spacing Safari omits. Blink spaces NEL outside cursive runs, and release
-  // Gecko draws NEL with no advance while its Canvas measures a space, so both keep
-  // NEL as ordinary text.
-  breakOnlyAfterNextLine: boolean
   // WebKit moves a tab to the following stop when less than half a space would
   // remain before the next one (FontCascade::tabWidth).
   skipNarrowTabStops: boolean
@@ -114,10 +99,17 @@ let measureContext: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
 // font while its font string is unchanged, so the context, and every width
 // measured through it, belong to the language it was created under.
 let measureContextLanguage: string | null = null
-const segmentMetricCaches = new Map<string, Map<string, SegmentMetrics>>()
-// Per font, metrics of a text item measured together with one following
-// U+0020, keyed by the item alone. The width includes that space.
-const followingSpaceMetricCaches = new Map<string, Map<string, SegmentMetrics>>()
+// What preparation keeps per font. It all goes together, when the caches clear or the
+// page language changes.
+export type FontMeasurement = {
+  metrics: Map<string, SegmentMetrics>
+  // Metrics of a text item measured together with one following U+0020, keyed by
+  // the item alone. The width includes that space.
+  followingSpaceMetrics: Map<string, SegmentMetrics>
+  emojiCorrection: number | null // Probed for the first text that may hold emoji
+  hanKerning: HanKerningFontData | null | undefined // Read for the first text that may kern
+}
+const fontMeasurements = new Map<string, FontMeasurement>()
 let cachedEngineProfile: EngineProfile | null = null
 
 // Safari's prefix-fit policy is useful for ordinary word-sized runs, but letting
@@ -131,7 +123,6 @@ const MAX_PREFIX_FIT_GRAPHEMES = 96
 // keycap base like `1`. U+FE0F after a letter or a space changes nothing.
 const emojiGraphemeRe = /\p{Emoji_Presentation}|\p{Emoji}\uFE0F/u
 const maybeEmojiRe = /[\p{Emoji_Presentation}\p{Extended_Pictographic}\p{Regional_Indicator}\uFE0F\u20E3]/u
-const emojiCorrectionCache = new Map<string, number>()
 
 // Preparation reads the page language once and shares it between break rules
 // and the measurement context.
@@ -161,69 +152,23 @@ function createMeasureContext(language: string | null): CanvasRenderingContext2D
   return measureContext
 }
 
-export function getEntryMeasurementProfile(): EntryMeasurement['profile'] | null {
-  const original = getMeasureContext()
-  if (!('letterSpacing' in original)) return null
-  const source = original as unknown as Record<string, unknown>
-  const profile: (string | null)[] = []
-  for (const property of entryContextProperties) {
-    if (!(property in original)) { profile.push(null); continue }
-    const value = source[property]
-    if (typeof value !== 'string') return null
-    profile.push(value)
-  }
-  return profile
-}
-
-// Borrow the primary context only for each synchronous direct measurement.
-// These observations never enter the unspaced segment cache, and letterSpacing
-// is restored even when assignment or measurement fails.
-export function createEntryMeasurement(
-  letterSpacing: number,
-  emojiCorrection: number,
-  profile: EntryMeasurement['profile'] | null = getEntryMeasurementProfile(),
-): EntryMeasurement | null {
-  if (profile === null || !Number.isFinite(letterSpacing)) return null
+// A direct measurement under letter spacing, borrowing the primary context for
+// the synchronous call. It never enters the unspaced segment cache, and
+// letterSpacing is restored even when assignment or measurement fails. Null
+// where the context can't take the spacing.
+export function measureWithLetterSpacing(text: string, letterSpacing: number, emojiCorrection: number): number | null {
   const primary = getMeasureContext()
   if (!('letterSpacing' in primary)) return null
-  return {
-    profile,
-    measure: text => {
-      const previous = primary.letterSpacing
-      if (typeof previous !== 'string') return null
-      try {
-        primary.letterSpacing = `${letterSpacing}px`
-        if (Number.parseFloat(primary.letterSpacing) !== letterSpacing) return null
-        const width = getCorrectedSegmentWidth(text, { width: primary.measureText(text).width }, emojiCorrection)
-        return Number.isFinite(width) ? width : null
-      } finally {
-        primary.letterSpacing = previous
-      }
-    },
+  const previous = primary.letterSpacing
+  if (typeof previous !== 'string') return null
+  try {
+    primary.letterSpacing = `${letterSpacing}px`
+    if (Number.parseFloat(primary.letterSpacing) !== letterSpacing) return null
+    const width = getCorrectedSegmentWidth(text, { width: primary.measureText(text).width }, emojiCorrection)
+    return Number.isFinite(width) ? width : null
+  } finally {
+    primary.letterSpacing = previous
   }
-}
-
-export function entryMeasurementProfilesMatch(a: EntryMeasurement['profile'], b: EntryMeasurement['profile']): boolean {
-  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
-  return true
-}
-
-export function getSegmentMetricCache(font: string): Map<string, SegmentMetrics> {
-  let cache = segmentMetricCaches.get(font)
-  if (!cache) {
-    cache = new Map()
-    segmentMetricCaches.set(font, cache)
-  }
-  return cache
-}
-
-export function getFollowingSpaceMetricCache(font: string): Map<string, SegmentMetrics> {
-  let cache = followingSpaceMetricCaches.get(font)
-  if (!cache) {
-    cache = new Map()
-    followingSpaceMetricCaches.set(font, cache)
-  }
-  return cache
 }
 
 // Metrics of seg measured together with one following U+0020.
@@ -286,7 +231,6 @@ export function getEngineProfile(): EngineProfile {
     letterSpaceDiscretionaryHyphen: engine !== 'blink',
     shapesMarksAcrossSoftHyphen: engine !== 'webkit' && engine !== 'gecko',
     unfitHyphenRetreat: engine === 'blink' ? 'reduced-width' : engine === 'gecko' ? 'full-width' : 'none',
-    breakOnlyAfterNextLine: engine === 'webkit',
     skipNarrowTabStops: engine === 'webkit',
     hangTabs: engine !== 'gecko',
     zeroWidthGlueTakesLine: engine !== 'gecko',
@@ -305,17 +249,13 @@ export function parseFontSize(font: string): number {
   return m ? parseFloat(m[1]!) : 16
 }
 
-function isEmojiGrapheme(g: string): boolean {
-  return emojiGraphemeRe.test(g)
-}
-
 export function textMayContainEmoji(text: string): boolean {
   return maybeEmojiRe.test(text)
 }
 
-function getEmojiCorrection(font: string): number {
-  let correction = emojiCorrectionCache.get(font)
-  if (correction !== undefined) return correction
+export function getEmojiCorrection(font: string, measurement: FontMeasurement): number {
+  let correction = measurement.emojiCorrection
+  if (correction !== null) return correction
 
   const fontSize = parseFontSize(font)
   const ctx = getMeasureContext()
@@ -340,7 +280,7 @@ function getEmojiCorrection(font: string): number {
       correction = canvasW - domW
     }
   }
-  emojiCorrectionCache.set(font, correction)
+  measurement.emojiCorrection = correction
   return correction
 }
 
@@ -348,7 +288,7 @@ function countEmojiGraphemes(text: string): number {
   let count = 0
   const graphemeSegmenter = getSharedGraphemeSegmenter()
   for (const g of graphemeSegmenter.segment(text)) {
-    if (isEmojiGrapheme(g.segment)) count++
+    if (emojiGraphemeRe.test(g.segment)) count++
   }
   return count
 }
@@ -374,6 +314,8 @@ export function getSegmentBreakableFitAdvances(
   // When metrics measured seg together with one following U+0020, the width of
   // that space alone. The last grapheme then keeps its kerning with the space.
   followingSpaceWidth: number | null = null,
+  // Whether to record the segment's WebKit line-start prohibitions on metrics.
+  withLineStartProhibitions = false,
 ): number[] | null {
   if (metrics.breakableFitAdvances !== undefined && metrics.breakableFitMode === mode) {
     return metrics.breakableFitAdvances
@@ -388,6 +330,11 @@ export function getSegmentBreakableFitAdvances(
   if (graphemes.length <= 1) {
     metrics.breakableFitAdvances = null
     return metrics.breakableFitAdvances
+  }
+  if (withLineStartProhibitions) {
+    let prohibitions: number[] | null = null
+    for (let i = 1; i < graphemes.length; i++) if (!canWebKitLineStartWith(graphemes[i]!.charCodeAt(0))) (prohibitions ??= []).push(i)
+    metrics.lineStartProhibitions = prohibitions
   }
 
   if (mode === 'sum-graphemes') {
@@ -459,10 +406,7 @@ function addFollowingSpaceKerning(
   advances[last] = advances[last]! + followingSpaceMetrics.width - getSegmentMetrics(seg, cache).width - followingSpaceWidth
 }
 
-export function getFontMeasurementState(font: string, needsEmojiCorrection: boolean, documentLanguage: string | null): {
-  cache: Map<string, SegmentMetrics>
-  emojiCorrection: number
-} {
+export function getFontMeasurement(font: string, documentLanguage: string | null): FontMeasurement {
   // Preparation starts here, with the page language it read. After that language
   // changes, start again with a new context and empty caches; clearing the caches
   // alone would re-measure with fonts resolved under the old language.
@@ -472,13 +416,14 @@ export function getFontMeasurementState(font: string, needsEmojiCorrection: bool
   }
   const ctx = measureContext ?? createMeasureContext(documentLanguage)
   ctx.font = font
-  const cache = getSegmentMetricCache(font)
-  const emojiCorrection = needsEmojiCorrection ? getEmojiCorrection(font) : 0
-  return { cache, emojiCorrection }
+  let measurement = fontMeasurements.get(font)
+  if (measurement === undefined) {
+    measurement = { metrics: new Map(), followingSpaceMetrics: new Map(), emojiCorrection: null, hanKerning: undefined }
+    fontMeasurements.set(font, measurement)
+  }
+  return measurement
 }
 
 export function clearMeasurementCaches(): void {
-  segmentMetricCaches.clear()
-  followingSpaceMetricCaches.clear()
-  emojiCorrectionCache.clear()
+  fontMeasurements.clear()
 }
