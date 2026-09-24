@@ -1214,6 +1214,17 @@ interleaved, while main's loop on the same prepared text took 1.0. Changing
 main's loop one step at a time toward it slowed only that step. Starting each
 line at 0 gave 0.87 to 1.04 there.
 
+A fresh page pays to compile the whole library before its first `prepare()`. In
+Firefox 156, `new Function` over the fresh-page probe's minified bundle took 4.5 to
+4.8ms while the engine scans kept their iterator state in four classes, whose
+fields compile as class fields, and 1.9 to 2.2ms with that state in plain objects
+and functions; main's bundle took 1.6 to 1.7ms. Emptying the class bodies or
+moving each field into its constructor gave the same 2.0 to 2.2ms, so any class
+field seems to make Firefox compile the whole bundle up front rather than each
+function on its first call. V8 and JavaScriptCore compiled all of these in the
+same time. The same change made seen Arabic, Latin and mixed chat messages
+prepare 6 to 8% faster in Firefox.
+
 Count total submitted Canvas text, not just calls. Measuring every prefix or
 suffix is quadratic even if each position triggers only one query. Safari's
 production prefix policy caps each segment at 96 graphemes, using pair context

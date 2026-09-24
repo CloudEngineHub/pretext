@@ -493,101 +493,101 @@ const PAREN_STACK_DEPTH = 32 // gfxScriptItemizer.h:58
 
 // gfxScriptItemizer::Next and helpers (gfxScriptItemizer.cpp:60-243). Only run boundaries matter,
 // so the Script_Extensions fallback (:211-222) is not ported.
-class ScriptItemizer {
-  private readonly units: Uint16Array
-  private readonly end: number
-  private scriptLimit: number
-  private scriptCode = 0
-  private readonly parenChar = new Int32Array(PAREN_STACK_DEPTH)
-  private readonly parenScript = new Int32Array(PAREN_STACK_DEPTH)
-  private parenSp = -1
-  private pushCount = 0
-  private fixupCount = 0
+type ScriptItemizer = {
+  readonly units: Uint16Array
+  readonly end: number
+  scriptLimit: number
+  scriptCode: number
+  readonly parenChar: Int32Array
+  readonly parenScript: Int32Array
+  parenSp: number
+  pushCount: number
+  fixupCount: number
+}
 
-  constructor(units: Uint16Array, start: number, end: number) {
-    this.units = units
-    this.end = end
-    this.scriptLimit = start
+function createScriptItemizer(units: Uint16Array, start: number, end: number): ScriptItemizer {
+  return {
+    units, end, scriptLimit: start, scriptCode: 0,
+    parenChar: new Int32Array(PAREN_STACK_DEPTH), parenScript: new Int32Array(PAREN_STACK_DEPTH),
+    parenSp: -1, pushCount: 0, fixupCount: 0,
   }
+}
 
-  done(): boolean { return this.scriptLimit >= this.end }
+function pushParen(it: ScriptItemizer, endPairChar: number, script: number): void {
+  it.pushCount = it.pushCount < PAREN_STACK_DEPTH ? it.pushCount + 1 : PAREN_STACK_DEPTH
+  it.fixupCount = it.fixupCount < PAREN_STACK_DEPTH ? it.fixupCount + 1 : PAREN_STACK_DEPTH
+  it.parenSp = (it.parenSp + 1) % PAREN_STACK_DEPTH
+  it.parenChar[it.parenSp] = endPairChar
+  it.parenScript[it.parenSp] = script
+}
 
-  private push(endPairChar: number, script: number): void {
-    this.pushCount = this.pushCount < PAREN_STACK_DEPTH ? this.pushCount + 1 : PAREN_STACK_DEPTH
-    this.fixupCount = this.fixupCount < PAREN_STACK_DEPTH ? this.fixupCount + 1 : PAREN_STACK_DEPTH
-    this.parenSp = (this.parenSp + 1) % PAREN_STACK_DEPTH
-    this.parenChar[this.parenSp] = endPairChar
-    this.parenScript[this.parenSp] = script
+function popParen(it: ScriptItemizer): void {
+  if (it.pushCount === 0) return
+  if (it.fixupCount > 0) it.fixupCount--
+  it.pushCount--
+  it.parenSp = (it.parenSp + PAREN_STACK_DEPTH - 1) % PAREN_STACK_DEPTH
+  if (it.pushCount === 0) it.parenSp = -1
+}
+
+function fixupParens(it: ScriptItemizer, script: number): void {
+  let fixupSp = (it.parenSp + PAREN_STACK_DEPTH - it.fixupCount) % PAREN_STACK_DEPTH
+  for (; it.fixupCount > 0; it.fixupCount--) {
+    fixupSp = (fixupSp + 1) % PAREN_STACK_DEPTH
+    it.parenScript[fixupSp] = script
   }
+  it.fixupCount = 0xffffffff // `while (fixupCount-- > 0)` on a uint32_t (gfxScriptItemizer.h:134-135)
+}
 
-  private pop(): void {
-    if (this.pushCount === 0) return
-    if (this.fixupCount > 0) this.fixupCount--
-    this.pushCount--
-    this.parenSp = (this.parenSp + PAREN_STACK_DEPTH - 1) % PAREN_STACK_DEPTH
-    if (this.pushCount === 0) this.parenSp = -1
-  }
-
-  private fixup(script: number): void {
-    let fixupSp = (this.parenSp + PAREN_STACK_DEPTH - this.fixupCount) % PAREN_STACK_DEPTH
-    for (; this.fixupCount > 0; this.fixupCount--) {
-      fixupSp = (fixupSp + 1) % PAREN_STACK_DEPTH
-      this.parenScript[fixupSp] = script
+// Returns the run limit; the run starts at the previous limit.
+function nextScriptRun(it: ScriptItemizer): number {
+  const units = it.units
+  it.fixupCount = 0
+  it.scriptCode = SCRIPT_COMMON
+  while (it.scriptLimit < it.end) {
+    const startOfChar = it.scriptLimit
+    let ch = units[it.scriptLimit]!
+    let sc: number
+    if (ch < 0x02ea) {
+      sc = getFastScript(ch)
+    } else {
+      if (it.scriptLimit < it.end - 1 && isSurrogatePair(ch, units[it.scriptLimit + 1]!)) {
+        it.scriptLimit++
+        ch = combine(units[startOfChar]!, units[it.scriptLimit]!)
+      }
+      sc = getScript(ch)
     }
-    this.fixupCount = 0xffffffff // `while (fixupCount-- > 0)` on a uint32_t (gfxScriptItemizer.h:134-135)
-  }
-
-  // Returns the run limit; the run starts at the previous limit.
-  next(): number {
-    const units = this.units
-    this.fixupCount = 0
-    this.scriptCode = SCRIPT_COMMON
-    while (this.scriptLimit < this.end) {
-      const startOfChar = this.scriptLimit
-      let ch = units[this.scriptLimit]!
-      let sc: number
-      if (ch < 0x02ea) {
-        sc = getFastScript(ch)
-      } else {
-        if (this.scriptLimit < this.end - 1 && isSurrogatePair(ch, units[this.scriptLimit + 1]!)) {
-          this.scriptLimit++
-          ch = combine(units[startOfChar]!, units[this.scriptLimit]!)
-        }
-        sc = getScript(ch)
+    let pair = 0 // 1 open, 2 close
+    if (sc === SCRIPT_COMMON) {
+      if (ch < 0x0f3a) {
+        if (ch === 0x28 || ch === 0x5b || ch === 0x7b) pair = 1
+        else if (ch === 0x29 || ch === 0x5d || ch === 0x7d) pair = 2
+      } else if (isOpenPunctuation(ch)) {
+        pair = 1
+      } else if (isClosePunctuation(ch)) {
+        pair = 2
       }
-      let pair = 0 // 1 open, 2 close
-      if (sc === SCRIPT_COMMON) {
-        if (ch < 0x0f3a) {
-          if (ch === 0x28 || ch === 0x5b || ch === 0x7b) pair = 1
-          else if (ch === 0x29 || ch === 0x5d || ch === 0x7d) pair = 2
-        } else if (isOpenPunctuation(ch)) {
-          pair = 1
-        } else if (isClosePunctuation(ch)) {
-          pair = 2
-        }
-        if (pair === 1) {
-          const endPairChar = ch < 0x0f3a ? (ch === 0x28 ? 0x29 : ch === 0x5b ? 0x5d : 0x7d) : getOpenPunctuationMirror(ch)
-          if (endPairChar !== ch) this.push(endPairChar, this.scriptCode)
-        } else if (pair === 2 && isBidiMirrored(ch)) {
-          while (this.pushCount > 0 && this.parenChar[this.parenSp] !== ch) this.pop()
-          if (this.pushCount > 0) sc = this.parenScript[this.parenSp]!
-        }
+      if (pair === 1) {
+        const endPairChar = ch < 0x0f3a ? (ch === 0x28 ? 0x29 : ch === 0x5b ? 0x5d : 0x7d) : getOpenPunctuationMirror(ch)
+        if (endPairChar !== ch) pushParen(it, endPairChar, it.scriptCode)
+      } else if (pair === 2 && isBidiMirrored(ch)) {
+        while (it.pushCount > 0 && it.parenChar[it.parenSp] !== ch) popParen(it)
+        if (it.pushCount > 0) sc = it.parenScript[it.parenSp]!
       }
-      if (sc === SCRIPT_HIRAGANA) sc = SCRIPT_KATAKANA
-      if (isSameScript(this.scriptCode, sc, ch)) {
-        if (this.scriptCode === SCRIPT_COMMON && !canMergeWithContext(sc)) {
-          this.scriptCode = sc
-          this.fixup(sc)
-        }
-        if (pair === 2 && isBidiMirrored(ch)) this.pop()
-      } else {
-        this.scriptLimit = startOfChar
-        break
-      }
-      this.scriptLimit++
     }
-    return this.scriptLimit
+    if (sc === SCRIPT_HIRAGANA) sc = SCRIPT_KATAKANA
+    if (isSameScript(it.scriptCode, sc, ch)) {
+      if (it.scriptCode === SCRIPT_COMMON && !canMergeWithContext(sc)) {
+        it.scriptCode = sc
+        fixupParens(it, sc)
+      }
+      if (pair === 2 && isBidiMirrored(ch)) popParen(it)
+    } else {
+      it.scriptLimit = startOfChar
+      break
+    }
+    it.scriptLimit++
   }
+  return it.scriptLimit
 }
 
 // gfxScriptItemizer.h:96-107
@@ -616,10 +616,10 @@ function initTextRun(g: Glyphs, units: Uint16Array, start: number, end: number, 
     splitAndInitTextRun(g, units, start, end, words)
     return
   }
-  const items = new ScriptItemizer(units, start, end)
+  const items = createScriptItemizer(units, start, end)
   let runStart = start
-  while (!items.done()) {
-    const limit = items.next()
+  while (items.scriptLimit < items.end) {
+    const limit = nextScriptRun(items)
     splitAndInitTextRun(g, units, runStart, limit, words)
     runStart = limit
   }
@@ -693,194 +693,190 @@ function isKeepAllLetter(p: number): boolean {
 
 // LineBreakIterator (line.rs:820-1130) over text[start, end), yielding positions relative to start.
 // Unpaired surrogates are looked up as code points, as Utf16Indices does (indices.rs:58-83).
-class LineBreakIterator {
-  private readonly text: string
-  private readonly base: number
-  private len: number
-  private readonly keepAll: boolean
-  private readonly wordSegmenter: Intl.Segmenter
+type LineBreakIterator = {
+  readonly text: string
+  readonly base: number
+  len: number
+  readonly keepAll: boolean
+  readonly wordSegmenter: Intl.Segmenter
   // Utf16Indices front_offset and current_pos_data (line.rs:821-823).
-  private front = 0
-  private curPos = -1
-  private curCp = 0
-  private cache: number[] = []
+  front: number
+  curPos: number
+  curCp: number
+  cache: number[]
+}
 
-  constructor(text: string, start: number, end: number, keepAll: boolean, wordSegmenter: Intl.Segmenter) {
-    this.text = text
-    this.base = start
-    this.len = end - start
-    this.keepAll = keepAll
-    this.wordSegmenter = wordSegmenter
+function createLineBreakIterator(text: string, start: number, end: number, keepAll: boolean, wordSegmenter: Intl.Segmenter): LineBreakIterator {
+  return { text, base: start, len: end - start, keepAll, wordSegmenter, front: 0, curPos: -1, curCp: 0, cache: [] }
+}
+
+// advance_iter (line.rs:1077-1079), Utf16Indices::next (indices.rs:58-83).
+function advanceLineIterator(it: LineBreakIterator): void {
+  const offset = it.front
+  if (offset >= it.len) { it.curPos = -1; return }
+  let c = it.text.charCodeAt(it.base + offset)
+  it.front = offset + 1
+  if ((c & 0xfc00) === 0xd800 && offset + 1 < it.len) {
+    const next = it.text.charCodeAt(it.base + offset + 1)
+    if ((next & 0xfc00) === 0xdc00) { c = ((c & 0x3ff) << 10) + (next & 0x3ff) + 0x10000; it.front = offset + 2 }
+  }
+  it.curPos = offset
+  it.curCp = c
+}
+
+// Iterator::next (line.rs:833-1067). Returns -1 for None.
+function nextLineBreak(it: LineBreakIterator): number {
+  // check_eof (:1086-1105)
+  if (it.curPos < 0) {
+    advanceLineIterator(it)
+    if (it.curPos < 0) {
+      if (it.len === 0) { it.len = 1; return 0 }
+      return -1
+    }
+    return 0
   }
 
-  // advance_iter (line.rs:1077-1079), Utf16Indices::next (indices.rs:58-83).
-  private advance(): void {
-    const offset = this.front
-    if (offset >= this.len) { this.curPos = -1; return }
-    let c = this.text.charCodeAt(this.base + offset)
-    this.front = offset + 1
-    if ((c & 0xfc00) === 0xd800 && offset + 1 < this.len) {
-      const next = this.text.charCodeAt(this.base + offset + 1)
-      if ((next & 0xfc00) === 0xdc00) { c = ((c & 0x3ff) << 10) + (next & 0x3ff) + 0x10000; this.front = offset + 2 }
-    }
-    this.curPos = offset
-    this.curCp = c
-  }
-
-  // Iterator::next (line.rs:833-1067). Returns -1 for None.
-  next(): number {
-    // check_eof (:1086-1105)
-    if (this.curPos < 0) {
-      this.advance()
-      if (this.curPos < 0) {
-        if (this.len === 0) { this.len = 1; return 0 }
-        return -1
-      }
-      return 0
-    }
-
-    // Break points cached by a complex-script run (:840-855).
-    if (this.cache.length > 0) {
-      const firstPos = this.cache[0]!
-      let i = 0
-      for (;;) {
-        if (i === firstPos) {
-          const rest: number[] = []
-          for (let k = 1; k < this.cache.length; k++) rest.push(this.cache[k]! - i)
-          this.cache = rest
-          return this.curPos
-        }
-        i += this.curCp >= 0x10000 ? 2 : 1 // Utf16::char_len (rule_segmenter.rs:335-341)
-        this.advance()
-        if (this.curPos < 0) { this.cache = []; return this.len }
-      }
-    }
-
-    let lb9Left = -1 // (:858)
-    let lb8aAfterLb9 = false // (:861)
-
-    outer: for (;;) {
-      if (this.curPos < 0) return -1
-      const leftCodepoint = this.curCp
-      const leftProp = lb9Left >= 0 ? lb9Left : getLineBreakClass(leftCodepoint)
-      const afterZwj = lb8aAfterLb9 || (lb9Left < 0 && leftProp === ZWJ)
-      this.advance()
-      if (this.curPos < 0) return this.len
-      const rightCodepoint = this.curCp
-      const rightProp = getLineBreakClass(rightCodepoint)
-
-      // LB9 (:878-893)
-      if ((rightProp === CM || rightProp === ZWJ) && leftProp !== BK && leftProp !== CR && leftProp !== LF &&
-        leftProp !== NL && leftProp !== SP && leftProp !== ZW) {
-        lb9Left = leftProp
-        lb8aAfterLb9 = rightProp === ZWJ
-        continue
-      }
-      lb9Left = -1
-      lb8aAfterLb9 = false
-
-      // CSS word-break (:896-909)
-      if (this.keepAll && isKeepAllLetter(leftProp) && isKeepAllLetter(rightProp)) continue
-
-      // Complex scripts (:941-950)
-      if (getLineBreakClass(leftCodepoint) === SA && rightProp === SA) {
-        const result = this.handleComplexLanguage(leftCodepoint)
-        if (result >= 0) return result
-      }
-
-      const state = lineBreakStates[leftProp * geckoLinePropertyCount + rightProp]! // (:702-706, 953)
-      if (state === BREAK || state === NO_MATCH) {
-        if (afterZwj) continue
-        return this.curPos
-      }
-      if (state === KEEP) continue
-
-      let index = state >= INTERMEDIATE ? state - INTERMEDIATE : state
-      let prevFront = this.front
-      let prevPos = this.curPos
-      let prevCp = this.curCp
-      let previousIsAfterZwj = afterZwj
-      let leftPropPreLb9 = rightProp
-      const isIntermediateRuleNoMatch = lb8aAfterLb9 ? true : index > geckoLineLastCodepointProperty // (:976-981)
-
-      for (;;) {
-        this.advance()
-        const innerAfterZwj = leftPropPreLb9 === ZWJ
-        const previousBreakStateIsCpProp = index <= geckoLineLastCodepointProperty
-
-        if (this.curPos < 0) { // (:990-1007)
-          if (lineBreakStates[index * geckoLinePropertyCount + geckoLineEotProperty] === NO_MATCH) {
-            this.front = prevFront; this.curPos = prevPos; this.curCp = prevCp
-            if (previousIsAfterZwj) continue outer
-            return this.curPos
-          }
-          return this.len
-        }
-        const prop = getLineBreakClass(this.curCp)
-
-        if ((prop === CM || prop === ZWJ) && leftPropPreLb9 !== BK && leftPropPreLb9 !== CR && leftPropPreLb9 !== LF &&
-          leftPropPreLb9 !== NL && leftPropPreLb9 !== SP && leftPropPreLb9 !== ZW) { // (:1009-1019)
-          leftPropPreLb9 = prop
-          continue
-        }
-
-        const next = lineBreakStates[index * geckoLinePropertyCount + prop]! // (:1021-1061)
-        if (next === KEEP) continue outer
-        if (next === NO_MATCH) {
-          this.front = prevFront; this.curPos = prevPos; this.curCp = prevCp
-          if (innerAfterZwj) {
-            if (isIntermediateRuleNoMatch && !previousIsAfterZwj) return this.curPos
-            continue outer
-          }
-          if (previousIsAfterZwj) continue outer
-          return this.curPos
-        }
-        if (next === BREAK) {
-          if (innerAfterZwj) continue outer
-          return this.curPos
-        }
-        if (next >= INTERMEDIATE) {
-          index = next - INTERMEDIATE
-          prevFront = this.front; prevPos = this.curPos; prevCp = this.curCp
-          previousIsAfterZwj = innerAfterZwj
-        } else {
-          index = next
-          if (previousBreakStateIsCpProp) {
-            prevFront = this.front; prevPos = this.curPos; prevCp = this.curCp
-            previousIsAfterZwj = innerAfterZwj
-          }
-        }
-        leftPropPreLb9 = prop
-      }
-    }
-  }
-
-  // Utf16 line_handle_complex_language (line.rs:1263-1316). Code points are truncated to u16 there.
-  private handleComplexLanguage(leftCodepoint: number): number {
-    const startFront = this.front, startPos = this.curPos, startCp = this.curCp
-    const units = [leftCodepoint & 0xffff]
-    for (;;) {
-      if (this.curPos < 0) return -1
-      units.push(this.curCp & 0xffff)
-      this.advance()
-      if (this.curPos < 0 || getLineBreakClass(this.curCp) !== SA) break
-    }
-    this.front = startFront; this.curPos = startPos; this.curCp = startCp
-    this.cache = segmentComplex(units, this.wordSegmenter)
-    if (this.cache.length === 0) return -1
-    const firstPos = this.cache[0]!
-    let i = 1
+  // Break points cached by a complex-script run (:840-855).
+  if (it.cache.length > 0) {
+    const firstPos = it.cache[0]!
+    let i = 0
     for (;;) {
       if (i === firstPos) {
         const rest: number[] = []
-        for (let k = 1; k < this.cache.length; k++) rest.push(this.cache[k]! - i)
-        this.cache = rest
-        return this.curPos
+        for (let k = 1; k < it.cache.length; k++) rest.push(it.cache[k]! - i)
+        it.cache = rest
+        return it.curPos
       }
-      i += 1
-      this.advance()
-      if (this.curPos < 0) { this.cache = []; return this.len }
+      i += it.curCp >= 0x10000 ? 2 : 1 // Utf16::char_len (rule_segmenter.rs:335-341)
+      advanceLineIterator(it)
+      if (it.curPos < 0) { it.cache = []; return it.len }
     }
+  }
+
+  let lb9Left = -1 // (:858)
+  let lb8aAfterLb9 = false // (:861)
+
+  outer: for (;;) {
+    if (it.curPos < 0) return -1
+    const leftCodepoint = it.curCp
+    const leftProp = lb9Left >= 0 ? lb9Left : getLineBreakClass(leftCodepoint)
+    const afterZwj = lb8aAfterLb9 || (lb9Left < 0 && leftProp === ZWJ)
+    advanceLineIterator(it)
+    if (it.curPos < 0) return it.len
+    const rightCodepoint = it.curCp
+    const rightProp = getLineBreakClass(rightCodepoint)
+
+    // LB9 (:878-893)
+    if ((rightProp === CM || rightProp === ZWJ) && leftProp !== BK && leftProp !== CR && leftProp !== LF &&
+      leftProp !== NL && leftProp !== SP && leftProp !== ZW) {
+      lb9Left = leftProp
+      lb8aAfterLb9 = rightProp === ZWJ
+      continue
+    }
+    lb9Left = -1
+    lb8aAfterLb9 = false
+
+    // CSS word-break (:896-909)
+    if (it.keepAll && isKeepAllLetter(leftProp) && isKeepAllLetter(rightProp)) continue
+
+    // Complex scripts (:941-950)
+    if (getLineBreakClass(leftCodepoint) === SA && rightProp === SA) {
+      const result = handleComplexLanguage(it, leftCodepoint)
+      if (result >= 0) return result
+    }
+
+    const state = lineBreakStates[leftProp * geckoLinePropertyCount + rightProp]! // (:702-706, 953)
+    if (state === BREAK || state === NO_MATCH) {
+      if (afterZwj) continue
+      return it.curPos
+    }
+    if (state === KEEP) continue
+
+    let index = state >= INTERMEDIATE ? state - INTERMEDIATE : state
+    let prevFront = it.front
+    let prevPos = it.curPos
+    let prevCp = it.curCp
+    let previousIsAfterZwj = afterZwj
+    let leftPropPreLb9 = rightProp
+    const isIntermediateRuleNoMatch = lb8aAfterLb9 ? true : index > geckoLineLastCodepointProperty // (:976-981)
+
+    for (;;) {
+      advanceLineIterator(it)
+      const innerAfterZwj = leftPropPreLb9 === ZWJ
+      const previousBreakStateIsCpProp = index <= geckoLineLastCodepointProperty
+
+      if (it.curPos < 0) { // (:990-1007)
+        if (lineBreakStates[index * geckoLinePropertyCount + geckoLineEotProperty] === NO_MATCH) {
+          it.front = prevFront; it.curPos = prevPos; it.curCp = prevCp
+          if (previousIsAfterZwj) continue outer
+          return it.curPos
+        }
+        return it.len
+      }
+      const prop = getLineBreakClass(it.curCp)
+
+      if ((prop === CM || prop === ZWJ) && leftPropPreLb9 !== BK && leftPropPreLb9 !== CR && leftPropPreLb9 !== LF &&
+        leftPropPreLb9 !== NL && leftPropPreLb9 !== SP && leftPropPreLb9 !== ZW) { // (:1009-1019)
+        leftPropPreLb9 = prop
+        continue
+      }
+
+      const next = lineBreakStates[index * geckoLinePropertyCount + prop]! // (:1021-1061)
+      if (next === KEEP) continue outer
+      if (next === NO_MATCH) {
+        it.front = prevFront; it.curPos = prevPos; it.curCp = prevCp
+        if (innerAfterZwj) {
+          if (isIntermediateRuleNoMatch && !previousIsAfterZwj) return it.curPos
+          continue outer
+        }
+        if (previousIsAfterZwj) continue outer
+        return it.curPos
+      }
+      if (next === BREAK) {
+        if (innerAfterZwj) continue outer
+        return it.curPos
+      }
+      if (next >= INTERMEDIATE) {
+        index = next - INTERMEDIATE
+        prevFront = it.front; prevPos = it.curPos; prevCp = it.curCp
+        previousIsAfterZwj = innerAfterZwj
+      } else {
+        index = next
+        if (previousBreakStateIsCpProp) {
+          prevFront = it.front; prevPos = it.curPos; prevCp = it.curCp
+          previousIsAfterZwj = innerAfterZwj
+        }
+      }
+      leftPropPreLb9 = prop
+    }
+  }
+}
+
+// Utf16 line_handle_complex_language (line.rs:1263-1316). Code points are truncated to u16 there.
+function handleComplexLanguage(it: LineBreakIterator, leftCodepoint: number): number {
+  const startFront = it.front, startPos = it.curPos, startCp = it.curCp
+  const units = [leftCodepoint & 0xffff]
+  for (;;) {
+    if (it.curPos < 0) return -1
+    units.push(it.curCp & 0xffff)
+    advanceLineIterator(it)
+    if (it.curPos < 0 || getLineBreakClass(it.curCp) !== SA) break
+  }
+  it.front = startFront; it.curPos = startPos; it.curCp = startCp
+  it.cache = segmentComplex(units, it.wordSegmenter)
+  if (it.cache.length === 0) return -1
+  const firstPos = it.cache[0]!
+  let i = 1
+  for (;;) {
+    if (i === firstPos) {
+      const rest: number[] = []
+      for (let k = 1; k < it.cache.length; k++) rest.push(it.cache[k]! - i)
+      it.cache = rest
+      return it.curPos
+    }
+    i += 1
+    advanceLineIterator(it)
+    if (it.curPos < 0) { it.cache = []; return it.len }
   }
 }
 
@@ -921,8 +917,8 @@ function getBreakStates(text: string, units: Uint16Array, is8bit: boolean, after
     }
     if (offset > wordStart && wordMightBeBreakable) {
       const saved = state[wordStart]!
-      const iterator = new LineBreakIterator(text, wordStart, offset, keepAll, wordSegmenter)
-      for (let pos = iterator.next(); pos >= 0 && pos < offset - wordStart; pos = iterator.next()) state[wordStart + pos] = 1
+      const iterator = createLineBreakIterator(text, wordStart, offset, keepAll, wordSegmenter)
+      for (let pos = nextLineBreak(iterator); pos >= 0 && pos < offset - wordStart; pos = nextLineBreak(iterator)) state[wordStart + pos] = 1
       state[wordStart] = saved
     }
     wordMightBeBreakable = false
