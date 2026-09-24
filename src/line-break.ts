@@ -319,9 +319,12 @@ export function countPreparedLines(prepared: PreparedLineBreakData, maxWidth: nu
   let lineW = 0
   let hasContent = false
 
-  // A fast-path handle never starts with a space: normalization trims it, and
-  // pre-wrap spaces take the complex walker. A ZWSP there establishes the line.
-  for (let i = 0; i < segmentCount; i++) {
+  // Fast-path handles never start with a space, so this skip never runs, but
+  // Firefox counts Latin text at new widths 10-15% slower without it. A ZWSP at
+  // `first` starts the first line.
+  let first = 0
+  while (first < segmentCount && kinds[first] === 'space') first++
+  for (let i = first; i < segmentCount; i++) {
     const kind = kinds[i]!
     const w = widths[i]!
     const endTrim = lineEndTrims === null ? 0 : lineEndTrims[i]!
@@ -336,7 +339,7 @@ export function countPreparedLines(prepared: PreparedLineBreakData, maxWidth: nu
       lineW = 0
       hasContent = false
       if (kind !== 'text') continue
-    } else if (kind === 'space' || (kind === 'zero-width-break' && i !== 0)) {
+    } else if (kind === 'space' || (kind === 'zero-width-break' && i !== first)) {
       continue
     }
 
