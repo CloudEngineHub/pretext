@@ -10,7 +10,8 @@
 // Pretext takes no paragraph direction, so the paragraph level is always 0. Classes use
 // ICU4C numbering (icu_properties BidiClass::to_icu4c_value).
 
-import { geckoBidiClassRanges, geckoBidiPairs } from './generated/engine-break-data.js'
+import { geckoBidiClassRangesPacked, geckoBidiPairsPacked } from './generated/engine-break-data.js'
+import { unpackUint32Table } from './line-breaks.js'
 
 const L = 0, R = 1, EN = 2, ES = 3, ET = 4, AN = 5, CS = 6, B = 7, S = 8, WS = 9, ON = 10, LRE = 11,
   LRO = 12, AL = 13, RLE = 14, RLO = 15, PDF = 16, NSM = 17, BN = 18, FSI = 19, LRI = 20, RLI = 21, PDI = 22
@@ -27,6 +28,7 @@ let astralClasses: number[] | null = null
 
 function bidiClassOf(cp: number): number {
   if (bidiBmp === null) {
+    const geckoBidiClassRanges = unpackUint32Table(geckoBidiClassRangesPacked)
     bidiBmp = new Uint8Array(0x10000)
     astralStarts = []
     astralEnds = []
@@ -393,8 +395,16 @@ function resolveWeak(text: Uint16Array, seq: Sequence, pc: Uint8Array): void {
   }
 }
 
+// unicode-bidi's bracket pairs as flat [opening, closing, normalized opening or 0] triples,
+// unpacked on first use.
+let bidiPairs: Uint32Array | null = null
+export function getBidiPairs(): Uint32Array {
+  return bidiPairs ??= unpackUint32Table(geckoBidiPairsPacked)
+}
+
 // char_data::bidi_matched_opening_bracket (char_data/mod.rs:44-56): [opening, isOpen] or null.
 function matchedOpeningBracket(c: number): [number, boolean] | null {
+  const geckoBidiPairs = getBidiPairs()
   for (let k = 0; k < geckoBidiPairs.length; k += 3) {
     const open = geckoBidiPairs[k]!, close = geckoBidiPairs[k + 1]!, normalized = geckoBidiPairs[k + 2]!
     if (open === c || close === c) return [normalized !== 0 ? normalized : open, open === c]

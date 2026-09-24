@@ -55,27 +55,20 @@ export function getBreakLanguage(tag: string | null): BreakLanguage {
   return 'root'
 }
 
-function decodeBase64(s: string): Uint8Array {
-  const binary = atob(s)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  return bytes
-}
-
 // The generated tables ship packed, in base64: the unpacked length, then runs of literal bytes,
 // each followed by a copy of earlier bytes (length - 4, then distance back), every count a
 // little-endian base-128 varint. A copy may reach back into a dictionary, another table's bytes.
 // Packing keeps the tables a page parses small; a page unpacks only its engine's tables and the
 // ones they pack against, once.
 export function unpackTable(packed: string, dictionary: Uint8Array | null = null): Uint8Array {
-  const input = decodeBase64(packed)
+  const input = atob(packed)
   let at = 0
   const varint = (): number => {
     let value = 0
     let scale = 1
     let byte: number
     do {
-      byte = input[at++]!
+      byte = input.charCodeAt(at++)
       value += (byte & 0x7f) * scale
       scale *= 0x80
     } while (byte >= 0x80)
@@ -86,14 +79,23 @@ export function unpackTable(packed: string, dictionary: Uint8Array | null = null
   if (dictionary !== null) bytes.set(dictionary)
   let out = base
   while (at < input.length) {
-    for (let n = varint(); n > 0; n--) bytes[out++] = input[at++]!
+    for (let n = varint(); n > 0; n--) bytes[out++] = input.charCodeAt(at++)
     if (at >= input.length) break
     const length = varint() + 4
     const from = out - varint()
-    for (let k = 0; k < length; k++) bytes[out++] = bytes[from + k]!
+    // A copy that overlaps the bytes it writes repeats them, so it goes one byte at a time.
+    if (from + length <= out) bytes.copyWithin(out, from, from + length)
+    else for (let k = 0; k < length; k++) bytes[out + k] = bytes[from + k]!
+    out += length
   }
   if (out !== bytes.length) throw new Error('A packed table unpacked to the wrong length')
   return dictionary === null ? bytes : bytes.subarray(base)
+}
+
+// A packed table of 32-bit values: little-endian data, read on a little-endian platform.
+export function unpackUint32Table(packed: string): Uint32Array {
+  const bytes = unpackTable(packed)
+  return new Uint32Array(bytes.buffer, bytes.byteOffset, bytes.length >> 2)
 }
 
 // --- ICU's rule-based iterator over compiled line rules ---
@@ -225,122 +227,123 @@ const RUN = 0
 const START = 1
 const END = 2
 
-class RuleBreakIterator {
+// The state ICU's RuleBasedBreakIterator keeps over one text.
+type RuleBreakIterator = {
   readonly rules: BreakRules
   // Characters in dictionary categories since the last boundary (rbbi.cpp:854), which
   // is when ICU would hand the segment to a dictionary (rbbi_cache.cpp:486-489).
-  dictionaryCharCount = 0
-  private text = ''
-  private position = 0
+  dictionaryCharCount: number
+  text: string
+  position: number
   // ICU allocates the look-ahead slots uninitialized (rbbi.cpp:122-129) and never
   // resets them between calls. These start at -1.
-  private readonly lookAheadMatches: Int32Array
-  private readonly overrideChars: readonly number[]
-  private readonly overrideCategories: readonly number[]
+  readonly lookAheadMatches: Int32Array
+  readonly overrideChars: readonly number[]
+  readonly overrideCategories: readonly number[]
+}
 
-  constructor(rules: BreakRules, overrideChars: readonly number[] = [], overrideCategories: readonly number[] = []) {
-    this.rules = rules
-    this.lookAheadMatches = new Int32Array(rules.lookAheadResultsSize).fill(-1)
-    this.overrideChars = overrideChars
-    this.overrideCategories = overrideCategories
+function createRuleBreakIterator(rules: BreakRules, overrideChars: readonly number[] = [], overrideCategories: readonly number[] = []): RuleBreakIterator {
+  return {
+    rules,
+    dictionaryCharCount: 0,
+    text: '',
+    position: 0,
+    lookAheadMatches: new Int32Array(rules.lookAheadResultsSize).fill(-1),
+    overrideChars,
+    overrideCategories,
   }
+}
 
-  setText(text: string): void {
-    this.text = text
-    this.position = 0
+// handleNext(), rbbi.cpp:779-952: the next boundary, or DONE at the end of the text.
+// The text is read like utext_next32() over UTF-16 (utext.cpp:272-308), with
+// unpaired surrogates as code points.
+function nextRuleBoundary(iterator: RuleBreakIterator): number {
+  const r = iterator.rules
+  const rows = r.rows
+  const width = r.rowWidth
+  const dictionaryStart = r.dictCategoriesStart
+  const text = iterator.text
+  const length = text.length
+  const matches = iterator.lookAheadMatches
+  const overrideChars = iterator.overrideChars
+  const overrideCount = overrideChars.length
+
+  iterator.dictionaryCharCount = 0
+  const initialPosition = iterator.position
+  let result = initialPosition
+  if (initialPosition >= length) return DONE // rbbi.cpp:809-813
+
+  let pos = initialPosition
+  let c = text.charCodeAt(pos++)
+  if ((c & 0xfc00) === 0xd800 && pos < length) {
+    const trail = text.charCodeAt(pos)
+    if ((trail & 0xfc00) === 0xdc00) { pos++; c = ((c - 0xd800) << 10) + trail - 0xdc00 + 0x10000 }
   }
+  let atEnd = false
+  let state = START_STATE
+  let row = state * width
+  let mode = RUN
+  let category = 0
+  if ((r.flags & RBBI_BOF_REQUIRED) !== 0) { category = 2; mode = START } // rbbi.cpp:823-826
 
-  // handleNext(), rbbi.cpp:779-952: the next boundary, or DONE at the end of the text.
-  // The text is read like utext_next32() over UTF-16 (utext.cpp:272-308), with
-  // unpaired surrogates as code points.
-  next(): number {
-    const r = this.rules
-    const rows = r.rows
-    const width = r.rowWidth
-    const dictionaryStart = r.dictCategoriesStart
-    const text = this.text
-    const length = text.length
-    const matches = this.lookAheadMatches
-    const overrideChars = this.overrideChars
-    const overrideCount = overrideChars.length
-
-    this.dictionaryCharCount = 0
-    const initialPosition = this.position
-    let result = initialPosition
-    if (initialPosition >= length) return DONE // rbbi.cpp:809-813
-
-    let pos = initialPosition
-    let c = text.charCodeAt(pos++)
-    if ((c & 0xfc00) === 0xd800 && pos < length) {
-      const trail = text.charCodeAt(pos)
-      if ((trail & 0xfc00) === 0xdc00) { pos++; c = ((c - 0xd800) << 10) + trail - 0xdc00 + 0x10000 }
+  for (;;) {
+    if (atEnd) { // rbbi.cpp:832-843
+      if (mode === END) break
+      mode = END
+      category = 1
     }
-    let atEnd = false
-    let state = START_STATE
-    let row = state * width
-    let mode = RUN
-    let category = 0
-    if ((r.flags & RBBI_BOF_REQUIRED) !== 0) { category = 2; mode = START } // rbbi.cpp:823-826
-
-    for (;;) {
-      if (atEnd) { // rbbi.cpp:832-843
-        if (mode === END) break
-        mode = END
-        category = 1
+    if (mode === RUN) { // rbbi.cpp:850-855, with Apple's overrides (apple-rbbi.cpp:1061-1084)
+      let overridden = false
+      for (let i = 0; i < overrideCount; i++) {
+        if (c === overrideChars[i]) { category = iterator.overrideCategories[i]!; overridden = true; break }
       }
-      if (mode === RUN) { // rbbi.cpp:850-855, with Apple's overrides (apple-rbbi.cpp:1061-1084)
-        let overridden = false
-        for (let i = 0; i < overrideCount; i++) {
-          if (c === overrideChars[i]) { category = this.overrideCategories[i]!; overridden = true; break }
-        }
-        if (!overridden) {
-          category = getCategory(r, c)
-          if (category >= dictionaryStart) this.dictionaryCharCount++
-        }
+      if (!overridden) {
+        category = getCategory(r, c)
+        if (category >= dictionaryStart) iterator.dictionaryCharCount++
       }
-      state = rows[row + 3 + category]! // rbbi.cpp:874-877
-      row = state * width
+    }
+    state = rows[row + 3 + category]! // rbbi.cpp:874-877
+    row = state * width
 
-      const accepting = rows[row]! // rbbi.cpp:880-896
-      if (accepting === ACCEPTING_UNCONDITIONAL) {
-        if (mode !== START) result = pos
-      } else if (accepting > ACCEPTING_UNCONDITIONAL) {
-        const lookAheadResult = matches[accepting]!
-        if (lookAheadResult >= 0) {
-          this.position = lookAheadResult
-          return lookAheadResult
-        }
-      }
-
-      const rule = rows[row + 1]! // rbbi.cpp:904-910
-      if (rule > ACCEPTING_UNCONDITIONAL) matches[rule] = pos
-
-      if (state === STOP_STATE) break // rbbi.cpp:912-917
-
-      if (mode === RUN) { // rbbi.cpp:923-929
-        if (pos >= length) {
-          atEnd = true
-        } else {
-          c = text.charCodeAt(pos++)
-          if ((c & 0xfc00) === 0xd800 && pos < length) {
-            const trail = text.charCodeAt(pos)
-            if ((trail & 0xfc00) === 0xdc00) { pos++; c = ((c - 0xd800) << 10) + trail - 0xdc00 + 0x10000 }
-          }
-        }
-      } else if (mode === START) {
-        mode = RUN
+    const accepting = rows[row]! // rbbi.cpp:880-896
+    if (accepting === ACCEPTING_UNCONDITIONAL) {
+      if (mode !== START) result = pos
+    } else if (accepting > ACCEPTING_UNCONDITIONAL) {
+      const lookAheadResult = matches[accepting]!
+      if (lookAheadResult >= 0) {
+        iterator.position = lookAheadResult
+        return lookAheadResult
       }
     }
 
-    if (result === initialPosition) { // rbbi.cpp:937-942
-      pos = initialPosition + 1
-      if ((text.charCodeAt(initialPosition) & 0xfc00) === 0xd800 && pos < length &&
-        (text.charCodeAt(pos) & 0xfc00) === 0xdc00) pos++
-      result = pos
+    const rule = rows[row + 1]! // rbbi.cpp:904-910
+    if (rule > ACCEPTING_UNCONDITIONAL) matches[rule] = pos
+
+    if (state === STOP_STATE) break // rbbi.cpp:912-917
+
+    if (mode === RUN) { // rbbi.cpp:923-929
+      if (pos >= length) {
+        atEnd = true
+      } else {
+        c = text.charCodeAt(pos++)
+        if ((c & 0xfc00) === 0xd800 && pos < length) {
+          const trail = text.charCodeAt(pos)
+          if ((trail & 0xfc00) === 0xdc00) { pos++; c = ((c - 0xd800) << 10) + trail - 0xdc00 + 0x10000 }
+        }
+      }
+    } else if (mode === START) {
+      mode = RUN
     }
-    this.position = result // rbbi.cpp:945
-    return result
   }
+
+  if (result === initialPosition) { // rbbi.cpp:937-942
+    pos = initialPosition + 1
+    if ((text.charCodeAt(initialPosition) & 0xfc00) === 0xd800 && pos < length &&
+      (text.charCodeAt(pos) & 0xfc00) === 0xdc00) pos++
+    result = pos
+  }
+  iterator.position = result // rbbi.cpp:945
+  return result
 }
 
 // --- Line tables ---
@@ -373,8 +376,9 @@ function isComplexContext(rules: BreakRules, c: number): boolean {
 // word boundaries strictly inside each run of dictionary characters of a segment that
 // ICU would give to a dictionary. The line rules say $dictionary = [$SA].
 function markLineBoundaries(iterator: RuleBreakIterator, text: string, flags: Uint8Array, wordSegmenter: Intl.Segmenter): void {
-  iterator.setText(text)
-  for (let start = 0, b = iterator.next(); b !== DONE; start = b, b = iterator.next()) {
+  iterator.text = text
+  iterator.position = 0
+  for (let start = 0, b = nextRuleBoundary(iterator); b !== DONE; start = b, b = nextRuleBoundary(iterator)) {
     flags[b] = 1
     if (iterator.dictionaryCharCount > 0) markDictionaryWords(iterator.rules, text, start, b, flags, wordSegmenter)
   }
@@ -507,7 +511,7 @@ export function getBlinkLineBreaks(text: string, keepAll: boolean, language: str
   const table: ChromiumLineTable = getBreakLanguage(locale) === 'zh' ? 'line_normal_cj' : 'line_normal'
   let iterator = blinkIterators.get(table)
   if (iterator === undefined) {
-    iterator = new RuleBreakIterator(getLineRules(`chromium/${table}`))
+    iterator = createRuleBreakIterator(getLineRules(`chromium/${table}`))
     blinkIterators.set(table, iterator)
   }
   let icu: Uint8Array | null = null
@@ -636,51 +640,42 @@ function classify(c: number): number {
 // CachedLineBreakIteratorFactory (TBI.h:236-351) with two characters of prior context
 // (TBI.h:239-290), and ubrk_following over the prior context followed by the text
 // (TBIICU.h:99-124, 136-142).
-class Factory {
+type Factory = {
   readonly text: string
-  secondToLast = 0
-  last = 0
-  priorLength = 0
-  private readonly iterator: RuleBreakIterator
-  private readonly wordSegmenter: Intl.Segmenter
-  private nextBoundary: Int32Array | null = null
+  secondToLast: number
+  last: number
+  // PriorContext::length counts trailing non-zero characters (TBI.h:277-283).
+  priorLength: number
+  readonly iterator: RuleBreakIterator
+  readonly wordSegmenter: Intl.Segmenter
+  nextBoundary: Int32Array | null
+}
 
-  constructor(text: string, iterator: RuleBreakIterator, wordSegmenter: Intl.Segmenter) {
-    this.text = text
-    this.iterator = iterator
-    this.wordSegmenter = wordSegmenter
-  }
+function createFactory(text: string, iterator: RuleBreakIterator, wordSegmenter: Intl.Segmenter): Factory {
+  return { text, secondToLast: 0, last: 0, priorLength: 0, iterator, wordSegmenter, nextBoundary: null }
+}
 
-  setPriorContext(secondToLast: number, last: number): void {
-    this.secondToLast = secondToLast
-    this.last = last
-    // PriorContext::length counts trailing non-zero characters (TBI.h:277-283).
-    this.priorLength = last === 0 ? 0 : secondToLast === 0 ? 1 : 2
-    this.nextBoundary = null
+// The first ICU boundary after `location`, or -1. `location` is -1 only with a prior
+// context; WebKit's unsigned arithmetic then lands on the last prior character
+// (TBIICU.h:136-142).
+function following(f: Factory, location: number): number {
+  let next = f.nextBoundary
+  if (next === null) {
+    const prior = f.priorLength === 2
+      ? String.fromCharCode(f.secondToLast, f.last)
+      : f.priorLength === 1 ? String.fromCharCode(f.last) : ''
+    const text = prior + f.text
+    const flags = new Uint8Array(text.length + 1)
+    markLineBoundaries(f.iterator, text, flags, f.wordSegmenter)
+    next = new Int32Array(text.length + 2)
+    next[text.length + 1] = -1
+    for (let p = text.length; p >= 0; p--) next[p] = flags[p] === 1 ? p : next[p + 1]!
+    f.nextBoundary = next
   }
-
-  // The first ICU boundary after `location`, or -1. `location` is -1 only with a prior
-  // context; WebKit's unsigned arithmetic then lands on the last prior character
-  // (TBIICU.h:136-142).
-  following(location: number): number {
-    let next = this.nextBoundary
-    if (next === null) {
-      const prior = this.priorLength === 2
-        ? String.fromCharCode(this.secondToLast, this.last)
-        : this.priorLength === 1 ? String.fromCharCode(this.last) : ''
-      const text = prior + this.text
-      const flags = new Uint8Array(text.length + 1)
-      markLineBoundaries(this.iterator, text, flags, this.wordSegmenter)
-      next = new Int32Array(text.length + 2)
-      next[text.length + 1] = -1
-      for (let p = text.length; p >= 0; p--) next[p] = flags[p] === 1 ? p : next[p + 1]!
-      this.nextBoundary = next
-    }
-    const o = location + this.priorLength + 1
-    if (o >= next.length) return -1
-    const b = next[o]!
-    return b < 0 ? -1 : b - this.priorLength
-  }
+  const o = location + f.priorLength + 1
+  if (o >= next.length) return -1
+  const b = next[o]!
+  return b < 0 ? -1 : b - f.priorLength
 }
 
 // BP.h:142-255 for LineBreakRules::Normal, WordBreakBehavior::Normal and
@@ -736,7 +731,7 @@ function nextBreakablePosition(pairs: Uint8Array, f: Factory, startPosition: num
       if ((pair & ID) !== 0) return i
     }
     // ICU lookup.
-    if (nextBreak < i) nextBreak = f.following(i - 1)
+    if (nextBreak < i) nextBreak = following(f, i - 1)
     if (nextBreak >= 0 && i < nextBreak) {
       for (const max = Math.min(nextBreak, length - 1); i < max; beforeBefore = before, before = after, beforeType = afterType, i++) {
         const lookahead = s.charCodeAt(i + 1)
@@ -795,7 +790,7 @@ function getWebKitLineIterator(language: string | null): RuleBreakIterator {
     chars.push(remap[k]!)
     categories.push(getCategory(rules, remap[k + 1] === 0 ? 0x7b : 0x7d))
   }
-  iterator = new RuleBreakIterator(rules, chars, categories)
+  iterator = createRuleBreakIterator(rules, chars, categories)
   webkitIterators.set(locale, iterator)
   return iterator
 }
@@ -818,7 +813,7 @@ export function getWebKitLineBreaks(
   wordSegmenter: Intl.Segmenter,
 ): Uint8Array {
   const pairs = webkitPairs ??= unpackTable(webkitLinePairsPacked)
-  const f = new Factory(source, getWebKitLineIterator(language), wordSegmenter)
+  const f = createFactory(source, getWebKitLineIterator(language), wordSegmenter)
   const length = source.length
   const breaks = new Uint8Array(length + 1)
   let sixteenBit = false
@@ -864,9 +859,11 @@ export function getWebKitLineBreaks(
 // hyphens: manual, so a trailing soft hyphen doesn't block the break.
 export function getWebKitBreakBetweenItems(previous: string, next: string, language: string | null, wordSegmenter: Intl.Segmenter): boolean {
   const pairs = webkitPairs ??= unpackTable(webkitLinePairsPacked)
-  const f = new Factory(next, getWebKitLineIterator(language), wordSegmenter)
+  const f = createFactory(next, getWebKitLineIterator(language), wordSegmenter)
   const n = previous.length
-  f.setPriorContext(n > 1 ? previous.charCodeAt(n - 2) : 0, n > 0 ? previous.charCodeAt(n - 1) : 0)
+  f.secondToLast = n > 1 ? previous.charCodeAt(n - 2) : 0
+  f.last = n > 0 ? previous.charCodeAt(n - 1) : 0
+  f.priorLength = f.last === 0 ? 0 : f.secondToLast === 0 ? 1 : 2
   return nextBreakablePosition(pairs, f, 0) === 0
 }
 

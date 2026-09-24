@@ -1202,9 +1202,31 @@ breaks, paint widths or visitor calls. It keeps the simple walker's order: a
 whole segment is tried before its graphemes, each line takes at least one
 grapheme, and a line holding only an overflowing grapheme keeps the graphemes
 after it that can't start a line. Every segment boundary of simple text is a
-scan break, so it never searches back for a cut. Other text still counts through
-the full walker. This removes work from the resize path without changing
-preparation or what it measures.
+scan break, so it never searches back for a cut. The fresh-line widths of a
+segment's tails (entry geometry, which only text holding a default-ignorable code
+point has) matter only on a line that starts inside that segment, so the counter
+and the simple stepper take them there, and such text keeps the simple walkers.
+Other text still counts through the full walker. This removes work from the resize
+path without changing preparation or what it measures.
+
+Every counted line starts at 0 and adds the widths on it. A counter that sets a
+new line's width straight from its first segment's width or grapheme advance
+counts the same lines, but in Firefox 156 it took 1.4 to 1.7 times as long as
+main's `layout()` on chat messages in every script tested, same-document
+interleaved, while main's loop on the same prepared text took 1.0. Changing
+main's loop one step at a time toward it slowed only that step. Starting each
+line at 0 gave 0.87 to 1.04 there.
+
+A fresh page pays to compile the whole library before its first `prepare()`. In
+Firefox 156, `new Function` over the fresh-page probe's minified bundle took 4.5 to
+4.8ms while the engine scans kept their iterator state in four classes, whose
+fields compile as class fields, and 1.9 to 2.2ms with that state in plain objects
+and functions; main's bundle took 1.6 to 1.7ms. Emptying the class bodies or
+moving each field into its constructor gave the same 2.0 to 2.2ms, so any class
+field seems to make Firefox compile the whole bundle up front rather than each
+function on its first call. V8 and JavaScriptCore compiled all of these in the
+same time. The same change made seen Arabic, Latin and mixed chat messages
+prepare 6 to 8% faster in Firefox.
 
 Count total submitted Canvas text, not just calls. Measuring every prefix or
 suffix is quadratic even if each position triggers only one query. Safari's

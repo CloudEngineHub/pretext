@@ -1,6 +1,6 @@
 import type { SegmentBreakKind } from './analysis.js'
 import { getEngineProfile } from './measurement.js'
-import { getSegmentEntryWidth, type SegmentEntryGeometry } from './entry-geometry.js'
+import { getFreshLineEnd, getSegmentEntryWidth, type SegmentEntryGeometry } from './entry-geometry.js'
 
 export type LineBreakCursor = {
   segmentIndex: number
@@ -318,10 +318,13 @@ export function walkPreparedLinesRaw(
 // starts the next one.
 export function countPreparedLines(prepared: PreparedLineBreakData, maxWidth: number): number {
   if (!prepared.simpleLineWalkFastPath) return walkPreparedLinesRaw(prepared, maxWidth)
-  const { widths, kinds, breakableFitAdvances, lineStartProhibitions, lineStartExtras, lineEndTrims } = prepared
+  const { widths, kinds, breakableFitAdvances, entryGeometry, lineStartProhibitions, lineStartExtras, lineEndTrims } = prepared
   const fitLimit = Math.max(0, maxWidth) + getEngineProfile().lineFitEpsilon
   const segmentCount = widths.length
   let count = 0
+  // Every line starts at 0 and adds its content's widths. Firefox runs this loop
+  // about 1.6 times as long when a line's width is set from a segment's width
+  // instead (RESEARCH.md, Keeping Work Bounded).
   let lineW = 0
   let hasContent = false
 
@@ -340,6 +343,7 @@ export function countPreparedLines(prepared: PreparedLineBreakData, maxWidth: nu
         continue
       }
       count++
+      lineW = 0
       hasContent = false
       if (kind !== 'text') continue
     } else if (kind === 'space' || (kind === 'zero-width-break' && i !== first)) {
@@ -349,33 +353,46 @@ export function countPreparedLines(prepared: PreparedLineBreakData, maxWidth: nu
     const startW = lineStartExtras === null ? w : w + lineStartExtras[i]!
     const advances = breakableFitAdvances[i]!
     if (startW - endTrim <= fitLimit || advances === null) {
-      lineW = startW
+      lineW += startW
       hasContent = true
       continue
     }
     // An overflowing breakable segment fills lines grapheme by grapheme. A line
     // holding only an overflowing grapheme keeps the graphemes after it that
-    // can't start a line.
+    // can't start a line. A line that starts inside it where it has fresh-line
+    // geometry takes the tail or its fresh prefixes.
     const prohibitions = lineStartProhibitions?.[i] ?? null
+    const entry = entryGeometry === null ? null : entryGeometry[i]!
     let g = 0
-    while (true) {
-      lineW = advances[g]!
-      g++
+    while (g < advances.length) {
+      if (g > 0 && entry !== null && entry.entries[g] !== null) {
+        const end = getFreshLineEnd(entry, g, advances.length, fitLimit)
+        if (end > advances.length) {
+          lineW += getSegmentEntryWidth(entry, g, advances.length)!
+          hasContent = true
+          break
+        }
+        count++
+        g = end
+        continue
+      }
+      lineW += advances[g++]!
       if (prohibitions !== null && lineW > fitLimit) {
         const kept = g
         while (g < advances.length && prohibitions.includes(g)) lineW += advances[g++]!
         if (g > kept) {
           count++
-          if (g === advances.length) break
+          lineW = 0
           continue
         }
       }
       while (g < advances.length && lineW + advances[g]! <= fitLimit) lineW += advances[g++]!
-      if (g === advances.length) {
+      if (g < advances.length) {
+        count++
+        lineW = 0
+      } else {
         hasContent = true
-        break
       }
-      count++
     }
   }
   return count + (hasContent ? 1 : 0)
@@ -574,20 +591,17 @@ function walkPreparedComplexLines(
       : null
     if (freshWhole !== null) {
       const terminal = prepared.letterSpacing
-      if (entry!.entries[startGraphemeIndex]!.admissionFit <= fitLimit) {
+      // Admission, ordered emergency prefixes and continuing pen are distinct.
+      // The first real grapheme is mandatory source progress, even when unfit.
+      const end = getFreshLineEnd(entry!, startGraphemeIndex, fitAdvances.length, fitLimit)
+      if (end > fitAdvances.length) {
         startLineAtSegment(segmentIndex, freshWhole - terminal)
         return null
       }
-      // Admission, ordered emergency prefixes and continuing pen are distinct.
-      // The first real grapheme is mandatory source progress, even when unfit.
-      for (let g = startGraphemeIndex; g < fitAdvances.length; g++) {
-        const fresh = getSegmentEntryWidth(entry, startGraphemeIndex, g + 1)!
-        if (g > startGraphemeIndex && fresh > fitLimit) return finishLine()
-        startLineAtGrapheme(segmentIndex, g, fresh - terminal)
-      }
+      startLineAtGrapheme(segmentIndex, end - 1, getSegmentEntryWidth(entry, startGraphemeIndex, end)! - terminal)
       // Exhausting an emergency fragment consumes the measured segment and
       // ends this line. Only intact admission above continues into other source.
-      return finishLine(segmentIndex + 1, 0)
+      return end === fitAdvances.length ? finishLine(segmentIndex + 1, 0) : finishLine()
     }
 
     for (let g = startGraphemeIndex; g < endGraphemeIndex; g++) {
@@ -853,7 +867,7 @@ function stepPreparedSimpleLineGeometry(
   cursor: LineBreakCursor,
   maxWidth: number,
 ): number | null {
-  const { widths, kinds, breakableFitAdvances, lineStartExtras, lineEndTrims } = prepared
+  const { widths, kinds, breakableFitAdvances, entryGeometry, lineStartExtras, lineEndTrims } = prepared
   const engineProfile = getEngineProfile()
   const lineFitEpsilon = engineProfile.lineFitEpsilon
   // A negative width lays out as 0, as in the complex walker.
@@ -879,6 +893,23 @@ function stepPreparedSimpleLineGeometry(
 
     if (!hasContent) {
       const startW = lineStartExtras === null ? w : w + lineStartExtras[i]!
+      // A line that starts inside a segment where it has fresh-line geometry takes
+      // the tail, and goes on, or its fresh prefixes.
+      const entry = startGraphemeIndex > 0 && entryGeometry !== null ? entryGeometry[i]! : null
+      if (entry !== null && entry.entries[startGraphemeIndex] !== null) {
+        const segmentEnd = breakableFitAdvance!.length
+        const end = getFreshLineEnd(entry, startGraphemeIndex, segmentEnd, fitLimit)
+        hasContent = true
+        if (end > segmentEnd) {
+          lineW = getSegmentEntryWidth(entry, startGraphemeIndex, segmentEnd)!
+          lineEndSegmentIndex = i + 1
+          lineEndGraphemeIndex = 0
+          continue
+        }
+        cursor.segmentIndex = end === segmentEnd ? i + 1 : i
+        cursor.graphemeIndex = end === segmentEnd ? 0 : end
+        return getSegmentEntryWidth(entry, startGraphemeIndex, end)!
+      }
       if (startGraphemeIndex > 0 || (startW - endTrim > fitLimit && breakableFitAdvance !== null)) {
         const fitAdvances = breakableFitAdvance!
         hasContent = true
