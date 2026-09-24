@@ -631,19 +631,6 @@ describe('boundary-policy regressions', () => {
     expect(analyzeText('\u65E5\uFF1F\u30FC', geckoProfile).texts).toEqual(['\u65E5\uFF1F\u30FC'])
   })
 
-  test('times and numbers keep a closing full-width comma (#225)', async () => {
-    const { analyzeText } = await import('./analysis.ts')
-    const profile = baseProfile
-    for (const [text, expected] of [
-      ['a 00:00:00\uFF0Cb', ['a', ' ', '00:00:00\uFF0C', 'b']],
-      ['2025-08-01 00:00:00\uFF0C2025-08-01 00:00:00', ['2025-', '08-', '01', ' ', '00:00:00\uFF0C', '2025-', '08-', '01', ' ', '00:00:00']],
-      ['00:00:00\uFF0C2025', ['00:00:00\uFF0C', '2025']],
-      ['12:30\uFF0Cb', ['12:30\uFF0C', 'b']],
-    ] as const) {
-      expect(analyzeText(text, profile).texts).toEqual([...expected])
-    }
-  })
-
   test('closing punctuation and nonstarters stay with the text before them (#225)', async () => {
     // No break precedes CL, CP, EX, IS or NS, whatever comes before it (UAX #14
     // LB13, LB21). Chrome, Safari and Firefox keep the mark with a word or a number
@@ -1746,12 +1733,6 @@ describe('prepare invariants', () => {
     expect(prepared.kinds).toEqual(['text', 'tab', 'text'])
   })
 
-  test('keeps non-breaking spaces as glue instead of collapsing them away', () => {
-    const prepared = prepareWithSegments('Hello\u00A0world', FONT)
-    expect(prepared.segments).toEqual(['Hello\u00A0world'])
-    expect(prepared.kinds).toEqual(['text'])
-  })
-
   test('keeps standalone non-breaking spaces as visible glue content', () => {
     const prepared = prepareWithSegments('\u00A0', FONT)
     expect(prepared.segments).toEqual(['\u00A0'])
@@ -1763,28 +1744,12 @@ describe('prepare invariants', () => {
     expect(layout(prepared, 200, LINE_HEIGHT)).toEqual({ lineCount: 1, height: LINE_HEIGHT })
   })
 
-  test('keeps narrow no-break spaces as glue content', () => {
-    const prepared = prepareWithSegments('10\u202F000', FONT)
-    expect(prepared.segments).toEqual(['10\u202F000'])
-    expect(prepared.kinds).toEqual(['text'])
-  })
-
-  test('keeps figure spaces as glue content', () => {
-    const doubled = prepareWithSegments('a\u2007\u2007b', FONT)
-    expect(doubled.segments).toEqual(['a\u2007\u2007b'])
-    expect(doubled.kinds).toEqual(['text'])
-
+  test('a word holding a figure space takes emergency breaks', () => {
     const prepared = prepareWithSegments('tail\u2007word', FONT)
     expect(prepared.segments).toEqual(['tail\u2007word'])
     expect(prepared.kinds).toEqual(['text'])
     const width = measureWidth('tail\u2007w', FONT) + 0.1
     expect(layoutWithLines(prepared, width, LINE_HEIGHT).lines.map(line => line.text)).toEqual(['tail\u2007w', 'ord'])
-  })
-
-  test('keeps word joiners as glue content', () => {
-    const prepared = prepareWithSegments('foo\u2060bar', FONT)
-    expect(prepared.segments).toEqual(['foo\u2060bar'])
-    expect(prepared.kinds).toEqual(['text'])
   })
 
   test('treats zero-width spaces as explicit break opportunities', () => {
@@ -1993,11 +1958,17 @@ describe('prepare invariants', () => {
     // runs to the scan's next break, and a collapsed space is its own segment.
     const cases = (wordBreak: 'normal' | 'keep-all', rows: ReadonlyArray<readonly [string, readonly string[]]>) => {
       for (const [text, expected] of rows) {
-        expect({ text, wordBreak, segments: prepareWithSegments(text, FONT, { wordBreak }).segments }).toEqual({ text, wordBreak, segments: [...expected] })
+        const { segments, kinds } = prepareWithSegments(text, FONT, { wordBreak })
+        expect({ text, wordBreak, segments, kinds }).toEqual({ text, wordBreak, segments: [...expected], kinds: expected.map(segment => segment === ' ' ? 'space' : 'text') })
       }
     }
     cases('normal', [
       ['hello.', ['hello.']],
+      // No-break spaces and joiners stay inside their text.
+      ['Hello\u00A0world', ['Hello\u00A0world']],
+      ['10\u202F000', ['10\u202F000']],
+      ['a\u2007\u2007b', ['a\u2007\u2007b']],
+      ['foo\u2060bar', ['foo\u2060bar']],
       ['مرحبا، عالم؟', ['مرحبا،', ' ', 'عالم؟']],
       ['وحوارى بكشء،ٍ من قولهم', ['وحوارى', ' ', 'بكشء،ٍ', ' ', 'من', ' ', 'قولهم']],
       ['فيقول:وعليك السلام', ['فيقول:وعليك', ' ', 'السلام']],
@@ -2022,6 +1993,11 @@ describe('prepare invariants', () => {
       ['50°C', ['50°C']],
       ['$(12.35)', ['$(12.35)']],
       ['-1/12', ['-1/12']],
+      // Times and numbers keep a closing full-width comma (#225).
+      ['a 00:00:00\uFF0Cb', ['a', ' ', '00:00:00\uFF0C', 'b']],
+      ['2025-08-01 00:00:00\uFF0C2025-08-01 00:00:00', ['2025-', '08-', '01', ' ', '00:00:00\uFF0C', '2025-', '08-', '01', ' ', '00:00:00']],
+      ['00:00:00\uFF0C2025', ['00:00:00\uFF0C', '2025']],
+      ['12:30\uFF0Cb', ['12:30\uFF0C', 'b']],
       ['window 7:00-9:00 only', ['window', ' ', '7:00-', '9:00', ' ', 'only']],
       ['SSN 420-69-8008 filed', ['SSN', ' ', '420-', '69-', '8008', ' ', 'filed']],
       ['यह २४×७ सपोर्ट है', ['यह', ' ', '२४×७', ' ', 'सपोर्ट', ' ', 'है']],
@@ -2048,6 +2024,12 @@ describe('prepare invariants', () => {
       ['中文，测试。', ['中', '文，', '测', '试。']],
       ['테스트입니다.', ['테', '스', '트', '입', '니', '다.']],
       ['foo 世界', ['foo 世', '界']],
+      // An opening bracket after CJK stays with the annotation after it.
+      ['서울(Seoul)과', ['서', '울', '(Seoul)', '과']],
+      ['東京(Tokyo)と', ['東', '京', '(Tokyo)', 'と']],
+      ['北京(Beijing)和', ['北', '京', '(Beijing)', '和']],
+      ['참조[1]와', ['참', '조', '[1]', '와']],
+      ['AB(CD)', ['AB(CD)']],
       ...['𠀀', '\u{2EBF0}', '\u{31350}', '\u{323B0}'].flatMap(sample => [
         [`${sample}${sample}`, [sample, sample]] as const,
         [`${sample}。`, [`${sample}。`]] as const,
@@ -2588,14 +2570,6 @@ describe('prepare invariants', () => {
       Reflect.set(Intl, 'Segmenter', Segmenter)
       clearAnalysisCaches()
     }
-  })
-
-  test('keeps opening brackets after CJK attached to following annotation text', () => {
-    expect(prepareWithSegments('서울(Seoul)과', FONT).segments).toEqual(['서', '울', '(Seoul)', '과'])
-    expect(prepareWithSegments('東京(Tokyo)と', FONT).segments).toEqual(['東', '京', '(Tokyo)', 'と'])
-    expect(prepareWithSegments('北京(Beijing)和', FONT).segments).toEqual(['北', '京', '(Beijing)', '和'])
-    expect(prepareWithSegments('참조[1]와', FONT).segments).toEqual(['참', '조', '[1]', '와'])
-    expect(prepareWithSegments('AB(CD)', FONT).segments).toEqual(['AB(CD)'])
   })
 
   test('locale can be reset without disturbing later prepares', () => {
