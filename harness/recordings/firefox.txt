@@ -1,4 +1,4 @@
-# env firefox 156.0 os=26A428 os-languages=zh-Hans-US,en-US page-languages=en-US,en dpr=2 fonts=0f7936f48f68
+# env firefox 156.0 os=26A428 os-languages=zh-Hans-US,en-US page-languages=en-US,en dpr=2 fonts=eb39315129b7
 real-ar-al-bukhala-l1199-w400	34	0-41:301.4666748046875
 real-ar-al-bukhala-l1381-w480	68	0-62:463.75 64-81:121.76666259765625
 real-ar-al-bukhala-l165-w600	68	0-77:592.8333129882812 79-86:46.93333435058594
