@@ -615,16 +615,9 @@ function measureAnalysis(
     lineEndTrims = addIdeographicSpaceHangs(lineEndTrims, analysis.texts, kinds, breaksBefore, cache, letterSpacing, discretionaryHyphenWidth)
   }
   if (chunkStartSegmentIndex < widths.length) {
-    // A whole ZWSP-only paragraph has a line but no rendered advance. Keep
-    // its source in the consumed range, like an existing empty hard line.
-    // Normalization can erase other line-producing source, such as form feed.
-    const onlyZeroWidthBreaks = chunkStartSegmentIndex === 0 &&
-      analysis.kinds.every(kind => kind === 'zero-width-break' || kind === 'zero-width-glue') &&
-      analysis.source === analysis.normalized
-    if (onlyZeroWidthBreaks) simpleLineWalkFastPath = false
     chunks.push({
       startSegmentIndex: chunkStartSegmentIndex,
-      endSegmentIndex: onlyZeroWidthBreaks ? 0 : widths.length,
+      endSegmentIndex: widths.length,
       consumedEndSegmentIndex: widths.length,
     })
   }
