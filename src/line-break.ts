@@ -466,11 +466,13 @@ function walkPreparedComplexLines(
   // Every later segment overflows, so the line ends after it and paints that much less.
   let lineEndTrimmed = 0
 
+  // A line that ends at its pending break paints the pending width where that fits,
+  // and a selected soft hyphen's width even where it doesn't.
   function getCurrentLinePaintWidth(): number {
     return (
-      pendingBreakKind === 'soft-hyphen' &&
       pendingBreakSegmentIndex === lineEndSegmentIndex &&
-      lineEndGraphemeIndex === 0
+      lineEndGraphemeIndex === 0 &&
+      (pendingBreakWidth <= fitLimit || pendingBreakKind === 'soft-hyphen')
     )
       ? pendingBreakWidth
       : lineW - lineEndTrimmed
@@ -761,18 +763,6 @@ function walkPreparedComplexLines(
             const line = appendBreakableSegmentFrom(i, 0, undefined, leadingSpacing)
             if (line === null) continue
             lineWidth = line
-            break lineLoop
-          }
-
-          if (pendingBreakSegmentIndex >= 0 && pendingBreakWidth <= fitLimit) {
-            if (
-              lineEndSegmentIndex > pendingBreakSegmentIndex ||
-              (lineEndSegmentIndex === pendingBreakSegmentIndex && lineEndGraphemeIndex > 0)
-            ) {
-              lineWidth = finishLine()
-              break lineLoop
-            }
-            lineWidth = finishLine(pendingBreakSegmentIndex, 0, pendingBreakWidth)
             break lineLoop
           }
 
