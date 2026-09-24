@@ -13,7 +13,10 @@ export type JobResult<T> = { env: string; results: Map<string, T>; ms: number }
 
 type FontFixture = { family: string; weight: string; file: string }
 const FIXTURES = JSON.parse(readFileSync(join(FONTS_DIR, 'fonts.json'), 'utf8')) as FontFixture[]
+// A chunk holds up to 25 cases and ends after the case that reaches 20,000 UTF-16 units, so a chunk of books still
+// answers well within the stall watchdog.
 const CHUNK = 25
+const CHUNK_UNITS = 20_000
 export const LIB = resolve(import.meta.dir, '../src')
 
 async function bundle(lib: string): Promise<string> {
@@ -114,8 +117,16 @@ export async function runJob<T extends Recording | Prediction>(job: Job): Promis
       next = 0
       return Response.json({ kind: 'navigate', url: docUrl(doc) })
     }
-    // A page that loads again before answering gets its chunk again.
-    pending ??= { start: next, end: Math.min(next + CHUNK, docs[doc]!.length) }
+    // The next chunk; a page that loads again before answering gets the same one.
+    if (pending === null) {
+      const cases = docs[doc]!
+      let end = next
+      for (let units = 0; end < cases.length && end - next < CHUNK && units < CHUNK_UNITS; end++) {
+        const runs = cases[end]!.paragraph.runs
+        for (let r = 0; r < runs.length; r++) units += runs[r]!.text.length
+      }
+      pending = { start: next, end }
+    }
     return asciiJson({ kind: 'chunk', mode: job.mode, browser: job.browser, cases: docs[doc]!.slice(pending.start, pending.end) })
   }
 
