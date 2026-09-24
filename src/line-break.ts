@@ -807,13 +807,6 @@ function walkPreparedComplexLines(
           if (getBreakableCandidateFitWidth(prepared, lineW + advance) <= fitLimit) {
             lineW += advance
             lineWidth = finishLine(endSegmentLimit, endGraphemeLimit, lineW)
-          } else if (
-            pendingBreakSegmentIndex >= 0 &&
-            pendingBreakWidth <= fitLimit &&
-            lineEndSegmentIndex === pendingBreakSegmentIndex &&
-            lineEndGraphemeIndex === 0
-          ) {
-            lineWidth = finishLine(pendingBreakSegmentIndex, 0, pendingBreakWidth)
           } else {
             lineWidth = finishLineBeforeUnfitHyphen() ?? finishLine()
           }
