@@ -1588,9 +1588,12 @@ describe('engine break scans', () => {
 
   test("Gecko's scan follows its white-space transform, text runs, nsLineBreaker and ICU4X's rules", async () => {
     const { getGeckoLineBreaks } = await import('./gecko-line-breaks.ts')
+    const { removeSkippableSegmentBreaks } = await import('./analysis.ts')
     const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
     // Cases from the Gecko break oracle's tests and others, with the oracle's breaks,
-    // soft-hyphen breaks included.
+    // soft-hyphen breaks included. The scan reads the text after the segment break
+    // transformation, as analyzeText gives it: the text and breaks of a row whose
+    // segment break goes are shown after it.
     for (const [text, language, keepAll, preserve, expected] of [
       ['https://example.com', 'en', false, false, [8]],
       ['example.com/docs', 'en', false, false, [12]],
@@ -1619,18 +1622,20 @@ describe('engine break scans', () => {
       ['a  b', 'en', false, true, [3]],
       ['ab\u00ADcd', 'en', false, false, [3]],
       ['ab-cd', 'en', true, false, []],
-      ['a\u200B\nb', 'en', false, false, [3]],
+      ['a\u200Bb', 'en', false, false, [2]], // a, ZWSP, LF, b
       ['a\nb', 'en', false, false, [2]],
       ['a \n\t b', 'en', false, false, [5]],
       ['\u0628\u200E\u0650\u0628', 'en', false, false, []],
       ['\u65E5\uFF1F\u30FC', 'en', false, false, []],
-      ['\u4E2D\u6587\n\u4E2D\u6587', 'en', false, false, [1, 3, 4]],
-      ['a\n\u3002', 'ja', false, false, []],
+      ['\u4E2D\u6587\u4E2D\u6587', 'en', false, false, [1, 2, 3]], // an LF between the two words
+      ['a\u3002', 'ja', false, false, []], // a, LF, U+3002
       ['a\n\u3002', 'en', false, false, [2]],
       ['\u0915\u0947 \u0301b', 'en', false, false, [3]],
       ['a (\u05D0\u05D1) b', 'en', false, false, [2, 7]],
     ] as const) {
-      expect({ text, language, keepAll, breaks: positions(getGeckoLineBreaks(text, preserve, keepAll, language, graphemeSegmenter, wordSegmenter), text.length) })
+      // The transformation leaves these rows as they are.
+      expect(preserve ? text : removeSkippableSegmentBreaks(text, { lineBreakScan: 'gecko' }, language)).toBe(text)
+      expect({ text, language, keepAll, breaks: positions(getGeckoLineBreaks(text, preserve, keepAll, graphemeSegmenter, wordSegmenter), text.length) })
         .toEqual({ text, language, keepAll, breaks: [...expected] })
     }
   })

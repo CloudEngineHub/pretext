@@ -350,14 +350,13 @@ export function analyzeText(
   if (profile.lineBreakScan === 'blink') {
     breaks = getBlinkLineBreaks(normalized, keepAll, language, getSharedWordSegmenter())
   } else {
-    // WebKit and Gecko scan a text node's source. Gecko's scan transforms its white space
-    // as Firefox does, which removes the segment breaks next to a ZWSP that normalization
-    // removed first.
+    // WebKit and Gecko scan a text node's source, after the segment break transformation.
+    // Gecko's scan collapses the rest of its white space as Firefox does.
     const preserve = whiteSpace === 'pre-wrap'
     const source = preserve ? text : removeSkippableSegmentBreaks(text, profile, language)
     const sourceBreaks = profile.lineBreakScan === 'webkit'
       ? getWebKitLineBreaks(source, preserve, keepAll, language, getSharedWordSegmenter())
-      : getGeckoLineBreaks(source, preserve, keepAll, language, getSharedGraphemeSegmenter(), getSharedWordSegmenter())
+      : getGeckoLineBreaks(source, preserve, keepAll, getSharedGraphemeSegmenter(), getSharedWordSegmenter())
     breaks = source === normalized ? sourceBreaks : mapSourceLineBreaks(source, normalized.length, sourceBreaks, whiteSpace)
   }
   return {
