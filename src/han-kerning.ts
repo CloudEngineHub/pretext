@@ -19,7 +19,7 @@
 // Canvas once per font: in `cc` HanKerning halts exactly one of the two, so a character's trim
 // is 2 W(c) - W(cc), and the types of dots, colons, semicolons and quotes follow their ink
 // bounds under the page's Han script (han_kerning.cc:47-168, 400-535).
-import { getSegmentMetrics, type FontMeasurement, type SegmentMetrics } from './measurement.js'
+import { getMeasureContext, getSegmentMetrics, type FontMeasurement, type SegmentMetrics } from './measurement.js'
 
 const OTHER = 0
 const OPEN = 1
@@ -115,7 +115,7 @@ function getTrim(data: HanKerningFontData, c: number, cache: Map<string, Segment
 
 // HanKerning::FontData (han_kerning.cc:400-535), with the measure context set to the font;
 // null where the font that draws 「 has no halt.
-function getFontData(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, measurement: FontMeasurement): HanKerningFontData | null {
+function getFontData(measurement: FontMeasurement): HanKerningFontData | null {
   if (measurement.hanKerning !== undefined) return measurement.hanKerning
   const cache = measurement.metrics
   const data: HanKerningFontData = { typeForDot: OTHER, typeForColon: OTHER, typeForSemicolon: OTHER, quoteFullwidth: false, trims: new Map() }
@@ -124,6 +124,7 @@ function getFontData(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingCon
     return null
   }
   const hanWidth = getSegmentMetrics('\u4E2D', cache).width
+  const ctx = getMeasureContext()
   const glyphs = [0x3001, 0x3002, 0xFF0C, 0xFF0E, 0xFF1A, 0xFF1B, 0x201C, 0x2018, 0x201D, 0x2019].map(c => getTypeFromBounds(ctx, c, hanWidth))
   // A group has one type only when its glyphs share the advance and the type (han_kerning.cc:88-135).
   const group = (from: number, to: number): number => {
@@ -184,7 +185,6 @@ export type HanKerningTrims = {
 // The trims of text segments, given each segment's text, the characters before and after it
 // (-1 at the paragraph's ends), and whether a break directly follows it.
 export function getHanKerningTrims(
-  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   measurement: FontMeasurement,
   texts: readonly string[],
   isText: (index: number) => boolean,
@@ -193,7 +193,7 @@ export function getHanKerningTrims(
   breaksAfterEnd: (index: number) => boolean,
 ): HanKerningTrims {
   const out: HanKerningTrims = { widthTrims: null, lineStartExtras: null, lineEndTrims: null }
-  const data = getFontData(ctx, measurement)
+  const data = getFontData(measurement)
   if (data === null) return out
   const cache = measurement.metrics
   const addWidthTrim = (i: number, trim: number): void => {

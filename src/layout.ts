@@ -27,7 +27,6 @@ import {
   getEmojiCorrection,
   getFollowingSpaceMetrics,
   getFontMeasurement,
-  getMeasureContext,
   getSegmentMetrics,
   measureWithLetterSpacing,
   textMayContainEmoji,
@@ -555,7 +554,6 @@ function measureAnalysis(
   let hanKerning: HanKerningTrims = { widthTrims: null, lineStartExtras: null, lineEndTrims: null }
   if (engineProfile.hanKerning && textMayHanKern(analysis.normalized)) {
     hanKerning = getHanKerningTrims(
-      getMeasureContext(),
       fontMeasurement,
       analysis.texts,
       i => kinds[i] === 'text',
