@@ -1,5 +1,5 @@
 import { getSharedGraphemeSegmenter } from './analysis.js'
-import { isDiscretionaryLineEnd } from './line-break.js'
+import { HARD_BREAK, isDiscretionaryLineEnd, KIND_BITS, SOFT_HYPHEN, ZERO_WIDTH_BREAK, ZERO_WIDTH_GLUE } from './line-break.js'
 import type { PreparedTextWithSegments } from './layout.js'
 
 const sharedLineTextCaches = new WeakMap<PreparedTextWithSegments, Map<number, number[]>>()
@@ -38,14 +38,15 @@ export function buildLineTextFromRange(
   endSegmentIndex: number,
   endGraphemeIndex: number,
 ): string {
+  const { segmentFlags } = prepared
   let text = ''
   for (let i = startSegmentIndex; i < endSegmentIndex; i++) {
     // A soft hyphen shows only as the hyphen of a line that ends at it, and one the
     // Gecko scan takes as a zero-width break never does.
-    const kind = prepared.kinds[i]
+    const kind = segmentFlags[i]! & KIND_BITS
     if (
-      kind === 'soft-hyphen' || kind === 'hard-break' ||
-      ((kind === 'zero-width-glue' || kind === 'zero-width-break') && prepared.segments[i]!.charCodeAt(0) === 0x00AD)
+      kind === SOFT_HYPHEN || kind === HARD_BREAK ||
+      ((kind === ZERO_WIDTH_GLUE || kind === ZERO_WIDTH_BREAK) && prepared.segments[i]!.charCodeAt(0) === 0x00AD)
     ) continue
     if (i === startSegmentIndex && startGraphemeIndex > 0) {
       const offsets = getSegmentGraphemeOffsets(i, prepared.segments, cache)
@@ -63,5 +64,5 @@ export function buildLineTextFromRange(
     )
   }
 
-  return isDiscretionaryLineEnd(prepared.kinds, endSegmentIndex, endGraphemeIndex) ? text + '-' : text
+  return isDiscretionaryLineEnd(segmentFlags, endSegmentIndex, endGraphemeIndex) ? text + '-' : text
 }

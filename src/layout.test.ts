@@ -34,6 +34,7 @@ let countPreparedLines: LineBreakModule['countPreparedLines']
 let measurePreparedLineGeometry: LineBreakModule['measurePreparedLineGeometry']
 let stepPreparedLineGeometry: LineBreakModule['stepPreparedLineGeometry']
 let walkPreparedLinesRaw: LineBreakModule['walkPreparedLinesRaw']
+let SPACED: LineBreakModule['SPACED']
 let getSegmentBreakableFitAdvances: MeasurementModule['getSegmentBreakableFitAdvances']
 let getEngineProfile: MeasurementModule['getEngineProfile']
 let analyzeText: AnalysisModule['analyzeText']
@@ -302,7 +303,7 @@ beforeAll(async () => {
     setLocale,
     clearCache,
   } = mod)
-  ;({ countPreparedLines, measurePreparedLineGeometry, stepPreparedLineGeometry, walkPreparedLinesRaw } = lineBreakMod)
+  ;({ countPreparedLines, measurePreparedLineGeometry, stepPreparedLineGeometry, walkPreparedLinesRaw, SPACED } = lineBreakMod)
   ;({ getSegmentBreakableFitAdvances, getEngineProfile } = measurementMod)
   ;({ analyzeText } = analysisMod)
   ;({ getBlinkLineBreaks } = lineBreaksMod)
@@ -928,7 +929,7 @@ describe('boundary-policy regressions', () => {
       const prepared = prepareWithSegments('ab\u00AD)cd', FONT, { letterSpacing: 2 })
       expect(prepared.kinds).toEqual(['text', 'zero-width-glue', 'text'])
       expect(prepared.widths[1]).toBe(0)
-      expect(prepared.spacingGraphemeCounts[1]).toBe(0)
+      expect(prepared.segmentFlags[1]! & SPACED).toBe(0)
       const whole = lines('ab\u00AD)cd', 1000, 2)
       expect(whole.map(line => line.text)).toEqual(['ab)cd'])
       expect(whole[0]!.width).toBeCloseTo(measureWidth('ab)cd', FONT) + 5 * 2)
@@ -970,7 +971,7 @@ describe('boundary-policy regressions', () => {
         clearCache()
         const hidden = prepareWithSegments(`ab${control}cd`, FONT, { letterSpacing: 2 })
         const index = hidden.segments.indexOf(control)
-        expect({ control, width: hidden.widths[index], gaps: hidden.spacingGraphemeCounts[index] }).toEqual({ control, width: 0, gaps: 1 })
+        expect({ control, width: hidden.widths[index], spaced: (hidden.segmentFlags[index]! & SPACED) !== 0 }).toEqual({ control, width: 0, spaced: true })
         profile.hidesControlCharacters = false
         clearCache()
         const shown = prepareWithSegments(`ab${control}cd`, FONT)
@@ -1139,7 +1140,7 @@ describe('boundary-policy regressions', () => {
           const prepared = prepareWithSegments(text, FONT, { letterSpacing: 1 })
           expect(prepared.segments[markIndex]).toBe('\u0301')
           expect(prepared.widths[markIndex]).toBe(0)
-          expect(prepared.spacingGraphemeCounts[markIndex]).toBe(0)
+          expect(prepared.segmentFlags[markIndex]! & SPACED).toBe(0)
         }
         const tail = 'aaaa\u00AD\u0301tail'
         expect(lines(tail, measureWidth('aaaatail', FONT) + 0.1)).toEqual([tail])

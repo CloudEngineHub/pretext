@@ -4,6 +4,7 @@ import {
   prepareWithSegments,
   type PreparedTextWithSegments,
 } from '../src/layout.ts'
+import { SPACED } from '../src/line-break.ts'
 import {
   classifyBreakMismatch,
   formatBreakContext,
@@ -468,7 +469,7 @@ function getLineEndFitAdvance(prepared: PreparedTextWithSegments, segmentIndex: 
   if (kind === 'soft-hyphen') return prepared.discretionaryHyphenWidth
   if (kind === 'space' || kind === 'preserved-space' || kind === 'zero-width-break') return 0
   if (width === 0 && kind !== 'control') return 0
-  return prepared.letterSpacing !== 0 && prepared.spacingGraphemeCounts[segmentIndex]! > 0
+  return prepared.letterSpacing !== 0 && (prepared.segmentFlags[segmentIndex]! & SPACED) !== 0
     ? width + prepared.letterSpacing
     : width
 }
