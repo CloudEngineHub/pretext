@@ -526,11 +526,8 @@ function walkPreparedComplexLines(
     lineW = width
   }
 
+  // Called only on a line that has content.
   function appendWholeSegment(segmentIndex: number, advance: number): void {
-    if (!hasContent) {
-      startLineAtSegment(segmentIndex, advance)
-      return
-    }
     lineW += advance
     lineEndSegmentIndex = segmentIndex + 1
     lineEndGraphemeIndex = 0
