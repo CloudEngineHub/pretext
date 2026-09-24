@@ -141,6 +141,22 @@ Canvas that halts CJK punctuation pairs, finds no difference.
 The layout bundle grows from 80,306 to 119,936 bytes minified (21,172 to 55,946
 gzipped), and runtime source from 6,391 to 6,624 lines.
 
+Chrome and Safari benchmark snapshots were refreshed from this branch: three
+foreground runs each at DPR 2, visible and focused, with Chrome 153 and Safari
+27.0 on the 2560x1440 screen. In the same session main `b17a7ac` and this branch
+each ran four sets of three runs per browser, alternating main, branch, branch,
+main twice; the numbers in parentheses are main's median set. Chrome's runs and
+the Safari snapshot waited for the one-minute load average to drop under 5;
+Safari's alternating sets ran at 5.5 to 6.6 while another job kept a core busy.
+Hot `layout()` reads 0.022 ms in Chrome (0.029) and 0.030 ms in Safari (0.035),
+and long-form corpus `layout()` totals 0.20 ms (0.35) and 0.21 ms (0.27).
+`prepare()` reads 3.2 ms in Chrome (9.5) and 5.0 ms in Safari (12.3). The shape
+rows' hot `layout()` is slower in Chrome for `soft-hyphens`, 1.55 µs per text
+(1.06), the letter-spaced `cjk-indent-spaced`, 0.85 (0.63), and `controls`, 0.34
+(0.08), and in Safari for `cjk-indent-spaced`, 0.84 (0.71); Safari's
+`soft-hyphens` and `controls` rows are bimodal on main and this branch alike.
+The pre-wrap line-range rows read 5 to 12% slower in Chrome.
+
 The baseline advances to `f4374a3`, and the ordinary snapshots were regenerated
 against it in Chrome 153, Safari 27.0 and Firefox 156, with no regressions,
 required failures or execution errors. Accuracy stays 7,680 of 7,680 in each
