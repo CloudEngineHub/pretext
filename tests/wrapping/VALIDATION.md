@@ -276,6 +276,54 @@ cases and only without them in 12, with both in 35 and with neither in 503, and 
 line count is right only with them in 370 and only without them in 58. Of the 33
 strings whose lines move, 22 side with the splits, 6 mostly, and 5 with neither.
 
+The full walker, which text with letter spacing, soft hyphens, controls, tabs, hard
+breaks or preserved spaces takes in every API, keeps its line state in locals of
+one function. Its helpers used to close over that state, and V8 boxes a captured
+number, so each write cost 12-14ns. Each segment's kind, whether it takes letter
+spacing and whether the scan gives a break before it are one byte in
+`segmentFlags`, in place of kind strings, grapheme counts and an optional break
+array; a line's walk ends at the next hard break instead of looking up chunk
+records; the `prepare()` handle no longer carries kind strings; and walks count
+into one stats object instead of a closure. Nothing predicts differently. Under
+the Chrome, Safari, Firefox and no-browser profiles, `prepareWithSegments()` and
+`prepare()` output, mapped to one shape, and every line API agree with the tip
+before these commits over 79,412 inputs at many widths, 7.6 million walks per
+profile, with the same Canvas calls. So do the harness's predictions on 499,482,
+499,356 and 499,422 inputs, 46,803 inputs under a second fake Canvas, 32,907 warm
+and 27,112 cold preparations with their Canvas calls and DOM probes, rich inline on
+17,681 inputs at about 857,000 widths, `analyzeText()` and the scans on 23,193
+inputs, `layout()` against `walkLineRanges()` on 60,000 fuzz pairs per engine and
+seed, and the counter, the simple stepper and the full walker on 1.3 to 1.8
+million widths of simple text per engine. Runtime source shrinks by 71 lines, and the layout bundle
+by 1,315 bytes minified and 181 gzipped.
+
+Same-document timing in Chrome 153, Firefox 156 and Safari 27.0, foreground and
+interleaved over two sessions, put main `6d1d210`, the tip before these commits,
+the tip after them and main again as the control in each document. The control
+read 0.95 to 1.02 in the benchmark-row documents and 0.96 to 1.07 in the resize
+documents, except 1.20 once in Safari. Ratios are to main, with the tip before
+these commits in parentheses:
+- `layout()` of letter-spaced CJK: 0.50 in Chrome (1.24), 0.52 in Firefox (1.28)
+  and 0.47 in Safari (1.11), 4.0, 9.3 and 8.1ns a unit. It is still `layout()`'s
+  costliest text per character.
+- Soft hyphens 0.62, 0.61 and 0.46 (1.28, 1.41, 1.63); control characters 1.00,
+  2.23 and 0.51 (1.94, 5.08, 1.20); invisible tails 0.62, 0.75 and 0.75 (0.79,
+  1.06, 0.99).
+- The pre-wrap rows' five line APIs: 0.39 to 0.78 in Chrome (1.03 to 1.05), 0.42
+  to 0.64 in Firefox (1.09 to 1.24) and 0.38 to 0.66 in Safari (1.08 to 1.36).
+  `layoutNextLine()` reads 0.39, 0.42 and 0.38.
+- Chat resize: 0.75 to 1.01 in Chrome (0.77 to 1.04), 0.70 to 1.00 in Firefox
+  (0.86 to 1.13) and 0.73 to 0.91 in Safari (0.71 to 0.97).
+- `prepare()` of new and seen messages and fresh pages don't move beyond the
+  control.
+
+A copy of the new tip with every text on the full walker lays out chat messages at
+2.0 to 2.9 times main's time in Chrome, 4.6 to 7.5 in Firefox and 2.1 to 2.7 in
+Safari, and plain CJK paragraphs at 2.4, 3.9 and 2.3, about three, five and three
+times the counter. The full walker keeps the line ends, pending breaks and paint
+widths the line APIs report, which a count doesn't need, so the simple walkers
+stay.
+
 The baseline advances to `f4374a3`, and the ordinary snapshots were regenerated
 against it in Chrome 153, Safari 27.0 and Firefox 156, with no regressions,
 required failures or execution errors. Accuracy stays 7,680 of 7,680 in each

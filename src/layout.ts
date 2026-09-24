@@ -34,9 +34,13 @@ import {
 } from './measurement.js'
 import {
   countPreparedLines,
+  getKindCode,
   measurePreparedLineGeometry,
   normalizePreparedLineStart,
-  stepPreparedLineGeometryFromChunk,
+  RETURNABLE,
+  SPACED,
+  stepPreparedLineGeometryFromStart,
+  UNBROKEN,
   walkPreparedLinesRaw,
   type PreparedLineBreakData,
 } from './line-break.js'
@@ -61,6 +65,7 @@ type InternalPreparedText = PreparedText & PreparedLineBreakData
 // range/cursor APIs and custom rendering.
 export type PreparedTextWithSegments = InternalPreparedText & {
   segments: string[] // Segment text aligned with the parallel arrays, e.g. ['hello', ' ', 'world']
+  kinds: SegmentBreakKind[] // Break behavior per segment, e.g. ['text', 'space', 'text']
 }
 
 export type LayoutCursor = {
@@ -294,8 +299,10 @@ function measureAnalysis(
   }
 
   const widths: number[] = []
-  const kinds: SegmentBreakKind[] = []
-  let simpleLineWalkFastPath = !hasLetterSpacing
+  // An engine's scan makes one prepared segment per analysis segment.
+  const breaksBefore = analysis.breaksBefore
+  const segmentFlags = new Uint8Array(analysis.kinds.length)
+  let simpleLineWalkFastPath = !hasLetterSpacing && breaksBefore === null
   const breakableFitAdvances: (number[] | null)[] = []
   let entryGeometry: (SegmentEntryGeometry | null)[] | null = null
   let lineStartProhibitions: (number[] | null)[] | null = null
@@ -305,10 +312,7 @@ function measureAnalysis(
   // 222-233), by its scan's line-start table. Blink and Gecko end the line after the
   // first grapheme.
   const keepsLineStartPunctuation = engineProfile.lineBreakScan === 'webkit' && /[\u0100-\uFFFF]/.test(analysis.source)
-  const spacingGraphemeCounts: number[] = []
   const segments = includeSegments ? [] as string[] : null
-  const chunks: PreparedLineBreakData['chunks'] = []
-  let chunkStartSegmentIndex = 0
   const retreatsFromUnfitHyphen = engineProfile.unfitHyphenRetreat !== 'none'
   let discretionaryHyphenContexts: number[] | null = null
   let previousJoinablePiece: string | null = null
@@ -369,8 +373,11 @@ function measureAnalysis(
     if (kind !== 'text' && kind !== 'space' && kind !== 'zero-width-break') {
       simpleLineWalkFastPath = false
     }
+    // Only the complex walker reads where the scan gives no break.
+    const index = widths.length
+    segmentFlags[index] = getKindCode(kind) | (hasLetterSpacing && spacingGraphemeCount > 0 ? SPACED : 0) |
+      (breaksBefore === null ? 0 : breaksBefore[index] ? RETURNABLE : UNBROKEN)
     widths.push(width)
-    kinds.push(kind)
     breakableFitAdvances.push(breakableFitAdvance)
     if (entry !== null && entryGeometry === null) {
       entryGeometry = Array.from({ length: widths.length - 1 }, () => null)
@@ -380,7 +387,6 @@ function measureAnalysis(
       lineStartProhibitions = Array.from({ length: widths.length - 1 }, () => null)
     }
     lineStartProhibitions?.push(prohibitions)
-    if (hasLetterSpacing) spacingGraphemeCounts.push(spacingGraphemeCount)
     if (segments !== null) segments.push(text)
     discretionaryHyphenContexts?.push(0)
     if (kind !== 'text' && kind !== 'soft-hyphen') previousJoinablePiece = null
@@ -484,14 +490,7 @@ function measureAnalysis(
     }
 
     if (segKind === 'hard-break') {
-      const endSegmentIndex = widths.length
       pushMeasuredSegment(segText, 0, segKind, null, 0)
-      chunks.push({
-        startSegmentIndex: chunkStartSegmentIndex,
-        endSegmentIndex,
-        consumedEndSegmentIndex: widths.length,
-      })
-      chunkStartSegmentIndex = widths.length
       continue
     }
 
@@ -544,10 +543,6 @@ function measureAnalysis(
     pushMeasuredTextSegment(segText, getTextMetrics(segText, followingSpaceTail), segKind, allowOverflowBreaks, followingSpaceTail)
   }
 
-  // An engine's scan makes one prepared segment per analysis segment. Only the
-  // complex walker reads where it gives no break.
-  const breaksBefore = analysis.breaksBefore
-  if (breaksBefore !== null) simpleLineWalkFastPath = false
   // A segment's width is its width between the text before and after it; one that starts
   // a line takes back the halt Blink gives its first character there.
   let hanKerning: HanKerningTrims = { widthTrims: null, lineStartExtras: null, lineEndTrims: null }
@@ -555,44 +550,37 @@ function measureAnalysis(
     hanKerning = getHanKerningTrims(
       fontMeasurement,
       analysis.texts,
-      i => kinds[i] === 'text',
+      i => analysis.kinds[i] === 'text',
       i => i === 0 ? -1 : analysis.normalized.charCodeAt(analysis.starts[i]! - 1),
       i => i + 1 === analysis.kinds.length ? -1 : analysis.normalized.charCodeAt(analysis.starts[i + 1]!),
       // A break directly after the segment: text after a break, or the end of the text.
-      i => i + 1 === kinds.length || (kinds[i + 1] === 'text' && breaksBefore?.[i + 1] !== false),
+      i => i + 1 === analysis.kinds.length || (analysis.kinds[i + 1] === 'text' && breaksBefore?.[i + 1] !== false),
     )
     const trims = hanKerning.widthTrims
     if (trims !== null) for (let i = 0; i < trims.length; i++) widths[i] = widths[i]! - trims[i]!
   }
   let lineEndTrims = hanKerning.lineEndTrims
   if (engineProfile.hangsIdeographicSpace && analysis.normalized.includes('\u3000')) {
-    lineEndTrims = addIdeographicSpaceHangs(lineEndTrims, analysis.texts, kinds, breaksBefore, cache, letterSpacing, discretionaryHyphenWidth)
-  }
-  if (chunkStartSegmentIndex < widths.length) {
-    chunks.push({
-      startSegmentIndex: chunkStartSegmentIndex,
-      endSegmentIndex: widths.length,
-      consumedEndSegmentIndex: widths.length,
-    })
+    lineEndTrims = addIdeographicSpaceHangs(lineEndTrims, analysis.texts, analysis.kinds, breaksBefore, cache, letterSpacing, discretionaryHyphenWidth)
   }
   const prepared = {
     widths,
-    kinds,
+    segmentFlags,
     simpleLineWalkFastPath,
     breakableFitAdvances,
     entryGeometry,
     letterSpacing,
-    spacingGraphemeCounts,
     discretionaryHyphenWidth,
     discretionaryHyphenContexts,
-    breaksBefore,
     lineStartProhibitions,
     lineStartExtras: hanKerning.lineStartExtras,
     lineEndTrims,
     tabStopAdvance,
-    chunks,
   } as unknown as PreparedTextWithSegments
-  if (segments !== null) prepared.segments = segments
+  if (segments !== null) {
+    prepared.segments = segments
+    prepared.kinds = analysis.kinds
+  }
   return prepared
 }
 
@@ -812,12 +800,11 @@ function stepNextLine(
   const internal = getInternalPrepared(prepared)
   lineEnd.segmentIndex = start.segmentIndex
   lineEnd.graphemeIndex = start.graphemeIndex
-  const chunkIndex = normalizePreparedLineStart(internal, lineEnd)
-  if (chunkIndex < 0) return null
+  if (!normalizePreparedLineStart(internal, lineEnd)) return null
 
   lineStart.segmentIndex = lineEnd.segmentIndex
   lineStart.graphemeIndex = lineEnd.graphemeIndex
-  const width = stepPreparedLineGeometryFromChunk(internal, lineEnd, chunkIndex, maxWidth)
+  const width = stepPreparedLineGeometryFromStart(internal, lineEnd, maxWidth)
   return width === null ? null : Math.max(0, width)
 }
 

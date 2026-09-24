@@ -1261,6 +1261,22 @@ interleaved, while main's loop on the same prepared text took 1.0. Changing
 main's loop one step at a time toward it slowed only that step. Starting each
 line at 0 gave 0.87 to 1.04 there.
 
+The full walker lays out text with letter spacing, soft hyphens, controls, tabs,
+hard breaks or preserved spaces in every API. Its line state lived in variables
+its nested helpers closed over, which V8 boxes: each write cost 12-14ns there
+against about 1ns for a local, several per segment. It now keeps that state in
+locals of one function, reads each segment's kind, whether it takes letter
+spacing and whether the scan gives a break before it from one byte, and ends a
+line's walk at the next hard break instead of looking up chunk records.
+JavaScriptCore types an infinite default loop bound as a double: Bun walked
+letter-spaced and pre-wrap text 30-65% slower with one. Together these halve
+`layout()` of letter-spaced CJK in all three browsers and take pre-wrap
+`layoutNextLine()` to 0.4 of main's time. The full walker still costs about three
+times the counter per segment in Chrome and Safari and five in Firefox: it tracks
+the line ends, pending breaks and paint widths the line APIs report, which a count
+doesn't need. One walker for every text would make chat `layout()` two to seven
+times slower, so the simple walkers stay.
+
 A fresh page pays to compile the whole library before its first `prepare()`. In
 Firefox 156, `new Function` over the fresh-page probe's minified bundle took 4.5 to
 4.8ms while the engine scans kept their iterator state in four classes, whose

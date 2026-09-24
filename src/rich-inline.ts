@@ -10,7 +10,6 @@ import {
   isCollapsibleSpaceCode,
   removeSkippableSegmentBreaks,
   type AnalysisProfile,
-  type SegmentBreakKind,
 } from './analysis.js'
 import { getWebKitBreakBetweenItems } from './line-breaks.js'
 import {
@@ -18,12 +17,15 @@ import {
   getLineTextCache,
 } from './line-text.js'
 import {
-  breaksAfter,
   canReturnFromUnfitHyphen,
+  endsLineBefore,
+  getKindCode,
   isDiscretionaryLineEnd,
+  KIND_BITS,
   type LineBreakCursor,
   type PreparedLineBreakData,
   stepPreparedLineGeometry,
+  UNBROKEN,
 } from './line-break.js'
 import { getDocumentLanguage, getEngineProfile, getFontMeasurement, getSegmentMetrics } from './measurement.js'
 
@@ -195,21 +197,15 @@ function getItemCursor(prepared: PreparedTextWithSegments, startSegmentIndex: nu
   return null
 }
 
-// Whether the line walker can end a line before segment `i`. An engine's scan
-// can give no break there, as before NEL (UAX #14 LB6).
-function breaksBeforeSegment(kinds: readonly SegmentBreakKind[], breaksBefore: readonly boolean[] | null, i: number): boolean {
-  return (breaksAfter(kinds[i - 1]!) || !breaksAfter(kinds[i]!)) && breaksBefore?.[i] !== false
-}
-
 // Browsers find ordinary break opportunities in the text their inline items
 // join; the item boundary itself is not one. This analyzes the joined text like
 // prepare() and returns the offsets of the segments the line walker could end a
 // line before.
 function getJoinedBreakOffsets(text: string, profile: AnalysisProfile, language: string | null): number[] {
-  const analysis = analyzeText(text, profile, 'normal', 'normal', language)
+  const { kinds, breaksBefore, starts } = analyzeText(text, profile, 'normal', 'normal', language)
   const offsets: number[] = []
-  for (let i = 1; i < analysis.kinds.length; i++) {
-    if (breaksBeforeSegment(analysis.kinds, analysis.breaksBefore, i)) offsets.push(analysis.starts[i]!)
+  for (let i = 1; i < kinds.length; i++) {
+    if (endsLineBefore(getKindCode(kinds[i - 1]!), getKindCode(kinds[i]!), breaksBefore?.[i] === false)) offsets.push(starts[i]!)
   }
   return offsets
 }
@@ -238,9 +234,11 @@ function getItemBreakOffsets(portions: readonly JoinedPortion[], text: string, b
     if (p > 0 && getWebKitBreakBetweenItems(boundaryContexts[portions[p - 1]!.itemIndex]!, text.slice(portion.start, end), language, getSharedWordSegmenter())) {
       offsets.push(portion.start)
     }
-    const { kinds, breaksBefore, segments } = portion.item.prepared
+    const { segmentFlags, segments } = portion.item.prepared
     for (let i = portion.startSegmentIndex, offset = portion.start; offset < end; offset += segments[i++]!.length) {
-      if (i > portion.startSegmentIndex && breaksBeforeSegment(kinds, breaksBefore, i)) offsets.push(offset)
+      if (i > portion.startSegmentIndex && endsLineBefore(segmentFlags[i - 1]! & KIND_BITS, segmentFlags[i]! & KIND_BITS, (segmentFlags[i]! & UNBROKEN) !== 0)) {
+        offsets.push(offset)
+      }
     }
   }
   return offsets
@@ -697,7 +695,7 @@ function stepRichInlineLine(
     // item: Chromium where that line leaves room for the hyphen, Gecko where it fits.
     if (hasContent && atItemStart && lineWidthContribution > remainingWidth + lineFitEpsilon) {
       const { prepared } = item
-      if (!isDiscretionaryLineEnd(prepared.kinds, lineEnd.segmentIndex, lineEnd.graphemeIndex)) break lineLoop
+      if (!isDiscretionaryLineEnd(prepared.segmentFlags, lineEnd.segmentIndex, lineEnd.graphemeIndex)) break lineLoop
       const softHyphenIndex = lineEnd.segmentIndex - 1
       const beforeHyphen: LineBreakCursor = { segmentIndex: cursor.segmentIndex, graphemeIndex: cursor.graphemeIndex }
       const textWidth = stepPreparedLineGeometry(prepared, beforeHyphen, availableWidth, softHyphenIndex, 0)
