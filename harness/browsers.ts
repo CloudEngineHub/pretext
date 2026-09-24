@@ -15,7 +15,7 @@ export const PINNED = { chrome: 'Google Chrome 153.0.8010.50', firefox: 'Firefox
 const ROOT = resolve(import.meta.dir, '..')
 const PROFILES = join(ROOT, '.artifacts/harness-profiles')
 export const WEBKIT_HOST = join(ROOT, '.artifacts/webkit-host/webkit-host')
-export const FONTS_DIR = join(ROOT, 'tests/wrapping/fonts')
+export const FONTS_DIR = join(ROOT, 'harness/fonts')
 
 function command(file: string, args: string[]): string {
   return execFileSync(file, args, { encoding: 'utf8', timeout: 60_000 }).trim()
