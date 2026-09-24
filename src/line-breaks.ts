@@ -55,27 +55,20 @@ export function getBreakLanguage(tag: string | null): BreakLanguage {
   return 'root'
 }
 
-function decodeBase64(s: string): Uint8Array {
-  const binary = atob(s)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  return bytes
-}
-
 // The generated tables ship packed, in base64: the unpacked length, then runs of literal bytes,
 // each followed by a copy of earlier bytes (length - 4, then distance back), every count a
 // little-endian base-128 varint. A copy may reach back into a dictionary, another table's bytes.
 // Packing keeps the tables a page parses small; a page unpacks only its engine's tables and the
 // ones they pack against, once.
 export function unpackTable(packed: string, dictionary: Uint8Array | null = null): Uint8Array {
-  const input = decodeBase64(packed)
+  const input = atob(packed)
   let at = 0
   const varint = (): number => {
     let value = 0
     let scale = 1
     let byte: number
     do {
-      byte = input[at++]!
+      byte = input.charCodeAt(at++)
       value += (byte & 0x7f) * scale
       scale *= 0x80
     } while (byte >= 0x80)
@@ -86,11 +79,14 @@ export function unpackTable(packed: string, dictionary: Uint8Array | null = null
   if (dictionary !== null) bytes.set(dictionary)
   let out = base
   while (at < input.length) {
-    for (let n = varint(); n > 0; n--) bytes[out++] = input[at++]!
+    for (let n = varint(); n > 0; n--) bytes[out++] = input.charCodeAt(at++)
     if (at >= input.length) break
     const length = varint() + 4
     const from = out - varint()
-    for (let k = 0; k < length; k++) bytes[out++] = bytes[from + k]!
+    // A copy that overlaps the bytes it writes repeats them, so it goes one byte at a time.
+    if (from + length <= out) bytes.copyWithin(out, from, from + length)
+    else for (let k = 0; k < length; k++) bytes[out + k] = bytes[from + k]!
+    out += length
   }
   if (out !== bytes.length) throw new Error('A packed table unpacked to the wrong length')
   return dictionary === null ? bytes : bytes.subarray(base)

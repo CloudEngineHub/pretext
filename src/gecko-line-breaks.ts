@@ -631,11 +631,10 @@ let lineTrieIndex: Uint16Array | null = null
 let lineTrieData: Uint8Array
 let lineBreakStates: Uint8Array
 
+// Little-endian data, read on a little-endian platform.
 function unpackU16(packed: string): Uint16Array {
   const bytes = unpackTable(packed)
-  const values = new Uint16Array(bytes.length >> 1)
-  for (let i = 0; i < values.length; i++) values[i] = bytes[2 * i]! | (bytes[2 * i + 1]! << 8)
-  return values
+  return new Uint16Array(bytes.buffer, bytes.byteOffset, bytes.length >> 1)
 }
 
 // The Line_Break value, with error value 0 above U+10FFFF.
