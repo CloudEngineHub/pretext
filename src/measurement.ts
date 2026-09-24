@@ -122,8 +122,10 @@ let measureContext: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
 // font while its font string is unchanged, so the context, and every width
 // measured through it, belong to the language it was created under.
 let measureContextLanguage: string | null = null
-// The families the context's language gives the generic keywords, or null.
+// The families the context's language gives the generic keywords, or null, and
+// the Canvas font of each declared font under them.
 let measureContextGenericFamilies: readonly string[] | null = null
+const canvasFonts = new Map<string, string>()
 const segmentMetricCaches = new Map<string, Map<string, SegmentMetrics>>()
 // Per font, metrics of a text item measured together with one following
 // U+0020, keyed by the item alone. The width includes that space.
@@ -549,11 +551,20 @@ export function getFontMeasurementState(font: string, needsEmojiCorrection: bool
   const cache = getSegmentMetricCache(font)
   const emojiCorrection = needsEmojiCorrection ? getEmojiCorrection(font) : 0
   // The caches keep the declared font as their key: a language change empties them.
-  ctx.font = measureContextGenericFamilies === null ? font : getCanvasFont(font, measureContextGenericFamilies)
+  if (measureContextGenericFamilies === null) ctx.font = font
+  else {
+    let canvasFont = canvasFonts.get(font)
+    if (canvasFont === undefined) {
+      canvasFont = getCanvasFont(font, measureContextGenericFamilies)
+      canvasFonts.set(font, canvasFont)
+    }
+    ctx.font = canvasFont
+  }
   return { cache, emojiCorrection }
 }
 
 export function clearMeasurementCaches(): void {
+  canvasFonts.clear()
   segmentMetricCaches.clear()
   followingSpaceMetricCaches.clear()
   emojiCorrectionCache.clear()
