@@ -1,5 +1,5 @@
 // bun harness <command> [--browser=chrome|firefox|webkit-host|safari|all] [--cases=<file.ndjson>]
-//   record [--only-new]      record the browser's layout of every case (or the new ones), in two orders, in fresh short documents;
+//   record [--only-new]      record the browser's layout of every case (or the new ones), sorted and shuffled, in fresh short documents;
 //                            --sample=N --seed=S records N of them, drawn from every set
 //   check [--accept=<why>]   predict every pinned case in the browser and score it against the recordings
 //   gate [--sample=N]        check, plus a prediction in reverse order, N cases recorded again, and attribution
@@ -88,11 +88,13 @@ async function record(browser: BrowserKind, cases: Case[]): Promise<number> {
   let list = cases.filter(c => applies(c, browser))
   if (flags.has('only-new')) list = list.filter(c => old?.recordings.has(c.id) !== true && oldHistory?.cases.has(c.id) !== true)
   let sorted = list.slice().sort((a, b) => (a.id < b.id ? -1 : 1))
+  const seed = Number(flags.get('seed') ?? Date.now() % 1_000_000)
   // A seeded sample of every set, for installed Safari, whose window has to stay uncovered while it records.
-  if (flags.has('sample')) sorted = shuffled(sorted, Number(flags.get('seed') ?? 1)).slice(0, Number(flags.get('sample'))).sort((a, b) => (a.id < b.id ? -1 : 1))
-  // One browser instance at a time per browser.
+  if (flags.has('sample')) sorted = shuffled(sorted, seed).slice(0, Number(flags.get('sample'))).sort((a, b) => (a.id < b.id ? -1 : 1))
+  // One browser instance at a time per browser. The second order is shuffled, so each case sits among other cases in
+  // other documents, as in the gate's fresh recording.
   const a = await runJob<Recording>({ browser, mode: 'record', cases: sorted, documentSize: RECORD_DOCUMENT, lib })
-  const b = await runJob<Recording>({ browser, mode: 'record', cases: sorted.slice().reverse(), documentSize: RECORD_DOCUMENT, lib })
+  const b = await runJob<Recording>({ browser, mode: 'record', cases: shuffled(sorted, seed + 1), documentSize: RECORD_DOCUMENT, lib })
   if (a.env !== b.env) throw new Error(`The environment changed between the two recordings: ${a.env} | ${b.env}`)
   // Recording some cases (--only-new, --cases, --sample) keeps the other recordings, which must share the environment.
   const merge = (flags.has('only-new') || flags.has('cases') || flags.has('sample')) && old !== null
@@ -105,7 +107,7 @@ async function record(browser: BrowserKind, cases: Case[]): Promise<number> {
   mkdirSync(join(import.meta.dir, 'recordings'), { recursive: true })
   writeRecordings(recordingsPath(browser), { env: a.env, recordings })
   writeHistory(historyPath(browser), { env: a.env, cases: history })
-  console.log(`${browser}: recorded ${sorted.length} cases twice in ${((a.ms + b.ms) / 2000).toFixed(0)} s; ${history.size} with page history; ${a.env}`)
+  console.log(`${browser}: recorded ${sorted.length} cases in sorted and shuffled (seed ${seed + 1}) order, ${((a.ms + b.ms) / 2000).toFixed(0)} s each; ${history.size} with page history; ${a.env}`)
   if (sameEnv) console.log(`${browser}: ${moved} cases laid out differently from the stored recordings of this environment, now page history`)
   // What the browser changed since the last recording, by family and width band.
   if (old !== null && !sameEnv) {

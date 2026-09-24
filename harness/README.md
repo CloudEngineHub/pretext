@@ -5,7 +5,7 @@ predicts, in the real browser, the way an app does, and scores the prediction ag
 the per-engine rebuild's without inline structure.
 
 ```sh
-bun harness record [--only-new]         # the browser's layout of every case, in two orders, in fresh short documents
+bun harness record [--only-new]         # the browser's layout of every case, sorted and shuffled, in fresh short documents
 bun harness check [--accept="<reason>"]  # predict every pinned case and score it; about a minute
 bun harness gate [--sample=1000]         # check, plus reverse-order predictions, a fresh re-recording and attribution
 bun harness equal <ref>                  # whether <ref>'s src/ predicts the same lines on every case
@@ -57,7 +57,7 @@ which need a browser:
 | Lines from rect positions | Fractional line boxes read as a wrong count, as Safari 27's did in main's harness |
 | Line-start search | Long paragraphs would take minutes per browser; a wrong search would hide or invent a book's wrong line |
 | Environment key | A browser or OS update reads as library regressions or fixes |
-| Page-history list, kept across recordings of one environment | Cases that lay out differently after other cases block changes at random; two orders alone missed 45 of WebKit's page-history cases |
+| Page-history list, kept across recordings of one environment | Cases that lay out differently after other cases block changes at random; one recording's two sorted orders found 11 of WebKit's 87 |
 | Firefox's first document held until 15 s after launch | Emoji beside Arial lay out differently for Firefox's first 12 s: 91 cases, and the gate's fresh recording, would block at random |
 | Accepted list with reasons | Accepted losses go silent, and a fix goes unrecorded |
 | Exact widths through the adapter | Text that exactly fits its bubble wraps (a width 1/64 px short) |
