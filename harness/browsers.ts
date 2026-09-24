@@ -45,7 +45,11 @@ export function environmentKey(browser: BrowserKind, env: PageEnv): string {
     : ''
   const os = command('sw_vers', ['-buildVersion'])
   const osLanguages = command('defaults', ['read', '-g', 'AppleLanguages']).replace(/[\s"()]/g, '')
-  const fonts = new Bun.CryptoHasher('sha256').update(readFileSync(join(FONTS_DIR, 'fonts.json'))).digest('hex').slice(0, 12)
+  // What the page serves: each fixture's family, weight and file bytes, not the manifest's notes on where it came from.
+  const fixtures = JSON.parse(readFileSync(join(FONTS_DIR, 'fonts.json'), 'utf8')) as Array<{ family: string; weight: string; file: string }>
+  const hasher = new Bun.CryptoHasher('sha256')
+  for (let i = 0; i < fixtures.length; i++) hasher.update(`${fixtures[i]!.family}\t${fixtures[i]!.weight}\t`).update(readFileSync(join(FONTS_DIR, fixtures[i]!.file)))
+  const fonts = hasher.digest('hex').slice(0, 12)
   return `${browser} ${version}${engine} os=${os} os-languages=${osLanguages} page-languages=${env.languages.join(',')} dpr=${env.devicePixelRatio} fonts=${fonts}`
 }
 
