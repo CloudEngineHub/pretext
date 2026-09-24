@@ -50,6 +50,32 @@ agreed. Safari measures a detached `<canvas lang>` with no language
 follows the page language there, so matching `lang` alone is not a
 cross-browser solution.
 
+On September 24, a probe measured 14 texts (Korean, Japanese, both Chinese
+scripts, Latin, Hebrew, Arabic, Thai and Devanagari) at 40px in the five generic
+families, `system-ui` and named controls on 12 page languages, in installed
+Safari 27 on macOS 27 and in WebKit 26.0.1 in the iOS 26 simulator. Under a page
+language whose WebKit script isn't Common, the page drew each generic family in
+the family Core Text names for that language: `sans-serif` in Apple SD Gothic
+Neo under `ko`, Hiragino Sans under `ja` and PingFang under `zh`, and
+`monospace` in Menlo under every such language, `en` included, where Canvas takes
+Courier. OffscreenCanvas and a detached `<canvas>`, with or without `lang`,
+measured identical widths throughout, and a connected `<canvas>` matched the DOM
+on every text. The two systems differ in `serif`, `cursive` and `fantasy` under
+`ko` and `zh`, where macOS names AppleMyungjo, Songti and Kaiti and iOS names
+Apple SD Gothic Neo and PingFang, and in `sans-serif` under `he`: Lucida Grande
+on macOS, Arial Hebrew on iOS. Safari can't use Kaiti on macOS 27 and draws the
+script's standard family, Songti, instead.
+
+With those families named in the Canvas font, macOS's first where the systems
+differ, Pretext's width matched the DOM on all 14 texts in every generic family on
+`ja`, `ja-JP`, `ko`, `ko-KR`, `zh`, `zh-Hans`, `zh-Hant`, `zh-CN`, `zh-TW`,
+`zh-HK`, `zh-MO`, `zh-Hant-HK` and `zh-Hans-HK` pages on both systems (0 to 5 of
+14 before, where measured), except where the named family lacks a character and
+fallback follows the language: `monospace` under `ko` (7 of 14; Menlo has no
+Hangul) and `sans-serif` under `ja` on macOS (12 of 14). No text got worse on any
+page. `system-ui` (7 of 14 under `ko`, 8 under `ja`) and named fonts missing a
+character, such as `"Helvetica"` under `ko` (7 of 14), were unchanged.
+
 The [Canvas text-style specification](https://html.spec.whatwg.org/multipage/canvas.html#text-styles)
 includes language context.
 

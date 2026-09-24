@@ -2646,6 +2646,72 @@ describe('prepare invariants', () => {
     expect(measureNaturalWidth(prepareWithSegments('中文 日本語', FONT))).toBeCloseTo(measureWidth('中文日本語', FONT) + measureWidth(' ', FONT), 10)
   })
 
+  test('the WebKit profile names the generic families of the page language in the Canvas font', async () => {
+    const { getEngineProfile } = await import('./measurement.ts')
+    const profile = getEngineProfile()
+    const previous = profile.namesGenericFamiliesByLanguage
+    const navigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
+    const root = { lang: '' }
+    const assigned: string[] = []
+    class RecordingContext {
+      current = ''
+      get font(): string {
+        return this.current
+      }
+      set font(value: string) {
+        this.current = value
+        assigned.push(value)
+      }
+      measureText(text: string): { width: number } {
+        return { width: measureWidth(text, this.current) }
+      }
+    }
+    Reflect.set(globalThis, 'OffscreenCanvas', class {
+      getContext(): RecordingContext {
+        return new RecordingContext()
+      }
+    })
+    Reflect.set(globalThis, 'document', { documentElement: root })
+    Object.defineProperty(globalThis, 'navigator', { value: { userAgent: '', languages: ['zh-TW', 'en-US'] }, configurable: true, writable: true })
+    profile.namesGenericFamiliesByLanguage = true
+    try {
+      for (const [lang, font, expected] of [
+        ['ko', '16px "PingFang SC", sans-serif', '16px "PingFang SC", "Apple SD Gothic Neo"'],
+        // Where macOS and iOS differ, macOS's family comes first.
+        ['ko-KR', '16px serif', '16px "AppleMyungjo", "Apple SD Gothic Neo"'],
+        ['ja-JP', 'italic 700 16px/20px Georgia, SERIF', 'italic 700 16px/20px Georgia, "Hiragino Mincho ProN"'],
+        ['zh-Hans', '16px cursive', '16px "Kaiti SC", "Songti SC", "PingFang SC"'],
+        ['zh-Hant-HK', '16px monospace', '16px "Menlo"'],
+        ['zh-Hans-HK', '16px sans-serif', '16px "PingFang SC"'],
+        ['zh-Hant-CN', '16px sans-serif', '16px "PingFang TC"'],
+        // A plain Han language takes the first preferred language starting with zh-.
+        ['zh', '16px sans-serif', '16px "PingFang TC"'],
+        ['zh-MO', '16px sans-serif', '16px "PingFang TC"'],
+        // Core Text gives an uppercase ZH Simplified families.
+        ['ZH-TW', '16px sans-serif', '16px "PingFang SC"'],
+        // Quoted names aren't keywords, and a language whose script isn't Han, kana or
+        // Hangul keeps the keyword.
+        ['ja', '16px "sans-serif", "Foo, serif", \'a,serif\', system-ui, ui-serif', '16px "sans-serif", "Foo, serif", \'a,serif\', system-ui, ui-serif'],
+        ['en', '16px sans-serif', '16px sans-serif'],
+      ] as const) {
+        root.lang = lang
+        prepare('あ', font)
+        expect({ lang, font: assigned.at(-1) }).toEqual({ lang, font: expected })
+      }
+      profile.namesGenericFamiliesByLanguage = false
+      root.lang = 'ko'
+      prepare('あ', '16px serif')
+      expect(assigned.at(-1)).toBe('16px serif')
+    } finally {
+      profile.namesGenericFamiliesByLanguage = previous
+      Reflect.set(globalThis, 'OffscreenCanvas', TestOffscreenCanvas)
+      Reflect.deleteProperty(globalThis, 'document')
+      if (navigatorDescriptor === undefined) Reflect.deleteProperty(globalThis, 'navigator')
+      else Object.defineProperty(globalThis, 'navigator', navigatorDescriptor)
+      clearCache()
+    }
+  })
+
   test('the page language resolves to a break language by its primary subtag', async () => {
     const { getBreakLanguage } = await import('./line-breaks.ts')
     for (const [tag, language] of [

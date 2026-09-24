@@ -100,6 +100,14 @@ export type EngineProfile = {
   // language doesn't, so the Chromium profile gives the context that locale. WebKit and
   // Gecko take process languages a page can't read and keep the page's.
   measureUnderDefaultLocale: boolean
+  // WebKit's page resolves serif, sans-serif, cursive, fantasy and monospace to the
+  // family Core Text names for the page language wherever WebKit's script for it
+  // isn't Common (FontDescriptionCocoa.cpp:77-118, asked first by CSSFontSelector.cpp:
+  // 334-353). Its Canvas fonts carry no language: OffscreenCanvas starts from a bare
+  // font description (OffscreenCanvasRenderingContext2D.cpp:93-130) and WebKit has no
+  // canvas `lang` (WebKit #285993). The WebKit profile names the page's families in
+  // the Canvas font under the CJK languages (getWebKitGenericFamilies).
+  namesGenericFamiliesByLanguage: boolean
   // Release Gecko draws C0 and C1 controls, U+2028 and U+2029 with no advance plus letter
   // spacing (gfxFont.cpp:3877-3892), where its Canvas measures VT, FS-US, NEL and U+2029 as a
   // space (CanvasRenderingContext2D.cpp:4634-4637) and other controls as a hexbox. Chrome and
@@ -114,6 +122,8 @@ let measureContext: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
 // font while its font string is unchanged, so the context, and every width
 // measured through it, belong to the language it was created under.
 let measureContextLanguage: string | null = null
+// The families the context's language gives the generic keywords, or null.
+let measureContextGenericFamilies: readonly string[] | null = null
 const segmentMetricCaches = new Map<string, Map<string, SegmentMetrics>>()
 // Per font, metrics of a text item measured together with one following
 // U+0020, keyed by the item alone. The width includes that space.
@@ -133,6 +143,69 @@ const emojiGraphemeRe = /\p{Emoji_Presentation}|\p{Emoji}\uFE0F/u
 const maybeEmojiRe = /[\p{Emoji_Presentation}\p{Extended_Pictographic}\p{Regional_Indicator}\uFE0F\u20E3]/u
 const emojiCorrectionCache = new Map<string, number>()
 
+// Core Text's families for serif, sans-serif, cursive, fantasy and monospace under
+// the CJK languages (CTFontDescriptorCreateForCSSFamily): OS data, read on macOS 27
+// and in the iOS 26 simulator. Where the two differ, macOS's family comes first and
+// Canvas takes the first one installed: iOS has no AppleMyungjo, Songti or Kaiti.
+// Safari can't use Kaiti on macOS 27 either; the page then takes the script's
+// standard family, Songti (FontCascadeFonts.cpp:214-215, SettingsBaseCocoa.mm:44-50).
+function getChineseFamilies(variant: string, pingFang: string): readonly string[] {
+  const serif = `"Songti ${variant}", "PingFang ${pingFang}"`
+  const cursive = `"Kaiti ${variant}", ${serif}`
+  return [serif, `"PingFang ${pingFang}"`, cursive, cursive, '"Menlo"']
+}
+const myungjo = '"AppleMyungjo", "Apple SD Gothic Neo"'
+const minchoProN = '"Hiragino Mincho ProN"'
+const webKitGenericFamilies = {
+  ja: [minchoProN, '"Hiragino Sans"', minchoProN, minchoProN, '"Menlo"'],
+  ko: [myungjo, '"Apple SD Gothic Neo"', myungjo, myungjo, '"Menlo"'],
+  hans: getChineseFamilies('SC', 'SC'),
+  hant: getChineseFamilies('TC', 'TC'),
+  hk: getChineseFamilies('TC', 'HK'),
+  mo: getChineseFamilies('TC', 'MO'),
+}
+const genericKeywords = ['serif', 'sans-serif', 'cursive', 'fantasy', 'monospace']
+// A quoted family name, or an unquoted generic keyword with what precedes it.
+const familyListItemRe = /("[^"]*"|'[^']*')|(^|,)(\s*)(serif|sans-serif|cursive|fantasy|monospace)(?=\s*(?:,|$))/gi
+
+// The families WebKit's page gives the generic keywords under a language, or null
+// where they resolve as in Canvas. WebKit gives zh-HK, zh-TW and tags with a Hant
+// subtag Traditional Han, and tags with a Hans subtag Simplified Han; any other zh
+// tag is plain Han, whose language becomes the first preferred language starting
+// with zh-, else zh-hans (LocaleToScriptMapping.cpp:160-379, FontDescription.cpp:
+// 74-113). Safari shows the page only its first preferred language. Core Text then
+// goes by the script subtag, else the region, and only for a lowercase zh.
+function getWebKitGenericFamilies(language: string): readonly string[] | null {
+  const primary = /^[a-z]*/i.exec(language)![0].toLowerCase()
+  if (primary === 'ja' || primary === 'ko') return webKitGenericFamilies[primary]
+  if (primary !== 'zh') return null
+  let locale = language
+  if (!/^zh[-_](?:hk|tw)(?![^-_])|[-_]han[st](?![^-_])/i.test(language)) {
+    locale = 'zh-hans'
+    const preferred = typeof navigator === 'undefined' ? [] : navigator.languages ?? []
+    for (let i = 0; i < preferred.length; i++) {
+      if (/^zh-/i.test(preferred[i]!)) {
+        locale = preferred[i]!
+        break
+      }
+    }
+  }
+  if (!locale.startsWith('zh') || /[-_]hans(?![^-_])/i.test(locale)) return webKitGenericFamilies.hans
+  const region = /[-_](hk|mo|tw)(?![^-_])/i.exec(locale)?.[1]!.toLowerCase()
+  if (region === 'hk' || region === 'mo') return webKitGenericFamilies[region]
+  return region === 'tw' || /[-_]hant(?![^-_])/i.test(locale) ? webKitGenericFamilies.hant : webKitGenericFamilies.hans
+}
+
+// The Canvas font that measures what the page draws: each unquoted generic keyword
+// in the family list, after the size, becomes the page's families for it.
+function getCanvasFont(font: string, families: readonly string[]): string {
+  const size = /\dpx(?:\s*\/\s*\S+)?\s+/.exec(font)
+  if (size === null) return font
+  const start = size.index + size[0].length
+  return font.slice(0, start) + font.slice(start).replace(familyListItemRe, (item: string, quoted: string | undefined, separator: string, space: string, keyword: string) =>
+    quoted === undefined ? separator + space + families[genericKeywords.indexOf(keyword.toLowerCase())] : item)
+}
+
 // Preparation reads the page language once and shares it between break rules
 // and the measurement context.
 export function getDocumentLanguage(): string | null {
@@ -149,6 +222,7 @@ export function getMeasureContext(): CanvasRenderingContext2D | OffscreenCanvasR
 
 function createMeasureContext(language: string | null): CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D {
   measureContextLanguage = language
+  measureContextGenericFamilies = language !== null && getEngineProfile().namesGenericFamiliesByLanguage ? getWebKitGenericFamilies(language) : null
 
   if (typeof OffscreenCanvas !== 'undefined') {
     measureContext = new OffscreenCanvas(1, 1).getContext('2d')!
@@ -294,6 +368,7 @@ export function getEngineProfile(): EngineProfile {
     hanKerning: engine !== 'webkit' && engine !== 'gecko',
     hangsIdeographicSpace: engine !== 'webkit',
     measureUnderDefaultLocale: engine !== 'webkit' && engine !== 'gecko',
+    namesGenericFamiliesByLanguage: engine === 'webkit',
   }
   cachedEngineProfile = profile
   return profile
@@ -471,9 +546,10 @@ export function getFontMeasurementState(font: string, needsEmojiCorrection: bool
     clearMeasurementCaches()
   }
   const ctx = measureContext ?? createMeasureContext(documentLanguage)
-  ctx.font = font
   const cache = getSegmentMetricCache(font)
   const emojiCorrection = needsEmojiCorrection ? getEmojiCorrection(font) : 0
+  // The caches keep the declared font as their key: a language change empties them.
+  ctx.font = measureContextGenericFamilies === null ? font : getCanvasFont(font, measureContextGenericFamilies)
   return { cache, emojiCorrection }
 }
 

@@ -20,6 +20,7 @@
 
 ### Fixed
 
+- In Safari, on `ja`, `ko` and `zh` pages, text in `serif`, `sans-serif`, `cursive`, `fantasy` or `monospace`, or falling back to one of them, now measures in the font Safari draws it with there, such as Apple SD Gothic Neo for `sans-serif` on a `ko` page, instead of the font those names give a page without a language.
 - In Chrome, CJK punctuation next to other punctuation or at a line end now takes the narrower width Chrome's `text-spacing-trim` gives it.
 - In Chrome and Firefox, ideographic spaces (U+3000) at a line end now hang past it, as spaces do, instead of wrapping to the next line.
 - In Firefox, a newline between East Asian characters no longer adds a space, and on `ja` and `zh` pages neither does one next to East Asian punctuation.
