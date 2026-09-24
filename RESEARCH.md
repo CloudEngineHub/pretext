@@ -1202,9 +1202,12 @@ breaks, paint widths or visitor calls. It keeps the simple walker's order: a
 whole segment is tried before its graphemes, each line takes at least one
 grapheme, and a line holding only an overflowing grapheme keeps the graphemes
 after it that can't start a line. Every segment boundary of simple text is a
-scan break, so it never searches back for a cut. Other text still counts through
-the full walker. This removes work from the resize path without changing
-preparation or what it measures.
+scan break, so it never searches back for a cut. The fresh-line widths of a
+segment's tails (entry geometry, which only text holding a default-ignorable code
+point has) matter only on a line that starts inside that segment, so the counter
+and the simple stepper take them there, and such text keeps the simple walkers.
+Other text still counts through the full walker. This removes work from the resize
+path without changing preparation or what it measures.
 
 Every counted line starts at 0 and adds the widths on it. A counter that sets a
 new line's width straight from its first segment's width or grapheme advance

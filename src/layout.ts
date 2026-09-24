@@ -442,7 +442,6 @@ function measureAnalysis(
     breakableFitAdvances.push(breakableFitAdvance)
     if (entry !== null && entryGeometry === null) {
       entryGeometry = Array.from({ length: widths.length - 1 }, () => null)
-      simpleLineWalkFastPath = false
     }
     entryGeometry?.push(entry)
     if (prohibitions !== null && lineStartProhibitions === null) {
