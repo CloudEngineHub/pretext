@@ -1,5 +1,5 @@
 // bun harness <command> [--browser=chrome|firefox|webkit-host|safari|all] [--cases=<file.ndjson>]
-//   record [--only-new]      record the browser's layout of every case, twice in two orders, in fresh short documents
+//   record [--only-new]      record the browser's layout of every case (or the new ones), in two orders, in fresh short documents
 //   check [--accept=<why>]   predict every pinned case in the browser and score it against the recordings
 //   gate [--sample=N]        check, plus a prediction in reverse order, N cases recorded again, and attribution
 //   equal <ref>              whether this tree's src/ and <ref>'s predict the same lines for every case
@@ -90,8 +90,9 @@ async function record(browser: BrowserKind, cases: Case[]): Promise<number> {
   const a = await runJob<Recording>({ browser, mode: 'record', cases: sorted, documentSize: RECORD_DOCUMENT, lib })
   const b = await runJob<Recording>({ browser, mode: 'record', cases: sorted.slice().reverse(), documentSize: RECORD_DOCUMENT, lib })
   if (a.env !== b.env) throw new Error(`The environment changed between the two recordings: ${a.env} | ${b.env}`)
-  const merge = flags.has('only-new') && old !== null
-  if (merge && old.env !== a.env) throw new Error(`--only-new under another environment (${old.env}); record everything`)
+  // Recording some cases (--only-new, --cases) keeps the other recordings, which must share the environment.
+  const merge = (flags.has('only-new') || flags.has('cases')) && old !== null
+  if (merge && old.env !== a.env) throw new Error(`${browser}: the other recordings were made under ${old.env}; record every case`)
   const recordings = merge ? old.recordings : new Map<string, Recording>()
   const history = merge ? oldHistory?.cases ?? new Map<string, [Recording, Recording]>() : new Map<string, [Recording, Recording]>()
   splitHistory(sorted.map(c => c.id), a.results, b.results, recordings, history)

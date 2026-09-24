@@ -30,7 +30,7 @@ function layOut(text: string, starts: number[]): { recording: Recording; nodeRec
     reads++
     return rects.get(offset) ?? []
   }
-  return { recording: { lines: recordedLines(text, nodeRects, 20, rectsAt), height: starts.length * 20 }, nodeRects, rectsAt, reads: () => reads }
+  return { recording: { lines: recordedLines(text, nodeRects, 20, rectsAt, false), height: starts.length * 20 }, nodeRects, rectsAt, reads: () => reads }
 }
 
 function predicted(text: string, starts: number[]): Prediction {
@@ -72,8 +72,10 @@ describe('the pass rule', () => {
       { x: 3.6171875, y: 15, width: 8.8984375, height: 18 }, { x: 12.515625, y: 15, width: 5.328125, height: 18 },
       { x: 3.6171875, y: 63, width: 5.328125, height: 18 }, { x: 8.9453125, y: 63, width: 8.8984375, height: 18 },
     ]
-    const lines = recordedLines('a\u00ADb\u000b', nodeRects, 48, offset => points[offset]!)
+    const lines = recordedLines('a\u00ADb\u000b', nodeRects, 48, offset => points[offset]!, true)
     expect(lines.map(line => [line.first, line.last])).toEqual([[0, 1], [2, 3]])
+    // Other browsers' equal boxes of neighbouring characters are no copies.
+    expect(recordedLines('a\u00ADb\u000b', nodeRects, 48, offset => points[offset]!, false).map(line => [line.first, line.last])).toEqual([[0, 1], [3, 3]])
     const main: Prediction = { lines: [{ start: 0, end: 3, width: 17.796875 }, { start: 3, end: 4, width: 4.4453125 }], calls: 6 }
     expect(score({ lines, height: 96 }, main).status).toBe('breaks')
   })
@@ -89,8 +91,9 @@ describe('the pass rule', () => {
     const starts: number[] = []
     for (let line = 0; line < 120; line++) {
       starts.push(text.length)
-      // Words of mixed lengths, with astral characters, zero-width spaces and a line of nothing but zero-width spaces.
-      text += line === 57 ? '\u200b\u200b\u200b' : `word${line} \u{1F600}x\u200bab${'c'.repeat(line % 7)} `
+      // Words of mixed lengths, astral characters (some lines end with one and a letter), zero-width spaces, and a line
+      // of nothing but zero-width spaces.
+      text += line === 57 ? '\u200b\u200b\u200b' : `word${line} \u{1F600}x\u200bab${'c'.repeat(line % 7)}${line % 3 === 0 ? '\u{1F680}b' : ' '}`
     }
     const { rectsAt, reads, nodeRects } = layOut(text, starts)
     const lines = groupLines(nodeRects, 20)

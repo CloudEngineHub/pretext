@@ -116,7 +116,7 @@ export async function runJob<T extends Recording | Prediction>(job: Job): Promis
     }
     // A page that loads again before answering gets its chunk again.
     pending ??= { start: next, end: Math.min(next + CHUNK, docs[doc]!.length) }
-    return asciiJson({ kind: 'chunk', mode: job.mode, cases: docs[doc]!.slice(pending.start, pending.end) })
+    return asciiJson({ kind: 'chunk', mode: job.mode, browser: job.browser, cases: docs[doc]!.slice(pending.start, pending.end) })
   }
 
   const server = serve(async request => {

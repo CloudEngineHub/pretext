@@ -4,7 +4,8 @@
 // - Lines come from rect positions, never from height / line height: every text box rect with positive height has a
 //   vertical centre, and a new line starts where the next centre down is half a line height or more below the one before.
 //   Main's height division read Safari 27's fractional line boxes as 3.000746 lines.
-// - A visible character is a code point whose positive-size Range rects all sit on one line. Its offset goes into the
+// - A visible character is a code point whose positive-size Range rects all sit on one line, leaving out Chrome's copies
+//   of a soft hyphen's box. Its offset goes into the
 //   recording as its line's first or last visible character. The pass rule (score.ts) checks both ends of each line, which
 //   checks every visible character when the line index of visible characters never decreases in source order.
 // - Short paragraphs are read code point by code point. Longer ones search from each line's first visible character for
@@ -62,32 +63,34 @@ function codePointLength(text: string, offset: number): number {
   return text.codePointAt(offset)! > 0xffff ? 2 : 1
 }
 
-// The line all the code point's positive-size rects sit on; INVISIBLE without such rects, SPLIT across lines. Where a
-// line breaks at a soft hyphen, Chrome also reports the hyphen's box for the code point next to it, so a rect equal to one
-// of a neighbouring soft hyphen's is left out.
-export function visibleLine(text: string, offset: number, lines: Lines, rectsAt: RectsAt): number {
+// The line all the code point's positive-size rects sit on; INVISIBLE without such rects, SPLIT across lines.
+export function visibleLine(offset: number, lines: Lines, rectsAt: RectsAt): number {
   const rects = rectsAt(offset)
-  const hyphens: Rect[] = []
-  if (text.charCodeAt(offset) !== 0xad) {
-    if (offset > 0 && text.charCodeAt(offset - 1) === 0xad) hyphens.push(...rectsAt(offset - 1))
-    const next = offset + codePointLength(text, offset)
-    if (next < text.length && text.charCodeAt(next) === 0xad) hyphens.push(...rectsAt(next))
-  }
   let line = INVISIBLE
   for (let i = 0; i < rects.length; i++) {
     const rect = rects[i]!
     if (!(rect.width > 0 && rect.height > 0)) continue
     const at = lineOf(lines, rect)
-    let hyphen = false
-    for (let k = 0; k < hyphens.length && !hyphen; k++) {
-      const h = hyphens[k]!
-      hyphen = h.width > 0 && h.height > 0 && h.x === rect.x && h.width === rect.width && lineOf(lines, h) === at
-    }
-    if (hyphen) continue
     if (line === INVISIBLE) line = at
     else if (line !== at) return SPLIT
   }
   return line
+}
+
+// Where a line breaks at a soft hyphen, Chrome gives the hyphen's box to whichever range reaches it, so the code point
+// next to the soft hyphen reports it too, often on the other line. The recording leaves that copy out. Other browsers
+// report equal boxes for neighbouring zero-width characters, which are no copies, so this is Chrome's alone.
+export function withoutHyphenCopies(text: string, rectsAt: RectsAt): RectsAt {
+  return offset => {
+    const rects = rectsAt(offset)
+    if (text.charCodeAt(offset) === 0xad) return rects
+    const hyphens: Rect[] = []
+    if (offset > 0 && text.charCodeAt(offset - 1) === 0xad) hyphens.push(...rectsAt(offset - 1))
+    const next = offset + codePointLength(text, offset)
+    if (next < text.length && text.charCodeAt(next) === 0xad) hyphens.push(...rectsAt(next))
+    if (hyphens.length === 0) return rects
+    return rects.filter(rect => !hyphens.some(h => h.width > 0 && h.x === rect.x && h.y === rect.y && h.width === rect.width && h.height === rect.height))
+  }
 }
 
 export type LineEnds = { first: number[]; last: number[] }
@@ -99,7 +102,7 @@ function emptyEnds(count: number): LineEnds {
 export function scanLineEnds(text: string, lines: Lines, rectsAt: RectsAt): LineEnds {
   const ends = emptyEnds(lines.lo.length)
   for (let offset = 0; offset < text.length; offset += codePointLength(text, offset)) {
-    const line = visibleLine(text, offset, lines, rectsAt)
+    const line = visibleLine(offset, lines, rectsAt)
     if (line < 0) continue
     if (ends.first[line]! < 0) ends.first[line] = offset
     ends.last[line] = offset
@@ -115,7 +118,7 @@ export function searchLineEnds(text: string, lines: Lines, rectsAt: RectsAt): Li
   // The first visible code point at or after `from`, and its line; null at the end of the text.
   const nextVisible = (from: number): { offset: number; line: number } | null => {
     for (let offset = from; offset < text.length; offset += codePointLength(text, offset)) {
-      const line = visibleLine(text, offset, lines, rectsAt)
+      const line = visibleLine(offset, lines, rectsAt)
       if (line >= 0) return { offset, line }
     }
     return null
@@ -173,8 +176,10 @@ export function lineWidths(rects: readonly Rect[], lines: Lines): number[] {
   return widths
 }
 
-export function recordedLines(text: string, nodeRects: readonly Rect[], lineHeight: number, rectsAt: RectsAt): RecordedLine[] {
+// `hyphenCopies`: the browser is Chrome (withoutHyphenCopies).
+export function recordedLines(text: string, nodeRects: readonly Rect[], lineHeight: number, browserRectsAt: RectsAt, hyphenCopies: boolean): RecordedLine[] {
   const lines = groupLines(nodeRects, lineHeight)
+  const rectsAt = hyphenCopies ? withoutHyphenCopies(text, browserRectsAt) : browserRectsAt
   const ends = (text.length >= SEARCH_FROM_UNITS ? searchLineEnds(text, lines, rectsAt) : null) ?? scanLineEnds(text, lines, rectsAt)
   const widths = lineWidths(nodeRects, lines)
   const out: RecordedLine[] = []
@@ -249,7 +254,7 @@ function relativeRects(list: DOMRectList, origin: DOMRect, into: Rect[]): Rect[]
   return into
 }
 
-export function recordCase(c: Case, range: Range): Recording {
+export function recordCase(c: Case, range: Range, hyphenCopies: boolean): Recording {
   const { element, nodes, refused } = buildParagraph(c)
   if (refused.length > 0) return { error: `refused ${refused.join(', ')}` }
   document.body.append(element)
@@ -274,7 +279,7 @@ export function recordCase(c: Case, range: Range): Recording {
       range.setEnd(nodes[run]!, local + codePointLength(text, offset))
       return relativeRects(range.getClientRects(), origin, [])
     }
-    return { lines: recordedLines(text, nodeRects, c.paragraph.lineHeight, rectsAt), height: origin.height }
+    return { lines: recordedLines(text, nodeRects, c.paragraph.lineHeight, rectsAt, hyphenCopies), height: origin.height }
   } finally {
     element.remove()
   }
