@@ -120,7 +120,7 @@ export type BreakRules = {
 }
 
 // Little-endian data, read on a little-endian platform.
-function copyU16(bytes: Uint8Array, offset: number, count: number): Uint16Array {
+export function copyU16(bytes: Uint8Array, offset: number, count: number): Uint16Array {
   const out = new Uint16Array(count)
   new Uint8Array(out.buffer).set(bytes.subarray(offset, offset + count * 2))
   return out
@@ -128,14 +128,11 @@ function copyU16(bytes: Uint8Array, offset: number, count: number): Uint16Array 
 
 // Compiled rules without the data package header: RBBIDataHeader (rbbidata.h:67-94),
 // checked as rbbidata.cpp:69-71 does, then the tables it points to.
-// ICU4X's CodePointTrie::get32 for TrieType::Small with u8 values (icu_collections 2.1.1
-// cptrie.rs:648-656), for a code point up to U+10FFFF: Firefox's line and script data.
-export function getSmallTrieValue(index: Uint16Array, data: Uint8Array, highStart: number, c: number): number {
-  if (c <= 0xfff) return data[index[c >> 6]! + (c & 0x3f)]! // get32_assuming_fast_index, :568-600
-  if (c >= highStart) return data[data.length - 2]! // small_index, :503-509
-  // internal_small_index, :433-500. SHIFT_1 14, SMALL_INDEX_LENGTH 64, SHIFT_2 9, INDEX_2_MASK 31,
-  // SHIFT_3 4, INDEX_3_MASK 31, SMALL_DATA_MASK 15 (impl_const.rs).
-  let i3Block = index[index[(c >> 14) + 64]! + ((c >> 9) & 0x1f)]!
+// A trie's data index past its fast range and below its high start: ucptrie_internalSmallIndex
+// (ucptrie.cpp:161-185) and ICU4X's internal_small_index (icu_collections 2.1.1
+// cptrie.rs:433-500), with SHIFT_1 14, SHIFT_2 9, SHIFT_3 4 and 5-bit masks.
+function getTrieDataIndex(index: Uint16Array, firstLevelStart: number, c: number): number {
+  let i3Block = index[index[(c >> 14) + firstLevelStart]! + ((c >> 9) & 0x1f)]!
   let i3 = (c >> 4) & 0x1f
   let dataBlock: number
   if ((i3Block & 0x8000) === 0) {
@@ -146,7 +143,15 @@ export function getSmallTrieValue(index: Uint16Array, data: Uint8Array, highStar
     dataBlock = (index[i3Block]! << (2 + 2 * i3)) & 0x30000
     dataBlock |= index[i3Block + 1 + i3]!
   }
-  return data[dataBlock + (c & 0xf)]!
+  return dataBlock + (c & 0xf)
+}
+
+// ICU4X's CodePointTrie::get32 for TrieType::Small with u8 values (cptrie.rs:648-656), for a
+// code point up to U+10FFFF: Firefox's line and script data. SMALL_INDEX_LENGTH is 64.
+export function getSmallTrieValue(index: Uint16Array, data: Uint8Array, highStart: number, c: number): number {
+  if (c <= 0xfff) return data[index[c >> 6]! + (c & 0x3f)]! // get32_assuming_fast_index, :568-600
+  if (c >= highStart) return data[data.length - 2]! // small_index, :503-509
+  return data[getTrieDataIndex(index, 64, c)]!
 }
 
 export function parseBreakRules(bytes: Uint8Array): BreakRules {
@@ -200,25 +205,13 @@ export function parseBreakRules(bytes: Uint8Array): BreakRules {
   }
 }
 
-// UCPTRIE_FAST_GET with fastMax 0xffff (unicode/ucptrie.h:358, 601-620) and
-// ucptrie_internalSmallIndex for a fast trie (ucptrie.cpp:161-185).
+// UCPTRIE_FAST_GET with fastMax 0xffff (unicode/ucptrie.h:358, 601-620), and a fast trie's
+// first index level after UCPTRIE_BMP_INDEX_LENGTH - UCPTRIE_OMITTED_BMP_INDEX_1_LENGTH entries.
 function getCategory(rules: BreakRules, c: number): number {
   const index = rules.trieIndex
   if (c <= 0xffff) return rules.trieData[index[c >> 6]! + (c & 0x3f)]!
   if (c >= rules.trieHighStart) return rules.trieData[rules.trieDataLength - 2]!
-  const i1 = (c >> 14) + 1020 // UCPTRIE_BMP_INDEX_LENGTH - UCPTRIE_OMITTED_BMP_INDEX_1_LENGTH
-  let i3Block = index[index[i1]! + ((c >> 9) & 0x1f)]!
-  let i3 = (c >> 4) & 0x1f
-  let dataBlock: number
-  if ((i3Block & 0x8000) === 0) {
-    dataBlock = index[i3Block + i3]!
-  } else {
-    i3Block = (i3Block & 0x7fff) + (i3 & ~7) + (i3 >> 3)
-    i3 &= 7
-    dataBlock = (index[i3Block++]! << (2 + 2 * i3)) & 0x30000
-    dataBlock |= index[i3Block + i3]!
-  }
-  return rules.trieData[dataBlock + (c & 0xf)]!
+  return rules.trieData[getTrieDataIndex(index, 1020, c)]!
 }
 
 const RUN = 0

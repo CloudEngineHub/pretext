@@ -36,7 +36,7 @@ import {
   geckoScriptTrieIndexPacked,
 } from './generated/engine-break-data.js'
 import { getParagraphLevels } from './gecko-bidi-levels.js'
-import { getSmallTrieValue, unpackTable } from './line-breaks.js'
+import { copyU16, getBreakLanguage, getSmallTrieValue, unpackTable } from './line-breaks.js'
 
 const CH_SHY = 0x00ad
 
@@ -207,12 +207,10 @@ export function isSpaceCombiningSequenceTail(text: string, from: number): boolea
   return false
 }
 
-// aLangIsJapaneseOrChinese, nsTextFrameUtils.cpp:273-285
+// aLangIsJapaneseOrChinese, nsTextFrameUtils.cpp:273-285, which takes only `-` after the subtag.
 export function isJapaneseOrChinese(language: string | null): boolean {
-  if (language === null || language.length < 2 || (language.length > 2 && language.charCodeAt(2) !== 0x2d)) return false
-  const first = language.charCodeAt(0) | 0x20
-  const second = language.charCodeAt(1) | 0x20
-  return (first === 0x6a && second === 0x61) || (first === 0x7a && second === 0x68)
+  const breakLanguage = getBreakLanguage(language)
+  return (breakLanguage === 'ja' || breakLanguage === 'zh') && language!.charCodeAt(2) !== 0x5f
 }
 
 // Gecko's East Asian test for the white-space run [start, end) (TransformWhiteSpaces,
@@ -625,9 +623,7 @@ let lineBreakStates: Uint8Array
 
 function unpackU16(packed: string): Uint16Array {
   const bytes = unpackTable(packed)
-  const values = new Uint16Array(bytes.length >> 1)
-  for (let i = 0; i < values.length; i++) values[i] = bytes[2 * i]! | (bytes[2 * i + 1]! << 8)
-  return values
+  return copyU16(bytes, 0, bytes.length >> 1)
 }
 
 // The Line_Break value, with error value 0 above U+10FFFF.
