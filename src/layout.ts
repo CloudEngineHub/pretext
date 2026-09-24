@@ -106,21 +106,9 @@ export type PrepareOptions = {
 
 // --- Public API ---
 
-function countRenderedSpacingGraphemes(
-  text: string,
-  kind: SegmentBreakKind,
-): number {
-  if (
-    kind === 'zero-width-break' ||
-    kind === 'zero-width-glue' ||
-    kind === 'soft-hyphen' ||
-    kind === 'hard-break'
-  ) {
-    return 0
-  }
-
-  if (kind === 'tab') return 1
-
+// Text, glue and spaces take letter spacing after each grapheme; a ZWSP takes none.
+function countRenderedSpacingGraphemes(text: string, kind: SegmentBreakKind): number {
+  if (kind === 'zero-width-break') return 0
   let count = 0
   const graphemeSegmenter = getSharedGraphemeSegmenter()
   for (const _ of graphemeSegmenter.segment(text)) count++
@@ -510,13 +498,7 @@ function measureAnalysis(
     }
 
     if (segKind === 'tab') {
-      pushMeasuredSegment(
-        segText,
-        0,
-        segKind,
-        null,
-        hasLetterSpacing ? countRenderedSpacingGraphemes(segText, segKind) : 0,
-      )
+      pushMeasuredSegment(segText, 0, segKind, null, hasLetterSpacing ? 1 : 0)
       continue
     }
 
