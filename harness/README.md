@@ -64,7 +64,7 @@ which need a browser:
 | Sample draws weighted back to their share | A rare group topped up to 300 draws moves the headline far more than it moves real apps |
 | The checked-in sample equal to what the weights draw | A changed weight scores the old usage |
 | Controls of one category merged where browsers agree | Each copy of a pasted-control family counts as a behaviour of its own |
-| Only the widths around a change, at most three per template | One input is pinned at hundreds of widths, and review drowns in near-copies |
+| Only the widths around a change, at most three per template, the widest first | One input is pinned at hundreds of widths, and review drowns in near-copies |
 | A width inside each layout besides the edges of a change | A behaviour the library models reads as missing whenever its fit is off by 1/128 px |
 | One change per kind of break in the catalog | Two inputs that break alike double the review for one behaviour |
 
@@ -86,9 +86,9 @@ their recordings.
 | File | Cases | What it holds | Reported as |
 |---|---:|---|---|
 | `sample.ndjson` | 11,901 | The real-usage sample: 10,000 draws by `sets/weights.json`, plus the draws that bring 21 rare groups to 300 each, weighted back to their real share | The headline |
-| `catalog.ndjson` | 37,401 (17,974-19,299 per browser) | main's adversarial families, the rebuild's rule families, filed reports whose reporter measured the width, and every UAX #14 line-break class between the scripts apps mix, pairwise over the CSS settings the library takes | Behaviours modelled |
-| `facts.ndjson` | 10,196 (4,880-5,050) | The 28 engine facts `src/layout.test.ts` checks on plain text with a fake Canvas, in a browser | Behaviours modelled |
-| `rich.ndjson` | 3,312 (1,669-1,685) | Rich-inline paragraphs: styled runs, span edges, atomic chips and padded code spans, main's inline items, #120, #171, #177, #323 and main's engine facts about rich items | Behaviours modelled |
+| `catalog.ndjson` | 37,090 (17,914-19,305 per browser) | main's adversarial families, the rebuild's rule families, filed reports whose reporter measured the width, and every UAX #14 line-break class between the scripts apps mix, pairwise over the CSS settings the library takes | Behaviours modelled |
+| `facts.ndjson` | 10,018 (4,820-4,929) | The 28 engine facts `src/layout.test.ts` checks on plain text with a fake Canvas, in a browser | Behaviours modelled |
+| `rich.ndjson` | 3,334 (1,617-1,636) | Rich-inline paragraphs: styled runs, span edges, atomic chips and padded code spans, main's inline items, #120, #171, #177, #323 and main's engine facts about rich items | Behaviours modelled |
 | `census.ndjson` | 4,386 | The rebuild's census of real text (census-20260919): paragraphs of the 18 corpora at six widths, less the 300 in the smoke set | Pinned cases |
 | `books.ndjson` | 72 | The rebuild's book survey: each corpus whole, raw and as main normalizes it, at the narrowest and widest step-10 widths | Pinned cases |
 | `reports.ndjson` | 28 | Filed reports, with the input and width as filed | Pinned cases |
@@ -109,7 +109,7 @@ so a group with no failure is under 1% wrong with 95% confidence. A draw whose t
    earlier template showed in that browser, and every family keeps one. The facts and rich sets keep every change.
 3. `bisect` narrows each kept change to one layout unit: 1/128 px in Chrome, 1/64 px in WebKit, 1/60 px in Firefox.
 4. `cut` pins width 1 and 100000 and, per browser, at most three exact changes per template, each a new kind of break,
-   those at 24 px and wider first. Each change gets a width 1/64 px either side of where the lines change (`edge`, where
+   the widest first. Each change gets a width 1/64 px either side of where the lines change (`edge`, where
    the fit is exact to 1/64 px) and a whole pixel well inside each of its two layouts (where the break chosen is checked
    away from the fit). One Chrome layout unit (1/128 px) either side was finer than the fit is exact to: half those
    cases failed for main and the hybrid alike.

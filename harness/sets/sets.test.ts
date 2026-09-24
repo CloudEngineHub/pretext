@@ -86,7 +86,7 @@ describe('the cut', () => {
     expect(widths.sort((x, y) => x - y)).toEqual([1, 19.5, 20.015625, 100_000])
   })
 
-  test('a paragraph keeps at most three of the widths where its lines change, each showing a new kind of break: pinning every one would sweep one input across widths', () => {
+  test('a paragraph keeps at most three of the widths where its lines change, the widest first, each showing a new kind of break: pinning every one would sweep one input across widths', () => {
     // Four breaks of four kinds (after a space, a hyphen, a slash and a colon) come undone one by one from 30 to 60.
     const mixed = template('a b-c/d:e', 'test/kinds')
     const starts = [[0, 2, 4, 6, 8], [0, 4, 6, 8], [0, 6, 8], [0, 8], [0]]
@@ -94,17 +94,18 @@ describe('the cut', () => {
       const firsts = starts[width < 30 ? 0 : width < 40 ? 1 : width < 50 ? 2 : width < 60 ? 3 : 4]!
       return { lines: firsts.map((first, i) => line(first, (firsts[i + 1] ?? 10) - 2, 8)), height: 20 * firsts.length }
     }
-    // Four breaks after spaces, all alike but the last, where the text comes to fit on one line.
+    // Four breaks after spaces, all alike, the last where the text comes to fit on one line.
     const spaces = template('a b c d e', 'test/spaces')
     record([[mixed, layout], [spaces, layout]], [29, 30, 39, 40, 49, 50, 59, 60])
     select(SET, [mixed, spaces], false)
     const widths = (t: Template, edge: boolean): number[] => cut(SET, [t]).filter(c => (c.edge === true) === edge).map(c => c.paragraph.width).sort((x, y) => x - y)
-    // 1/64 px either side of each change where the side's layout reaches (the recorded 29 stands in for 29.984375, which
-    // falls between recordings), and a whole pixel inside each layout.
-    expect(widths(mixed, true)).toEqual([29, 30.015625, 39, 40.015625, 49, 50.015625])
+    // The three widest changes, 1/64 px either side where the side's layout reaches (the recorded 39 stands in for
+    // 39.984375, which falls between recordings), and a whole pixel inside each layout.
+    expect(widths(mixed, true)).toEqual([39, 40.015625, 49, 50.015625, 59, 60.015625])
     expect(widths(mixed, false)).toEqual([1, 35, 45, 55, 100_000])
-    expect(widths(spaces, true)).toEqual([29, 30.015625, 59, 60.015625])
-    expect(widths(spaces, false)).toEqual([1, 35, 55, 100_000])
+    // Only the widest of the changes that break alike.
+    expect(widths(spaces, true)).toEqual([59, 60.015625])
+    expect(widths(spaces, false)).toEqual([1, 55, 100_000])
   })
 
   test('the cover keeps one change per kind of line break: two inputs that break the same way would double the review for one behaviour', () => {

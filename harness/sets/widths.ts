@@ -16,8 +16,8 @@
 // 3. `bisect`, in each browser: halves each kept change until its two widths are one layout unit apart: 1/128 px in
 //    Chrome at DPR 2, 1/64 px in WebKit, 1/60 px in Firefox (rebuild/tests/fit.ts).
 // 4. `cut`: each kept template's cases, at width 1 and 100000 in every browser and, in the browser that changes, around
-//    at most three exact changes inside its kept ones, each showing a line break the template hasn't shown yet, those
-//    at 24 px and wider first: 1/64 px either side of the width where the lines change (`edge`, where the fit is exact to
+//    at most three exact changes inside its kept ones, each showing a line break the template hasn't shown yet, the
+//    widest first: 1/64 px either side of the width where the lines change (`edge`, where the fit is exact to
 //    1/64 px) and a width well inside each of its two layouts (where the break chosen is checked away from the fit). A long paragraph's lines
 //    change every few pixels, and pinning each change would sweep one input across widths.
 // `bun harness record` then records the cut cases in fresh short documents in two orders.
@@ -418,10 +418,11 @@ export function cut(set: string, templates: readonly Template[]): Case[] {
       const browser = CUT_BROWSERS[b]!
       const kept = selection[browser][key] ?? []
       const recorded = recordedWidths(set, t, states[b]!, false)
-      // Changes at real widths (24 px and wider, where apps lay text out) come before narrower ones.
+      // The widest changes come first: they are the widths apps lay text out at, and in a narrow box a long text breaks
+      // inside its words whatever it holds.
       const inside: Array<[Recorded, Recorded]> = []
       for (let p = 0; p < kept.length; p++) inside.push(...changesInside(recorded, kept[p]!))
-      inside.sort((x, y) => Number(x[0].width < 24) - Number(y[0].width < 24) || x[0].width - y[0].width)
+      inside.sort((x, y) => y[0].width - x[0].width)
       const shown = new Set<string>()
       const taken: Array<[Recorded, Recorded]> = []
       for (let c = 0; c < inside.length && taken.length < CHANGES_PER_TEMPLATE; c++) {
