@@ -1,0 +1,2 @@
+## Chrome trims the space between adjacent CJK punctuation (text-spacing-trim), so one more character fits; main doesn't model it
+real-ja-kumo-no-ito-l11-w480 breaks

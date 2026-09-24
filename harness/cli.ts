@@ -1,0 +1,351 @@
+// bun harness <command> [--browser=chrome|firefox|webkit-host|safari|all] [--cases=<file.ndjson>]
+//   record [--only-new]      record the browser's layout of every case, twice in two orders, in fresh short documents
+//   check [--accept=<why>]   predict every pinned case in the browser and score it against the recordings
+//   gate [--sample=N]        check, plus a prediction in reverse order, N cases recorded again, and attribution
+//   equal <ref>              whether this tree's src/ and <ref>'s predict the same lines for every case
+//   explain <id>             one case's recorded lines against the predicted ones, character by character
+// --lib=<dir> predicts with another build's src/ directory. Default browsers: chrome, firefox and webkit-host, side by side.
+import { execFileSync } from 'node:child_process'
+import { mkdirSync, readdirSync } from 'node:fs'
+import { join, resolve } from 'node:path'
+import { accept, headline, judge, observable, samePrediction, score, shrinkWrapShort, widthBand, type Outcome } from './score.ts'
+import { LIB, runJob } from './run.ts'
+import {
+  acceptedPath, assertSameEnvironment, caseText, historyPath, readAccepted, readCases, readHistory, readRecordings, recordingText, recordingsPath,
+  splitHistory, writeAccepted, writeHistory, writeRecordings,
+} from './store.ts'
+import { BROWSERS, type BrowserKind, type Case, type Prediction, type Recording } from './types.ts'
+
+// A document holds this many cases while recording, so each case sees a short page history.
+const RECORD_DOCUMENT = 200
+const ALONE = 1
+const WHOLE = Number.MAX_SAFE_INTEGER
+const ATTRIBUTE_AT_MOST = 200
+
+const args = process.argv.slice(2)
+const flags = new Map<string, string>()
+const positional: string[] = []
+for (let i = 0; i < args.length; i++) {
+  const match = /^--([a-z-]+)(?:=(.*))?$/s.exec(args[i]!)
+  if (match === null) positional.push(args[i]!)
+  else flags.set(match[1]!, match[2] ?? '')
+}
+const command = positional[0]
+const browserFlag = flags.get('browser') ?? (command === 'explain' ? 'chrome' : 'all')
+const browsers: BrowserKind[] = browserFlag === 'all' ? ['chrome', 'firefox', 'webkit-host'] : browserFlag.split(',') as BrowserKind[]
+for (let i = 0; i < browsers.length; i++) if (!BROWSERS.includes(browsers[i]!)) throw new Error(`Unknown browser ${browsers[i]}`)
+const lib = resolve(flags.get('lib') ?? LIB)
+
+function loadCases(): Case[] {
+  const dir = join(import.meta.dir, 'cases')
+  const files = flags.has('cases') ? [flags.get('cases')!] : readdirSync(dir).filter(name => name.endsWith('.ndjson')).sort().map(name => join(dir, name))
+  const cases: Case[] = []
+  const ids = new Set<string>()
+  for (let f = 0; f < files.length; f++) {
+    const list = readCases(files[f]!)
+    for (let i = 0; i < list.length; i++) {
+      if (ids.has(list[i]!.id)) throw new Error(`${files[f]}: duplicate case ${list[i]!.id}`)
+      ids.add(list[i]!.id)
+      cases.push(list[i]!)
+    }
+  }
+  return cases
+}
+
+// webkit-host runs installed Safari's engine, so it takes Safari's cases.
+function applies(c: Case, browser: BrowserKind): boolean {
+  return c.browsers === undefined || c.browsers.includes(browser) || (browser === 'webkit-host' && c.browsers.includes('safari'))
+}
+
+function percent(part: number, whole: number): string {
+  return whole === 0 ? '-' : `${(100 * part / whole).toFixed(2)}%`
+}
+
+function describe(c: Case, outcome: Outcome): string {
+  return `${c.id}  ${c.family}  ${widthBand(c)}  ${outcome.status}${outcome.line >= 0 ? ` at line ${outcome.line}` : ''}: ${outcome.detail}`
+}
+
+function shuffled<T>(list: T[], seed: number): T[] {
+  const out = list.slice()
+  let state = seed >>> 0
+  for (let i = out.length - 1; i > 0; i--) {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0
+    const j = state % (i + 1)
+    const swap = out[i]!
+    out[i] = out[j]!
+    out[j] = swap
+  }
+  return out
+}
+
+// ---- record ----
+
+async function record(browser: BrowserKind, cases: Case[]): Promise<number> {
+  const old = readRecordings(recordingsPath(browser))
+  const oldHistory = readHistory(historyPath(browser))
+  let list = cases.filter(c => applies(c, browser))
+  if (flags.has('only-new')) list = list.filter(c => old?.recordings.has(c.id) !== true && oldHistory?.cases.has(c.id) !== true)
+  const sorted = list.slice().sort((a, b) => (a.id < b.id ? -1 : 1))
+  // One browser instance at a time per browser.
+  const a = await runJob<Recording>({ browser, mode: 'record', cases: sorted, documentSize: RECORD_DOCUMENT, lib })
+  const b = await runJob<Recording>({ browser, mode: 'record', cases: sorted.slice().reverse(), documentSize: RECORD_DOCUMENT, lib })
+  if (a.env !== b.env) throw new Error(`The environment changed between the two recordings: ${a.env} | ${b.env}`)
+  const merge = flags.has('only-new') && old !== null
+  if (merge && old.env !== a.env) throw new Error(`--only-new under another environment (${old.env}); record everything`)
+  const recordings = merge ? old.recordings : new Map<string, Recording>()
+  const history = merge ? oldHistory?.cases ?? new Map<string, [Recording, Recording]>() : new Map<string, [Recording, Recording]>()
+  splitHistory(sorted.map(c => c.id), a.results, b.results, recordings, history)
+  mkdirSync(join(import.meta.dir, 'recordings'), { recursive: true })
+  writeRecordings(recordingsPath(browser), { env: a.env, recordings })
+  writeHistory(historyPath(browser), { env: a.env, cases: history })
+  console.log(`${browser}: recorded ${sorted.length} cases twice in ${((a.ms + b.ms) / 2000).toFixed(0)} s; ${history.size} with page history; ${a.env}`)
+  // What the browser changed since the last recording, by family and width band.
+  if (old !== null && !merge) {
+    const changed = new Map<string, number>()
+    const byId = new Map(sorted.map(c => [c.id, c]))
+    let count = 0
+    for (const [id, now] of recordings) {
+      const before = old.recordings.get(id)
+      if (before === undefined || recordingText(before) === recordingText(now)) continue
+      const c = byId.get(id)!
+      const key = `${c.family}  ${widthBand(c)}`
+      changed.set(key, (changed.get(key) ?? 0) + 1)
+      count++
+    }
+    console.log(`${browser}: ${count} recordings changed${old.env === a.env ? '' : ` since ${old.env}`}`)
+    const rows = [...changed].sort((x, y) => y[1] - x[1])
+    for (let i = 0; i < rows.length && i < 30; i++) console.log(`  ${rows[i]![1]}  ${rows[i]![0]}`)
+  }
+  return 0
+}
+
+// ---- check and gate ----
+
+type Scored = {
+  browser: BrowserKind
+  pinned: Case[]
+  recordings: Map<string, Recording>
+  predictions: Map<string, Prediction>
+  outcomes: Map<string, Outcome>
+  newFailures: Case[]
+  blocked: boolean
+}
+
+async function check(browser: BrowserKind, cases: Case[]): Promise<Scored> {
+  const recorded = readRecordings(recordingsPath(browser))
+  if (recorded === null) throw new Error(`${browser}: no recordings; run record first`)
+  const history = readHistory(historyPath(browser))?.cases ?? new Map<string, [Recording, Recording]>()
+  const path = acceptedPath(browser)
+  const accepted = readAccepted(path)
+  let unrecorded = 0
+  let unobservable = 0
+  let historyCount = 0
+  const pinned: Case[] = []
+  for (let i = 0; i < cases.length; i++) {
+    const c = cases[i]!
+    if (!applies(c, browser)) continue
+    const recording = recorded.recordings.get(c.id)
+    if (history.has(c.id)) historyCount++
+    else if (recording === undefined) unrecorded++
+    else if (!observable(recording)) unobservable++
+    else pinned.push(c)
+  }
+  const job = await runJob<Prediction>({ browser, mode: 'predict', cases: pinned, documentSize: WHOLE, lib })
+  if (pinned.length > 0) assertSameEnvironment(browser, recorded.env, job.env)
+  const counts = { pass: 0, count: 0, breaks: 0, error: 0 }
+  const outcomes = new Map<string, Outcome>()
+  const byId = new Map<string, Case>()
+  const draws: Array<{ group: string; weight: number; pass: boolean }> = []
+  let sampleWeight = 0
+  let shortBubbles = 0
+  let calls = 0
+  let units = 0
+  for (let i = 0; i < pinned.length; i++) {
+    const c = pinned[i]!
+    byId.set(c.id, c)
+    const recording = recorded.recordings.get(c.id)!
+    const prediction = job.results.get(c.id)!
+    const outcome = score(recording, prediction)
+    outcomes.set(c.id, outcome)
+    counts[outcome.status]++
+    if (!('error' in prediction)) {
+      calls += prediction.calls
+      units += caseText(c).length
+    }
+    if (c.sample !== undefined) {
+      draws.push({ group: c.sample.group, weight: c.sample.weight, pass: outcome.status === 'pass' })
+      sampleWeight += c.sample.weight
+    }
+    if (outcome.status === 'pass' && shrinkWrapShort(recording, prediction)) shortBubbles++
+  }
+  // A run over some case files leaves the other cases' entries alone; a run over all of them drops entries of removed cases.
+  const loaded = new Set<string>()
+  for (let i = 0; i < cases.length; i++) loaded.add(cases[i]!.id)
+  const scope = flags.has('cases') ? (id: string) => loaded.has(id) : null
+  const verdict = judge(outcomes, accepted, scope)
+  const acceptReason = flags.get('accept') ?? ''
+  const updated = acceptReason !== ''
+  if (updated) {
+    mkdirSync(join(import.meta.dir, 'accepted'), { recursive: true })
+    writeAccepted(path, accept(outcomes, accepted, acceptReason, scope))
+    console.log(`${browser}: accepted ${verdict.newFailures.length} new failures as "${acceptReason}", dropped ${verdict.fixed.length} entries`)
+  }
+
+  const out: string[] = []
+  out.push(`${browser}: ${pinned.length} pinned cases predicted in ${(job.ms / 1000).toFixed(1)} s`)
+  out.push(`  pass ${counts.pass} | wrong line count ${counts.count} | right count, wrong breaks ${counts.breaks} | error ${counts.error}`)
+  out.push(`  not pinned: ${historyCount} page history, ${unobservable} with nothing visible or unrecordable, ${unrecorded} not recorded`)
+  const head = headline(draws)
+  if (head !== null) out.push(`  real-usage sample: ${(100 * head.share).toFixed(2)}% of real paragraphs right, 95% interval ${(100 * head.low).toFixed(2)}-${(100 * head.high).toFixed(2)}% (${draws.length} draws; macOS rendering only)`)
+  const reasons = [...verdict.byReason].sort((x, y) => y[1].length - x[1].length)
+  for (let i = 0; i < reasons.length; i++) {
+    const [reason, ids] = reasons[i]!
+    let weight = 0
+    for (let k = 0; k < ids.length; k++) weight += byId.get(ids[k]!)!.sample?.weight ?? 0
+    out.push(`  accepted ${ids.length}${sampleWeight > 0 ? ` (${percent(weight, sampleWeight)} of real paragraphs)` : ''}: ${reason}`)
+  }
+  for (let i = 0; i < verdict.changed.length; i++) out.push(`  failure changed (accepted, not blocking): ${verdict.changed[i]}`)
+  out.push(`  shrink-wrap, report only: ${shortBubbles} passing cases predict a widest line narrower than the browser's`)
+  out.push(`  Canvas: ${units === 0 ? '-' : (1000 * calls / units).toFixed(1)} measureText calls per 1,000 units`)
+  const fixed = verdict.fixed
+  const newFailures = verdict.newFailures.map(id => byId.get(id)!)
+  if (!updated && fixed.length > 0) out.push(`  BLOCKS: ${fixed.length} accepted cases pass or are no longer pinned; take them off with --accept: ${fixed.slice(0, 10).join(' ')}${fixed.length > 10 ? ' ...' : ''}`)
+  if (!updated && newFailures.length > 0) {
+    out.push(`  BLOCKS: ${newFailures.length} new failures (accept them with --accept="<reason>")`)
+    for (let i = 0; i < newFailures.length && i < 30; i++) out.push(`    ${describe(newFailures[i]!, outcomes.get(newFailures[i]!.id)!)}`)
+  }
+  console.log(out.join('\n'))
+  return { browser, pinned, recordings: recorded.recordings, predictions: job.results, outcomes, newFailures: updated ? [] : newFailures, blocked: !updated && (newFailures.length > 0 || fixed.length > 0) }
+}
+
+async function gate(browser: BrowserKind, cases: Case[]): Promise<boolean> {
+  const scored = await check(browser, cases)
+  let blocked = scored.blocked
+  // The same predictions in reverse order: a difference means results depend on what was prepared before.
+  const reverse = await runJob<Prediction>({ browser, mode: 'predict', cases: scored.pinned.slice().reverse(), documentSize: WHOLE, lib })
+  const orderDependent = scored.pinned.filter(c => !samePrediction(reverse.results.get(c.id)!, scored.predictions.get(c.id)!))
+  if (orderDependent.length > 0) {
+    blocked = true
+    console.log(`${browser}: BLOCKS: ${orderDependent.length} predictions change in reverse order: ${orderDependent.slice(0, 10).map(c => c.id).join(' ')}`)
+  }
+  // A fresh recording of a random sample: a difference means the stored recordings no longer describe this browser.
+  const seed = Number(flags.get('seed') ?? Date.now() % 1_000_000)
+  const sample = shuffled(scored.pinned, seed).slice(0, Number(flags.get('sample') ?? 1000))
+  const fresh = await runJob<Recording>({ browser, mode: 'record', cases: sample, documentSize: RECORD_DOCUMENT, lib })
+  const stale = sample.filter(c => recordingText(fresh.results.get(c.id)!) !== recordingText(scored.recordings.get(c.id)!))
+  console.log(`${browser}: ${sample.length} cases recorded again (seed ${seed}): ${stale.length} differ from the recordings`)
+  if (stale.length > 0) {
+    blocked = true
+    console.log(`  BLOCKS: ${stale.slice(0, 10).map(c => c.id).join(' ')}`)
+  }
+  // Each new failure alone: recorded in a fresh document, then predicted in one.
+  const failures = scored.newFailures.slice(0, ATTRIBUTE_AT_MOST)
+  if (scored.newFailures.length > ATTRIBUTE_AT_MOST) console.log(`${browser}: ${scored.newFailures.length} new failures; attributing the first ${ATTRIBUTE_AT_MOST} (more than that usually means the change is wrong)`)
+  if (failures.length > 0) {
+    const alone = await runJob<Recording>({ browser, mode: 'record', cases: failures, documentSize: ALONE, lib })
+    const kept = failures.filter(c => recordingText(alone.results.get(c.id)!) === recordingText(scored.recordings.get(c.id)!))
+    const predictedAlone = await runJob<Prediction>({ browser, mode: 'predict', cases: kept, documentSize: ALONE, lib })
+    console.log(`${browser}: attribution of ${failures.length} new failures`)
+    for (let i = 0; i < failures.length; i++) {
+      const c = failures[i]!
+      const verdict = !kept.includes(c) ? 'page history: laid out differently alone in a fresh document'
+        : !samePrediction(predictedAlone.results.get(c.id)!, scored.predictions.get(c.id)!) ? 'depends on order: predicted differently alone (a library defect)'
+        : 'true loss'
+      console.log(`  ${verdict}  ${describe(c, scored.outcomes.get(c.id)!)}`)
+    }
+  }
+  return blocked
+}
+
+// ---- equal and explain ----
+
+async function equal(browser: BrowserKind, cases: Case[], ref: string): Promise<boolean> {
+  const sha = execFileSync('git', ['rev-parse', ref], { encoding: 'utf8' }).trim()
+  const dir = resolve(import.meta.dir, `../.artifacts/harness-equal/${sha}`)
+  mkdirSync(dir, { recursive: true })
+  execFileSync('sh', ['-c', `git archive ${sha} src | tar -x -C "${dir}"`])
+  const list = cases.filter(c => applies(c, browser))
+  const mine = await runJob<Prediction>({ browser, mode: 'predict', cases: list, documentSize: WHOLE, lib })
+  const theirs = await runJob<Prediction>({ browser, mode: 'predict', cases: list, documentSize: WHOLE, lib: join(dir, 'src') })
+  const differ = list.filter(c => !samePrediction(mine.results.get(c.id)!, theirs.results.get(c.id)!))
+  let callsMine = 0
+  let callsTheirs = 0
+  for (let i = 0; i < list.length; i++) {
+    const a = mine.results.get(list[i]!.id)!
+    const b = theirs.results.get(list[i]!.id)!
+    if (!('error' in a)) callsMine += a.calls
+    if (!('error' in b)) callsTheirs += b.calls
+  }
+  console.log(`${browser}: ${differ.length} of ${list.length} predictions differ from ${ref} (${sha.slice(0, 10)}); measureText calls ${callsMine} here, ${callsTheirs} there`)
+  for (let i = 0; i < differ.length && i < 20; i++) console.log(`  ${differ[i]!.id}  ${differ[i]!.family}`)
+  return differ.length > 0
+}
+
+async function explain(browser: BrowserKind, cases: Case[], id: string): Promise<void> {
+  const c = cases.find(x => x.id === id)
+  if (c === undefined) throw new Error(`No case ${id}`)
+  const recording = readRecordings(recordingsPath(browser))?.recordings.get(id) ?? readHistory(historyPath(browser))?.cases.get(id)?.[0]
+  if (recording === undefined) throw new Error(`${browser} has no recording of ${id}`)
+  if ('error' in recording) throw new Error(`${browser} couldn't record ${id}: ${recording.error}`)
+  const job = await runJob<Prediction>({ browser, mode: 'predict', cases: [c], documentSize: ALONE, lib })
+  const prediction = job.results.get(id)!
+  const p = c.paragraph
+  const text = caseText(c)
+  console.log(`${id}  ${c.family}  ${browser}  width ${p.width}  ${p.runs.length} runs, first font ${p.runs[0]!.font.size}px ${p.runs[0]!.font.family}  ${p.whiteSpace} ${p.wordBreak} ${p.direction} lang ${p.lang}`)
+  if ('error' in prediction) {
+    console.log(`prediction error: ${prediction.error}`)
+    return
+  }
+  const outcome = observable(recording) ? score(recording, prediction) : { status: 'nothing visible', line: -1, detail: '' }
+  console.log(`native ${recording.lines.length} lines, predicted ${prediction.lines.length}: ${outcome.status}${outcome.line >= 0 ? ` at line ${outcome.line}` : ''} ${outcome.detail}`)
+  const show = (from: number, to: number): string => JSON.stringify(text.slice(from, to)).slice(1, -1)
+  for (let i = 0; i < Math.max(recording.lines.length, prediction.lines.length); i++) {
+    const native = recording.lines[i]
+    const predicted = prediction.lines[i]
+    const nativeText = native === undefined ? '' : native.first < 0 ? '(nothing visible)' : `${native.first}-${native.last} "${show(native.first, native.last + (text.codePointAt(native.last)! > 0xffff ? 2 : 1))}"`
+    const predictedText = predicted === undefined ? '' : `${predicted.start}-${predicted.end} "${show(predicted.start, predicted.end)}"`
+    const mark = i === outcome.line ? '>' : ' '
+    console.log(`${mark} ${String(i).padStart(3)}  native ${nativeText.padEnd(50)}  predicted ${predictedText}  widths ${native?.width ?? '-'} / ${predicted?.width ?? '-'}`)
+  }
+  // The text around the first differing line, with the browser's line starts (‖) and the predicted ones (|).
+  const at = Math.max(0, outcome.line)
+  const from = Math.min(prediction.lines[Math.max(0, at - 1)]?.start ?? 0, Math.max(0, recording.lines[Math.max(0, at - 1)]?.first ?? 0))
+  const to = Math.max(prediction.lines[at + 1]?.end ?? text.length, (recording.lines[at + 1]?.last ?? text.length - 1) + 1)
+  const starts = new Map<number, string>()
+  for (let i = 1; i < recording.lines.length; i++) if (recording.lines[i]!.first >= 0) starts.set(recording.lines[i]!.first, '‖')
+  for (let i = 1; i < prediction.lines.length; i++) starts.set(prediction.lines[i]!.start, (starts.get(prediction.lines[i]!.start) ?? '') + '|')
+  let marked = ''
+  for (let i = from; i < Math.min(to, text.length); i++) marked += (starts.get(i) ?? '') + text[i]
+  console.log(`breaks near line ${at}, the browser's ‖ and predicted |: ${JSON.stringify(marked)}`)
+}
+
+async function main(): Promise<number> {
+  const cases = loadCases()
+  switch (command) {
+    case 'record':
+      await Promise.all(browsers.map(b => record(b, cases)))
+      return 0
+    case 'check': {
+      const results = await Promise.all(browsers.map(b => check(b, cases)))
+      return results.some(r => r.blocked) ? 1 : 0
+    }
+    case 'gate': {
+      const blocked = await Promise.all(browsers.map(b => gate(b, cases)))
+      return blocked.some(Boolean) ? 1 : 0
+    }
+    case 'equal': {
+      if (positional[1] === undefined) throw new Error('equal needs a git ref')
+      const differ = await Promise.all(browsers.map(b => equal(b, cases, positional[1]!)))
+      return differ.some(Boolean) ? 1 : 0
+    }
+    case 'explain':
+      if (positional[1] === undefined) throw new Error('explain needs a case id')
+      await explain(browsers[0]!, cases, positional[1])
+      return 0
+    default:
+      console.error('Usage: bun harness record|check|gate|equal <ref>|explain <id> [--browser=...] [--cases=...] [--lib=...]')
+      return 2
+  }
+}
+
+process.exit(await main())

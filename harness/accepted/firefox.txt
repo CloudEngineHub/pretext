@@ -1,0 +1,5 @@
+## Firefox breaks Myanmar between a consonant and its vowel sign; main keeps the cluster whole
+real-my-cunning-heron-teacher-l3-w600 breaks
+
+## Firefox keeps Korean after a closing quote with the word before it; main breaks after the quote
+real-ko-unsu-joh-eun-nal-l74-w400 breaks

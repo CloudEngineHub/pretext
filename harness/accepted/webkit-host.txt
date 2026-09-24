@@ -1,0 +1,2 @@
+## Safari 27 breaks after CJK punctuation under keep-all (WebKit #312099); main doesn't model it
+smoke/cjk-ja-keep-all count

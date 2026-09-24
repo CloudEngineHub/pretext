@@ -1,0 +1,1 @@
+# env firefox 156.0 os=26A428 os-languages=zh-Hans-US,en-US page-languages=en-US,en dpr=2 fonts=0f7936f48f68
