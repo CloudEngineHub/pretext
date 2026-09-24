@@ -1110,6 +1110,35 @@ Feature detection must precede assignment. In the tested Safari OffscreenCanvas,
 `fontKerning` and `textRendering` were absent; assigning and reading them back only
 created ordinary JavaScript properties, without enabling the browser feature.
 
+Safari's generic families under a page language come from the operating system,
+not from WebKit's own settings: under every language whose WebKit script isn't
+Common, which is nearly every language tag a page writes, `en` included, WebKit asks
+Core Text's `CTFontDescriptorCreateForCSSFamily` with the page language, and keeps
+its settings' families only for names Core Text reserves
+(`FontDescriptionCocoa.cpp:77-118`). Safari 27's Canvas can't carry a language, so
+the WebKit profile names Core Text's families in the Canvas font. The table is
+generated from WebKit's language-to-script map and Core Text's answers dumped on
+macOS 27 and in the iOS 26 simulator; it holds no font's metrics. Where the systems
+differ, iOS's Safari lacks macOS's family in all but two cases, so the new context
+asks itself, with one probe string, whether it has macOS's family, and takes iOS's
+if not. In the two cases both systems have both families and macOS's stands: Menlo
+against Courier New for `monospace` under `fa`, `ug` and Arabic with a region, and
+Papyrus against Arial Hebrew for `fantasy` under `he`. Safari can't use Kaiti SC or
+TC on macOS 27, which Core Text names for `cursive` and `fantasy` under `zh`, and
+draws the script's standard family, Songti. Rejected: listing macOS's family and
+then iOS's in the Canvas font, which on macOS sends the characters macOS's family
+lacks to iOS's family, where the page falls back by language: Latin under `hi`
+`serif` (ITF Devanagari, then Kohinoor Devanagari) and Hebrew under `he` `cursive`
+(Apple Chancery, then Arial Hebrew) measured 11.6 to 33.8px off at 40px; measuring
+through a `<canvas>` element, which follows the page exactly when connected but runs
+the document's pending style update in every `font` assignment and `measureText()`,
+connected or not (`CanvasRenderingContext2D.cpp:206, 304`; `PLATFORM_BUGS.md` has
+the cost); a detached `<canvas lang>`, which has no computed style and so no
+language (`Element.cpp:4873`); and reading
+`navigator.languages` for a plain Han page, whose family WebKit takes from the
+user's first Chinese language: Safari shows the page only the first preferred
+language, and PingFang SC and TC measured the same widths.
+
 Guessed `system-ui`
 substitutions, size tables and scaling were unreliable. Emoji bitmap widths also
 do not scale linearly with font size. Keep those platform findings and correction

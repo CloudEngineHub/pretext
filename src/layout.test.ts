@@ -2600,6 +2600,90 @@ describe('prepare invariants', () => {
     expect(measureNaturalWidth(prepareWithSegments('中文 日本語', FONT))).toBeCloseTo(measureWidth('中文日本語', FONT) + measureWidth(' ', FONT), 10)
   })
 
+  test('the WebKit profile names the generic families of the page language in the Canvas font', async () => {
+    const { getEngineProfile } = await import('./measurement.ts')
+    const profile = getEngineProfile()
+    const previous = profile.namesGenericFamiliesByLanguage
+    const root = { lang: '' }
+    const assigned: string[] = []
+    // The families a context has: macOS's of the table's pairs, or none of them, as on iOS.
+    let installed: readonly string[] = []
+    class RecordingContext {
+      current = ''
+      get font(): string {
+        return this.current
+      }
+      set font(value: string) {
+        this.current = value
+        assigned.push(value)
+      }
+      measureText(text: string): { width: number } {
+        const first = /"([^"]+)"/.exec(this.current)?.[1]
+        return { width: measureWidth(text, this.current) + (first !== undefined && installed.includes(first) ? 1 : 0) }
+      }
+    }
+    Reflect.set(globalThis, 'OffscreenCanvas', class {
+      getContext(): RecordingContext {
+        return new RecordingContext()
+      }
+    })
+    Reflect.set(globalThis, 'document', { documentElement: root })
+    profile.namesGenericFamiliesByLanguage = true
+    const macos = ['AppleMyungjo', 'Songti SC', 'Songti TC', 'Lucida Grande', 'Apple Chancery', 'ITF Devanagari']
+    try {
+      // Language, font, then the Canvas font with macOS's families and, where it differs, with iOS's.
+      for (const [lang, font, onMacOS, onIOS] of [
+        ['ko', '16px "PingFang SC", sans-serif', '16px "PingFang SC", "Apple SD Gothic Neo"'],
+        ['ko-KR', '16px serif', '16px "AppleMyungjo"', '16px "Apple SD Gothic Neo"'],
+        ['ja-JP', 'italic 700 16px/20px Georgia, SERIF', 'italic 700 16px/20px Georgia, "Hiragino Mincho ProN"'],
+        // Safari on macOS can't use Core Text's Kaiti SC and draws Songti SC.
+        ['zh-Hans', '16px cursive', '16px "Songti SC"', '16px "PingFang SC"'],
+        ['zh-Hant-HK', '16px monospace', '16px "Menlo"'],
+        ['zh-Hans-HK', '16px sans-serif', '16px "PingFang SC"'],
+        ['zh-Hant-CN', '16px serif', '16px "Songti TC"', '16px "PingFang TC"'],
+        // A plain Han language takes zh-hans, whatever Core Text names for its region.
+        ['zh', '16px sans-serif', '16px "PingFang SC"'],
+        ['zh-MO', '16px sans-serif', '16px "PingFang SC"'],
+        ['zh-Hant-MO', '16px sans-serif', '16px "PingFang MO"'],
+        ['yue-Hant', '16px sans-serif', '16px "PingFang HK"'],
+        // Latin pages change only fantasy and monospace.
+        ['en', '16px sans-serif, fantasy, monospace', '16px sans-serif, "Zapfino", "Menlo"'],
+        ['en-US', '16px "Courier New", Courier, monospace', '16px "Courier New", Courier, "Menlo"'],
+        ['ru', '16px cursive', '16px "Snell Roundhand"'],
+        ['he', '16px sans-serif, cursive, fantasy', '16px "Lucida Grande", "Apple Chancery", fantasy', '16px "Arial Hebrew", "Arial Hebrew", fantasy'],
+        ['hi', '16px serif', '16px "ITF Devanagari"', '16px "Kohinoor Devanagari"'],
+        // Where iOS has macOS's family too, macOS's stands.
+        ['ar-SA', '16px monospace', '16px "Menlo"'],
+        ['th', '16px serif', '16px "Thonburi"'],
+        ['sr-Latn', '16px cursive', '16px "Snell Roundhand"'],
+        // Quoted names aren't keywords, and a language whose script is Common keeps them.
+        ['ja', '16px "sans-serif", "Foo, serif", \'a,serif\', system-ui, ui-serif', '16px "sans-serif", "Foo, serif", \'a,serif\', system-ui, ui-serif'],
+        ['yue', '16px sans-serif', '16px sans-serif'],
+        ['eo', '16px monospace', '16px monospace'],
+        ['en-Zyyy', '16px monospace', '16px monospace'],
+      ] as const) {
+        for (const [system, families, expected] of [['macOS', macos, onMacOS], ['iOS', [], onIOS ?? onMacOS]] as const) {
+          installed = families
+          // A new language makes a new context, which asks again which families it has.
+          root.lang = ''
+          prepare('あ', font)
+          root.lang = lang
+          prepare('あ', font)
+          expect({ system, lang, font: assigned.at(-1) }).toEqual({ system, lang, font: expected })
+        }
+      }
+      profile.namesGenericFamiliesByLanguage = false
+      root.lang = 'ko'
+      prepare('あ', '16px serif')
+      expect(assigned.at(-1)).toBe('16px serif')
+    } finally {
+      profile.namesGenericFamiliesByLanguage = previous
+      Reflect.set(globalThis, 'OffscreenCanvas', TestOffscreenCanvas)
+      Reflect.deleteProperty(globalThis, 'document')
+      clearCache()
+    }
+  })
+
   test('the page language resolves to a break language by its primary subtag', async () => {
     const { getBreakLanguage } = await import('./line-breaks.ts')
     for (const [tag, language] of [
