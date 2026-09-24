@@ -74,12 +74,13 @@ which need a browser:
   page-history case.
 - `accepted/<browser>.txt`: `## <reason>` headings, each followed by `<id> <status>` lines.
 - `cases/*.ndjson`: one case per line. `smoke.ndjson` holds the rebuild's hand-written smoke cases within what Pretext
-  claims, and 300 real-text census cases across 18 corpora and six widths. `sets/` makes the others (below).
+  claims, and 300 real-text census cases across 18 corpora and six widths. The case sets are below.
 
 ## Case sets
 
-`bun harness/sets/make.ts` makes every case file but the smoke set; its header lists the steps. A case's id hashes what
-the browser lays out, so making a set again keeps its ids and their recordings.
+`bun harness/sets/make.ts` makes every case file but the smoke, census and book sets, which are the rebuild's, taken
+once; its header lists the steps. A case's id hashes what the browser lays out, so making a set again keeps its ids and
+their recordings.
 
 | File | Cases | What it holds | Reported as |
 |---|---:|---|---|
@@ -87,6 +88,8 @@ the browser lays out, so making a set again keeps its ids and their recordings.
 | `catalog.ndjson` | 27,517 (13,296-14,112 per browser) | main's adversarial families, the rebuild's rule families, filed reports whose reporter measured the width, and every UAX #14 line-break class between the scripts apps mix, pairwise over the CSS settings the library takes | Behaviours modelled |
 | `facts.ndjson` | 7,781 (3,534-3,620) | The 28 engine facts `src/layout.test.ts` checks on plain text with a fake Canvas, in a browser | Behaviours modelled |
 | `rich.ndjson` | 2,306 (1,061-1,067) | Rich-inline paragraphs: styled runs, span edges, atomic chips and padded code spans, main's inline items, #120, #171, #177, #323 and main's engine facts about rich items | Behaviours modelled |
+| `census.ndjson` | 4,386 | The rebuild's census of real text (census-20260919): paragraphs of the 18 corpora at six widths, less the 300 in the smoke set | Pinned cases |
+| `books.ndjson` | 72 | The rebuild's book survey: each corpus whole, raw and as main normalizes it, at the narrowest and widest step-10 widths | Pinned cases |
 | `reports.ndjson` | 28 | Filed reports, with the input and width as filed | Pinned cases |
 | `oracles.ndjson` | 54 | The mode oracles in `src/test-data.ts`, now in Firefox too | Pinned cases |
 
