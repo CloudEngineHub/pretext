@@ -862,8 +862,6 @@ function stepPreparedSimpleLineGeometry(
   let hasContent = false
   let lineEndSegmentIndex = cursor.segmentIndex
   let lineEndGraphemeIndex = cursor.graphemeIndex
-  let pendingBreakSegmentIndex = -1
-  let pendingBreakPaintWidth = 0
   // The line-end trim of the last segment, where only that trim let it fit. Every
   // later segment overflows, so the line ends after it and paints that much less.
   let endTrimmed = 0
@@ -918,10 +916,6 @@ function stepPreparedSimpleLineGeometry(
         lineEndGraphemeIndex = 0
         if (startW > fitLimit) endTrimmed = endTrim
       }
-      if (breakAfter) {
-        pendingBreakSegmentIndex = i + 1
-        pendingBreakPaintWidth = lineW - w
-      }
       continue
     }
 
@@ -932,33 +926,19 @@ function stepPreparedSimpleLineGeometry(
         return lineW - endTrimmed
       }
 
-      if (pendingBreakSegmentIndex >= 0) {
-        if (
-          lineEndSegmentIndex > pendingBreakSegmentIndex ||
-          (lineEndSegmentIndex === pendingBreakSegmentIndex && lineEndGraphemeIndex > 0)
-        ) {
-          cursor.segmentIndex = lineEndSegmentIndex
-          cursor.graphemeIndex = lineEndGraphemeIndex
-          return lineW - endTrimmed
-        }
-        cursor.segmentIndex = pendingBreakSegmentIndex
-        cursor.graphemeIndex = 0
-        return pendingBreakPaintWidth
-      }
-
+      // Every boundary of a fast-path handle is a break, so the line ends after its
+      // last segment, without the width of a space or ZWSP it ends with.
       cursor.segmentIndex = lineEndSegmentIndex
       cursor.graphemeIndex = lineEndGraphemeIndex
-      return lineW - endTrimmed
+      return lineEndGraphemeIndex === 0 && breaksAfter(kinds[lineEndSegmentIndex - 1]!)
+        ? lineW - widths[lineEndSegmentIndex - 1]!
+        : lineW - endTrimmed
     }
 
     lineW += w
     endTrimmed = lineW > fitLimit ? endTrim : 0
     lineEndSegmentIndex = i + 1
     lineEndGraphemeIndex = 0
-    if (breakAfter) {
-      pendingBreakSegmentIndex = i + 1
-      pendingBreakPaintWidth = lineW - w
-    }
   }
 
   if (!hasContent) return null
