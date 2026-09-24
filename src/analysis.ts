@@ -23,7 +23,6 @@ export type SegmentBreakKind =
 // `clusterSplits` is false for a segment the engine's clusters don't split, which no
 // emergency break splits either. Null where the scan has no clusters of its own.
 export type Segmentation = {
-  len: number
   texts: string[]
   kinds: SegmentBreakKind[]
   starts: number[]
@@ -173,13 +172,6 @@ function classifySegmentBreakCode(code: number, whiteSpace: WhiteSpaceMode, scan
   return 'text'
 }
 
-// Decimal digits and the joiners of numbers, times and dates.
-const numericRunRe = /^[\p{Nd}:\-/×,.+\u2013\u2014]+$/u
-
-export function isNumericRunSegment(text: string): boolean {
-  return numericRunRe.test(text)
-}
-
 export function isCollapsibleSpaceCode(code: number): boolean {
   return code === 0x20 || code === 0x09 || code === 0x0A || code === 0x0D || code === 0x0C
 }
@@ -308,7 +300,7 @@ function segmentAtLineBreaks(normalized: string, breaks: Uint8Array, whiteSpace:
   }
   const texts: string[] = []
   for (let j = 0; j < len; j++) texts.push(normalized.slice(starts[j]!, j + 1 < len ? starts[j + 1]! : normalized.length))
-  return { len, texts, kinds, starts, breaksBefore, clusterSplits }
+  return { texts, kinds, starts, breaksBefore, clusterSplits }
 }
 
 export function analyzeText(
@@ -329,7 +321,6 @@ export function analyzeText(
       source: text,
       normalized,
       spaceSources: null,
-      len: 0,
       texts: [],
       kinds: [],
       starts: [],

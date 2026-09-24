@@ -209,7 +209,7 @@ function breaksBeforeSegment(kinds: readonly SegmentBreakKind[], breaksBefore: r
 function getJoinedBreakOffsets(text: string, profile: AnalysisProfile, language: string | null): number[] {
   const analysis = analyzeText(text, profile, 'normal', 'normal', language)
   const offsets: number[] = []
-  for (let i = 1; i < analysis.len; i++) {
+  for (let i = 1; i < analysis.kinds.length; i++) {
     if (breaksBeforeSegment(analysis.kinds, analysis.breaksBefore, i)) offsets.push(analysis.starts[i]!)
   }
   return offsets

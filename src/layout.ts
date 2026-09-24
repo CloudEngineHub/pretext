@@ -11,7 +11,6 @@ import {
   analyzeText,
   clearAnalysisCaches,
   getSharedGraphemeSegmenter,
-  isNumericRunSegment,
   type SegmentBreakKind,
   type TextAnalysis,
   type WhiteSpaceMode,
@@ -149,6 +148,8 @@ const complexTextPathRanges = [
 
 const extendedPictographicRe = /\p{Extended_Pictographic}/u
 const leadingCombiningMarkRe = /^\p{M}/u
+// Decimal digits and the joiners of numbers, times and dates.
+const numericRunRe = /^[\p{Nd}:\-/×,.+\u2013\u2014]+$/u
 const markRunRe = /^\p{M}+$/u
 const nonspacingMarkRunRe = /^\p{Mn}+$/u
 const controlOrMarkRunRe = /^(?:[\p{Cc}\u2028\u2029]|\p{M}+)$/u
@@ -229,11 +230,11 @@ function measureAnalysis(
     if (!engineProfile.measureTextWithFollowingSpace || hasLetterSpacing) return null
     let tail = ''
     let next = analysisIndex + 1
-    while (next < analysis.len && analysis.kinds[next] === 'zero-width-break') {
+    while (next < analysis.kinds.length && analysis.kinds[next] === 'zero-width-break') {
       tail += analysis.texts[next]!
       next++
     }
-    if (next >= analysis.len) return null
+    if (next >= analysis.kinds.length) return null
     const nextKind = analysis.kinds[next]!
     if ((nextKind !== 'space' && nextKind !== 'preserved-space') || getSpaceSourceCode(next) !== 0x20) return null
     return formatTailStaysWithWord(tail === '' ? text : text + tail, analysis.starts[next]!) ? tail : null
@@ -351,8 +352,8 @@ function measureAnalysis(
     const before = previousJoinablePiece
     if (before === null) return 0
     let next = analysisIndex + 1
-    while (next < analysis.len && analysis.kinds[next] === 'soft-hyphen') next++
-    if (next >= analysis.len) return 0
+    while (next < analysis.kinds.length && analysis.kinds[next] === 'soft-hyphen') next++
+    if (next >= analysis.kinds.length) return 0
     const nextKind = analysis.kinds[next]!
     if (nextKind !== 'text' && nextKind !== 'glue') return 0
     const after = analysis.texts[next]!
@@ -454,7 +455,7 @@ function measureAnalysis(
       let fitMode: BreakableFitMode = 'sum-graphemes'
       if (letterSpacing !== 0) {
         fitMode = 'segment-prefixes'
-      } else if (isNumericRunSegment(text)) {
+      } else if (numericRunRe.test(text)) {
         fitMode = 'pair-context'
       } else if (textMetrics.width >= engineProfile.prefixFitMinWidth) {
         fitMode = 'segment-prefixes'
@@ -496,7 +497,7 @@ function measureAnalysis(
     )
   }
 
-  for (let mi = 0; mi < analysis.len; mi++) {
+  for (let mi = 0; mi < analysis.kinds.length; mi++) {
     const segText = analysis.texts[mi]!
     const segKind = analysis.kinds[mi]!
 
@@ -551,7 +552,7 @@ function measureAnalysis(
       // text shares the item only when its direction matches the page's, which
       // preparation cannot see, so NEL next to complex text keeps its spacing.
       const previousKind = mi > 0 ? analysis.kinds[mi - 1] : undefined
-      const nextText = mi + 1 < analysis.len ? analysis.texts[mi + 1]! : ''
+      const nextText = mi + 1 < analysis.kinds.length ? analysis.texts[mi + 1]! : ''
       const takesLetterSpacing = hasLetterSpacing && (
         ((previousKind === 'text' || previousKind === 'glue') && needsComplexTextPath(analysis.texts[mi - 1]!)) ||
         (leadingCombiningMarkRe.test(nextText) && needsComplexTextPath(nextText))
@@ -602,7 +603,7 @@ function measureAnalysis(
       analysis.texts,
       i => kinds[i] === 'text',
       i => i === 0 ? -1 : analysis.normalized.charCodeAt(analysis.starts[i]! - 1),
-      i => i + 1 === analysis.len ? -1 : analysis.normalized.charCodeAt(analysis.starts[i + 1]!),
+      i => i + 1 === analysis.kinds.length ? -1 : analysis.normalized.charCodeAt(analysis.starts[i + 1]!),
       // A break directly after the segment: text after a break, or the end of the text.
       i => i + 1 === kinds.length || (kinds[i + 1] === 'text' && breaksBefore?.[i + 1] !== false),
     )
