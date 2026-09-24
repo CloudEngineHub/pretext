@@ -17,8 +17,8 @@
 //    Chrome at DPR 2, 1/64 px in WebKit, 1/60 px in Firefox (rebuild/tests/fit.ts).
 // 4. `cut`: each kept template's cases, at width 1 and 100000 in every browser and, in the browser that changes, around
 //    at most three exact changes inside its kept ones, each showing a line break the template hasn't shown yet, those
-//    at 24 px and wider first: the change's two widths one layout unit apart (`edge`, where the fit is exact) and a width
-//    well inside each of its two layouts (where the break chosen is checked away from the fit). A long paragraph's lines
+//    at 24 px and wider first: 1/64 px either side of the width where the lines change (`edge`, where the fit is exact to
+//    1/64 px) and a width well inside each of its two layouts (where the break chosen is checked away from the fit). A long paragraph's lines
 //    change every few pixels, and pinning each change would sweep one input across widths.
 // `bun harness record` then records the cut cases in fresh short documents in two orders.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -52,6 +52,9 @@ const WIDE = 100_000
 const GRID = [1, 2, 4, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512, 768, 1024]
 const MAX_ROUNDS = 24
 const CHANGES_PER_TEMPLATE = 3
+// How far either side of a change its edge cases sit: the README's exact fit. In Chrome a layout unit is 1/128 px, and
+// one unit either side of a change, half the cases failed for main and the hybrid alike.
+const EDGE = 1 / 64
 const JOB_CASES = 20_000
 // Longer documents than `record`'s: page history only moves which widths get searched.
 const SWEEP_DOCUMENT = 500
@@ -433,13 +436,17 @@ export function cut(set: string, templates: readonly Template[]): Case[] {
       if (taken.length === 0 && inside.length > 0) taken.push(inside[0]!)
       for (let c = 0; c < taken.length; c++) {
         const [lo, hi] = taken[c]!
-        want(lo.width, browser, true)
-        want(hi.width, browser, true)
         // The widths recorded with each side's layout reach down from lo and up from hi.
         let first = recorded.indexOf(lo)
         while (first > 0 && recorded[first - 1]!.layout === lo.layout) first--
         let last = recorded.indexOf(hi)
         while (last + 1 < recorded.length && recorded[last + 1]!.layout === hi.layout) last++
+        // The edges: 1/64 px either side of the width where the lines change, where the browser lays that width out as
+        // the side's recorded widths (the same layout units), else the change's own widths.
+        const down = unitsOf(browser, hi.width - EDGE)
+        const up = unitsOf(browser, hi.width + EDGE)
+        want(down >= unitsOf(browser, recorded[first]!.width) && down <= unitsOf(browser, lo.width) ? hi.width - EDGE : lo.width, browser, true)
+        want(up <= unitsOf(browser, recorded[last]!.width) ? hi.width + EDGE : hi.width, browser, true)
         const below = insideWidth(recorded[first]!.width, lo.width)
         const above = insideWidth(hi.width, recorded[last]!.width)
         if (below !== null) want(below, browser, false)

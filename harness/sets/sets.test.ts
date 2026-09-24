@@ -64,8 +64,8 @@ describe('the cut', () => {
     const report = select(SET, [zwsp, zwnj, control], false)
     expect(report.merged).toBe(1)
     const cases = cut(SET, [zwsp, zwnj, control])
-    // U+0001 (Cc) doesn't merge with the Cf pair; each kept input is pinned at 1, 100000 and the two widths of its change.
-    expect(cases.map(c => c.paragraph.width).sort((x, y) => x - y)).toEqual([1, 1, 10, 10, 20, 20, 100_000, 100_000])
+    // U+0001 (Cc) doesn't merge with the Cf pair; each kept input is pinned at 1, 100000 and either side of its change.
+    expect(cases.map(c => c.paragraph.width).sort((x, y) => x - y)).toEqual([1, 1, 10, 10, 20.015625, 20.015625, 100_000, 100_000])
     expect(cases.some(c => c.origin.includes('stands for the same input with U+200C'))).toBe(true)
   })
 
@@ -78,11 +78,12 @@ describe('the cut', () => {
 
   test('only the two widths around each change are pinned: a sweep of whole pixels would pin one layout hundreds of times', () => {
     const t = template('a\u{200B}b')
-    // Round 0 at 10 and 20, then bisection at 15 and 19.5: the lines change between 19.5 and 20.
+    // Round 0 at 10 and 20, then bisection at 15 and 19.5: the lines change between 19.5 and 20, pinned at 19.5 and 1/64 px
+    // past 20.
     record([[t, twoThenOne]], [15, 19.5])
     select(SET, [t], false)
     const widths = cut(SET, [t]).map(c => c.paragraph.width)
-    expect(widths.sort((x, y) => x - y)).toEqual([1, 19.5, 20, 100_000])
+    expect(widths.sort((x, y) => x - y)).toEqual([1, 19.5, 20.015625, 100_000])
   })
 
   test('a paragraph keeps at most three of the widths where its lines change, each showing a new kind of break: pinning every one would sweep one input across widths', () => {
@@ -98,10 +99,11 @@ describe('the cut', () => {
     record([[mixed, layout], [spaces, layout]], [29, 30, 39, 40, 49, 50, 59, 60])
     select(SET, [mixed, spaces], false)
     const widths = (t: Template, edge: boolean): number[] => cut(SET, [t]).filter(c => (c.edge === true) === edge).map(c => c.paragraph.width).sort((x, y) => x - y)
-    // Each change's two widths one layout unit apart, where the fit is exact, and a whole pixel inside each layout.
-    expect(widths(mixed, true)).toEqual([29, 30, 39, 40, 49, 50])
+    // 1/64 px either side of each change where the side's layout reaches (the recorded 29 stands in for 29.984375, which
+    // falls between recordings), and a whole pixel inside each layout.
+    expect(widths(mixed, true)).toEqual([29, 30.015625, 39, 40.015625, 49, 50.015625])
     expect(widths(mixed, false)).toEqual([1, 35, 45, 55, 100_000])
-    expect(widths(spaces, true)).toEqual([29, 30, 59, 60])
+    expect(widths(spaces, true)).toEqual([29, 30.015625, 59, 60.015625])
     expect(widths(spaces, false)).toEqual([1, 35, 55, 100_000])
   })
 

@@ -56,7 +56,7 @@ export type Case = {
   // stands for, and whether its text only stands in for the kind the draw asked for (harness/sets/sample.ts).
   sample?: { group: string; weight: number; standIn?: true }
   // A behaviour-catalog entry: the behaviour's name. Its cases are width 1, width 100000, and around each width where the
-  // browser's lines change, one layout unit either side (`edge`) and a width well inside each of the two layouts.
+  // browser's lines change, 1/64 px either side (`edge`) and a width well inside each of the two layouts.
   behaviour?: string
   edge?: true
 }
