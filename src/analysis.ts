@@ -35,7 +35,6 @@ export type TextAnalysis = { source: string; normalized: string } & Segmentation
 
 export type AnalysisProfile = {
   lineBreakScan: 'blink' | 'webkit' | 'gecko'
-  breakOnlyAfterNextLine: boolean
 }
 
 const collapsibleWhitespaceRunRe = /[ \t\n\r\f]+/g
@@ -151,7 +150,7 @@ export function setAnalysisLocale(locale?: string): void {
 
 const combiningMarkRe = /\p{M}/u
 
-function classifySegmentBreakCode(code: number, whiteSpace: WhiteSpaceMode, breakOnlyAfterNextLine: boolean): SegmentBreakKind {
+function classifySegmentBreakCode(code: number, whiteSpace: WhiteSpaceMode, scan: AnalysisProfile['lineBreakScan']): SegmentBreakKind {
   if (whiteSpace === 'pre-wrap') {
     if (code === 0x20) return 'preserved-space'
     if (code === 0x09) return 'tab'
@@ -163,8 +162,16 @@ function classifySegmentBreakCode(code: number, whiteSpace: WhiteSpaceMode, brea
   }
   if (code === 0x200B) return 'zero-width-break'
   if (code === 0x00AD) return 'soft-hyphen'
-  // UAX #14 NL: visible content with a break after it and none before it.
-  if (code === 0x0085 && breakOnlyAfterNextLine) return 'control'
+  // NEL (UAX #14 NL) offers a break after itself and no ordinary break before it (LB5, LB6),
+  // as the scans find. The WebKit profile gives NEL its own control segment for letter
+  // spacing: WebKit's simple text path gives NEL no letter spacing, at either sign, and its
+  // complex path spaces it. A NEL control segment takes spacing after text in WebKit's
+  // complex ranges, or before such text that starts with a combining mark. Preparation
+  // cannot see the page direction, so after complex text whose direction differs from the
+  // page's it keeps spacing Safari omits. Blink spaces NEL outside cursive runs, and release
+  // Gecko draws NEL with no advance while its Canvas measures a space, so both keep NEL as
+  // ordinary text.
+  if (code === 0x0085 && scan === 'webkit') return 'control'
   return 'text'
 }
 
@@ -260,7 +267,7 @@ function isControlSegmentCode(code: number): boolean {
 // Combining marks right after it, or after a control, stay apart from the text after
 // them, since they shape on the grapheme before it (measureAnalysis). Where the Gecko
 // scan marks cluster starts (2), a segment records whether one falls inside it.
-function segmentAtLineBreaks(normalized: string, breaks: Uint8Array, whiteSpace: WhiteSpaceMode, breakOnlyAfterNextLine: boolean, scan: AnalysisProfile['lineBreakScan']): Segmentation {
+function segmentAtLineBreaks(normalized: string, breaks: Uint8Array, whiteSpace: WhiteSpaceMode, scan: AnalysisProfile['lineBreakScan']): Segmentation {
   // A break is an odd value. The WebKit scan's 2 after U+2028 or U+2029 makes the separator a hard
   // break in every white-space mode, and the Gecko scan's 3 after a soft hyphen makes it a zero-width
   // break: the line can end there without a hyphen. One with only soft hyphens before it on its
@@ -275,7 +282,7 @@ function segmentAtLineBreaks(normalized: string, breaks: Uint8Array, whiteSpace:
     ? 'hard-break'
     : scan === 'gecko' && breaks[i + 1] === 3 && code === 0x00AD && followsChunkContent(i)
       ? 'zero-width-break'
-      : classifySegmentBreakCode(code, whiteSpace, breakOnlyAfterNextLine)
+      : classifySegmentBreakCode(code, whiteSpace, scan)
   const starts = [0]
   const kinds = [classify(normalized.charCodeAt(0), 0)]
   const clusterSplits = scan === 'gecko' ? [false] : null
@@ -362,6 +369,6 @@ export function analyzeText(
   return {
     source: text,
     normalized,
-    ...segmentAtLineBreaks(normalized, breaks, whiteSpace, profile.breakOnlyAfterNextLine, profile.lineBreakScan),
+    ...segmentAtLineBreaks(normalized, breaks, whiteSpace, profile.lineBreakScan),
   }
 }

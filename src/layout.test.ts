@@ -533,7 +533,6 @@ describe('shared public contracts', () => {
 describe('boundary-policy regressions', () => {
   const baseProfile = {
     lineBreakScan: 'blink' as const,
-    breakOnlyAfterNextLine: false,
   }
   const geckoProfile = { ...baseProfile, lineBreakScan: 'gecko' as const }
 
@@ -886,7 +885,7 @@ describe('boundary-policy regressions', () => {
 
   test('a ZWSP that starts a WebKit scan keeps a basic combining mark', async () => {
     const { analyzeText } = await import('./analysis.ts')
-    const profile = { ...baseProfile, lineBreakScan: 'webkit' as const, breakOnlyAfterNextLine: true }
+    const profile = { ...baseProfile, lineBreakScan: 'webkit' as const }
     const segments = (text: string, whiteSpace?: 'pre-wrap') => {
       const analysis = analyzeText(text, profile, whiteSpace)
       return analysis.texts.map((segment, i) => `${segment}:${analysis.kinds[i]}`)
@@ -904,7 +903,7 @@ describe('boundary-policy regressions', () => {
     const { analyzeText } = await import('./analysis.ts')
     const { getEngineProfile } = await import('./measurement.ts')
     const blink = { ...baseProfile, lineBreakScan: 'blink' as const }
-    const webkit = { ...baseProfile, lineBreakScan: 'webkit' as const, breakOnlyAfterNextLine: true }
+    const webkit = { ...baseProfile, lineBreakScan: 'webkit' as const }
     const segments = (text: string, profile: Parameters<typeof analyzeText>[1], whiteSpace?: 'pre-wrap', wordBreak?: 'keep-all') => {
       const analysis = analyzeText(text, profile, whiteSpace, wordBreak)
       return analysis.texts.map((segment, i) => `${segment}:${analysis.kinds[i]}`)
@@ -961,7 +960,7 @@ describe('boundary-policy regressions', () => {
   test('a control character stays its own segment on the scan path, measured alone', async () => {
     const { analyzeText } = await import('./analysis.ts')
     const blink = { ...baseProfile, lineBreakScan: 'blink' as const }
-    const webkit = { ...baseProfile, lineBreakScan: 'webkit' as const, breakOnlyAfterNextLine: true }
+    const webkit = { ...baseProfile, lineBreakScan: 'webkit' as const }
     for (const profile of [blink, webkit]) {
       for (const control of ['\u0000', '\u000B', '\u007F', '\u009F', '\u2028', '\u2029']) {
         const analysis = analyzeText(`ab${control}cd`, profile)
@@ -1268,11 +1267,10 @@ describe('boundary-policy regressions', () => {
   test('the WebKit profile keeps NEL with the content before it, breaks after it and gives it no letter spacing', async () => {
     const { getEngineProfile } = await import('./measurement.ts')
     const profile = getEngineProfile()
-    const previous = [profile.lineBreakScan, profile.breakOnlyAfterNextLine] as const
+    const previous = profile.lineBreakScan
     // Blink and Gecko keep NEL as ordinary text.
     expect(prepareWithSegments('zz ab\u0085cd', FONT).kinds).not.toContain('control')
     profile.lineBreakScan = 'webkit'
-    profile.breakOnlyAfterNextLine = true
     try {
       const lines = (text: string, width: number, options?: { whiteSpace?: 'pre-wrap', letterSpacing?: number }) => {
         const prepared = prepareWithSegments(text, FONT, options)
@@ -1329,7 +1327,7 @@ describe('boundary-policy regressions', () => {
       // A preserved space does not hang after a NEL that already overflows.
       expect(lines('a\u0085 b', nel - 0.5, { whiteSpace: 'pre-wrap', letterSpacing: 1 }).map(line => line.text)).toEqual(['a', '\u0085', ' ', 'b'])
     } finally {
-      [profile.lineBreakScan, profile.breakOnlyAfterNextLine] = previous
+      profile.lineBreakScan = previous
     }
   })
 

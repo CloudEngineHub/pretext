@@ -63,17 +63,6 @@ export type EngineProfile = {
   // invisibles and from marks after a soft hyphen, which isolated widths do not
   // show. It keeps the overflowing hyphen.
   unfitHyphenRetreat: 'reduced-width' | 'full-width' | 'none'
-  // NEL (U+0085, UAX #14 NL) offers a break after itself and no ordinary break
-  // before it (LB5, LB6), as the scans find. The WebKit profile gives NEL its own
-  // control segment for letter spacing: WebKit's simple text path gives NEL no
-  // letter spacing, at either sign, and its complex path spaces it. A NEL control
-  // segment takes spacing after text or glue in WebKit's complex ranges, or before
-  // such text that starts with a combining mark. Preparation cannot see the page
-  // direction, so after complex text whose direction differs from the page's it
-  // keeps spacing Safari omits. Blink spaces NEL outside cursive runs, and release
-  // Gecko draws NEL with no advance while its Canvas measures a space, so both keep
-  // NEL as ordinary text.
-  breakOnlyAfterNextLine: boolean
   // WebKit moves a tab to the following stop when less than half a space would
   // remain before the next one (FontCascade::tabWidth).
   skipNarrowTabStops: boolean
@@ -286,7 +275,6 @@ export function getEngineProfile(): EngineProfile {
     letterSpaceDiscretionaryHyphen: engine !== 'blink',
     shapesMarksAcrossSoftHyphen: engine !== 'webkit' && engine !== 'gecko',
     unfitHyphenRetreat: engine === 'blink' ? 'reduced-width' : engine === 'gecko' ? 'full-width' : 'none',
-    breakOnlyAfterNextLine: engine === 'webkit',
     skipNarrowTabStops: engine === 'webkit',
     hangTabs: engine !== 'gecko',
     zeroWidthGlueTakesLine: engine !== 'gecko',
