@@ -2,7 +2,7 @@
 // says what an app developer would see if the fault went unseen.
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { groupLines, recordedLines, scanLineEnds, searchLineEnds, type RectsAt } from './observe.ts'
-import { accept, judge, score, type Outcome } from './score.ts'
+import { accept, judge, predictionChange, score, type Outcome } from './score.ts'
 import { assertSameEnvironment, parseRecording, readRecordings, recordingText, splitHistory, writeRecordings } from './store.ts'
 import type { Case, Prediction, Recording, Rect } from './types.ts'
 
@@ -104,6 +104,17 @@ describe('the pass rule', () => {
     expect(searched).toEqual(scanned)
     expect(scanned.first[57]).toBe(-1)
     expect(reads() - before - scanReads).toBeLessThan(scanReads)
+  })
+
+  test('a prediction whose breaks move with what was prepared before is order-dependent, one whose widths alone move is not: the gate would block on Chrome\'s shape cache in main too', () => {
+    const forward = predicted(TEXT, STARTS)
+    const widths = predicted(TEXT, STARTS)
+    if ('error' in widths) throw new Error('unreachable')
+    widths.lines[1]!.width = 3.25
+    expect(predictionChange(forward, predicted(TEXT, STARTS))).toBe('same')
+    expect(predictionChange(forward, widths)).toBe('widths')
+    expect(predictionChange(forward, predicted(TEXT, [0, 10, 21, 31]))).toBe('lines')
+    expect(predictionChange(forward, { error: 'unsupported: word-break break-all' })).toBe('lines')
   })
 })
 

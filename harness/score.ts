@@ -51,16 +51,21 @@ export function shrinkWrapShort(recording: Recording, prediction: Prediction): b
   return Math.ceil(predicted) < native
 }
 
-// Whether two predictions are the same, line for line.
-export function samePrediction(a: Prediction, b: Prediction): boolean {
-  if ('error' in a || 'error' in b) return 'error' in a && 'error' in b && a.error === b.error
-  if (a.lines.length !== b.lines.length) return false
+// How two predictions of one case differ: 'lines' when a line holds other characters (what the pass rule judges),
+// 'widths' when only line widths moved (what the report-only shrink-wrap check reads), else 'same'.
+export type PredictionChange = 'same' | 'widths' | 'lines'
+
+export function predictionChange(a: Prediction, b: Prediction): PredictionChange {
+  if ('error' in a || 'error' in b) return 'error' in a && 'error' in b && a.error === b.error ? 'same' : 'lines'
+  if (a.lines.length !== b.lines.length) return 'lines'
+  let change: PredictionChange = 'same'
   for (let i = 0; i < a.lines.length; i++) {
     const x = a.lines[i]!
     const y = b.lines[i]!
-    if (x.start !== y.start || x.end !== y.end || x.width !== y.width) return false
+    if (x.start !== y.start || x.end !== y.end) return 'lines'
+    if (x.width !== y.width) change = 'widths'
   }
-  return true
+  return change
 }
 
 // A font list the README says the library doesn't take: system-ui and its aliases resolve differently for Canvas on macOS.

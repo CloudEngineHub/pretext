@@ -41,10 +41,12 @@ another build's `src/`. `bun test harness` runs the offline tests.
 - **Environment key:** browser build, OS build, the OS's and the page's languages, device pixel ratio and the web fonts
   served. The harness refuses to score recordings made under another key.
 
-The gate adds three checks, each blocking: predictions in reverse order must equal the forward ones; a random sample
-recorded again must equal the recordings; and each new failure is recorded alone in a fresh document (page history if it
-differs) and predicted alone (order-dependent if it differs), else reported as a true loss with its family, width band and
-first differing line.
+The gate adds three checks, each blocking: predictions in reverse order must break every line where the forward ones
+do; a random sample recorded again must equal the recordings; and each new failure is recorded alone in a fresh
+document (page history if it differs) and predicted alone (order-dependent if its breaks move), else reported as a true
+loss with its family, width band and first differing line. Predictions whose line widths alone move with the order are
+printed, not blocked: Chrome's per-canvas shape caches (Chromium #560614560) and a Firefox width-1 case move them in main
+too, and widths only reach the shrink-wrap check, which reports.
 
 What each piece catches, as an app developer would see it. `bun test harness` plants each fault except the gate's two,
 which need a browser:
@@ -61,7 +63,7 @@ which need a browser:
 | Firefox's first document held until 15 s after launch | Emoji beside Arial lay out differently for Firefox's first 12 s: 91 cases, and the gate's fresh recording, would block at random |
 | Accepted list with reasons | Accepted losses go silent, and a fix goes unrecorded |
 | Exact widths through the adapter | Text that exactly fits its bubble wraps (a width 1/64 px short) |
-| Reverse-order predictions (gate) | Results depend on what the app prepared before |
+| Reverse-order predictions (gate), judged by where lines break | A message wraps differently depending on what the app prepared before; widths moved by Chrome's shape caches would block main too |
 | Fresh re-recording (gate) | Stored recordings stop describing the browser |
 | Layout asking Canvas nothing (test), Canvas calls per 1,000 units (printed) | Every window resize measures text again, or preparing gets slower unnoticed |
 | Two recordings kept apart, sorted and stable | The gate is green or red on another case's layout, and every recording churns in git |

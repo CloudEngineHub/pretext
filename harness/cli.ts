@@ -9,7 +9,7 @@
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, readdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { accept, headline, judge, observable, outsideClaims, samePrediction, score, shrinkWrapShort, widthBand, type Outcome } from './score.ts'
+import { accept, headline, judge, observable, outsideClaims, predictionChange, score, shrinkWrapShort, widthBand, type Outcome } from './score.ts'
 import { LIB, runJob } from './run.ts'
 import { createRng } from './sets/build.ts'
 import {
@@ -261,12 +261,22 @@ async function check(browser: BrowserKind, cases: Case[]): Promise<Scored> {
 async function gate(browser: BrowserKind, cases: Case[]): Promise<boolean> {
   const scored = await check(browser, cases)
   let blocked = scored.blocked
-  // The same predictions in reverse order: a difference means results depend on what was prepared before.
+  // The same predictions in reverse order: moved breaks mean results depend on what was prepared before. Widths alone
+  // move with Chrome's per-canvas shape caches and Firefox's kept contexts (PLATFORM_BUGS.md), in main too; they only
+  // reach the shrink-wrap check, which reports.
   const reverse = await runJob<Prediction>({ browser, mode: 'predict', cases: scored.pinned.slice().reverse(), documentSize: WHOLE, lib })
-  const orderDependent = scored.pinned.filter(c => !samePrediction(reverse.results.get(c.id)!, scored.predictions.get(c.id)!))
+  const orderDependent: Case[] = []
+  const widthsOnly: Case[] = []
+  for (let i = 0; i < scored.pinned.length; i++) {
+    const c = scored.pinned[i]!
+    const change = predictionChange(reverse.results.get(c.id)!, scored.predictions.get(c.id)!)
+    if (change === 'lines') orderDependent.push(c)
+    else if (change === 'widths') widthsOnly.push(c)
+  }
+  if (widthsOnly.length > 0) console.log(`${browser}: ${widthsOnly.length} predictions change only their line widths in reverse order (report only): ${widthsOnly.slice(0, 10).map(c => c.id).join(' ')}`)
   if (orderDependent.length > 0) {
     blocked = true
-    console.log(`${browser}: BLOCKS: ${orderDependent.length} predictions change in reverse order: ${orderDependent.slice(0, 10).map(c => c.id).join(' ')}`)
+    console.log(`${browser}: BLOCKS: ${orderDependent.length} predictions break differently in reverse order: ${orderDependent.slice(0, 10).map(c => c.id).join(' ')}`)
   }
   // A fresh recording of a random sample: a difference means the stored recordings no longer describe this browser.
   const seed = Number(flags.get('seed') ?? Date.now() % 1_000_000)
@@ -289,7 +299,7 @@ async function gate(browser: BrowserKind, cases: Case[]): Promise<boolean> {
     for (let i = 0; i < failures.length; i++) {
       const c = failures[i]!
       const verdict = !kept.includes(c) ? 'page history: laid out differently alone in a fresh document'
-        : !samePrediction(predictedAlone.results.get(c.id)!, scored.predictions.get(c.id)!) ? 'depends on order: predicted differently alone (a library defect)'
+        : predictionChange(predictedAlone.results.get(c.id)!, scored.predictions.get(c.id)!) === 'lines' ? 'depends on order: predicted differently alone (a library defect)'
         : 'true loss'
       console.log(`  ${verdict}  ${describe(c, scored.outcomes.get(c.id)!)}`)
     }
@@ -307,7 +317,7 @@ async function equal(browser: BrowserKind, cases: Case[], ref: string): Promise<
   const list = cases.filter(c => applies(c, browser))
   const mine = await runJob<Prediction>({ browser, mode: 'predict', cases: list, documentSize: WHOLE, lib })
   const theirs = await runJob<Prediction>({ browser, mode: 'predict', cases: list, documentSize: WHOLE, lib: join(dir, 'src') })
-  const differ = list.filter(c => !samePrediction(mine.results.get(c.id)!, theirs.results.get(c.id)!))
+  const differ = list.filter(c => predictionChange(mine.results.get(c.id)!, theirs.results.get(c.id)!) !== 'same')
   let callsMine = 0
   let callsTheirs = 0
   for (let i = 0; i < list.length; i++) {
