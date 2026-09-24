@@ -417,6 +417,9 @@ export function canReturnFromUnfitHyphen(
   return true
 }
 
+// Every line state is a local of this one function, with no closure over it: V8
+// boxes a captured number, so each write to one cost 12-14ns there against about
+// 1ns for a local.
 function walkPreparedComplexLines(
   prepared: PreparedLineBreakData,
   cursor: LineBreakCursor,
@@ -433,19 +436,24 @@ function walkPreparedComplexLines(
     widths,
     kinds,
     breakableFitAdvances,
+    entryGeometry,
     discretionaryHyphenWidth,
     letterSpacing,
     spacingGraphemeCounts,
     breaksBefore,
     lineStartExtras,
     lineEndTrims,
+    tabStopAdvance,
+    chunks,
   } = prepared
   const engineProfile = getEngineProfile()
-  const lineFitEpsilon = engineProfile.lineFitEpsilon
   const hangTabs = engineProfile.hangTabs
+  const zeroWidthGlueTakesLine = engineProfile.zeroWidthGlueTakesLine
+  // Tab stops are eight spaces apart, so half a space is a sixteenth of one.
+  const minimumTabAdvance = engineProfile.skipNarrowTabStops ? tabStopAdvance / 16 : 0
   // A negative width lays out as 0, as in the simple stepper.
   const availableWidth = Math.max(0, maxWidth)
-  const fitLimit = availableWidth + lineFitEpsilon
+  const fitLimit = availableWidth + engineProfile.lineFitEpsilon
   // Preparation records soft-hyphen contexts only where the engine retreats
   // and the text has a soft hyphen.
   const retreatsFromUnfitHyphen = prepared.discretionaryHyphenContexts !== null && engineProfile.unfitHyphenRetreat !== 'none'
@@ -454,200 +462,46 @@ function walkPreparedComplexLines(
   const retreatsAtFullWidth = retreatsFromUnfitHyphen && engineProfile.unfitHyphenRetreat === 'full-width'
   const reservedHyphenWidth = retreatsAtFullWidth ? 0 : discretionaryHyphenWidth
 
-  let lineStartSegmentIndex: number
-  let lineStartGraphemeIndex: number
-  let lineW: number
-  let hasContent: boolean
-  let lineEndSegmentIndex: number
-  let lineEndGraphemeIndex: number
-  let pendingBreakSegmentIndex: number
-  // A line that ends at the pending break both fits and paints this width.
-  let pendingBreakWidth: number
-  let pendingBreakKind: SegmentBreakKind | null
-  // The latest opportunity whose line leaves room for the hyphen, which Blink's
-  // retry against the width minus the hyphen returns to when a selected
-  // discretionary hyphen does not fit, with that line's painted width.
-  let fitBreakSegmentIndex: number
-  let fitBreakPaintWidth: number
-  // The latest run of preserved spaces and tabs: the segment after it, and the
-  // line's width before it, with the gap after the glyph before it.
-  let hangEndSegmentIndex: number
-  let hangStartWidth = 0
-  // The line-end trim of the last whole segment, where only that trim let it fit.
-  // Every later segment overflows, so the line ends after it and paints that much less.
-  let lineEndTrimmed = 0
-
-  // A line that ends at its pending break paints the pending width.
-  function getCurrentLinePaintWidth(): number {
-    return pendingBreakSegmentIndex === lineEndSegmentIndex && lineEndGraphemeIndex === 0
-      ? pendingBreakWidth
-      : lineW - lineEndTrimmed
-  }
-
-  function finishLine(
-    endSegmentIndex = lineEndSegmentIndex,
-    endGraphemeIndex = lineEndGraphemeIndex,
-    width = getCurrentLinePaintWidth(),
-  ): number | null {
-    if (!hasContent) return null
-    cursor.segmentIndex = endSegmentIndex
-    cursor.graphemeIndex = endGraphemeIndex
-    // Preserved spaces and tabs before a hard break or the end of the text
-    // hang only where they don't fit (CSS Text 3 §8.2).
-    const hangsWhereUnfit =
-      endGraphemeIndex === 0 &&
-      hangEndSegmentIndex >= 0 &&
-      (endSegmentIndex === hangEndSegmentIndex || endSegmentIndex === hangEndSegmentIndex + 1) &&
-      (hangEndSegmentIndex === kinds.length || kinds[hangEndSegmentIndex] === 'hard-break')
-    const paintWidth = (hangsWhereUnfit ? lineW : width) +
-      getTerminalLetterSpacing(prepared, lineStartSegmentIndex, lineStartGraphemeIndex, endSegmentIndex, endGraphemeIndex)
-    return hangsWhereUnfit ? Math.max(hangStartWidth, Math.min(paintWidth, availableWidth)) : paintWidth
-  }
-
-  // A line that would end at a selected discretionary hyphen that does not fit
-  // returns to the recorded earlier opportunity. Null without one, where the
-  // hyphen overflows.
-  function finishLineBeforeUnfitHyphen(): number | null {
-    if (
-      fitBreakSegmentIndex < 0 ||
-      pendingBreakKind !== 'soft-hyphen' ||
-      pendingBreakSegmentIndex !== lineEndSegmentIndex ||
-      lineEndGraphemeIndex !== 0 ||
-      pendingBreakWidth <= fitLimit ||
-      !canReturnFromUnfitHyphen(
-        prepared,
-        lineStartSegmentIndex,
-        fitBreakSegmentIndex,
-        lineEndSegmentIndex - 1,
-        pendingBreakWidth - fitLimit,
-      )
-    ) {
-      return null
-    }
-    return finishLine(fitBreakSegmentIndex, 0, fitBreakPaintWidth)
-  }
-
-  function startLineAtSegment(segmentIndex: number, width: number): void {
-    hasContent = true
-    lineEndSegmentIndex = segmentIndex + 1
-    lineEndGraphemeIndex = 0
-    lineW = width
-  }
-
-  function startLineAtGrapheme(segmentIndex: number, graphemeIndex: number, width: number): void {
-    hasContent = true
-    lineEndSegmentIndex = segmentIndex
-    lineEndGraphemeIndex = graphemeIndex + 1
-    lineW = width
-  }
-
-  // Called only on a line that has content.
-  function appendWholeSegment(segmentIndex: number, advance: number): void {
-    lineW += advance
-    lineEndSegmentIndex = segmentIndex + 1
-    lineEndGraphemeIndex = 0
-  }
-
-  function updatePendingBreakForWholeSegment(
-    kind: SegmentBreakKind,
-    breakAfter: boolean,
-    segmentIndex: number,
-    advance: number,
-  ): void {
-    if (!breakAfter || breaksBefore?.[segmentIndex + 1] === false) return
-    pendingBreakSegmentIndex = segmentIndex + 1
-    // The break segment hangs with the gap before it, a run of preserved spaces
-    // and tabs hangs whole, and a tab that doesn't hang counts whole.
-    pendingBreakWidth = isHangingWhiteSpace(kind, hangTabs) ? hangStartWidth : kind === 'tab' ? lineW : lineW - advance
-    pendingBreakKind = kind
-  }
-
-  function appendBreakableSegmentFrom(
-    segmentIndex: number,
-    startGraphemeIndex: number,
-    endGraphemeIndex = breakableFitAdvances[segmentIndex]!.length,
-    // The gap before the first grapheme, on a line that already has content.
-    leadingSpacing = 0,
-  ): number | null {
-    const fitAdvances = breakableFitAdvances[segmentIndex]!
-    const entry = prepared.entryGeometry?.[segmentIndex]
-    // Entry geometry describes whole segment tails on a fresh line, not a
-    // caller's grapheme limit.
-    const freshWhole = !hasContent && endGraphemeIndex === fitAdvances.length
-      ? getSegmentEntryWidth(entry, startGraphemeIndex, fitAdvances.length)
-      : null
-    if (freshWhole !== null) {
-      const terminal = prepared.letterSpacing
-      // Admission, ordered emergency prefixes and continuing pen are distinct.
-      // The first real grapheme is mandatory source progress, even when unfit.
-      const end = getFreshLineEnd(entry!, startGraphemeIndex, fitAdvances.length, fitLimit)
-      if (end > fitAdvances.length) {
-        startLineAtSegment(segmentIndex, freshWhole - terminal)
-        return null
-      }
-      startLineAtGrapheme(segmentIndex, end - 1, getSegmentEntryWidth(entry, startGraphemeIndex, end)! - terminal)
-      // Exhausting an emergency fragment consumes the measured segment and
-      // ends this line. Only intact admission above continues into other source.
-      return end === fitAdvances.length ? finishLine(segmentIndex + 1, 0) : finishLine()
-    }
-
-    // A grapheme fits with the letter spacing after it.
-    for (let g = startGraphemeIndex; g < endGraphemeIndex; g++) {
-      const baseGw = fitAdvances[g]!
-
-      if (!hasContent) {
-        startLineAtGrapheme(segmentIndex, g, baseGw)
-        // A line that holds only this grapheme, overflowing, keeps the graphemes after
-        // it that can't start a line, and ends.
-        const end = baseGw + letterSpacing > fitLimit
-          ? getOverflowingFirstGraphemeEnd(prepared, segmentIndex, g, endGraphemeIndex)
-          : g + 1
-        if (end > g + 1) {
-          for (let k = g + 1; k < end; k++) lineW += fitAdvances[k]! + letterSpacing
-          return end === fitAdvances.length ? finishLine(segmentIndex + 1, 0) : finishLine(segmentIndex, end)
-        }
-      } else {
-        const gw = baseGw + (g > startGraphemeIndex ? letterSpacing : leadingSpacing)
-        const candidatePaintWidth = lineW + gw
-        if (candidatePaintWidth + letterSpacing > fitLimit) return finishLine()
-
-        lineW = candidatePaintWidth
-        lineEndSegmentIndex = segmentIndex
-        lineEndGraphemeIndex = g + 1
-      }
-    }
-
-    if (hasContent && lineEndSegmentIndex === segmentIndex && lineEndGraphemeIndex === fitAdvances.length) {
-      lineEndSegmentIndex = segmentIndex + 1
-      lineEndGraphemeIndex = 0
-    }
-    return null
-  }
-
   let lineCount = 0
   let lastLineWidth: number | null = null
   while (chunkIndex >= 0 && lineCount < lineLimit) {
-    lineStartSegmentIndex = cursor.segmentIndex
-    lineStartGraphemeIndex = cursor.graphemeIndex
-    lineW = 0
-    hasContent = false
-    lineEndSegmentIndex = cursor.segmentIndex
-    lineEndGraphemeIndex = cursor.graphemeIndex
-    pendingBreakSegmentIndex = -1
-    pendingBreakWidth = 0
-    pendingBreakKind = null
-    fitBreakSegmentIndex = -1
-    fitBreakPaintWidth = 0
-    hangEndSegmentIndex = -1
-    lineEndTrimmed = 0
+    const lineStartSegmentIndex = cursor.segmentIndex
+    const lineStartGraphemeIndex = cursor.graphemeIndex
+    let lineW = 0
+    let hasContent = false
+    let lineEndSegmentIndex = lineStartSegmentIndex
+    let lineEndGraphemeIndex = lineStartGraphemeIndex
+    let pendingBreakSegmentIndex = -1
+    // A line that ends at the pending break both fits and paints this width.
+    let pendingBreakWidth = 0
+    let pendingBreakIsSoftHyphen = false
+    // The latest opportunity whose line leaves room for the hyphen, which Blink's
+    // retry against the width minus the hyphen returns to when a selected
+    // discretionary hyphen does not fit, with that line's painted width.
+    let fitBreakSegmentIndex = -1
+    let fitBreakPaintWidth = 0
+    // The latest run of preserved spaces and tabs: the segment after it, and the
+    // line's width before it, with the gap after the glyph before it.
+    let hangEndSegmentIndex = -1
+    let hangStartWidth = 0
+    // The line-end trim of the last whole segment, where only that trim let it fit.
+    // Every later segment overflows, so the line ends after it and paints that much less.
+    let lineEndTrimmed = 0
     // Retained line-start ZWSP establishes the line without owning a spacing gap.
     let zeroWidthPrefix = true
     let afterUnspacedControl = false
+    // Where the line ends and the width it paints there, once decided. -1 ends it at
+    // the line's current end. With returnsFromHyphen, a line ending at a selected
+    // discretionary hyphen that doesn't fit returns to the recorded earlier opportunity.
+    let endSegmentIndex = -1
+    let endGraphemeIndex = 0
+    let endWidth = 0
+    let returnsFromHyphen = false
 
-    const chunk = prepared.chunks[chunkIndex]!
-    const endSegmentIndex = Math.min(chunk.endSegmentIndex, endSegmentLimit)
-    const consumedEndSegmentIndex = endSegmentIndex < chunk.endSegmentIndex
-      ? endSegmentIndex
+    const chunk = chunks[chunkIndex]!
+    const chunkEndSegmentIndex = Math.min(chunk.endSegmentIndex, endSegmentLimit)
+    const consumedEndSegmentIndex = chunkEndSegmentIndex < chunk.endSegmentIndex
+      ? chunkEndSegmentIndex
       : chunk.consumedEndSegmentIndex
     let lineWidth: number | null = null
     if (chunk.startSegmentIndex === chunk.endSegmentIndex) {
@@ -655,172 +509,301 @@ function walkPreparedComplexLines(
       cursor.graphemeIndex = 0
       lineWidth = 0
     } else {
-      lineLoop: for (let i = cursor.segmentIndex; i < endSegmentIndex; i++) {
-        const kind = kinds[i]!
-        const breakAfter = breaksAfter(kind)
-        const startGraphemeIndex = i === cursor.segmentIndex ? cursor.graphemeIndex : 0
-        // The gap before a segment belongs to the grapheme before it. A control
-        // that takes no letter spacing still follows that gap but adds none
-        // after itself; other segments that take none leave it as it was.
-        const gap = letterSpacing !== 0 && hasContent && !zeroWidthPrefix && !afterUnspacedControl ? letterSpacing : 0
-        let leadingSpacing = 0
-        if (letterSpacing !== 0 && (spacingGraphemeCounts[i]! > 0 || kind === 'control')) {
-          leadingSpacing = gap
-          afterUnspacedControl = spacingGraphemeCounts[i] === 0
-        }
-        if (kind !== 'zero-width-break' && kind !== 'zero-width-glue') zeroWidthPrefix = false
-        // Tab stops are eight spaces apart, so half a space is a sixteenth of one.
-        const w = kind === 'tab'
-          ? getTabAdvance(lineW + leadingSpacing, prepared.tabStopAdvance, engineProfile.skipNarrowTabStops ? prepared.tabStopAdvance / 16 : 0)
-          : widths[i]!
-        const advance = leadingSpacing + w
-        const endTrim = lineEndTrims === null ? 0 : lineEndTrims[i]!
-
-        if (kind === 'soft-hyphen' && startGraphemeIndex === 0) {
-          if (hasContent) {
-            lineEndSegmentIndex = i + 1
-            lineEndGraphemeIndex = 0
-            if (i + 1 < chunk.endSegmentIndex) {
-              pendingBreakSegmentIndex = i + 1
-              pendingBreakWidth = lineW + discretionaryHyphenWidth
-              pendingBreakKind = kind
-              // A soft hyphen's fit already includes its own hyphen.
-              if (retreatsFromUnfitHyphen && pendingBreakWidth <= fitLimit) {
-                fitBreakSegmentIndex = pendingBreakSegmentIndex
-                fitBreakPaintWidth = pendingBreakWidth
+      decided: {
+        for (let i = lineStartSegmentIndex; ; i++) {
+          // The graphemes of segment i from fillStart to fillEnd go on the line one by
+          // one, after the gap fillSpacing.
+          let fillStart: number
+          let fillEnd: number
+          let fillSpacing = 0
+          if (i >= chunkEndSegmentIndex) {
+            // A limit inside a breakable text segment walks its leading graphemes as
+            // the last unit of the line.
+            if (endGraphemeLimit === 0 || endSegmentLimit >= chunk.endSegmentIndex) break
+            i = endSegmentLimit
+            if (hasContent) {
+              const fitAdvances = breakableFitAdvances[i]!
+              let advance = letterSpacing !== 0 && spacingGraphemeCounts[i]! > 0 && !zeroWidthPrefix && !afterUnspacedControl
+                ? letterSpacing
+                : 0
+              for (let g = 0; g < endGraphemeLimit; g++) {
+                advance += fitAdvances[g]! + (g > 0 ? letterSpacing : 0)
               }
+              if (lineW + advance + letterSpacing <= fitLimit) {
+                lineW += advance
+                endSegmentIndex = i
+                endGraphemeIndex = endGraphemeLimit
+                endWidth = lineW
+              } else {
+                returnsFromHyphen = true
+              }
+              break decided
             }
-          }
-          continue
-        }
-
-        // Text that takes no letter spacing, such as zero-width glue, fits like
-        // the line that still ends with the gap before it.
-        const fitAdvance = letterSpacing !== 0 && spacingGraphemeCounts[i] === 0 && !breakAfter && kind !== 'control'
-          ? gap + w
-          : getWholeSegmentFitContribution(prepared, kind, breakAfter, i, leadingSpacing, w)
-        const hangs = breakAfter && isHangingWhiteSpace(kind, hangTabs)
-        if (hangs) {
-          if (hangEndSegmentIndex !== i) hangStartWidth = lineW + leadingSpacing
-          hangEndSegmentIndex = i + 1
-        }
-        // Where glue can't hold a line, glue at a line start isn't the line's content:
-        // the segment after it starts the line, however wide.
-        if (!hasContent && kind === 'zero-width-glue' && !engineProfile.zeroWidthGlueTakesLine) {
-          lineEndSegmentIndex = i + 1
-          lineEndGraphemeIndex = 0
-          continue
-        }
-        if (!hasContent) {
-          if (startGraphemeIndex > 0) {
-            const line = appendBreakableSegmentFrom(i, startGraphemeIndex)
-            if (line !== null) {
-              lineWidth = line
-              break lineLoop
-            }
+            fillStart = i === lineStartSegmentIndex ? lineStartGraphemeIndex : 0
+            fillEnd = endGraphemeLimit
           } else {
-            const startExtra = lineStartExtras === null ? 0 : lineStartExtras[i]!
-            if (fitAdvance + startExtra - endTrim > fitLimit && breakableFitAdvances[i] !== null) {
-              const line = appendBreakableSegmentFrom(i, 0)
-              if (line !== null) {
-                lineWidth = line
-                break lineLoop
+            const kind = kinds[i]!
+            const breakAfter = breaksAfter(kind)
+            const startGraphemeIndex = i === lineStartSegmentIndex ? lineStartGraphemeIndex : 0
+            // The gap before a segment belongs to the grapheme before it. A control
+            // that takes no letter spacing still follows that gap but adds none
+            // after itself; other segments that take none leave it as it was.
+            const gap = letterSpacing !== 0 && hasContent && !zeroWidthPrefix && !afterUnspacedControl ? letterSpacing : 0
+            let leadingSpacing = 0
+            if (letterSpacing !== 0 && (spacingGraphemeCounts[i]! > 0 || kind === 'control')) {
+              leadingSpacing = gap
+              afterUnspacedControl = spacingGraphemeCounts[i] === 0
+            }
+            if (kind !== 'zero-width-break' && kind !== 'zero-width-glue') zeroWidthPrefix = false
+            const w = kind === 'tab'
+              ? getTabAdvance(lineW + leadingSpacing, tabStopAdvance, minimumTabAdvance)
+              : widths[i]!
+            const advance = leadingSpacing + w
+            const endTrim = lineEndTrims === null ? 0 : lineEndTrims[i]!
+
+            if (kind === 'soft-hyphen' && startGraphemeIndex === 0) {
+              if (hasContent) {
+                lineEndSegmentIndex = i + 1
+                lineEndGraphemeIndex = 0
+                if (i + 1 < chunk.endSegmentIndex) {
+                  pendingBreakSegmentIndex = i + 1
+                  pendingBreakWidth = lineW + discretionaryHyphenWidth
+                  pendingBreakIsSoftHyphen = true
+                  // A soft hyphen's fit already includes its own hyphen.
+                  if (retreatsFromUnfitHyphen && pendingBreakWidth <= fitLimit) {
+                    fitBreakSegmentIndex = pendingBreakSegmentIndex
+                    fitBreakPaintWidth = pendingBreakWidth
+                  }
+                }
+              }
+              continue
+            }
+
+            // Text that takes no letter spacing, such as zero-width glue, fits like
+            // the line that still ends with the gap before it.
+            const fitAdvance = letterSpacing !== 0 && spacingGraphemeCounts[i] === 0 && !breakAfter && kind !== 'control'
+              ? gap + w
+              : getWholeSegmentFitContribution(prepared, kind, breakAfter, i, leadingSpacing, w)
+            const hangs = breakAfter && isHangingWhiteSpace(kind, hangTabs)
+            if (hangs) {
+              if (hangEndSegmentIndex !== i) hangStartWidth = lineW + leadingSpacing
+              hangEndSegmentIndex = i + 1
+            }
+            // Where glue can't hold a line, glue at a line start isn't the line's content:
+            // the segment after it starts the line, however wide.
+            if (!hasContent && kind === 'zero-width-glue' && !zeroWidthGlueTakesLine) {
+              lineEndSegmentIndex = i + 1
+              lineEndGraphemeIndex = 0
+              continue
+            }
+
+            if (!hasContent) {
+              if (startGraphemeIndex > 0) {
+                fillStart = startGraphemeIndex
+                fillEnd = breakableFitAdvances[i]!.length
+              } else {
+                const startExtra = lineStartExtras === null ? 0 : lineStartExtras[i]!
+                if (fitAdvance + startExtra - endTrim > fitLimit && breakableFitAdvances[i] !== null) {
+                  fillStart = 0
+                  fillEnd = breakableFitAdvances[i]!.length
+                } else {
+                  hasContent = true
+                  lineEndSegmentIndex = i + 1
+                  lineEndGraphemeIndex = 0
+                  lineW = w + startExtra
+                  lineEndTrimmed = fitAdvance + startExtra > fitLimit ? endTrim : 0
+                  // The break segment hangs with the gap before it, a run of preserved
+                  // spaces and tabs hangs whole, and a tab that doesn't hang counts whole.
+                  if (breakAfter && breaksBefore?.[i + 1] !== false) {
+                    pendingBreakSegmentIndex = i + 1
+                    pendingBreakWidth = hangs ? hangStartWidth : kind === 'tab' ? lineW : lineW - advance
+                    pendingBreakIsSoftHyphen = false
+                  }
+                  if (retreatsFromUnfitHyphen && breakAfter && pendingBreakWidth + reservedHyphenWidth <= fitLimit) {
+                    fitBreakSegmentIndex = pendingBreakSegmentIndex
+                    fitBreakPaintWidth = pendingBreakWidth
+                  }
+                  continue
+                }
               }
             } else {
-              startLineAtSegment(i, w + startExtra)
-              lineEndTrimmed = fitAdvance + startExtra > fitLimit ? endTrim : 0
+              // A run of preserved spaces and tabs fits where the text before it fits.
+              const newFitW = hangs ? hangStartWidth : lineW + fitAdvance
+              if (newFitW - endTrim > fitLimit) {
+                // A break segment hangs with the gap before it, after the content before
+                // it, which fits without its line-end trim. A collapsible space or ZWSP
+                // hangs even after overflowing content that started the line, as the
+                // simple stepper does; a preserved space there starts the next line.
+                const contentW = lineW - lineEndTrimmed
+                if (breakAfter && (contentW <= fitLimit ||
+                  (pendingBreakSegmentIndex < 0 && (kind === 'space' || kind === 'zero-width-break')))) {
+                  endWidth = hangs ? hangStartWidth : kind === 'tab' ? lineW + advance : contentW
+                  lineW += advance
+                  endSegmentIndex = i + 1
+                  endGraphemeIndex = 0
+                  break decided
+                }
+
+                // Where the scan gives no break before the segment, as before NEL (UAX
+                // #14 LB6), the line returns to its last break. Without one, Blink and
+                // WebKit retry between graphemes, so the segment's graphemes fill it.
+                const unbroken = breaksBefore !== null && !breaksBefore[i]
+                if (unbroken && pendingBreakSegmentIndex >= 0) {
+                  lineEndSegmentIndex = pendingBreakSegmentIndex
+                  lineEndGraphemeIndex = 0
+                }
+                if (!unbroken || pendingBreakSegmentIndex >= 0 || breakableFitAdvances[i] === null) {
+                  returnsFromHyphen = true
+                  break decided
+                }
+                fillStart = 0
+                fillEnd = breakableFitAdvances[i]!.length
+                fillSpacing = leadingSpacing
+              } else {
+                // A break the scan gives before text is one the line can return to.
+                if (breaksBefore !== null && breaksBefore[i] && !breakAfter && pendingBreakSegmentIndex !== i) {
+                  pendingBreakSegmentIndex = i
+                  pendingBreakWidth = lineW
+                  pendingBreakIsSoftHyphen = false
+                }
+                if (retreatsAtFullWidth && !breakAfter && breaksBefore?.[i] !== false && !breaksAfter(kinds[i - 1]!)) {
+                  fitBreakSegmentIndex = i
+                  fitBreakPaintWidth = lineW
+                }
+                lineW += advance
+                lineEndSegmentIndex = i + 1
+                lineEndGraphemeIndex = 0
+                lineEndTrimmed = newFitW > fitLimit ? endTrim : 0
+                if (breakAfter && breaksBefore?.[i + 1] !== false) {
+                  pendingBreakSegmentIndex = i + 1
+                  pendingBreakWidth = hangs ? hangStartWidth : kind === 'tab' ? lineW : lineW - advance
+                  pendingBreakIsSoftHyphen = false
+                }
+                if (retreatsFromUnfitHyphen && breakAfter && pendingBreakWidth + reservedHyphenWidth <= fitLimit) {
+                  fitBreakSegmentIndex = pendingBreakSegmentIndex
+                  fitBreakPaintWidth = pendingBreakWidth
+                }
+                continue
+              }
             }
           }
-          updatePendingBreakForWholeSegment(kind, breakAfter, i, advance)
-          if (retreatsFromUnfitHyphen && breakAfter && pendingBreakWidth + reservedHyphenWidth <= fitLimit) {
-            fitBreakSegmentIndex = pendingBreakSegmentIndex
-            fitBreakPaintWidth = pendingBreakWidth
-          }
-          continue
-        }
 
-        // A run of preserved spaces and tabs fits where the text before it fits.
-        const newFitW = hangs ? hangStartWidth : lineW + fitAdvance
-        if (newFitW - endTrim > fitLimit) {
-          // A break segment hangs with the gap before it, after the content before
-          // it, which fits without its line-end trim. A collapsible space or ZWSP
-          // hangs even after overflowing content that started the line, as the
-          // simple stepper does; a preserved space there starts the next line.
-          const contentW = lineW - lineEndTrimmed
-          if (breakAfter && (contentW <= fitLimit ||
-            (pendingBreakSegmentIndex < 0 && (kind === 'space' || kind === 'zero-width-break')))) {
-            const currentBreakWidth = hangs ? hangStartWidth : kind === 'tab' ? lineW + advance : contentW
-            appendWholeSegment(i, advance)
-            lineWidth = finishLine(i + 1, 0, currentBreakWidth)
-            break lineLoop
-          }
-
-          // Where the scan gives no break before the segment, as before NEL (UAX
-          // #14 LB6), the line returns to its last break. Without one, Blink and
-          // WebKit retry between graphemes, so the segment's graphemes fill it.
-          const unbroken = breaksBefore !== null && !breaksBefore[i]
-          if (unbroken && pendingBreakSegmentIndex >= 0) {
-            lineEndSegmentIndex = pendingBreakSegmentIndex
+          // A grapheme fits with the letter spacing after it.
+          const fitAdvances = breakableFitAdvances[i]!
+          const fitCount = fitAdvances.length
+          const entry = entryGeometry === null ? null : entryGeometry[i]!
+          // Entry geometry describes whole segment tails on a fresh line, not a
+          // caller's grapheme limit.
+          const freshWhole = !hasContent && fillEnd === fitCount
+            ? getSegmentEntryWidth(entry, fillStart, fitCount)
+            : null
+          if (freshWhole !== null) {
+            // Admission, ordered emergency prefixes and continuing pen are distinct.
+            // The first real grapheme is mandatory source progress, even when unfit.
+            const end = getFreshLineEnd(entry!, fillStart, fitCount, fitLimit)
+            hasContent = true
+            if (end <= fitCount) {
+              lineEndSegmentIndex = i
+              lineEndGraphemeIndex = end
+              lineW = getSegmentEntryWidth(entry, fillStart, end)! - letterSpacing
+              // Exhausting an emergency fragment consumes the measured segment and
+              // ends this line. Only intact admission above continues into other source.
+              if (end === fitCount) {
+                endSegmentIndex = i + 1
+                endGraphemeIndex = 0
+                endWidth = lineW - lineEndTrimmed
+              }
+              break decided
+            }
+            lineEndSegmentIndex = i + 1
             lineEndGraphemeIndex = 0
-          } else if (unbroken && breakableFitAdvances[i] !== null) {
-            const line = appendBreakableSegmentFrom(i, 0, undefined, leadingSpacing)
-            if (line === null) continue
-            lineWidth = line
-            break lineLoop
-          }
-
-          lineWidth = finishLineBeforeUnfitHyphen() ?? finishLine()
-          break lineLoop
-        }
-
-        // A break the scan gives before text is one the line can return to.
-        if (breaksBefore !== null && breaksBefore[i] && !breakAfter && pendingBreakSegmentIndex !== i) {
-          pendingBreakSegmentIndex = i
-          pendingBreakWidth = lineW
-          pendingBreakKind = null
-        }
-        if (retreatsAtFullWidth && !breakAfter && breaksBefore?.[i] !== false && !breaksAfter(kinds[i - 1]!)) {
-          fitBreakSegmentIndex = i
-          fitBreakPaintWidth = lineW
-        }
-        appendWholeSegment(i, advance)
-        lineEndTrimmed = newFitW > fitLimit ? endTrim : 0
-        updatePendingBreakForWholeSegment(kind, breakAfter, i, advance)
-        if (retreatsFromUnfitHyphen && breakAfter && pendingBreakWidth + reservedHyphenWidth <= fitLimit) {
-          fitBreakSegmentIndex = pendingBreakSegmentIndex
-          fitBreakPaintWidth = pendingBreakWidth
-        }
-      }
-
-      // A limit inside a breakable text segment walks its leading graphemes as
-      // the last unit of the line.
-      if (lineWidth === null && endGraphemeLimit > 0 && endSegmentLimit < chunk.endSegmentIndex) {
-        if (!hasContent) {
-          const startGraphemeIndex = endSegmentLimit === cursor.segmentIndex ? cursor.graphemeIndex : 0
-          lineWidth = appendBreakableSegmentFrom(endSegmentLimit, startGraphemeIndex, endGraphemeLimit) ??
-            finishLine(endSegmentLimit, endGraphemeLimit, lineW)
-        } else {
-          const fitAdvances = breakableFitAdvances[endSegmentLimit]!
-          let advance = letterSpacing !== 0 && spacingGraphemeCounts[endSegmentLimit]! > 0 && !zeroWidthPrefix && !afterUnspacedControl
-            ? letterSpacing
-            : 0
-          for (let g = 0; g < endGraphemeLimit; g++) {
-            advance += fitAdvances[g]! + (g > 0 ? letterSpacing : 0)
-          }
-          if (lineW + advance + letterSpacing <= fitLimit) {
-            lineW += advance
-            lineWidth = finishLine(endSegmentLimit, endGraphemeLimit, lineW)
+            lineW = freshWhole - letterSpacing
           } else {
-            lineWidth = finishLineBeforeUnfitHyphen() ?? finishLine()
+            for (let g = fillStart; g < fillEnd; g++) {
+              const baseGw = fitAdvances[g]!
+              if (!hasContent) {
+                hasContent = true
+                lineEndSegmentIndex = i
+                lineEndGraphemeIndex = g + 1
+                lineW = baseGw
+                // A line that holds only this grapheme, overflowing, keeps the graphemes after
+                // it that can't start a line, and ends.
+                const end = baseGw + letterSpacing > fitLimit
+                  ? getOverflowingFirstGraphemeEnd(prepared, i, g, fillEnd)
+                  : g + 1
+                if (end > g + 1) {
+                  for (let k = g + 1; k < end; k++) lineW += fitAdvances[k]! + letterSpacing
+                  endSegmentIndex = end === fitCount ? i + 1 : i
+                  endGraphemeIndex = end === fitCount ? 0 : end
+                  endWidth = lineW - lineEndTrimmed
+                  break decided
+                }
+              } else {
+                const candidatePaintWidth = lineW + (baseGw + (g > fillStart ? letterSpacing : fillSpacing))
+                if (candidatePaintWidth + letterSpacing > fitLimit) break decided
+                lineW = candidatePaintWidth
+                lineEndSegmentIndex = i
+                lineEndGraphemeIndex = g + 1
+              }
+            }
+          }
+          if (i === endSegmentLimit) {
+            endSegmentIndex = i
+            endGraphemeIndex = endGraphemeLimit
+            endWidth = lineW
+            break decided
+          }
+          if (hasContent && lineEndSegmentIndex === i && lineEndGraphemeIndex === fitCount) {
+            lineEndSegmentIndex = i + 1
+            lineEndGraphemeIndex = 0
           }
         }
+
+        // A limit before the chunk end is an ordinary break before later text, so
+        // a line that ends there at an unfit selected hyphen returns as well.
+        endSegmentIndex = consumedEndSegmentIndex
+        endGraphemeIndex = 0
+        if (pendingBreakSegmentIndex === consumedEndSegmentIndex && lineEndGraphemeIndex === 0) {
+          endWidth = pendingBreakWidth
+          returnsFromHyphen = true
+        } else {
+          endWidth = lineW - lineEndTrimmed
+        }
       }
-      // A limit before the chunk end is an ordinary break before later text, so
-      // a line that ends there at an unfit selected hyphen returns as well.
-      if (lineWidth === null) {
-        lineWidth = pendingBreakSegmentIndex === consumedEndSegmentIndex && lineEndGraphemeIndex === 0
-          ? finishLineBeforeUnfitHyphen() ?? finishLine(consumedEndSegmentIndex, 0, pendingBreakWidth)
-          : finishLine(consumedEndSegmentIndex, 0, lineW - lineEndTrimmed)
+
+      if (hasContent) {
+        if (
+          returnsFromHyphen &&
+          fitBreakSegmentIndex >= 0 &&
+          pendingBreakIsSoftHyphen &&
+          pendingBreakSegmentIndex === lineEndSegmentIndex &&
+          lineEndGraphemeIndex === 0 &&
+          !(pendingBreakWidth <= fitLimit) &&
+          canReturnFromUnfitHyphen(prepared, lineStartSegmentIndex, fitBreakSegmentIndex, lineEndSegmentIndex - 1, pendingBreakWidth - fitLimit)
+        ) {
+          endSegmentIndex = fitBreakSegmentIndex
+          endGraphemeIndex = 0
+          endWidth = fitBreakPaintWidth
+        } else if (endSegmentIndex < 0) {
+          // A line that ends at its pending break paints the pending width.
+          endSegmentIndex = lineEndSegmentIndex
+          endGraphemeIndex = lineEndGraphemeIndex
+          endWidth = pendingBreakSegmentIndex === lineEndSegmentIndex && lineEndGraphemeIndex === 0
+            ? pendingBreakWidth
+            : lineW - lineEndTrimmed
+        }
+        cursor.segmentIndex = endSegmentIndex
+        cursor.graphemeIndex = endGraphemeIndex
+        // Preserved spaces and tabs before a hard break or the end of the text
+        // hang only where they don't fit (CSS Text 3 §8.2).
+        const hangsWhereUnfit =
+          endGraphemeIndex === 0 &&
+          hangEndSegmentIndex >= 0 &&
+          (endSegmentIndex === hangEndSegmentIndex || endSegmentIndex === hangEndSegmentIndex + 1) &&
+          (hangEndSegmentIndex === kinds.length || kinds[hangEndSegmentIndex] === 'hard-break')
+        const paintWidth = (hangsWhereUnfit ? lineW : endWidth) +
+          getTerminalLetterSpacing(prepared, lineStartSegmentIndex, lineStartGraphemeIndex, endSegmentIndex, endGraphemeIndex)
+        lineWidth = hangsWhereUnfit ? Math.max(hangStartWidth, Math.min(paintWidth, availableWidth)) : paintWidth
       }
     }
     if (lineWidth === null) break
