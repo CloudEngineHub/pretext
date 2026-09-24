@@ -1,5 +1,6 @@
 // bun harness <command> [--browser=chrome|firefox|webkit-host|safari|all] [--cases=<file.ndjson>]
-//   record [--only-new]      record the browser's layout of every case (or the new ones), in two orders, in fresh short documents
+//   record [--only-new]      record the browser's layout of every case (or the new ones), in two orders, in fresh short documents;
+//                            --sample=N --seed=S records N of them, drawn from every set
 //   check [--accept=<why>]   predict every pinned case in the browser and score it against the recordings
 //   gate [--sample=N]        check, plus a prediction in reverse order, N cases recorded again, and attribution
 //   equal <ref>              whether this tree's src/ and <ref>'s predict the same lines for every case
@@ -10,6 +11,7 @@ import { mkdirSync, readdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { accept, headline, judge, observable, outsideClaims, samePrediction, score, shrinkWrapShort, widthBand, type Outcome } from './score.ts'
 import { LIB, runJob } from './run.ts'
+import { createRng } from './sets/build.ts'
 import {
   acceptedPath, assertSameEnvironment, caseText, historyPath, readAccepted, readCases, readHistory, readRecordings, recordingText, recordingsPath,
   splitHistory, writeAccepted, writeHistory, writeRecordings,
@@ -65,12 +67,12 @@ function describe(c: Case, outcome: Outcome): string {
   return `${c.id}  ${c.family}  ${widthBand(c)}  ${outcome.status}${outcome.line >= 0 ? ` at line ${outcome.line}` : ''}: ${outcome.detail}`
 }
 
+// A 32-bit LCG's `state % n` picked the first fifth of the sorted ids twice as often as the rest.
 function shuffled<T>(list: T[], seed: number): T[] {
   const out = list.slice()
-  let state = seed >>> 0
+  const rng = createRng(String(seed))
   for (let i = out.length - 1; i > 0; i--) {
-    state = (Math.imul(state, 1664525) + 1013904223) >>> 0
-    const j = state % (i + 1)
+    const j = rng.int(i + 1)
     const swap = out[i]!
     out[i] = out[j]!
     out[j] = swap
@@ -85,23 +87,28 @@ async function record(browser: BrowserKind, cases: Case[]): Promise<number> {
   const oldHistory = readHistory(historyPath(browser))
   let list = cases.filter(c => applies(c, browser))
   if (flags.has('only-new')) list = list.filter(c => old?.recordings.has(c.id) !== true && oldHistory?.cases.has(c.id) !== true)
-  const sorted = list.slice().sort((a, b) => (a.id < b.id ? -1 : 1))
+  let sorted = list.slice().sort((a, b) => (a.id < b.id ? -1 : 1))
+  // A seeded sample of every set, for installed Safari, whose window has to stay uncovered while it records.
+  if (flags.has('sample')) sorted = shuffled(sorted, Number(flags.get('seed') ?? 1)).slice(0, Number(flags.get('sample'))).sort((a, b) => (a.id < b.id ? -1 : 1))
   // One browser instance at a time per browser.
   const a = await runJob<Recording>({ browser, mode: 'record', cases: sorted, documentSize: RECORD_DOCUMENT, lib })
   const b = await runJob<Recording>({ browser, mode: 'record', cases: sorted.slice().reverse(), documentSize: RECORD_DOCUMENT, lib })
   if (a.env !== b.env) throw new Error(`The environment changed between the two recordings: ${a.env} | ${b.env}`)
-  // Recording some cases (--only-new, --cases) keeps the other recordings, which must share the environment.
-  const merge = (flags.has('only-new') || flags.has('cases')) && old !== null
+  // Recording some cases (--only-new, --cases, --sample) keeps the other recordings, which must share the environment.
+  const merge = (flags.has('only-new') || flags.has('cases') || flags.has('sample')) && old !== null
   if (merge && old.env !== a.env) throw new Error(`${browser}: the other recordings were made under ${old.env}; record every case`)
+  const sameEnv = old !== null && old.env === a.env
+  const prior = sameEnv ? { recordings: new Map(old.recordings), history: new Map(oldHistory?.cases ?? []) } : null
   const recordings = merge ? old.recordings : new Map<string, Recording>()
   const history = merge ? oldHistory?.cases ?? new Map<string, [Recording, Recording]>() : new Map<string, [Recording, Recording]>()
-  splitHistory(sorted.map(c => c.id), a.results, b.results, recordings, history)
+  const moved = splitHistory(sorted.map(c => c.id), a.results, b.results, recordings, history, prior)
   mkdirSync(join(import.meta.dir, 'recordings'), { recursive: true })
   writeRecordings(recordingsPath(browser), { env: a.env, recordings })
   writeHistory(historyPath(browser), { env: a.env, cases: history })
   console.log(`${browser}: recorded ${sorted.length} cases twice in ${((a.ms + b.ms) / 2000).toFixed(0)} s; ${history.size} with page history; ${a.env}`)
+  if (sameEnv) console.log(`${browser}: ${moved} cases laid out differently from the stored recordings of this environment, now page history`)
   // What the browser changed since the last recording, by family and width band.
-  if (old !== null && !merge) {
+  if (old !== null && !sameEnv) {
     const changed = new Map<string, number>()
     const byId = new Map(sorted.map(c => [c.id, c]))
     let count = 0
@@ -113,7 +120,7 @@ async function record(browser: BrowserKind, cases: Case[]): Promise<number> {
       changed.set(key, (changed.get(key) ?? 0) + 1)
       count++
     }
-    console.log(`${browser}: ${count} recordings changed${old.env === a.env ? '' : ` since ${old.env}`}`)
+    console.log(`${browser}: ${count} recordings changed since ${old.env}`)
     const rows = [...changed].sort((x, y) => y[1] - x[1])
     for (let i = 0; i < rows.length && i < 30; i++) console.log(`  ${rows[i]![1]}  ${rows[i]![0]}`)
   }

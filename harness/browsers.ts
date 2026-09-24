@@ -171,10 +171,32 @@ function appleScript(lines: string[]): string {
   return command('osascript', lines.flatMap(line => ['-e', line]))
 }
 
-// Installed Safari: one window of the job's own, found again by its URL. WebKit suspends a hidden page, so this window
-// must stay uncovered while the job runs.
-function launchSafari(url: string, owns: (tabUrl: string) => boolean): Session {
-  const id = appleScript(['tell application "Safari"', `make new document with properties {URL:${JSON.stringify(url)}}`, 'return id of front window', 'end tell'])
+function frontmostApp(): string | null {
+  try {
+    return appleScript(['tell application "System Events"', 'return name of first application process whose frontmost is true', 'end tell'])
+  } catch {
+    return null
+  }
+}
+
+// Installed Safari: one window of the job's own, found by a URL no other window has, never activated. A new document in
+// a frontmost Safari opens over the user's windows and takes the keyboard, so the window is made only while another app
+// is frontmost, and that app gets the focus back if Safari takes it. WebKit suspends a hidden page, so the window must
+// stay uncovered while the job runs.
+async function launchSafari(url: string, jobId: string, owns: (tabUrl: string) => boolean): Promise<Session> {
+  for (let waited = 0; frontmostApp() === 'Safari'; waited += 2000) {
+    if (waited >= 600_000) throw new Error('Safari stayed the frontmost app for 10 minutes; not opening a window over the user\'s')
+    await Bun.sleep(2000)
+  }
+  const marker = JSON.stringify(`about:blank#pretext-harness-${jobId}`)
+  const front = frontmostApp()
+  const id = appleScript([
+    'tell application "Safari"', `make new document with properties {URL:${marker}}`,
+    'repeat with w in windows', `if (count of tabs of w) is 1 and URL of tab 1 of w is ${marker} then`,
+    `set URL of tab 1 of w to ${JSON.stringify(url)}`, 'return id of w', 'end if', 'end repeat', 'end tell',
+  ])
+  if (front !== null && frontmostApp() !== front) appleScript([`tell application ${JSON.stringify(front)} to activate`])
+  if (!/^\d+$/.test(id)) throw new Error('Could not find the Safari window just made')
   return {
     close() {
       try {
@@ -194,6 +216,6 @@ export function launch(browser: BrowserKind, url: string, jobId: string, owns: (
     case 'chrome': return launchChrome(url, profile)
     case 'firefox': return launchFirefox(url, profile)
     case 'webkit-host': return launchWebKitHost(url)
-    case 'safari': return Promise.resolve(launchSafari(url, owns))
+    case 'safari': return launchSafari(url, jobId, owns)
   }
 }

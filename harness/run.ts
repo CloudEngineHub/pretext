@@ -18,6 +18,10 @@ const FIXTURES = JSON.parse(readFileSync(join(FONTS_DIR, 'fonts.json'), 'utf8'))
 const CHUNK = 25
 const CHUNK_UNITS = 20_000
 export const LIB = resolve(import.meta.dir, '../src')
+// Firefox changes fonts under a page for about 12 s after it starts (PLATFORM_BUGS.md, the late family names): emoji
+// beside Arial laid out differently when recorded 11 s after launch than at 12, 15 or 30 s. So its first document is held
+// until 15 s after launch, in every job, recording or predicting.
+const FIREFOX_SETTLE_MS = 15_000
 
 async function bundle(lib: string): Promise<string> {
   const built = await Bun.build({
@@ -73,7 +77,8 @@ function serve(fetch: (request: Request) => Promise<Response>): ReturnType<typeo
   for (let port = 3002; port < 3100; port++) {
     if (Bun.spawnSync(['lsof', '-nP', `-iTCP:${port}`, '-sTCP:LISTEN']).exitCode === 0) continue
     try {
-      return Bun.serve({ hostname: '127.0.0.1', port, maxRequestBodySize: 1 << 30, fetch })
+      // idleTimeout 0: Bun drops a request after 10 s without a response, and Firefox's first document is held longer.
+      return Bun.serve({ hostname: '127.0.0.1', port, maxRequestBodySize: 1 << 30, idleTimeout: 0, fetch })
     } catch {
       // Taken meanwhile.
     }
@@ -138,6 +143,8 @@ export async function runJob<T extends Recording | Prediction>(job: Job): Promis
         case '/doc': {
           const n = Number(url.searchParams.get('n'))
           if (url.searchParams.get('job') !== id || n !== doc) return new Response('Inactive document', { status: 409 })
+          const wait = settled - Date.now()
+          if (wait > 0) await Bun.sleep(wait)
           return new Response(pageHtml(docs[n]!), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } })
         }
         case '/page.js': return new Response(script, { headers: { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-store' } })
@@ -163,6 +170,7 @@ export async function runJob<T extends Recording | Prediction>(job: Job): Promis
   const watchdog = setInterval(() => {
     if (Date.now() - lastActivity > 120_000) finish(new Error(`${job.browser}: no page activity for 2 minutes (${results.size} of ${job.cases.length} cases done)`))
   }, 1000)
+  const settled = Date.now() + (job.browser === 'firefox' ? FIREFOX_SETTLE_MS : 0)
   try {
     session = await launch(job.browser, base + docUrl(0), id, tabUrl => tabUrl.startsWith(`${base}/doc?job=${id}`))
     await finished

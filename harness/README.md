@@ -26,8 +26,10 @@ another build's `src/`. `bun test harness` runs the offline tests.
   soft hyphen's box for the code point next to it; that copy is left out.
 - **Recording:** paragraphs under 1,000 UTF-16 units are read code point by code point; longer ones search from each line's
   first visible character for the next line's.
-- **Pinned:** every recorded case with a visible character whose two recordings agree. A case laid out differently in its
-  two orders is page history and is never pinned. Cases with nothing visible, or a style the browser refused, aren't.
+- **Pinned:** every recorded case with a visible character whose recordings agree: its two orders, and every earlier
+  recording under the same environment key. A case laid out differently in any two is page history and is never pinned,
+  so recording again under one key only adds to that list. Cases with nothing visible, or a style the browser refused,
+  aren't.
 - **Accepted failures:** a pinned case that fails blocks unless `harness/accepted/<browser>.txt` lists it under a
   written reason. Each run prints every reason with its count and, for real-usage draws, the share of real paragraphs it
   covers. A listed case that passes again, or is no longer pinned, blocks until it leaves the list; `--accept` writes the
@@ -55,7 +57,8 @@ which need a browser:
 | Lines from rect positions | Fractional line boxes read as a wrong count, as Safari 27's did in main's harness |
 | Line-start search | Long paragraphs would take minutes per browser; a wrong search would hide or invent a book's wrong line |
 | Environment key | A browser or OS update reads as library regressions or fixes |
-| Page-history list | Cases that lay out differently after other cases block changes at random |
+| Page-history list, kept across recordings of one environment | Cases that lay out differently after other cases block changes at random; two orders alone missed 45 of WebKit's page-history cases |
+| Firefox's first document held until 15 s after launch | Emoji beside Arial lay out differently for Firefox's first 12 s: 91 cases, and the gate's fresh recording, would block at random |
 | Accepted list with reasons | Accepted losses go silent, and a fix goes unrecorded |
 | Exact widths through the adapter | Text that exactly fits its bubble wraps (a width 1/64 px short) |
 | Reverse-order predictions (gate) | Results depend on what the app prepared before |
@@ -72,8 +75,8 @@ which need a browser:
 ## Files
 
 - `recordings/<browser>.txt`: one case per line, sorted, under a `# env` header: `<id>\t<height>\t<first>-<last>:<width> ...`
-  per line, `-` for a line with no visible character. `recordings/<browser>.history.txt`: both recordings of each
-  page-history case.
+  per line, `-` for a line with no visible character. `recordings/<browser>.history.txt`: two recordings of each
+  page-history case that differ. `recordings/safari.txt` holds installed Safari's recording of 2,000 cases.
 - `accepted/<browser>.txt`: `## <reason>` headings, each followed by `<id> <status>` lines.
 - `cases/*.ndjson`: one case per line. `smoke.ndjson` holds the rebuild's hand-written smoke cases within what Pretext
   claims, and 300 real-text census cases across 18 corpora and six widths. The case sets are below.
@@ -126,5 +129,11 @@ other, so one the library doesn't model goes on the accepted list with a reason 
 Chrome and Firefox are pinned copies in `~/github/browser-engines/apps` (`HARNESS_APPS`), named in `browsers.ts`: make one
 with `ditto` from `/Applications` and bump the version there. Chrome gets its own profile, an en-US interface and one
 background window opened through the DevTools protocol; Firefox launches through LaunchServices, which macOS 27 needs.
-WebKit runs as webkit-host (`webkit-host/build.sh`), the system WebKit.framework that installed Safari runs, in a window
-below every other. Installed Safari opens a window of its own, which must stay uncovered while a job runs. Nothing takes focus.
+For about 12 s after it starts, Firefox changes fonts under a page (`PLATFORM_BUGS.md`, the late family names), so every
+Firefox job holds its first document until 15 s after launch. WebKit runs as webkit-host (`webkit-host/build.sh`), the
+system WebKit.framework that installed Safari runs, in a window below every other. Nothing takes focus.
+
+Installed Safari opens a window of its own, only while another app is frontmost, and hands the focus back if it takes it;
+the window must stay uncovered while a job runs. It is recorded on a sample drawn from every set,
+`bun harness record --browser=safari --sample=2000 --seed=20260924`, which webkit-host matched on every case but WebKit's
+page history.

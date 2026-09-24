@@ -138,6 +138,18 @@ describe('the stored recordings', () => {
     expect([...recordings.keys()]).toEqual(['kept'])
     expect([...history.keys()]).toEqual(['moved'])
   })
+
+  test('a case laid out differently from the stored recording of its environment is page history too: the gate would block at random', () => {
+    const same = layOut(TEXT, STARTS).recording
+    const other = layOut(TEXT, [0, 10, 26]).recording
+    const prior = { recordings: new Map([['kept', same], ['moved', other]]), history: new Map<string, [Recording, Recording]>([['listed', [same, other]]]) }
+    const recordings = new Map<string, Recording>()
+    const history = new Map<string, [Recording, Recording]>()
+    const both = new Map([['kept', same], ['moved', same], ['listed', same]])
+    expect(splitHistory(['kept', 'listed', 'moved'], both, both, recordings, history, prior)).toBe(1)
+    expect([...recordings.keys()]).toEqual(['kept'])
+    expect([...history.keys()].sort()).toEqual(['listed', 'moved'])
+  })
 })
 
 describe('the accepted-failures list', () => {

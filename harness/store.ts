@@ -191,15 +191,29 @@ export function caseText(c: Case): string {
 
 // The two recordings of each case, in its two orders: the same layout is kept, and a case laid out differently after
 // other cases goes on the page-history list, never pinned.
-export function splitHistory(ids: readonly string[], a: ReadonlyMap<string, Recording>, b: ReadonlyMap<string, Recording>, recordings: Map<string, Recording>, history: Map<string, [Recording, Recording]>): void {
+export type Stored = { recordings: ReadonlyMap<string, Recording>; history: ReadonlyMap<string, [Recording, Recording]> }
+
+// A case laid out differently in its two orders is page history. So is one laid out differently from, or already page
+// history in, the stored recordings of the same environment (`prior`): two orders miss some of what depends on the cases
+// before it. Returns how many differ from the stored recordings.
+export function splitHistory(ids: readonly string[], a: ReadonlyMap<string, Recording>, b: ReadonlyMap<string, Recording>, recordings: Map<string, Recording>, history: Map<string, [Recording, Recording]>, prior: Stored | null = null): number {
+  let moved = 0
   for (let i = 0; i < ids.length; i++) {
-    const first = a.get(ids[i]!)!
-    const second = b.get(ids[i]!)!
-    recordings.delete(ids[i]!)
-    history.delete(ids[i]!)
-    if (recordingText(first) === recordingText(second)) recordings.set(ids[i]!, first)
-    else history.set(ids[i]!, [first, second])
+    const id = ids[i]!
+    const first = a.get(id)!
+    const second = b.get(id)!
+    const stored = prior?.recordings.get(id)
+    const earlier = prior?.history.get(id)
+    recordings.delete(id)
+    history.delete(id)
+    if (recordingText(first) !== recordingText(second)) history.set(id, [first, second])
+    else if (earlier !== undefined) history.set(id, earlier)
+    else if (stored !== undefined && recordingText(stored) !== recordingText(first)) {
+      history.set(id, [stored, first])
+      moved++
+    } else recordings.set(id, first)
   }
+  return moved
 }
 
 export function assertSameEnvironment(browser: BrowserKind, recorded: string, live: string): void {
