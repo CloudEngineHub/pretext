@@ -61,6 +61,11 @@ which need a browser:
 | Fresh re-recording (gate) | Stored recordings stop describing the browser |
 | Layout asking Canvas nothing (test), Canvas calls per 1,000 units (printed) | Every window resize measures text again, or preparing gets slower unnoticed |
 | Two recordings kept apart, sorted and stable | The gate is green or red on another case's layout, and every recording churns in git |
+| Sample draws weighted back to their share | A rare group topped up to 300 draws moves the headline far more than it moves real apps |
+| The checked-in sample equal to what the weights draw | A changed weight scores the old usage |
+| Controls of one category merged where browsers agree | Each copy of a pasted-control family counts as a behaviour of its own |
+| Only the widths around a change, at most three per template | One input is pinned at hundreds of widths, and review drowns in near-copies |
+| One change per kind of break in the catalog | Two inputs that break alike double the review for one behaviour |
 
 ## Files
 
@@ -69,7 +74,41 @@ which need a browser:
   page-history case.
 - `accepted/<browser>.txt`: `## <reason>` headings, each followed by `<id> <status>` lines.
 - `cases/*.ndjson`: one case per line. `smoke.ndjson` holds the rebuild's hand-written smoke cases within what Pretext
-  claims, and 300 real-text census cases across 18 corpora and six widths.
+  claims, and 300 real-text census cases across 18 corpora and six widths. `sets/` makes the others (below).
+
+## Case sets
+
+`bun harness/sets/make.ts` makes every case file but the smoke set; its header lists the steps. A case's id hashes what
+the browser lays out, so making a set again keeps its ids and their recordings.
+
+| File | Cases | What it holds | Reported as |
+|---|---:|---|---|
+| `sample.ndjson` | 11,901 | The real-usage sample: 10,000 draws by `sets/weights.json`, plus the draws that bring 21 rare groups to 300 each, weighted back to their real share | The headline |
+| `catalog.ndjson` | 27,517 (13,296-14,112 per browser) | main's adversarial families, the rebuild's rule families, filed reports whose reporter measured the width, and every UAX #14 line-break class between the scripts apps mix, pairwise over the CSS settings the library takes | Behaviours modelled |
+| `facts.ndjson` | 7,781 (3,534-3,620) | The 28 engine facts `src/layout.test.ts` checks on plain text with a fake Canvas, in a browser | Behaviours modelled |
+| `rich.ndjson` | 2,306 (1,061-1,067) | Rich-inline paragraphs: styled runs, span edges, atomic chips and padded code spans, main's inline items, #120, #171, #177, #323 and main's engine facts about rich items | Behaviours modelled |
+| `reports.ndjson` | 28 | Filed reports, with the input and width as filed | Pinned cases |
+| `oracles.ndjson` | 54 | The mode oracles in `src/test-data.ts`, now in Firefox too | Pinned cases |
+
+**The sample.** A draw picks a surface (chat, AI replies, cards, documents, UI, editorial pages), a script by that
+surface's mix, a text from the pools, the style settings apps use, and a width from a device, its viewport and the
+app's rule. Every share in `weights.json` names a source or says what its guess leans on, and `pools` names each text
+pool's source and license. The rare groups (break-all, pre-wrap with newlines, URLs and long words, keep-all Korean, soft
+hyphens, Windows-only font lists, letter spacing, mixed scripts, table cells, and every script) get at least 300 draws,
+so a group with no failure is under 1% wrong with 95% confidence. A draw whose text stands in for the kind asked for
+(every chat draw, since no chat that users wrote is checked in yet) is marked, and `check` prints their share.
+
+**The searched sets** (catalog, facts, rich) start from templates, inputs without a width:
+1. `first` records each template at a coarse grid and at width 1 and 100000, in each browser.
+2. `select` merges inputs that differ only in which Cc or Cf control they hold, where all three browsers lay them out
+   alike. The catalog then keeps a change between neighbouring widths only when it shows a kind of line break no
+   earlier template showed in that browser, and every family keeps one. The facts and rich sets keep every change.
+3. `bisect` narrows each kept change to one layout unit: 1/128 px in Chrome, 1/64 px in WebKit, 1/60 px in Firefox.
+4. `cut` pins width 1 and 100000 and, per browser, the two widths of at most three exact changes per template, each a
+   new kind of break, those at 24 px and wider first.
+
+The searches' own recordings stay in `.artifacts/harness-sets/`. A behaviour narrower than 24 px is pinned like any
+other, so one the library doesn't model goes on the accepted list with a reason such as "narrower than real layouts".
 
 ## Browsers
 
