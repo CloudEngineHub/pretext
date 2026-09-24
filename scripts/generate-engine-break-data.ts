@@ -416,12 +416,14 @@ export const geckoLineTrieDataPacked = '${packTable(geckoLineData)}'
 export const geckoLineBreakStatesPacked = '${packTable(geckoLineStates)}'
 
 // icu_properties 2.1.2's Bidi_Class other than L, and its East_Asian_Width H (2), F (3) and W (5),
-// in ICU4C numbering, as flat [start - previous end - 1, end - start, value] triples.
-export const geckoBidiClassRanges: readonly number[] = ${JSON.stringify(geckoBidiClassRanges)}
-export const geckoEastAsianWidthRanges: readonly number[] = ${JSON.stringify(geckoEastAsianWidthRanges)}
+// in ICU4C numbering, as flat [start - previous end - 1, end - start, value] triples of u32
+// little-endian.
+export const geckoBidiClassRangesPacked = '${packTable(new Uint8Array(Uint32Array.from(geckoBidiClassRanges).buffer))}'
+export const geckoEastAsianWidthRangesPacked = '${packTable(new Uint8Array(Uint32Array.from(geckoEastAsianWidthRanges).buffer))}'
 
-// unicode-bidi's bracket pairs (Unicode 15): [opening, closing, normalized opening or 0].
-export const geckoBidiPairs: readonly number[] = ${JSON.stringify(geckoBidiPairs)}
+// unicode-bidi's bracket pairs (Unicode 15): [opening, closing, normalized opening or 0] as u32
+// little-endian.
+export const geckoBidiPairsPacked = '${packTable(new Uint8Array(Uint32Array.from(geckoBidiPairs).buffer))}'
 
 // icu_properties 2.1.2's Script values as a small CodePointTrie of ICU4C script codes, with the
 // index as u16 little-endian and the data as u8, and the four-letter short name of each code, for

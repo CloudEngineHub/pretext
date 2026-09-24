@@ -21,8 +21,7 @@
 //   (intl/lwbrk/LineBreaker.cpp:26-31).
 
 import {
-  geckoBidiPairs,
-  geckoEastAsianWidthRanges,
+  geckoEastAsianWidthRangesPacked,
   geckoLineBreakStatesPacked,
   geckoLineEotProperty,
   geckoLineLastCodepointProperty,
@@ -35,8 +34,8 @@ import {
   geckoScriptTrieHighStart,
   geckoScriptTrieIndexPacked,
 } from './generated/engine-break-data.js'
-import { getParagraphLevels } from './gecko-bidi-levels.js'
-import { getSmallTrieValue, unpackTable } from './line-breaks.js'
+import { getBidiPairs, getParagraphLevels } from './gecko-bidi-levels.js'
+import { getSmallTrieValue, unpackTable, unpackUint32Table } from './line-breaks.js'
 
 const CH_SHY = 0x00ad
 
@@ -76,6 +75,7 @@ let eawValues: number[] = []
 // East_Asian_Width H (2), F (3) or W (5), and 0 for any other value.
 function getEastAsianWidth(cp: number): number {
   if (eawStarts === null) {
+    const geckoEastAsianWidthRanges = unpackUint32Table(geckoEastAsianWidthRangesPacked)
     eawStarts = []
     let previousEnd = -1
     for (let i = 0; i < geckoEastAsianWidthRanges.length; i += 3) {
@@ -101,7 +101,8 @@ function getEastAsianWidth(cp: number): number {
 // has none. Those with a mirror are exactly the opening brackets of unicode-bidi's table, with
 // the mirror as the closing bracket, which the generator checks.
 function getOpenPunctuationMirror(cp: number): number {
-  for (let k = 0; k < geckoBidiPairs.length; k += 3) if (geckoBidiPairs[k] === cp) return geckoBidiPairs[k + 1]!
+  const pairs = getBidiPairs()
+  for (let k = 0; k < pairs.length; k += 3) if (pairs[k] === cp) return pairs[k + 1]!
   return cp
 }
 

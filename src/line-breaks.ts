@@ -92,6 +92,12 @@ export function unpackTable(packed: string, dictionary: Uint8Array | null = null
   return dictionary === null ? bytes : bytes.subarray(base)
 }
 
+// A packed table of 32-bit values: little-endian data, read on a little-endian platform.
+export function unpackUint32Table(packed: string): Uint32Array {
+  const bytes = unpackTable(packed)
+  return new Uint32Array(bytes.buffer, bytes.byteOffset, bytes.length >> 2)
+}
+
 // --- ICU's rule-based iterator over compiled line rules ---
 
 const DONE = -1
