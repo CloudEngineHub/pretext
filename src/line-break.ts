@@ -138,15 +138,6 @@ function getWholeSegmentFitContribution(
   return contribution === 0 ? 0 : leadingSpacing + contribution
 }
 
-function getBreakableCandidateFitWidth(
-  prepared: PreparedLineBreakData,
-  candidatePaintWidth: number,
-): number {
-  return prepared.letterSpacing === 0
-    ? candidatePaintWidth
-    : candidatePaintWidth + prepared.letterSpacing
-}
-
 // Where a line that holds only an overflowing grapheme ends: after that grapheme and
 // the graphemes after it that can't start a line, up to `endGraphemeIndex`.
 function getOverflowingFirstGraphemeEnd(
@@ -591,6 +582,7 @@ function walkPreparedComplexLines(
       return finishLine(segmentIndex + 1, 0)
     }
 
+    // A grapheme fits with the letter spacing after it.
     for (let g = startGraphemeIndex; g < endGraphemeIndex; g++) {
       const baseGw = fitAdvances[g]!
 
@@ -598,7 +590,7 @@ function walkPreparedComplexLines(
         startLineAtGrapheme(segmentIndex, g, baseGw)
         // A line that holds only this grapheme, overflowing, keeps the graphemes after
         // it that can't start a line, and ends.
-        const end = getBreakableCandidateFitWidth(prepared, baseGw) > fitLimit
+        const end = baseGw + letterSpacing > fitLimit
           ? getOverflowingFirstGraphemeEnd(prepared, segmentIndex, g, endGraphemeIndex)
           : g + 1
         if (end > g + 1) {
@@ -608,7 +600,7 @@ function walkPreparedComplexLines(
       } else {
         const gw = baseGw + (g > startGraphemeIndex ? letterSpacing : leadingSpacing)
         const candidatePaintWidth = lineW + gw
-        if (getBreakableCandidateFitWidth(prepared, candidatePaintWidth) > fitLimit) return finishLine()
+        if (candidatePaintWidth + letterSpacing > fitLimit) return finishLine()
 
         lineW = candidatePaintWidth
         lineEndSegmentIndex = segmentIndex
@@ -804,7 +796,7 @@ function walkPreparedComplexLines(
           for (let g = 0; g < endGraphemeLimit; g++) {
             advance += fitAdvances[g]! + (g > 0 ? letterSpacing : 0)
           }
-          if (getBreakableCandidateFitWidth(prepared, lineW + advance) <= fitLimit) {
+          if (lineW + advance + letterSpacing <= fitLimit) {
             lineW += advance
             lineWidth = finishLine(endSegmentLimit, endGraphemeLimit, lineW)
           } else {
