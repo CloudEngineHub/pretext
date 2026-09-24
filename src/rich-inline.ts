@@ -7,6 +7,7 @@ import {
   analyzeText,
   getSharedGraphemeSegmenter,
   getSharedWordSegmenter,
+  isCollapsibleSpaceCode,
   removeSkippableSegmentBreaks,
   type AnalysisProfile,
   type SegmentBreakKind,
@@ -154,10 +155,6 @@ function isLineStartCursor(cursor: LayoutCursor): boolean {
 function isBeforeCursor(cursor: LayoutCursor, target: LayoutCursor): boolean {
   return cursor.segmentIndex < target.segmentIndex ||
     (cursor.segmentIndex === target.segmentIndex && cursor.graphemeIndex < target.graphemeIndex)
-}
-
-function isCollapsibleBoundaryWhitespace(code: number): boolean {
-  return code === 0x20 || code === 0x09 || code === 0x0A || code === 0x0C || code === 0x0D
 }
 
 function getCollapsedSpaceWidth(font: string, letterSpacing: number, documentLanguage: string | null): number {
@@ -479,7 +476,7 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
     // Context from a neighboring item is not modeled.
     const text = removeSkippableSegmentBreaks(item.text, profile, documentLanguage)
     let start = 0
-    while (start < text.length && isCollapsibleBoundaryWhitespace(text.charCodeAt(start))) start++
+    while (start < text.length && isCollapsibleSpaceCode(text.charCodeAt(start))) start++
 
     if (start === text.length) {
       if (start > 0 && pendingGapWidth === null) {
@@ -492,7 +489,7 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
     // Scan from the ends once. A trailing-whitespace regex retries every
     // position in a long internal space run when later content prevents a match.
     let end = text.length
-    while (end > start && isCollapsibleBoundaryWhitespace(text.charCodeAt(end - 1))) end--
+    while (end > start && isCollapsibleSpaceCode(text.charCodeAt(end - 1))) end--
     const hasLeadingWhitespace = start > 0
     const hasTrailingWhitespace = end < text.length
     const whitespaceBefore = pendingGapWidth !== null || hasLeadingWhitespace

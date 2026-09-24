@@ -31,7 +31,9 @@ export type Segmentation = {
   clusterSplits: boolean[] | null
 }
 
-export type TextAnalysis = { source: string; normalized: string } & Segmentation
+// `spaceSources` holds, in the WebKit profile where normal white space collapsed, the source
+// unit each normalized unit starts from, such as the TAB or LF a space came from. Null otherwise.
+export type TextAnalysis = { source: string; normalized: string; spaceSources: Uint16Array | null } & Segmentation
 
 export type AnalysisProfile = {
   lineBreakScan: 'blink' | 'webkit' | 'gecko'
@@ -178,7 +180,7 @@ export function isNumericRunSegment(text: string): boolean {
   return numericRunRe.test(text)
 }
 
-function isCollapsibleSpaceCode(code: number): boolean {
+export function isCollapsibleSpaceCode(code: number): boolean {
   return code === 0x20 || code === 0x09 || code === 0x0A || code === 0x0D || code === 0x0C
 }
 
@@ -189,7 +191,8 @@ function isCollapsibleSpaceCode(code: number): boolean {
 // space, follows white space, so it is a break after what the run became. A 2 goes with
 // its unit: Gecko's cluster start without a break, which only a unit that stays text
 // reads, and WebKit's forced break after a separator, which keeps its 2 at the end too.
-function mapSourceLineBreaks(source: string, normalizedLength: number, sourceBreaks: Uint8Array, whiteSpace: WhiteSpaceMode): Uint8Array {
+// Fills spaceSources, when given, in normal white space.
+function mapSourceLineBreaks(source: string, normalizedLength: number, sourceBreaks: Uint8Array, whiteSpace: WhiteSpaceMode, spaceSources: Uint16Array | null): Uint8Array {
   const breaks = new Uint8Array(normalizedLength + 1)
   let normalizedIndex = 0
   if (whiteSpace === 'pre-wrap') {
@@ -212,6 +215,7 @@ function mapSourceLineBreaks(source: string, normalizedLength: number, sourceBre
       if (end === source.length) break
     }
     if (sourceBreaks[i] === 2 && breaks[normalizedIndex] === 0) breaks[normalizedIndex] = 2
+    if (spaceSources !== null) spaceSources[normalizedIndex] = source.charCodeAt(i)
     const start = i
     for (; i < end; i++) {
       if ((sourceBreaks[i]! & 1) === 1) breaks[i === start ? normalizedIndex : normalizedIndex + 1] = sourceBreaks[i]!
@@ -324,6 +328,7 @@ export function analyzeText(
     return {
       source: text,
       normalized,
+      spaceSources: null,
       len: 0,
       texts: [],
       kinds: [],
@@ -334,6 +339,7 @@ export function analyzeText(
   }
   const keepAll = wordBreak === 'keep-all'
   let breaks: Uint8Array
+  let spaceSources: Uint16Array | null = null
   if (profile.lineBreakScan === 'blink') {
     breaks = getBlinkLineBreaks(normalized, keepAll, language, getSharedWordSegmenter())
   } else {
@@ -341,11 +347,13 @@ export function analyzeText(
     const sourceBreaks = profile.lineBreakScan === 'webkit'
       ? getWebKitLineBreaks(source, preserve, keepAll, language, getSharedWordSegmenter())
       : getGeckoLineBreaks(source, preserve, keepAll, getSharedGraphemeSegmenter(), getSharedWordSegmenter())
-    breaks = source === normalized ? sourceBreaks : mapSourceLineBreaks(source, normalized.length, sourceBreaks, whiteSpace)
+    if (profile.lineBreakScan === 'webkit' && !preserve && source !== normalized) spaceSources = new Uint16Array(normalized.length)
+    breaks = source === normalized ? sourceBreaks : mapSourceLineBreaks(source, normalized.length, sourceBreaks, whiteSpace, spaceSources)
   }
   return {
     source: text,
     normalized,
+    spaceSources,
     ...segmentAtLineBreaks(normalized, breaks, whiteSpace, profile.lineBreakScan),
   }
 }

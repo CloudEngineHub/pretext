@@ -168,10 +168,6 @@ function needsComplexTextPath(text: string): boolean {
   return false
 }
 
-function isCollapsibleWhitespaceCode(code: number): boolean {
-  return code === 0x20 || code === 0x09 || code === 0x0a || code === 0x0d || code === 0x0c
-}
-
 const explicitBidiControlRe = /[\u202A-\u202E\u2066-\u2069]/
 // Format characters stand for bidi class BN, except the direction marks LRM,
 // RLM and ALM, which are strong characters like letters.
@@ -212,30 +208,11 @@ function measureAnalysis(
   const tabStopAdvance = spaceWidth * 8
   const hasLetterSpacing = letterSpacing !== 0
 
-  // Collapsible runs keep their first source character for engines that look
-  // at the source after a text item. Built only when normalization changed it.
-  let collapsedRunSources: Uint16Array | null = null
+  // A collapsed space's first source character, for engines that look at the
+  // source after a text item.
   function getSpaceSourceCode(analysisIndex: number): number {
     const start = analysis.starts[analysisIndex]!
-    if (analysis.kinds[analysisIndex] !== 'space' || analysis.source === analysis.normalized) {
-      return analysis.normalized.charCodeAt(start)
-    }
-    if (collapsedRunSources === null) {
-      const { source, normalized } = analysis
-      collapsedRunSources = new Uint16Array(normalized.length)
-      let sourceIndex = 0
-      while (sourceIndex < source.length && isCollapsibleWhitespaceCode(source.charCodeAt(sourceIndex))) sourceIndex++
-      for (let normalizedIndex = 0; normalizedIndex < normalized.length; normalizedIndex++) {
-        const code = source.charCodeAt(sourceIndex)
-        collapsedRunSources[normalizedIndex] = code
-        if (!isCollapsibleWhitespaceCode(code)) {
-          sourceIndex++
-          continue
-        }
-        while (sourceIndex < source.length && isCollapsibleWhitespaceCode(source.charCodeAt(sourceIndex))) sourceIndex++
-      }
-    }
-    return collapsedRunSources[start]!
+    return analysis.spaceSources === null ? analysis.normalized.charCodeAt(start) : analysis.spaceSources[start]!
   }
 
   // A WebKit text item runs to its next break opportunity, so it also owns any
