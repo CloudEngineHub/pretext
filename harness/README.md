@@ -33,7 +33,9 @@ another build's `src/`. `bun test harness` runs the offline tests.
 - **Accepted failures:** a pinned case that fails blocks unless `harness/accepted/<browser>.txt` lists it under a
   written reason. Each run prints every reason with its count and, for real-usage draws, the share of real paragraphs it
   covers. A listed case that passes again, or is no longer pinned, blocks until it leaves the list; `--accept` writes the
-  new failures under its reason and removes those.
+  new failures under its reason and removes those. The lists hold the hybrid's failures (hybrid-pr at f893622), since
+  the gate protects its passes, so `check` blocks on main's own `src/` until the hybrid lands; `--lib` with the
+  hybrid's `src/` is green.
 - **Real-usage sample:** cases with `sample: { group, weight }` give the headline, the weighted share of real paragraphs
   right with a 95% interval from resampling within groups. It also prints the share of the weight outside what Pretext
   claims (break-all, rich-inline in pre-wrap, system-ui font lists) and the share right without it.
