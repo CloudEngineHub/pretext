@@ -157,6 +157,51 @@ rows' hot `layout()` is slower in Chrome for `soft-hyphens`, 1.55 µs per text
 `soft-hyphens` and `controls` rows are bimodal on main and this branch alike.
 The pre-wrap line-range rows read 5 to 12% slower in Chrome.
 
+Five later commits change only what the engine costs: `layout()`'s counter starts
+every line at 0 and adds its widths, the scans keep their iterator state in plain
+objects instead of classes, the tables unpack with native copies, the Gecko
+range and bracket tables ship packed, and text whose segments have fresh-line
+tail widths keeps the simple walkers. Every wrapping-suite prediction under the
+Blink, WebKit and Gecko profiles is the same before and after them. So are
+`prepareWithSegments()`, `prepare()`, `layout()`, `walkLineRanges()`,
+`layoutNextLine()` and `measureLineStats()` at 22 widths on every corpus paragraph,
+the benchmark page's shape rows and pre-wrap texts and 3,000 generated texts with
+invisible joiners, marks and bidi controls, except that some line widths in texts
+the last commit moves to the simple walkers differ in the last bits (under
+10⁻⁹px), and the three scans give the same breaks on 23,193 inputs. The layout
+bundle comes out 1,386 bytes smaller minified and 1,164 bytes larger gzipped, and
+runtime source 46 lines longer.
+
+Same-document timing put main `b17a7ac`, the branch before these commits
+(`de4ad72`), the branch after them and main again as the control in each document,
+in Chrome 153, Firefox 156 and Safari 27.0, foreground. Ratios are to main:
+- `layout()` of chat messages: Firefox 0.82 to 0.98 (1.42 to 1.76 before),
+  except mixed-script messages at new widths, 1.14; Safari 0.83 to 0.98 (0.77 to
+  1.08); Chrome 0.77 to 1.03 as before.
+- A fresh page's evaluation and first batch: Firefox 1.02 to 1.34 (1.09 to
+  1.45), Chrome 0.99 to 1.09 (1.12 to 1.22), Safari 1.07 to 1.17 (1.32 to 1.49).
+  Firefox's bundle compile falls from 2.6ms to 1.1-1.2ms (main 1.0ms).
+- The benchmark page's hot `layout()`: the control row 2.05 in Chrome, 4.72 in
+  Firefox and 1.18 in Safari (3.53, 7.03 and 1.22), and the invisible-tails row
+  0.80, 1.07 and 1.01 (1.00, 1.72 and 1.09). Soft hyphens, 1.37 to 1.63,
+  letter-spaced CJK, 1.15 to 1.32, and the pre-wrap rows, 1.05 to 1.44, don't
+  move.
+- `prepare()` doesn't move, except Firefox's seen Arabic messages at 1.18 (1.20).
+
+The Chrome and Safari benchmark snapshots were refreshed again, from three
+foreground runs each at DPR 2, visible and focused, on the 2560x1440 screen at a
+load average near 6. Against the earlier snapshots, taken in another session, the
+shape rows' hot `layout()` reads the control row at 0.20µs per text in Chrome
+(0.34) and invisible tails at 0.24 (0.27). Rows the same-document timing shows
+unmoved, such as soft hyphens, letter-spaced CJK and the pre-wrap rows, read 5 to
+19% higher than in the earlier session. To tell the session from the commits, the
+page ran again with the branch before these commits and after them alternating,
+before, after, after, before. Over all rows the two read the same, a geometric
+mean of 1.00 in Chrome and 1.01 in Safari, while the same tree's two runs differed
+by up to 1.33 and 1.43 at the 90th percentile; only Chrome's control row, 0.57, and
+invisible tails, 0.81, moved. The branch before these commits read 21% above its
+own snapshot in Chrome and 4% in Safari, so the rise is the session's.
+
 The baseline advances to `f4374a3`, and the ordinary snapshots were regenerated
 against it in Chrome 153, Safari 27.0 and Firefox 156, with no regressions,
 required failures or execution errors. Accuracy stays 7,680 of 7,680 in each
