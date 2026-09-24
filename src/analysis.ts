@@ -97,10 +97,12 @@ export function removeSkippableSegmentBreaks(text: string, profile: AnalysisProf
 // Every East Asian wide, fullwidth or halfwidth character is at or above U+1100.
 const maybeEastAsianRe = /[\u1100-\uFFFF]/
 
-export function normalizeWhitespaceNormal(text: string, profile: AnalysisProfile, language: string | null = null): string {
+// Normal white space after the segment break transformation: each run of SPACE, TAB, LF,
+// CR and FF becomes one space, or nothing at either end.
+function collapseWhitespaceNormal(text: string): string {
   if (!needsWhitespaceNormalizationRe.test(text)) return text
 
-  let normalized = removeSkippableSegmentBreaks(text, profile, language).replace(collapsibleWhitespaceRunRe, ' ')
+  let normalized = text.replace(collapsibleWhitespaceRunRe, ' ')
   if (normalized.charCodeAt(0) === 0x20) {
     normalized = normalized.slice(1)
   }
@@ -330,9 +332,10 @@ export function analyzeText(
   // quotation remap and Gecko's rule for newlines next to East Asian punctuation.
   language: string | null = null,
 ): TextAnalysis {
-  const normalized = whiteSpace === 'pre-wrap'
-    ? normalizeWhitespacePreWrap(text)
-    : normalizeWhitespaceNormal(text, profile, language)
+  const preserve = whiteSpace === 'pre-wrap'
+  // The source a text node's engine scans, after the segment break transformation.
+  const source = preserve ? text : removeSkippableSegmentBreaks(text, profile, language)
+  const normalized = preserve ? normalizeWhitespacePreWrap(text) : collapseWhitespaceNormal(source)
   if (normalized.length === 0) {
     return {
       source: text,
@@ -350,10 +353,7 @@ export function analyzeText(
   if (profile.lineBreakScan === 'blink') {
     breaks = getBlinkLineBreaks(normalized, keepAll, language, getSharedWordSegmenter())
   } else {
-    // WebKit and Gecko scan a text node's source, after the segment break transformation.
-    // Gecko's scan collapses the rest of its white space as Firefox does.
-    const preserve = whiteSpace === 'pre-wrap'
-    const source = preserve ? text : removeSkippableSegmentBreaks(text, profile, language)
+    // WebKit and Gecko scan the source. Gecko's scan collapses its white space as Firefox does.
     const sourceBreaks = profile.lineBreakScan === 'webkit'
       ? getWebKitLineBreaks(source, preserve, keepAll, language, getSharedWordSegmenter())
       : getGeckoLineBreaks(source, preserve, keepAll, getSharedGraphemeSegmenter(), getSharedWordSegmenter())
