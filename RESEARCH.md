@@ -1206,6 +1206,14 @@ scan break, so it never searches back for a cut. Other text still counts through
 the full walker. This removes work from the resize path without changing
 preparation or what it measures.
 
+Every counted line starts at 0 and adds the widths on it. A counter that sets a
+new line's width straight from its first segment's width or grapheme advance
+counts the same lines, but in Firefox 156 it took 1.4 to 1.7 times as long as
+main's `layout()` on chat messages in every script tested, same-document
+interleaved, while main's loop on the same prepared text took 1.0. Changing
+main's loop one step at a time toward it slowed only that step. Starting each
+line at 0 gave 0.87 to 1.04 there.
+
 Count total submitted Canvas text, not just calls. Measuring every prefix or
 suffix is quadratic even if each position triggers only one query. Safari's
 production prefix policy caps each segment at 96 graphemes, using pair context

@@ -322,6 +322,9 @@ export function countPreparedLines(prepared: PreparedLineBreakData, maxWidth: nu
   const fitLimit = Math.max(0, maxWidth) + getEngineProfile().lineFitEpsilon
   const segmentCount = widths.length
   let count = 0
+  // Every line starts at 0 and adds its content's widths. Firefox runs this loop
+  // about 1.6 times as long when a line's width is set from a segment's width
+  // instead (RESEARCH.md, Keeping Work Bounded).
   let lineW = 0
   let hasContent = false
 
@@ -340,6 +343,7 @@ export function countPreparedLines(prepared: PreparedLineBreakData, maxWidth: nu
         continue
       }
       count++
+      lineW = 0
       hasContent = false
       if (kind !== 'text') continue
     } else if (kind === 'space' || (kind === 'zero-width-break' && i !== first)) {
@@ -349,7 +353,7 @@ export function countPreparedLines(prepared: PreparedLineBreakData, maxWidth: nu
     const startW = lineStartExtras === null ? w : w + lineStartExtras[i]!
     const advances = breakableFitAdvances[i]!
     if (startW - endTrim <= fitLimit || advances === null) {
-      lineW = startW
+      lineW += startW
       hasContent = true
       continue
     }
@@ -358,24 +362,24 @@ export function countPreparedLines(prepared: PreparedLineBreakData, maxWidth: nu
     // can't start a line.
     const prohibitions = lineStartProhibitions?.[i] ?? null
     let g = 0
-    while (true) {
-      lineW = advances[g]!
-      g++
+    while (g < advances.length) {
+      lineW += advances[g++]!
       if (prohibitions !== null && lineW > fitLimit) {
         const kept = g
         while (g < advances.length && prohibitions.includes(g)) lineW += advances[g++]!
         if (g > kept) {
           count++
-          if (g === advances.length) break
+          lineW = 0
           continue
         }
       }
       while (g < advances.length && lineW + advances[g]! <= fitLimit) lineW += advances[g++]!
-      if (g === advances.length) {
+      if (g < advances.length) {
+        count++
+        lineW = 0
+      } else {
         hasContent = true
-        break
       }
-      count++
     }
   }
   return count + (hasContent ? 1 : 0)
