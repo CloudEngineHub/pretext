@@ -202,6 +202,28 @@ by up to 1.33 and 1.43 at the 90th percentile; only Chrome's control row, 0.57, 
 invisible tails, 0.81, moved. The branch before these commits read 21% above its
 own snapshot in Chrome and 4% in Safari, so the rise is the session's.
 
+The full walker now hangs U+3000 before an overflowing collapsible space as the
+simple walkers do: the content before the space fits and paints without the U+3000
+run it ends with. Letter-spaced CJK text always takes the full walker, so there
+`a`, U+3000, LF, `word` at 24px reported 24.9px where Firefox paints 8.9px, and a
+line that fit only because its U+3000 run hung ended before the space instead of
+after it. No line count moves. The installed gate changes 16 rows in each direction
+in Chrome and Firefox, all of them line widths, and none in Safari, which doesn't
+hang U+3000. Firefox's Range extents match all 16 now, where they matched none
+before; Chrome's include the hung run and the space after it, so neither width
+matches there. The lab's in-page pass with each browser's Canvas over 125k inputs per
+browser found 486 texts in Chrome and 429 in Firefox whose lines or widths change:
+16 suite texts and generated strings, no corpus paragraph. At the widths where they
+change, the natives move no line count. Against Firefox's extents 228 line widths
+are fixed and 8 lost: 4 lines that hold only the run, which the simple walkers
+already report at no width, and 4 where Firefox's 1/60px rounding fits the line with
+the run. Against Chrome's, leaving out the hung characters, 158 are fixed and 28
+lost, all lines that hold only the run. Rich-inline gains 7 line counts at 24px or
+wider in each of Chrome and Firefox and loses none. On 20,000 generated texts with
+U+3000, spaces and no-break spaces, the full walker and the simple walkers disagreed
+at 82,678 widths under the Blink profile and 51,015 under the Gecko profile before,
+and agree everywhere after. Runtime source grows by 2 lines.
+
 The baseline advances to `f4374a3`, and the ordinary snapshots were regenerated
 against it in Chrome 153, Safari 27.0 and Firefox 156, with no regressions,
 required failures or execution errors. Accuracy stays 7,680 of 7,680 in each

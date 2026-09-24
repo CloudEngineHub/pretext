@@ -3938,6 +3938,7 @@ describe('layout invariants', () => {
       // A collapsible space after the run hangs with it.
       ['中中\u3000 中', 40, ['中中\u3000 ', '中'], [32, 16]],
       ['中中\u3000 中', 31, ['中', '中\u3000 ', '中'], [16, 16, 16]],
+      ['中 中\u3000 中', 40, ['中 中\u3000 ', '中'], [32 + measureWidth(' ', FONT), 16]],
     ] as const) {
       const prepared = prepareWithSegments(text, FONT)
       const lines = layoutWithLines(prepared, width, LINE_HEIGHT)
@@ -3945,6 +3946,9 @@ describe('layout invariants', () => {
         .toEqual({ text, width, lines: [...expected], widths: [...widths] })
       expect(countPreparedLines(prepared, width)).toBe(expected.length)
       expect(layout(prepare(text, FONT), width, LINE_HEIGHT).lineCount).toBe(expected.length)
+      // The complex walker, which letter-spaced text takes, hangs the run too.
+      const complex = { ...prepared, simpleLineWalkFastPath: false } as typeof prepared
+      expect(layoutWithLines(complex, width, LINE_HEIGHT)).toEqual(lines)
     }
     // After a soft hyphen the line ends hyphenated, and the hyphen has to fit.
     const hyphenated = prepare('中中\u00AD\u3000中', FONT)

@@ -739,12 +739,14 @@ function walkPreparedComplexLines(
         // A run of preserved spaces and tabs fits where the text before it fits.
         const newFitW = hangs ? hangStartWidth : lineW + fitAdvance
         if (newFitW - endTrim > fitLimit) {
-          // A break segment hangs with the gap before it. A collapsible space or
-          // ZWSP hangs even after overflowing content that started the line, as
-          // the simple stepper does; a preserved space there starts the next line.
-          if (breakAfter && (lineW <= fitLimit ||
+          // A break segment hangs with the gap before it, after the content before
+          // it, which fits without its line-end trim. A collapsible space or ZWSP
+          // hangs even after overflowing content that started the line, as the
+          // simple stepper does; a preserved space there starts the next line.
+          const contentW = lineW - lineEndTrimmed
+          if (breakAfter && (contentW <= fitLimit ||
             (pendingBreakSegmentIndex < 0 && (kind === 'space' || kind === 'zero-width-break')))) {
-            const currentBreakWidth = hangs ? hangStartWidth : kind === 'tab' ? lineW + advance : lineW
+            const currentBreakWidth = hangs ? hangStartWidth : kind === 'tab' ? lineW + advance : contentW
             appendWholeSegment(i, advance)
             lineWidth = finishLine(i + 1, 0, currentBreakWidth)
             break lineLoop
