@@ -69,6 +69,12 @@ export type PreparedLineBreakData = {
   tabStopAdvance: number // Absolute advance between tab stops for pre-wrap tab segments
 }
 
+// A walk's line count and its widest line.
+export type WalkedLineStats = {
+  lineCount: number
+  maxLineWidth: number
+}
+
 type InternalLineVisitor = (
   width: number,
   startSegmentIndex: number,
@@ -202,32 +208,34 @@ export function normalizePreparedLineStart(
   }
 }
 
+// Walks every line of the text into `stats`, visiting each, and returns the line count.
 export function walkPreparedLinesRaw(
   prepared: PreparedLineBreakData,
   maxWidth: number,
   onLine?: InternalLineVisitor,
+  stats: WalkedLineStats = { lineCount: 0, maxLineWidth: 0 },
 ): number {
   const cursor: LineBreakCursor = { segmentIndex: 0, graphemeIndex: 0 }
   if (!prepared.simpleLineWalkFastPath) {
-    if (!normalizePreparedLineStart(prepared, cursor)) return 0
-    return walkPreparedComplexLines(prepared, cursor, maxWidth, onLine).lineCount
+    if (normalizePreparedLineStart(prepared, cursor)) walkPreparedComplexLines(prepared, cursor, maxWidth, onLine, stats)
+    return stats.lineCount
   }
   // A fast-path handle is one chunk of text, spaces and ZWSPs, so each line steps
   // from where the last one ended, past what a line can't start with.
   const { segmentFlags } = prepared
   const segmentCount = segmentFlags.length
-  let lineCount = 0
   while (true) {
     let startSegmentIndex = cursor.segmentIndex
     const atTextStart = startSegmentIndex === 0
     while (startSegmentIndex < segmentCount && consumesAtLineStart(segmentFlags[startSegmentIndex]! & KIND_BITS, atTextStart)) {
       startSegmentIndex++
     }
-    if (startSegmentIndex >= segmentCount) return lineCount
+    if (startSegmentIndex >= segmentCount) return stats.lineCount
     const startGraphemeIndex = cursor.graphemeIndex
     cursor.segmentIndex = startSegmentIndex
     const width = stepPreparedSimpleLineGeometry(prepared, cursor, maxWidth)!
-    lineCount++
+    stats.lineCount++
+    if (width > stats.maxLineWidth) stats.maxLineWidth = width
     onLine?.(width, startSegmentIndex, startGraphemeIndex, cursor.segmentIndex, cursor.graphemeIndex)
   }
 }
@@ -346,15 +354,17 @@ export function canReturnFromUnfitHyphen(
   return true
 }
 
-// The full walker, for text the simple walkers don't cover, from a normalized line
-// start: every line, or with `singleLine` one. Every line state is a local of this
-// one function, with no closure over it: V8 boxes a captured number, so each write
-// to one cost 12-14ns there against about 1ns for a local.
+// The full walker, for text the simple walkers don't cover: from a normalized line
+// start, every line into `stats`, or with `singleLine` one line, whose width it
+// returns (null without one). Every line state is a local of this one function,
+// with no closure over it: V8 boxes a captured number, so each write to one cost
+// 12-14ns there against about 1ns for a local.
 function walkPreparedComplexLines(
   prepared: PreparedLineBreakData,
   cursor: LineBreakCursor,
   maxWidth: number,
-  onLine?: InternalLineVisitor,
+  onLine: InternalLineVisitor | undefined,
+  stats: WalkedLineStats | null,
   singleLine = false,
   // A single-line caller can end stepping at an ordinary break before this
   // cursor, as if the text continued past it. JavaScriptCore walked letter-spaced
@@ -362,7 +372,7 @@ function walkPreparedComplexLines(
   // as a double.
   endSegmentLimit = prepared.segmentFlags.length,
   endGraphemeLimit = 0,
-): { lineCount: number; lastLineWidth: number | null } {
+): number | null {
   const {
     widths,
     segmentFlags,
@@ -395,7 +405,6 @@ function walkPreparedComplexLines(
   const retreatsAtFullWidth = retreatsFromUnfitHyphen && engineProfile.unfitHyphenRetreat === 'full-width'
   const reservedHyphenWidth = retreatsAtFullWidth ? 0 : discretionaryHyphenWidth
 
-  let lineCount = 0
   let lastLineWidth: number | null = null
   while (true) {
     const lineStartSegmentIndex = cursor.segmentIndex
@@ -765,12 +774,15 @@ function walkPreparedComplexLines(
     }
     if (lineWidth === null) break
     lastLineWidth = lineWidth
-    lineCount++
+    if (stats !== null) {
+      stats.lineCount++
+      if (lineWidth > stats.maxLineWidth) stats.maxLineWidth = lineWidth
+    }
     onLine?.(lineWidth, lineStartSegmentIndex, lineStartGraphemeIndex, cursor.segmentIndex, cursor.graphemeIndex)
     // A single-line caller owns normalization of the following line.
     if (singleLine || !normalizePreparedLineStart(prepared, cursor)) break
   }
-  return { lineCount, lastLineWidth }
+  return lastLineWidth
 }
 
 function stepPreparedSimpleLineGeometry(
@@ -865,7 +877,7 @@ export function stepPreparedLineGeometryFromStart(
     return stepPreparedSimpleLineGeometry(prepared, cursor, maxWidth)
   }
 
-  return walkPreparedComplexLines(prepared, cursor, maxWidth, undefined, true, endSegmentIndex, endGraphemeIndex).lastLineWidth
+  return walkPreparedComplexLines(prepared, cursor, maxWidth, undefined, null, true, endSegmentIndex, endGraphemeIndex)
 }
 
 export function stepPreparedLineGeometry(
@@ -879,16 +891,8 @@ export function stepPreparedLineGeometry(
   return stepPreparedLineGeometryFromStart(prepared, cursor, maxWidth, endSegmentIndex, endGraphemeIndex)
 }
 
-export function measurePreparedLineGeometry(
-  prepared: PreparedLineBreakData,
-  maxWidth: number,
-): {
-  lineCount: number
-  maxLineWidth: number
-} {
-  let maxLineWidth = 0
-  const lineCount = walkPreparedLinesRaw(prepared, maxWidth, width => {
-    if (width > maxLineWidth) maxLineWidth = width
-  })
-  return { lineCount, maxLineWidth }
+export function measurePreparedLineGeometry(prepared: PreparedLineBreakData, maxWidth: number): WalkedLineStats {
+  const stats = { lineCount: 0, maxLineWidth: 0 }
+  walkPreparedLinesRaw(prepared, maxWidth, undefined, stats)
+  return stats
 }
