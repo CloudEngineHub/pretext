@@ -160,8 +160,12 @@ export function searchLineEnds(text: string, lines: Lines, rectsAt: RectsAt): Li
   return ends
 }
 
-// Each line's width: the horizontal extent of the text box rects on it that have positive size.
-export function lineWidths(rects: readonly Rect[], lines: Lines): number[] {
+// Each line's width: the horizontal extent of the text box rects on it that have positive size, less the U+0020 spaces
+// that end it. Those hang past the line end, so a box sized to the text needs no room for them, and the library's line
+// widths leave them out too; the shrink-wrap check compares the two. A trailing space counts only where its box reaches
+// within a pixel of either end of the line, since WebKit gives a character's box in whole pixels; that leaves a space
+// inside a line that bidi reordering ends elsewhere.
+export function lineWidths(text: string, rects: readonly Rect[], lines: Lines, ends: LineEnds, rectsAt: RectsAt): number[] {
   const left = Array.from({ length: lines.lo.length }, () => Infinity)
   const right = Array.from({ length: lines.lo.length }, () => -Infinity)
   for (let i = 0; i < rects.length; i++) {
@@ -172,7 +176,18 @@ export function lineWidths(rects: readonly Rect[], lines: Lines): number[] {
     right[line] = Math.max(right[line]!, rect.x + rect.width)
   }
   const widths: number[] = []
-  for (let i = 0; i < left.length; i++) widths.push(right[i]! >= left[i]! ? right[i]! - left[i]! : 0)
+  for (let line = 0; line < left.length; line++) {
+    for (let offset = ends.last[line]!; offset >= 0 && offset >= ends.first[line]! && text.charCodeAt(offset) === 0x20; offset--) {
+      const space = rectsAt(offset)
+      for (let i = 0; i < space.length; i++) {
+        const rect = space[i]!
+        if (!(rect.width > 0 && rect.height > 0) || lineOf(lines, rect) !== line) continue
+        if (rect.x < right[line]! && right[line]! <= rect.x + rect.width + 1) right[line] = rect.x
+        else if (rect.x - 1 <= left[line]! && left[line]! < rect.x + rect.width) left[line] = rect.x + rect.width
+      }
+    }
+    widths.push(right[line]! >= left[line]! ? right[line]! - left[line]! : 0)
+  }
   return widths
 }
 
@@ -181,7 +196,7 @@ export function recordedLines(text: string, nodeRects: readonly Rect[], lineHeig
   const lines = groupLines(nodeRects, lineHeight)
   const rectsAt = hyphenCopies ? withoutHyphenCopies(text, browserRectsAt) : browserRectsAt
   const ends = (text.length >= SEARCH_FROM_UNITS ? searchLineEnds(text, lines, rectsAt) : null) ?? scanLineEnds(text, lines, rectsAt)
-  const widths = lineWidths(nodeRects, lines)
+  const widths = lineWidths(text, nodeRects, lines, ends, rectsAt)
   const out: RecordedLine[] = []
   for (let i = 0; i < widths.length; i++) out.push({ first: ends.first[i]!, last: ends.last[i]!, width: widths[i]! })
   return out

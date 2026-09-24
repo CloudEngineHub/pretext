@@ -106,6 +106,13 @@ describe('the pass rule', () => {
     expect(reads() - before - scanReads).toBeLessThan(scanReads)
   })
 
+  test('a line\'s width leaves out the spaces that end it: every bubble sized to its text would read as a space too narrow', () => {
+    // "The quick " is 8 code points of 8 px and two spaces of 4 px; the box it needs is 68 px, not 72.
+    const { recording } = layOut(TEXT, STARTS)
+    if ('error' in recording) throw new Error('unreachable')
+    expect(recording.lines.map(line => line.width)).toEqual([68, 68, 76, 88])
+  })
+
   test('a prediction whose breaks move with what was prepared before is order-dependent, one whose widths alone move is not: the gate would block on Chrome\'s shape cache in main too', () => {
     const forward = predicted(TEXT, STARTS)
     const widths = predicted(TEXT, STARTS)

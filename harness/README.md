@@ -38,6 +38,7 @@ another build's `src/`. `bun test harness` runs the offline tests.
   right with a 95% interval from resampling within groups. It also prints the share of the weight outside what Pretext
   claims (break-all, rich-inline in pre-wrap, system-ui font lists) and the share right without it.
 - **Shrink-wrap, report only:** a bubble sized to the predicted widest line, rounded up, is at least the browser's widest line.
+  A recorded line's width leaves out the U+0020 spaces that end it, which hang past the line end, as the library's widths do.
 - **Environment key:** browser build, OS build, the OS's and the page's languages, device pixel ratio and the web fonts
   served. The harness refuses to score recordings made under another key.
 
@@ -46,7 +47,9 @@ do; a random sample recorded again must equal the recordings; and each new failu
 document (page history if it differs) and predicted alone (order-dependent if its breaks move), else reported as a true
 loss with its family, width band and first differing line. Predictions whose line widths alone move with the order are
 printed, not blocked: Chrome's per-canvas shape caches (Chromium #560614560) and a Firefox width-1 case move them in main
-too, and widths only reach the shrink-wrap check, which reports.
+too, and widths only reach the shrink-wrap check, which reports. Those caches also move the breaks of six old-gate cases
+(Arabic with vowel marks before brackets), and Firefox's start-up two emoji cases at the edge of a fit, in main as in
+the hybrid, so the gate blocks on them for both.
 
 What each piece catches, as an app developer would see it. `bun test harness` plants each fault except the gate's two,
 which need a browser:
@@ -63,6 +66,7 @@ which need a browser:
 | Firefox's first document held until 15 s after launch | Emoji beside Arial lay out differently for Firefox's first 12 s: 91 cases, and the gate's fresh recording, would block at random |
 | Accepted list with reasons | Accepted losses go silent, and a fix goes unrecorded |
 | Exact widths through the adapter | Text that exactly fits its bubble wraps (a width 1/64 px short) |
+| Recorded widths without the spaces that end a line | The shrink-wrap check calls a bubble a space too narrow; that was 94% of Chrome's misses before |
 | Reverse-order predictions (gate), judged by where lines break | A message wraps differently depending on what the app prepared before; widths moved by Chrome's shape caches would block main too |
 | Fresh re-recording (gate) | Stored recordings stop describing the browser |
 | Layout asking Canvas nothing (test), Canvas calls per 1,000 units (printed) | Every window resize measures text again, or preparing gets slower unnoticed |
@@ -85,8 +89,8 @@ which need a browser:
 
 ## Case sets
 
-`bun harness/sets/make.ts` makes every case file but the smoke, census and book sets, which are the rebuild's, taken
-once; its header lists the steps. A case's id hashes what the browser lays out, so making a set again keeps its ids and
+`bun harness/sets/make.ts` makes every case file but the smoke, census and book sets, which are the rebuild's, and the
+old-gate and follow-up sets, all taken once; its header lists the steps. A case's id hashes what the browser lays out, so making a set again keeps its ids and
 their recordings.
 
 | File | Cases | What it holds | Reported as |
@@ -99,6 +103,8 @@ their recordings.
 | `books.ndjson` | 72 | The rebuild's book survey: each corpus whole, raw and as main normalizes it, at the narrowest and widest step-10 widths | Pinned cases |
 | `reports.ndjson` | 28 | Filed reports, with the input and width as filed | Pinned cases |
 | `oracles.ndjson` | 54 | The mode oracles in `src/test-data.ts`, now in Firefox too | Pinned cases |
+| `followups.ndjson` | 2 | The two fuzz strings `ENGINE_FOLLOWUPS.md` names for Firefox's accepted list: the Gecko scan no longer splits text runs where the script changes; taken once | Pinned cases |
+| `old-gate.ndjson` | 322 | The rows main's old gate (tests/wrapping) lost for the hybrid at 24 px and wider, true losses by its attribution, whose input no other case shows the hybrid failing; taken once | Pinned cases |
 
 **The sample.** A draw picks a surface (chat, AI replies, cards, documents, UI, editorial pages), a script by that
 surface's mix, a text from the pools, the style settings apps use, and a width from a device, its viewport and the
