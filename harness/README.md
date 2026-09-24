@@ -33,7 +33,8 @@ another build's `src/`. `bun test harness` runs the offline tests.
   covers. A listed case that passes again, or is no longer pinned, blocks until it leaves the list; `--accept` writes the
   new failures under its reason and removes those.
 - **Real-usage sample:** cases with `sample: { group, weight }` give the headline, the weighted share of real paragraphs
-  right with a 95% interval from resampling within groups.
+  right with a 95% interval from resampling within groups. It also prints the share of the weight outside what Pretext
+  claims (break-all, rich-inline in pre-wrap, system-ui font lists) and the share right without it.
 - **Shrink-wrap, report only:** a bubble sized to the predicted widest line, rounded up, is at least the browser's widest line.
 - **Environment key:** browser build, OS build, the OS's and the page's languages, device pixel ratio and the web fonts
   served. The harness refuses to score recordings made under another key.

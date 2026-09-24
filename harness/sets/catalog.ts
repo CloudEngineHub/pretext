@@ -11,6 +11,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { generateCases } from '../../tests/wrapping/cases.ts'
+import { SYSTEM_UI_FONT } from '../score.ts'
 import type { Paragraph } from '../types.ts'
 import { font, lineBreakTable, paragraph, parseFont, span } from './build.ts'
 import { templateKey, type Template } from './widths.ts'
@@ -22,8 +23,6 @@ const REAL_TEXT = /^maintained\/(accuracy|corpus)$/
 // sample like the corpus sweeps. At every width where their lines change they would be most of WebKit's search.
 const CORPUS_ANALYSIS = /\/corpus-analysis\//
 const ORACLE = /^maintained\/(pre-wrap|keep-all|symbols|letter-spacing|discretionary)\//
-// The README asks for named fonts; system-ui and its aliases aren't in what the library claims.
-const SYSTEM_UI = /^\s*(system-ui|-apple-system|BlinkMacSystemFont|ui-sans-serif)\b/
 
 function fromMain(c: WrappingCase): { template: Omit<Template, 'widths' | 'grid'>; rich: boolean } {
   const f = parseFont(c.font)
@@ -73,7 +72,7 @@ export function ruleFamilyTemplates(): Template[] {
   for (let i = 0; i < lines.length; i++) {
     if (lines[i] === '') continue
     const t = JSON.parse(lines[i]!) as Omit<Template, 'widths' | 'grid'>
-    if (SYSTEM_UI.test(t.paragraph.font.family)) continue
+    if (SYSTEM_UI_FONT.test(t.paragraph.font.family)) continue
     out.push({ ...t, widths: [], grid: true })
   }
   return out
@@ -214,7 +213,7 @@ export function catalogTemplates(): { catalog: Template[]; rich: Template[] } {
     for (let i = 0; i < lists[l]!.length; i++) {
       const t = lists[l]![i]!
       const key = templateKey(t)
-      if (seen.has(key) || SYSTEM_UI.test(t.paragraph.font.family)) continue
+      if (seen.has(key) || SYSTEM_UI_FONT.test(t.paragraph.font.family)) continue
       seen.add(key)
       catalog.push({ ...t, family: `catalog/${t.family}` })
     }

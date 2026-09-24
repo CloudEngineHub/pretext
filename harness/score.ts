@@ -63,6 +63,15 @@ export function samePrediction(a: Prediction, b: Prediction): boolean {
   return true
 }
 
+// A font list the README says the library doesn't take: system-ui and its aliases resolve differently for Canvas on macOS.
+export const SYSTEM_UI_FONT = /^\s*(system-ui|-apple-system|BlinkMacSystemFont|ui-sans-serif)\b/
+
+// Whether a case is outside what the library claims: a style the adapter can't express (break-all, rich-inline in
+// pre-wrap) or a system-ui font list. The headline prints its share, and the share right without it.
+export function outsideClaims(c: Case, prediction: Prediction): boolean {
+  return ('error' in prediction && prediction.error.startsWith('unsupported:')) || SYSTEM_UI_FONT.test(c.paragraph.font.family)
+}
+
 export function widthBand(c: Case): string {
   const width = c.paragraph.width
   return width < 24 ? '<24 px' : width < 80 ? '24-80 px' : '>=80 px'

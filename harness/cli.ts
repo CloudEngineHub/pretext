@@ -8,7 +8,7 @@
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, readdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { accept, headline, judge, observable, samePrediction, score, shrinkWrapShort, widthBand, type Outcome } from './score.ts'
+import { accept, headline, judge, observable, outsideClaims, samePrediction, score, shrinkWrapShort, widthBand, type Outcome } from './score.ts'
 import { LIB, runJob } from './run.ts'
 import {
   acceptedPath, assertSameEnvironment, caseText, historyPath, readAccepted, readCases, readHistory, readRecordings, recordingText, recordingsPath,
@@ -157,8 +157,10 @@ async function check(browser: BrowserKind, cases: Case[]): Promise<Scored> {
   const outcomes = new Map<string, Outcome>()
   const byId = new Map<string, Case>()
   const draws: Array<{ group: string; weight: number; pass: boolean }> = []
+  const drawsInClaims: Array<{ group: string; weight: number; pass: boolean }> = []
   let sampleWeight = 0
   let standInWeight = 0
+  let outsideWeight = 0
   // Per set of the behaviour catalog (catalog, facts, rich): whether each behaviour passes at every width away from the
   // edges where its lines change, and at the edges.
   const behaviours = new Map<string, Map<string, { inside: boolean; edges: boolean }>>()
@@ -178,9 +180,12 @@ async function check(browser: BrowserKind, cases: Case[]): Promise<Scored> {
       units += caseText(c).length
     }
     if (c.sample !== undefined) {
-      draws.push({ group: c.sample.group, weight: c.sample.weight, pass: outcome.status === 'pass' })
+      const draw = { group: c.sample.group, weight: c.sample.weight, pass: outcome.status === 'pass' }
+      draws.push(draw)
       sampleWeight += c.sample.weight
       if (c.sample.standIn === true) standInWeight += c.sample.weight
+      if (outsideClaims(c, prediction)) outsideWeight += c.sample.weight
+      else drawsInClaims.push(draw)
     }
     if (c.behaviour !== undefined) {
       const set = c.family.split('/')[0]!
@@ -211,7 +216,9 @@ async function check(browser: BrowserKind, cases: Case[]): Promise<Scored> {
   out.push(`  pass ${counts.pass} | wrong line count ${counts.count} | right count, wrong breaks ${counts.breaks} | error ${counts.error}`)
   out.push(`  not pinned: ${historyCount} page history, ${unobservable} with nothing visible or unrecordable, ${unrecorded} not recorded`)
   const head = headline(draws)
+  const inClaims = headline(drawsInClaims)
   if (head !== null) out.push(`  real-usage sample: ${(100 * head.share).toFixed(2)}% of real paragraphs right, 95% interval ${(100 * head.low).toFixed(2)}-${(100 * head.high).toFixed(2)}% (${draws.length} draws, ${percent(standInWeight, sampleWeight)} of their weight stand-ins; macOS rendering only)`)
+  if (inClaims !== null && outsideWeight > 0) out.push(`    ${percent(outsideWeight, sampleWeight)} of the weight is outside what Pretext claims (break-all, rich-inline in pre-wrap, system-ui); ${(100 * inClaims.share).toFixed(2)}% right without it, 95% interval ${(100 * inClaims.low).toFixed(2)}-${(100 * inClaims.high).toFixed(2)}%`)
   for (const [set, list] of [...behaviours].sort((x, y) => (x[0] < y[0] ? -1 : 1))) {
     let modelled = 0
     let exact = 0
@@ -219,7 +226,7 @@ async function check(browser: BrowserKind, cases: Case[]): Promise<Scored> {
       if (entry.inside) modelled++
       if (entry.inside && entry.edges) exact++
     }
-    out.push(`  ${set}: ${modelled} of ${list.size} behaviours modelled, ${exact} of them also one layout unit either side of where the lines change`)
+    out.push(`  ${set}: ${modelled} of ${list.size} behaviours modelled, ${exact} of them also 1/64 px either side of where the lines change`)
   }
   const reasons = [...verdict.byReason].sort((x, y) => y[1].length - x[1].length)
   for (let i = 0; i < reasons.length; i++) {
