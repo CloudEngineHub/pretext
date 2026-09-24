@@ -4,6 +4,8 @@ import { getBlinkLineBreaks, getWebKitLineBreaks } from './line-breaks.js'
 export type WhiteSpaceMode = 'normal' | 'pre-wrap'
 export type WordBreakMode = 'normal' | 'keep-all'
 
+// No `glue` kind: no-break characters are text and the scans decide their breaks
+// (RESEARCH.md, Decisions Log, 2026-09-24).
 export type SegmentBreakKind =
   | 'text'
   | 'space'

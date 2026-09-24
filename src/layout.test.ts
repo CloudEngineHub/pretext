@@ -679,6 +679,9 @@ describe('boundary-policy regressions', () => {
     const khmer = 'a ខ\u17D2ម\u17C2រ，b'
     expect(analyzeText(khmer, baseProfile).texts).toEqual(['a', ' ', 'ខ\u17D2ម\u17C2រ，', 'b'])
     expect(analyzeText(khmer, geckoProfile).texts).toEqual(['a', ' ', 'ខ\u17D2ម\u17C2រ', '，', 'b'])
+    // Firefox splits text runs where the script changes, which would break before the
+    // Bengali letter here. The Gecko scan doesn't, on purpose (RESEARCH.md, Decisions Log).
+    expect(analyzeText('\u1019\u17D2\u09AF', geckoProfile).texts).toEqual(['\u1019\u17D2\u09AF'])
   })
 
   test('small kana and U+30FC stay with the text before them where the profile resolves them to NS', () => {
@@ -1716,6 +1719,7 @@ describe('prepare invariants', () => {
   })
 
   test('a run of no-break spaces is visible text that takes emergency breaks', () => {
+    // There is no `glue` kind any more, on purpose (RESEARCH.md, Decisions Log).
     const prepared = prepareWithSegments('\u00A0', FONT)
     expect(prepared.segments).toEqual(['\u00A0'])
     expect(layout(prepared, 200, LINE_HEIGHT)).toEqual({ lineCount: 1, height: LINE_HEIGHT })
@@ -2398,6 +2402,7 @@ describe('prepare invariants', () => {
     }
     // Apple ICU's quotation remap makes curly quotes brackets, except on ja pages. Next to
     // East Asian text, Safari 27's quotation classes decide before ICU on every page.
+    // Safari 26's rules aren't ported (RESEARCH.md, Decisions Log).
     expect(segments('£€£€““tail', 'webkit', 'en')).toBe('£|€|£|€|““tail')
     expect(segments('£€£€““tail', 'webkit', 'ja')).toBe('£|€|£|€““tail')
     expect(segments('中文“abc”中文', 'webkit', 'ja')).toBe('中|文|“abc”|中|文')
@@ -2558,6 +2563,17 @@ describe('prepare invariants', () => {
     expect(layout(latin, 200, LINE_HEIGHT)).toEqual({ lineCount: 1, height: LINE_HEIGHT })
   })
 
+  test('setLocale() only clears the caches, so the page language still picks the break rules', () => {
+    // Kept for compatibility, a documented decision (RESEARCH.md, Decisions Log). Chrome's
+    // zh table would make the curly quotes brackets here.
+    const text = '中文“abc”中文'
+    const segments = prepareWithSegments(text, FONT).segments
+    for (const locale of ['zh', 'zh-Hant', 'ja']) {
+      setLocale(locale)
+      expect(prepareWithSegments(text, FONT).segments).toEqual(segments)
+    }
+  })
+
   test('later prepares measure under a changed document language', () => {
     // Like Chrome's OffscreenCanvas, this context resolves a font under the
     // document language only when a different font string is assigned.
@@ -2628,6 +2644,8 @@ describe('prepare invariants', () => {
         return new RecordingContext()
       }
     })
+    // A document that can't create a `<canvas>`: the families come from a table, on
+    // purpose (RESEARCH.md, Decisions Log).
     Reflect.set(globalThis, 'document', { documentElement: root })
     profile.namesGenericFamiliesByLanguage = true
     const macos = ['AppleMyungjo', 'Songti SC', 'Songti TC', 'Lucida Grande', 'Apple Chancery', 'ITF Devanagari']

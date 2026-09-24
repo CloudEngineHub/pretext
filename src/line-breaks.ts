@@ -1,6 +1,7 @@
 // Break opportunities as Chrome and Safari find them: ports of Blink's and WebKit's
 // line-break scans over their own pair tables and ICU line rules, which
 // scripts/generate-engine-break-data.ts writes to src/generated/engine-break-data.ts.
+// The tables' bundle cost is accepted for now (RESEARCH.md, Decisions Log).
 //
 // Sources, cited as file:line:
 // - ICU 78.2 as vendored in Chromium 152, under third_party/icu/source/common. Chrome
@@ -9,7 +10,8 @@
 // - Blink in Chromium 152, under third_party/blink/renderer/platform/text/:
 //   tbi.cc = text_break_iterator.cc, tbi.h = text_break_iterator.h,
 //   tbi_icu.cc = text_break_iterator_icu.cc, gen.cc = character_property_data_generator.cc.
-// - WebKit safari-7625.1.29.11-branch (Safari 27.0), under Source/:
+// - WebKit safari-7625.1.29.11-branch (Safari 27.0), under Source/. Only Safari 27's rules
+//   are ported, not Safari 26's (RESEARCH.md, Decisions Log):
 //   BP.h = WebCore/rendering/BreakablePositions.h,
 //   IIB = WebCore/layout/formattingContexts/inline/InlineItemsBuilder.cpp,
 //   IFU = WebCore/layout/formattingContexts/inline/InlineFormattingUtils.cpp,

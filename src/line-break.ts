@@ -243,7 +243,8 @@ export function walkPreparedLinesRaw(
 // layout()'s count: the simple stepper's lines as one numeric loop, with no
 // cursor and no per-line call. Every segment boundary of a fast-path handle is
 // a break, so an overflowing space or ZWSP ends its line and any other segment
-// starts the next one.
+// starts the next one. The full walker costs three to five times as much per
+// segment, so one walker for all text was rejected (RESEARCH.md, Decisions Log).
 export function countPreparedLines(prepared: PreparedLineBreakData, maxWidth: number): number {
   if (!prepared.simpleLineWalkFastPath) return walkPreparedLinesRaw(prepared, maxWidth)
   const { widths, segmentFlags, breakableFitAdvances, entryGeometry, lineStartProhibitions, lineStartExtras, lineEndTrims } = prepared

@@ -1275,7 +1275,8 @@ letter-spaced and pre-wrap text 30-65% slower with one. Together these halve
 times the counter per segment in Chrome and Safari and five in Firefox: it tracks
 the line ends, pending breaks and paint widths the line APIs report, which a count
 doesn't need. One walker for every text would make chat `layout()` two to seven
-times slower, so the simple walkers stay.
+times main's time, and chat's line APIs 1.4 to 7.2 times as slow as on the simple
+stepper, several of them then slower than main, so the simple walkers stay.
 
 A fresh page pays to compile the whole library before its first `prepare()`. In
 Firefox 156, `new Function` over the fresh-page probe's minified bundle took 4.5 to
@@ -1318,3 +1319,62 @@ about 15ms in the rest, while the WebKit scan's segments submit 2,978 and stayed
 near 18ms in 11 of 12. Timed around `measureText` in a foreground page, a first
 cold prepare of that text spends 20ms in Canvas with main and 15ms with the scan,
 and both fall under 1ms once the cache holds the strings.
+
+## Decisions Log
+
+Decisions the maintainer made whose reasons the code doesn't show. Code comments
+that point here mark where each applies. Before reversing one, check whether its
+reason still holds, and record the new decision here with its date.
+
+- **2026-09-16: the WebKit profile follows Safari 27 only.** Safari 26, on macOS 26
+  and iOS 26, breaks differently around curly quotes and guillemets, after
+  punctuation under keep-all, at U+2028 and U+2029, and after an overflowing first
+  character. Following 27 cost the Safari 26 rows about 2,900 left-to-right and 1,150
+  right-to-left line counts, mostly at widths narrower than one character. A profile
+  can't tell the two apart: only Safari's own user agent names a version, and the
+  other WebKit browsers on iPhone and iPad don't.
+- **2026-09-23: each engine's own tables and scans find break opportunities**, in
+  place of Pretext's rules and the UAX #14 table. The maintainer accepted the bundle
+  growth, about 30 KB gzipped, because the tables made analysis much faster. Whether
+  they can shrink, or give way to cheap computation, is checked at the end of the
+  project, not before.
+- **2026-09-23: premises nobody has falsified may be taken for speed.** The
+  maintainer relaxed the correctness-first stance: a premise no real font has
+  falsified can be a documented default, ad hoc heuristics go before principled
+  rules, and a requirement no real text exercises can be dropped with its cost
+  stated. CJK support stays. Examples: text with invisible characters stays on the
+  simple walkers, with widths within 10⁻⁹px of the full walker's, and Firefox's
+  script-run splits below.
+- **2026-09-24: the Gecko scan doesn't split text runs where the script changes**,
+  as Firefox's script itemizer does. It was rejected on 2026-09-16 for parity with
+  Firefox's break oracle and approved under the relaxed stance: no suite or corpus
+  text moves, only mixed-script strings with stray marks, and it removed 189 runtime
+  lines. Firefox 156 sides with the splits on those strings (VALIDATION.md).
+- **2026-09-24: there is no `glue` kind.** Runs of only no-break characters (NBSP,
+  U+2007, U+202F, word joiner, U+FEFF) are text, so they take emergency breaks where
+  browsers do; the scans already decide where they break, so the kind was only a
+  label. Two Chrome cases at 26px that main had right, NBSP, U+202F, NBSP in Courier
+  New at letter spacing 1, are accepted losses: the error is a letter-spacing gap
+  after U+202F that Chrome doesn't paint (ENGINE_FOLLOWUPS.md).
+- **2026-09-24: `setLocale()` stays and only clears the caches.** Line breaking
+  follows the page language, and no locale changes the word boundaries Pretext reads
+  in Thai, Lao, Khmer and Myanmar text, under 20 locales in V8 and JavaScriptCore.
+  Removing it, or making it a language input for Safari's families or an element's
+  own `lang`, waits for the end of the project.
+- **2026-09-24: Safari's generic families come from a generated Core Text table**,
+  not from measuring through a `<canvas>` element. An element's context runs the
+  document's pending style update in every `font` assignment and `measureText()`,
+  attached or detached (PLATFORM_BUGS.md), and only an attached one follows the page
+  language, which the maintainer rejected as DOM access on 2026-09-12.
+- **2026-09-24: `countPreparedLines()` keeps its leading-space skip**, a loop that
+  never runs: without it Firefox 156 resized Latin chat messages to new widths in
+  1.10 to 1.15 of main's time instead of 0.98.
+- **2026-09-24: the full walker got engineering, not heuristics.** The maintainer
+  asked for data layout, fewer allocations, smaller representations and plain
+  indexed code rather than new shortcuts: its state moved into locals, each
+  segment's facts into one byte, and chunks into the hard breaks. It still costs
+  three to five times the counter per segment, so one walker for all text was
+  rejected (Keeping Work Bounded).
+- **2026-09-24: the engine tables land before the new test harness**, judged by
+  main's installed gate, the real-text sets and an attribution of every lost row.
+  The harness replaces `tests/wrapping` and its snapshots in its own change.

@@ -170,7 +170,7 @@ invisible joiners, marks and bidi controls, except that some line widths in text
 the last commit moves to the simple walkers differ in the last bits (under
 10⁻⁹px), and the three scans give the same breaks on 23,193 inputs. The layout
 bundle comes out 1,386 bytes smaller minified and 1,164 bytes larger gzipped, and
-runtime source 46 lines longer.
+runtime source 44 lines longer.
 
 Same-document timing put main `b17a7ac`, the branch before these commits
 (`de4ad72`), the branch after them and main again as the control in each document,
@@ -317,12 +317,8 @@ these commits in parentheses:
 - `prepare()` of new and seen messages and fresh pages don't move beyond the
   control.
 
-A copy of the new tip with every text on the full walker lays out chat messages at
-2.0 to 2.9 times main's time in Chrome, 4.6 to 7.5 in Firefox and 2.1 to 2.7 in
-Safari, and plain CJK paragraphs at 2.4, 3.9 and 2.3, about three, five and three
-times the counter. The full walker keeps the line ends, pending breaks and paint
-widths the line APIs report, which a count doesn't need, so the simple walkers
-stay.
+A copy of the new tip with every text on the full walker shows why the simple
+walkers stay (RESEARCH.md, Keeping Work Bounded).
 
 The baseline advances to `f4374a3`, and the ordinary snapshots were regenerated
 against it in Chrome 153, Safari 27.0 and Firefox 156, with no regressions,

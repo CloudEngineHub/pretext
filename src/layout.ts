@@ -373,7 +373,7 @@ function measureAnalysis(
     if (kind !== 'text' && kind !== 'space' && kind !== 'zero-width-break') {
       simpleLineWalkFastPath = false
     }
-    // Only the complex walker reads where the scan gives no break.
+    // Only the full walker and rich-inline layout read where the scan gives no break.
     const index = widths.length
     segmentFlags[index] = getKindCode(kind) | (hasLetterSpacing && spacingGraphemeCount > 0 ? SPACED : 0) |
       (breaksBefore === null ? 0 : breaksBefore[index] ? RETURNABLE : UNBROKEN)
@@ -872,7 +872,8 @@ export function clearCache(): void {
 }
 
 // Kept for compatibility. Line breaking follows the page language, which
-// preparation reads from `<html lang>`, so this only clears the caches.
+// preparation reads from `<html lang>`, so this only clears the caches. Removing
+// it or making it a language input is decided later (RESEARCH.md, Decisions Log).
 export function setLocale(_locale?: string): void {
   clearCache()
 }

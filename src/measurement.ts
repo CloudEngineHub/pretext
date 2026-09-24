@@ -92,7 +92,8 @@ export type EngineProfile = {
   // 334-353). Its Canvas fonts carry no language: OffscreenCanvas starts from a bare
   // font description (OffscreenCanvasRenderingContext2D.cpp:93-130) and WebKit has no
   // canvas `lang` (WebKit #285993). The WebKit profile names the page's families in
-  // the Canvas font (getWebKitGenericFamilies).
+  // the Canvas font (getWebKitGenericFamilies), from a table rather than a `<canvas>`
+  // element, whose contexts force style updates (RESEARCH.md, Decisions Log).
   namesGenericFamiliesByLanguage: boolean
   // Release Gecko draws C0 and C1 controls, U+2028 and U+2029 with no advance plus letter
   // spacing (gfxFont.cpp:3877-3892), where its Canvas measures VT, FS-US, NEL and U+2029 as a

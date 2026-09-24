@@ -12,7 +12,7 @@
 // - Grapheme clusters come from Intl.Segmenter instead of icu_segmenter's
 //   GraphemeClusterSegmenter, and Unicode properties from RegExp \p{...} and generated tables.
 // - Text runs don't split where the script changes (gfxScriptItemizer.cpp). Such a split only
-//   adds a cluster start.
+//   adds a cluster start. The port was removed on purpose (RESEARCH.md, Decisions Log).
 // - Inside runs of Thai, Lao, Khmer and Myanmar letters, Intl.Segmenter word boundaries stand
 //   in for ICU4X's LSTM models (line.rs:445-451, complex/mod.rs:135-156). Firefox's own
 //   Intl.Segmenter answers as those models there once breaks inside grapheme clusters are
