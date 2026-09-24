@@ -816,8 +816,6 @@ export function walkLineRanges(
   maxWidth: number,
   onLine: (line: LayoutLineRange) => void,
 ): number {
-  if (prepared.widths.length === 0) return 0
-
   return walkPreparedLinesRaw(
     getInternalPrepared(prepared),
     maxWidth,
@@ -907,8 +905,6 @@ export function layoutNextLineRange(
 // resize hot path.
 export function layoutWithLines(prepared: PreparedTextWithSegments, maxWidth: number, lineHeight: number): LayoutLinesResult {
   const lines: LayoutLine[] = []
-  if (prepared.widths.length === 0) return { lineCount: 0, height: 0, lines }
-
   const graphemeCache = getLineTextCache(prepared)
   const lineCount = walkPreparedLinesRaw(
     getInternalPrepared(prepared),
