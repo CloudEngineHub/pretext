@@ -71,11 +71,13 @@ gave 133 KB and 64 KB, evaluated as fast. Keeping Chrome's root table whole, the
 line tables as copies from an earlier one and every other table unpacked gave 238 KB
 and 57 KB, evaluated in 3.6, 1.5 and 1.6ms. Against packing per engine, Safari's first
 preparation unpacks three tables for `line.brk` instead of one, about 0.6ms once per page.
-Firefox's script itemizer found each code point's script with a RegExp per script name
-and one alternation of them all, several milliseconds of set-up before the first
-preparation; it now reads Firefox's own Script data, a small CodePointTrie from
-icu_properties, as the Gecko scan reads its line data. On a fresh Firefox page the
-first ten chat messages then prepare in 3.9ms, against 8.2ms before and main's 4.9ms.
+The Gecko scan doesn't split text runs where the script changes, as Firefox's script
+itemizer does. Those splits only add cluster starts: without them no suite or corpus
+request analyzes differently, and against the Gecko oracle the scan's breaks differ in
+18 more of 11,875 left-to-right fuzz requests, its cluster starts in 108. A port of the
+itemizer first found each code point's script with a RegExp per script name, several
+milliseconds of set-up before the first preparation, then read Firefox's own Script
+data, 16 KB of tables.
 
 Remapping characters to the root table's categories, as WebKit does for quotes, can't
 stand in for Chrome's `line_normal_cj.brk`: its `〜` and `゠` belong to no class the
@@ -83,7 +85,7 @@ rules name, a category the root table doesn't have.
 
 Firefox's scan ports how Gecko handles one text node: `TransformText` collapses its
 white space and drops soft hyphens and bidi controls, text runs split where bidi
-levels change and where script runs end, each shaped word gets its cluster starts,
+levels change, each shaped word gets its cluster starts,
 and `nsLineBreaker` sends each word holding a character outside
 `kNonBreakableASCII` to a port of ICU4X 2.1.2's line iterator over Firefox's baked
 `segmenter_break_line_v1` data under Strict rules. A break survives only at a

@@ -28,19 +28,15 @@
 //   (icu_segmenter 2.1.2 src/provider/mod.rs:151-180).
 // - properties.json: icu_properties 2.1.2's compiled data (Unicode 17), the crate Firefox
 //   vendors, as [first, last, value] ranges over every code point: Bidi_Class and
-//   East_Asian_Width in ICU4C numbering (CodePointMapData::get32(cp).to_icu4c_value()),
-//   General_Category Ps, and every Bidi_Mirroring_Glyph pair. Dumped by a small Rust
-//   program that depends on that crate alone.
-// - property_enum_script_v1.rs.data and property_name_short_script_v1.rs.data:
-//   third_party/rust/icu_properties_data/data/, icu_properties 2.1.2's baked Script values and
-//   their short names, the Unicode 17 data ICU4C 78.3's uscript_getScript answers from.
+//   East_Asian_Width in ICU4C numbering (CodePointMapData::get32(cp).to_icu4c_value()).
+//   Dumped by a small Rust program that depends on that crate alone.
 // - bidi_pairs_table.rs: servo/unicode-bidi ca612daf's bracket table,
 //   src/char_data/tables.rs:519-535.
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { gzipSync } from 'node:zlib'
-import { getBreakLanguage, getSmallTrieValue, parseBreakRules, unpackTable, type BreakRules } from '../src/line-breaks.ts'
+import { getBreakLanguage, parseBreakRules, unpackTable, type BreakRules } from '../src/line-breaks.ts'
 
 const scriptsDir = dirname(fileURLToPath(import.meta.url))
 const dataDir = join(scriptsDir, 'engine-data')
@@ -284,62 +280,10 @@ if (geckoLineIndex.length % 2 !== 0 || geckoLineStates.length !== geckoLinePrope
 // src/gecko-line-breaks.ts reads Line_Break values by number (icu_segmenter line.rs:18-128).
 if (geckoLineField('complex_property') !== 46) throw new Error('Expected SA to be Line_Break value 46')
 
-// Firefox's Script values: a small CodePointTrie (icu_collections 2.1.1) of ICU4C script codes,
-// index and data as u16 little-endian, and each code's four-letter short name.
-const geckoScriptSource = readText('firefox-156/property_enum_script_v1.rs.data')
-const geckoScriptLiterals = Array.from(geckoScriptSource.matchAll(/b"((?:[^"\\]|\\.)*)"/g), match => parseRustByteString(match[1]!))
-if (geckoScriptLiterals.length !== 2) throw new Error(`Expected 2 byte strings in property_enum_script_v1.rs.data, got ${geckoScriptLiterals.length}`)
-if (!/trie_type\s*:\s*icu\s*::\s*collections\s*::\s*codepointtrie\s*::\s*TrieType\s*::\s*Small/.test(geckoScriptSource)) throw new Error('Expected a small script trie')
-const geckoScriptHighStart = Number(geckoScriptSource.match(/high_start\s*:\s*(\d+)u32/)![1])
-const [geckoScriptIndexBytes, geckoScriptDataBytes] = geckoScriptLiterals as [Uint8Array, Uint8Array]
-if (geckoScriptIndexBytes.length % 2 !== 0 || geckoScriptDataBytes.length % 2 !== 0) throw new Error('Expected u16 script trie arrays')
-const geckoScriptIndex = new Uint16Array(geckoScriptIndexBytes.length >> 1)
-for (let i = 0; i < geckoScriptIndex.length; i++) geckoScriptIndex[i] = geckoScriptIndexBytes[2 * i]! | (geckoScriptIndexBytes[2 * i + 1]! << 8)
-// Every script code fits a byte, so the data ships as u8.
-const geckoScriptData = new Uint8Array(geckoScriptDataBytes.length >> 1)
-for (let i = 0; i < geckoScriptData.length; i++) {
-  if (geckoScriptDataBytes[2 * i + 1] !== 0) throw new Error('Expected script codes below 256')
-  geckoScriptData[i] = geckoScriptDataBytes[2 * i]!
-}
-const geckoScriptNameLiterals = Array.from(readText('firefox-156/property_name_short_script_v1.rs.data').matchAll(/b"((?:[^"\\]|\\.)*)"/g), match => parseRustByteString(match[1]!))
-if (geckoScriptNameLiterals.length !== 1 || geckoScriptNameLiterals[0]!.length % 4 !== 0) throw new Error('Expected one byte string of four-letter script names')
-const geckoScriptNames = new TextDecoder().decode(geckoScriptNameLiterals[0]!)
-if (!/^(?:[A-Z][a-z]{3})+$/.test(geckoScriptNames)) throw new Error('Unexpected script short names')
-const scriptCode = (name: string): number => {
-  const at = geckoScriptNames.indexOf(name)
-  if (at < 0 || at % 4 !== 0) throw new Error(`Missing script ${name}`)
-  return at / 4
-}
-// src/gecko-line-breaks.ts reads these codes (uscript.h).
-for (const [name, code] of [['Zyyy', 0], ['Zinh', 1], ['Hang', 18], ['Hira', 20], ['Kana', 22], ['Latn', 25], ['Zzzz', 103]] as const) {
-  if (scriptCode(name) !== code) throw new Error(`Expected ${name} to be script ${code}`)
-}
-// The code points whose Script this JavaScript engine's RegExp answers differently, a check on
-// the decoding: they should only be ones the two Unicode versions assign differently.
-let geckoScriptRegExpDifferences = 0
-{
-  const scriptOf = (cp: number) => getSmallTrieValue(geckoScriptIndex, geckoScriptData, geckoScriptHighStart, cp)
-  const regExps = new Map<number, RegExp | null>()
-  for (let cp = 0; cp <= 0x10ffff; cp++) {
-    if (cp >= 0xd800 && cp <= 0xdfff) continue
-    const code = scriptOf(cp)
-    if (code === 103) continue
-    let re = regExps.get(code)
-    if (re === undefined) {
-      try { re = new RegExp(`^\\p{sc=${geckoScriptNames.slice(code * 4, code * 4 + 4)}}$`, 'u') } catch { re = null }
-      regExps.set(code, re)
-    }
-    if (re !== null && !re.test(String.fromCodePoint(cp))) geckoScriptRegExpDifferences++
-  }
-  if (scriptOf(0x41) !== 25 || scriptOf(0x627) !== scriptCode('Arab') || scriptOf(0x4e2d) !== scriptCode('Hani') || scriptOf(0x301) !== 1 || scriptOf(0x20) !== 0) {
-    throw new Error('Script trie lookups disagree with known values')
-  }
-}
-
 // Firefox's Unicode properties.
 type Ranges = [number, number, number][]
 const properties = JSON.parse(readText('firefox-156/properties.json')) as {
-  bidiClass: Ranges, eastAsianWidth: Ranges, openPunctuation: [number, number][], mirroringGlyph: [number, number][]
+  bidiClass: Ranges, eastAsianWidth: Ranges
 }
 // Flat [start - previous end - 1, end - start, value] triples of the kept values, from ranges
 // that cover every code point in order.
@@ -366,19 +310,6 @@ for (const match of pairsSource.matchAll(/\(\s*'\\u\{([0-9a-f]+)\}',\s*'\\u\{([0
   geckoBidiPairs.push(parseInt(match[1]!, 16), parseInt(match[2]!, 16), match[3] === undefined ? 0 : parseInt(match[3], 16))
 }
 if (geckoBidiPairs.length / 3 !== (pairsSource.match(/None|Some\(/g) ?? []).length) throw new Error('Unparsed bidi pairs')
-// Gecko's script itemizer pairs an Open_Punctuation code point at or above U+0F3A with its
-// mirror (gfxScriptItemizer.cpp:167-185). The scan takes that mirror from the bracket table.
-const mirrors = new Map(properties.mirroringGlyph)
-const openMirrors = new Map<number, number>()
-for (const [start, end] of properties.openPunctuation) {
-  for (let c = Math.max(start, 0x0f3a); c <= end; c++) if (mirrors.has(c)) openMirrors.set(c, mirrors.get(c)!)
-}
-const bracketMirrors = new Map<number, number>()
-for (let k = 0; k < geckoBidiPairs.length; k += 3) if (geckoBidiPairs[k]! >= 0x0f3a) bracketMirrors.set(geckoBidiPairs[k]!, geckoBidiPairs[k + 1]!)
-if (openMirrors.size !== bracketMirrors.size || Array.from(openMirrors).some(([open, close]) => bracketMirrors.get(open) !== close)) {
-  throw new Error('Open_Punctuation mirrors differ from the bidi bracket table')
-}
-
 const lineTablesJson = JSON.stringify(lineTablesPacked)
 const remapsJson = JSON.stringify(appleQuoteRemaps)
 const geckoPropertiesJson = JSON.stringify([geckoBidiClassRanges, geckoEastAsianWidthRanges, geckoBidiPairs])
@@ -422,14 +353,6 @@ export const geckoEastAsianWidthRanges: readonly number[] = ${JSON.stringify(gec
 
 // unicode-bidi's bracket pairs (Unicode 15): [opening, closing, normalized opening or 0].
 export const geckoBidiPairs: readonly number[] = ${JSON.stringify(geckoBidiPairs)}
-
-// icu_properties 2.1.2's Script values as a small CodePointTrie of ICU4C script codes, with the
-// index as u16 little-endian and the data as u8, and the four-letter short name of each code, for
-// RegExp \\p{scx=...}.
-export const geckoScriptTrieHighStart = ${geckoScriptHighStart}
-export const geckoScriptTrieIndexPacked = '${packTable(new Uint8Array(geckoScriptIndex.buffer))}'
-export const geckoScriptTrieDataPacked = '${packTable(geckoScriptData)}'
-export const geckoScriptNames = '${geckoScriptNames}'
 `
 
 const summary = [
@@ -438,7 +361,6 @@ const summary = [
   `quotation remaps ${Object.keys(appleQuoteRemaps).length} of ${ownRemaps.size} locales (${gzipSize(remapsJson)} B gzipped)`,
   `Firefox line data ${geckoLineIndex.length + geckoLineData.length + geckoLineStates.length} B`,
   `Firefox properties ${gzipSize(geckoPropertiesJson)} B gzipped`,
-  `Firefox scripts ${geckoScriptIndexBytes.length + geckoScriptData.length} B, ${geckoScriptRegExpDifferences} code points this RegExp engine gives another script`,
   `module ${nextSource.length} B, ${gzipSize(nextSource)} B gzipped`,
 ].join('; ')
 

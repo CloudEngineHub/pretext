@@ -10,8 +10,9 @@
 //
 // Deliberate differences:
 // - Grapheme clusters come from Intl.Segmenter instead of icu_segmenter's
-//   GraphemeClusterSegmenter, and Unicode properties from RegExp \p{...} and generated tables
-//   (Script from Firefox's own data).
+//   GraphemeClusterSegmenter, and Unicode properties from RegExp \p{...} and generated tables.
+// - Text runs don't split where the script changes (gfxScriptItemizer.cpp). Such a split only
+//   adds a cluster start.
 // - Inside runs of Thai, Lao, Khmer and Myanmar letters, Intl.Segmenter word boundaries stand
 //   in for ICU4X's LSTM models (line.rs:445-451, complex/mod.rs:135-156). Firefox's own
 //   Intl.Segmenter answers as those models there once breaks inside grapheme clusters are
@@ -21,7 +22,6 @@
 //   (intl/lwbrk/LineBreaker.cpp:26-31).
 
 import {
-  geckoBidiPairs,
   geckoEastAsianWidthRanges,
   geckoLineBreakStatesPacked,
   geckoLineEotProperty,
@@ -30,10 +30,6 @@ import {
   geckoLineTrieDataPacked,
   geckoLineTrieHighStart,
   geckoLineTrieIndexPacked,
-  geckoScriptNames,
-  geckoScriptTrieDataPacked,
-  geckoScriptTrieHighStart,
-  geckoScriptTrieIndexPacked,
 } from './generated/engine-break-data.js'
 import { getParagraphLevels } from './gecko-bidi-levels.js'
 import { copyU16, getBreakLanguage, getSmallTrieValue, unpackTable } from './line-breaks.js'
@@ -63,11 +59,9 @@ function codePointFlag(pattern: RegExp): (cp: number) => boolean {
 
 const isMark = codePointFlag(/^\p{M}$/u)
 const isPunctuation = codePointFlag(/^\p{P}$/u)
-const isOpenPunctuation = codePointFlag(/^\p{Ps}$/u)
-const isClosePunctuation = codePointFlag(/^\p{Pe}$/u)
 export const isDefaultIgnorable = codePointFlag(/^\p{Default_Ignorable_Code_Point}$/u)
 const isEmoji = codePointFlag(/^\p{Emoji}$/u)
-const isBidiMirrored = codePointFlag(/^\p{Bidi_Mirrored}$/u)
+const isHangul = codePointFlag(/^\p{sc=Hangul}$/u)
 
 let eawStarts: number[] | null = null
 let eawEnds: number[] = []
@@ -95,50 +89,6 @@ function getEastAsianWidth(cp: number): number {
     else return eawValues[mid]!
   }
   return 0
-}
-
-// u_charMirror of an Open_Punctuation code point at or above U+0F3A, or the code point when it
-// has none. Those with a mirror are exactly the opening brackets of unicode-bidi's table, with
-// the mirror as the closing bracket, which the generator checks.
-function getOpenPunctuationMirror(cp: number): number {
-  for (let k = 0; k < geckoBidiPairs.length; k += 3) if (geckoBidiPairs[k] === cp) return geckoBidiPairs[k + 1]!
-  return cp
-}
-
-// ICU4C script codes (uscript.h), which index geckoScriptNames by four letters.
-const SCRIPT_COMMON = 0
-const SCRIPT_INHERITED = 1
-const SCRIPT_HANGUL = 18
-const SCRIPT_HIRAGANA = 20
-const SCRIPT_KATAKANA = 22
-const SCRIPT_LATIN = 25
-const SCRIPT_UNKNOWN = 103
-let scriptTrieIndex: Uint16Array | null = null
-let scriptTrieData: Uint8Array
-const extensionRes: (RegExp | null)[] = []
-const extensionCache = new Map<number, boolean>()
-
-// uscript_getScript, from Firefox's own Script data.
-function getScript(cp: number): number {
-  if (scriptTrieIndex === null) {
-    scriptTrieIndex = unpackU16(geckoScriptTrieIndexPacked)
-    scriptTrieData = unpackTable(geckoScriptTrieDataPacked)
-  }
-  return getSmallTrieValue(scriptTrieIndex, scriptTrieData, geckoScriptTrieHighStart, cp)
-}
-
-// uscript_hasScript: `script` is in the code point's Script_Extensions.
-function hasScript(cp: number, script: number): boolean {
-  const key = cp * 256 + script
-  let result = extensionCache.get(key)
-  if (result !== undefined) return result
-  let re = extensionRes[script]
-  if (re === undefined) {
-    try { re = new RegExp(`^\\p{scx=${geckoScriptNames.slice(script * 4, script * 4 + 4)}}$`, 'u') } catch { re = null }
-    extensionRes[script] = re
-  }
-  extensionCache.set(key, result = re !== null && re.test(String.fromCodePoint(cp)))
-  return result
 }
 
 // --- Character classes ---
@@ -169,7 +119,7 @@ function isEastAsianWidthFHWExcludingEmoji(cp: number): boolean {
 
 // nsUnicharUtils.cpp:500-504
 export function isSegmentBreakSkipChar(cp: number): boolean {
-  return isEastAsianWidthFHWExcludingEmoji(cp) && getScript(cp) !== SCRIPT_HANGUL && cp !== 0x20a9
+  return isEastAsianWidthFHWExcludingEmoji(cp) && !isHangul(cp) && cp !== 0x20a9
 }
 
 // nsUnicharUtils.cpp:506-527, with UnicodeProperties.h:187-199
@@ -381,7 +331,7 @@ function getBidiRunStarts(raw: Uint16Array, preserveWhiteSpace: boolean): number
   return starts
 }
 
-// --- 3. Text-run glyph records (gfxTextRun.cpp, gfxFont.cpp, gfxScriptItemizer.cpp) ---
+// --- 3. Text-run glyph records (gfxTextRun.cpp, gfxFont.cpp) ---
 //
 // Only the facts SetPotentialLineBreaks reads are recorded: which positions start a cluster and
 // which are spaces. Every position belongs to one shaped word, space or invalid character. The
@@ -460,7 +410,7 @@ function setupClusterBoundaries(g: Glyphs, units: Uint16Array, from: number, to:
   }
 }
 
-// gfxFont::SplitAndInitTextRun, gfxFont.cpp:3707-3900: appends the shaped words of one script run to
+// gfxFont::SplitAndInitTextRun, gfxFont.cpp:3707-3900: appends the shaped words of one text run to
 // `words` as [start, end) pairs. A space glyph (SetSpaceGlyphIfSimple, gfxTextRun.cpp:1612-1619) only
 // sets isSpace, and an invalid character (:3877-3892) keeps a zero record. Below U+0100, IsBoundarySpace
 // (:3317-3330) and SetupClusterBoundaries(uint8_t) (gfxFont.cpp:771-795) answer as the char16_t
@@ -477,142 +427,6 @@ function splitAndInitTextRun(g: Glyphs, units: Uint16Array, start: number, end: 
     wordStart = i + 1
   }
   if (end > wordStart) words.push(wordStart, end)
-}
-
-const PAREN_STACK_DEPTH = 32 // gfxScriptItemizer.h:58
-
-// gfxScriptItemizer::Next and helpers (gfxScriptItemizer.cpp:60-243). Only run boundaries matter,
-// so the Script_Extensions fallback (:211-222) is not ported.
-class ScriptItemizer {
-  private readonly units: Uint16Array
-  private readonly end: number
-  private scriptLimit: number
-  private scriptCode = 0
-  private readonly parenChar = new Int32Array(PAREN_STACK_DEPTH)
-  private readonly parenScript = new Int32Array(PAREN_STACK_DEPTH)
-  private parenSp = -1
-  private pushCount = 0
-  private fixupCount = 0
-
-  constructor(units: Uint16Array, start: number, end: number) {
-    this.units = units
-    this.end = end
-    this.scriptLimit = start
-  }
-
-  done(): boolean { return this.scriptLimit >= this.end }
-
-  private push(endPairChar: number, script: number): void {
-    this.pushCount = this.pushCount < PAREN_STACK_DEPTH ? this.pushCount + 1 : PAREN_STACK_DEPTH
-    this.fixupCount = this.fixupCount < PAREN_STACK_DEPTH ? this.fixupCount + 1 : PAREN_STACK_DEPTH
-    this.parenSp = (this.parenSp + 1) % PAREN_STACK_DEPTH
-    this.parenChar[this.parenSp] = endPairChar
-    this.parenScript[this.parenSp] = script
-  }
-
-  private pop(): void {
-    if (this.pushCount === 0) return
-    if (this.fixupCount > 0) this.fixupCount--
-    this.pushCount--
-    this.parenSp = (this.parenSp + PAREN_STACK_DEPTH - 1) % PAREN_STACK_DEPTH
-    if (this.pushCount === 0) this.parenSp = -1
-  }
-
-  private fixup(script: number): void {
-    let fixupSp = (this.parenSp + PAREN_STACK_DEPTH - this.fixupCount) % PAREN_STACK_DEPTH
-    for (; this.fixupCount > 0; this.fixupCount--) {
-      fixupSp = (fixupSp + 1) % PAREN_STACK_DEPTH
-      this.parenScript[fixupSp] = script
-    }
-    this.fixupCount = 0xffffffff // `while (fixupCount-- > 0)` on a uint32_t (gfxScriptItemizer.h:134-135)
-  }
-
-  // Returns the run limit; the run starts at the previous limit.
-  next(): number {
-    const units = this.units
-    this.fixupCount = 0
-    this.scriptCode = SCRIPT_COMMON
-    while (this.scriptLimit < this.end) {
-      const startOfChar = this.scriptLimit
-      let ch = units[this.scriptLimit]!
-      let sc: number
-      if (ch < 0x02ea) {
-        sc = getFastScript(ch)
-      } else {
-        if (this.scriptLimit < this.end - 1 && isSurrogatePair(ch, units[this.scriptLimit + 1]!)) {
-          this.scriptLimit++
-          ch = combine(units[startOfChar]!, units[this.scriptLimit]!)
-        }
-        sc = getScript(ch)
-      }
-      let pair = 0 // 1 open, 2 close
-      if (sc === SCRIPT_COMMON) {
-        if (ch < 0x0f3a) {
-          if (ch === 0x28 || ch === 0x5b || ch === 0x7b) pair = 1
-          else if (ch === 0x29 || ch === 0x5d || ch === 0x7d) pair = 2
-        } else if (isOpenPunctuation(ch)) {
-          pair = 1
-        } else if (isClosePunctuation(ch)) {
-          pair = 2
-        }
-        if (pair === 1) {
-          const endPairChar = ch < 0x0f3a ? (ch === 0x28 ? 0x29 : ch === 0x5b ? 0x5d : 0x7d) : getOpenPunctuationMirror(ch)
-          if (endPairChar !== ch) this.push(endPairChar, this.scriptCode)
-        } else if (pair === 2 && isBidiMirrored(ch)) {
-          while (this.pushCount > 0 && this.parenChar[this.parenSp] !== ch) this.pop()
-          if (this.pushCount > 0) sc = this.parenScript[this.parenSp]!
-        }
-      }
-      if (sc === SCRIPT_HIRAGANA) sc = SCRIPT_KATAKANA
-      if (isSameScript(this.scriptCode, sc, ch)) {
-        if (this.scriptCode === SCRIPT_COMMON && !canMergeWithContext(sc)) {
-          this.scriptCode = sc
-          this.fixup(sc)
-        }
-        if (pair === 2 && isBidiMirrored(ch)) this.pop()
-      } else {
-        this.scriptLimit = startOfChar
-        break
-      }
-      this.scriptLimit++
-    }
-    return this.scriptLimit
-  }
-}
-
-// gfxScriptItemizer.h:96-107
-function getFastScript(ch: number): number {
-  const latin = ((ch & ~0x20) >= 0x41 && (ch & ~0x20) <= 0x5a) || (ch >= 0xc0 && ch <= 0xd6) || (ch >= 0xd8 && ch <= 0xf6) ||
-    (ch >= 0xf8 && ch <= 0x2b8) || (ch & ~0x10) === 0xaa || (ch >= 0x2e0 && ch <= 0x2e4)
-  return latin ? SCRIPT_LATIN : SCRIPT_COMMON
-}
-
-// CanMergeWithContext, gfxScriptItemizer.cpp:110-112
-function canMergeWithContext(script: number): boolean {
-  return script === SCRIPT_COMMON || script === SCRIPT_INHERITED || script === SCRIPT_UNKNOWN
-}
-
-// SameScript, gfxScriptItemizer.cpp:117-123
-function isSameScript(run: number, current: number, ch: number): boolean {
-  return canMergeWithContext(run) || canMergeWithContext(current) || current === run || isClusterExtender(ch) || hasScript(ch, run)
-}
-
-// gfxFontGroup::InitTextRun, gfxTextRun.cpp:2676-2835. 8-bit text (:2734-2782) is all Latin and
-// Common, so it takes the single-run branch.
-function initTextRun(g: Glyphs, units: Uint16Array, start: number, end: number, words: number[]): void {
-  let allCommonOrLatin = true
-  for (let i = start; i < end && allCommonOrLatin; i++) allCommonOrLatin = units[i]! < 0x02ea
-  if (allCommonOrLatin) {
-    splitAndInitTextRun(g, units, start, end, words)
-    return
-  }
-  const items = new ScriptItemizer(units, start, end)
-  let runStart = start
-  while (!items.done()) {
-    const limit = items.next()
-    splitAndInitTextRun(g, units, runStart, limit, words)
-    runStart = limit
-  }
 }
 
 // --- 4. ICU4X 2.1.2's line iterator for one word (icu_segmenter src/line.rs) ---
@@ -962,7 +776,7 @@ export function getGeckoLineBreaks(
   }
   const g: Glyphs = { clusterStart: new Uint8Array(n).fill(1), isSpace: new Uint8Array(n) }
   const words: number[] = []
-  for (let k = 0; k < runStarts.length; k++) initTextRun(g, tr.units, runStarts[k]!, k + 1 < runStarts.length ? runStarts[k + 1]! : n, words)
+  for (let k = 0; k < runStarts.length; k++) splitAndInitTextRun(g, tr.units, runStarts[k]!, k + 1 < runStarts.length ? runStarts[k + 1]! : n, words)
   markGraphemes(g, tr.text, tr.units, words, graphemeSegmenter)
   for (let k = 0; k < words.length; k += 2) setupClusterBoundaries(g, tr.units, words[k]!, words[k + 1]!)
   for (let k = 0; k < runStarts.length; k++) g.clusterStart[runStarts[k]!] = 1 // gfxTextRun.cpp:2828-2835
