@@ -149,7 +149,7 @@ function getTrieDataIndex(index: Uint16Array, firstLevelStart: number, c: number
 }
 
 // ICU4X's CodePointTrie::get32 for TrieType::Small with u8 values (cptrie.rs:648-656), for a
-// code point up to U+10FFFF: Firefox's line and script data. SMALL_INDEX_LENGTH is 64.
+// code point up to U+10FFFF: Firefox's line data. SMALL_INDEX_LENGTH is 64.
 export function getSmallTrieValue(index: Uint16Array, data: Uint8Array, highStart: number, c: number): number {
   if (c <= 0xfff) return data[index[c >> 6]! + (c & 0x3f)]! // get32_assuming_fast_index, :568-600
   if (c >= highStart) return data[data.length - 2]! // small_index, :503-509

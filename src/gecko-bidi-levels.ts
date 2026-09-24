@@ -398,13 +398,10 @@ function resolveWeak(text: Uint16Array, seq: Sequence, pc: Uint8Array): void {
 // unicode-bidi's bracket pairs as flat [opening, closing, normalized opening or 0] triples,
 // unpacked on first use.
 let bidiPairs: Uint32Array | null = null
-export function getBidiPairs(): Uint32Array {
-  return bidiPairs ??= unpackUint32Table(geckoBidiPairsPacked)
-}
 
 // char_data::bidi_matched_opening_bracket (char_data/mod.rs:44-56): [opening, isOpen] or null.
 function matchedOpeningBracket(c: number): [number, boolean] | null {
-  const geckoBidiPairs = getBidiPairs()
+  const geckoBidiPairs = bidiPairs ??= unpackUint32Table(geckoBidiPairsPacked)
   for (let k = 0; k < geckoBidiPairs.length; k += 3) {
     const open = geckoBidiPairs[k]!, close = geckoBidiPairs[k + 1]!, normalized = geckoBidiPairs[k + 2]!
     if (open === c || close === c) return [normalized !== 0 ? normalized : open, open === c]
