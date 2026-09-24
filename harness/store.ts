@@ -166,6 +166,7 @@ export function caseProblem(c: Case): string | null {
   }
   if (c.sample !== undefined && (typeof c.sample.group !== 'string' || !(c.sample.weight > 0) || (c.sample.standIn !== undefined && c.sample.standIn !== true))) return 'sample needs a group, a positive weight and standIn true or absent'
   if (c.behaviour !== undefined && (typeof c.behaviour !== 'string' || c.behaviour === '')) return 'behaviour must be a non-empty string'
+  if (c.edge !== undefined && (c.edge !== true || c.behaviour === undefined)) return 'edge must be true or absent, on a behaviour\'s case'
   return null
 }
 

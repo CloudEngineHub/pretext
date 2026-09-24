@@ -159,8 +159,9 @@ async function check(browser: BrowserKind, cases: Case[]): Promise<Scored> {
   const draws: Array<{ group: string; weight: number; pass: boolean }> = []
   let sampleWeight = 0
   let standInWeight = 0
-  // Per set of the behaviour catalog (catalog, facts, rich): whether every width of each behaviour passes.
-  const behaviours = new Map<string, Map<string, boolean>>()
+  // Per set of the behaviour catalog (catalog, facts, rich): whether each behaviour passes at every width away from the
+  // edges where its lines change, and at the edges.
+  const behaviours = new Map<string, Map<string, { inside: boolean; edges: boolean }>>()
   let shortBubbles = 0
   let calls = 0
   let units = 0
@@ -185,7 +186,10 @@ async function check(browser: BrowserKind, cases: Case[]): Promise<Scored> {
       const set = c.family.split('/')[0]!
       let list = behaviours.get(set)
       if (list === undefined) behaviours.set(set, list = new Map())
-      list.set(c.behaviour, (list.get(c.behaviour) ?? true) && outcome.status === 'pass')
+      const entry = list.get(c.behaviour) ?? { inside: true, edges: true }
+      if (c.edge === true) entry.edges &&= outcome.status === 'pass'
+      else entry.inside &&= outcome.status === 'pass'
+      list.set(c.behaviour, entry)
     }
     if (outcome.status === 'pass' && shrinkWrapShort(recording, prediction)) shortBubbles++
   }
@@ -210,8 +214,12 @@ async function check(browser: BrowserKind, cases: Case[]): Promise<Scored> {
   if (head !== null) out.push(`  real-usage sample: ${(100 * head.share).toFixed(2)}% of real paragraphs right, 95% interval ${(100 * head.low).toFixed(2)}-${(100 * head.high).toFixed(2)}% (${draws.length} draws, ${percent(standInWeight, sampleWeight)} of their weight stand-ins; macOS rendering only)`)
   for (const [set, list] of [...behaviours].sort((x, y) => (x[0] < y[0] ? -1 : 1))) {
     let modelled = 0
-    for (const ok of list.values()) if (ok) modelled++
-    out.push(`  ${set}: ${modelled} of ${list.size} behaviours modelled at every width where the lines change`)
+    let exact = 0
+    for (const entry of list.values()) {
+      if (entry.inside) modelled++
+      if (entry.inside && entry.edges) exact++
+    }
+    out.push(`  ${set}: ${modelled} of ${list.size} behaviours modelled, ${exact} of them also one layout unit either side of where the lines change`)
   }
   const reasons = [...verdict.byReason].sort((x, y) => y[1].length - x[1].length)
   for (let i = 0; i < reasons.length; i++) {

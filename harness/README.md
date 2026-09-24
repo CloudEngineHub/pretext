@@ -65,6 +65,7 @@ which need a browser:
 | The checked-in sample equal to what the weights draw | A changed weight scores the old usage |
 | Controls of one category merged where browsers agree | Each copy of a pasted-control family counts as a behaviour of its own |
 | Only the widths around a change, at most three per template | One input is pinned at hundreds of widths, and review drowns in near-copies |
+| A width inside each layout besides the edges of a change | A behaviour the library models reads as missing whenever its fit is off by 1/128 px |
 | One change per kind of break in the catalog | Two inputs that break alike double the review for one behaviour |
 
 ## Files
@@ -85,9 +86,9 @@ their recordings.
 | File | Cases | What it holds | Reported as |
 |---|---:|---|---|
 | `sample.ndjson` | 11,901 | The real-usage sample: 10,000 draws by `sets/weights.json`, plus the draws that bring 21 rare groups to 300 each, weighted back to their real share | The headline |
-| `catalog.ndjson` | 27,517 (13,296-14,112 per browser) | main's adversarial families, the rebuild's rule families, filed reports whose reporter measured the width, and every UAX #14 line-break class between the scripts apps mix, pairwise over the CSS settings the library takes | Behaviours modelled |
-| `facts.ndjson` | 7,781 (3,534-3,620) | The 28 engine facts `src/layout.test.ts` checks on plain text with a fake Canvas, in a browser | Behaviours modelled |
-| `rich.ndjson` | 2,306 (1,061-1,067) | Rich-inline paragraphs: styled runs, span edges, atomic chips and padded code spans, main's inline items, #120, #171, #177, #323 and main's engine facts about rich items | Behaviours modelled |
+| `catalog.ndjson` | 37,037 (17,991-19,382 per browser) | main's adversarial families, the rebuild's rule families, filed reports whose reporter measured the width, and every UAX #14 line-break class between the scripts apps mix, pairwise over the CSS settings the library takes | Behaviours modelled |
+| `facts.ndjson` | 9,962 (4,882-5,063) | The 28 engine facts `src/layout.test.ts` checks on plain text with a fake Canvas, in a browser | Behaviours modelled |
+| `rich.ndjson` | 3,270 (1,682-1,695) | Rich-inline paragraphs: styled runs, span edges, atomic chips and padded code spans, main's inline items, #120, #171, #177, #323 and main's engine facts about rich items | Behaviours modelled |
 | `census.ndjson` | 4,386 | The rebuild's census of real text (census-20260919): paragraphs of the 18 corpora at six widths, less the 300 in the smoke set | Pinned cases |
 | `books.ndjson` | 72 | The rebuild's book survey: each corpus whole, raw and as main normalizes it, at the narrowest and widest step-10 widths | Pinned cases |
 | `reports.ndjson` | 28 | Filed reports, with the input and width as filed | Pinned cases |
@@ -107,8 +108,12 @@ so a group with no failure is under 1% wrong with 95% confidence. A draw whose t
    alike. The catalog then keeps a change between neighbouring widths only when it shows a kind of line break no
    earlier template showed in that browser, and every family keeps one. The facts and rich sets keep every change.
 3. `bisect` narrows each kept change to one layout unit: 1/128 px in Chrome, 1/64 px in WebKit, 1/60 px in Firefox.
-4. `cut` pins width 1 and 100000 and, per browser, the two widths of at most three exact changes per template, each a
-   new kind of break, those at 24 px and wider first.
+4. `cut` pins width 1 and 100000 and, per browser, at most three exact changes per template, each a new kind of break,
+   those at 24 px and wider first. Each change gets its two widths one layout unit apart (`edge`, where the fit is
+   exact) and a whole pixel well inside each of its two layouts (where the break chosen is checked away from the fit).
+
+`check` reports a behaviour as modelled when every width away from the edges passes, and counts those that pass at the
+edges too.
 
 The searches' own recordings stay in `.artifacts/harness-sets/`. A behaviour narrower than 24 px is pinned like any
 other, so one the library doesn't model goes on the accepted list with a reason such as "narrower than real layouts".

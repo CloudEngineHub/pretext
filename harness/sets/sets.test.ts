@@ -85,7 +85,7 @@ describe('the cut', () => {
     expect(widths.sort((x, y) => x - y)).toEqual([1, 19.5, 20, 100_000])
   })
 
-  test('a paragraph keeps at most three widths where its lines change, each showing a new kind of break: pinning every one would sweep one input across widths', () => {
+  test('a paragraph keeps at most three of the widths where its lines change, each showing a new kind of break: pinning every one would sweep one input across widths', () => {
     // Four breaks of four kinds (after a space, a hyphen, a slash and a colon) come undone one by one from 30 to 60.
     const mixed = template('a b-c/d:e', 'test/kinds')
     const starts = [[0, 2, 4, 6, 8], [0, 4, 6, 8], [0, 6, 8], [0, 8], [0]]
@@ -97,9 +97,12 @@ describe('the cut', () => {
     const spaces = template('a b c d e', 'test/spaces')
     record([[mixed, layout], [spaces, layout]], [29, 30, 39, 40, 49, 50, 59, 60])
     select(SET, [mixed, spaces], false)
-    const widths = (t: Template): number[] => cut(SET, [t]).map(c => c.paragraph.width).sort((x, y) => x - y)
-    expect(widths(mixed)).toEqual([1, 29, 30, 39, 40, 49, 50, 100_000])
-    expect(widths(spaces)).toEqual([1, 29, 30, 59, 60, 100_000])
+    const widths = (t: Template, edge: boolean): number[] => cut(SET, [t]).filter(c => (c.edge === true) === edge).map(c => c.paragraph.width).sort((x, y) => x - y)
+    // Each change's two widths one layout unit apart, where the fit is exact, and a whole pixel inside each layout.
+    expect(widths(mixed, true)).toEqual([29, 30, 39, 40, 49, 50])
+    expect(widths(mixed, false)).toEqual([1, 35, 45, 55, 100_000])
+    expect(widths(spaces, true)).toEqual([29, 30, 59, 60])
+    expect(widths(spaces, false)).toEqual([1, 35, 55, 100_000])
   })
 
   test('the cover keeps one change per kind of line break: two inputs that break the same way would double the review for one behaviour', () => {

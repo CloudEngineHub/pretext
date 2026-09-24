@@ -15,10 +15,11 @@
 //      of a span.
 // 3. `bisect`, in each browser: halves each kept change until its two widths are one layout unit apart: 1/128 px in
 //    Chrome at DPR 2, 1/64 px in WebKit, 1/60 px in Firefox (rebuild/tests/fit.ts).
-// 4. `cut`: each kept template's cases, at width 1 and 100000 in every browser and, in the browser that changes, at the
-//    two widths of at most three exact changes inside its kept ones, each showing a line break the template hasn't
-//    shown yet, those at 24 px and wider first. A long paragraph's lines change every few pixels, and pinning each
-//    change would sweep one input across widths.
+// 4. `cut`: each kept template's cases, at width 1 and 100000 in every browser and, in the browser that changes, around
+//    at most three exact changes inside its kept ones, each showing a line break the template hasn't shown yet, those
+//    at 24 px and wider first: the change's two widths one layout unit apart (`edge`, where the fit is exact) and a width
+//    well inside each of its two layouts (where the break chosen is checked away from the fit). A long paragraph's lines
+//    change every few pixels, and pinning each change would sweep one input across widths.
 // `bun harness record` then records the cut cases in fresh short documents in two orders.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
@@ -378,6 +379,15 @@ function preview(t: Template): string {
   return `"${text.length > 48 ? `${text.slice(0, 45)}...` : text}" ${style.join(', ')}`
 }
 
+// A width an app might use well inside [low, high], where every width lays out the same: a whole pixel near the middle,
+// else the middle to 1/64 px; null when the range is one width, or reaches width 1 or 100000, which are pinned anyway.
+function insideWidth(low: number, high: number): number | null {
+  if (low === NARROW || high === WIDE) return null
+  const middle = (low + high) / 2
+  for (const width of [Math.round(middle), Math.round(middle * 64) / 64]) if (width > low && width < high) return width
+  return null
+}
+
 export function cut(set: string, templates: readonly Template[]): Case[] {
   const states = CUT_BROWSERS.map(b => loadState(set, b))
   const { selection, standsFor } = readSelection(set)
@@ -388,8 +398,18 @@ export function cut(set: string, templates: readonly Template[]): Case[] {
     const key = templateKey(t)
     if (seen.has(key) || !CUT_BROWSERS.some(b => selection[b][key] !== undefined)) continue
     seen.add(key)
-    // Which browsers want each width: width 1 and 100000 in all, the two widths of each change taken in its browser.
-    const wanted = new Map<number, Set<CutBrowser>>([[NARROW, new Set(CUT_BROWSERS)], [WIDE, new Set(CUT_BROWSERS)]])
+    // Which browsers want each width, and whether it is an edge there: width 1 and 100000 in all, and in the browser
+    // that changes, the two edges of each change taken and a width well inside each of its two layouts.
+    const wanted = new Map<number, Map<CutBrowser, boolean>>()
+    const want = (width: number, browser: CutBrowser, edge: boolean): void => {
+      let browsers = wanted.get(width)
+      if (browsers === undefined) wanted.set(width, browsers = new Map())
+      browsers.set(browser, (browsers.get(browser) ?? false) || edge)
+    }
+    for (let b = 0; b < CUT_BROWSERS.length; b++) {
+      want(NARROW, CUT_BROWSERS[b]!, false)
+      want(WIDE, CUT_BROWSERS[b]!, false)
+    }
     const text = textOf(t.paragraph)
     for (let b = 0; b < CUT_BROWSERS.length; b++) {
       const browser = CUT_BROWSERS[b]!
@@ -412,19 +432,31 @@ export function cut(set: string, templates: readonly Template[]): Case[] {
       // A template whose changes all break alike still keeps its first.
       if (taken.length === 0 && inside.length > 0) taken.push(inside[0]!)
       for (let c = 0; c < taken.length; c++) {
-        for (const width of [taken[c]![0].width, taken[c]![1].width]) {
-          let browsersAt = wanted.get(width)
-          if (browsersAt === undefined) wanted.set(width, browsersAt = new Set())
-          browsersAt.add(browser)
-        }
+        const [lo, hi] = taken[c]!
+        want(lo.width, browser, true)
+        want(hi.width, browser, true)
+        // The widths recorded with each side's layout reach down from lo and up from hi.
+        let first = recorded.indexOf(lo)
+        while (first > 0 && recorded[first - 1]!.layout === lo.layout) first--
+        let last = recorded.indexOf(hi)
+        while (last + 1 < recorded.length && recorded[last + 1]!.layout === hi.layout) last++
+        const below = insideWidth(recorded[first]!.width, lo.width)
+        const above = insideWidth(hi.width, recorded[last]!.width)
+        if (below !== null) want(below, browser, false)
+        if (above !== null) want(above, browser, false)
       }
     }
     const stands = standsFor[key]
     const origin = stands === undefined ? t.origin : `${t.origin}; stands for the same input with ${stands.join(', ')}, which lay out the same in all three browsers`
     const behaviour = `${t.family} ${preview(t)} [${key.slice(0, 8)}]`
     for (const [width, browsers] of [...wanted].sort((a, b) => a[0] - b[0])) {
-      const list = browsers.size === CUT_BROWSERS.length ? undefined : [...browsers].map(caseBrowser)
-      cases.push(makeCase(set, { family: t.family, origin, pageLang: t.pageLang, paragraph: { ...t.paragraph, width }, ...(list === undefined ? {} : { browsers: list }), behaviour }))
+      // A width that is an edge in one browser and inside a layout in another is two cases.
+      for (const edge of [false, true]) {
+        const at = CUT_BROWSERS.filter(b => browsers.get(b) === edge)
+        if (at.length === 0) continue
+        const list = at.length === CUT_BROWSERS.length ? undefined : at.map(caseBrowser)
+        cases.push(makeCase(set, { family: t.family, origin, pageLang: t.pageLang, paragraph: { ...t.paragraph, width }, ...(list === undefined ? {} : { browsers: list }), behaviour, ...(edge ? { edge: true } : {}) }))
+      }
     }
   }
   return cases

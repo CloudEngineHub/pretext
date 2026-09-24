@@ -194,6 +194,7 @@ export type CaseInput = {
   browsers?: BrowserKind[]
   sample?: Case['sample']
   behaviour?: string
+  edge?: true
 }
 
 // `set` names the case file; the id hashes only what the browser sees, so the same input made twice is one case.
@@ -204,7 +205,7 @@ export function makeCase(set: string, input: CaseInput): Case {
   return {
     id, family: input.family, origin: input.origin, pageLang: input.pageLang, paragraph: input.paragraph,
     ...(browsers === undefined ? {} : { browsers }), ...(fontFixtures.length === 0 ? {} : { fontFixtures }),
-    ...(input.sample === undefined ? {} : { sample: input.sample }), ...(input.behaviour === undefined ? {} : { behaviour: input.behaviour }),
+    ...(input.sample === undefined ? {} : { sample: input.sample }), ...(input.behaviour === undefined ? {} : { behaviour: input.behaviour }), ...(input.edge === true ? { edge: true } : {}),
   }
 }
 
