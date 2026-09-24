@@ -1037,6 +1037,8 @@ describe('boundary-policy regressions', () => {
     try {
       for (const scan of ['blink', 'webkit', 'gecko'] as const) {
         profile.lineBreakScan = scan
+        // Segment metrics belong to one engine profile.
+        clearCache()
         // Digits, which Safari's JavaScriptCore doesn't mark word-like, symbols and emoji.
         for (const text of ['11111111', '-0.475', '\u{1F1FA}\u{1F1F8}/\u{1F469}\u200D\u{1F4BB}', '\u{1F600}--tail']) {
           const prepared = prepareWithSegments(text, FONT)

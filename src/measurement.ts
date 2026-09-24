@@ -1,5 +1,5 @@
 import { getSharedGraphemeSegmenter } from './analysis.js'
-import { getBlinkDefaultLocale } from './line-breaks.js'
+import { canWebKitLineStartWith, getBlinkDefaultLocale } from './line-breaks.js'
 import type { SegmentEntryGeometry } from './entry-geometry.js'
 
 type EntryMeasurement = {
@@ -14,6 +14,9 @@ export type SegmentMetrics = {
   emojiCount?: number
   breakableFitMode?: BreakableFitMode
   breakableFitAdvances?: number[] | null
+  // With breakable fit advances in the WebKit profile, the graphemes after the first that
+  // WebKit doesn't start a line with when a line holds only an overflowing first character,
+  // by their first code unit, as ascending grapheme indices. Null without any.
   lineStartProhibitions?: number[] | null
   entryGeometry?: {
     letterSpacing: number
@@ -362,6 +365,8 @@ export function getSegmentBreakableFitAdvances(
   // When metrics measured seg together with one following U+0020, the width of
   // that space alone. The last grapheme then keeps its kerning with the space.
   followingSpaceWidth: number | null = null,
+  // Whether to record the segment's WebKit line-start prohibitions on metrics.
+  withLineStartProhibitions = false,
 ): number[] | null {
   if (metrics.breakableFitAdvances !== undefined && metrics.breakableFitMode === mode) {
     return metrics.breakableFitAdvances
@@ -376,6 +381,11 @@ export function getSegmentBreakableFitAdvances(
   if (graphemes.length <= 1) {
     metrics.breakableFitAdvances = null
     return metrics.breakableFitAdvances
+  }
+  if (withLineStartProhibitions) {
+    let prohibitions: number[] | null = null
+    for (let i = 1; i < graphemes.length; i++) if (!canWebKitLineStartWith(graphemes[i]!.charCodeAt(0))) (prohibitions ??= []).push(i)
+    metrics.lineStartProhibitions = prohibitions
   }
 
   if (mode === 'sum-graphemes') {

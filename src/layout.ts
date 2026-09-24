@@ -10,7 +10,6 @@ import { getHanKerningTrims, textMayHanKern, type HanKerningTrims } from './han-
 import {
   analyzeText,
   clearAnalysisCaches,
-  getLineStartProhibitions,
   getSharedGraphemeSegmenter,
   isNumericRunSegment,
   type SegmentBreakKind,
@@ -189,12 +188,6 @@ const letterAfterSpacesRe = / (?: |(?![\u200E\u200F\u061C])\p{Cf})*([0-9\p{Lu}\p
 // Bidi class B: the characters that end a bidi paragraph.
 function isParagraphSeparatorCode(code: number): boolean {
   return code === 0x0a || code === 0x0d || (code >= 0x1c && code <= 0x1e) || code === 0x85 || code === 0x2029
-}
-
-// A segment's WebKit line-start prohibitions depend only on its text, so its metrics keep them.
-function getCachedLineStartProhibitions(text: string, metrics: SegmentMetrics): number[] | null {
-  if (metrics.lineStartProhibitions === undefined) metrics.lineStartProhibitions = getLineStartProhibitions(text)
-  return metrics.lineStartProhibitions
 }
 
 function measureAnalysis(
@@ -496,6 +489,7 @@ function measureAnalysis(
         emojiCorrection,
         fitMode,
         measuredWithSpace ? spaceWidth : null,
+        engineProfile.lineBreakScan === 'webkit',
       )
       // The cached advances are shared by every occurrence of this text; only
       // the final grapheme touches the following space.
@@ -511,7 +505,7 @@ function measureAnalysis(
         spacingGraphemeCount,
         engineProfile.entryFitBasis !== 'disabled' && kind === 'text' && fitAdvances !== null
           ? getEntryGeometry(text, textMetrics, fitAdvances, width, engineProfile.entryFitBasis) : null,
-        keepsLineStartPunctuation && fitAdvances !== null ? getCachedLineStartProhibitions(text, textMetrics) : null,
+        keepsLineStartPunctuation && fitAdvances !== null ? textMetrics.lineStartProhibitions! : null,
       )
       return
     }

@@ -1,5 +1,5 @@
 import { getGeckoLineBreaks, isDiscardable, isEastAsianSegmentBreak, isJapaneseOrChinese, isSpaceCombiningSequenceTail } from './gecko-line-breaks.js'
-import { canWebKitLineStartWith, getBlinkLineBreaks, getWebKitLineBreaks } from './line-breaks.js'
+import { getBlinkLineBreaks, getWebKitLineBreaks } from './line-breaks.js'
 
 export type WhiteSpaceMode = 'normal' | 'pre-wrap'
 export type WordBreakMode = 'normal' | 'keep-all'
@@ -176,22 +176,6 @@ const numericRunRe = /^[\p{Nd}:\-/×,.+\u2013\u2014]+$/u
 
 export function isNumericRunSegment(text: string): boolean {
   return numericRunRe.test(text)
-}
-
-// The graphemes after the first that WebKit doesn't start a line with when a line
-// holds only an overflowing first character, by their first code unit, as ascending
-// grapheme indices. Null without any.
-export function getLineStartProhibitions(text: string): number[] | null {
-  let any = false
-  for (let i = 1; i < text.length && !any; i++) any = !canWebKitLineStartWith(text.charCodeAt(i))
-  if (!any) return null
-  const prohibitions: number[] = []
-  let graphemeIndex = 0
-  for (const gs of getSharedGraphemeSegmenter().segment(text)) {
-    if (graphemeIndex > 0 && !canWebKitLineStartWith(gs.segment.charCodeAt(0))) prohibitions.push(graphemeIndex)
-    graphemeIndex++
-  }
-  return prohibitions.length === 0 ? null : prohibitions
 }
 
 function isCollapsibleSpaceCode(code: number): boolean {
