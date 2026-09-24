@@ -214,9 +214,9 @@ function getJoinedBreakOffsets(text: string, profile: AnalysisProfile, language:
   return offsets
 }
 
-// The last joined break inside a portion that ends at a no-break boundary.
-// Offsets before `endIndex` precede the boundary. A break the walker cannot
-// end at falls back to an earlier one, then to the portion start.
+// The last break inside a portion that ends at a no-break boundary. Offsets
+// before `endIndex` precede the boundary. A break the walker cannot end at
+// falls back to an earlier one, then to the portion start.
 function getLastRunStart(portion: JoinedPortion, breakOffsets: readonly number[], endIndex: number): LayoutCursor {
   for (let i = endIndex - 1; i >= 0 && breakOffsets[i]! > portion.start; i--) {
     const cursor = getItemCursor(portion.item.prepared, portion.startSegmentIndex, breakOffsets[i]! - portion.start)
@@ -227,27 +227,23 @@ function getLastRunStart(portion: JoinedPortion, breakOffsets: readonly number[]
     : { segmentIndex: portion.startSegmentIndex, graphemeIndex: 0 }
 }
 
-// The item's own last ordinary break inside a portion that ends the item; the
-// portion start when there is none.
-function getLastItemRunStart(portion: JoinedPortion): LayoutCursor {
-  const { prepared } = portion.item
-  for (let i = prepared.kinds.length - 1; i > portion.startSegmentIndex; i--) {
-    if (breaksBeforeSegment(prepared.kinds, prepared.breaksBefore, i)) return { segmentIndex: i, graphemeIndex: 0 }
+// Offsets in the window text of the breaks WebKit finds: inside each item from
+// the item's own text, which made its segments, and at a boundary from the
+// previous item's last two characters as prior context (TextUtil.cpp:374-396).
+function getItemBreakOffsets(portions: readonly JoinedPortion[], text: string, boundaryContexts: readonly string[], language: string | null): number[] {
+  const offsets: number[] = []
+  for (let p = 0; p < portions.length; p++) {
+    const portion = portions[p]!
+    const end = p + 1 < portions.length ? portions[p + 1]!.start : text.length
+    if (p > 0 && getWebKitBreakBetweenItems(boundaryContexts[portions[p - 1]!.itemIndex]!, text.slice(portion.start, end), language, getSharedWordSegmenter())) {
+      offsets.push(portion.start)
+    }
+    const { kinds, breaksBefore, segments } = portion.item.prepared
+    for (let i = portion.startSegmentIndex, offset = portion.start; offset < end; offset += segments[i++]!.length) {
+      if (i > portion.startSegmentIndex && breaksBeforeSegment(kinds, breaksBefore, i)) offsets.push(offset)
+    }
   }
-  return portion.startSegmentIndex === 0
-    ? EMPTY_LAYOUT_CURSOR
-    : { segmentIndex: portion.startSegmentIndex, graphemeIndex: 0 }
-}
-
-// The item's own first ordinary break inside a portion that starts the item,
-// before the collapsible space that ends the portion; null when there is none.
-function getFirstItemRunEnd(portion: JoinedPortion): LayoutCursor | null {
-  const { prepared } = portion.item
-  const end = portion.spaceEndSegmentIndex < 0 ? prepared.kinds.length : portion.spaceEndSegmentIndex - 1
-  for (let i = 1; i < end; i++) {
-    if (breaksBeforeSegment(prepared.kinds, prepared.breaksBefore, i)) return { segmentIndex: i, graphemeIndex: 0 }
-  }
-  return null
+  return offsets
 }
 
 // Records where the joined text breaks inside a portion, as item cursors, and
@@ -344,10 +340,10 @@ function fillItemSegment(
   return stepItemToBreak(prepared, start, availableWidth, overflow, lineEnd)
 }
 
-// The joined text's first ordinary break inside a portion that starts at a
-// no-break boundary, as an item cursor. Offsets from `startIndex` follow the
-// boundary. A break the walker cannot end at falls back to a later one.
-function getFirstJoinedRunEnd(
+// The first ordinary break inside a portion that starts at a no-break
+// boundary, as an item cursor. Offsets from `startIndex` follow the boundary.
+// A break the walker cannot end at falls back to a later one.
+function getFirstRunEnd(
   portion: JoinedPortion,
   breakOffsets: readonly number[],
   startIndex: number,
@@ -436,33 +432,21 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
         portion.start = joinedText.length
         for (let s = portion.startSegmentIndex; s < endSegmentIndex; s++) joinedText += segments[s]!
       }
-      if (!breaksFromItemText) {
-        const breakOffsets = getJoinedBreakOffsets(joinedText, profile, documentLanguage)
-        let breakIndex = 0
-        for (let i = 0; i < joinedPortions.length; i++) {
-          const portion = joinedPortions[i]!
-          const portionEnd = i + 1 < joinedPortions.length ? joinedPortions[i + 1]!.start : joinedText.length
-          while (breakIndex < breakOffsets.length && breakOffsets[breakIndex]! < portion.start) breakIndex++
-          recordJoinedBreaks(portion, breakOffsets, breakIndex, portionEnd)
-          if (i === 0) continue
-          portion.item.breakBefore = breakOffsets[breakIndex] === portion.start
-          if (portion.item.breakBefore) continue
-          joinedPortions[i - 1]!.item.lastRunStart = getLastRunStart(joinedPortions[i - 1]!, breakOffsets, breakIndex)
-          leadingRunWidths[portion.itemIndex] = getLeadingRunWidth(portion, getFirstJoinedRunEnd(portion, breakOffsets, breakIndex, portionEnd))
-        }
-      } else {
-        // Breaks inside each item come from WebKit's scan over the item's own
-        // text, which made its segments. As in WebKit, the boundary reads the
-        // previous item's last two characters as prior context (TextUtil.cpp:374-396).
-        for (let i = 1; i < joinedPortions.length; i++) {
-          const portion = joinedPortions[i]!
-          const portionEnd = i + 1 < joinedPortions.length ? joinedPortions[i + 1]!.start : joinedText.length
-          const context = boundaryContexts[joinedPortions[i - 1]!.itemIndex]!
-          portion.item.breakBefore = getWebKitBreakBetweenItems(context, joinedText.slice(portion.start, portionEnd), documentLanguage, getSharedWordSegmenter())
-          if (portion.item.breakBefore) continue
-          joinedPortions[i - 1]!.item.lastRunStart = getLastItemRunStart(joinedPortions[i - 1]!)
-          leadingRunWidths[portion.itemIndex] = getLeadingRunWidth(portion, getFirstItemRunEnd(portion))
-        }
+      const breakOffsets = breaksFromItemText
+        ? getItemBreakOffsets(joinedPortions, joinedText, boundaryContexts, documentLanguage)
+        : getJoinedBreakOffsets(joinedText, profile, documentLanguage)
+      let breakIndex = 0
+      for (let i = 0; i < joinedPortions.length; i++) {
+        const portion = joinedPortions[i]!
+        const portionEnd = i + 1 < joinedPortions.length ? joinedPortions[i + 1]!.start : joinedText.length
+        while (breakIndex < breakOffsets.length && breakOffsets[breakIndex]! < portion.start) breakIndex++
+        // Item segments agree with breaks from the item's own text.
+        if (!breaksFromItemText) recordJoinedBreaks(portion, breakOffsets, breakIndex, portionEnd)
+        if (i === 0) continue
+        portion.item.breakBefore = breakOffsets[breakIndex] === portion.start
+        if (portion.item.breakBefore) continue
+        joinedPortions[i - 1]!.item.lastRunStart = getLastRunStart(joinedPortions[i - 1]!, breakOffsets, breakIndex)
+        leadingRunWidths[portion.itemIndex] = getLeadingRunWidth(portion, getFirstRunEnd(portion, breakOffsets, breakIndex, portionEnd))
       }
     }
     joinedPortions.length = 0
