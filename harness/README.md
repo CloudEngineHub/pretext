@@ -23,7 +23,7 @@ another build's `src/`. `bun test harness` runs the offline tests.
   right count with a wrong break is a failure of its own, `breaks`.
 - **Lines come from rect positions:** text box rects grouped by vertical centre, never height divided by line height.
 - **A visible character** is a code point whose positive-size Range rects all sit on one line. Chrome also reports a
-  soft hyphen's box for the code point next to it; that rect is left out.
+  soft hyphen's box for the code point next to it; that copy is left out.
 - **Recording:** paragraphs under 1,000 UTF-16 units are read code point by code point; longer ones search from each line's
   first visible character for the next line's.
 - **Pinned:** every recorded case with a visible character whose two recordings agree. A case laid out differently in its
@@ -38,10 +38,29 @@ another build's `src/`. `bun test harness` runs the offline tests.
 - **Environment key:** browser build, OS build, the OS's and the page's languages, device pixel ratio and the web fonts
   served. The harness refuses to score recordings made under another key.
 
-The gate adds three checks, each blocking: predictions in reverse order must equal the forward ones (results that depend
-on what was prepared before are a library defect); a random sample recorded again must equal the recordings; and each new
-failure is recorded alone in a fresh document (page history if it differs) and predicted alone (order-dependent if it
-differs), else reported as a true loss with its family, width band and first differing line.
+The gate adds three checks, each blocking: predictions in reverse order must equal the forward ones; a random sample
+recorded again must equal the recordings; and each new failure is recorded alone in a fresh document (page history if it
+differs) and predicted alone (order-dependent if it differs), else reported as a true loss with its family, width band and
+first differing line.
+
+What each piece catches, as an app developer would see it. `bun test harness` plants each fault except the gate's two,
+which need a browser:
+
+| Piece | Without it |
+|---|---|
+| Line count | A message loses or gains a line, so its bubble or row has the wrong height |
+| First and last visible character per line | A word paints on the wrong line while the height is right; main passed 4.5-8.1% of its census cases this way |
+| Chrome's soft hyphen copies left out | A wrong break at a soft hyphen passes unseen |
+| Lines from rect positions | Fractional line boxes read as a wrong count, as Safari 27's did in main's harness |
+| Line-start search | Long paragraphs would take minutes per browser; a wrong search would hide or invent a book's wrong line |
+| Environment key | A browser or OS update reads as library regressions or fixes |
+| Page-history list | Cases that lay out differently after other cases block changes at random |
+| Accepted list with reasons | Accepted losses go silent, and a fix goes unrecorded |
+| Exact widths through the adapter | Text that exactly fits its bubble wraps (a width 1/64 px short) |
+| Reverse-order predictions (gate) | Results depend on what the app prepared before |
+| Fresh re-recording (gate) | Stored recordings stop describing the browser |
+| Layout asking Canvas nothing (test), Canvas calls per 1,000 units (printed) | Every window resize measures text again, or preparing gets slower unnoticed |
+| Two recordings kept apart, sorted and stable | The gate is green or red on another case's layout, and every recording churns in git |
 
 ## Files
 
