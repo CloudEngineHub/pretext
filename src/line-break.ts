@@ -325,10 +325,9 @@ export function countPreparedLines(prepared: PreparedLineBreakData, maxWidth: nu
   let lineW = 0
   let hasContent = false
 
-  // Leading spaces are consumed; a ZWSP right after them establishes the first line.
-  let first = 0
-  while (first < segmentCount && kinds[first] === 'space') first++
-  for (let i = first; i < segmentCount; i++) {
+  // A fast-path handle never starts with a space: normalization trims it, and
+  // pre-wrap spaces take the complex walker. A ZWSP there establishes the line.
+  for (let i = 0; i < segmentCount; i++) {
     const kind = kinds[i]!
     const w = widths[i]!
     const endTrim = lineEndTrims === null ? 0 : lineEndTrims[i]!
@@ -342,7 +341,7 @@ export function countPreparedLines(prepared: PreparedLineBreakData, maxWidth: nu
       count++
       hasContent = false
       if (kind !== 'text') continue
-    } else if (kind === 'space' || (kind === 'zero-width-break' && i !== first)) {
+    } else if (kind === 'space' || (kind === 'zero-width-break' && i !== 0)) {
       continue
     }
 
