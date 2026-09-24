@@ -13,7 +13,6 @@ import {
   getLineStartProhibitions,
   getSharedGraphemeSegmenter,
   isNumericRunSegment,
-  setAnalysisLocale,
   type SegmentBreakKind,
   type TextAnalysis,
   type WhiteSpaceMode,
@@ -970,7 +969,8 @@ export function clearCache(): void {
   clearMeasurementCaches()
 }
 
-export function setLocale(locale?: string): void {
-  setAnalysisLocale(locale)
+// Kept for compatibility. Line breaking follows the page language, which
+// preparation reads from `<html lang>`, so this only clears the caches.
+export function setLocale(_locale?: string): void {
   clearCache()
 }

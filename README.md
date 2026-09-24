@@ -210,7 +210,7 @@ type RichInlineStats = {
 Other helpers:
 ```ts
 clearCache(): void // clears Pretext's shared internal caches used by prepare() and prepareWithSegments(). Useful if your app cycles through many different fonts or text variants and you want to release the accumulated cache
-setLocale(locale?: string): void // optional (by default we use the current locale). Sets locale for future prepare() and prepareWithSegments(). Internally, it also calls clearCache(). Setting a new locale doesn't affect existing prepare() and prepareWithSegments() states (no mutations to them)
+setLocale(locale?: string): void // kept for compatibility, the same as clearCache(). Line breaking follows the page language, which prepare() and prepareWithSegments() read from `<html lang>`
 ```
 
 Notes:

@@ -13,6 +13,7 @@
 - In Chrome, text on a page without a `lang` now breaks and measures under Chrome's UI language, as Chrome lays it out: under a Chinese UI, curly double quotes wrap as brackets.
 - `layout()` is two to three times faster in Chrome and Safari on text without letter spacing, preserved spaces, tabs, hard breaks, soft hyphens, no-break spaces or invisible controls other than zero-width spaces, which covers most prose (#338).
 - Bundles that import Pretext are about 5 KB smaller gzipped and 16 KB smaller minified, since Safari's check for keeping a word's kerning with a following space no longer uses a generated bidi class table (#311).
+- `setLocale()` now only clears the caches, as `clearCache()` does. Line breaking follows the page language, and no locale changes the word boundaries Pretext still reads, inside Thai, Lao, Khmer and Myanmar text.
 
 ### Removed
 

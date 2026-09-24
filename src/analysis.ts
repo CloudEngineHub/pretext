@@ -126,25 +126,19 @@ export function getSharedGraphemeSegmenter(): Intl.Segmenter {
   return sharedGraphemeSegmenter
 }
 
+// The scans read word boundaries only inside runs of Thai, Lao, Khmer and Myanmar
+// letters, where no locale changes them.
 let sharedWordSegmenter: Intl.Segmenter | null = null
-let segmenterLocale: string | undefined
 
 export function getSharedWordSegmenter(): Intl.Segmenter {
   if (sharedWordSegmenter === null) {
-    sharedWordSegmenter = new Intl.Segmenter(segmenterLocale, { granularity: 'word' })
+    sharedWordSegmenter = new Intl.Segmenter(undefined, { granularity: 'word' })
   }
   return sharedWordSegmenter
 }
 
 export function clearAnalysisCaches(): void {
   sharedGraphemeSegmenter = null
-  sharedWordSegmenter = null
-}
-
-export function setAnalysisLocale(locale?: string): void {
-  const nextLocale = locale && locale.length > 0 ? locale : undefined
-  if (segmenterLocale === nextLocale) return
-  segmenterLocale = nextLocale
   sharedWordSegmenter = null
 }
 
