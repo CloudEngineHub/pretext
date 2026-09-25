@@ -119,6 +119,7 @@ which needs a browser:
 | Two recordings kept apart, sorted and stable | The gate is green or red on another case's layout, and every recording churns in git |
 | Sample draws weighted back to their share | A rare group topped up to 300 draws moves the headline far more than it moves real apps |
 | The checked-in sample equal to what the weights draw | A changed weight scores the old usage |
+| The checked-in reports and oracles equal to what their sources make | An oracle added to `src/test-data.ts` goes unchecked |
 | Controls of one category merged where browsers agree | Each copy of a pasted-control family counts as a behaviour of its own |
 | Only the widths around a change, at most three per template, the widest first | One input is pinned at hundreds of widths, and review drowns in near-copies |
 | A width inside each layout besides the edges of a change | A behaviour the library models reads as missing whenever its fit is off by 1/128 px |
@@ -139,7 +140,8 @@ which needs a browser:
 
 `bun harness/sets/make.ts` makes every case file but the smoke, census and book sets, which are the rebuild's, and the
 old-gate and follow-up sets, all taken once; its header lists the steps. A case's id hashes what the browser lays out, so making a set again keeps its ids and
-their recordings.
+their recordings. The catalog's line-break classes come from `sets/data/LineBreak-17.0.0.txt`, Unicode 17's file, which
+main's generic table was made from before the engine tables replaced it.
 
 | File | Cases | What it holds | Reported as |
 |---|---:|---|---|
@@ -150,7 +152,7 @@ their recordings.
 | `census.ndjson` | 4,386 | The rebuild's census of real text (census-20260919): paragraphs of the 18 corpora at six widths, less the 300 in the smoke set | Pinned cases |
 | `books.ndjson` | 72 | The rebuild's book survey: each corpus whole, raw and as main normalizes it, at the narrowest and widest step-10 widths | Pinned cases |
 | `reports.ndjson` | 28 | Filed reports, with the input and width as filed | Pinned cases |
-| `oracles.ndjson` | 54 | The mode oracles in `src/test-data.ts`, now in Firefox too | Pinned cases |
+| `oracles.ndjson` | 56 | The mode oracles in `src/test-data.ts`, now in Firefox too | Pinned cases |
 | `followups.ndjson` | 2 | The two fuzz strings `ENGINE_FOLLOWUPS.md` names for Firefox's accepted list: the Gecko scan no longer splits text runs where the script changes; taken once | Pinned cases |
 | `old-gate.ndjson` | 322 | The rows main's old gate (tests/wrapping) lost for the hybrid at 24 px and wider, true losses by its attribution, whose input no other case shows the hybrid failing; taken once | Pinned cases |
 

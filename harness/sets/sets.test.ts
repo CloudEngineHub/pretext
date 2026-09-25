@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { writeRecordings } from '../store.ts'
 import type { Recording } from '../types.ts'
 import { font, paragraph, writeCases } from './build.ts'
+import { oracleCases, reportCases } from './exact.ts'
 import { checkedInSample, drawSample } from './sample.ts'
 import { CUT_BROWSERS, cut, dirOf, probesFile, recordingsFile, select, sweepId, templateKey, type Template } from './widths.ts'
 
@@ -31,6 +32,20 @@ describe('the real-usage sample', () => {
     expect(readFileSync(path, 'utf8')).toBe(readFileSync(join(import.meta.dir, '../cases/sample.ndjson'), 'utf8'))
     rmSync(path)
   }, 60_000)
+})
+
+describe('the sets taken as they are', () => {
+  test('the checked-in reports and oracles are what their sources make: a report or an oracle added to src/test-data.ts would go unchecked', () => {
+    const dir = join(import.meta.dir, '../../.artifacts/harness-sets')
+    mkdirSync(dir, { recursive: true })
+    const sets: Array<[string, ReturnType<typeof reportCases>]> = [['reports', reportCases()], ['oracles', oracleCases()]]
+    for (let i = 0; i < sets.length; i++) {
+      const path = join(dir, `${sets[i]![0]}-check.ndjson`)
+      writeCases(path, sets[i]![1])
+      expect(readFileSync(path, 'utf8')).toBe(readFileSync(join(import.meta.dir, `../cases/${sets[i]![0]}.ndjson`), 'utf8'))
+      rmSync(path)
+    }
+  })
 })
 
 // A set of synthetic templates with recordings laid out by hand, in the three browsers.
