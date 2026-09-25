@@ -1,4 +1,4 @@
-// Prepare text with Intl segmentation and cached Canvas measurements, then
+// Prepare text with engine segmentation rules and cached Canvas measurements, then
 // lay it out with arithmetic. Emoji calibration may perform a cached DOM read
 // during preparation; layout itself does no measurement or string work.
 // Rich APIs add source cursors and text materialization.
