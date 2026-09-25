@@ -129,7 +129,7 @@ export function textOf(p: Paragraph): string {
   return text
 }
 
-// ---- UAX #14 line-break classes (scripts/unicode/LineBreak-*.txt, what the library's own table is made from) ----
+// ---- UAX #14 line-break classes (sets/data/LineBreak-17.0.0.txt, the Unicode 17 file main's generic table was made from) ----
 
 export type LineBreakTable = { from: Int32Array; to: Int32Array; names: string[] }
 let table: LineBreakTable | null = null
@@ -137,7 +137,7 @@ let table: LineBreakTable | null = null
 // The file's ranges in order, each with its class.
 export function lineBreakTable(): LineBreakTable {
   if (table !== null) return table
-  const lines = readFileSync(join(import.meta.dir, '../../scripts/unicode/LineBreak-17.0.0.txt'), 'utf8').split('\n')
+  const lines = readFileSync(join(import.meta.dir, 'data/LineBreak-17.0.0.txt'), 'utf8').split('\n')
   const from: number[] = []
   const to: number[] = []
   const names: string[] = []
