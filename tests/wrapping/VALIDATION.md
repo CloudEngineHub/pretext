@@ -326,6 +326,57 @@ required failures or execution errors. Accuracy stays 7,680 of 7,680 in each
 browser and letter spacing 28 of 28, and the corpus sweeps rise from 1,076, 1,090
 and 984 to 1,093, 1,098 and 1,098 of 1,098 in Chrome, Safari and Firefox.
 
+The installed gate ran again on September 24 at `ba36327`, from main's harness and
+from this branch's, with main `6d1d210` as a candidate beside each harness's pin:
+Chrome 153 through the Playwright transport, Safari 27.0 and Firefox 156 natively,
+both directions, full and maintained suites. Every row's native line count and
+every prediction of main and of this branch equal those of the check of `f893622`
+earlier that day, so no lost row is new. Line-count passes from this branch's
+harness; fixed and lost count rows of both scopes:
+
+| Leg | Main | This branch | Fixed | Lost |
+| --- | ---: | ---: | ---: | ---: |
+| Chrome LTR | 111,364 / 147,709 | 115,955 | 5,436 | 185 |
+| Chrome RTL | 46,996 / 70,974 | 49,727 | 2,991 | 96 |
+| Firefox LTR | 117,973 / 147,669 | 128,721 | 12,054 | 786 |
+| Firefox RTL | 54,227 / 70,972 | 61,505 | 7,918 | 532 |
+| Safari LTR | 115,944 / 148,051 | 122,920 | 9,874 | 1,240 |
+| Safari RTL | 47,513 / 70,974 | 51,408 | 4,910 | 724 |
+
+No leg has required failures, execution errors, or new API or rich failures for
+this branch; main still fails its six required Safari checks. Against the pin
+`f4374a3` this branch loses only the no-break rows main was right on because two
+errors cancelled: 24 Chrome, 18 Firefox and 18 Safari left-to-right rows, each
+failing line count and height, and 6 Chrome whitespace checks on the U+202F ones.
+Of the rows lost to main, Chrome's 281 are 31 true losses, 220 of main's
+accidents, 6 that depend on page history and 24 cancellations; Firefox's 1,318 are
+755 true losses, 545 accidents and 18 cancellations; Safari's 1,964 are 841 true
+losses, 1,105 accidents and 18 cancellations. From main's harness Firefox adds the
+106 corpus rows its normalized form gets wrong. The maintained suite loses 29 and
+10 Chrome rows, 27 and 0 Firefox rows and 47 and 0 Safari rows to main, all among
+those, and none to the pin.
+
+Main's harness can't run the numeric checks on this branch: its cache-lifetime
+case lays out a JSON copy of a prepared handle, and the flags byte array doesn't
+survive JSON, so the walk over the copy never ends. Those legs ran with
+`--skip-numeric`. This branch's harness copies the handle with `structuredClone()`,
+and its numeric results equal `f893622`'s in all five profiles.
+
+The baseline advances to `ba36327`, and the ordinary snapshots were regenerated
+against it in Chrome 153, Safari 27.0 and Firefox 156, with no regressions,
+required failures or execution errors; only provenance and environments change.
+Accuracy stays 7,680 of 7,680 in each browser and letter spacing 28 of 28, and the
+corpus sweeps stay 1,093, 1,098 and 1,098 of 1,098.
+
+Chrome and Safari benchmark snapshots were refreshed from `ba36327`: three
+foreground runs each at DPR 2, visible and focused, on the 2560x1440 screen, while
+other jobs used the machine. Against main's snapshots, from another session,
+`prepare()` reads 3.00ms in Chrome (9.15) and 3.0ms in Safari (10.5), hot
+`layout()` 0.022ms (0.029) and 0.0225ms (0.030), and the long-form corpus totals
+63.5ms (118.2) and 246ms (310). Chrome's control row reads 1.54 of main's
+`layout()` there and Safari's soft hyphens 1.28, where the same-document timing
+above reads 1.00 and 0.46; compare the same-document numbers.
+
 ## Firefox newlines between East Asian characters
 
 For Firefox, `normalizeSource()` now removes a collapsible run holding LF between

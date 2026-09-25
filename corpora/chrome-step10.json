@@ -1,22 +1,23 @@
 [
   {
-    "generatedAt": "2026-09-23T21:34:42.856Z",
-    "suiteHash": "a324a770738a3035d4037458949ec00a0e813ef64a6d4a98a666370c9908d86e",
+    "generatedAt": "2026-09-25T00:51:28.231Z",
+    "suiteHash": "d695ce8dfddd51009612bde86108a44f6f4d4b7a01ea7b6246413d7c76211178",
     "source": {
-      "revision": "a975dc960a33d9173c416e977c9068a14d17353f",
+      "revision": "ba36327a3ef7ef423fb53d9d4fb176efe4b76713",
       "files": {
-        "analysis.ts": "b3002380a7841d73d6c6201828c6d9d1fca053a87bf6870313601f19d13f74f6",
-        "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "gecko-bidi-levels.ts": "ec10cd63a5adb39a57a4179983c133539420858525887f5b5907c0b86b3c1e4e",
-        "gecko-line-breaks.ts": "1172f9b4b0f31721e03c98e0d2e298f8079603e88a31cf142f2e246e00f9173d",
-        "generated/engine-break-data.ts": "d708a9a14abdd63f46083c35ad294fa46a19ed2ec137015a042610119ec31c0c",
-        "han-kerning.ts": "d12d1254b8ecd2db8dac1d22d32d77f0981ffb7156b196854607f5ae96807283",
-        "layout.ts": "16d47944c48ed8aff4e38660d1caeb93ca7e9520d58512f5be0f42c0c7548540",
-        "line-break.ts": "a1a6d544144a30d9738345331556b13cd38801aec37247f8b1e97d13206730fe",
-        "line-breaks.ts": "f224873cf969d168a69445fabbfb17a64fd59d95fd7fc66aec9cbb7fb1a707be",
-        "line-text.ts": "faaa5836244b3ab9b5131b012ecb2be473bb3dfc38e711f0b7c2c95c92c0d4ad",
-        "measurement.ts": "593b981a5062711d8dd2491c3b45b244d0a73043c8ed3051216fc19f38b85bae",
-        "rich-inline.ts": "4befff6d11bb737a4003ba3518d7e450500d1b2177ec41b9e99c0b091f80920d",
+        "analysis.ts": "095e1ab4667e33841696d944a90a2216a363749e6f19eda9ec70e7b3a93f49e5",
+        "entry-geometry.ts": "52f60449ba048eb0ea1982f45edf0d4ac8d3750292952036cffe2b5aa06f758e",
+        "gecko-bidi-levels.ts": "9fef10ae1e6c7d78badc31a9f496605d5f3484fb857d64d88d59cac8f06ee080",
+        "gecko-line-breaks.ts": "2e07fdf74caa5714f719c72fe7828cce603b2f50247f28f83adf4d4f254ed32c",
+        "generated/engine-break-data.ts": "de7ff30638dfbda4a737d3eb7820cba40c2d53fa0b12ab32eb73fa7b4f8bf2ab",
+        "generated/webkit-generic-families.ts": "16ffba2832197e189a5ddf7e745304a3c5faacc82858a51808c3744991b11614",
+        "han-kerning.ts": "fbb13fb093fc35178974eea57346d95117eedc6f3f17c51315957b45e30af0f9",
+        "layout.ts": "b43689aedd4db0579fbee33213075b706811a70f3c84641d58eb97dd6542092d",
+        "line-break.ts": "230061fbab9f4c53e822d3eae1d0f7eeb0e245a79d0db635f81ac272e5376797",
+        "line-breaks.ts": "e6ac3de83648666bded662a90d95026970b89aef1796ee05df5fa606852575e5",
+        "line-text.ts": "921f1fbdab650fd507e09163678327ec26e7b4a56f85eb82d7eb71b469c18da9",
+        "measurement.ts": "fe3cdd51459a905e2342f470cc1808d58d9e31b4b08b5b074867df86ccffbbca",
+        "rich-inline.ts": "eaef4aa5a6808be65d34a1175421ab3ba3fdeb02aac80e24f88b186e98bda1d8",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -28,7 +29,7 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -39,14 +40,14 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "mul",
             "direction": "ltr"
           },
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -57,7 +58,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "mul",
             "direction": "ltr"
           },
@@ -71,7 +72,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -87,23 +88,24 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-23T21:34:42.856Z",
-    "suiteHash": "a324a770738a3035d4037458949ec00a0e813ef64a6d4a98a666370c9908d86e",
+    "generatedAt": "2026-09-25T00:51:28.231Z",
+    "suiteHash": "d695ce8dfddd51009612bde86108a44f6f4d4b7a01ea7b6246413d7c76211178",
     "source": {
-      "revision": "a975dc960a33d9173c416e977c9068a14d17353f",
+      "revision": "ba36327a3ef7ef423fb53d9d4fb176efe4b76713",
       "files": {
-        "analysis.ts": "b3002380a7841d73d6c6201828c6d9d1fca053a87bf6870313601f19d13f74f6",
-        "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "gecko-bidi-levels.ts": "ec10cd63a5adb39a57a4179983c133539420858525887f5b5907c0b86b3c1e4e",
-        "gecko-line-breaks.ts": "1172f9b4b0f31721e03c98e0d2e298f8079603e88a31cf142f2e246e00f9173d",
-        "generated/engine-break-data.ts": "d708a9a14abdd63f46083c35ad294fa46a19ed2ec137015a042610119ec31c0c",
-        "han-kerning.ts": "d12d1254b8ecd2db8dac1d22d32d77f0981ffb7156b196854607f5ae96807283",
-        "layout.ts": "16d47944c48ed8aff4e38660d1caeb93ca7e9520d58512f5be0f42c0c7548540",
-        "line-break.ts": "a1a6d544144a30d9738345331556b13cd38801aec37247f8b1e97d13206730fe",
-        "line-breaks.ts": "f224873cf969d168a69445fabbfb17a64fd59d95fd7fc66aec9cbb7fb1a707be",
-        "line-text.ts": "faaa5836244b3ab9b5131b012ecb2be473bb3dfc38e711f0b7c2c95c92c0d4ad",
-        "measurement.ts": "593b981a5062711d8dd2491c3b45b244d0a73043c8ed3051216fc19f38b85bae",
-        "rich-inline.ts": "4befff6d11bb737a4003ba3518d7e450500d1b2177ec41b9e99c0b091f80920d",
+        "analysis.ts": "095e1ab4667e33841696d944a90a2216a363749e6f19eda9ec70e7b3a93f49e5",
+        "entry-geometry.ts": "52f60449ba048eb0ea1982f45edf0d4ac8d3750292952036cffe2b5aa06f758e",
+        "gecko-bidi-levels.ts": "9fef10ae1e6c7d78badc31a9f496605d5f3484fb857d64d88d59cac8f06ee080",
+        "gecko-line-breaks.ts": "2e07fdf74caa5714f719c72fe7828cce603b2f50247f28f83adf4d4f254ed32c",
+        "generated/engine-break-data.ts": "de7ff30638dfbda4a737d3eb7820cba40c2d53fa0b12ab32eb73fa7b4f8bf2ab",
+        "generated/webkit-generic-families.ts": "16ffba2832197e189a5ddf7e745304a3c5faacc82858a51808c3744991b11614",
+        "han-kerning.ts": "fbb13fb093fc35178974eea57346d95117eedc6f3f17c51315957b45e30af0f9",
+        "layout.ts": "b43689aedd4db0579fbee33213075b706811a70f3c84641d58eb97dd6542092d",
+        "line-break.ts": "230061fbab9f4c53e822d3eae1d0f7eeb0e245a79d0db635f81ac272e5376797",
+        "line-breaks.ts": "e6ac3de83648666bded662a90d95026970b89aef1796ee05df5fa606852575e5",
+        "line-text.ts": "921f1fbdab650fd507e09163678327ec26e7b4a56f85eb82d7eb71b469c18da9",
+        "measurement.ts": "fe3cdd51459a905e2342f470cc1808d58d9e31b4b08b5b074867df86ccffbbca",
+        "rich-inline.ts": "eaef4aa5a6808be65d34a1175421ab3ba3fdeb02aac80e24f88b186e98bda1d8",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -115,7 +117,7 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -126,14 +128,14 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "en",
             "direction": "ltr"
           },
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -144,7 +146,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "en",
             "direction": "ltr"
           },
@@ -158,7 +160,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -183,23 +185,24 @@
     ]
   },
   {
-    "generatedAt": "2026-09-23T21:34:42.856Z",
-    "suiteHash": "a324a770738a3035d4037458949ec00a0e813ef64a6d4a98a666370c9908d86e",
+    "generatedAt": "2026-09-25T00:51:28.231Z",
+    "suiteHash": "d695ce8dfddd51009612bde86108a44f6f4d4b7a01ea7b6246413d7c76211178",
     "source": {
-      "revision": "a975dc960a33d9173c416e977c9068a14d17353f",
+      "revision": "ba36327a3ef7ef423fb53d9d4fb176efe4b76713",
       "files": {
-        "analysis.ts": "b3002380a7841d73d6c6201828c6d9d1fca053a87bf6870313601f19d13f74f6",
-        "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "gecko-bidi-levels.ts": "ec10cd63a5adb39a57a4179983c133539420858525887f5b5907c0b86b3c1e4e",
-        "gecko-line-breaks.ts": "1172f9b4b0f31721e03c98e0d2e298f8079603e88a31cf142f2e246e00f9173d",
-        "generated/engine-break-data.ts": "d708a9a14abdd63f46083c35ad294fa46a19ed2ec137015a042610119ec31c0c",
-        "han-kerning.ts": "d12d1254b8ecd2db8dac1d22d32d77f0981ffb7156b196854607f5ae96807283",
-        "layout.ts": "16d47944c48ed8aff4e38660d1caeb93ca7e9520d58512f5be0f42c0c7548540",
-        "line-break.ts": "a1a6d544144a30d9738345331556b13cd38801aec37247f8b1e97d13206730fe",
-        "line-breaks.ts": "f224873cf969d168a69445fabbfb17a64fd59d95fd7fc66aec9cbb7fb1a707be",
-        "line-text.ts": "faaa5836244b3ab9b5131b012ecb2be473bb3dfc38e711f0b7c2c95c92c0d4ad",
-        "measurement.ts": "593b981a5062711d8dd2491c3b45b244d0a73043c8ed3051216fc19f38b85bae",
-        "rich-inline.ts": "4befff6d11bb737a4003ba3518d7e450500d1b2177ec41b9e99c0b091f80920d",
+        "analysis.ts": "095e1ab4667e33841696d944a90a2216a363749e6f19eda9ec70e7b3a93f49e5",
+        "entry-geometry.ts": "52f60449ba048eb0ea1982f45edf0d4ac8d3750292952036cffe2b5aa06f758e",
+        "gecko-bidi-levels.ts": "9fef10ae1e6c7d78badc31a9f496605d5f3484fb857d64d88d59cac8f06ee080",
+        "gecko-line-breaks.ts": "2e07fdf74caa5714f719c72fe7828cce603b2f50247f28f83adf4d4f254ed32c",
+        "generated/engine-break-data.ts": "de7ff30638dfbda4a737d3eb7820cba40c2d53fa0b12ab32eb73fa7b4f8bf2ab",
+        "generated/webkit-generic-families.ts": "16ffba2832197e189a5ddf7e745304a3c5faacc82858a51808c3744991b11614",
+        "han-kerning.ts": "fbb13fb093fc35178974eea57346d95117eedc6f3f17c51315957b45e30af0f9",
+        "layout.ts": "b43689aedd4db0579fbee33213075b706811a70f3c84641d58eb97dd6542092d",
+        "line-break.ts": "230061fbab9f4c53e822d3eae1d0f7eeb0e245a79d0db635f81ac272e5376797",
+        "line-breaks.ts": "e6ac3de83648666bded662a90d95026970b89aef1796ee05df5fa606852575e5",
+        "line-text.ts": "921f1fbdab650fd507e09163678327ec26e7b4a56f85eb82d7eb71b469c18da9",
+        "measurement.ts": "fe3cdd51459a905e2342f470cc1808d58d9e31b4b08b5b074867df86ccffbbca",
+        "rich-inline.ts": "eaef4aa5a6808be65d34a1175421ab3ba3fdeb02aac80e24f88b186e98bda1d8",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -211,7 +214,7 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -222,14 +225,14 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "ja",
             "direction": "ltr"
           },
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -240,7 +243,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "ja",
             "direction": "ltr"
           },
@@ -254,7 +257,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -270,23 +273,24 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-23T21:34:42.856Z",
-    "suiteHash": "a324a770738a3035d4037458949ec00a0e813ef64a6d4a98a666370c9908d86e",
+    "generatedAt": "2026-09-25T00:51:28.231Z",
+    "suiteHash": "d695ce8dfddd51009612bde86108a44f6f4d4b7a01ea7b6246413d7c76211178",
     "source": {
-      "revision": "a975dc960a33d9173c416e977c9068a14d17353f",
+      "revision": "ba36327a3ef7ef423fb53d9d4fb176efe4b76713",
       "files": {
-        "analysis.ts": "b3002380a7841d73d6c6201828c6d9d1fca053a87bf6870313601f19d13f74f6",
-        "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "gecko-bidi-levels.ts": "ec10cd63a5adb39a57a4179983c133539420858525887f5b5907c0b86b3c1e4e",
-        "gecko-line-breaks.ts": "1172f9b4b0f31721e03c98e0d2e298f8079603e88a31cf142f2e246e00f9173d",
-        "generated/engine-break-data.ts": "d708a9a14abdd63f46083c35ad294fa46a19ed2ec137015a042610119ec31c0c",
-        "han-kerning.ts": "d12d1254b8ecd2db8dac1d22d32d77f0981ffb7156b196854607f5ae96807283",
-        "layout.ts": "16d47944c48ed8aff4e38660d1caeb93ca7e9520d58512f5be0f42c0c7548540",
-        "line-break.ts": "a1a6d544144a30d9738345331556b13cd38801aec37247f8b1e97d13206730fe",
-        "line-breaks.ts": "f224873cf969d168a69445fabbfb17a64fd59d95fd7fc66aec9cbb7fb1a707be",
-        "line-text.ts": "faaa5836244b3ab9b5131b012ecb2be473bb3dfc38e711f0b7c2c95c92c0d4ad",
-        "measurement.ts": "593b981a5062711d8dd2491c3b45b244d0a73043c8ed3051216fc19f38b85bae",
-        "rich-inline.ts": "4befff6d11bb737a4003ba3518d7e450500d1b2177ec41b9e99c0b091f80920d",
+        "analysis.ts": "095e1ab4667e33841696d944a90a2216a363749e6f19eda9ec70e7b3a93f49e5",
+        "entry-geometry.ts": "52f60449ba048eb0ea1982f45edf0d4ac8d3750292952036cffe2b5aa06f758e",
+        "gecko-bidi-levels.ts": "9fef10ae1e6c7d78badc31a9f496605d5f3484fb857d64d88d59cac8f06ee080",
+        "gecko-line-breaks.ts": "2e07fdf74caa5714f719c72fe7828cce603b2f50247f28f83adf4d4f254ed32c",
+        "generated/engine-break-data.ts": "de7ff30638dfbda4a737d3eb7820cba40c2d53fa0b12ab32eb73fa7b4f8bf2ab",
+        "generated/webkit-generic-families.ts": "16ffba2832197e189a5ddf7e745304a3c5faacc82858a51808c3744991b11614",
+        "han-kerning.ts": "fbb13fb093fc35178974eea57346d95117eedc6f3f17c51315957b45e30af0f9",
+        "layout.ts": "b43689aedd4db0579fbee33213075b706811a70f3c84641d58eb97dd6542092d",
+        "line-break.ts": "230061fbab9f4c53e822d3eae1d0f7eeb0e245a79d0db635f81ac272e5376797",
+        "line-breaks.ts": "e6ac3de83648666bded662a90d95026970b89aef1796ee05df5fa606852575e5",
+        "line-text.ts": "921f1fbdab650fd507e09163678327ec26e7b4a56f85eb82d7eb71b469c18da9",
+        "measurement.ts": "fe3cdd51459a905e2342f470cc1808d58d9e31b4b08b5b074867df86ccffbbca",
+        "rich-inline.ts": "eaef4aa5a6808be65d34a1175421ab3ba3fdeb02aac80e24f88b186e98bda1d8",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -298,7 +302,7 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -309,14 +313,14 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "ja",
             "direction": "ltr"
           },
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -327,7 +331,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "ja",
             "direction": "ltr"
           },
@@ -341,7 +345,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -366,23 +370,24 @@
     ]
   },
   {
-    "generatedAt": "2026-09-23T21:34:42.856Z",
-    "suiteHash": "a324a770738a3035d4037458949ec00a0e813ef64a6d4a98a666370c9908d86e",
+    "generatedAt": "2026-09-25T00:51:28.231Z",
+    "suiteHash": "d695ce8dfddd51009612bde86108a44f6f4d4b7a01ea7b6246413d7c76211178",
     "source": {
-      "revision": "a975dc960a33d9173c416e977c9068a14d17353f",
+      "revision": "ba36327a3ef7ef423fb53d9d4fb176efe4b76713",
       "files": {
-        "analysis.ts": "b3002380a7841d73d6c6201828c6d9d1fca053a87bf6870313601f19d13f74f6",
-        "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "gecko-bidi-levels.ts": "ec10cd63a5adb39a57a4179983c133539420858525887f5b5907c0b86b3c1e4e",
-        "gecko-line-breaks.ts": "1172f9b4b0f31721e03c98e0d2e298f8079603e88a31cf142f2e246e00f9173d",
-        "generated/engine-break-data.ts": "d708a9a14abdd63f46083c35ad294fa46a19ed2ec137015a042610119ec31c0c",
-        "han-kerning.ts": "d12d1254b8ecd2db8dac1d22d32d77f0981ffb7156b196854607f5ae96807283",
-        "layout.ts": "16d47944c48ed8aff4e38660d1caeb93ca7e9520d58512f5be0f42c0c7548540",
-        "line-break.ts": "a1a6d544144a30d9738345331556b13cd38801aec37247f8b1e97d13206730fe",
-        "line-breaks.ts": "f224873cf969d168a69445fabbfb17a64fd59d95fd7fc66aec9cbb7fb1a707be",
-        "line-text.ts": "faaa5836244b3ab9b5131b012ecb2be473bb3dfc38e711f0b7c2c95c92c0d4ad",
-        "measurement.ts": "593b981a5062711d8dd2491c3b45b244d0a73043c8ed3051216fc19f38b85bae",
-        "rich-inline.ts": "4befff6d11bb737a4003ba3518d7e450500d1b2177ec41b9e99c0b091f80920d",
+        "analysis.ts": "095e1ab4667e33841696d944a90a2216a363749e6f19eda9ec70e7b3a93f49e5",
+        "entry-geometry.ts": "52f60449ba048eb0ea1982f45edf0d4ac8d3750292952036cffe2b5aa06f758e",
+        "gecko-bidi-levels.ts": "9fef10ae1e6c7d78badc31a9f496605d5f3484fb857d64d88d59cac8f06ee080",
+        "gecko-line-breaks.ts": "2e07fdf74caa5714f719c72fe7828cce603b2f50247f28f83adf4d4f254ed32c",
+        "generated/engine-break-data.ts": "de7ff30638dfbda4a737d3eb7820cba40c2d53fa0b12ab32eb73fa7b4f8bf2ab",
+        "generated/webkit-generic-families.ts": "16ffba2832197e189a5ddf7e745304a3c5faacc82858a51808c3744991b11614",
+        "han-kerning.ts": "fbb13fb093fc35178974eea57346d95117eedc6f3f17c51315957b45e30af0f9",
+        "layout.ts": "b43689aedd4db0579fbee33213075b706811a70f3c84641d58eb97dd6542092d",
+        "line-break.ts": "230061fbab9f4c53e822d3eae1d0f7eeb0e245a79d0db635f81ac272e5376797",
+        "line-breaks.ts": "e6ac3de83648666bded662a90d95026970b89aef1796ee05df5fa606852575e5",
+        "line-text.ts": "921f1fbdab650fd507e09163678327ec26e7b4a56f85eb82d7eb71b469c18da9",
+        "measurement.ts": "fe3cdd51459a905e2342f470cc1808d58d9e31b4b08b5b074867df86ccffbbca",
+        "rich-inline.ts": "eaef4aa5a6808be65d34a1175421ab3ba3fdeb02aac80e24f88b186e98bda1d8",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -394,7 +399,7 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -405,14 +410,14 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "ko",
             "direction": "ltr"
           },
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -423,7 +428,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "ko",
             "direction": "ltr"
           },
@@ -437,7 +442,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -453,23 +458,24 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-23T21:34:42.856Z",
-    "suiteHash": "a324a770738a3035d4037458949ec00a0e813ef64a6d4a98a666370c9908d86e",
+    "generatedAt": "2026-09-25T00:51:28.231Z",
+    "suiteHash": "d695ce8dfddd51009612bde86108a44f6f4d4b7a01ea7b6246413d7c76211178",
     "source": {
-      "revision": "a975dc960a33d9173c416e977c9068a14d17353f",
+      "revision": "ba36327a3ef7ef423fb53d9d4fb176efe4b76713",
       "files": {
-        "analysis.ts": "b3002380a7841d73d6c6201828c6d9d1fca053a87bf6870313601f19d13f74f6",
-        "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "gecko-bidi-levels.ts": "ec10cd63a5adb39a57a4179983c133539420858525887f5b5907c0b86b3c1e4e",
-        "gecko-line-breaks.ts": "1172f9b4b0f31721e03c98e0d2e298f8079603e88a31cf142f2e246e00f9173d",
-        "generated/engine-break-data.ts": "d708a9a14abdd63f46083c35ad294fa46a19ed2ec137015a042610119ec31c0c",
-        "han-kerning.ts": "d12d1254b8ecd2db8dac1d22d32d77f0981ffb7156b196854607f5ae96807283",
-        "layout.ts": "16d47944c48ed8aff4e38660d1caeb93ca7e9520d58512f5be0f42c0c7548540",
-        "line-break.ts": "a1a6d544144a30d9738345331556b13cd38801aec37247f8b1e97d13206730fe",
-        "line-breaks.ts": "f224873cf969d168a69445fabbfb17a64fd59d95fd7fc66aec9cbb7fb1a707be",
-        "line-text.ts": "faaa5836244b3ab9b5131b012ecb2be473bb3dfc38e711f0b7c2c95c92c0d4ad",
-        "measurement.ts": "593b981a5062711d8dd2491c3b45b244d0a73043c8ed3051216fc19f38b85bae",
-        "rich-inline.ts": "4befff6d11bb737a4003ba3518d7e450500d1b2177ec41b9e99c0b091f80920d",
+        "analysis.ts": "095e1ab4667e33841696d944a90a2216a363749e6f19eda9ec70e7b3a93f49e5",
+        "entry-geometry.ts": "52f60449ba048eb0ea1982f45edf0d4ac8d3750292952036cffe2b5aa06f758e",
+        "gecko-bidi-levels.ts": "9fef10ae1e6c7d78badc31a9f496605d5f3484fb857d64d88d59cac8f06ee080",
+        "gecko-line-breaks.ts": "2e07fdf74caa5714f719c72fe7828cce603b2f50247f28f83adf4d4f254ed32c",
+        "generated/engine-break-data.ts": "de7ff30638dfbda4a737d3eb7820cba40c2d53fa0b12ab32eb73fa7b4f8bf2ab",
+        "generated/webkit-generic-families.ts": "16ffba2832197e189a5ddf7e745304a3c5faacc82858a51808c3744991b11614",
+        "han-kerning.ts": "fbb13fb093fc35178974eea57346d95117eedc6f3f17c51315957b45e30af0f9",
+        "layout.ts": "b43689aedd4db0579fbee33213075b706811a70f3c84641d58eb97dd6542092d",
+        "line-break.ts": "230061fbab9f4c53e822d3eae1d0f7eeb0e245a79d0db635f81ac272e5376797",
+        "line-breaks.ts": "e6ac3de83648666bded662a90d95026970b89aef1796ee05df5fa606852575e5",
+        "line-text.ts": "921f1fbdab650fd507e09163678327ec26e7b4a56f85eb82d7eb71b469c18da9",
+        "measurement.ts": "fe3cdd51459a905e2342f470cc1808d58d9e31b4b08b5b074867df86ccffbbca",
+        "rich-inline.ts": "eaef4aa5a6808be65d34a1175421ab3ba3fdeb02aac80e24f88b186e98bda1d8",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -481,7 +487,7 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -492,14 +498,14 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "ko",
             "direction": "ltr"
           },
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -510,7 +516,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "ko",
             "direction": "ltr"
           },
@@ -524,7 +530,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -540,23 +546,24 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-23T21:34:42.856Z",
-    "suiteHash": "a324a770738a3035d4037458949ec00a0e813ef64a6d4a98a666370c9908d86e",
+    "generatedAt": "2026-09-25T00:51:28.231Z",
+    "suiteHash": "d695ce8dfddd51009612bde86108a44f6f4d4b7a01ea7b6246413d7c76211178",
     "source": {
-      "revision": "a975dc960a33d9173c416e977c9068a14d17353f",
+      "revision": "ba36327a3ef7ef423fb53d9d4fb176efe4b76713",
       "files": {
-        "analysis.ts": "b3002380a7841d73d6c6201828c6d9d1fca053a87bf6870313601f19d13f74f6",
-        "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "gecko-bidi-levels.ts": "ec10cd63a5adb39a57a4179983c133539420858525887f5b5907c0b86b3c1e4e",
-        "gecko-line-breaks.ts": "1172f9b4b0f31721e03c98e0d2e298f8079603e88a31cf142f2e246e00f9173d",
-        "generated/engine-break-data.ts": "d708a9a14abdd63f46083c35ad294fa46a19ed2ec137015a042610119ec31c0c",
-        "han-kerning.ts": "d12d1254b8ecd2db8dac1d22d32d77f0981ffb7156b196854607f5ae96807283",
-        "layout.ts": "16d47944c48ed8aff4e38660d1caeb93ca7e9520d58512f5be0f42c0c7548540",
-        "line-break.ts": "a1a6d544144a30d9738345331556b13cd38801aec37247f8b1e97d13206730fe",
-        "line-breaks.ts": "f224873cf969d168a69445fabbfb17a64fd59d95fd7fc66aec9cbb7fb1a707be",
-        "line-text.ts": "faaa5836244b3ab9b5131b012ecb2be473bb3dfc38e711f0b7c2c95c92c0d4ad",
-        "measurement.ts": "593b981a5062711d8dd2491c3b45b244d0a73043c8ed3051216fc19f38b85bae",
-        "rich-inline.ts": "4befff6d11bb737a4003ba3518d7e450500d1b2177ec41b9e99c0b091f80920d",
+        "analysis.ts": "095e1ab4667e33841696d944a90a2216a363749e6f19eda9ec70e7b3a93f49e5",
+        "entry-geometry.ts": "52f60449ba048eb0ea1982f45edf0d4ac8d3750292952036cffe2b5aa06f758e",
+        "gecko-bidi-levels.ts": "9fef10ae1e6c7d78badc31a9f496605d5f3484fb857d64d88d59cac8f06ee080",
+        "gecko-line-breaks.ts": "2e07fdf74caa5714f719c72fe7828cce603b2f50247f28f83adf4d4f254ed32c",
+        "generated/engine-break-data.ts": "de7ff30638dfbda4a737d3eb7820cba40c2d53fa0b12ab32eb73fa7b4f8bf2ab",
+        "generated/webkit-generic-families.ts": "16ffba2832197e189a5ddf7e745304a3c5faacc82858a51808c3744991b11614",
+        "han-kerning.ts": "fbb13fb093fc35178974eea57346d95117eedc6f3f17c51315957b45e30af0f9",
+        "layout.ts": "b43689aedd4db0579fbee33213075b706811a70f3c84641d58eb97dd6542092d",
+        "line-break.ts": "230061fbab9f4c53e822d3eae1d0f7eeb0e245a79d0db635f81ac272e5376797",
+        "line-breaks.ts": "e6ac3de83648666bded662a90d95026970b89aef1796ee05df5fa606852575e5",
+        "line-text.ts": "921f1fbdab650fd507e09163678327ec26e7b4a56f85eb82d7eb71b469c18da9",
+        "measurement.ts": "fe3cdd51459a905e2342f470cc1808d58d9e31b4b08b5b074867df86ccffbbca",
+        "rich-inline.ts": "eaef4aa5a6808be65d34a1175421ab3ba3fdeb02aac80e24f88b186e98bda1d8",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -568,7 +575,7 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -579,14 +586,14 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "zh",
             "direction": "ltr"
           },
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -597,7 +604,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "zh",
             "direction": "ltr"
           },
@@ -611,7 +618,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -627,23 +634,24 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-23T21:34:42.856Z",
-    "suiteHash": "a324a770738a3035d4037458949ec00a0e813ef64a6d4a98a666370c9908d86e",
+    "generatedAt": "2026-09-25T00:51:28.231Z",
+    "suiteHash": "d695ce8dfddd51009612bde86108a44f6f4d4b7a01ea7b6246413d7c76211178",
     "source": {
-      "revision": "a975dc960a33d9173c416e977c9068a14d17353f",
+      "revision": "ba36327a3ef7ef423fb53d9d4fb176efe4b76713",
       "files": {
-        "analysis.ts": "b3002380a7841d73d6c6201828c6d9d1fca053a87bf6870313601f19d13f74f6",
-        "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "gecko-bidi-levels.ts": "ec10cd63a5adb39a57a4179983c133539420858525887f5b5907c0b86b3c1e4e",
-        "gecko-line-breaks.ts": "1172f9b4b0f31721e03c98e0d2e298f8079603e88a31cf142f2e246e00f9173d",
-        "generated/engine-break-data.ts": "d708a9a14abdd63f46083c35ad294fa46a19ed2ec137015a042610119ec31c0c",
-        "han-kerning.ts": "d12d1254b8ecd2db8dac1d22d32d77f0981ffb7156b196854607f5ae96807283",
-        "layout.ts": "16d47944c48ed8aff4e38660d1caeb93ca7e9520d58512f5be0f42c0c7548540",
-        "line-break.ts": "a1a6d544144a30d9738345331556b13cd38801aec37247f8b1e97d13206730fe",
-        "line-breaks.ts": "f224873cf969d168a69445fabbfb17a64fd59d95fd7fc66aec9cbb7fb1a707be",
-        "line-text.ts": "faaa5836244b3ab9b5131b012ecb2be473bb3dfc38e711f0b7c2c95c92c0d4ad",
-        "measurement.ts": "593b981a5062711d8dd2491c3b45b244d0a73043c8ed3051216fc19f38b85bae",
-        "rich-inline.ts": "4befff6d11bb737a4003ba3518d7e450500d1b2177ec41b9e99c0b091f80920d",
+        "analysis.ts": "095e1ab4667e33841696d944a90a2216a363749e6f19eda9ec70e7b3a93f49e5",
+        "entry-geometry.ts": "52f60449ba048eb0ea1982f45edf0d4ac8d3750292952036cffe2b5aa06f758e",
+        "gecko-bidi-levels.ts": "9fef10ae1e6c7d78badc31a9f496605d5f3484fb857d64d88d59cac8f06ee080",
+        "gecko-line-breaks.ts": "2e07fdf74caa5714f719c72fe7828cce603b2f50247f28f83adf4d4f254ed32c",
+        "generated/engine-break-data.ts": "de7ff30638dfbda4a737d3eb7820cba40c2d53fa0b12ab32eb73fa7b4f8bf2ab",
+        "generated/webkit-generic-families.ts": "16ffba2832197e189a5ddf7e745304a3c5faacc82858a51808c3744991b11614",
+        "han-kerning.ts": "fbb13fb093fc35178974eea57346d95117eedc6f3f17c51315957b45e30af0f9",
+        "layout.ts": "b43689aedd4db0579fbee33213075b706811a70f3c84641d58eb97dd6542092d",
+        "line-break.ts": "230061fbab9f4c53e822d3eae1d0f7eeb0e245a79d0db635f81ac272e5376797",
+        "line-breaks.ts": "e6ac3de83648666bded662a90d95026970b89aef1796ee05df5fa606852575e5",
+        "line-text.ts": "921f1fbdab650fd507e09163678327ec26e7b4a56f85eb82d7eb71b469c18da9",
+        "measurement.ts": "fe3cdd51459a905e2342f470cc1808d58d9e31b4b08b5b074867df86ccffbbca",
+        "rich-inline.ts": "eaef4aa5a6808be65d34a1175421ab3ba3fdeb02aac80e24f88b186e98bda1d8",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -655,7 +663,7 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -666,14 +674,14 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "zh",
             "direction": "ltr"
           },
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -684,7 +692,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "zh",
             "direction": "ltr"
           },
@@ -698,7 +706,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -714,23 +722,24 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-23T21:34:42.856Z",
-    "suiteHash": "a324a770738a3035d4037458949ec00a0e813ef64a6d4a98a666370c9908d86e",
+    "generatedAt": "2026-09-25T00:51:28.231Z",
+    "suiteHash": "d695ce8dfddd51009612bde86108a44f6f4d4b7a01ea7b6246413d7c76211178",
     "source": {
-      "revision": "a975dc960a33d9173c416e977c9068a14d17353f",
+      "revision": "ba36327a3ef7ef423fb53d9d4fb176efe4b76713",
       "files": {
-        "analysis.ts": "b3002380a7841d73d6c6201828c6d9d1fca053a87bf6870313601f19d13f74f6",
-        "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "gecko-bidi-levels.ts": "ec10cd63a5adb39a57a4179983c133539420858525887f5b5907c0b86b3c1e4e",
-        "gecko-line-breaks.ts": "1172f9b4b0f31721e03c98e0d2e298f8079603e88a31cf142f2e246e00f9173d",
-        "generated/engine-break-data.ts": "d708a9a14abdd63f46083c35ad294fa46a19ed2ec137015a042610119ec31c0c",
-        "han-kerning.ts": "d12d1254b8ecd2db8dac1d22d32d77f0981ffb7156b196854607f5ae96807283",
-        "layout.ts": "16d47944c48ed8aff4e38660d1caeb93ca7e9520d58512f5be0f42c0c7548540",
-        "line-break.ts": "a1a6d544144a30d9738345331556b13cd38801aec37247f8b1e97d13206730fe",
-        "line-breaks.ts": "f224873cf969d168a69445fabbfb17a64fd59d95fd7fc66aec9cbb7fb1a707be",
-        "line-text.ts": "faaa5836244b3ab9b5131b012ecb2be473bb3dfc38e711f0b7c2c95c92c0d4ad",
-        "measurement.ts": "593b981a5062711d8dd2491c3b45b244d0a73043c8ed3051216fc19f38b85bae",
-        "rich-inline.ts": "4befff6d11bb737a4003ba3518d7e450500d1b2177ec41b9e99c0b091f80920d",
+        "analysis.ts": "095e1ab4667e33841696d944a90a2216a363749e6f19eda9ec70e7b3a93f49e5",
+        "entry-geometry.ts": "52f60449ba048eb0ea1982f45edf0d4ac8d3750292952036cffe2b5aa06f758e",
+        "gecko-bidi-levels.ts": "9fef10ae1e6c7d78badc31a9f496605d5f3484fb857d64d88d59cac8f06ee080",
+        "gecko-line-breaks.ts": "2e07fdf74caa5714f719c72fe7828cce603b2f50247f28f83adf4d4f254ed32c",
+        "generated/engine-break-data.ts": "de7ff30638dfbda4a737d3eb7820cba40c2d53fa0b12ab32eb73fa7b4f8bf2ab",
+        "generated/webkit-generic-families.ts": "16ffba2832197e189a5ddf7e745304a3c5faacc82858a51808c3744991b11614",
+        "han-kerning.ts": "fbb13fb093fc35178974eea57346d95117eedc6f3f17c51315957b45e30af0f9",
+        "layout.ts": "b43689aedd4db0579fbee33213075b706811a70f3c84641d58eb97dd6542092d",
+        "line-break.ts": "230061fbab9f4c53e822d3eae1d0f7eeb0e245a79d0db635f81ac272e5376797",
+        "line-breaks.ts": "e6ac3de83648666bded662a90d95026970b89aef1796ee05df5fa606852575e5",
+        "line-text.ts": "921f1fbdab650fd507e09163678327ec26e7b4a56f85eb82d7eb71b469c18da9",
+        "measurement.ts": "fe3cdd51459a905e2342f470cc1808d58d9e31b4b08b5b074867df86ccffbbca",
+        "rich-inline.ts": "eaef4aa5a6808be65d34a1175421ab3ba3fdeb02aac80e24f88b186e98bda1d8",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -742,7 +751,7 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -753,14 +762,14 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "th",
             "direction": "ltr"
           },
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -771,7 +780,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "th",
             "direction": "ltr"
           },
@@ -785,7 +794,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -818,23 +827,24 @@
     ]
   },
   {
-    "generatedAt": "2026-09-23T21:34:42.856Z",
-    "suiteHash": "a324a770738a3035d4037458949ec00a0e813ef64a6d4a98a666370c9908d86e",
+    "generatedAt": "2026-09-25T00:51:28.231Z",
+    "suiteHash": "d695ce8dfddd51009612bde86108a44f6f4d4b7a01ea7b6246413d7c76211178",
     "source": {
-      "revision": "a975dc960a33d9173c416e977c9068a14d17353f",
+      "revision": "ba36327a3ef7ef423fb53d9d4fb176efe4b76713",
       "files": {
-        "analysis.ts": "b3002380a7841d73d6c6201828c6d9d1fca053a87bf6870313601f19d13f74f6",
-        "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "gecko-bidi-levels.ts": "ec10cd63a5adb39a57a4179983c133539420858525887f5b5907c0b86b3c1e4e",
-        "gecko-line-breaks.ts": "1172f9b4b0f31721e03c98e0d2e298f8079603e88a31cf142f2e246e00f9173d",
-        "generated/engine-break-data.ts": "d708a9a14abdd63f46083c35ad294fa46a19ed2ec137015a042610119ec31c0c",
-        "han-kerning.ts": "d12d1254b8ecd2db8dac1d22d32d77f0981ffb7156b196854607f5ae96807283",
-        "layout.ts": "16d47944c48ed8aff4e38660d1caeb93ca7e9520d58512f5be0f42c0c7548540",
-        "line-break.ts": "a1a6d544144a30d9738345331556b13cd38801aec37247f8b1e97d13206730fe",
-        "line-breaks.ts": "f224873cf969d168a69445fabbfb17a64fd59d95fd7fc66aec9cbb7fb1a707be",
-        "line-text.ts": "faaa5836244b3ab9b5131b012ecb2be473bb3dfc38e711f0b7c2c95c92c0d4ad",
-        "measurement.ts": "593b981a5062711d8dd2491c3b45b244d0a73043c8ed3051216fc19f38b85bae",
-        "rich-inline.ts": "4befff6d11bb737a4003ba3518d7e450500d1b2177ec41b9e99c0b091f80920d",
+        "analysis.ts": "095e1ab4667e33841696d944a90a2216a363749e6f19eda9ec70e7b3a93f49e5",
+        "entry-geometry.ts": "52f60449ba048eb0ea1982f45edf0d4ac8d3750292952036cffe2b5aa06f758e",
+        "gecko-bidi-levels.ts": "9fef10ae1e6c7d78badc31a9f496605d5f3484fb857d64d88d59cac8f06ee080",
+        "gecko-line-breaks.ts": "2e07fdf74caa5714f719c72fe7828cce603b2f50247f28f83adf4d4f254ed32c",
+        "generated/engine-break-data.ts": "de7ff30638dfbda4a737d3eb7820cba40c2d53fa0b12ab32eb73fa7b4f8bf2ab",
+        "generated/webkit-generic-families.ts": "16ffba2832197e189a5ddf7e745304a3c5faacc82858a51808c3744991b11614",
+        "han-kerning.ts": "fbb13fb093fc35178974eea57346d95117eedc6f3f17c51315957b45e30af0f9",
+        "layout.ts": "b43689aedd4db0579fbee33213075b706811a70f3c84641d58eb97dd6542092d",
+        "line-break.ts": "230061fbab9f4c53e822d3eae1d0f7eeb0e245a79d0db635f81ac272e5376797",
+        "line-breaks.ts": "e6ac3de83648666bded662a90d95026970b89aef1796ee05df5fa606852575e5",
+        "line-text.ts": "921f1fbdab650fd507e09163678327ec26e7b4a56f85eb82d7eb71b469c18da9",
+        "measurement.ts": "fe3cdd51459a905e2342f470cc1808d58d9e31b4b08b5b074867df86ccffbbca",
+        "rich-inline.ts": "eaef4aa5a6808be65d34a1175421ab3ba3fdeb02aac80e24f88b186e98bda1d8",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -846,7 +856,7 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -857,14 +867,14 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "th",
             "direction": "ltr"
           },
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -875,7 +885,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "th",
             "direction": "ltr"
           },
@@ -889,7 +899,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -914,23 +924,24 @@
     ]
   },
   {
-    "generatedAt": "2026-09-23T21:34:42.856Z",
-    "suiteHash": "a324a770738a3035d4037458949ec00a0e813ef64a6d4a98a666370c9908d86e",
+    "generatedAt": "2026-09-25T00:51:28.231Z",
+    "suiteHash": "d695ce8dfddd51009612bde86108a44f6f4d4b7a01ea7b6246413d7c76211178",
     "source": {
-      "revision": "a975dc960a33d9173c416e977c9068a14d17353f",
+      "revision": "ba36327a3ef7ef423fb53d9d4fb176efe4b76713",
       "files": {
-        "analysis.ts": "b3002380a7841d73d6c6201828c6d9d1fca053a87bf6870313601f19d13f74f6",
-        "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "gecko-bidi-levels.ts": "ec10cd63a5adb39a57a4179983c133539420858525887f5b5907c0b86b3c1e4e",
-        "gecko-line-breaks.ts": "1172f9b4b0f31721e03c98e0d2e298f8079603e88a31cf142f2e246e00f9173d",
-        "generated/engine-break-data.ts": "d708a9a14abdd63f46083c35ad294fa46a19ed2ec137015a042610119ec31c0c",
-        "han-kerning.ts": "d12d1254b8ecd2db8dac1d22d32d77f0981ffb7156b196854607f5ae96807283",
-        "layout.ts": "16d47944c48ed8aff4e38660d1caeb93ca7e9520d58512f5be0f42c0c7548540",
-        "line-break.ts": "a1a6d544144a30d9738345331556b13cd38801aec37247f8b1e97d13206730fe",
-        "line-breaks.ts": "f224873cf969d168a69445fabbfb17a64fd59d95fd7fc66aec9cbb7fb1a707be",
-        "line-text.ts": "faaa5836244b3ab9b5131b012ecb2be473bb3dfc38e711f0b7c2c95c92c0d4ad",
-        "measurement.ts": "593b981a5062711d8dd2491c3b45b244d0a73043c8ed3051216fc19f38b85bae",
-        "rich-inline.ts": "4befff6d11bb737a4003ba3518d7e450500d1b2177ec41b9e99c0b091f80920d",
+        "analysis.ts": "095e1ab4667e33841696d944a90a2216a363749e6f19eda9ec70e7b3a93f49e5",
+        "entry-geometry.ts": "52f60449ba048eb0ea1982f45edf0d4ac8d3750292952036cffe2b5aa06f758e",
+        "gecko-bidi-levels.ts": "9fef10ae1e6c7d78badc31a9f496605d5f3484fb857d64d88d59cac8f06ee080",
+        "gecko-line-breaks.ts": "2e07fdf74caa5714f719c72fe7828cce603b2f50247f28f83adf4d4f254ed32c",
+        "generated/engine-break-data.ts": "de7ff30638dfbda4a737d3eb7820cba40c2d53fa0b12ab32eb73fa7b4f8bf2ab",
+        "generated/webkit-generic-families.ts": "16ffba2832197e189a5ddf7e745304a3c5faacc82858a51808c3744991b11614",
+        "han-kerning.ts": "fbb13fb093fc35178974eea57346d95117eedc6f3f17c51315957b45e30af0f9",
+        "layout.ts": "b43689aedd4db0579fbee33213075b706811a70f3c84641d58eb97dd6542092d",
+        "line-break.ts": "230061fbab9f4c53e822d3eae1d0f7eeb0e245a79d0db635f81ac272e5376797",
+        "line-breaks.ts": "e6ac3de83648666bded662a90d95026970b89aef1796ee05df5fa606852575e5",
+        "line-text.ts": "921f1fbdab650fd507e09163678327ec26e7b4a56f85eb82d7eb71b469c18da9",
+        "measurement.ts": "fe3cdd51459a905e2342f470cc1808d58d9e31b4b08b5b074867df86ccffbbca",
+        "rich-inline.ts": "eaef4aa5a6808be65d34a1175421ab3ba3fdeb02aac80e24f88b186e98bda1d8",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -942,7 +953,7 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -953,14 +964,14 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "my",
             "direction": "ltr"
           },
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -971,7 +982,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "my",
             "direction": "ltr"
           },
@@ -985,7 +996,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -1001,23 +1012,24 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-23T21:34:42.856Z",
-    "suiteHash": "a324a770738a3035d4037458949ec00a0e813ef64a6d4a98a666370c9908d86e",
+    "generatedAt": "2026-09-25T00:51:28.231Z",
+    "suiteHash": "d695ce8dfddd51009612bde86108a44f6f4d4b7a01ea7b6246413d7c76211178",
     "source": {
-      "revision": "a975dc960a33d9173c416e977c9068a14d17353f",
+      "revision": "ba36327a3ef7ef423fb53d9d4fb176efe4b76713",
       "files": {
-        "analysis.ts": "b3002380a7841d73d6c6201828c6d9d1fca053a87bf6870313601f19d13f74f6",
-        "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "gecko-bidi-levels.ts": "ec10cd63a5adb39a57a4179983c133539420858525887f5b5907c0b86b3c1e4e",
-        "gecko-line-breaks.ts": "1172f9b4b0f31721e03c98e0d2e298f8079603e88a31cf142f2e246e00f9173d",
-        "generated/engine-break-data.ts": "d708a9a14abdd63f46083c35ad294fa46a19ed2ec137015a042610119ec31c0c",
-        "han-kerning.ts": "d12d1254b8ecd2db8dac1d22d32d77f0981ffb7156b196854607f5ae96807283",
-        "layout.ts": "16d47944c48ed8aff4e38660d1caeb93ca7e9520d58512f5be0f42c0c7548540",
-        "line-break.ts": "a1a6d544144a30d9738345331556b13cd38801aec37247f8b1e97d13206730fe",
-        "line-breaks.ts": "f224873cf969d168a69445fabbfb17a64fd59d95fd7fc66aec9cbb7fb1a707be",
-        "line-text.ts": "faaa5836244b3ab9b5131b012ecb2be473bb3dfc38e711f0b7c2c95c92c0d4ad",
-        "measurement.ts": "593b981a5062711d8dd2491c3b45b244d0a73043c8ed3051216fc19f38b85bae",
-        "rich-inline.ts": "4befff6d11bb737a4003ba3518d7e450500d1b2177ec41b9e99c0b091f80920d",
+        "analysis.ts": "095e1ab4667e33841696d944a90a2216a363749e6f19eda9ec70e7b3a93f49e5",
+        "entry-geometry.ts": "52f60449ba048eb0ea1982f45edf0d4ac8d3750292952036cffe2b5aa06f758e",
+        "gecko-bidi-levels.ts": "9fef10ae1e6c7d78badc31a9f496605d5f3484fb857d64d88d59cac8f06ee080",
+        "gecko-line-breaks.ts": "2e07fdf74caa5714f719c72fe7828cce603b2f50247f28f83adf4d4f254ed32c",
+        "generated/engine-break-data.ts": "de7ff30638dfbda4a737d3eb7820cba40c2d53fa0b12ab32eb73fa7b4f8bf2ab",
+        "generated/webkit-generic-families.ts": "16ffba2832197e189a5ddf7e745304a3c5faacc82858a51808c3744991b11614",
+        "han-kerning.ts": "fbb13fb093fc35178974eea57346d95117eedc6f3f17c51315957b45e30af0f9",
+        "layout.ts": "b43689aedd4db0579fbee33213075b706811a70f3c84641d58eb97dd6542092d",
+        "line-break.ts": "230061fbab9f4c53e822d3eae1d0f7eeb0e245a79d0db635f81ac272e5376797",
+        "line-breaks.ts": "e6ac3de83648666bded662a90d95026970b89aef1796ee05df5fa606852575e5",
+        "line-text.ts": "921f1fbdab650fd507e09163678327ec26e7b4a56f85eb82d7eb71b469c18da9",
+        "measurement.ts": "fe3cdd51459a905e2342f470cc1808d58d9e31b4b08b5b074867df86ccffbbca",
+        "rich-inline.ts": "eaef4aa5a6808be65d34a1175421ab3ba3fdeb02aac80e24f88b186e98bda1d8",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -1029,7 +1041,7 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -1040,14 +1052,14 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "my",
             "direction": "ltr"
           },
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -1058,7 +1070,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "my",
             "direction": "ltr"
           },
@@ -1072,7 +1084,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -1088,23 +1100,24 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-23T21:34:42.856Z",
-    "suiteHash": "a324a770738a3035d4037458949ec00a0e813ef64a6d4a98a666370c9908d86e",
+    "generatedAt": "2026-09-25T00:51:28.231Z",
+    "suiteHash": "d695ce8dfddd51009612bde86108a44f6f4d4b7a01ea7b6246413d7c76211178",
     "source": {
-      "revision": "a975dc960a33d9173c416e977c9068a14d17353f",
+      "revision": "ba36327a3ef7ef423fb53d9d4fb176efe4b76713",
       "files": {
-        "analysis.ts": "b3002380a7841d73d6c6201828c6d9d1fca053a87bf6870313601f19d13f74f6",
-        "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "gecko-bidi-levels.ts": "ec10cd63a5adb39a57a4179983c133539420858525887f5b5907c0b86b3c1e4e",
-        "gecko-line-breaks.ts": "1172f9b4b0f31721e03c98e0d2e298f8079603e88a31cf142f2e246e00f9173d",
-        "generated/engine-break-data.ts": "d708a9a14abdd63f46083c35ad294fa46a19ed2ec137015a042610119ec31c0c",
-        "han-kerning.ts": "d12d1254b8ecd2db8dac1d22d32d77f0981ffb7156b196854607f5ae96807283",
-        "layout.ts": "16d47944c48ed8aff4e38660d1caeb93ca7e9520d58512f5be0f42c0c7548540",
-        "line-break.ts": "a1a6d544144a30d9738345331556b13cd38801aec37247f8b1e97d13206730fe",
-        "line-breaks.ts": "f224873cf969d168a69445fabbfb17a64fd59d95fd7fc66aec9cbb7fb1a707be",
-        "line-text.ts": "faaa5836244b3ab9b5131b012ecb2be473bb3dfc38e711f0b7c2c95c92c0d4ad",
-        "measurement.ts": "593b981a5062711d8dd2491c3b45b244d0a73043c8ed3051216fc19f38b85bae",
-        "rich-inline.ts": "4befff6d11bb737a4003ba3518d7e450500d1b2177ec41b9e99c0b091f80920d",
+        "analysis.ts": "095e1ab4667e33841696d944a90a2216a363749e6f19eda9ec70e7b3a93f49e5",
+        "entry-geometry.ts": "52f60449ba048eb0ea1982f45edf0d4ac8d3750292952036cffe2b5aa06f758e",
+        "gecko-bidi-levels.ts": "9fef10ae1e6c7d78badc31a9f496605d5f3484fb857d64d88d59cac8f06ee080",
+        "gecko-line-breaks.ts": "2e07fdf74caa5714f719c72fe7828cce603b2f50247f28f83adf4d4f254ed32c",
+        "generated/engine-break-data.ts": "de7ff30638dfbda4a737d3eb7820cba40c2d53fa0b12ab32eb73fa7b4f8bf2ab",
+        "generated/webkit-generic-families.ts": "16ffba2832197e189a5ddf7e745304a3c5faacc82858a51808c3744991b11614",
+        "han-kerning.ts": "fbb13fb093fc35178974eea57346d95117eedc6f3f17c51315957b45e30af0f9",
+        "layout.ts": "b43689aedd4db0579fbee33213075b706811a70f3c84641d58eb97dd6542092d",
+        "line-break.ts": "230061fbab9f4c53e822d3eae1d0f7eeb0e245a79d0db635f81ac272e5376797",
+        "line-breaks.ts": "e6ac3de83648666bded662a90d95026970b89aef1796ee05df5fa606852575e5",
+        "line-text.ts": "921f1fbdab650fd507e09163678327ec26e7b4a56f85eb82d7eb71b469c18da9",
+        "measurement.ts": "fe3cdd51459a905e2342f470cc1808d58d9e31b4b08b5b074867df86ccffbbca",
+        "rich-inline.ts": "eaef4aa5a6808be65d34a1175421ab3ba3fdeb02aac80e24f88b186e98bda1d8",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -1116,7 +1129,7 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -1127,14 +1140,14 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "km",
             "direction": "ltr"
           },
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -1145,7 +1158,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "km",
             "direction": "ltr"
           },
@@ -1159,7 +1172,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -1175,23 +1188,24 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-23T21:34:42.856Z",
-    "suiteHash": "a324a770738a3035d4037458949ec00a0e813ef64a6d4a98a666370c9908d86e",
+    "generatedAt": "2026-09-25T00:51:28.231Z",
+    "suiteHash": "d695ce8dfddd51009612bde86108a44f6f4d4b7a01ea7b6246413d7c76211178",
     "source": {
-      "revision": "a975dc960a33d9173c416e977c9068a14d17353f",
+      "revision": "ba36327a3ef7ef423fb53d9d4fb176efe4b76713",
       "files": {
-        "analysis.ts": "b3002380a7841d73d6c6201828c6d9d1fca053a87bf6870313601f19d13f74f6",
-        "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "gecko-bidi-levels.ts": "ec10cd63a5adb39a57a4179983c133539420858525887f5b5907c0b86b3c1e4e",
-        "gecko-line-breaks.ts": "1172f9b4b0f31721e03c98e0d2e298f8079603e88a31cf142f2e246e00f9173d",
-        "generated/engine-break-data.ts": "d708a9a14abdd63f46083c35ad294fa46a19ed2ec137015a042610119ec31c0c",
-        "han-kerning.ts": "d12d1254b8ecd2db8dac1d22d32d77f0981ffb7156b196854607f5ae96807283",
-        "layout.ts": "16d47944c48ed8aff4e38660d1caeb93ca7e9520d58512f5be0f42c0c7548540",
-        "line-break.ts": "a1a6d544144a30d9738345331556b13cd38801aec37247f8b1e97d13206730fe",
-        "line-breaks.ts": "f224873cf969d168a69445fabbfb17a64fd59d95fd7fc66aec9cbb7fb1a707be",
-        "line-text.ts": "faaa5836244b3ab9b5131b012ecb2be473bb3dfc38e711f0b7c2c95c92c0d4ad",
-        "measurement.ts": "593b981a5062711d8dd2491c3b45b244d0a73043c8ed3051216fc19f38b85bae",
-        "rich-inline.ts": "4befff6d11bb737a4003ba3518d7e450500d1b2177ec41b9e99c0b091f80920d",
+        "analysis.ts": "095e1ab4667e33841696d944a90a2216a363749e6f19eda9ec70e7b3a93f49e5",
+        "entry-geometry.ts": "52f60449ba048eb0ea1982f45edf0d4ac8d3750292952036cffe2b5aa06f758e",
+        "gecko-bidi-levels.ts": "9fef10ae1e6c7d78badc31a9f496605d5f3484fb857d64d88d59cac8f06ee080",
+        "gecko-line-breaks.ts": "2e07fdf74caa5714f719c72fe7828cce603b2f50247f28f83adf4d4f254ed32c",
+        "generated/engine-break-data.ts": "de7ff30638dfbda4a737d3eb7820cba40c2d53fa0b12ab32eb73fa7b4f8bf2ab",
+        "generated/webkit-generic-families.ts": "16ffba2832197e189a5ddf7e745304a3c5faacc82858a51808c3744991b11614",
+        "han-kerning.ts": "fbb13fb093fc35178974eea57346d95117eedc6f3f17c51315957b45e30af0f9",
+        "layout.ts": "b43689aedd4db0579fbee33213075b706811a70f3c84641d58eb97dd6542092d",
+        "line-break.ts": "230061fbab9f4c53e822d3eae1d0f7eeb0e245a79d0db635f81ac272e5376797",
+        "line-breaks.ts": "e6ac3de83648666bded662a90d95026970b89aef1796ee05df5fa606852575e5",
+        "line-text.ts": "921f1fbdab650fd507e09163678327ec26e7b4a56f85eb82d7eb71b469c18da9",
+        "measurement.ts": "fe3cdd51459a905e2342f470cc1808d58d9e31b4b08b5b074867df86ccffbbca",
+        "rich-inline.ts": "eaef4aa5a6808be65d34a1175421ab3ba3fdeb02aac80e24f88b186e98bda1d8",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -1203,7 +1217,7 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -1214,14 +1228,14 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "ar",
             "direction": "rtl"
           },
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -1232,7 +1246,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "ar",
             "direction": "rtl"
           },
@@ -1246,7 +1260,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -1262,23 +1276,24 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-23T21:34:42.856Z",
-    "suiteHash": "a324a770738a3035d4037458949ec00a0e813ef64a6d4a98a666370c9908d86e",
+    "generatedAt": "2026-09-25T00:51:28.231Z",
+    "suiteHash": "d695ce8dfddd51009612bde86108a44f6f4d4b7a01ea7b6246413d7c76211178",
     "source": {
-      "revision": "a975dc960a33d9173c416e977c9068a14d17353f",
+      "revision": "ba36327a3ef7ef423fb53d9d4fb176efe4b76713",
       "files": {
-        "analysis.ts": "b3002380a7841d73d6c6201828c6d9d1fca053a87bf6870313601f19d13f74f6",
-        "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "gecko-bidi-levels.ts": "ec10cd63a5adb39a57a4179983c133539420858525887f5b5907c0b86b3c1e4e",
-        "gecko-line-breaks.ts": "1172f9b4b0f31721e03c98e0d2e298f8079603e88a31cf142f2e246e00f9173d",
-        "generated/engine-break-data.ts": "d708a9a14abdd63f46083c35ad294fa46a19ed2ec137015a042610119ec31c0c",
-        "han-kerning.ts": "d12d1254b8ecd2db8dac1d22d32d77f0981ffb7156b196854607f5ae96807283",
-        "layout.ts": "16d47944c48ed8aff4e38660d1caeb93ca7e9520d58512f5be0f42c0c7548540",
-        "line-break.ts": "a1a6d544144a30d9738345331556b13cd38801aec37247f8b1e97d13206730fe",
-        "line-breaks.ts": "f224873cf969d168a69445fabbfb17a64fd59d95fd7fc66aec9cbb7fb1a707be",
-        "line-text.ts": "faaa5836244b3ab9b5131b012ecb2be473bb3dfc38e711f0b7c2c95c92c0d4ad",
-        "measurement.ts": "593b981a5062711d8dd2491c3b45b244d0a73043c8ed3051216fc19f38b85bae",
-        "rich-inline.ts": "4befff6d11bb737a4003ba3518d7e450500d1b2177ec41b9e99c0b091f80920d",
+        "analysis.ts": "095e1ab4667e33841696d944a90a2216a363749e6f19eda9ec70e7b3a93f49e5",
+        "entry-geometry.ts": "52f60449ba048eb0ea1982f45edf0d4ac8d3750292952036cffe2b5aa06f758e",
+        "gecko-bidi-levels.ts": "9fef10ae1e6c7d78badc31a9f496605d5f3484fb857d64d88d59cac8f06ee080",
+        "gecko-line-breaks.ts": "2e07fdf74caa5714f719c72fe7828cce603b2f50247f28f83adf4d4f254ed32c",
+        "generated/engine-break-data.ts": "de7ff30638dfbda4a737d3eb7820cba40c2d53fa0b12ab32eb73fa7b4f8bf2ab",
+        "generated/webkit-generic-families.ts": "16ffba2832197e189a5ddf7e745304a3c5faacc82858a51808c3744991b11614",
+        "han-kerning.ts": "fbb13fb093fc35178974eea57346d95117eedc6f3f17c51315957b45e30af0f9",
+        "layout.ts": "b43689aedd4db0579fbee33213075b706811a70f3c84641d58eb97dd6542092d",
+        "line-break.ts": "230061fbab9f4c53e822d3eae1d0f7eeb0e245a79d0db635f81ac272e5376797",
+        "line-breaks.ts": "e6ac3de83648666bded662a90d95026970b89aef1796ee05df5fa606852575e5",
+        "line-text.ts": "921f1fbdab650fd507e09163678327ec26e7b4a56f85eb82d7eb71b469c18da9",
+        "measurement.ts": "fe3cdd51459a905e2342f470cc1808d58d9e31b4b08b5b074867df86ccffbbca",
+        "rich-inline.ts": "eaef4aa5a6808be65d34a1175421ab3ba3fdeb02aac80e24f88b186e98bda1d8",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -1290,7 +1305,7 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -1301,14 +1316,14 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "ar",
             "direction": "rtl"
           },
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -1319,7 +1334,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "ar",
             "direction": "rtl"
           },
@@ -1333,7 +1348,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -1349,23 +1364,24 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-23T21:34:42.856Z",
-    "suiteHash": "a324a770738a3035d4037458949ec00a0e813ef64a6d4a98a666370c9908d86e",
+    "generatedAt": "2026-09-25T00:51:28.231Z",
+    "suiteHash": "d695ce8dfddd51009612bde86108a44f6f4d4b7a01ea7b6246413d7c76211178",
     "source": {
-      "revision": "a975dc960a33d9173c416e977c9068a14d17353f",
+      "revision": "ba36327a3ef7ef423fb53d9d4fb176efe4b76713",
       "files": {
-        "analysis.ts": "b3002380a7841d73d6c6201828c6d9d1fca053a87bf6870313601f19d13f74f6",
-        "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "gecko-bidi-levels.ts": "ec10cd63a5adb39a57a4179983c133539420858525887f5b5907c0b86b3c1e4e",
-        "gecko-line-breaks.ts": "1172f9b4b0f31721e03c98e0d2e298f8079603e88a31cf142f2e246e00f9173d",
-        "generated/engine-break-data.ts": "d708a9a14abdd63f46083c35ad294fa46a19ed2ec137015a042610119ec31c0c",
-        "han-kerning.ts": "d12d1254b8ecd2db8dac1d22d32d77f0981ffb7156b196854607f5ae96807283",
-        "layout.ts": "16d47944c48ed8aff4e38660d1caeb93ca7e9520d58512f5be0f42c0c7548540",
-        "line-break.ts": "a1a6d544144a30d9738345331556b13cd38801aec37247f8b1e97d13206730fe",
-        "line-breaks.ts": "f224873cf969d168a69445fabbfb17a64fd59d95fd7fc66aec9cbb7fb1a707be",
-        "line-text.ts": "faaa5836244b3ab9b5131b012ecb2be473bb3dfc38e711f0b7c2c95c92c0d4ad",
-        "measurement.ts": "593b981a5062711d8dd2491c3b45b244d0a73043c8ed3051216fc19f38b85bae",
-        "rich-inline.ts": "4befff6d11bb737a4003ba3518d7e450500d1b2177ec41b9e99c0b091f80920d",
+        "analysis.ts": "095e1ab4667e33841696d944a90a2216a363749e6f19eda9ec70e7b3a93f49e5",
+        "entry-geometry.ts": "52f60449ba048eb0ea1982f45edf0d4ac8d3750292952036cffe2b5aa06f758e",
+        "gecko-bidi-levels.ts": "9fef10ae1e6c7d78badc31a9f496605d5f3484fb857d64d88d59cac8f06ee080",
+        "gecko-line-breaks.ts": "2e07fdf74caa5714f719c72fe7828cce603b2f50247f28f83adf4d4f254ed32c",
+        "generated/engine-break-data.ts": "de7ff30638dfbda4a737d3eb7820cba40c2d53fa0b12ab32eb73fa7b4f8bf2ab",
+        "generated/webkit-generic-families.ts": "16ffba2832197e189a5ddf7e745304a3c5faacc82858a51808c3744991b11614",
+        "han-kerning.ts": "fbb13fb093fc35178974eea57346d95117eedc6f3f17c51315957b45e30af0f9",
+        "layout.ts": "b43689aedd4db0579fbee33213075b706811a70f3c84641d58eb97dd6542092d",
+        "line-break.ts": "230061fbab9f4c53e822d3eae1d0f7eeb0e245a79d0db635f81ac272e5376797",
+        "line-breaks.ts": "e6ac3de83648666bded662a90d95026970b89aef1796ee05df5fa606852575e5",
+        "line-text.ts": "921f1fbdab650fd507e09163678327ec26e7b4a56f85eb82d7eb71b469c18da9",
+        "measurement.ts": "fe3cdd51459a905e2342f470cc1808d58d9e31b4b08b5b074867df86ccffbbca",
+        "rich-inline.ts": "eaef4aa5a6808be65d34a1175421ab3ba3fdeb02aac80e24f88b186e98bda1d8",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -1377,7 +1393,7 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -1388,14 +1404,14 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "hi",
             "direction": "ltr"
           },
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -1406,7 +1422,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "hi",
             "direction": "ltr"
           },
@@ -1420,7 +1436,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -1436,23 +1452,24 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-23T21:34:42.856Z",
-    "suiteHash": "a324a770738a3035d4037458949ec00a0e813ef64a6d4a98a666370c9908d86e",
+    "generatedAt": "2026-09-25T00:51:28.231Z",
+    "suiteHash": "d695ce8dfddd51009612bde86108a44f6f4d4b7a01ea7b6246413d7c76211178",
     "source": {
-      "revision": "a975dc960a33d9173c416e977c9068a14d17353f",
+      "revision": "ba36327a3ef7ef423fb53d9d4fb176efe4b76713",
       "files": {
-        "analysis.ts": "b3002380a7841d73d6c6201828c6d9d1fca053a87bf6870313601f19d13f74f6",
-        "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "gecko-bidi-levels.ts": "ec10cd63a5adb39a57a4179983c133539420858525887f5b5907c0b86b3c1e4e",
-        "gecko-line-breaks.ts": "1172f9b4b0f31721e03c98e0d2e298f8079603e88a31cf142f2e246e00f9173d",
-        "generated/engine-break-data.ts": "d708a9a14abdd63f46083c35ad294fa46a19ed2ec137015a042610119ec31c0c",
-        "han-kerning.ts": "d12d1254b8ecd2db8dac1d22d32d77f0981ffb7156b196854607f5ae96807283",
-        "layout.ts": "16d47944c48ed8aff4e38660d1caeb93ca7e9520d58512f5be0f42c0c7548540",
-        "line-break.ts": "a1a6d544144a30d9738345331556b13cd38801aec37247f8b1e97d13206730fe",
-        "line-breaks.ts": "f224873cf969d168a69445fabbfb17a64fd59d95fd7fc66aec9cbb7fb1a707be",
-        "line-text.ts": "faaa5836244b3ab9b5131b012ecb2be473bb3dfc38e711f0b7c2c95c92c0d4ad",
-        "measurement.ts": "593b981a5062711d8dd2491c3b45b244d0a73043c8ed3051216fc19f38b85bae",
-        "rich-inline.ts": "4befff6d11bb737a4003ba3518d7e450500d1b2177ec41b9e99c0b091f80920d",
+        "analysis.ts": "095e1ab4667e33841696d944a90a2216a363749e6f19eda9ec70e7b3a93f49e5",
+        "entry-geometry.ts": "52f60449ba048eb0ea1982f45edf0d4ac8d3750292952036cffe2b5aa06f758e",
+        "gecko-bidi-levels.ts": "9fef10ae1e6c7d78badc31a9f496605d5f3484fb857d64d88d59cac8f06ee080",
+        "gecko-line-breaks.ts": "2e07fdf74caa5714f719c72fe7828cce603b2f50247f28f83adf4d4f254ed32c",
+        "generated/engine-break-data.ts": "de7ff30638dfbda4a737d3eb7820cba40c2d53fa0b12ab32eb73fa7b4f8bf2ab",
+        "generated/webkit-generic-families.ts": "16ffba2832197e189a5ddf7e745304a3c5faacc82858a51808c3744991b11614",
+        "han-kerning.ts": "fbb13fb093fc35178974eea57346d95117eedc6f3f17c51315957b45e30af0f9",
+        "layout.ts": "b43689aedd4db0579fbee33213075b706811a70f3c84641d58eb97dd6542092d",
+        "line-break.ts": "230061fbab9f4c53e822d3eae1d0f7eeb0e245a79d0db635f81ac272e5376797",
+        "line-breaks.ts": "e6ac3de83648666bded662a90d95026970b89aef1796ee05df5fa606852575e5",
+        "line-text.ts": "921f1fbdab650fd507e09163678327ec26e7b4a56f85eb82d7eb71b469c18da9",
+        "measurement.ts": "fe3cdd51459a905e2342f470cc1808d58d9e31b4b08b5b074867df86ccffbbca",
+        "rich-inline.ts": "eaef4aa5a6808be65d34a1175421ab3ba3fdeb02aac80e24f88b186e98bda1d8",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -1464,7 +1481,7 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -1475,14 +1492,14 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "he",
             "direction": "rtl"
           },
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -1493,7 +1510,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "he",
             "direction": "rtl"
           },
@@ -1507,7 +1524,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
@@ -1523,23 +1540,24 @@
     "mismatches": []
   },
   {
-    "generatedAt": "2026-09-23T21:34:42.856Z",
-    "suiteHash": "a324a770738a3035d4037458949ec00a0e813ef64a6d4a98a666370c9908d86e",
+    "generatedAt": "2026-09-25T00:51:28.231Z",
+    "suiteHash": "d695ce8dfddd51009612bde86108a44f6f4d4b7a01ea7b6246413d7c76211178",
     "source": {
-      "revision": "a975dc960a33d9173c416e977c9068a14d17353f",
+      "revision": "ba36327a3ef7ef423fb53d9d4fb176efe4b76713",
       "files": {
-        "analysis.ts": "b3002380a7841d73d6c6201828c6d9d1fca053a87bf6870313601f19d13f74f6",
-        "entry-geometry.ts": "43ffacd71c3562283135590a06947eef4b2617cb3b6ba680c909dd5e2d2ba9a7",
-        "gecko-bidi-levels.ts": "ec10cd63a5adb39a57a4179983c133539420858525887f5b5907c0b86b3c1e4e",
-        "gecko-line-breaks.ts": "1172f9b4b0f31721e03c98e0d2e298f8079603e88a31cf142f2e246e00f9173d",
-        "generated/engine-break-data.ts": "d708a9a14abdd63f46083c35ad294fa46a19ed2ec137015a042610119ec31c0c",
-        "han-kerning.ts": "d12d1254b8ecd2db8dac1d22d32d77f0981ffb7156b196854607f5ae96807283",
-        "layout.ts": "16d47944c48ed8aff4e38660d1caeb93ca7e9520d58512f5be0f42c0c7548540",
-        "line-break.ts": "a1a6d544144a30d9738345331556b13cd38801aec37247f8b1e97d13206730fe",
-        "line-breaks.ts": "f224873cf969d168a69445fabbfb17a64fd59d95fd7fc66aec9cbb7fb1a707be",
-        "line-text.ts": "faaa5836244b3ab9b5131b012ecb2be473bb3dfc38e711f0b7c2c95c92c0d4ad",
-        "measurement.ts": "593b981a5062711d8dd2491c3b45b244d0a73043c8ed3051216fc19f38b85bae",
-        "rich-inline.ts": "4befff6d11bb737a4003ba3518d7e450500d1b2177ec41b9e99c0b091f80920d",
+        "analysis.ts": "095e1ab4667e33841696d944a90a2216a363749e6f19eda9ec70e7b3a93f49e5",
+        "entry-geometry.ts": "52f60449ba048eb0ea1982f45edf0d4ac8d3750292952036cffe2b5aa06f758e",
+        "gecko-bidi-levels.ts": "9fef10ae1e6c7d78badc31a9f496605d5f3484fb857d64d88d59cac8f06ee080",
+        "gecko-line-breaks.ts": "2e07fdf74caa5714f719c72fe7828cce603b2f50247f28f83adf4d4f254ed32c",
+        "generated/engine-break-data.ts": "de7ff30638dfbda4a737d3eb7820cba40c2d53fa0b12ab32eb73fa7b4f8bf2ab",
+        "generated/webkit-generic-families.ts": "16ffba2832197e189a5ddf7e745304a3c5faacc82858a51808c3744991b11614",
+        "han-kerning.ts": "fbb13fb093fc35178974eea57346d95117eedc6f3f17c51315957b45e30af0f9",
+        "layout.ts": "b43689aedd4db0579fbee33213075b706811a70f3c84641d58eb97dd6542092d",
+        "line-break.ts": "230061fbab9f4c53e822d3eae1d0f7eeb0e245a79d0db635f81ac272e5376797",
+        "line-breaks.ts": "e6ac3de83648666bded662a90d95026970b89aef1796ee05df5fa606852575e5",
+        "line-text.ts": "921f1fbdab650fd507e09163678327ec26e7b4a56f85eb82d7eb71b469c18da9",
+        "measurement.ts": "fe3cdd51459a905e2342f470cc1808d58d9e31b4b08b5b074867df86ccffbbca",
+        "rich-inline.ts": "eaef4aa5a6808be65d34a1175421ab3ba3fdeb02aac80e24f88b186e98bda1d8",
         "text-modules.d.ts": "1547f88f0eb75293bc20054194a2bba29a4bc911c2a4fa99cef98141b6f99927"
       }
     },
@@ -1551,7 +1569,7 @@
           "start": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -1562,14 +1580,14 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "ur",
             "direction": "rtl"
           },
           "end": {
             "dpr": 2,
             "visualViewportScale": 1,
-            "innerWidth": 2504,
+            "innerWidth": 2320,
             "innerHeight": 1273,
             "outerWidth": 2560,
             "outerHeight": 1320,
@@ -1580,7 +1598,7 @@
             "screenAvailWidth": 2560,
             "screenAvailHeight": 1320,
             "visibility": "visible",
-            "focused": true,
+            "focused": false,
             "language": "ur",
             "direction": "rtl"
           },
@@ -1594,7 +1612,7 @@
         "dpr": 2,
         "locale": "zh-CN",
         "visibility": "visible",
-        "focused": true,
+        "focused": false,
         "fonts": []
       }
     ],
