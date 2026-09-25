@@ -32,6 +32,7 @@ Changelog updates guideline: don't add dev-facing notes, only user-facing ones. 
 
 - The maintained accuracy cases in `bun run test:wrapping --browser=all` should be green in all three installed browsers on fresh runs. Treat headless replays as hypotheses.
 - Do not run multiple checkers in parallel against the same browser. Locks recover from dead owners; on a lock timeout, check whether a live checker still owns it.
+- The new harness (`harness/README.md`): `bun harness check` and `bun harness gate` should be green in Chrome, Firefox and webkit-host, and a new failure goes on `harness/accepted/<browser>.txt` only under a written reason.
 - Keep benchmarks foreground.
 - Use named fonts for accuracy, and give standalone probe pages an explicit, non-empty `lang`. Re-test the macOS emoji and `system-ui` bugs in a headed browser on a Retina display; headless DPR 1 runs can mask them. Consult `PLATFORM_BUGS.md` before changing engine-profile workarounds or line-fit tolerances.
 - Follow the Safari extractor caveats in `DEVELOPMENT.md`: cross-check suspicious `pre-wrap` and URL-query `Range` results with spans before changing the engine.

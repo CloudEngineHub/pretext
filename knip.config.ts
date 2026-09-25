@@ -11,6 +11,9 @@ const config: KnipConfig = {
     'scripts/**/*.ts',
     // Browser pages and demos — each `pages/**/*.ts` is the target of a `<script type="module" src="…">` in a sibling `.html`
     'pages/**/*.ts',
+    // The page the harness's runner bundles, and the case-set maker.
+    'harness/page.ts',
+    'harness/sets/make.ts',
     // Bundled through the comparison runner's generated candidate entry.
     'tests/wrapping/browser.ts',
     'tests/wrapping/contracts.ts',
