@@ -24,7 +24,9 @@ describe('the real-usage sample', () => {
   })
 
   test('the checked-in sample is what weights.json draws: a changed weight without a new draw would score the old usage', () => {
-    const path = join(import.meta.dir, '../../.artifacts/harness-sets/sample-check.ndjson')
+    const dir = join(import.meta.dir, '../../.artifacts/harness-sets')
+    mkdirSync(dir, { recursive: true })
+    const path = join(dir, 'sample-check.ndjson')
     writeCases(path, checkedInSample().cases)
     expect(readFileSync(path, 'utf8')).toBe(readFileSync(join(import.meta.dir, '../cases/sample.ndjson'), 'utf8'))
     rmSync(path)

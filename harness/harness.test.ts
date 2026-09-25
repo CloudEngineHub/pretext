@@ -147,7 +147,9 @@ describe('the stored recordings', () => {
   test('two recordings swapped fail both cases: the gate would be green or red on another case\'s layout', async () => {
     const three = layOut(TEXT, [0, 16, 31]).recording
     const two = layOut(TEXT, [0, 20]).recording
-    const path = `${import.meta.dir}/../.artifacts/harness-test-recordings.txt`
+    const dir = `${import.meta.dir}/../.artifacts`
+    mkdirSync(dir, { recursive: true })
+    const path = `${dir}/harness-test-recordings.txt`
     writeRecordings(path, { env: 'test', recordings: new Map([['b', two], ['a', three]]) })
     const read = readRecordings(path)!
     expect(recordingText(read.recordings.get('a')!)).toBe(recordingText(three))
