@@ -1372,7 +1372,8 @@ describe('boundary-policy regressions', () => {
 })
 
 describe('engine break scans', () => {
-  const wordSegmenter = new Intl.Segmenter(undefined, { granularity: 'word' })
+  const segmenter = new Intl.Segmenter(undefined, { granularity: 'word' })
+  const wordSegmenter = () => segmenter
   const positions = (breaks: Uint8Array, length: number) => {
     const out: number[] = []
     for (let i = 1; i < length; i++) if (breaks[i] === 1) out.push(i)
@@ -1412,7 +1413,6 @@ describe('engine break scans', () => {
   })
 
   test("Blink's scan opens Chrome's zh table for a zh page", () => {
-    const wordSegmenter = new Intl.Segmenter(undefined, { granularity: 'word' })
     const positions = (breaks: Uint8Array) => Array.from(breaks.keys()).filter(i => breaks[i] === 1)
     // line_normal_cj.brk treats curly quotes as brackets and lets 〜 start a line.
     for (const [text, root, zh] of [
@@ -2567,6 +2567,27 @@ describe('prepare invariants', () => {
         expect(collectStreamedLines(prepared, width)).toEqual(result.lines)
         expect(layout(prepare(text, FONT, { wordBreak: 'keep-all' }), width, LINE_HEIGHT).lineCount).toBe(graphemes.length)
       }
+    } finally {
+      Reflect.set(Intl, 'Segmenter', Segmenter)
+      clearAnalysisCaches()
+    }
+  })
+
+  test('text needs Intl.Segmenter only in the runs the scans break by dictionary, such as Thai', async () => {
+    const { clearAnalysisCaches } = await import('./analysis.ts')
+    const Segmenter = Intl.Segmenter
+    Reflect.deleteProperty(Intl, 'Segmenter')
+    clearAnalysisCaches()
+    try {
+      for (const lineBreakScan of ['blink', 'webkit', 'gecko'] as const) {
+        const profile = { lineBreakScan, graphemeTable: 'chromium/char' as const }
+        for (const text of ['Hello, world.', '漢字かな、한국어', 'العربية', '\u{1F468}\u200D\u{1F469}\u200D\u{1F467} #\uFE0F\u20E3', '\u0915\u094D\u0937\u093F', 'a\u00ADb c\u200Bd']) {
+          expect(analyzeText(text, profile).texts.join('')).toBe(text)
+        }
+        expect(() => analyzeText('ภาษาไทย', profile)).toThrow()
+      }
+      const prepared = prepareWithSegments('Hello \u{1F44B} 漢字', FONT, { letterSpacing: 1 })
+      expect(layoutWithLines(prepared, 1000, LINE_HEIGHT).lineCount).toBe(1)
     } finally {
       Reflect.set(Intl, 'Segmenter', Segmenter)
       clearAnalysisCaches()

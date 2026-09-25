@@ -124,7 +124,9 @@ function normalizeWhitespacePreWrap(text: string): string {
 }
 
 // The scans read word boundaries only inside runs of Thai, Lao, Khmer and Myanmar
-// letters, where no locale changes them.
+// letters, where no locale changes them. They ask for the segmenter only when such a
+// run shows up (Chrome's and Safari's scans also in Tai Le, New Tai Lue, Tai Tham, Tai
+// Viet and Ahom runs), so other text prepares without Intl.Segmenter.
 let sharedWordSegmenter: Intl.Segmenter | null = null
 
 export function getSharedWordSegmenter(): Intl.Segmenter {
@@ -317,12 +319,12 @@ export function analyzeText(
   let breaks: Uint8Array
   let spaceSources: Uint16Array | null = null
   if (profile.lineBreakScan === 'blink') {
-    breaks = getBlinkLineBreaks(normalized, keepAll, language, getSharedWordSegmenter())
+    breaks = getBlinkLineBreaks(normalized, keepAll, language, getSharedWordSegmenter)
   } else {
     // WebKit and Gecko scan the source. Gecko's scan collapses its white space as Firefox does.
     const sourceBreaks = profile.lineBreakScan === 'webkit'
-      ? getWebKitLineBreaks(source, preserve, keepAll, language, getSharedWordSegmenter())
-      : getGeckoLineBreaks(source, preserve, keepAll, profile.graphemeTable, getSharedWordSegmenter())
+      ? getWebKitLineBreaks(source, preserve, keepAll, language, getSharedWordSegmenter)
+      : getGeckoLineBreaks(source, preserve, keepAll, profile.graphemeTable, getSharedWordSegmenter)
     if (profile.lineBreakScan === 'webkit' && !preserve && source !== normalized) spaceSources = new Uint16Array(normalized.length)
     breaks = source === normalized ? sourceBreaks : mapSourceLineBreaks(source, normalized.length, sourceBreaks, whiteSpace, spaceSources)
   }

@@ -370,16 +370,16 @@ function isComplexContext(rules: BreakRules, c: number): boolean {
 // flags[b] = 1 at every ICU line boundary 0 < b <= text.length, and at Intl.Segmenter
 // word boundaries strictly inside each run of dictionary characters of a segment that
 // ICU would give to a dictionary. The line rules say $dictionary = [$SA].
-function markLineBoundaries(iterator: RuleBreakIterator, text: string, flags: Uint8Array, wordSegmenter: Intl.Segmenter): void {
+function markLineBoundaries(iterator: RuleBreakIterator, text: string, flags: Uint8Array, getWordSegmenter: () => Intl.Segmenter): void {
   iterator.text = text
   iterator.position = 0
   for (let start = 0, b = nextRuleBoundary(iterator); b !== DONE; start = b, b = nextRuleBoundary(iterator)) {
     flags[b] = 1
-    if (iterator.dictionaryCharCount > 0) markDictionaryWords(iterator.rules, text, start, b, flags, wordSegmenter)
+    if (iterator.dictionaryCharCount > 0) markDictionaryWords(iterator.rules, text, start, b, flags, getWordSegmenter)
   }
 }
 
-function markDictionaryWords(rules: BreakRules, text: string, start: number, end: number, flags: Uint8Array, wordSegmenter: Intl.Segmenter): void {
+function markDictionaryWords(rules: BreakRules, text: string, start: number, end: number, flags: Uint8Array, getWordSegmenter: () => Intl.Segmenter): void {
   let runStart = -1
   for (let i = start; i <= end;) {
     let dictionary = false
@@ -396,7 +396,7 @@ function markDictionaryWords(rules: BreakRules, text: string, start: number, end
       if (runStart < 0) runStart = i
     } else if (runStart >= 0) {
       if (i - runStart > 1) {
-        for (const segment of wordSegmenter.segment(text.slice(runStart, i))) {
+        for (const segment of getWordSegmenter().segment(text.slice(runStart, i))) {
           if (segment.index > 0) flags[runStart + segment.index] = 1
         }
       }
@@ -497,7 +497,7 @@ function shouldKeepAfterKeepAll(rules: BreakRules, lastLast: number, last: numbe
 // V8's Intl reads (ui/base/l10n/l10n_util.cc:392-398, chrome/app/chrome_main_delegate.cc:1474-1476),
 // so the page reads it from Intl; navigator.language follows the accept languages instead.
 // Without a document the scan reads root.
-export function getBlinkLineBreaks(text: string, keepAll: boolean, language: string | null, wordSegmenter: Intl.Segmenter): Uint8Array {
+export function getBlinkLineBreaks(text: string, keepAll: boolean, language: string | null, getWordSegmenter: () => Intl.Segmenter): Uint8Array {
   const length = text.length
   const breaks = new Uint8Array(length + 1)
   if (length < 2) return breaks
@@ -524,7 +524,7 @@ export function getBlinkLineBreaks(text: string, keepAll: boolean, language: str
     // since the unit before it isn't a space here.
     if (icu === null) {
       icu = new Uint8Array(length + 1)
-      markLineBoundaries(iterator, text, icu, wordSegmenter)
+      markLineBoundaries(iterator, text, icu, getWordSegmenter)
     }
     if (icu[i] === 1) breaks[i] = 1
   }
@@ -642,12 +642,12 @@ type Factory = {
   // PriorContext::length counts trailing non-zero characters (TBI.h:277-283).
   priorLength: number
   readonly iterator: RuleBreakIterator
-  readonly wordSegmenter: Intl.Segmenter
+  readonly getWordSegmenter: () => Intl.Segmenter
   nextBoundary: Int32Array | null
 }
 
-function createFactory(text: string, iterator: RuleBreakIterator, wordSegmenter: Intl.Segmenter): Factory {
-  return { text, secondToLast: 0, last: 0, priorLength: 0, iterator, wordSegmenter, nextBoundary: null }
+function createFactory(text: string, iterator: RuleBreakIterator, getWordSegmenter: () => Intl.Segmenter): Factory {
+  return { text, secondToLast: 0, last: 0, priorLength: 0, iterator, getWordSegmenter, nextBoundary: null }
 }
 
 // The first ICU boundary after `location`, or -1. `location` is -1 only with a prior
@@ -661,7 +661,7 @@ function following(f: Factory, location: number): number {
       : f.priorLength === 1 ? String.fromCharCode(f.last) : ''
     const text = prior + f.text
     const flags = new Uint8Array(text.length + 1)
-    markLineBoundaries(f.iterator, text, flags, f.wordSegmenter)
+    markLineBoundaries(f.iterator, text, flags, f.getWordSegmenter)
     next = new Int32Array(text.length + 2)
     next[text.length + 1] = -1
     for (let p = text.length; p >= 0; p--) next[p] = flags[p] === 1 ? p : next[p + 1]!
@@ -805,10 +805,10 @@ export function getWebKitLineBreaks(
   preserveNewlines: boolean,
   keepAll: boolean,
   language: string | null,
-  wordSegmenter: Intl.Segmenter,
+  getWordSegmenter: () => Intl.Segmenter,
 ): Uint8Array {
   const pairs = webkitPairs ??= unpackTable(webkitLinePairsPacked)
-  const f = createFactory(source, getWebKitLineIterator(language), wordSegmenter)
+  const f = createFactory(source, getWebKitLineIterator(language), getWordSegmenter)
   const length = source.length
   const breaks = new Uint8Array(length + 1)
   let sixteenBit = false
@@ -852,9 +852,9 @@ export function getWebKitLineBreaks(
 // TU:374-396: whether a line may start where the next inline box starts, from a fresh
 // factory on that box with the previous box's last two characters as prior context.
 // hyphens: manual, so a trailing soft hyphen doesn't block the break.
-export function getWebKitBreakBetweenItems(previous: string, next: string, language: string | null, wordSegmenter: Intl.Segmenter): boolean {
+export function getWebKitBreakBetweenItems(previous: string, next: string, language: string | null, getWordSegmenter: () => Intl.Segmenter): boolean {
   const pairs = webkitPairs ??= unpackTable(webkitLinePairsPacked)
-  const f = createFactory(next, getWebKitLineIterator(language), wordSegmenter)
+  const f = createFactory(next, getWebKitLineIterator(language), getWordSegmenter)
   const n = previous.length
   f.secondToLast = n > 1 ? previous.charCodeAt(n - 2) : 0
   f.last = n > 0 ? previous.charCodeAt(n - 1) : 0
