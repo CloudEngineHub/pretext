@@ -8,6 +8,7 @@
 
 ### Changed
 
+- `prepare()` is faster on text it hasn't seen, up to about twice as fast in Chrome and Safari and three to four times with letter spacing, and letter-spaced text it has seen is about eight times faster there, since Pretext now finds grapheme clusters with the character rules each browser ships instead of `Intl.Segmenter`. `Intl.Segmenter` is now needed only for text in Thai, Lao, Khmer, Myanmar and the other Southeast Asian scripts written without spaces. Bundles that import Pretext grow by about 4 KB gzipped (5.5 KB minified) (#344).
 - Chrome, Safari and Firefox now find where lines can break with ports of each browser's own line breaker and its data, in place of Pretext's own rules, so lines break where the browser breaks them in many more cases, such as around CJK punctuation and quotes, dashes, URLs and Thai. `prepare()` and `layout()` are also faster on most text, including letter-spaced, soft-hyphenated and `white-space: pre-wrap` text. Bundles that import Pretext grow by about 30 KB gzipped (28 KB minified), mostly for that data (#340).
 - Safari's line breaking follows Safari 27. Safari 26, on macOS 26 and iOS 26, breaks differently around curly quotes and guillemets, after punctuation with `word-break: keep-all`, at U+2028 and U+2029, and after a first character too wide for its line (#340).
 - In Chrome, text on a page without a `lang` now breaks and measures under Chrome's UI language, as Chrome lays it out: under a Chinese UI, curly double quotes wrap as brackets (#340).
@@ -18,6 +19,7 @@
 ### Removed
 
 - `prepareWithSegments()` no longer returns `segLevels`. Those approximate bidi levels per segment couldn't produce visual order, and computing them slowed every `prepareWithSegments()` and rich-inline preparation, most for Arabic and Hebrew text. To draw mixed bidi text, render each paragraph as one DOM element with its direction set, and the browser orders every line. Lines drawn separately, such as with Canvas `fillText()`, are each ordered as their own paragraph, so numbers or punctuation next to a line break can come out in a different order (#258).
+- The npm package no longer includes the demos (`pages/demos` and `pages/assets`). They live in the repository (#342).
 
 ### Fixed
 

@@ -9,8 +9,9 @@
 //   icu_collections 2.1.1 src/codepointtrie/cptrie.rs.
 //
 // Deliberate differences:
-// - Grapheme clusters come from Intl.Segmenter instead of icu_segmenter's
-//   GraphemeClusterSegmenter, and Unicode properties from RegExp \p{...} and generated tables.
+// - Grapheme clusters come from the profile's ICU character rules (src/graphemes.ts), Chrome's,
+//   which give the clusters of icu_segmenter's GraphemeClusterSegmenter over Firefox's data, and
+//   Unicode properties from RegExp \p{...} and generated tables.
 // - Text runs don't split where the script changes (gfxScriptItemizer.cpp). Such a split only
 //   adds a cluster start. The port was removed on purpose (RESEARCH.md, Decisions Log).
 // - Inside runs of Thai, Lao, Khmer and Myanmar letters, Intl.Segmenter word boundaries stand
@@ -30,8 +31,10 @@ import {
   geckoLineTrieDataPacked,
   geckoLineTrieHighStart,
   geckoLineTrieIndexPacked,
+  type CharTable,
 } from './generated/engine-break-data.js'
 import { getParagraphLevels } from './gecko-bidi-levels.js'
+import { findGraphemeEnds } from './graphemes.js'
 import { getBreakLanguage, getSmallTrieValue, unpackTable, unpackUint32Table } from './line-breaks.js'
 
 const CH_SHY = 0x00ad
@@ -335,9 +338,7 @@ function getBidiRunStarts(raw: Uint16Array, preserveWhiteSpace: boolean): number
 // --- 3. Text-run glyph records (gfxTextRun.cpp, gfxFont.cpp) ---
 //
 // Only the facts SetPotentialLineBreaks reads are recorded: which positions start a cluster and
-// which are spaces. Every position belongs to one shaped word, space or invalid character. The
-// shaped words of every text run are collected first and set up afterwards, so that one
-// Intl.Segmenter pass covers them all (markGraphemes).
+// which are spaces. Every position belongs to one shaped word, space or invalid character.
 
 type Glyphs = { clusterStart: Uint8Array, isSpace: Uint8Array }
 
@@ -347,87 +348,43 @@ function extendCluster(g: Glyphs, i: number): void {
   g.isSpace[i] = 0
 }
 
-// Whether a code unit can share a grapheme cluster with a neighbour, asked of the segmenter once per
-// unit: whether it joins a letter on either side (Extend, ZWJ, SpacingMark, Prepend) or a copy of
-// itself (Hangul jamo). In every pair UAX #29 keeps together, one unit does one of these. Nothing
-// below U+0300 does, and a surrogate is taken to.
-let clusterJoiners: Uint8Array | null = null
-function mayJoinCluster(unit: number, graphemeSegmenter: Intl.Segmenter): boolean {
-  if (unit < 0x300) return false
-  if ((unit & 0xf800) === 0xd800) return true
-  const joiners = clusterJoiners ??= new Uint8Array(0x10000)
-  if (joiners[unit] === 0) {
-    const ch = String.fromCharCode(unit)
-    let clusters = 0
-    for (const _ of graphemeSegmenter.segment(`a${ch}a${ch}${ch}`)) clusters++
-    joiners[unit] = clusters === 5 ? 1 : 2
-  }
-  return joiners[unit] === 2
-}
-
-// Cluster starts inside shaped words, as GraphemeClusterBreakIteratorUtf16 gives them per word in
-// SetupClusterBoundaries (gfxFont.cpp:708-769, intl/lwbrk/Segmenter.cpp:174-187). A word with no
-// unit that can join a cluster has a cluster at every unit. The other words are joined, each
-// followed by LF, and segmented once: LF is a cluster on its own (UAX #29 GB4, GB5) and the segmenter
-// continues from each boundary without looking back, so every word gets the boundaries it gets
-// alone. Clears clusterStart where a unit continues a cluster.
-function markGraphemes(g: Glyphs, text: string, units: Uint16Array, words: number[], graphemeSegmenter: Intl.Segmenter): void {
-  let joined = ''
-  const joinedWords: number[] = []
-  for (let k = 0; k < words.length; k += 2) {
-    const from = words[k]!, to = words[k + 1]!
-    let i = from
-    while (i < to && !mayJoinCluster(units[i]!, graphemeSegmenter)) i++
-    if (i === to) continue
-    g.clusterStart.fill(0, from + 1, to)
-    joined += text.slice(from, to) + '\n'
-    joinedWords.push(from, to)
-  }
-  if (joinedWords.length === 0) return
-  let k = 0
-  let delta = joinedWords[0]! // text index minus joined index inside word k
-  let end = joinedWords[1]! - joinedWords[0]! // joined index of the LF after word k
-  for (const part of graphemeSegmenter.segment(joined)) {
-    if (part.index > end) {
-      k += 2
-      delta = joinedWords[k]! - (end + 1)
-      end += 1 + joinedWords[k + 1]! - joinedWords[k]!
-    }
-    if (part.index < end) g.clusterStart[part.index + delta] = 1
-  }
-}
-
 // gfxShapedText::SetupClusterBoundaries(uint32_t, const char16_t*, uint32_t), gfxFont.cpp:708-769,
-// over cluster starts from markGraphemes, without the emergency wraps after hyphens.
-function setupClusterBoundaries(g: Glyphs, units: Uint16Array, from: number, to: number): void {
+// for one shaped word, without the emergency wraps after hyphens. GraphemeClusterBreakIteratorUtf16
+// reads the word alone (intl/lwbrk/Segmenter.cpp:174-187). Below U+0300 only CR and LF share a
+// cluster, which the generator checks, and words hold neither, so a word of such units has a
+// cluster at every unit. `ends` has room for the word's clusters.
+function setupClusterBoundaries(g: Glyphs, text: string, units: Uint16Array, from: number, to: number, graphemeTable: CharTable, ends: Int32Array): void {
   let ch0 = units[from]!
   if (to - from > 1 && isSurrogatePair(ch0, units[from + 1]!)) ch0 = combine(ch0, units[from + 1]!)
   if (isClusterExtender(ch0)) extendCluster(g, from)
-  for (let pos = from; pos < to; pos++) {
-    if (pos > from && g.clusterStart[pos] === 0) continue // a cluster continuation keeps its record
+  let low = from
+  while (low < to && units[low]! < 0x300) low++
+  const count = low === to ? 0 : findGraphemeEnds(graphemeTable, text, from, to, ends)
+  for (let k = 0, pos = from; pos < to; k++) {
     const ch = units[pos]!
     if (ch === 0x20 || ch === 0x3000) g.isSpace[pos] = 1
     else if (ch === 0x09af && pos > from && units[pos - 1] === 0x09cd) extendCluster(g, pos) // BENGALI_YA after BENGALI_VIRAMA
+    const end = count === 0 ? pos + 1 : ends[k]!
+    for (pos++; pos < end; pos++) extendCluster(g, pos)
   }
 }
 
-// gfxFont::SplitAndInitTextRun, gfxFont.cpp:3707-3900: appends the shaped words of one text run to
-// `words` as [start, end) pairs. A space glyph (SetSpaceGlyphIfSimple, gfxTextRun.cpp:1612-1619) only
-// sets isSpace, and an invalid character (:3877-3892) keeps a zero record. Below U+0100, IsBoundarySpace
-// (:3317-3330) and SetupClusterBoundaries(uint8_t) (gfxFont.cpp:771-795) answer as the char16_t
-// versions, so 8-bit text and 8-bit words take the char16_t path, at any word length (:3569-3577,
-// :3817-3821).
-function splitAndInitTextRun(g: Glyphs, units: Uint16Array, start: number, end: number, words: number[]): void {
+// gfxFont::SplitAndInitTextRun, gfxFont.cpp:3707-3900: sets up the shaped words of one text run. A
+// space glyph (SetSpaceGlyphIfSimple, gfxTextRun.cpp:1612-1619) only sets isSpace, and an invalid
+// character (:3877-3892) keeps a zero record. Below U+0100, IsBoundarySpace (:3317-3330) and
+// SetupClusterBoundaries(uint8_t) (gfxFont.cpp:771-795) answer as the char16_t versions, so 8-bit
+// text and 8-bit words take the char16_t path, at any word length (:3569-3577, :3817-3821).
+function splitAndInitTextRun(g: Glyphs, text: string, units: Uint16Array, start: number, end: number, graphemeTable: CharTable, ends: Int32Array): void {
   let wordStart = start
   for (let i = start; i < end; i++) {
     const ch = units[i]!
     const boundary = (ch === 0x20 || ch === 0xa0) && !(i + 1 < end && isClusterExtender(units[i + 1]!))
     if (!boundary && !isInvalidChar(ch)) continue
-    if (i > wordStart) words.push(wordStart, i)
+    if (i > wordStart) setupClusterBoundaries(g, text, units, wordStart, i, graphemeTable, ends)
     if (ch === 0x20) g.isSpace[i] = 1
     wordStart = i + 1
   }
-  if (end > wordStart) words.push(wordStart, end)
+  if (end > wordStart) setupClusterBoundaries(g, text, units, wordStart, end, graphemeTable, ends)
 }
 
 // --- 4. ICU4X 2.1.2's line iterator for one word (icu_segmenter src/line.rs) ---
@@ -472,7 +429,7 @@ function getComplexLanguage(u: number): number {
 // complex_language_segment_utf16 (complex/mod.rs:135-156): splits a run of SA code units by
 // language, and Intl.Segmenter words supply boundaries inside each Thai, Lao, Burmese and Khmer
 // slice. Every slice reports its end; other languages report nothing else (:149-151).
-function segmentComplex(units: number[], wordSegmenter: Intl.Segmenter): number[] {
+function segmentComplex(units: number[], getWordSegmenter: () => Intl.Segmenter): number[] {
   const result: number[] = []
   for (let i = 0; i < units.length;) {
     const language = getComplexLanguage(units[i]!)
@@ -481,7 +438,7 @@ function segmentComplex(units: number[], wordSegmenter: Intl.Segmenter): number[
     if (language !== 0) {
       let slice = ''
       for (let k = i; k < j; k += 4096) slice += String.fromCharCode(...units.slice(k, Math.min(j, k + 4096)))
-      for (const part of wordSegmenter.segment(slice)) if (part.index > 0) result.push(i + part.index)
+      for (const part of getWordSegmenter().segment(slice)) if (part.index > 0) result.push(i + part.index)
     }
     result.push(j)
     i = j
@@ -502,7 +459,7 @@ type LineBreakIterator = {
   readonly base: number
   len: number
   readonly keepAll: boolean
-  readonly wordSegmenter: Intl.Segmenter
+  readonly getWordSegmenter: () => Intl.Segmenter
   // Utf16Indices front_offset and current_pos_data (line.rs:821-823).
   front: number
   curPos: number
@@ -510,8 +467,8 @@ type LineBreakIterator = {
   cache: number[]
 }
 
-function createLineBreakIterator(text: string, start: number, end: number, keepAll: boolean, wordSegmenter: Intl.Segmenter): LineBreakIterator {
-  return { text, base: start, len: end - start, keepAll, wordSegmenter, front: 0, curPos: -1, curCp: 0, cache: [] }
+function createLineBreakIterator(text: string, start: number, end: number, keepAll: boolean, getWordSegmenter: () => Intl.Segmenter): LineBreakIterator {
+  return { text, base: start, len: end - start, keepAll, getWordSegmenter, front: 0, curPos: -1, curCp: 0, cache: [] }
 }
 
 // advance_iter (line.rs:1077-1079), Utf16Indices::next (indices.rs:58-83).
@@ -667,7 +624,7 @@ function handleComplexLanguage(it: LineBreakIterator, leftCodepoint: number): nu
     if (it.curPos < 0 || getLineBreakClass(it.curCp) !== SA) break
   }
   it.front = startFront; it.curPos = startPos; it.curCp = startCp
-  it.cache = segmentComplex(units, it.wordSegmenter)
+  it.cache = segmentComplex(units, it.getWordSegmenter)
   if (it.cache.length === 0) return -1
   const firstPos = it.cache[0]!
   let i = 1
@@ -702,7 +659,7 @@ const NON_BREAKABLE_ASCII = new Uint8Array([
 // word's FlushCurrentWord from Reset (nsLineBreaker.cpp:134-226, 710-720). Each word of more than
 // ASCII letters goes to LineBreaker::ComputeBreakPositions (intl/lwbrk/LineBreaker.cpp:112-194),
 // which keeps the state before its first unit (AutoRestore, :342, :604; skipSet = 1, :200-206).
-function getBreakStates(text: string, units: Uint16Array, is8bit: boolean, afterLeadingWhitespace: boolean, keepAll: boolean, wordSegmenter: Intl.Segmenter): Uint8Array {
+function getBreakStates(text: string, units: Uint16Array, is8bit: boolean, afterLeadingWhitespace: boolean, keepAll: boolean, getWordSegmenter: () => Intl.Segmenter): Uint8Array {
   const len = units.length
   const state = new Uint8Array(len)
   let afterBreakableSpace = afterLeadingWhitespace
@@ -721,7 +678,7 @@ function getBreakStates(text: string, units: Uint16Array, is8bit: boolean, after
     }
     if (offset > wordStart && wordMightBeBreakable) {
       const saved = state[wordStart]!
-      const iterator = createLineBreakIterator(text, wordStart, offset, keepAll, wordSegmenter)
+      const iterator = createLineBreakIterator(text, wordStart, offset, keepAll, getWordSegmenter)
       for (let pos = nextLineBreak(iterator); pos >= 0 && pos < offset - wordStart; pos = nextLineBreak(iterator)) state[wordStart + pos] = 1
       state[wordStart] = saved
     }
@@ -742,8 +699,8 @@ export function getGeckoLineBreaks(
   source: string,
   preserveWhiteSpace: boolean,
   keepAll: boolean,
-  graphemeSegmenter: Intl.Segmenter,
-  wordSegmenter: Intl.Segmenter,
+  graphemeTable: CharTable,
+  getWordSegmenter: () => Intl.Segmenter,
 ): Uint8Array {
   const len = source.length
   const flags = new Uint8Array(len + 1)
@@ -773,13 +730,11 @@ export function getGeckoLineBreaks(
     if (lo > 0 && lo < n && runStarts[runStarts.length - 1] !== lo) runStarts.push(lo)
   }
   const g: Glyphs = { clusterStart: new Uint8Array(n).fill(1), isSpace: new Uint8Array(n) }
-  const words: number[] = []
-  for (let k = 0; k < runStarts.length; k++) splitAndInitTextRun(g, tr.units, runStarts[k]!, k + 1 < runStarts.length ? runStarts[k + 1]! : n, words)
-  markGraphemes(g, tr.text, tr.units, words, graphemeSegmenter)
-  for (let k = 0; k < words.length; k += 2) setupClusterBoundaries(g, tr.units, words[k]!, words[k + 1]!)
+  const ends = new Int32Array(n)
+  for (let k = 0; k < runStarts.length; k++) splitAndInitTextRun(g, tr.text, tr.units, runStarts[k]!, k + 1 < runStarts.length ? runStarts[k + 1]! : n, graphemeTable, ends)
   for (let k = 0; k < runStarts.length; k++) g.clusterStart[runStarts[k]!] = 1 // gfxTextRun.cpp:2828-2835
 
-  const state = getBreakStates(tr.text, tr.units, is8bit, hasCompressedLeadingWhitespace(source, tr.skipped, is8bit, preserveWhiteSpace), keepAll, wordSegmenter)
+  const state = getBreakStates(tr.text, tr.units, is8bit, hasCompressedLeadingWhitespace(source, tr.skipped, is8bit, preserveWhiteSpace), keepAll, getWordSegmenter)
   for (let t = 1; t < n; t++) {
     const rawPos = tr.orig[t]!
     const normal = state[t] === 1 && (g.clusterStart[t] === 1 || g.isSpace[t - 1] === 1)

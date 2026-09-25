@@ -417,7 +417,6 @@ function walkPreparedComplexLines(
     let pendingBreakSegmentIndex = -1
     // A line that ends at the pending break both fits and paints this width.
     let pendingBreakWidth = 0
-    let pendingBreakIsSoftHyphen = false
     // The latest opportunity whose line leaves room for the hyphen, which Blink's
     // retry against the width minus the hyphen returns to when a selected
     // discretionary hyphen does not fit, with that line's painted width.
@@ -529,7 +528,6 @@ function walkPreparedComplexLines(
                 if (i + 1 < segmentCount && (segmentFlags[i + 1]! & KIND_BITS) !== HARD_BREAK) {
                   pendingBreakSegmentIndex = i + 1
                   pendingBreakWidth = lineW + discretionaryHyphenWidth
-                  pendingBreakIsSoftHyphen = true
                   // A soft hyphen's fit already includes its own hyphen.
                   if (retreatsFromUnfitHyphen && pendingBreakWidth <= fitLimit) {
                     fitBreakSegmentIndex = pendingBreakSegmentIndex
@@ -584,7 +582,6 @@ function walkPreparedComplexLines(
                   if (breakAfter && (i + 1 === segmentCount || (segmentFlags[i + 1]! & UNBROKEN) === 0)) {
                     pendingBreakSegmentIndex = i + 1
                     pendingBreakWidth = hangs ? hangStartWidth : kind === TAB ? lineW : lineW - advance
-                    pendingBreakIsSoftHyphen = false
                   }
                   if (retreatsFromUnfitHyphen && breakAfter && pendingBreakWidth + reservedHyphenWidth <= fitLimit) {
                     fitBreakSegmentIndex = pendingBreakSegmentIndex
@@ -631,7 +628,6 @@ function walkPreparedComplexLines(
                 if ((flags & RETURNABLE) !== 0 && !breakAfter && pendingBreakSegmentIndex !== i) {
                   pendingBreakSegmentIndex = i
                   pendingBreakWidth = lineW
-                  pendingBreakIsSoftHyphen = false
                 }
                 if (retreatsAtFullWidth && !breakAfter && (flags & UNBROKEN) === 0 && !breaksAfterKind(segmentFlags[i - 1]! & KIND_BITS)) {
                   fitBreakSegmentIndex = i
@@ -644,7 +640,6 @@ function walkPreparedComplexLines(
                 if (breakAfter && (i + 1 === segmentCount || (segmentFlags[i + 1]! & UNBROKEN) === 0)) {
                   pendingBreakSegmentIndex = i + 1
                   pendingBreakWidth = hangs ? hangStartWidth : kind === TAB ? lineW : lineW - advance
-                  pendingBreakIsSoftHyphen = false
                 }
                 if (retreatsFromUnfitHyphen && breakAfter && pendingBreakWidth + reservedHyphenWidth <= fitLimit) {
                   fitBreakSegmentIndex = pendingBreakSegmentIndex
@@ -742,9 +737,9 @@ function walkPreparedComplexLines(
         if (
           returnsFromHyphen &&
           fitBreakSegmentIndex >= 0 &&
-          pendingBreakIsSoftHyphen &&
           pendingBreakSegmentIndex === lineEndSegmentIndex &&
           lineEndGraphemeIndex === 0 &&
+          (segmentFlags[lineEndSegmentIndex - 1]! & KIND_BITS) === SOFT_HYPHEN &&
           !(pendingBreakWidth <= fitLimit) &&
           canReturnFromUnfitHyphen(prepared, lineStartSegmentIndex, fitBreakSegmentIndex, lineEndSegmentIndex - 1, pendingBreakWidth - fitLimit)
         ) {

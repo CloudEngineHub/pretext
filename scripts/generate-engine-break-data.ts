@@ -1,8 +1,8 @@
 // Generates src/generated/engine-break-data.ts, the tables behind Chrome's and Safari's
-// break scans in src/line-breaks.ts and Firefox's in src/gecko-line-breaks.ts, from the
-// engine files in scripts/engine-data/, and checks each table against its source. Refresh
-// those files by hand when a browser's tables change, then run this. `--check` compares
-// instead of writing.
+// break scans in src/line-breaks.ts, Firefox's in src/gecko-line-breaks.ts and the grapheme
+// clusters in src/graphemes.ts, from the engine files in scripts/engine-data/, and checks
+// each table against its source. Refresh those files by hand when a browser's tables change,
+// then run this. `--check` compares instead of writing.
 //
 // chrome-153/, from Chrome 153.0.8010.37. Chrome 154.0.8037.57's icudtl.dat holds the same
 // brkitr entries byte for byte (only its time zone data changed), and Chromium 154 left
@@ -12,9 +12,12 @@
 //   icudtl.dat (sha256 6202891a...), which Chrome opens for zh content.
 // - break_iterator_data_inline_header.h: the header Chromium's build generates for
 //   kFastLineBreakTable (character_property_data_generator.cc:422-551).
+// - char.brk: the brkitr/char.brk entry of Chrome 153.0.8010.53's icudtl.dat, the same bytes
+//   as in 153.0.8010.48 and 153.0.8010.50.
 // safari-27.0/, from Safari 27.0 on macOS 27:
 // - line.brk, line_normal.brk, line_cj.brk: brkitr entries of /usr/share/icu/icudt78l.dat,
 //   the data libicucore 78.1 reads, the same bytes as on macOS 26.5.2.
+// - char.brk: the same file's brkitr/char.brk, read on macOS 27.
 // - BreakablePositions.cpp: WebKit's checked-in pair table (safari-7625.1.29.11-branch,
 //   unchanged since Safari 26.5.2's safari-7624.2.5.11-branch).
 // - locales.json: for every locale uloc_getAvailable lists, the line table ubrk_open(UBRK_LINE)
@@ -28,6 +31,8 @@
 // - segmenter_break_line_v1.rs.data: intl/icu_segmenter_data/data/, Firefox's baked ICU4X
 //   line data (icuexport release-78.1, CLDR 48), databake output for RuleBreakData
 //   (icu_segmenter 2.1.2 src/provider/mod.rs:151-180).
+// - segmenter_break_grapheme_cluster_v1.rs.data: the same directory's grapheme data, which
+//   is only checked against Chrome's char.brk (see the character tables below).
 // - properties.json: icu_properties 2.1.2's compiled data (Unicode 17), the crate Firefox
 //   vendors, as [first, last, value] ranges over every code point: Bidi_Class and
 //   East_Asian_Width in ICU4C numbering (CodePointMapData::get32(cp).to_icu4c_value()).
@@ -38,7 +43,16 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { gzipSync } from 'node:zlib'
-import { getBreakLanguage, parseBreakRules, unpackTable, type BreakRules } from '../src/line-breaks.ts'
+import {
+  createRuleBreakIterator,
+  getBreakLanguage,
+  getCategory,
+  getSmallTrieValue,
+  nextRuleBoundary,
+  parseBreakRules,
+  unpackTable,
+  type BreakRules,
+} from '../src/line-breaks.ts'
 
 const scriptsDir = dirname(fileURLToPath(import.meta.url))
 const dataDir = join(scriptsDir, 'engine-data')
@@ -175,7 +189,7 @@ function sameRules(a: BreakRules, b: BreakRules): boolean {
     same(a.trieIndex, b.trieIndex) && same(a.trieData, b.trieData)
 }
 
-// A line table cut from an ICU data package, compacted and checked to parse the same.
+// A table cut from an ICU data package, compacted and checked to parse the same.
 function readCompactBreakRules(path: string): Uint8Array {
   const bytes = withoutDataHeader(readData(path))
   const compact = compactBreakRules(bytes)
@@ -210,6 +224,59 @@ for (let t = 0; t < lineTableSources.length; t++) {
   }
   lineTablesPacked[lineTableSources[t]![0]] = entry
 }
+
+// Character tables: ICU's grapheme cluster rules. src/graphemes.ts reads one in a single pass,
+// ending a cluster before the code point whose transition stops or enters a look-ahead state and
+// starting the next one there from the start state. That is ICU's handleNext when the start
+// state takes every category the trie gives, every state it enters accepts, and each
+// look-ahead state is entered only from states that record its position, one code point back.
+// No dictionary categories or start-of-text rules either, and at most 128 states.
+function checkSinglePass(rules: BreakRules, name: string): void {
+  const width = rules.rowWidth
+  const rows = rules.rows
+  if ((rules.flags & 2) !== 0 || rules.dictCategoriesStart < rules.catCount) throw new Error(`${name} has start-of-text rules or dictionaries`)
+  if (rows.length / width > 128) throw new Error(`${name} has more states than src/graphemes.ts keeps in 7 bits`)
+  for (let c = 0; c <= 0x10ffff; c++) {
+    const category = getCategory(rules, c)
+    if (category < 3 || category >= rules.catCount) throw new Error(`${name} gives U+${c.toString(16)} category ${category}`)
+  }
+  for (let state = 1; state < rows.length / width; state++) {
+    for (let category = 3; category < rules.catCount; category++) {
+      const next = rows[state * width + 3 + category]!
+      const accepting = rows[next * width]!
+      if (state === 1 ? accepting === 1 : next === 0 || accepting === 1 || (accepting > 1 && rows[state * width + 1] === accepting)) continue
+      throw new Error(`${name}: state ${state} takes category ${category} to state ${next}, which one pass can't follow`)
+    }
+  }
+}
+const chromiumCharBytes = readCompactBreakRules('chrome-153/char.brk')
+const appleCharBytes = readCompactBreakRules('safari-27.0/char.brk')
+const chromiumChar = parseBreakRules(chromiumCharBytes)
+const appleChar = parseBreakRules(appleCharBytes)
+checkSinglePass(chromiumChar, 'chromium/char')
+checkSinglePass(appleChar, 'apple/char')
+if (chromiumChar.catCount !== appleChar.catCount || chromiumChar.rows.some((row, i) => row !== appleChar.rows[i])) {
+  throw new Error('Chrome and libicucore have different grapheme rules')
+}
+const charTablesPacked: Record<string, [string | null, string]> = {
+  'chromium/char': [null, packTable(chromiumCharBytes)],
+  'apple/char': ['chromium/char', packTable(appleCharBytes, chromiumCharBytes)],
+}
+// src/gecko-line-breaks.ts takes a word of code units below U+0300 as a cluster per unit: of those
+// code points, only CR and LF share a cluster (GB3), and Gecko's words hold neither.
+{
+  const categories = new Set<number>()
+  for (let c = 0; c < 0x300; c++) if (c !== 0x0d && c !== 0x0a) categories.add(getCategory(chromiumChar, c))
+  const width = chromiumChar.rowWidth
+  for (const first of categories) {
+    const state = chromiumChar.rows[width + 3 + first]!
+    for (const second of categories) {
+      if (chromiumChar.rows[state * width + 3 + second] !== 0) throw new Error('Below U+0300, code points other than CR and LF share a cluster')
+    }
+  }
+}
+const appleCharDifferences: number[] = []
+for (let c = 0; c <= 0x10ffff; c++) if (getCategory(chromiumChar, c) !== getCategory(appleChar, c)) appleCharDifferences.push(c)
 
 // Quotation remaps per locale, setCategoryOverrides in apple-rbbi.cpp:406-487.
 const quotation = new Set(JSON.parse(readText('safari-27.0/quotation.json')) as number[])
@@ -252,9 +319,8 @@ for (const [name, remap] of ownRemaps) {
   if (JSON.stringify(lookUpRemap(name)) !== JSON.stringify(remap)) throw new Error(`Remap lookup misses ${name}`)
 }
 
-// Firefox's line data: three Rust byte string literals, the trie index as u16
-// little-endian, the trie data and the break states as u8, and header fields.
-const geckoLineSource = readText('firefox-156/segmenter_break_line_v1.rs.data')
+// Firefox's rule data: three Rust byte string literals, the trie index as u16 little-endian,
+// the trie data and the break states as u8, and header fields.
 const rustEscapes: Record<string, number> = { '0': 0, n: 10, r: 13, t: 9, '\\': 92, '"': 34, "'": 39 }
 const parseRustByteString = (literal: string): Uint8Array => {
   const bytes: number[] = []
@@ -267,20 +333,126 @@ const parseRustByteString = (literal: string): Uint8Array => {
   }
   return new Uint8Array(bytes)
 }
-const geckoLineLiterals = Array.from(geckoLineSource.matchAll(/b"((?:[^"\\]|\\.)*)"/g), match => parseRustByteString(match[1]!))
-const geckoLineField = (name: string): number => {
-  const match = geckoLineSource.match(new RegExp(`${name} : (\\d+)u`))
-  if (match === null) throw new Error(`Missing ${name} in segmenter_break_line_v1.rs.data`)
-  return Number(match[1])
+function readRuleBreakData(path: string) {
+  const source = readText(path)
+  const literals = Array.from(source.matchAll(/b"((?:[^"\\]|\\.)*)"/g), match => parseRustByteString(match[1]!))
+  const field = (name: string): number => {
+    const match = source.match(new RegExp(`${name} : (\\d+)u`))
+    if (match === null) throw new Error(`Missing ${name} in ${path}`)
+    return Number(match[1])
+  }
+  if (literals.length !== 3) throw new Error(`Expected 3 byte strings in ${path}, got ${literals.length}`)
+  const [index, data, states] = literals as [Uint8Array, Uint8Array, Uint8Array]
+  const propertyCount = field('property_count')
+  if (!/trie_type : icu :: collections :: codepointtrie :: TrieType :: Small/.test(source)) throw new Error(`Expected a small trie in ${path}`)
+  if (!/\) \} , 0u8\) \} , break_state_table/.test(source)) throw new Error(`Expected trie error value 0 in ${path}`)
+  if (index.length % 2 !== 0 || states.length !== propertyCount ** 2) throw new Error(`Unexpected data sizes in ${path}`)
+  return { index, data, states, propertyCount, field }
 }
-if (geckoLineLiterals.length !== 3) throw new Error(`Expected 3 byte strings in segmenter_break_line_v1.rs.data, got ${geckoLineLiterals.length}`)
-const [geckoLineIndex, geckoLineData, geckoLineStates] = geckoLineLiterals as [Uint8Array, Uint8Array, Uint8Array]
-const geckoLinePropertyCount = geckoLineField('property_count')
-if (!/trie_type : icu :: collections :: codepointtrie :: TrieType :: Small/.test(geckoLineSource)) throw new Error('Expected a small trie')
-if (!/\) \} , 0u8\) \} , break_state_table/.test(geckoLineSource)) throw new Error('Expected trie error value 0')
-if (geckoLineIndex.length % 2 !== 0 || geckoLineStates.length !== geckoLinePropertyCount ** 2) throw new Error('Unexpected line data sizes')
+const {
+  index: geckoLineIndex, data: geckoLineData, states: geckoLineStates, field: geckoLineField, propertyCount: geckoLinePropertyCount,
+} = readRuleBreakData('firefox-156/segmenter_break_line_v1.rs.data')
 // src/gecko-line-breaks.ts reads Line_Break values by number (icu_segmenter line.rs:18-128).
 if (geckoLineField('complex_property') !== 46) throw new Error('Expected SA to be Line_Break value 46')
+
+// Firefox's grapheme clusters, from ICU4X's grapheme data, which src/graphemes.ts doesn't ship:
+// it takes Chrome's char.brk in Firefox. Checked here: both tables split the code points into the
+// same classes, and ICU4X's RuleBreakIterator::next (icu_segmenter 2.1.2 rule_segmenter.rs:72-213,
+// without complex properties) ends clusters where ICU's handleNext does, on every string of up to
+// four code points taking one per class and on 100,000 random longer ones.
+const geckoGrapheme = readRuleBreakData('firefox-156/segmenter_break_grapheme_cluster_v1.rs.data')
+const geckoGraphemeIndex = new Uint16Array(geckoGrapheme.index.buffer, geckoGrapheme.index.byteOffset, geckoGrapheme.index.length >> 1)
+const geckoGraphemeHighStart = geckoGrapheme.field('high_start')
+const getGeckoGraphemeProperty = (c: number) => getSmallTrieValue(geckoGraphemeIndex, geckoGrapheme.data, geckoGraphemeHighStart, c)
+const classRepresentatives: number[] = []
+{
+  const propertyOfCategory = new Map<number, number>()
+  const categoryOfProperty = new Map<number, number>()
+  for (let c = 0; c <= 0x10ffff; c++) {
+    const category = getCategory(chromiumChar, c)
+    const property = getGeckoGraphemeProperty(c)
+    if (!propertyOfCategory.has(category)) { propertyOfCategory.set(category, property); classRepresentatives.push(c) }
+    if (!categoryOfProperty.has(property)) categoryOfProperty.set(property, category)
+    if (propertyOfCategory.get(category) !== property || categoryOfProperty.get(property) !== category) {
+      throw new Error(`Firefox's grapheme data classes U+${c.toString(16)} apart from Chrome's char.brk`)
+    }
+  }
+}
+const [BREAK, NO_MATCH, KEEP, INTERMEDIATE] = [253, 254, 255, 120]
+// The UTF-16 ends of the clusters of a string of class representatives.
+function getGeckoClusterEnds(classes: readonly number[]): number[] {
+  const { states, propertyCount } = geckoGrapheme
+  const lastCodepointProperty = geckoGrapheme.field('last_codepoint_property')
+  const eot = geckoGrapheme.field('eot_property')
+  const n = classes.length
+  const offsets = [0]
+  for (let i = 0; i < n; i++) offsets.push(offsets[i]! + (classRepresentatives[classes[i]!]! > 0xffff ? 2 : 1))
+  const property = (i: number) => getGeckoGraphemeProperty(classRepresentatives[classes[i]!]!)
+  const ends: number[] = []
+  for (let current = 0; current < n;) {
+    let end = n
+    next: for (;;) {
+      const left = property(current++)
+      if (current === n) break
+      const state = states[left * propertyCount + property(current)]!
+      if (state === KEEP) continue
+      if (state === BREAK || state === NO_MATCH) { end = current; break }
+      let index = state >= INTERMEDIATE ? state - INTERMEDIATE : state
+      let marker = current
+      for (;;) {
+        current++
+        if (current === n) {
+          if (states[index * propertyCount + eot] === NO_MATCH) end = marker
+          break next
+        }
+        const wasCodepointProperty = index <= lastCodepointProperty
+        const following = states[index * propertyCount + property(current)]!
+        if (following === KEEP) continue next
+        if (following === NO_MATCH) { end = marker; break next }
+        if (following === BREAK) { end = current; break next }
+        index = following >= INTERMEDIATE ? following - INTERMEDIATE : following
+        if (following >= INTERMEDIATE || wasCodepointProperty) marker = current
+      }
+    }
+    ends.push(offsets[end]!)
+    current = end
+  }
+  return ends
+}
+{
+  const iterator = createRuleBreakIterator(chromiumChar)
+  const check = (classes: readonly number[]) => {
+    let text = ''
+    for (let i = 0; i < classes.length; i++) text += String.fromCodePoint(classRepresentatives[classes[i]!]!)
+    iterator.text = text
+    iterator.position = 0
+    const ends: number[] = []
+    for (let b = nextRuleBoundary(iterator); b !== -1; b = nextRuleBoundary(iterator)) ends.push(b)
+    const geckoEnds = getGeckoClusterEnds(classes)
+    if (ends.length !== geckoEnds.length || ends.some((end, i) => end !== geckoEnds[i])) {
+      throw new Error(`Firefox's grapheme data ends clusters of ${JSON.stringify(text)} at ${geckoEnds}, Chrome's char.brk at ${ends}`)
+    }
+  }
+  const classes: number[] = []
+  const extend = (length: number) => {
+    if (classes.length > 0) check(classes)
+    if (classes.length === length) return
+    for (let k = 0; k < classRepresentatives.length; k++) {
+      classes.push(k)
+      extend(length)
+      classes.pop()
+    }
+  }
+  extend(4)
+  let seed = 1
+  const random = (n: number) => { seed = (seed * 48271) % 0x7fffffff; return seed % n }
+  for (let t = 0; t < 100_000; t++) {
+    const alphabet = Array.from({ length: 2 + random(4) }, () => random(classRepresentatives.length))
+    classes.length = 0
+    for (let length = 6 + random(40); length > 0; length--) classes.push(alphabet[random(alphabet.length)]!)
+    check(classes)
+  }
+}
 
 // Firefox's Unicode properties.
 type Ranges = [number, number, number][]
@@ -313,6 +485,15 @@ for (const match of pairsSource.matchAll(/\(\s*'\\u\{([0-9a-f]+)\}',\s*'\\u\{([0
 }
 if (geckoBidiPairs.length / 3 !== (pairsSource.match(/None|Some\(/g) ?? []).length) throw new Error('Unparsed bidi pairs')
 const lineTablesJson = JSON.stringify(lineTablesPacked)
+const charTablesJson = JSON.stringify(charTablesPacked)
+const hex = (c: number) => `U+${c.toString(16).toUpperCase().padStart(4, '0')}`
+const appleCharDifferenceRanges: string[] = []
+for (let i = 0; i < appleCharDifferences.length; i++) {
+  let k = i
+  while (k + 1 < appleCharDifferences.length && appleCharDifferences[k + 1] === appleCharDifferences[k]! + 1) k++
+  appleCharDifferenceRanges.push(k === i ? hex(appleCharDifferences[i]!) : `${hex(appleCharDifferences[i]!)}..${hex(appleCharDifferences[k]!)}`)
+  i = k
+}
 const remapsJson = JSON.stringify(appleQuoteRemaps)
 const geckoPropertiesJson = JSON.stringify([geckoBidiClassRanges, geckoEastAsianWidthRanges, geckoBidiPairs])
 const nextSource = `// Generated by scripts/generate-engine-break-data.ts from scripts/engine-data/.
@@ -325,6 +506,11 @@ const nextSource = `// Generated by scripts/generate-engine-break-data.ts from s
 // each as the table it packs against, if any, and its packed bytes.
 export type LineTable = ${lineTableSources.map(([name]) => `'${name}'`).join(' | ')}
 export const lineTablesPacked: Record<LineTable, readonly [LineTable | null, string]> = ${lineTablesJson}
+
+// Chrome 153's and libicucore 78.1's char.brk, ICU's grapheme cluster rules, packed the same way.
+// libicucore's classes ${appleCharDifferenceRanges.join(', ')} apart from Chrome's.
+export type CharTable = ${Object.keys(charTablesPacked).map(name => `'${name}'`).join(' | ')}
+export const charTablesPacked: Record<CharTable, readonly [CharTable | null, string]> = ${charTablesJson}
 
 // Chromium's generated kFastLineBreakTable, a bit per U+0021..U+00FF pair where a line may
 // start between them (character_property_data_generator.cc:422-551).
@@ -362,6 +548,7 @@ export const geckoBidiPairsPacked = '${packTable(new Uint8Array(Uint32Array.from
 
 const summary = [
   `line tables packed ${Object.entries(lineTablesPacked).map(([table, [reference, data]]) => `${table} ${data.length} B${reference === null ? '' : ` against ${reference}`}`).join(', ')}`,
+  `character tables packed ${Object.entries(charTablesPacked).map(([table, [reference, data]]) => `${table} ${data.length} B${reference === null ? '' : ` against ${reference}`}`).join(', ')}`,
   `pair tables differ in ${differingPairs} pairs`,
   `quotation remaps ${Object.keys(appleQuoteRemaps).length} of ${ownRemaps.size} locales (${gzipSize(remapsJson)} B gzipped)`,
   `Firefox line data ${geckoLineIndex.length + geckoLineData.length + geckoLineStates.length} B`,

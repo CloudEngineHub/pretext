@@ -41,9 +41,7 @@
     "dist",
     "src",
     "!src/layout.test.ts",
-    "!src/test-data.ts",
-    "pages/demos",
-    "pages/assets"
+    "!src/test-data.ts"
   ],
   "scripts": {
     "benchmark-check": "bun run scripts/benchmark-check.ts",

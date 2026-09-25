@@ -1,5 +1,6 @@
-import { getSharedGraphemeSegmenter } from './analysis.js'
+import { findGraphemeEnds } from './graphemes.js'
 import { HARD_BREAK, isDiscretionaryLineEnd, KIND_BITS, SOFT_HYPHEN, ZERO_WIDTH_BREAK, ZERO_WIDTH_GLUE } from './line-break.js'
+import { getEngineProfile } from './measurement.js'
 import type { PreparedTextWithSegments } from './layout.js'
 
 const sharedLineTextCaches = new WeakMap<PreparedTextWithSegments, Map<number, number[]>>()
@@ -12,11 +13,11 @@ function getSegmentGraphemeOffsets(
   let offsets = cache.get(segmentIndex)
   if (offsets !== undefined) return offsets
 
+  const segment = segments[segmentIndex]!
+  const ends = new Int32Array(segment.length)
+  const count = findGraphemeEnds(getEngineProfile().graphemeTable, segment, 0, segment.length, ends)
   offsets = [0]
-  const graphemeSegmenter = getSharedGraphemeSegmenter()
-  for (const gs of graphemeSegmenter.segment(segments[segmentIndex]!)) {
-    offsets.push(gs.index + gs.segment.length)
-  }
+  for (let i = 0; i < count; i++) offsets.push(ends[i]!)
   cache.set(segmentIndex, offsets)
   return offsets
 }
