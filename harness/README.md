@@ -26,9 +26,16 @@ on the clock. `bun test harness` runs the offline tests.
   adapter runs the others on the same case: `layout()` on `prepare()`'s handle, which counts lines with its own loop on
   the resize path, `measureLineStats`, `layoutNextLineRange`, `layoutNextLine`, `layoutWithLines` and
   `materializeLineRange`; for rich cases `measureRichInlineStats`, `layoutNextRichInlineLineRange` and
-  `materializeRichInlineLineRange`. A case where any of them gives other lines, counts, widths (to 1e-6 px) or text than
+  `materializeRichInlineLineRange`, whose fragments' text must be `materializeLineRange`'s over each fragment's cursors
+  in its item's own prepared text. A case where any of them gives other lines, counts, widths (to 1e-6 px) or text than
   the walk blocks, whatever the browser did, and so does a case whose line APIs call `measureText` after preparing.
-  Calls while preparing are printed per 1,000 units.
+  Calls while preparing are printed per 1,000 units. The text APIs build line text with one shared builder, so they are
+  compared only with each other; `src/layout.test.ts` checks that builder against the source.
+- **What the pass rule can't see:** the hyphen a browser draws where a line breaks at a soft hyphen. The soft hyphen's
+  box is visible there, but also where no hyphen is drawn: with a combining mark after it, and in WebKit at the end of a
+  paragraph or before a line feed. The recordings keep no glyphs to tell these apart, and a rule over the boxes found
+  93-358 mismatches per browser for the hybrid, most of them narrower than 24 px and some of them the recording's. So
+  line text that leaves out the hyphen at a soft-hyphen line end passes here, and is left to `src/layout.test.ts`.
 - **Lines come from rect positions:** text box rects grouped by vertical centre, never height divided by line height.
 - **A visible character** is a code point whose positive-size Range rects all sit on one line. Chrome also reports a
   soft hyphen's box for the code point next to it; that copy is left out.
@@ -84,6 +91,7 @@ which needs a browser:
 |---|---|
 | Line count | A message loses or gains a line, so its bubble or row has the wrong height |
 | Every line API against the walk | `layout()` counts lines the list doesn't paint, so a virtualized row is sized wrong: a counter that let an overflowing space start the next line passed every check before |
+| Each rich fragment's text against its item's text over the fragment's cursors | A word broken inside a span paints its start again, while every rich API agrees |
 | First and last visible character per line | A word paints on the wrong line while the height is right; main passed 4.5-8.1% of its census cases this way |
 | Chrome's soft hyphen copies left out | A wrong break at a soft hyphen passes unseen |
 | Lines from rect positions | Fractional line boxes read as a wrong count, as Safari 27's did in main's harness |

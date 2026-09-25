@@ -8,7 +8,8 @@
 // same case too, and the first way one disagrees with the walk is kept: layout() on prepare()'s handle (the resize path,
 // with its own line counter), measureLineStats, layoutNextLineRange, layoutNextLine, layoutWithLines and
 // materializeLineRange; for rich cases measureRichInlineStats, layoutNextRichInlineLineRange and
-// materializeRichInlineLineRange. measureText calls are counted apart while preparing and while the line APIs run.
+// materializeRichInlineLineRange, whose fragments' text is checked against their items' own text. measureText calls are
+// counted apart while preparing and while the line APIs run.
 import {
   layout, layoutNextLine, layoutNextLineRange, layoutWithLines, materializeLineRange, measureLineStats, prepare, prepareWithSegments, setLocale,
   walkLineRanges, type LayoutCursor, type LayoutLineRange, type PrepareOptions, type PreparedTextWithSegments,
@@ -281,7 +282,18 @@ export function predict(c: Case): Prediction {
       const walkedCount = walkRichInlineLineRanges(prepared, p.width, line => { walked.push(line) })
       disagreement = richDisagreement(prepared, walked, walkedCount, p.width, source.length + 1)
       counting = null
-      // Fragment cursors index prepareWithSegments(item.text) of the item's font and letter spacing.
+      // Fragment cursors index prepareWithSegments(item.text) of the item's font and letter spacing. So each fragment's
+      // text is materializeLineRange's over those cursors; the text builder both share is src/layout.test.ts's to check.
+      const handles: Array<PreparedTextWithSegments | undefined> = []
+      const handle = (i: number): PreparedTextWithSegments => handles[i] ??= prepareWithSegments(runs[i]!.text, items[i]!.font, runs[i]!.letterSpacing === 0 ? {} : { letterSpacing: runs[i]!.letterSpacing })
+      for (let i = 0; i < walked.length && disagreement === null; i++) {
+        const fragments = materializeRichInlineLineRange(prepared, walked[i]!).fragments
+        for (let k = 0; k < fragments.length; k++) {
+          const f = fragments[k]!
+          const text = materializeLineRange(handle(f.itemIndex), { start: f.start, end: f.end, width: 0 }).text
+          if (f.text !== text) disagreement ??= `materializeRichInlineLineRange line ${i} fragment ${k} is ${JSON.stringify(f.text)}; its item's text there ${JSON.stringify(text)}`
+        }
+      }
       const maps: Array<ReturnType<typeof sourceRanges> | undefined> = []
       const bases: number[] = []
       for (let i = 0, base = 0; i < items.length; i++) {
@@ -289,8 +301,7 @@ export function predict(c: Case): Prediction {
         base += items[i]!.text.length
       }
       const fragment = (f: RichInlineFragmentRange): { start: number; end: number } => {
-        const run = runs[f.itemIndex]!
-        const map = maps[f.itemIndex] ??= sourceRanges(run.text, prepareWithSegments(run.text, items[f.itemIndex]!.font, run.letterSpacing === 0 ? {} : { letterSpacing: run.letterSpacing }), 'normal')
+        const map = maps[f.itemIndex] ??= sourceRanges(runs[f.itemIndex]!.text, handle(f.itemIndex), 'normal')
         const range = map(f.start, f.end)
         return { start: bases[f.itemIndex]! + range.start, end: bases[f.itemIndex]! + range.end }
       }

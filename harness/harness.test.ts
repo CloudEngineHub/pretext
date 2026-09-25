@@ -7,7 +7,7 @@ import { groupLines, recordedLines, scanLineEnds, searchLineEnds, type RectsAt }
 import { documents } from './run.ts'
 import { accept, attribute, freshRecordings, judge, libraryFaults, predictionChange, reverseOrder, score, type Outcome } from './score.ts'
 import { assertSameEnvironment, caseProblem, parseRecording, readRecordings, recordingText, splitHistory, writeRecordings } from './store.ts'
-import type { Case, Failure, Prediction, Recording, Rect } from './types.ts'
+import type { Case, Failure, Prediction, Recording, Rect, TextRun } from './types.ts'
 
 // A browser stand-in: the text laid out with a line starting at each of `starts`, every code point 8 px wide (a space 4)
 // and 18 px tall in a 20 px line. Returns the recording `record` would make and the rect reader it made it from.
@@ -411,5 +411,26 @@ describe('the library through the adapter', () => {
     expect(measuring.lines).toEqual(right.lines)
     expect(measuring.lineCalls).toBe(right.lines.length)
     expect(libraryFaults(['t'], new Map([['t', measuring]])).measuring).toEqual([`t: ${right.lines.length}`])
+  })
+
+  function disagreement(prediction: Prediction): string | null {
+    if (!('lines' in prediction)) throw new Error('unreachable')
+    return prediction.disagreement
+  }
+
+  // The same paragraph as spans, one per text, through rich-inline.
+  function spans(texts: string[], width: number): Case {
+    const c = paragraph(texts.join(''), width)
+    const runs: TextRun[] = []
+    for (let i = 0; i < texts.length; i++) runs.push({ ...c.paragraph.runs[0]!, text: texts[i]!, node: 'span' })
+    c.paragraph.runs = runs
+    return c
+  }
+
+  test('a rich fragment whose text isn\'t its item\'s text over the fragment\'s cursors blocks: a word broken across lines in a span would paint its start again', async () => {
+    const c = spans(['A ', 'Supercalifragilistic', ' word'], 60)
+    expect(disagreement(adapter.predict(c))).toBeNull()
+    const text = await planted('rich-fragment-text', 'rich-inline.ts', /fragment\.start\.segmentIndex,\n(\s*)fragment\.start\.graphemeIndex,/, 'fragment.start.segmentIndex,\n$10,')
+    expect(disagreement(text.predict(c))).toMatch(/^materializeRichInlineLineRange line \d+ fragment \d+ is /)
   })
 })
