@@ -7,7 +7,8 @@
 //   `<id>\t<A|B>\t...`. They are never pinned.
 // - harness/accepted/<browser>.txt: the failures a change accepted, under `## <reason>` headings, one `<id> <status>` per line.
 // - harness/varying/<browser>.txt: the cases whose predictions move with the browser's state, under `## <reason>`
-//   headings, one `<id>` per line. They are predicted and printed, never judged.
+//   headings, one `<id> <kind>` per line: `runs` for one that moves between runs, predicted and printed but never
+//   judged, and `order` for one that moves only with what was predicted before it, judged like any other.
 import { readFileSync, writeFileSync } from 'node:fs'
 import type { BrowserKind, Case, Failure, Recording, RecordedLine } from './types.ts'
 
@@ -116,7 +117,7 @@ function readUnderReasons(path: string, fields: number): Array<{ reason: string;
       continue
     }
     const words = line.trim().split(/\s+/)
-    if (reason === null || words.length !== fields) throw new Error(`${path}:${i + 1}: expected ${fields === 1 ? '<id>' : '<id> <status>'} under a '## <reason>' heading`)
+    if (reason === null || words.length !== fields) throw new Error(`${path}:${i + 1}: expected ${fields} words per line under a '## <reason>' heading`)
     if (ids.has(words[0]!)) throw new Error(`${path}:${i + 1}: ${words[0]} is listed twice`)
     ids.add(words[0]!)
     out.push({ reason, words })
@@ -139,11 +140,18 @@ export function readAccepted(path: string): Accepted {
   return accepted
 }
 
-// The varying predictions: each listed id with its reason.
-export function readVarying(path: string): Map<string, string> {
-  const varying = new Map<string, string>()
-  const entries = readUnderReasons(path, 1)
-  for (let i = 0; i < entries.length; i++) varying.set(entries[i]!.words[0]!, entries[i]!.reason)
+// A varying prediction: the reason it is listed under, and whether it moves between runs or only with what was
+// predicted before it.
+export type Varying = Map<string, { reason: string; kind: 'runs' | 'order' }>
+
+export function readVarying(path: string): Varying {
+  const varying: Varying = new Map()
+  const entries = readUnderReasons(path, 2)
+  for (let i = 0; i < entries.length; i++) {
+    const [id, kind] = entries[i]!.words as [string, string]
+    if (kind !== 'runs' && kind !== 'order') throw new Error(`${path}: ${id} has kind ${kind}, not runs or order`)
+    varying.set(id, { reason: entries[i]!.reason, kind })
+  }
   return varying
 }
 

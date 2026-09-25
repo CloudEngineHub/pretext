@@ -18,7 +18,7 @@ import { LIB, runJob, type Mode } from './run.ts'
 import { createRng } from './sets/build.ts'
 import {
   acceptedPath, assertSameEnvironment, caseText, historyPath, readAccepted, readCases, readHistory, readRecordings, readVarying, recordingText,
-  recordingsPath, splitHistory, varyingPath, writeAccepted, writeHistory, writeRecordings,
+  recordingsPath, splitHistory, varyingPath, writeAccepted, writeHistory, writeRecordings, type Varying,
 } from './store.ts'
 import { BROWSERS, type BrowserKind, type Case, type Prediction, type Recording } from './types.ts'
 
@@ -140,7 +140,7 @@ type Scored = {
   pinned: Case[]
   // Every case this browser takes, the pinned ones first.
   predicted: Case[]
-  varying: Map<string, string>
+  varying: Varying
   recordings: Map<string, Recording>
   history: Map<string, [Recording, Recording]>
   predictions: Map<string, Prediction>
@@ -223,7 +223,9 @@ async function check(browser: BrowserKind, cases: Case[]): Promise<Scored> {
   out.push(`${browser}: ${pinned.length} pinned cases predicted in ${(job.ms / 1000).toFixed(1)} s, with ${plan.predicted.length - pinned.length} others whose line APIs are checked too`)
   out.push(`  pass ${counts.pass} | wrong line count ${counts.count} | right count, wrong breaks ${counts.breaks} | error ${counts.error}`)
   out.push(`  not pinned: ${plan.history} page history, ${plan.unobservable} with nothing visible or unrecordable, ${plan.unrecorded.length} not recorded`)
-  if (varying.size > 0) out.push(`  varying, predicted but not judged (harness/varying): ${verdict.varying.pass} pass, ${verdict.varying.fail} fail, ${varying.size - verdict.varying.pass - verdict.varying.fail} not pinned`)
+  let runs = 0
+  for (const entry of varying.values()) if (entry.kind === 'runs') runs++
+  if (varying.size > 0) out.push(`  varying (harness/varying): ${runs} that vary between runs, predicted but not judged (${verdict.varying.pass} pass, ${verdict.varying.fail} fail); ${varying.size - runs} that move with what was predicted before, judged, and skipped by the gate's reverse-order check`)
   const head = headline(draws)
   const inClaims = headline(drawsInClaims)
   if (head !== null) out.push(`  real-usage sample: ${(100 * head.share).toFixed(2)}% of real paragraphs right, 95% interval ${(100 * head.low).toFixed(2)}-${(100 * head.high).toFixed(2)}% (${draws.length} draws, ${percent(standInWeight, sampleWeight)} of their weight stand-ins; macOS rendering only)`)

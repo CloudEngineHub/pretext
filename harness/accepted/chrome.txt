@@ -121,6 +121,14 @@ rich-959420c66f7e0ac2 breaks
 rich-a3758e3807dd0add count
 rich-dd09b02a55b37f6f count
 
+## Arabic with vowel marks before brackets in 16 px Amiri (main's old gate): Chrome keeps "بِبِ" with the first bracket, the hybrid breaks inside it or before the bracket; the gate's reverse-order check skips them (harness/varying)
+old-gate-0f4ab6085302b5fe breaks
+old-gate-307fd76f099a43ea count
+old-gate-4dd4ada94b0cc2ce count
+old-gate-739b18e51c1d20d3 count
+old-gate-b91bd6ffeef40383 count
+old-gate-c81cecb0b25d0d2f count
+
 ## CJK beside Latin, closing punctuation, small kana or U+FFFC, and CJK under keep-all or a changed page language, at 24 px and wider: Chrome breaks there where the library doesn't
 catalog-02ca7fd9ca677cc3 count
 catalog-049257d4c1e29d62 count

@@ -57,9 +57,10 @@ on the clock. `bun test harness` runs the offline tests.
   since the hybrid landed (#340), as the gate protects its passes; main before it (6d1d210) blocks.
 - **Varying predictions:** `harness/varying/<browser>.txt` lists, each under a written reason, the cases whose
   predictions move with the browser's state rather than with the library: what earlier documents in the same browser
-  process laid out, or what a Canvas measured before. They are predicted and counted, never judged, and the gate's
-  reverse-order check skips them. A case is on this list or the accepted one, not both, and an entry that names no case
-  blocks.
+  process laid out, or what a Canvas measured before. A case listed as `runs` moves between runs: it is predicted and
+  counted, never judged, and never on the accepted list. One listed as `order` moves only with what was predicted
+  before it: check judges it like any other, so a failing one is accepted too, and a fix or a new regression shows. The
+  gate's reverse-order check skips both. An entry that names no case blocks.
 - **Real-usage sample:** cases with `sample: { group, weight }` give the headline, the weighted share of real paragraphs
   right with a 95% interval from resampling within groups. It also prints the share of the weight outside what Pretext
   claims (break-all, rich-inline in pre-wrap, system-ui font lists) and the share right without it.
@@ -71,9 +72,10 @@ on the clock. `bun test harness` runs the offline tests.
 The gate adds three checks:
 - **Reverse order:** predictions in reverse order must break every line where the forward ones do, and the line APIs
   must still agree, or it blocks. Chrome's per-canvas shape caches (Chromium #560614560) move the breaks of six old-gate
-  cases (Arabic with vowel marks before brackets) in main as in the hybrid, so they are varying predictions. Predictions
-  whose line widths alone move are printed, not blocked: the same caches and a Firefox width-1 case move them in main
-  too, and widths only reach the shrink-wrap check, which reports.
+  cases (Arabic with vowel marks before brackets) in main as in the hybrid, so they are varying predictions of kind
+  `order`: in check's order they fail the same way every time and are accepted. Predictions whose line widths alone
+  move are printed, not blocked: the same caches and a Firefox width-1 case move them in main too, and widths only
+  reach the shrink-wrap check, which reports.
 - **Fresh re-recording:** the 1,000 pinned cases whose ids rank first under the seed are recorded again, and each case
   that differs is recorded twice more, alone in a document of its own, in the sample's order and then in reverse. It
   blocks only where the browser lays a case out differently from the recording every time: the recordings no longer
@@ -103,6 +105,7 @@ which needs a browser:
 | Firefox's first document held until 15 s after launch | Emoji beside Arial lay out differently for Firefox's first 12 s: 91 cases, and the gate's fresh recording, would block at random |
 | Firefox's U+FE0E cases laid out after every other, never pinned | The gate's fresh recording blocked at random on 7-9 emoji cases beside Arial, laid out after a text-presentation emoji |
 | Varying list with reasons | `check` and the gate block at random on predictions the browser's state moves, such as a system-ui label in Chrome |
+| Order-dependent cases judged in check's order, skipped only by the reverse-order check | A fix or a new regression on Chrome's Amiri cases goes unseen |
 | An entry of either list that names no case blocks | The lists keep reasons for cases that are gone |
 | Accepted list with reasons | Accepted losses go silent, and a fix goes unrecorded |
 | Exact widths through the adapter | Text that exactly fits its bubble wraps (a width 1/64 px short) |
@@ -127,7 +130,7 @@ which needs a browser:
   page-history case that differ. `recordings/safari.txt` holds installed Safari's recording of 2,000 cases.
 - `accepted/<browser>.txt`: `## <reason>` headings, each followed by `<id> <status>` lines, the status `count`, `breaks`
   or `error`.
-- `varying/<browser>.txt`: `## <reason>` headings, each followed by `<id>` lines.
+- `varying/<browser>.txt`: `## <reason>` headings, each followed by `<id> <kind>` lines, the kind `runs` or `order`.
 - `cases/*.ndjson`: one case per line. `smoke.ndjson` holds the rebuild's hand-written smoke cases within what Pretext
   claims, and 300 real-text census cases across 18 corpora and six widths. The case sets are below.
 

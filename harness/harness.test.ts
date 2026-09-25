@@ -9,7 +9,7 @@ import {
   accept, attribute, checkBlocks, freshRecordings, gateBlocks, gateSample, judge, libraryFaults, pinning, predictionChange, reverseOrder, score, SEED,
   type Outcome, type Verdict,
 } from './score.ts'
-import { assertSameEnvironment, caseProblem, parseRecording, readRecordings, recordingText, splitHistory, writeRecordings } from './store.ts'
+import { assertSameEnvironment, caseProblem, parseRecording, readRecordings, recordingText, splitHistory, writeRecordings, type Varying } from './store.ts'
 import type { Case, Failure, Prediction, Recording, Rect, TextRun } from './types.ts'
 
 // A browser stand-in: the text laid out with a line starting at each of `starts`, every code point 8 px wide (a space 4)
@@ -221,7 +221,7 @@ describe('the stored recordings', () => {
 
 describe('the accepted-failures and varying lists', () => {
   const fail = (status: Outcome['status']): Outcome => ({ status, line: 0, detail: '' })
-  const none = new Map<string, string>()
+  const none: Varying = new Map()
 
   test('a failure off the list blocks, an accepted one counts under its reason, and a fixed one blocks until it leaves: accepted losses would go silent', () => {
     const outcomes = new Map<string, Outcome>([['new', fail('count')], ['known', fail('breaks')], ['fixed', fail('pass')], ['moved', fail('count')]])
@@ -254,7 +254,7 @@ describe('the accepted-failures and varying lists', () => {
   test('an entry of either list that names no case blocks: a list would keep reasons for cases that are gone', () => {
     const outcomes = new Map<string, Outcome>([['kept', fail('count')]])
     const accepted = new Map<string, { reason: string; status: Failure }>([['kept', { reason: 'r', status: 'count' }], ['renamed', { reason: 'r', status: 'count' }]])
-    const varying = new Map([['label', 'r'], ['amiri', 'r']])
+    const varying: Varying = new Map([['label', { reason: 'r', kind: 'runs' }], ['amiri', { reason: 'r', kind: 'order' }]])
     const verdict = judge(outcomes, accepted, varying, new Set(['kept', 'label']), false)
     expect(verdict.fixed).toEqual(['renamed'])
     expect(verdict.stale).toEqual(['amiri'])
@@ -264,12 +264,12 @@ describe('the accepted-failures and varying lists', () => {
     expect(judge(outcomes, accepted, varying, new Set(['kept']), true).stale).toEqual([])
   })
 
-  test('--accept takes the new failures, never a varying case: a flip accepted in one run would block the next', () => {
-    const outcomes = new Map<string, Outcome>([['label', fail('breaks')], ['new', fail('count')]])
-    const varying = new Map([['label', 'system-ui']])
-    const cases = new Set(['label', 'new'])
-    expect(judge(outcomes, new Map(), varying, cases, false).newFailures).toEqual(['new'])
-    expect([...accept(outcomes, new Map(), 'why', varying, cases, false).keys()]).toEqual(['new'])
+  test('--accept takes the new failures and every failing case that only moves with what was predicted before, but never one that varies between runs: an accepted flip would block the next run', () => {
+    const outcomes = new Map<string, Outcome>([['label', fail('breaks')], ['amiri', fail('count')], ['new', fail('count')]])
+    const varying: Varying = new Map([['label', { reason: 'system-ui', kind: 'runs' }], ['amiri', { reason: 'shape caches', kind: 'order' }]])
+    const cases = new Set(['label', 'amiri', 'new'])
+    expect(judge(outcomes, new Map(), varying, cases, false).newFailures).toEqual(['amiri', 'new'])
+    expect([...accept(outcomes, new Map(), 'why', varying, cases, false).keys()]).toEqual(['amiri', 'new'])
   })
 })
 
@@ -345,7 +345,7 @@ describe('the gate and page history of predictions', () => {
     const forward = new Map([['amiri', predicted(TEXT, STARTS)], ['plain', predicted(TEXT, STARTS)], ['widths', predicted(TEXT, STARTS)]])
     const reverse = new Map([['amiri', predicted(TEXT, [0, 10, 21, 31])], ['plain', predicted(TEXT, STARTS)], ['widths', widths]])
     expect(reverseOrder(ids, forward, reverse, new Map())).toEqual({ moved: ['amiri'], listed: [], widths: ['widths'] })
-    const varying = new Map([['amiri', 'Chrome\'s per-canvas shape cache moves these breaks with the text measured before']])
+    const varying: Varying = new Map([['amiri', { reason: 'Chrome\'s per-canvas shape cache moves these breaks with the text measured before', kind: 'order' }]])
     expect(reverseOrder(ids, forward, reverse, varying)).toEqual({ moved: [], listed: ['amiri'], widths: ['widths'] })
   })
 
@@ -365,7 +365,7 @@ describe('the gate and page history of predictions', () => {
     const none = new Map<string, { reason: string; status: Failure }>()
     const cases = new Set(['label'])
     expect(runs.map(outcomes => judge(outcomes, none, new Map(), cases, false).newFailures)).toEqual([[], ['label']])
-    const varying = new Map([['label', 'system-ui: Chrome resolves it for Canvas otherwise after some earlier documents, and not in every run']])
+    const varying: Varying = new Map([['label', { reason: 'system-ui: Chrome resolves it for Canvas otherwise after some earlier documents, and not in every run', kind: 'runs' }]])
     for (let i = 0; i < runs.length; i++) {
       const verdict = judge(runs[i]!, none, varying, cases, false)
       expect([verdict.newFailures, verdict.fixed]).toEqual([[], []])

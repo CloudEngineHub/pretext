@@ -5,7 +5,7 @@
 // character (observe.ts). A right count with a wrong break is a failure of its own kind, 'breaks': main passed 4.5-8.1%
 // of its census cases that way by accident.
 import { createRng } from './sets/build.ts'
-import { recordingText } from './store.ts'
+import { recordingText, type Varying } from './store.ts'
 import type { BrowserKind, Case, Failure, Prediction, Recording, Status } from './types.ts'
 
 export type Outcome = { status: Status; line: number; detail: string }
@@ -176,21 +176,21 @@ export function headline(draws: ReadonlyArray<{ group: string; weight: number; p
 
 // What the accepted-failures list makes of the pinned cases' outcomes. A failure off the list is new and blocks. An
 // entry whose case passes, is no longer pinned or names no case is fixed and blocks until it leaves the list, so accepted
-// losses never go silent. An accepted case that fails another way is printed, not blocked. A varying case
-// (harness/varying) is never judged, only counted, and a varying entry that names no case is stale, which blocks.
+// losses never go silent. An accepted case that fails another way is printed, not blocked. A case that varies between
+// runs (harness/varying) is never judged, only counted, and a varying entry that names no case is stale, which blocks.
 // `cases`: the ids of the cases this browser takes in the run; a run over some case files only (`partial`) leaves the
 // entries of other cases alone.
 export type Verdict = { newFailures: string[]; fixed: string[]; changed: string[]; stale: string[]; byReason: Map<string, string[]>; varying: { pass: number; fail: number } }
 type AcceptedList = ReadonlyMap<string, { reason: string; status: Failure }>
 
-export function judge(outcomes: ReadonlyMap<string, Outcome>, accepted: AcceptedList, varying: ReadonlyMap<string, string>, cases: ReadonlySet<string>, partial: boolean): Verdict {
+export function judge(outcomes: ReadonlyMap<string, Outcome>, accepted: AcceptedList, varying: Varying, cases: ReadonlySet<string>, partial: boolean): Verdict {
   const verdict: Verdict = { newFailures: [], fixed: [], changed: [], stale: [], byReason: new Map(), varying: { pass: 0, fail: 0 } }
-  for (const id of varying.keys()) {
-    if (accepted.has(id)) throw new Error(`${id} is both an accepted failure and a varying prediction`)
+  for (const [id, entry] of varying) {
+    if (entry.kind === 'runs' && accepted.has(id)) throw new Error(`${id} is both an accepted failure and a prediction that varies between runs`)
     if (!partial && !cases.has(id)) verdict.stale.push(id)
   }
   for (const [id, outcome] of outcomes) {
-    if (varying.has(id)) {
+    if (varying.get(id)?.kind === 'runs') {
       verdict.varying[outcome.status === 'pass' ? 'pass' : 'fail']++
       continue
     }
@@ -213,8 +213,8 @@ export function judge(outcomes: ReadonlyMap<string, Outcome>, accepted: Accepted
 }
 
 // The gate's reverse-order predictions against the forward ones: the cases whose breaks move, which block unless listed
-// as varying, and those whose widths alone move, which only the report-only shrink-wrap check reads.
-export function reverseOrder(ids: readonly string[], forward: ReadonlyMap<string, Prediction>, reverse: ReadonlyMap<string, Prediction>, varying: ReadonlyMap<string, string>): { moved: string[]; listed: string[]; widths: string[] } {
+// as varying (either kind), and those whose widths alone move, which only the report-only shrink-wrap check reads.
+export function reverseOrder(ids: readonly string[], forward: ReadonlyMap<string, Prediction>, reverse: ReadonlyMap<string, Prediction>, varying: Varying): { moved: string[]; listed: string[]; widths: string[] } {
   const out = { moved: [] as string[], listed: [] as string[], widths: [] as string[] }
   for (let i = 0; i < ids.length; i++) {
     const change = predictionChange(reverse.get(ids[i]!)!, forward.get(ids[i]!)!)
@@ -255,12 +255,12 @@ export function attribute(stored: Recording, recordedAlone: Recording, inCheck: 
 }
 
 // The list after `check --accept=<reason>`: the new failures under that reason, fixed entries gone, statuses current.
-// A varying case never goes on it.
-export function accept(outcomes: ReadonlyMap<string, Outcome>, accepted: AcceptedList, reason: string, varying: ReadonlyMap<string, string>, cases: ReadonlySet<string>, partial: boolean): Map<string, { reason: string; status: Failure }> {
+// A case that varies between runs never goes on it.
+export function accept(outcomes: ReadonlyMap<string, Outcome>, accepted: AcceptedList, reason: string, varying: Varying, cases: ReadonlySet<string>, partial: boolean): Map<string, { reason: string; status: Failure }> {
   const next = new Map<string, { reason: string; status: Failure }>()
   for (const [id, entry] of accepted) if (!outcomes.has(id) && partial && !cases.has(id)) next.set(id, entry)
   for (const [id, outcome] of outcomes) {
-    if (outcome.status === 'pass' || varying.has(id)) continue
+    if (outcome.status === 'pass' || varying.get(id)?.kind === 'runs') continue
     next.set(id, { reason: accepted.get(id)?.reason ?? reason, status: outcome.status })
   }
   return next
