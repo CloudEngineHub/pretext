@@ -4,7 +4,9 @@
 // each table against its source. Refresh those files by hand when a browser's tables change,
 // then run this. `--check` compares instead of writing.
 //
-// chrome-153/, from Chrome 153.0.8010.37:
+// chrome-153/, from Chrome 153.0.8010.37. Chrome 154.0.8037.57's icudtl.dat holds the same
+// brkitr entries byte for byte (only its time zone data changed), and Chromium 154 left
+// character_property_data_generator.cc as it was:
 // - line_normal.brk: the brkitr/line_normal.brk entry of Chrome's icudtl.dat (ICU 78.2).
 // - line_normal_cj.brk: the brkitr/line_normal_cj.brk entry of Chrome 153.0.8010.48's
 //   icudtl.dat (sha256 6202891a...), which Chrome opens for zh content.
