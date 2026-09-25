@@ -1,7 +1,9 @@
 // Grapheme clusters as each engine's Intl.Segmenter finds them: ICU's character rules
 // (char.brk) as Chrome and libicucore ship them, which scripts/generate-engine-break-data.ts
 // writes to src/generated/engine-break-data.ts. Firefox's ICU4X data gives the same clusters
-// as Chrome's table, which the generator checks, so Firefox takes Chrome's.
+// as Chrome's table, which the generator checks, so Firefox takes Chrome's. The rules are
+// Unicode 17's and don't follow a browser to another version (RESEARCH.md, Decisions Log,
+// 2026-09-24).
 
 import { charTablesPacked, type CharTable } from './generated/engine-break-data.js'
 import { getCategory, parseBreakRules, unpackTable, type BreakRules } from './line-breaks.js'

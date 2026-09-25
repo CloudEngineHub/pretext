@@ -256,6 +256,11 @@ The other table differs only at Apple's 39 hints. Node 23's ICU 77.1 (Unicode 16
 Tai Tham and Balinese, and on 61 of those texts, so an engine on another Unicode version
 needs its own table.
 
+With graphemes from the tables, `Intl.Segmenter` is left only for words inside the runs the
+scans break by dictionary: Thai, Lao, Khmer and Myanmar, and in the Blink and WebKit scans
+also Tai Le, New Tai Lue, Tai Tham, Tai Viet and Ahom. The scans create the word segmenter
+the first time such a run shows up, so other text prepares without `Intl.Segmenter`.
+
 ## Breaks And Source Positions
 
 Storage segments, measurement spans, ordinary break opportunities and emergency
@@ -1387,6 +1392,16 @@ reason still holds, and record the new decision here with its date.
   in Thai, Lao, Khmer and Myanmar text, under 20 locales in V8 and JavaScriptCore.
   Removing it, or making it a language input for Safari's families or an element's
   own `lang`, waits for the end of the project.
+- **2026-09-24: Pretext finds grapheme clusters itself, fixed to Unicode 17.**
+  Emergency breaks, letter spacing, emoji correction, line text and the Gecko scan's
+  clusters come from Chrome 153's and libicucore 78.1's ICU character rules
+  (`src/graphemes.ts`), not from each browser's `Intl.Segmenter`, whose graphemes
+  were the largest part of preparing new text in Chrome and Safari. The rules give
+  each browser's clusters today, Firefox's included, but don't follow a browser to
+  another Unicode version: one a version behind would differ on about 1,417 code
+  points, mostly conjuncts in Myanmar, Khmer, Tai Tham and Balinese. They are
+  refreshed with the line tables, which are fixed the same way, when browsers move
+  to Unicode 18. The tables add about 4 KB gzipped.
 - **2026-09-24: Safari's generic families come from a generated Core Text table**,
   not from measuring through a `<canvas>` element. An element's context runs the
   document's pending style update in every `font` assignment and `measureText()`,
