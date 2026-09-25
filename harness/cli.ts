@@ -289,7 +289,15 @@ async function gate(browser: BrowserKind, cases: Case[]): Promise<boolean> {
     attempts.push(await job<Recording>(browser, 'record', differ.slice().reverse(), ALONE))
   }
   const fresh = freshRecordings(sample.map(c => c.id), scored.recordings, attempts)
-  out.push(`  ${sample.length} cases recorded again (seed ${seed}): ${differ.length} differ from the recordings; ${fresh.history.length} of those laid out as recorded alone (page history the recordings missed, not blocking)${fresh.history.length > 0 ? `: ${shown(fresh.history)}` : ''}`)
+  out.push(`  ${sample.length} cases recorded again (seed ${seed}): ${differ.length} differ from the recordings, ${fresh.history.length} of them laid out as recorded when alone`)
+  // Those depend on the cases before them: page history the recordings missed, which goes on the page-history list as
+  // record would put it, so check stops pinning them.
+  if (fresh.history.length > 0) {
+    splitHistory(fresh.history, first.results, first.results, scored.recordings, scored.history, { recordings: new Map(scored.recordings), history: new Map(scored.history) })
+    writeRecordings(recordingsPath(browser), { env: scored.env, recordings: scored.recordings })
+    writeHistory(historyPath(browser), { env: scored.env, cases: scored.history })
+    out.push(`  ${fresh.history.length} moved to recordings/${browser}.history.txt as page history (not blocking; commit it): ${shown(fresh.history)}`)
+  }
   const blocks = gateBlocks(order, reverse, fresh)
   for (let i = 0; i < blocks.length; i++) out.push(`  ${blocks[i]}`)
   // Each new failure recorded alone, and predicted alone twice, each in a fresh document of its own.

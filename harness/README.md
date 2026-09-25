@@ -79,8 +79,9 @@ The gate adds three checks:
 - **Fresh re-recording:** the 1,000 pinned cases whose ids rank first under the seed are recorded again, and each case
   that differs is recorded twice more, alone in a document of its own, in the sample's order and then in reverse. It
   blocks only where the browser lays a case out differently from the recording every time: the recordings no longer
-  describe the browser. A case laid out as recorded in some attempt depends on the cases before it, page history the
-  recordings missed, and is printed. Ranked by id, a case leaving the pinned set changes the sample by one case.
+  describe the browser. A case laid out as recorded in some attempt depends on the cases before it: page history the
+  recordings missed, which the gate moves to the page-history list, as `record` would, for the next check not to pin.
+  Commit the changed recordings. Ranked by id, a case leaving the pinned set changes the sample by one case.
 - **Attribution:** each new failure is recorded alone (page history if that differs) and predicted alone twice. Two lone
   predictions that differ vary between runs; lone predictions that agree but differ from the check's depend on what was
   predicted before. A lone prediction can't tell the library's caches from the browser's Canvas state, so neither is
