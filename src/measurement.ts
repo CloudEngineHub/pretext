@@ -1,4 +1,5 @@
-import { getSharedGraphemeSegmenter } from './analysis.js'
+import type { CharTable } from './generated/engine-break-data.js'
+import { findGraphemeEnds } from './graphemes.js'
 import { canWebKitLineStartWith, getBlinkDefaultLocale } from './line-breaks.js'
 import { webkitGenericFamilies, webkitGenericFamilyNames, webkitScriptLanguages, webkitScriptSubtags } from './generated/webkit-generic-families.js'
 import type { SegmentEntryGeometry } from './entry-geometry.js'
@@ -28,6 +29,10 @@ export type EngineProfile = {
   // with nsLineBreaker over ICU4X's rules (src/gecko-line-breaks.ts), and engines Pretext
   // doesn't recognize take Blink's scan.
   lineBreakScan: 'blink' | 'webkit' | 'gecko'
+  // Where grapheme clusters end: the engine's ICU character rules (src/graphemes.ts).
+  // libicucore's add Apple's transcoding hints to Extend. Firefox's ICU4X data gives the
+  // clusters Chrome's rules give.
+  graphemeTable: CharTable
   lineFitEpsilon: number
   // Where an emergency break falls inside a segment. WebKit measures the word's grapheme
   // prefixes (TextUtil::breakWord), and Gecko adds the advances of the word shaped whole
@@ -316,6 +321,7 @@ export function getEngineProfile(): EngineProfile {
   const profile: EngineProfile = {
     entryFitBasis: isDesktop && engine === 'blink' ? 'fresh' : isDesktop && engine === 'gecko' ? 'original' : 'disabled',
     lineBreakScan: engine === 'gecko' || engine === 'webkit' ? engine : 'blink',
+    graphemeTable: engine === 'webkit' ? 'apple/char' : 'chromium/char',
     lineFitEpsilon: engine === 'webkit' ? 1 / 64 : 0.005,
     prefixFitMinWidth: engine === 'webkit' ? 0 : engine === 'gecko' ? 80 : Infinity,
     measureTextWithFollowingSpace: engine === 'webkit',
@@ -377,10 +383,11 @@ export function getEmojiCorrection(font: string, measurement: FontMeasurement): 
 }
 
 function countEmojiGraphemes(text: string): number {
+  const ends = new Int32Array(text.length)
+  const graphemeCount = findGraphemeEnds(getEngineProfile().graphemeTable, text, 0, text.length, ends)
   let count = 0
-  const graphemeSegmenter = getSharedGraphemeSegmenter()
-  for (const g of graphemeSegmenter.segment(text)) {
-    if (emojiGraphemeRe.test(g.segment)) count++
+  for (let i = 0, start = 0; i < graphemeCount; start = ends[i++]!) {
+    if (emojiGraphemeRe.test(text.slice(start, ends[i]!))) count++
   }
   return count
 }
@@ -414,15 +421,14 @@ export function getSegmentBreakableFitAdvances(
   }
   metrics.breakableFitMode = mode
 
-  const graphemeSegmenter = getSharedGraphemeSegmenter()
-  const graphemes: string[] = []
-  for (const gs of graphemeSegmenter.segment(seg)) {
-    graphemes.push(gs.segment)
-  }
-  if (graphemes.length <= 1) {
+  const ends = new Int32Array(seg.length)
+  const graphemeCount = findGraphemeEnds(getEngineProfile().graphemeTable, seg, 0, seg.length, ends)
+  if (graphemeCount <= 1) {
     metrics.breakableFitAdvances = null
     return metrics.breakableFitAdvances
   }
+  const graphemes: string[] = []
+  for (let i = 0, start = 0; i < graphemeCount; start = ends[i++]!) graphemes.push(seg.slice(start, ends[i]!))
   if (withLineStartProhibitions) {
     let prohibitions: number[] | null = null
     for (let i = 1; i < graphemes.length; i++) if (!canWebKitLineStartWith(graphemes[i]!.charCodeAt(0))) (prohibitions ??= []).push(i)

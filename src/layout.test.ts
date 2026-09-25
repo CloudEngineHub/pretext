@@ -543,6 +543,7 @@ describe('shared public contracts', () => {
 describe('boundary-policy regressions', () => {
   const baseProfile = {
     lineBreakScan: 'blink' as const,
+    graphemeTable: 'chromium/char' as const,
   }
   const geckoProfile = { ...baseProfile, lineBreakScan: 'gecko' as const }
 
@@ -840,36 +841,6 @@ describe('boundary-policy regressions', () => {
         expect(analyzeText(text, breakingProfile).texts).toEqual(['a', ' ', text.slice(2, -1), 'b'])
       }
       expect(analyzeText(text, hebrewProfile).texts).toEqual(['a', ' ', text.slice(2)])
-    }
-  })
-
-  test('segmenting a ZWJ after a space grows linearly with the text', async () => {
-    const { clearAnalysisCaches } = await import('./analysis.ts')
-    const profile = geckoProfile
-    const Segmenter = Intl.Segmenter
-    let segmentedUnits = 0
-    Reflect.set(Intl, 'Segmenter', class extends Segmenter {
-      override segment(input: string): Intl.Segments {
-        segmentedUnits += input.length
-        return super.segment(input)
-      }
-    })
-    clearAnalysisCaches()
-    try {
-      for (const whiteSpace of ['normal', 'pre-wrap'] as const) {
-        const counts: number[] = []
-        for (const repeats of [64, 256]) {
-          segmentedUnits = 0
-          analyzeText('ab \u200Dcd '.repeat(repeats), profile, whiteSpace)
-          counts.push(segmentedUnits)
-        }
-        // Four times the text is about four times the segmenter input. A pass
-        // over the whole text per joiner would make it sixteen times.
-        expect(counts[1]!).toBeLessThan(counts[0]! * 5)
-      }
-    } finally {
-      Reflect.set(Intl, 'Segmenter', Segmenter)
-      clearAnalysisCaches()
     }
   })
 
@@ -1563,7 +1534,6 @@ describe('engine break scans', () => {
   test("Gecko's scan follows its white-space transform, text runs, nsLineBreaker and ICU4X's rules", async () => {
     const { getGeckoLineBreaks } = await import('./gecko-line-breaks.ts')
     const { removeSkippableSegmentBreaks } = await import('./analysis.ts')
-    const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
     // Cases from the Gecko break oracle's tests and others, with the oracle's breaks,
     // soft-hyphen breaks included. The scan reads the text after the segment break
     // transformation, as analyzeText gives it: the text and breaks of a row whose
@@ -1608,9 +1578,59 @@ describe('engine break scans', () => {
       ['a (\u05D0\u05D1) b', 'en', false, false, [2, 7]],
     ] as const) {
       // The transformation leaves these rows as they are.
-      expect(preserve ? text : removeSkippableSegmentBreaks(text, { lineBreakScan: 'gecko' }, language)).toBe(text)
-      expect({ text, language, keepAll, breaks: positions(getGeckoLineBreaks(text, preserve, keepAll, graphemeSegmenter, wordSegmenter), text.length) })
+      expect(preserve ? text : removeSkippableSegmentBreaks(text, { lineBreakScan: 'gecko', graphemeTable: 'chromium/char' }, language)).toBe(text)
+      expect({ text, language, keepAll, breaks: positions(getGeckoLineBreaks(text, preserve, keepAll, 'chromium/char', wordSegmenter), text.length) })
         .toEqual({ text, language, keepAll, breaks: [...expected] })
+    }
+  })
+
+  test('grapheme clusters end where ICU ends them, in one pass', async () => {
+    const { findGraphemeEnds } = await import('./graphemes.ts')
+    const { charTablesPacked } = await import('./generated/engine-break-data.ts')
+    const { createRuleBreakIterator, nextRuleBoundary, parseBreakRules, unpackTable } = await import('./line-breaks.ts')
+    const ends = (table: 'chromium/char' | 'apple/char', text: string) => {
+      const out = new Int32Array(text.length)
+      return Array.from(out.subarray(0, findGraphemeEnds(table, text, 0, text.length, out)))
+    }
+    for (const [text, expected] of [
+      ['\u{1F468}\u200D\u{1F469}\u200D\u{1F467}', [8]],
+      ['\u{1F1EF}\u{1F1F5}\u{1F1FA}\u{1F1F8}\u{1F1EB}', [4, 8, 10]],
+      ['1\uFE0F\u20E3#', [3, 4]],
+      ['\u0915\u094D\u0937\u093F\u0915', [4, 5]],
+      ['\u1100\u1161\u11A8\uAC00\uAC01', [3, 4, 5]],
+      ['\u6F22\uFE00\u5B57', [2, 3]],
+      ['a\r\nb\n\r', [1, 3, 4, 5, 6]],
+      ['\u0600a b', [2, 3, 4]],
+      ['a\uD800\u0301\uDC00', [1, 3, 4]],
+    ] as const) {
+      expect({ text, ends: ends('chromium/char', text) }).toEqual({ text, ends: [...expected] })
+      expect({ text, ends: ends('apple/char', text) }).toEqual({ text, ends: [...expected] })
+    }
+    // libicucore's rules take Apple's transcoding hints as Extend.
+    expect(ends('chromium/char', 'a\uF870\uF89F')).toEqual([1, 2, 3])
+    expect(ends('apple/char', 'a\uF870\uF89F')).toEqual([3])
+    // A range reads as if the text began and ended there.
+    const out = new Int32Array(4)
+    expect(Array.from(out.subarray(0, findGraphemeEnds('chromium/char', 'x\u0301\u0301y', 1, 3, out)))).toEqual([3])
+
+    // Against ICU's handleNext over random strings of one code point per class.
+    const samples = [0x0, 0xa, 0xd, 0x20, 0xa9, 0x300, 0x600, 0x903, 0x915, 0x94d, 0x1100, 0x1160, 0x11a8, 0x200c, 0x200d, 0xac00, 0xac01, 0x1f1e6, 0xf870, 0xd800]
+    let seed = 7
+    const random = (n: number) => { seed = (seed * 48271) % 0x7fffffff; return seed % n }
+    for (const table of ['chromium/char', 'apple/char'] as const) {
+      const [reference, packed] = charTablesPacked[table]
+      const bytes = unpackTable(packed, reference === null ? null : unpackTable(charTablesPacked[reference][1]))
+      const iterator = createRuleBreakIterator(parseBreakRules(bytes))
+      for (let t = 0; t < 20_000; t++) {
+        const alphabet = Array.from({ length: 2 + random(4) }, () => samples[random(samples.length)]!)
+        let text = ''
+        for (let length = 1 + random(24); length > 0; length--) text += String.fromCodePoint(alphabet[random(alphabet.length)]!)
+        iterator.text = text
+        iterator.position = 0
+        const expected: number[] = []
+        for (let b = nextRuleBoundary(iterator); b !== -1; b = nextRuleBoundary(iterator)) expected.push(b)
+        expect({ table, text, ends: ends(table, text) }).toEqual({ table, text, ends: expected })
+      }
     }
   })
 })

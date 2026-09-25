@@ -211,7 +211,7 @@ export function parseBreakRules(bytes: Uint8Array): BreakRules {
 
 // UCPTRIE_FAST_GET with fastMax 0xffff (unicode/ucptrie.h:358, 601-620), and a fast trie's
 // first index level after UCPTRIE_BMP_INDEX_LENGTH - UCPTRIE_OMITTED_BMP_INDEX_1_LENGTH entries.
-function getCategory(rules: BreakRules, c: number): number {
+export function getCategory(rules: BreakRules, c: number): number {
   const index = rules.trieIndex
   if (c <= 0xffff) return rules.trieData[index[c >> 6]! + (c & 0x3f)]!
   if (c >= rules.trieHighStart) return rules.trieData[rules.trieDataLength - 2]!
@@ -223,7 +223,7 @@ const START = 1
 const END = 2
 
 // The state ICU's RuleBasedBreakIterator keeps over one text.
-type RuleBreakIterator = {
+export type RuleBreakIterator = {
   readonly rules: BreakRules
   // Characters in dictionary categories since the last boundary (rbbi.cpp:854), which
   // is when ICU would hand the segment to a dictionary (rbbi_cache.cpp:486-489).
@@ -237,7 +237,7 @@ type RuleBreakIterator = {
   readonly overrideCategories: readonly number[]
 }
 
-function createRuleBreakIterator(rules: BreakRules, overrideChars: readonly number[] = [], overrideCategories: readonly number[] = []): RuleBreakIterator {
+export function createRuleBreakIterator(rules: BreakRules, overrideChars: readonly number[] = [], overrideCategories: readonly number[] = []): RuleBreakIterator {
   return {
     rules,
     dictionaryCharCount: 0,
@@ -252,7 +252,7 @@ function createRuleBreakIterator(rules: BreakRules, overrideChars: readonly numb
 // handleNext(), rbbi.cpp:779-952: the next boundary, or DONE at the end of the text.
 // The text is read like utext_next32() over UTF-16 (utext.cpp:272-308), with
 // unpaired surrogates as code points.
-function nextRuleBoundary(iterator: RuleBreakIterator): number {
+export function nextRuleBoundary(iterator: RuleBreakIterator): number {
   const r = iterator.rules
   const rows = r.rows
   const width = r.rowWidth

@@ -1,4 +1,5 @@
 import { getGeckoLineBreaks, isDiscardable, isEastAsianSegmentBreak, isJapaneseOrChinese, isSpaceCombiningSequenceTail } from './gecko-line-breaks.js'
+import type { CharTable } from './generated/engine-break-data.js'
 import { getBlinkLineBreaks, getWebKitLineBreaks } from './line-breaks.js'
 
 export type WhiteSpaceMode = 'normal' | 'pre-wrap'
@@ -37,6 +38,7 @@ export type TextAnalysis = { source: string; normalized: string; spaceSources: U
 
 export type AnalysisProfile = {
   lineBreakScan: 'blink' | 'webkit' | 'gecko'
+  graphemeTable: CharTable
 }
 
 const collapsibleWhitespaceRunRe = /[ \t\n\r\f]+/g
@@ -121,15 +123,6 @@ function normalizeWhitespacePreWrap(text: string): string {
     .replace(/[\r\f]/g, '\n')
 }
 
-let sharedGraphemeSegmenter: Intl.Segmenter | null = null
-
-export function getSharedGraphemeSegmenter(): Intl.Segmenter {
-  if (sharedGraphemeSegmenter === null) {
-    sharedGraphemeSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
-  }
-  return sharedGraphemeSegmenter
-}
-
 // The scans read word boundaries only inside runs of Thai, Lao, Khmer and Myanmar
 // letters, where no locale changes them.
 let sharedWordSegmenter: Intl.Segmenter | null = null
@@ -142,7 +135,6 @@ export function getSharedWordSegmenter(): Intl.Segmenter {
 }
 
 export function clearAnalysisCaches(): void {
-  sharedGraphemeSegmenter = null
   sharedWordSegmenter = null
 }
 
@@ -330,7 +322,7 @@ export function analyzeText(
     // WebKit and Gecko scan the source. Gecko's scan collapses its white space as Firefox does.
     const sourceBreaks = profile.lineBreakScan === 'webkit'
       ? getWebKitLineBreaks(source, preserve, keepAll, language, getSharedWordSegmenter())
-      : getGeckoLineBreaks(source, preserve, keepAll, getSharedGraphemeSegmenter(), getSharedWordSegmenter())
+      : getGeckoLineBreaks(source, preserve, keepAll, profile.graphemeTable, getSharedWordSegmenter())
     if (profile.lineBreakScan === 'webkit' && !preserve && source !== normalized) spaceSources = new Uint16Array(normalized.length)
     breaks = source === normalized ? sourceBreaks : mapSourceLineBreaks(source, normalized.length, sourceBreaks, whiteSpace, spaceSources)
   }

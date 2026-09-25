@@ -7,10 +7,11 @@
 
 import { observeSegmentEntries, type SegmentEntryGeometry } from './entry-geometry.js'
 import { getHanKerningTrims, textMayHanKern, type HanKerningTrims } from './han-kerning.js'
+import { findGraphemeEnds } from './graphemes.js'
+import type { CharTable } from './generated/engine-break-data.js'
 import {
   analyzeText,
   clearAnalysisCaches,
-  getSharedGraphemeSegmenter,
   type SegmentBreakKind,
   type TextAnalysis,
   type WhiteSpaceMode,
@@ -111,12 +112,8 @@ export type PrepareOptions = {
 // --- Public API ---
 
 // Text and spaces take letter spacing after each grapheme; a ZWSP takes none.
-function countRenderedSpacingGraphemes(text: string, kind: SegmentBreakKind): number {
-  if (kind === 'zero-width-break') return 0
-  let count = 0
-  const graphemeSegmenter = getSharedGraphemeSegmenter()
-  for (const _ of graphemeSegmenter.segment(text)) count++
-  return count
+function countRenderedSpacingGraphemes(text: string, kind: SegmentBreakKind, graphemeTable: CharTable): number {
+  return kind === 'zero-width-break' ? 0 : findGraphemeEnds(graphemeTable, text, 0, text.length, null)
 }
 
 function addInternalLetterSpacing(width: number, graphemeCount: number, letterSpacing: number): number {
@@ -292,8 +289,10 @@ function measureAnalysis(
       const text = analysis.texts[k]!
       if (kind === 'zero-width-glue' || ((kind === 'text' || kind === 'control') && controlOrMarkRunRe.test(text))) continue
       if (kind !== 'text') return null
-      const base = getSharedGraphemeSegmenter().segment(text).containing(text.length - 1)!
-      return analysis.normalized.slice(analysis.starts[k]! + base.index, analysis.starts[analysisIndex]!)
+      const ends = new Int32Array(text.length)
+      const count = findGraphemeEnds(engineProfile.graphemeTable, text, 0, text.length, ends)
+      const baseStart = count > 1 ? ends[count - 2]! : 0
+      return analysis.normalized.slice(analysis.starts[k]! + baseStart, analysis.starts[analysisIndex]!)
     }
     return null
   }
@@ -406,7 +405,7 @@ function measureAnalysis(
       previousJoinableMetrics = textMetrics
     }
     const spacingGraphemeCount = hasLetterSpacing
-      ? countRenderedSpacingGraphemes(text, kind)
+      ? countRenderedSpacingGraphemes(text, kind, engineProfile.graphemeTable)
       : 0
     const measuredWithSpace = followingSpaceTail === ''
     const followingSpaceKerning = followingSpaceTail === null || measuredWithSpace
