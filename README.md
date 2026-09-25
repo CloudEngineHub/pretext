@@ -29,7 +29,7 @@ const prepared = prepare('AGI 春天到了. بدأت الرحلة 🚀‎', '16p
 const { height, lineCount } = layout(prepared, 320, 20) // pure arithmetic. No DOM layout & reflow!
 ```
 
-`prepare()` does the one-time work: normalize whitespace, segment the text, apply glue rules, measure the segments with canvas, and return an opaque handle. `layout()` is the cheap hot path after that: pure arithmetic over cached widths. Do not rerun `prepare()` for the same text and configs; that'd defeat its precomputation. For example, on resize, only rerun `layout()`.
+`prepare()` does the one-time work: normalize whitespace, segment the text at its break opportunities, measure the segments with canvas, and return an opaque handle. `layout()` is the cheap hot path after that: pure arithmetic over cached widths. Do not rerun `prepare()` for the same text and configs; that'd defeat its precomputation. For example, on resize, only rerun `layout()`.
 
 If you want textarea-like text where ordinary spaces, `\t` tabs, and `\n` hard breaks stay visible, pass `{ whiteSpace: 'pre-wrap' }` to `prepare()`:
 
@@ -210,14 +210,14 @@ type RichInlineStats = {
 Other helpers:
 ```ts
 clearCache(): void // clears Pretext's shared internal caches used by prepare() and prepareWithSegments(). Useful if your app cycles through many different fonts or text variants and you want to release the accumulated cache
-setLocale(locale?: string): void // optional (by default we use the current locale). Sets locale for future prepare() and prepareWithSegments(). Internally, it also calls clearCache(). Setting a new locale doesn't affect existing prepare() and prepareWithSegments() states (no mutations to them)
+setLocale(locale?: string): void // kept for compatibility, the same as clearCache(). Line breaking follows the page language, which prepare() and prepareWithSegments() read from `<html lang>`
 ```
 
 Notes:
 - `LayoutCursor` is a segment/grapheme cursor, not a raw string offset.
 - A line's `width` leaves out spaces and tabs that hang past its end, as browsers draw them: all of them where the line wraps, and in `pre-wrap` before a newline or at the end of the text, only the part that doesn't fit in `maxWidth`. Firefox doesn't hang tabs, so there a tab counts. `measureNaturalWidth()` still counts spaces before a newline, like CSS max-content.
 - `layout()` with an empty string returns `{ lineCount: 0, height: 0 }`. Browsers still size an empty block to one `line-height`, so clamp with `Math.max(1, lineCount) * lineHeight` if you need that behavior.
-- Pretext doesn't compute bidi levels. If you're drawing mixed bidi text, like English and Arabic, render each paragraph as one DOM element with its direction set, and the browser orders every line. If you draw lines separately, such as with Canvas `fillText()`, each line is ordered as its own paragraph, so numbers or punctuation next to a line break, or bidi controls that span lines, can come out in a different order.
+- Pretext doesn't give bidi levels or a visual order. If you're drawing mixed bidi text, like English and Arabic, render each paragraph as one DOM element with its direction set, and the browser orders every line. If you draw lines separately, such as with Canvas `fillText()`, each line is ordered as its own paragraph, so numbers or punctuation next to a line break, or bidi controls that span lines, can come out in a different order.
 - A rich-inline fragment's `gapBefore` is a space in the font and letter spacing of item `gapItemIndex`: the fragment's own item, the previous fragment's item, or an item holding only whitespace, which gets no fragment. Draw the space inside that item's element so it paints at that width.
 - Segment widths are browser-canvas widths for line breaking. They aren't enough to position individual characters correctly in Arabic or mixed bidi text.
 
@@ -226,7 +226,7 @@ Notes:
 Pretext doesn't try to be a full font rendering engine (yet?). It currently targets the common text setup:
 - `white-space: normal` and `pre-wrap`
 - `word-break: normal` and `keep-all`
-- `overflow-wrap: break-word`. Very narrow widths can still break inside words, independent symbol runs, `keep-all` groups and kinsoku clusters such as `漢。`, but only at grapheme boundaries.
+- `overflow-wrap: break-word`. Very narrow widths can still break inside words, symbol runs, `keep-all` groups and kinsoku clusters such as `漢。`, but only at grapheme boundaries.
 - `line-break: auto`
 - `letter-spacing` as a numeric pixel value passed to `prepare()` / `prepareWithSegments()`
 - Tabs follow the default browser-style `tab-size: 8`
