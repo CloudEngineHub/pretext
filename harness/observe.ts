@@ -10,7 +10,7 @@
 //   checks every visible character when the line index of visible characters never decreases in source order.
 // - Short paragraphs are read code point by code point. Longer ones search from each line's first visible character for
 //   the next line's: a few Range calls per line instead of one per code point.
-import type { Case, Recording, RecordedLine, Rect } from './types.ts'
+import type { BrowserKind, Case, Recording, RecordedLine, Rect } from './types.ts'
 
 // Paragraphs at least this long are searched instead of scanned.
 export const SEARCH_FROM_UNITS = 1000
@@ -191,10 +191,9 @@ export function lineWidths(text: string, rects: readonly Rect[], lines: Lines, e
   return widths
 }
 
-// `hyphenCopies`: the browser is Chrome (withoutHyphenCopies).
-export function recordedLines(text: string, nodeRects: readonly Rect[], lineHeight: number, browserRectsAt: RectsAt, hyphenCopies: boolean): RecordedLine[] {
+export function recordedLines(text: string, nodeRects: readonly Rect[], lineHeight: number, browserRectsAt: RectsAt, browser: BrowserKind): RecordedLine[] {
   const lines = groupLines(nodeRects, lineHeight)
-  const rectsAt = hyphenCopies ? withoutHyphenCopies(text, browserRectsAt) : browserRectsAt
+  const rectsAt = browser === 'chrome' ? withoutHyphenCopies(text, browserRectsAt) : browserRectsAt
   const ends = (text.length >= SEARCH_FROM_UNITS ? searchLineEnds(text, lines, rectsAt) : null) ?? scanLineEnds(text, lines, rectsAt)
   const widths = lineWidths(text, nodeRects, lines, ends, rectsAt)
   const out: RecordedLine[] = []
@@ -279,7 +278,7 @@ function relativeRects(list: DOMRectList, origin: DOMRect, into: Rect[]): Rect[]
   return into
 }
 
-export function recordCase(c: Case, range: Range, hyphenCopies: boolean): Recording {
+export function recordCase(c: Case, range: Range, browser: BrowserKind): Recording {
   const { element, nodes, refused } = buildParagraph(c)
   if (refused.length > 0) return { error: `refused ${refused.join(', ')}` }
   document.body.append(element)
@@ -304,7 +303,7 @@ export function recordCase(c: Case, range: Range, hyphenCopies: boolean): Record
       range.setEnd(nodes[run]!, local + codePointLength(text, offset))
       return relativeRects(range.getClientRects(), origin, [])
     }
-    return { lines: recordedLines(text, nodeRects, c.paragraph.lineHeight, rectsAt, hyphenCopies), height: origin.height }
+    return { lines: recordedLines(text, nodeRects, c.paragraph.lineHeight, rectsAt, browser), height: origin.height }
   } finally {
     element.remove()
   }

@@ -67,16 +67,18 @@ tests.
   claims (break-all, rich-inline in pre-wrap, system-ui font lists) and the share right without it.
 - **Shrink-wrap, report only:** a bubble sized to the predicted widest line, rounded up, is at least the browser's widest line.
   A recorded line's width leaves out the U+0020 spaces that end it, which hang past the line end, as the library's widths do.
-- **Environment key:** browser build, OS build, the OS's and the page's languages, device pixel ratio and the web fonts
-  served. The harness refuses to score recordings made under another key.
+- **Environment key:** browser build (and the system WebKit's, for webkit-host and Safari), OS build, the OS's and the
+  page's languages, device pixel ratio and the web fonts served. The harness refuses to score recordings made under
+  another key.
 
 The gate adds three checks:
 - **Reverse order:** predictions in reverse order must break every line where the forward ones do, and the line APIs
   must still agree, or it blocks. Chrome's per-canvas shape caches (Chromium #560614560) move the breaks of six old-gate
   cases (Arabic with vowel marks before brackets) before #340 (6d1d210) as after it, so they are varying predictions of kind
   `order`: in check's order they fail the same way every time and are accepted. Predictions whose line widths alone
-  move are printed, not blocked: the same caches and a Firefox width-1 case move them before #340 too, and widths only
-  reach the shrink-wrap check, which reports.
+  move are printed, not blocked: the same caches and a Firefox width-1 case move them before #340 too, in some runs
+  webkit-host moves those of one or two Ethiopic draws in a system-ui font list, and widths only reach the shrink-wrap
+  check, which reports.
 - **Fresh re-recording:** the 1,000 pinned cases whose ids rank first under the seed are recorded again, and each case
   that differs is recorded twice more, alone in a document of its own, in the sample's order and then in reverse. It
   blocks only where the browser lays a case out differently from the recording every time: the recordings no longer
@@ -91,7 +93,8 @@ The gate adds three checks:
   printed with its family, width band and first differing line.
 
 What each piece catches, as an app developer would see it. `bun test harness` plants each fault, running the commands
-with a stand-in browser, except the Firefox hold, which needs Firefox:
+with a stand-in browser. Two pieces run only in a real browser and aren't planted: the Firefox hold, and the page
+(`page.ts`) passing the browser's name to the recorder, which leaves Chrome's soft hyphen copies out:
 
 | Piece | Without it |
 |---|---|

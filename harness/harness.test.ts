@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { fontsKey, keyOf, type Environment } from './browsers.ts'
 import { check, gate, parseArgs, record, type Io, type Options } from './cli.ts'
 import { groupLines, recordedLines, scanLineEnds, searchLineEnds, type RectsAt } from './observe.ts'
 import { documents, type Job } from './run.ts'
@@ -11,8 +12,8 @@ import {
   type Outcome, type Verdict,
 } from './score.ts'
 import {
-  acceptedPath, assertSameEnvironment, caseProblem, historyPath, parseRecording, readAccepted, readHistory, readRecordings, recordingsPath, recordingText, splitHistory,
-  varyingPath, writeHistory, writeRecordings, type Varying,
+  acceptedPath, assertSameEnvironment, caseProblem, historyPath, parseRecording, readAccepted, readHistory, readRecordings, readVarying, recordingsPath, recordingText,
+  splitHistory, varyingPath, writeAccepted, writeHistory, writeRecordings, type Varying,
 } from './store.ts'
 import type { Case, Failure, Prediction, Recording, Rect, TextRun } from './types.ts'
 
@@ -40,7 +41,7 @@ function layOut(text: string, starts: number[]): { recording: Recording; nodeRec
     reads++
     return rects.get(offset) ?? []
   }
-  return { recording: { lines: recordedLines(text, nodeRects, 20, rectsAt, false), height: starts.length * 20 }, nodeRects, rectsAt, reads: () => reads }
+  return { recording: { lines: recordedLines(text, nodeRects, 20, rectsAt, 'chrome'), height: starts.length * 20 }, nodeRects, rectsAt, reads: () => reads }
 }
 
 function predicted(text: string, starts: number[]): Prediction {
@@ -94,10 +95,12 @@ describe('the pass rule', () => {
       { x: 3.6171875, y: 15, width: 8.8984375, height: 18 }, { x: 12.515625, y: 15, width: 5.328125, height: 18 },
       { x: 3.6171875, y: 63, width: 5.328125, height: 18 }, { x: 8.9453125, y: 63, width: 8.8984375, height: 18 },
     ]
-    const lines = recordedLines('a\u00ADb\u000b', nodeRects, 48, offset => points[offset]!, true)
+    const lines = recordedLines('a\u00ADb\u000b', nodeRects, 48, offset => points[offset]!, 'chrome')
     expect(lines.map(line => [line.first, line.last])).toEqual([[0, 1], [2, 3]])
     // Other browsers' equal boxes of neighbouring characters are no copies.
-    expect(recordedLines('a\u00ADb\u000b', nodeRects, 48, offset => points[offset]!, false).map(line => [line.first, line.last])).toEqual([[0, 1], [3, 3]])
+    for (const browser of ['firefox', 'webkit-host', 'safari'] as const) {
+      expect(recordedLines('a\u00ADb\u000b', nodeRects, 48, offset => points[offset]!, browser).map(line => [line.first, line.last])).toEqual([[0, 1], [3, 3]])
+    }
     const main: Prediction = { lines: [{ start: 0, end: 3, width: 17.796875 }, { start: 3, end: 4, width: 4.4453125 }], prepareCalls: 6, lineCalls: 0, disagreement: null }
     expect(score({ lines, height: 96 }, main).status).toBe('breaks')
   })
@@ -126,6 +129,11 @@ describe('the pass rule', () => {
     expect(searched).toEqual(scanned)
     expect(scanned.first[57]).toBe(-1)
     expect(reads() - before - scanReads).toBeLessThan(scanReads)
+    // Recording a paragraph this long searches.
+    const beforeRecording = reads()
+    const recorded = recordedLines(text, nodeRects, 20, rectsAt, 'chrome')
+    expect([recorded.map(line => line.first), recorded.map(line => line.last)]).toEqual([scanned.first, scanned.last])
+    expect(reads() - beforeRecording).toBeLessThan(scanReads)
   })
 
   test('a search that meets a character on an earlier line gives up for a scan: bidi reordering would put a word on the wrong line unseen', () => {
@@ -186,6 +194,24 @@ describe('the stored recordings', () => {
     expect(parseRecording(recordingText(three))).toEqual(three)
   })
 
+  test('page history and the accepted list are written sorted, whatever order they were found in: every recording would churn in git', async () => {
+    const three = layOut(TEXT, [0, 16, 31]).recording
+    const two = layOut(TEXT, [0, 20]).recording
+    const dir = `${import.meta.dir}/../.artifacts/harness-test-sorted`
+    mkdirSync(dir, { recursive: true })
+    writeHistory(`${dir}/history-1.txt`, { env: 'test', cases: new Map([['b', [two, three]], ['a', [three, two]]]) })
+    writeHistory(`${dir}/history-2.txt`, { env: 'test', cases: new Map([['a', [three, two]], ['b', [two, three]]]) })
+    expect(await Bun.file(`${dir}/history-1.txt`).text()).toBe(await Bun.file(`${dir}/history-2.txt`).text())
+    const entries: Array<[string, { reason: string; status: Failure }]> = [
+      ['d', { reason: 'second reason', status: 'count' }], ['c', { reason: 'first reason', status: 'breaks' }],
+      ['b', { reason: 'second reason', status: 'breaks' }], ['a', { reason: 'first reason', status: 'error' }],
+    ]
+    writeAccepted(`${dir}/accepted-1.txt`, new Map(entries))
+    writeAccepted(`${dir}/accepted-2.txt`, new Map(entries.slice().reverse()))
+    expect(await Bun.file(`${dir}/accepted-1.txt`).text()).toBe('## first reason\na error\nc breaks\n\n## second reason\nb breaks\nd count\n')
+    expect(await Bun.file(`${dir}/accepted-2.txt`).text()).toBe(await Bun.file(`${dir}/accepted-1.txt`).text())
+  })
+
   test('a bare text run with a style of its own is refused: the adapter would predict with a font the browser never used', () => {
     const font = { family: 'Arial', size: 16, weight: 400, style: 'normal' as const }
     const c: Case = {
@@ -205,6 +231,32 @@ describe('the stored recordings', () => {
     expect(() => assertSameEnvironment('chrome', recorded, recorded.replace('.48', '.50'))).toThrow('Record again')
     expect(() => assertSameEnvironment('chrome', recorded, recorded.replace('dpr=2', 'dpr=1'))).toThrow('Record again')
     expect(() => assertSameEnvironment('chrome', recorded, recorded)).not.toThrow()
+  })
+
+  test('each part of the environment key changes it, and so do the served fonts but not the notes on where they came from: a browser, OS or display change would read as library regressions or fixes', () => {
+    const base: Environment = {
+      browser: 'webkit-host', version: '27.0', webkit: '22625.1.29.11.27', os: '26A428', osLanguages: 'zh-Hans-US,en-US', pageLanguages: ['zh-CN'],
+      devicePixelRatio: 2, fonts: 'eb39315129b7',
+    }
+    expect(keyOf(base)).toBe('webkit-host 27.0 webkit=22625.1.29.11.27 os=26A428 os-languages=zh-Hans-US,en-US page-languages=zh-CN dpr=2 fonts=eb39315129b7')
+    const changes: Array<Partial<Environment>> = [
+      { browser: 'safari' }, { version: '27.1' }, { webkit: '22625.1.29.11.28' }, { webkit: null }, { os: '26A429' }, { osLanguages: 'en-US' },
+      { pageLanguages: ['en-US', 'en'] }, { devicePixelRatio: 1 }, { fonts: '0123456789ab' },
+    ]
+    for (let i = 0; i < changes.length; i++) expect(keyOf({ ...base, ...changes[i] })).not.toBe(keyOf(base))
+    const dir = join(import.meta.dir, '../.artifacts/harness-test-fonts')
+    mkdirSync(dir, { recursive: true })
+    const manifest = (family: string, source: string): string => JSON.stringify([{ family, weight: '400', file: 'test.woff2', source }])
+    writeFileSync(join(dir, 'fonts.json'), manifest('Test Sans', 'made for the test'))
+    writeFileSync(join(dir, 'test.woff2'), 'one')
+    const served = fontsKey(dir)
+    writeFileSync(join(dir, 'fonts.json'), manifest('Test Sans', 'another note'))
+    expect(fontsKey(dir)).toBe(served)
+    writeFileSync(join(dir, 'fonts.json'), manifest('Test Serif', 'made for the test'))
+    expect(fontsKey(dir)).not.toBe(served)
+    writeFileSync(join(dir, 'fonts.json'), manifest('Test Sans', 'made for the test'))
+    writeFileSync(join(dir, 'test.woff2'), 'two')
+    expect(fontsKey(dir)).not.toBe(served)
   })
 
   test('a case laid out differently in its two orders is never pinned: page history would block changes at random', () => {
@@ -260,6 +312,20 @@ describe('the accepted-failures and varying lists', () => {
     const elsewhere = new Map<string, Outcome>([['other', fail('breaks')]])
     expect(judge(elsewhere, next, none, new Set(['other']), true).fixed).toEqual([])
     expect([...accept(elsewhere, next, 'why', none, new Set(['other']), true).keys()].sort()).toEqual(['known', 'moved', 'new', 'other'])
+  })
+
+  test('an entry of either list with no written reason above it is refused: accepted losses would go silent', () => {
+    const dir = join(import.meta.dir, '../.artifacts/harness-test-lists')
+    mkdirSync(dir, { recursive: true })
+    const path = join(dir, 'list.txt')
+    for (const [text, read] of [['a count\n', readAccepted], ['a runs\n', readVarying], ['## \na count\n', readAccepted]] as const) {
+      writeFileSync(path, text)
+      expect(() => read(path)).toThrow('under a \'## <reason>\' heading')
+    }
+    writeFileSync(path, '## narrower than real layouts\na count\n')
+    expect([...readAccepted(path)]).toEqual([['a', { reason: 'narrower than real layouts', status: 'count' }]])
+    writeFileSync(path, '## system-ui\na runs\n')
+    expect([...readVarying(path)]).toEqual([['a', { reason: 'system-ui', kind: 'runs' }]])
   })
 
   test('an entry of either list that names no case blocks: a list would keep reasons for cases that are gone', () => {
@@ -425,13 +491,18 @@ describe('the commands, with a stand-in browser', () => {
 
   test('check blocks on a failure off the accepted list, --accept takes it, and a prediction that varies between runs is never judged or accepted: a regression would pass, or an accepted flip block the next run', async () => {
     const root = folder('accept', { pass: laidOut, fail: laidOut, label: laidOut }, { varying: '## system-ui\nlabel runs\n' })
-    const io = browser(root, c => (c.id === 'pass' ? right : wrong))
-    const list = cases(['pass', 'fail', 'label'])
+    // Preparing asks Canvas 10 and 20 times, over 43 units each.
+    const io = browser(root, c => (c.id === 'pass' ? { ...right, prepareCalls: 10 } : { ...wrong, prepareCalls: c.id === 'fail' ? 20 : 0 }) as Prediction)
+    const list = cases(['pass', 'fail', 'label']).map(c => (c.id === 'label' ? c : { ...c, sample: { group: 'chat', weight: c.id === 'fail' ? 0.25 : 0.75 } }))
     const first = await check('chrome', list, options, io)
     expect([first.blocked, first.newFailures.map(c => c.id)]).toEqual([true, ['fail']])
+    expect(io.printed()).toContain('  Canvas: 232.6 measureText calls per 1,000 units while preparing')
     await check('chrome', list, { ...options, accept: 'a written reason' }, io)
     expect([...readAccepted(acceptedPath(root, 'chrome')).keys()]).toEqual(['fail'])
-    expect((await check('chrome', list, options, io)).blocked).toBe(false)
+    // Accepted losses print under their reason, with the share of real paragraphs they cover.
+    const again = browser(root, c => (c.id === 'pass' ? right : wrong))
+    expect((await check('chrome', list, options, again)).blocked).toBe(false)
+    expect(again.printed()).toContain('\n  accepted 1 (25.00% of real paragraphs): a written reason\n')
   })
 
   test('check predicts every case, and blocks on a line API that disagrees where nothing is pinned and on a case with no recording: a virtualized list would size rows for lines it doesn\'t paint', async () => {
@@ -492,6 +563,23 @@ describe('the commands, with a stand-in browser', () => {
     expect(jobs.map(job => job.cases.map(c => c.id).join(' '))).toEqual(['kept moved orders', 'kept orders moved'])
     expect([...readRecordings(recordingsPath(root, 'chrome'))!.recordings.keys()]).toEqual(['kept'])
     expect([...readHistory(historyPath(root, 'chrome'))!.cases.keys()]).toEqual(['moved', 'orders'])
+  })
+
+  test('record --only-new records only the cases with no recording, and refuses to add them to recordings of another environment: a browser update would read as library regressions or fixes', async () => {
+    const root = folder('only-new', { kept: laidOut }, { history: ['moving'] })
+    const recordedIds: string[] = []
+    const layout = (c: Case): Recording => {
+      recordedIds.push(c.id)
+      return laidOut
+    }
+    await record('chrome', cases(['kept', 'moving', 'new']), { ...options, onlyNew: true }, browser(root, () => right, layout))
+    expect(recordedIds).toEqual(['new', 'new'])
+    expect([...readRecordings(recordingsPath(root, 'chrome'))!.recordings.keys()]).toEqual(['kept', 'new'])
+    expect([...readHistory(historyPath(root, 'chrome'))!.cases.keys()]).toEqual(['moving'])
+    const refused = await record('chrome', cases(['kept', 'new', 'newer']), { ...options, onlyNew: true }, browser(root, () => right, layout, 'another build'))
+      .then(() => '', (error: Error) => error.message)
+    expect(refused).toContain('the other recordings were made under test; record every case')
+    expect([...readRecordings(recordingsPath(root, 'chrome'))!.recordings.keys()]).toEqual(['kept', 'new'])
   })
 })
 

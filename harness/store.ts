@@ -105,7 +105,7 @@ export function writeHistory(path: string, file: HistoryFile): void {
   writeFileSync(path, text)
 }
 
-// Lines of `fields` words under `## <reason>` headings, each with its reason. An id is listed once.
+// Lines of `fields` words under `## <reason>` headings, each with its reason, which can't be empty. An id is listed once.
 function readUnderReasons(path: string, fields: number): Array<{ reason: string; words: string[] }> {
   const out: Array<{ reason: string; words: string[] }> = []
   const lines = readLines(path) ?? []
@@ -118,7 +118,7 @@ function readUnderReasons(path: string, fields: number): Array<{ reason: string;
       continue
     }
     const words = line.trim().split(/\s+/)
-    if (reason === null || words.length !== fields) throw new Error(`${path}:${i + 1}: expected ${fields} words per line under a '## <reason>' heading`)
+    if (reason === null || reason === '' || words.length !== fields) throw new Error(`${path}:${i + 1}: expected ${fields} words per line under a '## <reason>' heading`)
     if (ids.has(words[0]!)) throw new Error(`${path}:${i + 1}: ${words[0]} is listed twice`)
     ids.add(words[0]!)
     out.push({ reason, words })

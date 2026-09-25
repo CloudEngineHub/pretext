@@ -34,23 +34,38 @@ function bundleVersion(bundle: string, key = 'CFBundleShortVersionString'): stri
   return command('plutil', ['-extract', key, 'raw', '-o', '-', bundle])
 }
 
-// What a recording depends on besides the case: the browser build, the OS build (fonts, Core Text and ICU move with it),
-// the languages the browser and the OS run under, the device pixel ratio and the web fonts served. The harness refuses
-// to score a recording under another key.
-export function environmentKey(browser: BrowserKind, env: PageEnv): string {
-  const app = appPath(browser)
-  const version = bundleVersion(join(app, 'Contents/Info.plist'))
-  const engine = browser === 'webkit-host' || browser === 'safari'
-    ? ` webkit=${bundleVersion('/System/Library/Frameworks/WebKit.framework/Resources/Info.plist', 'CFBundleVersion')}`
-    : ''
-  const os = command('sw_vers', ['-buildVersion'])
-  const osLanguages = command('defaults', ['read', '-g', 'AppleLanguages']).replace(/[\s"()]/g, '')
-  // What the page serves: each fixture's family, weight and file bytes, not the manifest's notes on where it came from.
-  const fixtures = JSON.parse(readFileSync(join(FONTS_DIR, 'fonts.json'), 'utf8')) as Array<{ family: string; weight: string; file: string }>
+// What a recording depends on besides the case: the browser build (and WebKit's, for the browsers that run the system
+// framework), the OS build (fonts, Core Text and ICU move with it), the languages the OS and the page run under, the
+// device pixel ratio and the web fonts served. The harness refuses to score a recording under another key.
+export type Environment = {
+  browser: BrowserKind; version: string; webkit: string | null; os: string; osLanguages: string; pageLanguages: readonly string[]
+  devicePixelRatio: number; fonts: string
+}
+
+export function keyOf(e: Environment): string {
+  return `${e.browser} ${e.version}${e.webkit === null ? '' : ` webkit=${e.webkit}`} os=${e.os} os-languages=${e.osLanguages} page-languages=${e.pageLanguages.join(',')} dpr=${e.devicePixelRatio} fonts=${e.fonts}`
+}
+
+// What the page serves: each fixture's family, weight and file bytes, not the manifest's notes on where it came from.
+export function fontsKey(dir: string): string {
+  const fixtures = JSON.parse(readFileSync(join(dir, 'fonts.json'), 'utf8')) as Array<{ family: string; weight: string; file: string }>
   const hasher = new Bun.CryptoHasher('sha256')
-  for (let i = 0; i < fixtures.length; i++) hasher.update(`${fixtures[i]!.family}\t${fixtures[i]!.weight}\t`).update(readFileSync(join(FONTS_DIR, fixtures[i]!.file)))
-  const fonts = hasher.digest('hex').slice(0, 12)
-  return `${browser} ${version}${engine} os=${os} os-languages=${osLanguages} page-languages=${env.languages.join(',')} dpr=${env.devicePixelRatio} fonts=${fonts}`
+  for (let i = 0; i < fixtures.length; i++) hasher.update(`${fixtures[i]!.family}\t${fixtures[i]!.weight}\t`).update(readFileSync(join(dir, fixtures[i]!.file)))
+  return hasher.digest('hex').slice(0, 12)
+}
+
+export function environmentKey(browser: BrowserKind, env: PageEnv): string {
+  const system = browser === 'webkit-host' || browser === 'safari'
+  return keyOf({
+    browser,
+    version: bundleVersion(join(appPath(browser), 'Contents/Info.plist')),
+    webkit: system ? bundleVersion('/System/Library/Frameworks/WebKit.framework/Resources/Info.plist', 'CFBundleVersion') : null,
+    os: command('sw_vers', ['-buildVersion']),
+    osLanguages: command('defaults', ['read', '-g', 'AppleLanguages']).replace(/[\s"()]/g, ''),
+    pageLanguages: env.languages,
+    devicePixelRatio: env.devicePixelRatio,
+    fonts: fontsKey(FONTS_DIR),
+  })
 }
 
 export type Session = { close: () => Promise<void> }

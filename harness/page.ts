@@ -42,7 +42,7 @@ async function main(): Promise<void> {
         for (let i = 0; i < reply.cases.length; i++) {
           const c = reply.cases[i]!
           if (c.pageLang !== document.documentElement.lang) throw new Error(`Case ${c.id} needs <html lang="${c.pageLang}">`)
-          results.push(reply.mode === 'record' ? recordCase(c, range, reply.browser === 'chrome') : predict(c))
+          results.push(reply.mode === 'record' ? recordCase(c, range, reply.browser) : predict(c))
         }
         reply = await post({ job, env, results })
       }
