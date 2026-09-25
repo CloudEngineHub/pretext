@@ -11,7 +11,7 @@ import { join, resolve } from 'node:path'
 import type { BrowserKind, PageEnv } from './types.ts'
 
 const APPS = process.env['HARNESS_APPS'] ?? join(homedir(), 'github/browser-engines/apps')
-export const PINNED = { chrome: 'Google Chrome 153.0.8010.50', firefox: 'Firefox 156.0' } as const
+export const PINNED = { chrome: 'Google Chrome 154.0.8037.57', firefox: 'Firefox 156.0' } as const
 const ROOT = resolve(import.meta.dir, '..')
 const PROFILES = join(ROOT, '.artifacts/harness-profiles')
 export const WEBKIT_HOST = join(ROOT, '.artifacts/webkit-host/webkit-host')
