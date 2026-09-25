@@ -29,7 +29,8 @@ on the clock. `bun test harness` runs the offline tests.
   `materializeRichInlineLineRange`, whose fragments' text must be `materializeLineRange`'s over each fragment's cursors
   in its item's own prepared text. A case where any of them gives other lines, counts, widths (to 1e-6 px) or text than
   the walk blocks, whatever the browser did, and so does a case whose line APIs call `measureText` after preparing.
-  Calls while preparing are printed per 1,000 units. The text APIs build line text with one shared builder, so they are
+  Every case is checked this way, page history and cases with nothing visible too, since it needs no recording. Calls
+  while preparing are printed per 1,000 units. The text APIs build line text with one shared builder, so they are
   compared only with each other; `src/layout.test.ts` checks that builder against the source.
 - **What the pass rule can't see:** the hyphen a browser draws where a line breaks at a soft hyphen. The soft hyphen's
   box is visible there, but also where no hyphen is drawn: with a combining mark after it, and in WebKit at the end of a
@@ -51,14 +52,14 @@ on the clock. `bun test harness` runs the offline tests.
   others, and they are never pinned.
 - **Accepted failures:** a pinned case that fails blocks unless `harness/accepted/<browser>.txt` lists it under a
   written reason. Each run prints every reason with its count and, for real-usage draws, the share of real paragraphs it
-  covers. A listed case that passes again, or is no longer pinned, blocks until it leaves the list; `--accept` writes the
-  new failures under its reason and removes those. The lists hold the hybrid's failures (hybrid-pr at f893622), since
-  the gate protects its passes, so `check` blocks on main's own `src/` until the hybrid lands; `--lib` with the
-  hybrid's `src/` is green.
+  covers. A listed case that passes again, is no longer pinned or names no case blocks until it leaves the list;
+  `--accept` writes the new failures under its reason and removes those. The lists hold the failures of main's `src/`
+  since the hybrid landed (#340), as the gate protects its passes; main before it (6d1d210) blocks.
 - **Varying predictions:** `harness/varying/<browser>.txt` lists, each under a written reason, the cases whose
   predictions move with the browser's state rather than with the library: what earlier documents in the same browser
   process laid out, or what a Canvas measured before. They are predicted and counted, never judged, and the gate's
-  reverse-order check skips them. A case is on this list or the accepted one, not both.
+  reverse-order check skips them. A case is on this list or the accepted one, not both, and an entry that names no case
+  blocks.
 - **Real-usage sample:** cases with `sample: { group, weight }` give the headline, the weighted share of real paragraphs
   right with a 95% interval from resampling within groups. It also prints the share of the weight outside what Pretext
   claims (break-all, rich-inline in pre-wrap, system-ui font lists) and the share right without it.
@@ -73,11 +74,11 @@ The gate adds three checks:
   cases (Arabic with vowel marks before brackets) in main as in the hybrid, so they are varying predictions. Predictions
   whose line widths alone move are printed, not blocked: the same caches and a Firefox width-1 case move them in main
   too, and widths only reach the shrink-wrap check, which reports.
-- **Fresh re-recording:** a seeded sample of 1,000 pinned cases is recorded again, and each case that differs is recorded
-  twice more, alone in a document of its own, in the sample's order and then in reverse. It blocks only where the
-  browser lays a case out differently from the recording every time: the recordings no longer describe the browser. A
-  case laid out as recorded in some attempt depends on the cases before it, page history the recordings missed, and is
-  printed.
+- **Fresh re-recording:** the 1,000 pinned cases whose ids rank first under the seed are recorded again, and each case
+  that differs is recorded twice more, alone in a document of its own, in the sample's order and then in reverse. It
+  blocks only where the browser lays a case out differently from the recording every time: the recordings no longer
+  describe the browser. A case laid out as recorded in some attempt depends on the cases before it, page history the
+  recordings missed, and is printed. Ranked by id, a case leaving the pinned set changes the sample by one case.
 - **Attribution:** each new failure is recorded alone (page history if that differs) and predicted alone twice. Two lone
   predictions that differ vary between runs; lone predictions that agree but differ from the check's depend on what was
   predicted before. A lone prediction can't tell the library's caches from the browser's Canvas state, so neither is
@@ -92,6 +93,7 @@ which needs a browser:
 | Line count | A message loses or gains a line, so its bubble or row has the wrong height |
 | Every line API against the walk | `layout()` counts lines the list doesn't paint, so a virtualized row is sized wrong: a counter that let an overflowing space start the next line passed every check before |
 | Each rich fragment's text against its item's text over the fragment's cursors | A word broken inside a span paints its start again, while every rich API agrees |
+| Line APIs checked on every case, recorded or not | A disagreement on a page-history case, or one with nothing visible, goes unseen |
 | First and last visible character per line | A word paints on the wrong line while the height is right; main passed 4.5-8.1% of its census cases this way |
 | Chrome's soft hyphen copies left out | A wrong break at a soft hyphen passes unseen |
 | Lines from rect positions | Fractional line boxes read as a wrong count, as Safari 27's did in main's harness |
@@ -101,12 +103,13 @@ which needs a browser:
 | Firefox's first document held until 15 s after launch | Emoji beside Arial lay out differently for Firefox's first 12 s: 91 cases, and the gate's fresh recording, would block at random |
 | Firefox's U+FE0E cases laid out after every other, never pinned | The gate's fresh recording blocked at random on 7-9 emoji cases beside Arial, laid out after a text-presentation emoji |
 | Varying list with reasons | `check` and the gate block at random on predictions the browser's state moves, such as a system-ui label in Chrome |
+| An entry of either list that names no case blocks | The lists keep reasons for cases that are gone |
 | Accepted list with reasons | Accepted losses go silent, and a fix goes unrecorded |
 | Exact widths through the adapter | Text that exactly fits its bubble wraps (a width 1/64 px short) |
 | Recorded widths without the spaces that end a line | The shrink-wrap check calls a bubble a space too narrow; that was 94% of Chrome's misses before |
 | Reverse-order predictions (gate), judged by where lines break | A message wraps differently depending on what the app prepared before; widths moved by Chrome's shape caches would block main too |
 | Fresh re-recording (gate), a differing case recorded alone twice more | Stored recordings stop describing the browser; or the gate blocks at random on emoji beside Arial in Firefox |
-| Seeded sample with a fixed default | The gate is green or red by the clock |
+| Seeded sample with a fixed default, ranked by id | The gate is green or red by the clock, or draws another sample whenever a case leaves |
 | Line APIs asking Canvas nothing after preparing (blocks), calls while preparing (printed) | Every window resize measures text again, or preparing gets slower unnoticed |
 | A case without a recording blocks | A generator change that renames ids unpins cases silently |
 | Two recordings kept apart, sorted and stable | The gate is green or red on another case's layout, and every recording churns in git |

@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { environmentKey, FONTS_DIR, launch, type Session } from './browsers.ts'
+import { firefoxTextEmoji } from './score.ts'
 import type { BrowserKind, Case, PageEnv, Prediction, Recording } from './types.ts'
 
 export type Mode = 'record' | 'predict'
@@ -47,16 +48,7 @@ function asciiJson(value: unknown): Response {
   return new Response(body, { headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } })
 }
 
-// Once a document has laid out a text-presentation emoji (U+FE0E), Firefox lays color emoji out 1 px wider in the
-// documents after it in the same process, in most runs, and lays out and measures the other U+FE0E cases otherwise too.
-// So in Firefox such a case is page history, which check never pins, and every job lays it out in documents after all
-// the others, where it can't move them.
-export function firefoxTextEmoji(browser: BrowserKind, c: Case): boolean {
-  if (browser !== 'firefox') return false
-  for (let i = 0; i < c.paragraph.runs.length; i++) if (c.paragraph.runs[i]!.text.includes('\uFE0E')) return true
-  return false
-}
-
+// Firefox's U+FE0E cases go in documents after every other (score.ts).
 export function documents(browser: BrowserKind, cases: Case[], size: number): Case[][] {
   const groups = new Map<string, { late: boolean; cases: Case[] }>()
   for (let i = 0; i < cases.length; i++) {

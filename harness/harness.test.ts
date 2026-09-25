@@ -5,7 +5,10 @@ import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { groupLines, recordedLines, scanLineEnds, searchLineEnds, type RectsAt } from './observe.ts'
 import { documents } from './run.ts'
-import { accept, attribute, freshRecordings, judge, libraryFaults, predictionChange, reverseOrder, score, type Outcome } from './score.ts'
+import {
+  accept, attribute, checkBlocks, freshRecordings, gateBlocks, gateSample, judge, libraryFaults, pinning, predictionChange, reverseOrder, score, SEED,
+  type Outcome, type Verdict,
+} from './score.ts'
 import { assertSameEnvironment, caseProblem, parseRecording, readRecordings, recordingText, splitHistory, writeRecordings } from './store.ts'
 import type { Case, Failure, Prediction, Recording, Rect, TextRun } from './types.ts'
 
@@ -44,6 +47,18 @@ function predicted(text: string, starts: number[]): Prediction {
 
 const TEXT = 'The quick brown fox jumps over the lazy dog'
 const STARTS = [0, 10, 20, 31]
+
+// A paragraph of plain text in 16 px Arial, 100 px wide.
+function paragraphCase(text: string): Case {
+  const font = { family: 'Arial', size: 16, weight: 400, style: 'normal' as const }
+  return {
+    id: 't', family: 'test', origin: 'harness.test.ts', pageLang: 'en',
+    paragraph: {
+      runs: [{ text, node: 'text', font, letterSpacing: 0, wordSpacing: 0, lang: null }], font, letterSpacing: 0, wordSpacing: 0, width: 100,
+      lineHeight: 20, whiteSpace: 'normal', wordBreak: 'normal', overflowWrap: 'break-word', lineBreak: 'auto', tabSize: 8, direction: 'ltr', lang: 'en',
+    },
+  }
+}
 
 describe('the pass rule', () => {
   test('a dropped last line fails: a message would lose its last line and its bubble would be too short', () => {
@@ -204,34 +219,117 @@ describe('the stored recordings', () => {
   })
 })
 
-describe('the accepted-failures list', () => {
+describe('the accepted-failures and varying lists', () => {
+  const fail = (status: Outcome['status']): Outcome => ({ status, line: 0, detail: '' })
+  const none = new Map<string, string>()
+
   test('a failure off the list blocks, an accepted one counts under its reason, and a fixed one blocks until it leaves: accepted losses would go silent', () => {
-    const fail = (status: Outcome['status']): Outcome => ({ status, line: 0, detail: '' })
     const outcomes = new Map<string, Outcome>([['new', fail('count')], ['known', fail('breaks')], ['fixed', fail('pass')], ['moved', fail('count')]])
-    const none = new Map<string, string>()
     const accepted = new Map<string, { reason: string; status: Failure }>([
       ['known', { reason: 'Firefox splits scripts later', status: 'breaks' }],
       ['fixed', { reason: 'Firefox splits scripts later', status: 'count' }],
       ['moved', { reason: 'narrower than real layouts', status: 'breaks' }],
       ['gone', { reason: 'narrower than real layouts', status: 'count' }],
     ])
-    const verdict = judge(outcomes, accepted, none, null)
+    const cases = new Set(['new', 'known', 'fixed', 'moved', 'other'])
+    const verdict = judge(outcomes, accepted, none, cases, false)
     expect(verdict.newFailures).toEqual(['new'])
     expect(verdict.fixed.sort()).toEqual(['fixed', 'gone'])
     expect(verdict.changed).toEqual(['moved: breaks -> count'])
     expect(verdict.byReason.get('Firefox splits scripts later')).toEqual(['known'])
-    const next = accept(outcomes, accepted, 'a written reason', null)
+    const next = accept(outcomes, accepted, 'a written reason', none, cases, false)
     expect([...next]).toEqual([
       ['new', { reason: 'a written reason', status: 'count' }],
       ['known', { reason: 'Firefox splits scripts later', status: 'breaks' }],
       ['moved', { reason: 'narrower than real layouts', status: 'count' }],
     ])
-    expect(judge(outcomes, next, none, null).newFailures).toEqual([])
-    expect(judge(outcomes, next, none, null).fixed).toEqual([])
+    expect(judge(outcomes, next, none, cases, false).newFailures).toEqual([])
+    expect(judge(outcomes, next, none, cases, false).fixed).toEqual([])
     // A run over other case files leaves this list alone.
     const elsewhere = new Map<string, Outcome>([['other', fail('breaks')]])
-    expect(judge(elsewhere, next, none, id => id === 'other').fixed).toEqual([])
-    expect([...accept(elsewhere, next, 'why', id => id === 'other').keys()].sort()).toEqual(['known', 'moved', 'new', 'other'])
+    expect(judge(elsewhere, next, none, new Set(['other']), true).fixed).toEqual([])
+    expect([...accept(elsewhere, next, 'why', none, new Set(['other']), true).keys()].sort()).toEqual(['known', 'moved', 'new', 'other'])
+  })
+
+  test('an entry of either list that names no case blocks: a list would keep reasons for cases that are gone', () => {
+    const outcomes = new Map<string, Outcome>([['kept', fail('count')]])
+    const accepted = new Map<string, { reason: string; status: Failure }>([['kept', { reason: 'r', status: 'count' }], ['renamed', { reason: 'r', status: 'count' }]])
+    const varying = new Map([['label', 'r'], ['amiri', 'r']])
+    const verdict = judge(outcomes, accepted, varying, new Set(['kept', 'label']), false)
+    expect(verdict.fixed).toEqual(['renamed'])
+    expect(verdict.stale).toEqual(['amiri'])
+    expect(checkBlocks('chrome', new Map(), [], verdict, false, id => id).join('\n')).toContain('harness/varying/chrome.txt name no case; take them off: amiri')
+    expect(checkBlocks('chrome', new Map(), [], verdict, true, id => id)).toHaveLength(1)
+    // A run over some case files only doesn't know every case.
+    expect(judge(outcomes, accepted, varying, new Set(['kept']), true).stale).toEqual([])
+  })
+
+  test('--accept takes the new failures, never a varying case: a flip accepted in one run would block the next', () => {
+    const outcomes = new Map<string, Outcome>([['label', fail('breaks')], ['new', fail('count')]])
+    const varying = new Map([['label', 'system-ui']])
+    const cases = new Set(['label', 'new'])
+    expect(judge(outcomes, new Map(), varying, cases, false).newFailures).toEqual(['new'])
+    expect([...accept(outcomes, new Map(), 'why', varying, cases, false).keys()]).toEqual(['new'])
+  })
+})
+
+describe('what blocks', () => {
+  const clean = (): Verdict => ({ newFailures: [], fixed: [], changed: [], stale: [], byReason: new Map(), varying: { pass: 0, fail: 0 } })
+
+  test('a line API that disagrees with the walk, or asks Canvas anything after preparing, blocks check whatever the browser did, on any case predicted: a virtualized list would size rows for lines it doesn\'t paint', () => {
+    const right = predicted(TEXT, STARTS)
+    const disagrees: Prediction = { ...predicted(TEXT, STARTS), disagreement: 'layout() gives 3 lines, height 60; walkLineRanges 4 lines' } as Prediction
+    const measures: Prediction = { ...predicted(TEXT, STARTS), lineCalls: 4 } as Prediction
+    expect(checkBlocks('chrome', new Map([['a', right]]), [], clean(), false, id => id)).toEqual([])
+    expect(checkBlocks('chrome', new Map([['a', right], ['history', disagrees]]), [], clean(), false, id => id)[0]).toStartWith('BLOCKS: 1 cases where another line API disagrees')
+    expect(checkBlocks('chrome', new Map([['a', measures]]), [], clean(), true, id => id)[0]).toStartWith('BLOCKS: 1 cases whose line APIs called measureText after preparing')
+  })
+
+  test('a case without a recording blocks check, but in installed Safari, which is recorded on a sample: a generator change that renames ids would unpin cases silently', () => {
+    expect(checkBlocks('webkit-host', new Map(), ['new-id'], clean(), false, id => id)[0]).toStartWith('BLOCKS: 1 cases have no recording')
+    expect(checkBlocks('safari', new Map(), ['new-id'], clean(), false, id => id)).toEqual([])
+  })
+
+  test('a new failure and a fixed accepted entry block check until --accept rewrites the list: a regression would pass, or a fix go unrecorded', () => {
+    const verdict = { ...clean(), newFailures: ['new'], fixed: ['fixed'] }
+    const blocks = checkBlocks('firefox', new Map(), [], verdict, false, id => `${id} described`)
+    expect(blocks).toEqual([
+      'BLOCKS: 1 accepted cases pass, are no longer pinned or name no case; take them off with --accept: fixed',
+      'BLOCKS: 1 new failures (accept them with --accept="<reason>")',
+      '  new described',
+    ])
+    expect(checkBlocks('firefox', new Map(), [], verdict, true, id => id)).toEqual([])
+  })
+
+  test('the gate blocks on breaks that move in reverse order, on line APIs that disagree or measure in reverse order, and on fresh recordings that differ every time: a message would wrap differently after other messages', () => {
+    const right = new Map([['a', predicted(TEXT, STARTS)]])
+    expect(gateBlocks({ moved: [] }, right, { stale: [] })).toEqual([])
+    expect(gateBlocks({ moved: ['a'] }, right, { stale: [] })[0]).toStartWith('BLOCKS: 1 predictions break differently in reverse order')
+    const disagrees = new Map([['a', { ...predicted(TEXT, STARTS), disagreement: 'measureLineStats gives 3 lines' } as Prediction]])
+    expect(gateBlocks({ moved: [] }, disagrees, { stale: [] })[0]).toStartWith('BLOCKS: 1 cases in reverse order where another line API disagrees')
+    expect(gateBlocks({ moved: [] }, right, { stale: ['a'] })[0]).toStartWith('BLOCKS: 1 laid out differently from the recordings every time')
+  })
+
+  test('the gate\'s sample is the same in every run with the default seed, and moves by one case when one leaves the pinned cases: the gate would be green or red by the clock', () => {
+    const cases: Case[] = []
+    for (let i = 0; i < 40; i++) cases.push({ ...paragraphCase(TEXT), id: `case-${i}` })
+    const sample = gateSample(cases, SEED, 5).map(c => c.id)
+    expect(sample).toEqual(['case-15', 'case-24', 'case-36', 'case-2', 'case-1'])
+    const fewer = gateSample(cases.filter(c => c.id !== sample[1]), SEED, 5).map(c => c.id)
+    expect(fewer.filter(id => !sample.includes(id))).toHaveLength(1)
+  })
+
+  test('page history, Firefox\'s U+FE0E cases, cases with nothing visible and cases with no recording aren\'t pinned, but every case is predicted, the pinned first: line APIs that disagree on a case with no recording would go unseen', () => {
+    const recording = layOut(TEXT, STARTS).recording
+    const blank: Recording = { lines: [{ first: -1, last: -1, width: 0 }], height: 20 }
+    const cases = ['history', 'text-emoji', 'blank', 'unrecorded', 'pinned'].map(id => ({ ...paragraphCase(id === 'text-emoji' ? 'a☺︎' : TEXT), id }))
+    const recordings = new Map<string, Recording>([['history', recording], ['text-emoji', recording], ['blank', blank], ['pinned', recording]])
+    const history = new Map([['history', [recording, recording]]])
+    const firefox = pinning('firefox', cases, recordings, history)
+    expect(firefox.pinned.map(c => c.id)).toEqual(['pinned'])
+    expect(firefox.predicted.map(c => c.id)).toEqual(['pinned', 'history', 'text-emoji', 'blank', 'unrecorded'])
+    expect([firefox.history, firefox.unobservable, firefox.unrecorded]).toEqual([2, 1, ['unrecorded']])
+    expect(pinning('chrome', cases, recordings, history).pinned.map(c => c.id)).toEqual(['text-emoji', 'pinned'])
   })
 })
 
@@ -265,14 +363,15 @@ describe('the gate and page history of predictions', () => {
     const stored = layOut(TEXT, STARTS).recording
     const runs = [score(stored, passing), score(stored, flipped)].map(outcome => new Map<string, Outcome>([['label', outcome]]))
     const none = new Map<string, { reason: string; status: Failure }>()
-    expect(runs.map(outcomes => judge(outcomes, none, new Map(), null).newFailures)).toEqual([[], ['label']])
+    const cases = new Set(['label'])
+    expect(runs.map(outcomes => judge(outcomes, none, new Map(), cases, false).newFailures)).toEqual([[], ['label']])
     const varying = new Map([['label', 'system-ui: Chrome resolves it for Canvas otherwise after some earlier documents, and not in every run']])
     for (let i = 0; i < runs.length; i++) {
-      const verdict = judge(runs[i]!, none, varying, null)
+      const verdict = judge(runs[i]!, none, varying, cases, false)
       expect([verdict.newFailures, verdict.fixed]).toEqual([[], []])
       expect(verdict.varying).toEqual(i === 0 ? { pass: 1, fail: 0 } : { pass: 0, fail: 1 })
     }
-    expect(() => judge(runs[0]!, new Map([['label', { reason: 'r', status: 'breaks' }]]), varying, null)).toThrow('both')
+    expect(() => judge(runs[0]!, new Map([['label', { reason: 'r', status: 'breaks' }]]), varying, cases, false)).toThrow('both')
     expect(attribute(stored, stored, flipped, [passing, flipped])).toBe('varies between runs')
     expect(attribute(stored, stored, flipped, [passing, passing])).toBe('depends on what was predicted before')
     expect(attribute(stored, three, flipped, [flipped, flipped])).toBe('page history')
@@ -282,14 +381,7 @@ describe('the gate and page history of predictions', () => {
 
 describe('the documents a job lays out', () => {
   test('in Firefox, cases with a text-presentation emoji go in documents after every other: color emoji laid out after one are 1 px wider, and the gate\'s fresh recording blocked at random', () => {
-    const font = { family: 'Arial', size: 16, weight: 400, style: 'normal' as const }
-    const make = (id: string, text: string, pageLang = 'en'): Case => ({
-      id, family: 'test', origin: 'harness.test.ts', pageLang,
-      paragraph: {
-        runs: [{ text, node: 'text', font, letterSpacing: 0, wordSpacing: 0, lang: null }], font, letterSpacing: 0, wordSpacing: 0, width: 100,
-        lineHeight: 20, whiteSpace: 'normal', wordBreak: 'normal', overflowWrap: 'break-word', lineBreak: 'auto', tabSize: 8, direction: 'ltr', lang: 'en',
-      },
-    })
+    const make = (id: string, text: string, pageLang = 'en'): Case => ({ ...paragraphCase(text), id, pageLang })
     const cases = [make('a', 'a\u{1F600}b'), make('text', '\u2764\uFE0F\u{1F600}\uFE0E'), make('b', '\u{1F600} a b'), make('ko', '\uD55C', 'ko')]
     const ids = (docs: Case[][]): string[][] => docs.map(doc => doc.map(c => c.id))
     expect(ids(documents('firefox', cases, 2))).toEqual([['a', 'b'], ['ko'], ['text']])
@@ -387,8 +479,8 @@ describe('the library through the adapter', () => {
     if (!('lines' in wrong)) throw new Error('unreachable')
     expect(wrong.lines).toEqual(right.lines)
     expect(wrong.disagreement).toStartWith('layout() gives')
-    expect(libraryFaults(['t'], new Map([['t', wrong]])).disagree).toHaveLength(1)
-    expect(libraryFaults(['t'], new Map([['t', right]]))).toEqual({ disagree: [], measuring: [] })
+    expect(libraryFaults(new Map([['t', wrong]])).disagree).toHaveLength(1)
+    expect(libraryFaults(new Map([['t', right]]))).toEqual({ disagree: [], measuring: [] })
   })
 
   test('a text line API giving other text than the walk\'s lines blocks: a list painting layoutNextLine\'s text would drop a character its heights count', async () => {
@@ -410,7 +502,7 @@ describe('the library through the adapter', () => {
     if (!('lines' in measuring)) throw new Error('unreachable')
     expect(measuring.lines).toEqual(right.lines)
     expect(measuring.lineCalls).toBe(right.lines.length)
-    expect(libraryFaults(['t'], new Map([['t', measuring]])).measuring).toEqual([`t: ${right.lines.length}`])
+    expect(libraryFaults(new Map([['t', measuring]])).measuring).toEqual([`t: ${right.lines.length}`])
   })
 
   function disagreement(prediction: Prediction): string | null {
@@ -426,6 +518,32 @@ describe('the library through the adapter', () => {
     c.paragraph.runs = runs
     return c
   }
+
+  test('measureLineStats giving another widest line than the walk blocks: a bubble shrink-wrapped to it would be too wide', async () => {
+    const c = paragraph('A message long enough to wrap at a few widths', 120)
+    expect(disagreement(adapter.predict(c))).toBeNull()
+    const stats = await planted('line-stats', 'layout.ts', /return measurePreparedLineGeometry\(getInternalPrepared\(prepared\), maxWidth\)/, 'const stats = measurePreparedLineGeometry(getInternalPrepared(prepared), maxWidth)\n  return { lineCount: stats.lineCount, maxLineWidth: stats.maxLineWidth + 1 }')
+    expect(disagreement(stats.predict(c))).toStartWith('measureLineStats gives')
+  })
+
+  test('layoutWithLines giving a height for other lines than it lists blocks: a list sizing rows by it would leave a gap under each', async () => {
+    const c = paragraph('A message long enough to wrap at a few widths', 120)
+    const batch = await planted('batch-height', 'layout.ts', /return \{ lineCount, height: lineCount \* lineHeight, lines \}/, 'return { lineCount, height: (lineCount + 1) * lineHeight, lines }')
+    expect(disagreement(batch.predict(c))).toStartWith('layoutWithLines gives')
+  })
+
+  test('measureRichInlineStats giving another widest line than the rich walk blocks: a rich bubble shrink-wrapped to it would be too narrow', async () => {
+    const c = spans(['A message ', 'long enough ', 'to wrap at a few widths'], 120)
+    expect(disagreement(adapter.predict(c))).toBeNull()
+    const stats = await planted('rich-stats', 'rich-inline.ts', /if \(lineWidth > maxLineWidth\) maxLineWidth = lineWidth/, '')
+    expect(disagreement(stats.predict(c))).toStartWith('measureRichInlineStats gives')
+  })
+
+  test('materializeRichInlineLineRange giving a line another width than its range blocks: a rich list would paint a line other than it sized', async () => {
+    const c = spans(['A message ', 'long enough ', 'to wrap at a few widths'], 120)
+    const moved = await planted('rich-materialize', 'rich-inline.ts', /fragments,\n(\s*)width: line\.width,/, 'fragments,\n$1width: line.width + 1,')
+    expect(disagreement(moved.predict(c))).toStartWith('materializeRichInlineLineRange of line 0 changes')
+  })
 
   test('a rich fragment whose text isn\'t its item\'s text over the fragment\'s cursors blocks: a word broken across lines in a span would paint its start again', async () => {
     const c = spans(['A ', 'Supercalifragilistic', ' word'], 60)
