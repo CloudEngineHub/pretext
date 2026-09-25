@@ -283,13 +283,16 @@ divided by this many:
 | Letter-spaced | 2.86 | 2.04 | 4.26 | 2.20 | 1.40 | 1.22 |
 
 New text is a pass after `clearCache()`, with the browser's shaping caches warm. A fresh
-page is the first pass in a new same-origin iframe, whose library, tables, caches and canvas
-all start empty, as for text Chrome's canvas hasn't shaped; it includes reading the tables,
-about 1ms. Seen text prepares 7.9 to 9.2 times faster with letter spacing in Chrome and
-Safari and 1.8 times in Firefox, and otherwise within 3% of main, except Firefox, where Latin
-and pre-wrap are 6 to 10% faster and CJK 2% slower: the Gecko scan now runs the rules over
-every word with a unit at or above U+0300, where its probes had skipped Han words that never
-join. A table of those probes' answers built from the rules gave 1.01, within the noise.
+page is the first pass in a new same-origin iframe, whose library, tables, caches and
+canvas all start empty, as for text Chrome's canvas hasn't shaped; it includes reading the
+tables, which in a later run made a page's very first `prepare()` 0.05ms slower than main's
+in Chrome 154 and 0.14ms in Firefox, and no slower in Safari. Seen text prepares 7.9 to 9.2
+times faster with letter spacing in Chrome and Safari and 1.8 times in Firefox, and
+otherwise within 3% of main, except Firefox, where Latin and pre-wrap are 6 to 10% faster
+and CJK 2 to 4% slower: the Gecko scan now runs the rules over every word with a unit at or
+above U+0300, where its probes had skipped Han words that never join. A table of those
+probes' answers built from the rules gave 1.01, within the noise. On short Japanese,
+Chinese and Korean interface strings, repeated runs read 0.90 to 1.08 of main's speed.
 `layout()` on the same batches stays within 4%. Safari's row comes from a run without that
 `layout()` control: after it, Safari's next passes over new text took about 65ms more in
 both libraries. Canvas calls are unchanged. The tables add 5.5 KB to the minified bundle,

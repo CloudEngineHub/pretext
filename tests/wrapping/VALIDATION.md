@@ -60,17 +60,22 @@ and no fixed or lost row against main; only provenance and environments change.
 Accuracy stays 7,680 of 7,680 in each browser and letter spacing 28 of 28, and
 the corpus sweeps stay 1,093, 1,098 and 1,098 of 1,098.
 
-Chrome and Safari benchmark snapshots were refreshed from `88df2ca`: three
-foreground runs each at DPR 2, visible and focused, on the 2560x1440 screen, while
-other jobs used the machine. Every shape row makes the same Canvas calls as in
-main's snapshots. Chrome's DOM rows read as main's (2.20ms and 27.65ms, against
-2.20 and 27.4), and there `prepare()` reads 2.80ms (3.00), the fresh-sentences
-row's first batch 9.10ms (15.5) and its cold batches 6.67ms (11.6), letter-spaced
-CJK seen before 2.01ms (14.75), the long-form corpus total 42.7ms (63.5) and hot
-`layout()` 0.0215ms (0.022). Safari's run met a busier machine: its DOM rows,
-which don't run Pretext, read 37 and 112ms against 23 and 72, and hot `layout()`,
-which this change leaves alone, 0.035ms against 0.0225, so compare the
-same-document numbers there.
+Chrome and Safari benchmark snapshots were refreshed: three foreground runs each at
+DPR 2, visible and focused, on the 2560x1440 screen. Every shape row makes the same
+Canvas calls as in main's snapshots. Chrome's ran from `88df2ca` while other jobs
+used the machine. Its DOM rows read as main's (2.20ms and 27.65ms, against 2.20 and
+27.4), and there `prepare()` reads 2.80ms (3.00), the fresh-sentences row's first
+batch 9.10ms (15.5) and its cold batches 6.67ms (11.6), letter-spaced CJK seen
+before 2.01ms (14.75), the long-form corpus total 42.7ms (63.5) and hot `layout()`
+0.0215ms (0.022). Safari's first refresh met a busier machine: its DOM rows, which
+don't run Pretext, read 37 and 112ms against main's 23 and 72. So it ran again
+under the exclusive lock, started once the one-minute load average fell under 5,
+with main's benchmark between two of this branch's; the snapshot is the second. The
+numbers in parentheses are main's run. The DOM rows read 22 and 65ms (22 and 64.5),
+hot `layout()` 0.0225ms (0.025), `prepare()` 3ms (3) at Safari's 1ms timer, the
+fresh-sentences row's first batch 15.0ms (23.0) and its cold batches 8.33ms (24.0),
+letter-spaced CJK seen before 1.67ms (14.5) and the long-form corpus total 209ms
+(262).
 
 RESEARCH.md has the same-document `prepare()` timing against main.
 
