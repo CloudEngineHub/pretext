@@ -124,6 +124,17 @@ export function observeSegmentEntries(
   return hasEntries ? { terminalPrefixes, entries } : null
 }
 
+// Where a fresh line that starts at grapheme `start` of a segment ends, by the entry observed
+// there: past the segment's end (end + 1) where the whole tail is admitted and the line goes on
+// with the text after it, else after the last fresh prefix that fits, keeping the first grapheme.
+// `end` then means the prefixes ran out, and the line ends with the segment.
+export function getFreshLineEnd(geometry: SegmentEntryGeometry, start: number, end: number, fitLimit: number): number {
+  if (geometry.entries[start]!.admissionFit <= fitLimit) return end + 1
+  let g = start + 1
+  while (g < end && getSegmentEntryWidth(geometry, start, g + 1)! <= fitLimit) g++
+  return g
+}
+
 // Fresh terminal-inclusive width. Null means unobserved, including entry zero;
 // an observed zero is a real value, and negative increments remain ordered.
 export function getSegmentEntryWidth(
