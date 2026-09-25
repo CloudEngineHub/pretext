@@ -2,8 +2,8 @@
 //
 // A case passes when the prediction has the browser's line count and each line's first and last visible character sits
 // in the predicted line of that index. The predicted lines are ranges in source order, so that checks every visible
-// character (observe.ts). A right count with a wrong break is a failure of its own kind, 'breaks': main passed 4.5-8.1%
-// of its census cases that way by accident.
+// character (observe.ts). A right count with a wrong break is a failure of its own kind, 'breaks': main before #340
+// passed 4.5-8.1% of its census cases that way by accident.
 import { createRng } from './sets/build.ts'
 import { recordingText, type Varying } from './store.ts'
 import type { BrowserKind, Case, Failure, Prediction, Recording, Status } from './types.ts'

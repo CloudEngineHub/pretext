@@ -118,13 +118,13 @@ rich-d7006c2dc63e6a7c count
 rich-e654775a42448e88 breaks
 rich-fbb74b2c85c01be1 breaks
 
-## Lost against main's engine (6d1d210), real usage: Khmer with ZWSPs at -0.2 px letter-spacing in a Segoe UI list, which macOS falls back past; the hybrid moves the final "។" to a line of its own
+## Lost against main before #340 (6d1d210), real usage: Khmer with ZWSPs at -0.2 px letter-spacing in a Segoe UI list, which macOS falls back past; the library moves the final "។" to a line of its own
 sample-2a86be3edfad28d8 count
 
-## Lost against main's engine (6d1d210), real usage: Urdu in Noto Nastaliq Urdu with an ICU message ("}other{"); WebKit doesn't break between the brace and the letter, the hybrid does
+## Lost against main before #340 (6d1d210), real usage: Urdu in Noto Nastaliq Urdu with an ICU message ("}other{"); WebKit doesn't break between the brace and the letter, the library does
 sample-edd96126ceff4f2c breaks
 
-## Lost against main's engine (6d1d210): Hebrew, two opening brackets and a word under keep-all, before a space of any kind (main's old gate and the catalog); the hybrid breaks right after the second bracket, WebKit inside the word after it
+## Lost against main before #340 (6d1d210): Hebrew, two opening brackets and a word under keep-all, before a space of any kind (the old gate and the catalog); the library breaks right after the second bracket, WebKit inside the word after it
 catalog-8d69eb6ef878bbea count
 catalog-d17a88385635a7ae breaks
 catalog-e0082f1865840769 count
@@ -194,7 +194,7 @@ old-gate-fb1730d8c673cff2 count
 old-gate-fc8b2baa276e1d4f count
 old-gate-fe6a0a0d81ef0f50 count
 
-## Lost against main's engine (6d1d210): U+0600 (Arabic number sign) before U+3000; WebKit breaks after the number sign, the hybrid keeps it with the U+3000 after it
+## Lost against main before #340 (6d1d210): U+0600 (Arabic number sign) before U+3000; WebKit breaks after the number sign, the library keeps it with the U+3000 after it
 catalog-245fee5b626eef31 breaks
 catalog-330d340e4ee48f25 breaks
 catalog-a257fc0a77f6904f breaks
@@ -206,24 +206,24 @@ old-gate-d97171978a2c2e09 count
 old-gate-ed333a573cae856d count
 old-gate-f72f0863bf4961db count
 
-## Lost against main's engine (6d1d210): VT between Latin letters before brackets and Arabic; WebKit breaks after the VT, the hybrid a letter later
+## Lost against main before #340 (6d1d210): VT between Latin letters before brackets and Arabic; WebKit breaks after the VT, the library a letter later
 old-gate-0389719e61d4cfa7 count
 old-gate-04d3119da5a3931e count
 old-gate-398911ce17952484 count
 old-gate-64311d82d42ef913 count
 old-gate-b670f0abcc293e7d count
 
-## Lost against main's engine (6d1d210): VT between digits in pre-wrap under keep-all at 1.5 px letter-spacing; WebKit gives the VT a width and breaks after it, the hybrid doesn't
+## Lost against main before #340 (6d1d210): VT between digits in pre-wrap under keep-all at 1.5 px letter-spacing; WebKit gives the VT a width and breaks after it, the library doesn't
 catalog-23007fc693282489 breaks
 catalog-9e5ce6d33e6164b7 count
 catalog-fcefd1ebd9ad1144 breaks
 
-## Lost against main's engine (6d1d210): ZWSP and a combining mark before a long word at -4 px letter-spacing in pre-wrap; WebKit wraps the word's last letter, the hybrid measures the line 3 px narrower and keeps it
+## Lost against main before #340 (6d1d210): ZWSP and a combining mark before a long word at -4 px letter-spacing in pre-wrap; WebKit wraps the word's last letter, the library measures the line 3 px narrower and keeps it
 catalog-4ea0fec1f4bbb576 count
 catalog-7bd7df3c2a009bfb count
 catalog-7e2a00fd3cd1ad70 count
 
-## Lost against main's engine (6d1d210): a slash before Arabic or Hebrew under keep-all (the engine fact at layout.test.ts:706); WebKit keeps the slash with the letter after it, the hybrid breaks after the slash
+## Lost against main before #340 (6d1d210): a slash before Arabic or Hebrew under keep-all (the engine fact at layout.test.ts:706); WebKit keeps the slash with the letter after it, the library breaks after the slash
 facts-4d1fa4d88174f875 breaks
 facts-739432684d495b51 count
 facts-a5ef76f6c3850db9 breaks
@@ -231,10 +231,10 @@ facts-a8d7bcd2c51f7b5f breaks
 facts-b2e6c3815f591c0a breaks
 facts-dcb42ab6633232de breaks
 
-## Lost against main's engine (6d1d210): a soft hyphen and a combining mark before a bracket and Arabic; the hybrid breaks otherwise than WebKit
+## Lost against main before #340 (6d1d210): a soft hyphen and a combining mark before a bracket and Arabic; the library breaks otherwise than WebKit
 old-gate-1975647affaed0ce count
 
-## Lost against main's engine (6d1d210): combining marks after WJ and ZWSP between letters, in pre-wrap under keep-all at 1 px letter-spacing; the hybrid breaks otherwise than WebKit
+## Lost against main before #340 (6d1d210): combining marks after WJ and ZWSP between letters, in pre-wrap under keep-all at 1 px letter-spacing; the library breaks otherwise than WebKit
 old-gate-2314a84759638dd7 count
 
 ## Narrower than real layouts: 2-23 px, where most lines break inside a word; the narrowest real-usage draw is 25 px
@@ -3287,23 +3287,23 @@ old-gate-a129c4825e4eb270 breaks
 old-gate-cf06ac6bcbc630bb breaks
 old-gate-d938fc2ff2e06063 count
 
-## Real usage: Hebrew with a prefix before a Latin word (ל-Microsoft); WebKit breaks after the hyphen, the library doesn't (main too)
+## Real usage: Hebrew with a prefix before a Latin word (ל-Microsoft); WebKit breaks after the hyphen, the library doesn't (main before #340 too)
 sample-1562f53a72883442 breaks
 
-## Real usage: Khmer and Myanmar; WebKit's dictionary breaks differ from the library's (main too)
+## Real usage: Khmer and Myanmar; WebKit's dictionary breaks differ from the library's (main before #340 too)
 sample-48b1ab52d386bd38 breaks
 
-## Real usage: Latin, Devanagari and Cyrillic with letter-spacing; one word lands on the other line (main too)
+## Real usage: Latin, Devanagari and Cyrillic with letter-spacing; one word lands on the other line (main before #340 too)
 sample-53ffbeedb28e3e2a breaks
 sample-863aac68305946bb breaks
 
-## Real usage: Roboto and Inter, served as web fonts; one word lands on the other line (main too)
+## Real usage: Roboto and Inter, served as web fonts; one word lands on the other line (main before #340 too)
 sample-2f7ddc63b335c886 breaks
 
-## Real usage: a word longer than the line (URLs, message placeholders, long Cyrillic or Armenian words), broken between characters; WebKit fits one character more or fewer than the library's character widths allow (main too)
+## Real usage: a word longer than the line (URLs, message placeholders, long Cyrillic or Armenian words), broken between characters; WebKit fits one character more or fewer than the library's character widths allow (main before #340 too)
 sample-53c686eca38a7ced breaks
 
-## Real usage: soft hyphens; WebKit takes fewer soft-hyphen breaks than the library, moving the syllable before the hyphen to the next line (main too)
+## Real usage: soft hyphens; WebKit takes fewer soft-hyphen breaks than the library, moving the syllable before the hyphen to the next line (main before #340 too)
 sample-16a3704504259e8b breaks
 sample-2fb48a3ad067e670 breaks
 sample-347ac514160904d0 breaks
@@ -3320,7 +3320,7 @@ sample-ae8d301037b80b5a breaks
 sample-d712baf7139ff041 breaks
 sample-da2e5a0e849969a1 breaks
 
-## Real usage: table cells 25-125 px wide holding IDs, phone numbers and formulas; WebKit breaks at hyphens, brackets and between digits otherwise than the library (main too)
+## Real usage: table cells 25-125 px wide holding IDs, phone numbers and formulas; WebKit breaks at hyphens, brackets and between digits otherwise than the library (main before #340 too)
 sample-db62d90b64149427 breaks
 
 ## Spaces other than U+0020 (U+3000, U+2007, U+202F, NBSP) beside marks, brackets or other spaces, at 24 px and wider: WebKit breaks or hangs them where the library doesn't

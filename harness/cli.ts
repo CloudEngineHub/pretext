@@ -278,7 +278,7 @@ export async function gate(browser: BrowserKind, cases: Case[], o: Options, io: 
   const out: string[] = []
   // The same predictions in reverse order, the pinned cases first: moved breaks mean results depend on what was
   // prepared before. Widths alone move with Chrome's per-canvas shape caches and Firefox's kept contexts
-  // (PLATFORM_BUGS.md), in main too; they only reach the shrink-wrap check, which reports. A case whose breaks the
+  // (PLATFORM_BUGS.md), before #340 too; they only reach the shrink-wrap check, which reports. A case whose breaks the
   // browser's state moves is listed in harness/varying.
   const others = scored.predicted.slice(scored.pinned.length)
   const reverse = await job<Prediction>('predict', scored.pinned.slice().reverse().concat(others.reverse()), WHOLE)

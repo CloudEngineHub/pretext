@@ -53,7 +53,7 @@ const GRID = [1, 2, 4, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512, 7
 const MAX_ROUNDS = 24
 const CHANGES_PER_TEMPLATE = 3
 // How far either side of a change its edge cases sit: the README's exact fit. In Chrome a layout unit is 1/128 px, and
-// one unit either side of a change, half the cases failed for main and the hybrid alike.
+// one unit either side of a change, half the cases failed before and after #340 alike.
 const EDGE = 1 / 64
 const JOB_CASES = 20_000
 // Longer documents than `record`'s: page history only moves which widths get searched.

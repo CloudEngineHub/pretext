@@ -36,7 +36,7 @@ tests.
 - **What the pass rule can't see:** the hyphen a browser draws where a line breaks at a soft hyphen. The soft hyphen's
   box is visible there, but also where no hyphen is drawn: with a combining mark after it, and in WebKit at the end of a
   paragraph or before a line feed. The recordings keep no glyphs to tell these apart, and a rule over the boxes found
-  93-358 mismatches per browser for the hybrid, most of them narrower than 24 px and some of them the recording's. So
+  93-358 mismatches per browser for the library as #340 left it, most of them narrower than 24 px and some of them the recording's. So
   line text that leaves out the hyphen at a soft-hyphen line end passes here, and is left to `src/layout.test.ts`.
 - **Lines come from rect positions:** text box rects grouped by vertical centre, never height divided by line height.
 - **A visible character** is a code point whose positive-size Range rects all sit on one line. Chrome also reports a
@@ -55,7 +55,7 @@ tests.
   written reason. Each run prints every reason with its count and, for real-usage draws, the share of real paragraphs it
   covers. A listed case that passes again, is no longer pinned or names no case blocks until it leaves the list;
   `--accept` writes the new failures under its reason and removes those. The lists hold the failures of main's `src/`
-  since the hybrid landed (#340), as the gate protects its passes; main before it (6d1d210) blocks.
+  since #340, whose passes the gate protects; main before #340 (6d1d210) blocks.
 - **Varying predictions:** `harness/varying/<browser>.txt` lists, each under a written reason, the cases whose
   predictions move with the browser's state rather than with the library: what earlier documents in the same browser
   process laid out, or what a Canvas measured before. A case listed as `runs` moves between runs: it is predicted and
@@ -73,9 +73,9 @@ tests.
 The gate adds three checks:
 - **Reverse order:** predictions in reverse order must break every line where the forward ones do, and the line APIs
   must still agree, or it blocks. Chrome's per-canvas shape caches (Chromium #560614560) move the breaks of six old-gate
-  cases (Arabic with vowel marks before brackets) in main as in the hybrid, so they are varying predictions of kind
+  cases (Arabic with vowel marks before brackets) before #340 (6d1d210) as after it, so they are varying predictions of kind
   `order`: in check's order they fail the same way every time and are accepted. Predictions whose line widths alone
-  move are printed, not blocked: the same caches and a Firefox width-1 case move them in main too, and widths only
+  move are printed, not blocked: the same caches and a Firefox width-1 case move them before #340 too, and widths only
   reach the shrink-wrap check, which reports.
 - **Fresh re-recording:** the 1,000 pinned cases whose ids rank first under the seed are recorded again, and each case
   that differs is recorded twice more, alone in a document of its own, in the sample's order and then in reverse. It
@@ -99,9 +99,9 @@ with a stand-in browser, except the Firefox hold, which needs Firefox:
 | Every line API against the walk | `layout()` counts lines the list doesn't paint, so a virtualized row is sized wrong: a counter that let an overflowing space start the next line passed every check before |
 | Each rich fragment's text against its item's text over the fragment's cursors | A word broken inside a span paints its start again, while every rich API agrees |
 | Line APIs checked on every case, recorded or not | A disagreement on a page-history case, or one with nothing visible, goes unseen |
-| First and last visible character per line | A word paints on the wrong line while the height is right; main passed 4.5-8.1% of its census cases this way |
+| First and last visible character per line | A word paints on the wrong line while the height is right; main before #340 passed 4.5-8.1% of its census cases this way |
 | Chrome's soft hyphen copies left out | A wrong break at a soft hyphen passes unseen |
-| Lines from rect positions | Fractional line boxes read as a wrong count, as Safari 27's did in main's harness |
+| Lines from rect positions | Fractional line boxes read as a wrong count, as Safari 27's did in the old harness (`tests/wrapping`) |
 | Line-start search | Long paragraphs would take minutes per browser; a wrong search would hide or invent a book's wrong line |
 | Environment key | A browser or OS update reads as library regressions or fixes |
 | Page-history list, kept across recordings of one environment | Cases that lay out differently after other cases block changes at random; one recording's two sorted orders found 11 of WebKit's 87 |
@@ -113,7 +113,7 @@ with a stand-in browser, except the Firefox hold, which needs Firefox:
 | Accepted list with reasons | Accepted losses go silent, and a fix goes unrecorded |
 | Exact widths through the adapter | Text that exactly fits its bubble wraps (a width 1/64 px short) |
 | Recorded widths without the spaces that end a line | The shrink-wrap check calls a bubble a space too narrow; that was 94% of Chrome's misses before |
-| Reverse-order predictions (gate), judged by where lines break | A message wraps differently depending on what the app prepared before; widths moved by Chrome's shape caches would block main too |
+| Reverse-order predictions (gate), judged by where lines break | A message wraps differently depending on what the app prepared before; widths moved by Chrome's shape caches would block main before #340 too |
 | Fresh re-recording (gate), a differing case recorded alone twice more | Stored recordings stop describing the browser; or the gate blocks at random on emoji beside Arial in Firefox |
 | Seeded sample with a fixed default, ranked by id | The gate is green or red by the clock, or draws another sample whenever a case leaves |
 | Line APIs asking Canvas nothing after preparing (blocks), calls while preparing (printed) | Every window resize measures text again, or preparing gets slower unnoticed |
@@ -156,7 +156,7 @@ main's generic table was made from before the engine tables replaced it.
 | `reports.ndjson` | 28 | Filed reports, with the input and width as filed | Pinned cases |
 | `oracles.ndjson` | 56 | The mode oracles in `src/test-data.ts`, now in Firefox too | Pinned cases |
 | `followups.ndjson` | 2 | The two fuzz strings `ENGINE_FOLLOWUPS.md` names for Firefox's accepted list: the Gecko scan no longer splits text runs where the script changes; taken once | Pinned cases |
-| `old-gate.ndjson` | 322 | The rows main's old gate (tests/wrapping) lost for the hybrid at 24 px and wider, true losses by its attribution, whose input no other case shows the hybrid failing; taken once | Pinned cases |
+| `old-gate.ndjson` | 322 | The rows the old gate (`tests/wrapping`) lost with #340's engine at 24 px and wider, true losses by its attribution, whose input no other case shows that engine failing; taken once | Pinned cases |
 
 **The sample.** A draw picks a surface (chat, AI replies, cards, documents, UI, editorial pages), a script by that
 surface's mix, a text from the pools, the style settings apps use, and a width from a device, its viewport and the
@@ -176,7 +176,7 @@ so a group with no failure is under 1% wrong with 95% confidence. A draw whose t
    the widest first. Each change gets a width 1/64 px either side of where the lines change (`edge`, where
    the fit is exact to 1/64 px) and a whole pixel well inside each of its two layouts (where the break chosen is checked
    away from the fit). One Chrome layout unit (1/128 px) either side was finer than the fit is exact to: half those
-   cases failed for main and the hybrid alike.
+   cases failed before and after #340 alike.
 
 `check` reports a behaviour as modelled when every width away from the edges passes, and counts those that pass at the
 edges too.

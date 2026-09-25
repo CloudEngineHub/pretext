@@ -1,4 +1,4 @@
-## #323, "the international" with soft hyphens at 52.5-56 px: where the syllable before the first soft hyphen doesn't fit with its hyphen, Firefox breaks the word between letters, the library at the soft hyphen (main too)
+## #323, "the international" with soft hyphens at 52.5-56 px: where the syllable before the first soft hyphen doesn't fit with its hyphen, Firefox breaks the word between letters, the library at the soft hyphen (main before #340 too)
 report-23cd6052bc54f415 breaks
 report-953b7e9cd05588ed breaks
 report-b980d5159851daba breaks
@@ -96,7 +96,7 @@ catalog-46db3005f1b8eb55 count
 facts-bd0eaee2b5eb1b8c breaks
 facts-d93fe86d92078783 breaks
 
-## Firefox splits text runs where the script changes and the hybrid's Gecko scan doesn't: mixed-script strings with a mark that clusters across the change, named in ENGINE_FOLLOWUPS.md (main fails them too)
+## Firefox splits text runs where the script changes and the library's Gecko scan doesn't: mixed-script strings with a mark that clusters across the change, named in ENGINE_FOLLOWUPS.md (main before #340 fails them too)
 followup-730e77aebf008adb count
 
 ## Invisible format characters (soft hyphen, ZWSP, ZWJ, WJ, CGJ, bidi controls) beside spaces, tabs, marks or U+3000, at 24 px and wider: Firefox breaks around them where the library doesn't
@@ -274,16 +274,16 @@ rich-dc32f2338a9ef485 breaks
 rich-e39dffbcecc02030 count
 rich-eec4090d7b04c6cf count
 
-## Lost against main's engine (6d1d210): "AA", WJ, a space and "B" before a line feed and LRE (the engine fact at layout.test.ts:3764), at the width that just fits; Firefox fits "AA B" on the line, the hybrid breaks before "B"
+## Lost against main before #340 (6d1d210): "AA", WJ, a space and "B" before a line feed and LRE (the engine fact at layout.test.ts:3764), at the width that just fits; Firefox fits "AA B" on the line, the library breaks before "B"
 facts-2510c55a541f4026 breaks
 
-## Lost against main's engine (6d1d210): "AV((To" in 32 px Arial; Firefox breaks after "A" and keeps "V((" together, the hybrid keeps "AV(" together
+## Lost against main before #340 (6d1d210): "AV((To" in 32 px Arial; Firefox breaks after "A" and keeps "V((" together, the library keeps "AV(" together
 old-gate-c3afe2d7b44933ef count
 
-## Lost against main's engine (6d1d210): "日本語foo-bar" under keep-all at 1 px letter-spacing in 18 px serif; Firefox breaks after the hyphen, the hybrid inside "bar"
+## Lost against main before #340 (6d1d210): "日本語foo-bar" under keep-all at 1 px letter-spacing in 18 px serif; Firefox breaks after the hyphen, the library inside "bar"
 catalog-b49eff57ffce10bb breaks
 
-## Lost against main's engine (6d1d210): Arabic words with vowel marks, too wide for the line, before brackets, quotes, dashes, controls, tabs or Latin (main's adversarial families, most from main's old gate); Firefox breaks between a letter and its vowel mark and keeps the brackets with the Arabic, the hybrid keeps each letter with its mark and breaks before the brackets
+## Lost against main before #340 (6d1d210): Arabic words with vowel marks, too wide for the line, before brackets, quotes, dashes, controls, tabs or Latin (main's adversarial families, most from the old gate); Firefox breaks between a letter and its vowel mark and keeps the brackets with the Arabic, the library keeps each letter with its mark and breaks before the brackets
 catalog-0b951c07027d4db9 breaks
 catalog-40c9e5519aee68e8 breaks
 catalog-43d856b5db042012 breaks
@@ -510,18 +510,18 @@ old-gate-fd822def1878d1dc count
 old-gate-fde220fdf094ff9f count
 old-gate-feb8a8027619c273 count
 
-## Lost against main's engine (6d1d210): Balinese U+1B05 after Arabic at -1 px letter-spacing; Firefox keeps them on one line, the hybrid breaks between them
+## Lost against main before #340 (6d1d210): Balinese U+1B05 after Arabic at -1 px letter-spacing; Firefox keeps them on one line, the library breaks between them
 catalog-6ff49c7ddaf226a3 breaks
 catalog-c03c80bcf3680fb4 breaks
 
-## Lost against main's engine (6d1d210): NUL before an "ffi" ligature in 24 px Amiri; Firefox breaks after "a", the hybrid inside the ligature
+## Lost against main before #340 (6d1d210): NUL before an "ffi" ligature in 24 px Amiri; Firefox breaks after "a", the library inside the ligature
 catalog-6c1048bd31960f7c count
 catalog-c87fd3152b054948 count
 old-gate-6d28bccdc420fc79 count
 old-gate-af834917414a7b57 count
 old-gate-d902d2585d663169 count
 
-## Lost against main's engine (6d1d210): U+0600 (Arabic number sign) before U+3000; Firefox breaks after the number sign, the hybrid keeps it with the U+3000 after it
+## Lost against main before #340 (6d1d210): U+0600 (Arabic number sign) before U+3000; Firefox breaks after the number sign, the library keeps it with the U+3000 after it
 old-gate-169a11a0077b349a count
 old-gate-4d3142c658726549 count
 old-gate-53257638c8e8cc4d count
@@ -531,30 +531,30 @@ old-gate-d97171978a2c2e09 count
 old-gate-ed333a573cae856d count
 old-gate-f72f0863bf4961db count
 
-## Lost against main's engine (6d1d210): U+1193F, a Dives Akuru prebase sign, after an emoji or ideographs; Firefox breaks after it and not before it, the hybrid the other way round
+## Lost against main before #340 (6d1d210): U+1193F, a Dives Akuru prebase sign, after an emoji or ideographs; Firefox breaks after it and not before it, the library the other way round
 catalog-153f880cf3ea6bed breaks
 catalog-16cc5bf7f502975d breaks
 catalog-8ebb09b26a760881 breaks
 catalog-b18c9b411bf267e9 breaks
 
-## Lost against main's engine (6d1d210): U+202F ending a paragraph after a fullwidth bracket (the engine fact at layout.test.ts:611); Firefox moves the space alone to the next line, the hybrid takes the bracket with it
+## Lost against main before #340 (6d1d210): U+202F ending a paragraph after a fullwidth bracket (the engine fact at layout.test.ts:611); Firefox moves the space alone to the next line, the library takes the bracket with it
 facts-5c042e12677439ca breaks
 facts-92d85aad4d345cc0 breaks
 facts-c0558690d387886c breaks
 
-## Lost against main's engine (6d1d210): a ZWSP and a soft hyphen before a word at 1.5 px letter-spacing; Firefox gives the ZWSP its spacing and breaks after it, the hybrid gives it none
+## Lost against main before #340 (6d1d210): a ZWSP and a soft hyphen before a word at 1.5 px letter-spacing; Firefox gives the ZWSP its spacing and breaks after it, the library gives it none
 catalog-658777b7de4a75b5 count
 catalog-92d159c42fda8ce1 count
 catalog-db900db766e91e07 count
 
-## Lost against main's engine (6d1d210): a pre-wrap tab after a URL's "?"; Firefox moves the tab to the next line, the hybrid keeps it on the first
+## Lost against main before #340 (6d1d210): a pre-wrap tab after a URL's "?"; Firefox moves the tab to the next line, the library keeps it on the first
 catalog-d85ac32aa3f65fa5 breaks
 
-## Lost against main's engine (6d1d210): a tab, ZWSP and combining mark across rich items (the engine fact at layout.test.ts:893); the hybrid breaks one character later than Firefox
+## Lost against main before #340 (6d1d210): a tab, ZWSP and combining mark across rich items (the engine fact at layout.test.ts:893); the library breaks one character later than Firefox
 rich-25695740760ebdf4 breaks
 rich-cad75b27fe2ea2f3 breaks
 
-## Mode oracle for pre-wrap, "a" and two tabs before "b" in 18 px serif at 50 px: Firefox breaks between the tabs, the library after them (main too)
+## Mode oracle for pre-wrap, "a" and two tabs before "b" in 18 px serif at 50 px: Firefox breaks between the tabs, the library after them (main before #340 too)
 oracle-c9340cde69edff81 breaks
 
 ## Narrower than real layouts: 2-23 px, where most lines break inside a word; the narrowest real-usage draw is 25 px
@@ -3216,7 +3216,7 @@ old-gate-9ff20b301923d38f breaks
 old-gate-b670f0abcc293e7d breaks
 old-gate-d938fc2ff2e06063 breaks
 
-## Real usage: Arabic and Urdu with letter-spacing; Firefox leaves the spacing out between joined Arabic letters, the library adds it to every character (main too)
+## Real usage: Arabic and Urdu with letter-spacing; Firefox leaves the spacing out between joined Arabic letters, the library adds it to every character (main before #340 too)
 sample-37533b35524c17b8 breaks
 sample-414e4de91e87572d count
 sample-8825b76f52a53584 breaks
@@ -3225,19 +3225,19 @@ sample-a3943aa3353a34de breaks
 sample-b57cda44043bf506 breaks
 sample-e90b3103bb150d06 breaks
 
-## Real usage: Japanese and Chinese with -0.08 px letter-spacing; one character lands on the other line (main too)
+## Real usage: Japanese and Chinese with -0.08 px letter-spacing; one character lands on the other line (main before #340 too)
 sample-85cee3cdc93d6d6c breaks
 sample-91dec2d4c651ce92 count
 
-## Real usage: Latin, Devanagari and Cyrillic with letter-spacing; one word lands on the other line (main too)
+## Real usage: Latin, Devanagari and Cyrillic with letter-spacing; one word lands on the other line (main before #340 too)
 sample-e5258bc22a63bfc0 breaks
 
-## Real usage: Roboto and Inter, served as web fonts; one word lands on the other line (main too)
+## Real usage: Roboto and Inter, served as web fonts; one word lands on the other line (main before #340 too)
 sample-2f7ddc63b335c886 breaks
 sample-e726bd7217f63339 breaks
 sample-e8cac7f67840689b breaks
 
-## Real usage: a word longer than the line (URLs, message placeholders, long Cyrillic or Armenian words), broken between characters; Firefox fits one character more or fewer than the library's character widths allow (main too)
+## Real usage: a word longer than the line (URLs, message placeholders, long Cyrillic or Armenian words), broken between characters; Firefox fits one character more or fewer than the library's character widths allow (main before #340 too)
 sample-a22746c4728a2506 breaks
 
 ## Spaces other than U+0020 (U+3000, U+2007, U+202F, NBSP) beside marks, brackets or other spaces, at 24 px and wider: Firefox breaks or hangs them where the library doesn't

@@ -1,7 +1,7 @@
-## #195, a run of x in Shantell Sans longer than the line, in pre-wrap: Chrome fits one more letter than the library's letter widths allow (main too)
+## #195, a run of x in Shantell Sans longer than the line, in pre-wrap: Chrome fits one more letter than the library's letter widths allow (main before #340 too)
 report-d569ba117dfb3fc7 breaks
 
-## #323, "the international" with soft hyphens at 52.5-56 px: where the syllable before the first soft hyphen doesn't fit with its hyphen, Chrome breaks the word between letters, the library at the soft hyphen (main too)
+## #323, "the international" with soft hyphens at 52.5-56 px: where the syllable before the first soft hyphen doesn't fit with its hyphen, Chrome breaks the word between letters, the library at the soft hyphen (main before #340 too)
 report-23cd6052bc54f415 breaks
 report-953b7e9cd05588ed breaks
 report-b980d5159851daba breaks
@@ -121,7 +121,7 @@ rich-959420c66f7e0ac2 breaks
 rich-a3758e3807dd0add count
 rich-dd09b02a55b37f6f count
 
-## Arabic with vowel marks before brackets in 16 px Amiri (main's old gate): Chrome keeps "بِبِ" with the first bracket, the hybrid breaks inside it or before the bracket; the gate's reverse-order check skips them (harness/varying)
+## Arabic with vowel marks before brackets in 16 px Amiri (the old gate): Chrome keeps "بِبِ" with the first bracket, the library breaks inside it or before the bracket; the gate's reverse-order check skips them (harness/varying)
 old-gate-0f4ab6085302b5fe breaks
 old-gate-307fd76f099a43ea count
 old-gate-4dd4ada94b0cc2ce count
@@ -227,7 +227,7 @@ catalog-fa5851ac4b498f4e count
 catalog-fcafb5f9cf97b368 breaks
 catalog-fcd37970c2522473 breaks
 
-## Gatsby whole at 220 px in Georgia: Chrome fits line 636 of 9,378, whose text boxes measure 220.008 px, into the 220 px box; the library breaks a word early (main fails this book too)
+## Gatsby whole at 220 px in Georgia: Chrome fits line 636 of 9,378, whose text boxes measure 220.008 px, into the 220 px box; the library breaks a word early (main before #340 fails this book too)
 c-6561c4772ce2a7aa breaks
 c-958324c4fc6cb062 breaks
 
@@ -557,25 +557,25 @@ rich-ec8d929c1f593e5f count
 rich-f9bad019852c108d count
 rich-fafc7e9b256b471b count
 
-## Lost against main's engine (6d1d210): "£€£€" before curly quotes in 16 px Arial (ENGINE_FOLLOWUPS.md, not traced); Chrome keeps "£€£€" on the first line, the hybrid ends it after "£€£"
+## Lost against main before #340 (6d1d210): "£€£€" before curly quotes in 16 px Arial (ENGINE_FOLLOWUPS.md, not traced); Chrome keeps "£€£€" on the first line, the library ends it after "£€£"
 catalog-cbd37ad76e9177e0 count
 catalog-ecafac263f1592a3 count
 old-gate-efc1c4b9ac48c4e6 count
 
-## Lost against main's engine (6d1d210): Balinese U+1B05 after Arabic at -1 px letter-spacing; Chrome keeps them on one line, the hybrid breaks between them
+## Lost against main before #340 (6d1d210): Balinese U+1B05 after Arabic at -1 px letter-spacing; Chrome keeps them on one line, the library breaks between them
 catalog-6ff49c7ddaf226a3 breaks
 catalog-8708de2159135529 breaks
 
-## Lost against main's engine (6d1d210): U+202F ending a paragraph after a fullwidth bracket (the engine fact at layout.test.ts:611); Chrome moves the space alone to the next line, the hybrid takes the bracket with it
+## Lost against main before #340 (6d1d210): U+202F ending a paragraph after a fullwidth bracket (the engine fact at layout.test.ts:611); Chrome moves the space alone to the next line, the library takes the bracket with it
 facts-0e759926a21e1616 breaks
 
-## Lost against main's engine (6d1d210): a fuzz string of Thai, Myanmar, Khmer and Bengali marks, an ideograph and a bracket, ending in U+2007 (ENGINE_FOLLOWUPS.md); Chrome keeps the figure space on the last line, the hybrid moves it to a line of its own
+## Lost against main before #340 (6d1d210): a fuzz string of Thai, Myanmar, Khmer and Bengali marks, an ideograph and a bracket, ending in U+2007 (ENGINE_FOLLOWUPS.md); Chrome keeps the figure space on the last line, the library moves it to a line of its own
 followup-60f1c8ca3ac68aed count
 
-## Lost against main's engine (6d1d210): a pre-wrap tab before Arabic with a soft hyphen and a vowel mark at -1 px letter-spacing; the hybrid breaks after the soft hyphen, Chrome before the Arabic
+## Lost against main before #340 (6d1d210): a pre-wrap tab before Arabic with a soft hyphen and a vowel mark at -1 px letter-spacing; the library breaks after the soft hyphen, Chrome before the Arabic
 old-gate-f9552b36e7a9e2a0 count
 
-## Lost against main's engine (6d1d210): a skin-tone modifier (U+1F3FB) right after a Hebrew letter or an ideograph; Chrome keeps it with the character before it, the hybrid breaks before it
+## Lost against main before #340 (6d1d210): a skin-tone modifier (U+1F3FB) right after a Hebrew letter or an ideograph; Chrome keeps it with the character before it, the library breaks before it
 catalog-0db724d04d08cad1 count
 catalog-13327218ea16077c count
 catalog-97cd971f46155b13 count
@@ -3844,7 +3844,7 @@ old-gate-e88005a6dd970f4e count
 old-gate-f63a66d4cfe640d0 count
 old-gate-fcbb79cc263c0b70 count
 
-## Real usage: Arabic and Urdu with letter-spacing; Chrome leaves the spacing out between joined Arabic letters, the library adds it to every character (main too)
+## Real usage: Arabic and Urdu with letter-spacing; Chrome leaves the spacing out between joined Arabic letters, the library adds it to every character (main before #340 too)
 sample-27b95524f5d9e2c7 breaks
 sample-37533b35524c17b8 breaks
 sample-414e4de91e87572d count
@@ -3854,11 +3854,11 @@ sample-a3943aa3353a34de breaks
 sample-b57cda44043bf506 breaks
 sample-e90b3103bb150d06 breaks
 
-## Real usage: Indonesian in Arial and Bulgarian in Times New Roman; Chrome fits one more word than the Canvas widths add up to (main too)
+## Real usage: Indonesian in Arial and Bulgarian in Times New Roman; Chrome fits one more word than the Canvas widths add up to (main before #340 too)
 sample-9e9374ae76b2b3ff breaks
 sample-edd4384f6507561c breaks
 
-## Real usage: Japanese and Chinese lines; Chrome fits one more character than the Canvas widths add up to (main too)
+## Real usage: Japanese and Chinese lines; Chrome fits one more character than the Canvas widths add up to (main before #340 too)
 sample-1090cad44abeab6a breaks
 sample-28103c44323eb39f count
 sample-48fcd47e9275d21a breaks
@@ -3875,27 +3875,27 @@ sample-e0b34be5f901a8b2 breaks
 sample-f43dd85d123726ca breaks
 sample-fe4b8ea7070b7c99 breaks
 
-## Real usage: Khmer and Myanmar; Chrome's dictionary breaks differ from the library's (main too)
+## Real usage: Khmer and Myanmar; Chrome's dictionary breaks differ from the library's (main before #340 too)
 sample-6f8970d165201513 breaks
 sample-c11591c08197d852 breaks
 
-## Real usage: Latin, Devanagari and Cyrillic with letter-spacing; one word lands on the other line (main too)
+## Real usage: Latin, Devanagari and Cyrillic with letter-spacing; one word lands on the other line (main before #340 too)
 sample-53ffbeedb28e3e2a breaks
 
-## Real usage: Roboto and Inter, served as web fonts; one word lands on the other line (main too)
+## Real usage: Roboto and Inter, served as web fonts; one word lands on the other line (main before #340 too)
 sample-2f7ddc63b335c886 breaks
 sample-a12ef9c593d534c3 count
 sample-d7a74fa4b0e4e131 count
 sample-e16c3b260bcd3f6e count
 
-## Real usage: a Windows-only font first in the list (Calibri, Segoe UI), which macOS falls back past; one word lands on the other line (main too)
+## Real usage: a Windows-only font first in the list (Calibri, Segoe UI), which macOS falls back past; one word lands on the other line (main before #340 too)
 sample-3d5afbc6ec1cfad3 breaks
 sample-46718f858abb497e breaks
 sample-5408d29e6b973ec8 breaks
 sample-87522bdb4a3d1775 breaks
 sample-e76c4a4c81e48e11 breaks
 
-## Real usage: a word longer than the line (URLs, message placeholders, long Cyrillic or Armenian words), broken between characters; Chrome fits one character more or fewer than the library's character widths allow (main too)
+## Real usage: a word longer than the line (URLs, message placeholders, long Cyrillic or Armenian words), broken between characters; Chrome fits one character more or fewer than the library's character widths allow (main before #340 too)
 sample-15b8a9d949bc752a breaks
 sample-40da9c442607a2b9 breaks
 sample-a28b833f33f062cb breaks
@@ -3904,11 +3904,11 @@ sample-b85f26f81ab7033e breaks
 sample-f313ba190897a0f2 breaks
 sample-f3bf2f1722208b15 breaks
 
-## Real usage: soft hyphens; Chrome breaks before the syllable where the library takes the soft hyphen, or at another one (main too)
+## Real usage: soft hyphens; Chrome breaks before the syllable where the library takes the soft hyphen, or at another one (main before #340 too)
 sample-347ac514160904d0 breaks
 sample-b440ccf29c8506b7 breaks
 
-## Real usage: table cells 25-125 px wide holding IDs, phone numbers and formulas; Chrome breaks at hyphens, brackets and between digits otherwise than the library (main too)
+## Real usage: table cells 25-125 px wide holding IDs, phone numbers and formulas; Chrome breaks at hyphens, brackets and between digits otherwise than the library (main before #340 too)
 sample-78c75e7e120daf03 count
 sample-aa5df1d0b23661a0 count
 sample-b178e456f685db2e count

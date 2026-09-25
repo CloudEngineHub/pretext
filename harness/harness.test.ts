@@ -103,7 +103,7 @@ describe('the pass rule', () => {
   })
 
   test('line count comes from rect positions: fractional line boxes would otherwise fail every Safari 27 case', () => {
-    // Three line boxes 20.0149 px tall: 60.0447 / 20 is 3.002, which main's height check rejected.
+    // Three line boxes 20.0149 px tall: 60.0447 / 20 is 3.002, which the old harness's height check rejected.
     const boxes = [0, 1, 2].map(line => ({ x: 0, y: line * 20.0149, width: 50, height: 20.0149 }))
     expect(groupLines(boxes, 20).lo.length).toBe(3)
   })
@@ -145,7 +145,7 @@ describe('the pass rule', () => {
     expect(recording.lines.map(line => line.width)).toEqual([68, 68, 76, 88])
   })
 
-  test('a prediction whose breaks move with what was prepared before is order-dependent, one whose widths alone move is not: the gate would block on Chrome\'s shape cache in main too', () => {
+  test('a prediction whose breaks move with what was prepared before is order-dependent, one whose widths alone move is not: the gate would block on Chrome\'s shape cache before #340 too', () => {
     const forward = predicted(TEXT, STARTS)
     const widths = predicted(TEXT, STARTS)
     if (!('lines' in widths)) throw new Error('unreachable')
@@ -349,7 +349,7 @@ describe('the gate and page history of predictions', () => {
   const two = layOut(TEXT, [0, 20]).recording
   const three = layOut(TEXT, [0, 16, 31]).recording
 
-  test('a reverse-order effect of the browser\'s, listed with its reason, doesn\'t block, and an unlisted one does: Chrome\'s shape cache kept the gate red in main too', () => {
+  test('a reverse-order effect of the browser\'s, listed with its reason, doesn\'t block, and an unlisted one does: Chrome\'s shape cache kept the gate red before #340 too', () => {
     const widths = predicted(TEXT, STARTS)
     if (!('lines' in widths)) throw new Error('unreachable')
     widths.lines[0]!.width = 1.5

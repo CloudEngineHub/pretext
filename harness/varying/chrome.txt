@@ -1,4 +1,4 @@
-## Arabic with vowel marks before brackets in 16 px Amiri: Chrome's per-canvas shape caches give a bracket another width after other text (Chromium #560614560, PLATFORM_BUGS.md), so these break differently in reverse order, in main as in the hybrid; in check's order they fail the same way every time (harness/accepted)
+## Arabic with vowel marks before brackets in 16 px Amiri: Chrome's per-canvas shape caches give a bracket another width after other text (Chromium #560614560, PLATFORM_BUGS.md), so these break differently in reverse order, before #340 as after it; in check's order they fail the same way every time (harness/accepted)
 old-gate-0f4ab6085302b5fe order
 old-gate-307fd76f099a43ea order
 old-gate-4dd4ada94b0cc2ce order
