@@ -230,6 +230,78 @@ language doesn't: under a zh-CN UI, `16px "PingFang TC"` halts the `。` of `。
 page and not in such a Canvas. So the Chromium profile gives its context that locale
 on a page without a language. ENGINE_FOLLOWUPS.md lists the deliberate differences.
 
+## Grapheme Clusters From Engine Data
+
+Emergency breaks, letter spacing, emoji correction, line text and Gecko's cluster starts
+take grapheme clusters from `src/graphemes.ts`, not `Intl.Segmenter`. It reads ICU's
+character rules, `char.brk`, as Chrome 153 (ICU 78.2) and libicucore 78.1 ship them, in one
+pass. Their forward table accepts in every state but the start state and a look-ahead state
+after a regional indicator pair, which is entered only one code point after the position it
+returns, so a cluster ends right before the code point whose transition stops or enters that
+state, and the next cluster starts there from the start state. The generator checks that
+shape. The two tables share their states; libicucore's trie adds Apple's transcoding hints
+U+F870-U+F87F, U+F884-U+F899 and U+F89F to Extend, and the WebKit profile takes it. Firefox
+156's ICU4X grapheme data puts every code point in the same 18 classes as Chrome's table, and
+ICU4X's iterator ends clusters where ICU's does on all 2 million strings of up to five code
+points taking one per class and on a million random longer ones, so the Gecko profile takes
+Chrome's table. Below U+0300 only CR and LF share a cluster, so the Gecko scan skips words of
+such units; its `Intl.Segmenter` probes had skipped every word without a unit that may join.
+
+In each installed browser the table its profile takes gives `Intl.Segmenter`'s clusters on
+every code point in 14 contexts that tell the classes apart (15.6 million strings), on the
+9,323 corpus paragraphs and suite texts and the 1.3 million segments `prepareWithSegments()`
+makes of them, and on 200,000 random strings over the classes (`scripts/grapheme-check/`).
+The other table differs only at Apple's 39 hints. A second fuzz of 20.6 million strings in
+each browser, with emoji sequences, Unicode 16 and 17's new scripts, lone surrogates,
+clusters up to 70,000 code units long, sub-ranges and counting only, found no difference.
+Node 23's ICU 77.1 (Unicode 16) differs on 1,417 code points and on 61 of those texts, so an
+engine on another Unicode version needs its own table. 689 of those code points, the largest
+group, are symbols Unicode 17 took out of Extended_Pictographic, such as U+2605, the chess
+symbols from U+2654, the dice and the mahjong, domino and playing cards, which no longer join
+a ZWJ sequence: U+2654 ZWJ U+2654 is one cluster in Unicode 16 and two in 17. 686 are
+consonants and linkers in 14 scripts whose conjuncts Unicode 17 joins, among them Myanmar,
+Khmer, Tai Tham, Balinese, Javanese and Sundanese, and 42 are characters new in Unicode 17.
+
+With graphemes from the tables, `Intl.Segmenter` is left only for words inside the runs the
+scans break by dictionary: Thai, Lao, Khmer and Myanmar, and in the Blink and WebKit scans
+also Tai Le, New Tai Lue, Tai Tham, Tai Viet and Ahom. The scans create the word segmenter
+the first time such a run shows up, so other text prepares without `Intl.Segmenter`.
+
+`Intl.Segmenter` graphemes had been the largest part of preparing new text in Chrome and
+Safari: 40 to 58% of a pass over batches of about 24,000 code units of Latin, chat, Arabic,
+mixed and pre-wrap text, 18 to 28% over CJK and Thai, and 64 to 76% with letter spacing,
+whose count ran on every segment of every `prepare()` and took 85 to 89% of preparing seen
+letter-spaced text. Against main before the change, in one document, interleaved over 31
+rounds in each browser in the foreground, `prepare()` of each batch takes main's time
+divided by this many:
+
+| Batch | Chrome 153, new text | fresh page | Safari 27, new text | fresh page | Firefox 156, new text | fresh page |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Latin | 1.63 | 1.34 | 1.75 | 1.30 | 1.12 | 1.11 |
+| Chat | 1.96 | 1.44 | 1.64 | 1.17 | 1.26 | 1.11 |
+| CJK | 1.17 | 1.05 | 1.23 | 1.06 | 1.02 | 1.07 |
+| Arabic | 1.65 | 1.30 | 1.80 | 1.31 | 1.13 | 1.06 |
+| Thai | 1.26 | 1.12 | 1.29 | 1.10 | 1.01 | 1.01 |
+| Mixed | 1.58 | 1.21 | 1.55 | 1.20 | 1.19 | 1.07 |
+| Pre-wrap | 1.74 | 1.23 | 1.58 | 1.22 | 1.11 | 1.04 |
+| Letter-spaced | 2.86 | 2.04 | 4.26 | 2.20 | 1.40 | 1.22 |
+
+New text is a pass after `clearCache()`, with the browser's shaping caches warm. A fresh
+page is the first pass in a new same-origin iframe, whose library, tables, caches and
+canvas all start empty, as for text Chrome's canvas hasn't shaped; it includes reading the
+tables, which in a later run made a page's very first `prepare()` 0.05ms slower than main's
+in Chrome 154 and 0.14ms in Firefox, and no slower in Safari. Seen text prepares 7.9 to 9.2
+times faster with letter spacing in Chrome and Safari and 1.8 times in Firefox, and
+otherwise within 3% of main, except Firefox, where Latin and pre-wrap are 6 to 10% faster
+and CJK 2 to 4% slower: the Gecko scan now runs the rules over every word with a unit at or
+above U+0300, where its probes had skipped Han words that never join. A table of those
+probes' answers built from the rules gave 1.01, within the noise. On short Japanese,
+Chinese and Korean interface strings, repeated runs read 0.90 to 1.08 of main's speed.
+`layout()` on the same batches stays within 4%. Safari's row comes from a run without that
+`layout()` control: after it, Safari's next passes over new text took about 65ms more in
+both libraries. Canvas calls are unchanged. The tables add 5.5 KB to the minified bundle,
+3.8 KB gzipped.
+
 ## Breaks And Source Positions
 
 Storage segments, measurement spans, ordinary break opportunities and emergency
@@ -1361,6 +1433,18 @@ reason still holds, and record the new decision here with its date.
   in Thai, Lao, Khmer and Myanmar text, under 20 locales in V8 and JavaScriptCore.
   Removing it, or making it a language input for Safari's families or an element's
   own `lang`, waits for the end of the project.
+- **2026-09-24: Pretext finds grapheme clusters itself, fixed to Unicode 17.**
+  Emergency breaks, letter spacing, emoji correction, line text and the Gecko scan's
+  clusters come from Chrome 153's and libicucore 78.1's ICU character rules
+  (`src/graphemes.ts`), not from each browser's `Intl.Segmenter`, whose graphemes
+  were the largest part of preparing new text in Chrome and Safari. The rules give
+  each browser's clusters today, Firefox's included, but don't follow a browser to
+  another Unicode version: one a version behind would differ on about 1,417 code
+  points, about half of them symbols such as chess pieces and playing cards that
+  Unicode 17 took out of Extended_Pictographic and most of the rest conjuncts in
+  Myanmar, Khmer, Javanese and 11 other scripts. They are refreshed with the line
+  tables, which are fixed the same way, when browsers move to Unicode 18. The
+  tables add about 4 KB gzipped.
 - **2026-09-24: Safari's generic families come from a generated Core Text table**,
   not from measuring through a `<canvas>` element. An element's context runs the
   document's pending style update in every `font` assignment and `measureText()`,

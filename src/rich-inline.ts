@@ -5,12 +5,12 @@ import {
 } from './layout.js'
 import {
   analyzeText,
-  getSharedGraphemeSegmenter,
   getSharedWordSegmenter,
   isCollapsibleSpaceCode,
   removeSkippableSegmentBreaks,
   type AnalysisProfile,
 } from './analysis.js'
+import { findGraphemeEnds } from './graphemes.js'
 import { getWebKitBreakBetweenItems } from './line-breaks.js'
 import {
   buildLineTextFromRange,
@@ -185,11 +185,11 @@ function getItemCursor(prepared: PreparedTextWithSegments, startSegmentIndex: nu
     const end = start + segments[i]!.length
     if (offset < end) {
       if (data.breakableFitAdvances[i] === null || data.entryGeometry?.[i] != null) return null
-      let graphemeIndex = 0
-      for (const grapheme of getSharedGraphemeSegmenter().segment(segments[i]!)) {
-        if (start + grapheme.index === offset) return { segmentIndex: i, graphemeIndex }
-        graphemeIndex++
-      }
+      const segment = segments[i]!
+      const ends = new Int32Array(segment.length)
+      const count = findGraphemeEnds(getEngineProfile().graphemeTable, segment, 0, segment.length, ends)
+      // Grapheme k + 1 starts where grapheme k ends.
+      for (let k = 0; k < count - 1; k++) if (start + ends[k]! === offset) return { segmentIndex: i, graphemeIndex: k + 1 }
       return null
     }
     start = end
@@ -231,7 +231,7 @@ function getItemBreakOffsets(portions: readonly JoinedPortion[], text: string, b
   for (let p = 0; p < portions.length; p++) {
     const portion = portions[p]!
     const end = p + 1 < portions.length ? portions[p + 1]!.start : text.length
-    if (p > 0 && getWebKitBreakBetweenItems(boundaryContexts[portions[p - 1]!.itemIndex]!, text.slice(portion.start, end), language, getSharedWordSegmenter())) {
+    if (p > 0 && getWebKitBreakBetweenItems(boundaryContexts[portions[p - 1]!.itemIndex]!, text.slice(portion.start, end), language, getSharedWordSegmenter)) {
       offsets.push(portion.start)
     }
     const { segmentFlags, segments } = portion.item.prepared
