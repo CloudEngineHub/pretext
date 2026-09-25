@@ -26,7 +26,7 @@ known-failure reporting, native observation limits and reproducible case IDs.
 - `bun run build:package` — emit `dist/` for the published ESM package
 - `bun run package-smoke-test` — pack the tarball and verify temporary JS + TS consumers
 - `bun run site:build` — build the static demo site into `site/`
-- `bun run generate:engine-break-data` — refresh Chrome's, Safari's and Firefox's checked-in break and grapheme tables from the engine files in `scripts/engine-data/`, checking each table against its source; `--check` compares the generated file instead of writing it.
+- `bun run generate:engine-break-data` — refresh Chrome's, Safari's and Firefox's checked-in break and grapheme tables from the engine files in `scripts/engine-data/`, checking each table against its source; `--check` compares the generated file instead of writing it. After refreshing a grapheme table, run the grapheme check in each browser (below).
 - `bun run generate:webkit-generic-families` — refresh the families Safari draws `serif`, `sans-serif`, `cursive`, `fantasy` and `monospace` in under each page language, from WebKit's language-to-script map and Core Text's answers on macOS and iOS in `scripts/engine-data/safari-27.0/`; `--check` compares instead of writing
 
 ### Browser Accuracy And Benchmarking
@@ -39,6 +39,7 @@ known-failure reporting, native observation limits and reproducible case IDs.
 - `bun run probe-check --text='...' --width=320 --font='18px serif'` — one-paragraph browser diagnostic; also `--browser=safari`, `--method=span|range`, `--whiteSpace=pre-wrap`, `--wordBreak=keep-all`, `--lang`, `--dir=rtl`
 - `bun run font-probe --browser=chrome --output=/tmp/font-probe.json` — optional Shantell Sans and font-language diagnostic; also accepts `safari` and `firefox`. See [FONT_DIAGNOSTICS.md](FONT_DIAGNOSTICS.md).
 - `bun run probe:arabic-joining --output=/tmp/pretext-ff-arabic --font=arial-16 --limit=20` — Firefox-only joined-Arabic study; see [FONT_DIAGNOSTICS.md](FONT_DIAGNOSTICS.md).
+- `bun scripts/grapheme-check/build.ts`, then `bun scripts/grapheme-check/run.ts --browser=chrome` — compare `src/graphemes.ts` with the browser's own `Intl.Segmenter` on every code point in contexts that tell the grapheme classes apart, the corpora and suite texts with their prepared segments, and random strings, under the table the engine profile takes and the other one; also `safari` and `firefox`, in the background. `ENGINE=webkit bun scripts/grapheme-check/offline.ts` runs it under Bun or Node.
 
 Failed benchmark reports retain their evidence in `<output>.failed.json`, or under
 `.artifacts/benchmarks/` when no output path was requested.

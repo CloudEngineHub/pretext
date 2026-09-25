@@ -230,6 +230,32 @@ language doesn't: under a zh-CN UI, `16px "PingFang TC"` halts the `。` of `。
 page and not in such a Canvas. So the Chromium profile gives its context that locale
 on a page without a language. ENGINE_FOLLOWUPS.md lists the deliberate differences.
 
+## Grapheme Clusters From Engine Data
+
+Emergency breaks, letter spacing, emoji correction, line text and Gecko's cluster starts
+take grapheme clusters from `src/graphemes.ts`, not `Intl.Segmenter`. It reads ICU's
+character rules, `char.brk`, as Chrome 153 (ICU 78.2) and libicucore 78.1 ship them, in one
+pass. Their forward table accepts in every state but the start state and a look-ahead state
+after a regional indicator pair, which is entered only one code point after the position it
+returns, so a cluster ends right before the code point whose transition stops or enters that
+state, and the next cluster starts there from the start state. The generator checks that
+shape. The two tables share their states; libicucore's trie adds Apple's transcoding hints
+U+F870-U+F87F, U+F884-U+F899 and U+F89F to Extend, and the WebKit profile takes it. Firefox
+156's ICU4X grapheme data puts every code point in the same 18 classes as Chrome's table, and
+ICU4X's iterator ends clusters where ICU's does on all 2 million strings of up to five code
+points taking one per class and on a million random longer ones, so the Gecko profile takes
+Chrome's table. Below U+0300 only CR and LF share a cluster, so the Gecko scan skips words of
+such units; its `Intl.Segmenter` probes had skipped every word without a unit that may join.
+
+In each installed browser the table its profile takes gives `Intl.Segmenter`'s clusters on
+every code point in 14 contexts that tell the classes apart (15.6 million strings), on the
+9,323 corpus paragraphs and suite texts and the 1.3 million segments `prepareWithSegments()`
+makes of them, and on 200,000 random strings over the classes (`scripts/grapheme-check/`).
+The other table differs only at Apple's 39 hints. Node 23's ICU 77.1 (Unicode 16) differs on
+1,417 code points, among them Unicode 17's conjunct consonants and linkers in Myanmar, Khmer,
+Tai Tham and Balinese, and on 61 of those texts, so an engine on another Unicode version
+needs its own table.
+
 ## Breaks And Source Positions
 
 Storage segments, measurement spans, ordinary break opportunities and emergency
