@@ -254,9 +254,13 @@ makes of them, and on 200,000 random strings over the classes (`scripts/grapheme
 The other table differs only at Apple's 39 hints. A second fuzz of 20.6 million strings in
 each browser, with emoji sequences, Unicode 16 and 17's new scripts, lone surrogates,
 clusters up to 70,000 code units long, sub-ranges and counting only, found no difference.
-Node 23's ICU 77.1 (Unicode 16) differs on 1,417 code points, among them Unicode 17's
-conjunct consonants and linkers in Myanmar, Khmer, Tai Tham and Balinese, and on 61 of those
-texts, so an engine on another Unicode version needs its own table.
+Node 23's ICU 77.1 (Unicode 16) differs on 1,417 code points and on 61 of those texts, so an
+engine on another Unicode version needs its own table. 689 of those code points, the largest
+group, are symbols Unicode 17 took out of Extended_Pictographic, such as U+2605, the chess
+symbols from U+2654, the dice and the mahjong, domino and playing cards, which no longer join
+a ZWJ sequence: U+2654 ZWJ U+2654 is one cluster in Unicode 16 and two in 17. 686 are
+consonants and linkers in 14 scripts whose conjuncts Unicode 17 joins, among them Myanmar,
+Khmer, Tai Tham, Balinese, Javanese and Sundanese, and 42 are characters new in Unicode 17.
 
 With graphemes from the tables, `Intl.Segmenter` is left only for words inside the runs the
 scans break by dictionary: Thai, Lao, Khmer and Myanmar, and in the Blink and WebKit scans
@@ -1436,7 +1440,9 @@ reason still holds, and record the new decision here with its date.
   were the largest part of preparing new text in Chrome and Safari. The rules give
   each browser's clusters today, Firefox's included, but don't follow a browser to
   another Unicode version: one a version behind would differ on about 1,417 code
-  points, mostly conjuncts in Myanmar, Khmer, Tai Tham and Balinese. They are
+  points, about half of them symbols such as chess pieces and playing cards that
+  Unicode 17 took out of Extended_Pictographic and most of the rest conjuncts in
+  Myanmar, Khmer, Javanese and 11 other scripts. They are
   refreshed with the line tables, which are fixed the same way, when browsers move
   to Unicode 18. The tables add about 4 KB gzipped.
 - **2026-09-24: Safari's generic families come from a generated Core Text table**,

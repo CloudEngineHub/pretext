@@ -3,7 +3,7 @@
 // - every code point in contexts that tell the classes of the character rules apart;
 // - every corpus paragraph and suite text, whole, and the segments prepareWithSegments() makes;
 // - random strings of code points drawn from two to five random classes.
-// page.ts runs it in a browser; offline.ts under Bun or Node.
+// page.ts runs it in a browser; offline.ts under Bun, or under Node once bundled.
 import type { CharTable } from '../../src/generated/engine-break-data.ts'
 import { findGraphemeEnds } from '../../src/graphemes.ts'
 import { prepareWithSegments } from '../../src/layout.ts'
