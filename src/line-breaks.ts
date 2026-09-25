@@ -223,7 +223,7 @@ const START = 1
 const END = 2
 
 // The state ICU's RuleBasedBreakIterator keeps over one text.
-export type RuleBreakIterator = {
+type RuleBreakIterator = {
   readonly rules: BreakRules
   // Characters in dictionary categories since the last boundary (rbbi.cpp:854), which
   // is when ICU would hand the segment to a dictionary (rbbi_cache.cpp:486-489).
