@@ -17,6 +17,63 @@ All accuracy, letter-spacing and corpus result payloads are unchanged; refreshed
 snapshots change only provenance and environment records. Runtime sources and
 the baseline pin are unchanged, so no runtime benchmark was needed.
 
+## Grapheme clusters from the engines' character rules
+
+This runtime change starts from main `f26640e` (#340). Grapheme clusters come
+from Chrome 153's and libicucore 78.1's ICU character rules (`src/graphemes.ts`)
+instead of `Intl.Segmenter`; the Gecko scan sets up each shaped word's clusters
+with them; the word segmenter is created only when a dictionary run shows up;
+and the full walker reads a pending soft hyphen from the segment before its
+break instead of keeping a flag.
+
+Main and this branch were compared on prepared data and every line and
+rich-inline API: `layout()`, `layoutWithLines()`, `walkLineRanges()`,
+`materializeLineRange()`, `measureLineStats()`, `measureNaturalWidth()`,
+`layoutNextLine()` and `layoutNextLineRange()` with a width that changes per
+line, and rich inline's walk, materialized lines, stats and streamed ranges. The
+inputs are every browser's full-suite texts and items with their options and page
+languages, every corpus paragraph in both white-space modes with and without
+letter spacing, and 6,000 fuzz-built texts in five option sets, 215,585 inputs,
+929,997 widths and 17,827 rich-inline inputs per profile. Offline under Bun, in
+the Blink, WebKit, Gecko and unknown-engine profiles, nothing differs, and each
+profile makes the same `measureText()` calls in the same order (1,742,288,
+2,073,699, 1,801,823 and 1,661,215) and the same emoji-span reads. The comparison
+catches a subtle change: splitting a surrogate pair that ends a range changes
+3,609 of 21,559 inputs. With real Canvas, over each browser's suite and 2,000
+fuzz-built texts, nothing differs in Chrome 153 (195,884 inputs, 701,366
+`measureText()` calls each), Safari 27.0 (195,857, 908,545) or Firefox 156
+(195,810, 757,584).
+
+`scripts/grapheme-check/` finds the profile's table giving each browser's
+`Intl.Segmenter` clusters on all 15.6 million code point strings, 9,323 texts,
+about 1.3 million prepared segments and 200,000 random strings in Chrome, Safari
+and Firefox, the other table differing only at Apple's transcoding hints. A
+second fuzz of 20,613,875 strings per browser found no difference either. For the
+pending soft hyphen, an instrumented walker compared the flag it kept with the
+segment's kind at every line end with a pending break over the same inputs:
+about 12 million line ends per profile, a million after a soft hyphen, and no
+disagreement.
+
+The ordinary snapshots were regenerated in Chrome 153, Safari 27.0 and Firefox
+156, both directions, with no regressions, required failures or execution errors,
+and no fixed or lost row against main; only provenance and environments change.
+Accuracy stays 7,680 of 7,680 in each browser and letter spacing 28 of 28, and
+the corpus sweeps stay 1,093, 1,098 and 1,098 of 1,098.
+
+Chrome and Safari benchmark snapshots were refreshed from `88df2ca`: three
+foreground runs each at DPR 2, visible and focused, on the 2560x1440 screen, while
+other jobs used the machine. Every shape row makes the same Canvas calls as in
+main's snapshots. Chrome's DOM rows read as main's (2.20ms and 27.65ms, against
+2.20 and 27.4), and there `prepare()` reads 2.80ms (3.00), the fresh-sentences
+row's first batch 9.10ms (15.5) and its cold batches 6.67ms (11.6), letter-spaced
+CJK seen before 2.01ms (14.75), the long-form corpus total 42.7ms (63.5) and hot
+`layout()` 0.0215ms (0.022). Safari's run met a busier machine: its DOM rows,
+which don't run Pretext, read 37 and 112ms against 23 and 72, and hot `layout()`,
+which this change leaves alone, 0.035ms against 0.0225, so compare the
+same-document numbers there.
+
+RESEARCH.md has the same-document `prepare()` timing against main.
+
 ## Each browser's own line breaker
 
 This runtime change starts from main `b17a7ac` (#338). Chrome, Safari and Firefox
