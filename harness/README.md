@@ -13,9 +13,10 @@ bun harness explain <id>                 # one case's recorded lines against the
 ```
 
 Every command takes `--browser=chrome|firefox|webkit-host|safari` (several with commas; default Chrome, Firefox and
-webkit-host side by side), `--cases=<file.ndjson>` in place of `harness/cases/*.ndjson`, and `--lib=<dir>` to predict with
-another build's `src/`. `record` and `gate` draw with `--seed=<n>`, 20260924 by default, so a gate's result doesn't depend
-on the clock. `bun test harness` runs the offline tests.
+webkit-host side by side, and Chrome for `explain`, which takes one), `--cases=<file.ndjson>` in place of
+`harness/cases/*.ndjson`, and `--lib=<dir>` to predict with another build's `src/`. `record` and `gate` draw with
+`--seed=<n>`, 20260924 by default, so a gate's result doesn't depend on the clock. `bun test harness` runs the offline
+tests.
 
 ## How a case is judged
 
@@ -80,16 +81,17 @@ The gate adds three checks:
   that differs is recorded twice more, alone in a document of its own, in the sample's order and then in reverse. It
   blocks only where the browser lays a case out differently from the recording every time: the recordings no longer
   describe the browser. A case laid out as recorded in some attempt depends on the cases before it: page history the
-  recordings missed, which the gate moves to the page-history list, as `record` would, for the next check not to pin.
-  Commit the changed recordings. Ranked by id, a case leaving the pinned set changes the sample by one case.
+  recordings missed, which the gate moves to the page-history list, as `record` would, for the next check not to pin,
+  and off the accepted list. Commit the changed files. Ranked by id, a case leaving the pinned set changes the sample by
+  one case.
 - **Attribution:** each new failure is recorded alone (page history if that differs) and predicted alone twice. Two lone
   predictions that differ vary between runs; lone predictions that agree but differ from the check's depend on what was
   predicted before. A lone prediction can't tell the library's caches from the browser's Canvas state, so neither is
   called a library defect: the browser's go on the varying list with a reason. Otherwise the failure is a true loss,
   printed with its family, width band and first differing line.
 
-What each piece catches, as an app developer would see it. `bun test harness` plants each fault except the Firefox hold,
-which needs a browser:
+What each piece catches, as an app developer would see it. `bun test harness` plants each fault, running the commands
+with a stand-in browser, except the Firefox hold, which needs Firefox:
 
 | Piece | Without it |
 |---|---|

@@ -6,7 +6,8 @@
 // record and gate draw with --seed=S (default 20260924).
 //   equal <ref>              whether this tree's src/ and <ref>'s predict the same lines for every case
 //   explain <id>             one case's recorded lines against the predicted ones, character by character
-// --lib=<dir> predicts with another build's src/ directory. Default browsers: chrome, firefox and webkit-host, side by side.
+// --lib=<dir> predicts with another build's src/ directory. Default browsers: chrome, firefox and webkit-host, side by side;
+// explain takes one, chrome by default.
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, readdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
@@ -14,11 +15,11 @@ import {
   accept, attribute, checkBlocks, freshRecordings, gateBlocks, gateSample, headline, judge, observable, outsideClaims, pinning, predictionChange, reverseOrder, score, SEED,
   shown, shrinkWrapShort, widthBand, type Outcome,
 } from './score.ts'
-import { LIB, runJob, type Mode } from './run.ts'
+import { LIB, runJob, type Job, type JobResult, type Mode } from './run.ts'
 import { createRng } from './sets/build.ts'
 import {
   acceptedPath, assertSameEnvironment, caseText, historyPath, readAccepted, readCases, readHistory, readRecordings, readVarying, recordingText,
-  recordingsPath, splitHistory, varyingPath, writeAccepted, writeHistory, writeRecordings, type Varying,
+  recordingsPath, splitHistory, varyingPath, writeAccepted, writeHistory, writeRecordings, type Accepted, type Varying,
 } from './store.ts'
 import { BROWSERS, type BrowserKind, type Case, type Prediction, type Recording } from './types.ts'
 
@@ -28,21 +29,33 @@ const ALONE = 1
 const WHOLE = Number.MAX_SAFE_INTEGER
 const ATTRIBUTE_AT_MOST = 200
 
-const args = process.argv.slice(2)
-const flags = new Map<string, string>()
-const positional: string[] = []
-for (let i = 0; i < args.length; i++) {
-  const match = /^--([a-z-]+)(?:=(.*))?$/s.exec(args[i]!)
-  if (match === null) positional.push(args[i]!)
-  else flags.set(match[1]!, match[2] ?? '')
+// What the flags ask for. `sample`: --sample's count, or null. `partial`: the run covers some case files only (--cases),
+// so it leaves the other cases' entries alone.
+export type Options = { lib: string; seed: number; sample: number | null; accept: string; partial: boolean; onlyNew: boolean }
+export type Args = { command: string | undefined; positional: string[]; browsers: BrowserKind[]; cases: string | null; options: Options }
+
+export function parseArgs(args: readonly string[]): Args {
+  const flags = new Map<string, string>()
+  const positional: string[] = []
+  for (let i = 0; i < args.length; i++) {
+    const match = /^--([a-z-]+)(?:=(.*))?$/s.exec(args[i]!)
+    if (match === null) positional.push(args[i]!)
+    else flags.set(match[1]!, match[2] ?? '')
+  }
+  const command = positional[0]
+  const browserFlag = flags.get('browser') ?? (command === 'explain' ? 'chrome' : 'all')
+  const browsers: BrowserKind[] = browserFlag === 'all' ? ['chrome', 'firefox', 'webkit-host'] : browserFlag.split(',') as BrowserKind[]
+  for (let i = 0; i < browsers.length; i++) if (!BROWSERS.includes(browsers[i]!)) throw new Error(`Unknown browser ${browsers[i]}`)
+  const options: Options = {
+    lib: resolve(flags.get('lib') ?? LIB), seed: Number(flags.get('seed') ?? SEED), sample: flags.has('sample') ? Number(flags.get('sample')) : null,
+    accept: flags.get('accept') ?? '', partial: flags.has('cases'), onlyNew: flags.has('only-new'),
+  }
+  return { command, positional, browsers, cases: flags.get('cases') ?? null, options }
 }
-const command = positional[0]
-const browserFlag = flags.get('browser') ?? (command === 'explain' ? 'chrome' : 'all')
-const browsers: BrowserKind[] = browserFlag === 'all' ? ['chrome', 'firefox', 'webkit-host'] : browserFlag.split(',') as BrowserKind[]
-for (let i = 0; i < browsers.length; i++) if (!BROWSERS.includes(browsers[i]!)) throw new Error(`Unknown browser ${browsers[i]}`)
-const lib = resolve(flags.get('lib') ?? LIB)
-const seed = Number(flags.get('seed') ?? SEED)
-const CASE_FILES = readdirSync(join(import.meta.dir, 'cases')).filter(name => name.endsWith('.ndjson')).sort().map(name => join(import.meta.dir, 'cases', name))
+
+// Where a command reads and writes the harness's files, how it runs a job in a browser, and where it prints. The tests
+// give it a folder of their own and a stand-in browser.
+export type Io = { root: string; run: <T extends Recording | Prediction>(job: Job) => Promise<JobResult<T>>; log: (text: string) => void }
 
 function loadCases(files: readonly string[]): Case[] {
   const cases: Case[] = []
@@ -86,32 +99,32 @@ function shuffled<T>(list: T[], seed: number): T[] {
 
 // ---- record ----
 
-async function record(browser: BrowserKind, cases: Case[]): Promise<number> {
-  const old = readRecordings(recordingsPath(browser))
-  const oldHistory = readHistory(historyPath(browser))
+export async function record(browser: BrowserKind, cases: Case[], o: Options, io: Io): Promise<void> {
+  const old = readRecordings(recordingsPath(io.root, browser))
+  const oldHistory = readHistory(historyPath(io.root, browser))
   let list = cases.filter(c => applies(c, browser))
-  if (flags.has('only-new')) list = list.filter(c => old?.recordings.has(c.id) !== true && oldHistory?.cases.has(c.id) !== true)
+  if (o.onlyNew) list = list.filter(c => old?.recordings.has(c.id) !== true && oldHistory?.cases.has(c.id) !== true)
   let sorted = list.slice().sort((a, b) => (a.id < b.id ? -1 : 1))
   // A seeded sample of every set, for installed Safari, whose window has to stay uncovered while it records.
-  if (flags.has('sample')) sorted = shuffled(sorted, seed).slice(0, Number(flags.get('sample'))).sort((a, b) => (a.id < b.id ? -1 : 1))
+  if (o.sample !== null) sorted = shuffled(sorted, o.seed).slice(0, o.sample).sort((a, b) => (a.id < b.id ? -1 : 1))
   // One browser instance at a time per browser. The second order is shuffled, so each case sits among other cases in
   // other documents, as in the gate's fresh recording.
-  const a = await runJob<Recording>({ browser, mode: 'record', cases: sorted, documentSize: RECORD_DOCUMENT, lib })
-  const b = await runJob<Recording>({ browser, mode: 'record', cases: shuffled(sorted, seed + 1), documentSize: RECORD_DOCUMENT, lib })
+  const a = await io.run<Recording>({ browser, mode: 'record', cases: sorted, documentSize: RECORD_DOCUMENT, lib: o.lib })
+  const b = await io.run<Recording>({ browser, mode: 'record', cases: shuffled(sorted, o.seed + 1), documentSize: RECORD_DOCUMENT, lib: o.lib })
   if (a.env !== b.env) throw new Error(`The environment changed between the two recordings: ${a.env} | ${b.env}`)
   // Recording some cases (--only-new, --cases, --sample) keeps the other recordings, which must share the environment.
-  const merge = (flags.has('only-new') || flags.has('cases') || flags.has('sample')) && old !== null
+  const merge = (o.onlyNew || o.partial || o.sample !== null) && old !== null
   if (merge && old.env !== a.env) throw new Error(`${browser}: the other recordings were made under ${old.env}; record every case`)
   const sameEnv = old !== null && old.env === a.env
   const prior = sameEnv ? { recordings: new Map(old.recordings), history: new Map(oldHistory?.cases ?? []) } : null
   const recordings = merge ? old.recordings : new Map<string, Recording>()
   const history = merge ? oldHistory?.cases ?? new Map<string, [Recording, Recording]>() : new Map<string, [Recording, Recording]>()
   const moved = splitHistory(sorted.map(c => c.id), a.results, b.results, recordings, history, prior)
-  mkdirSync(join(import.meta.dir, 'recordings'), { recursive: true })
-  writeRecordings(recordingsPath(browser), { env: a.env, recordings })
-  writeHistory(historyPath(browser), { env: a.env, cases: history })
-  console.log(`${browser}: recorded ${sorted.length} cases in sorted and shuffled (seed ${seed + 1}) order, ${((a.ms + b.ms) / 2000).toFixed(0)} s each; ${history.size} with page history; ${a.env}`)
-  if (sameEnv) console.log(`${browser}: ${moved} cases laid out differently from the stored recordings of this environment, now page history`)
+  mkdirSync(join(io.root, 'recordings'), { recursive: true })
+  writeRecordings(recordingsPath(io.root, browser), { env: a.env, recordings })
+  writeHistory(historyPath(io.root, browser), { env: a.env, cases: history })
+  io.log(`${browser}: recorded ${sorted.length} cases in sorted and shuffled (seed ${o.seed + 1}) order, ${((a.ms + b.ms) / 2000).toFixed(0)} s each; ${history.size} with page history; ${a.env}`)
+  if (sameEnv) io.log(`${browser}: ${moved} cases laid out differently from the stored recordings of this environment, now page history`)
   // What the browser changed since the last recording, by family and width band.
   if (old !== null && !sameEnv) {
     const changed = new Map<string, number>()
@@ -125,11 +138,10 @@ async function record(browser: BrowserKind, cases: Case[]): Promise<number> {
       changed.set(key, (changed.get(key) ?? 0) + 1)
       count++
     }
-    console.log(`${browser}: ${count} recordings changed since ${old.env}`)
+    io.log(`${browser}: ${count} recordings changed since ${old.env}`)
     const rows = [...changed].sort((x, y) => y[1] - x[1])
-    for (let i = 0; i < rows.length && i < 30; i++) console.log(`  ${rows[i]![1]}  ${rows[i]![0]}`)
+    for (let i = 0; i < rows.length && i < 30; i++) io.log(`  ${rows[i]![1]}  ${rows[i]![0]}`)
   }
-  return 0
 }
 
 // ---- check and gate ----
@@ -141,6 +153,7 @@ type Scored = {
   // Every case this browser takes, the pinned ones first.
   predicted: Case[]
   varying: Varying
+  accepted: Accepted
   recordings: Map<string, Recording>
   history: Map<string, [Recording, Recording]>
   predictions: Map<string, Prediction>
@@ -149,19 +162,19 @@ type Scored = {
   blocked: boolean
 }
 
-async function check(browser: BrowserKind, cases: Case[]): Promise<Scored> {
-  const recorded = readRecordings(recordingsPath(browser))
+export async function check(browser: BrowserKind, cases: Case[], o: Options, io: Io): Promise<Scored> {
+  const recorded = readRecordings(recordingsPath(io.root, browser))
   if (recorded === null) throw new Error(`${browser}: no recordings; run record first`)
-  const history = readHistory(historyPath(browser))?.cases ?? new Map<string, [Recording, Recording]>()
-  const path = acceptedPath(browser)
+  const history = readHistory(historyPath(io.root, browser))?.cases ?? new Map<string, [Recording, Recording]>()
+  const path = acceptedPath(io.root, browser)
   const accepted = readAccepted(path)
-  const varying = readVarying(varyingPath(browser))
+  const varying = readVarying(varyingPath(io.root, browser))
   const mine = cases.filter(c => applies(c, browser))
   const ids = new Set<string>()
   for (let i = 0; i < mine.length; i++) ids.add(mine[i]!.id)
   const plan = pinning(browser, mine, recorded.recordings, history)
   const pinned = plan.pinned
-  const job = await runJob<Prediction>({ browser, mode: 'predict', cases: plan.predicted, documentSize: WHOLE, lib })
+  const job = await io.run<Prediction>({ browser, mode: 'predict', cases: plan.predicted, documentSize: WHOLE, lib: o.lib })
   if (pinned.length > 0) assertSameEnvironment(browser, recorded.env, job.env)
   const counts = { pass: 0, count: 0, breaks: 0, error: 0 }
   const outcomes = new Map<string, Outcome>()
@@ -208,15 +221,12 @@ async function check(browser: BrowserKind, cases: Case[]): Promise<Scored> {
     }
     if (outcome.status === 'pass' && shrinkWrapShort(recording, prediction)) shortBubbles++
   }
-  // A run over some case files leaves the other cases' entries alone.
-  const partial = flags.has('cases')
-  const verdict = judge(outcomes, accepted, varying, ids, partial)
-  const acceptReason = flags.get('accept') ?? ''
-  const updated = acceptReason !== ''
+  const verdict = judge(outcomes, accepted, varying, ids, o.partial)
+  const updated = o.accept !== ''
   if (updated) {
-    mkdirSync(join(import.meta.dir, 'accepted'), { recursive: true })
-    writeAccepted(path, accept(outcomes, accepted, acceptReason, varying, ids, partial))
-    console.log(`${browser}: accepted ${verdict.newFailures.length} new failures as "${acceptReason}", dropped ${verdict.fixed.length} entries`)
+    mkdirSync(join(io.root, 'accepted'), { recursive: true })
+    writeAccepted(path, accept(outcomes, accepted, o.accept, varying, ids, o.partial))
+    io.log(`${browser}: accepted ${verdict.newFailures.length} new failures as "${o.accept}", dropped ${verdict.fixed.length} entries`)
   }
 
   const out: string[] = []
@@ -251,21 +261,19 @@ async function check(browser: BrowserKind, cases: Case[]): Promise<Scored> {
   out.push(`  Canvas: ${units === 0 ? '-' : (1000 * calls / units).toFixed(1)} measureText calls per 1,000 units while preparing`)
   const blocks = checkBlocks(browser, job.results, plan.unrecorded, verdict, updated, id => describe(byId.get(id)!, outcomes.get(id)!))
   for (let i = 0; i < blocks.length; i++) out.push(`  ${blocks[i]}`)
-  console.log(out.join('\n'))
+  io.log(out.join('\n'))
   const newFailures: Case[] = []
   for (let i = 0; !updated && i < verdict.newFailures.length; i++) newFailures.push(byId.get(verdict.newFailures[i]!)!)
   return {
-    browser, env: recorded.env, pinned, predicted: plan.predicted, varying, recordings: recorded.recordings, history, predictions: job.results, outcomes, newFailures,
+    browser, env: recorded.env, pinned, predicted: plan.predicted, varying, accepted, recordings: recorded.recordings, history, predictions: job.results, outcomes, newFailures,
     blocked: blocks.length > 0,
   }
 }
 
-function job<T extends Recording | Prediction>(browser: BrowserKind, mode: Mode, cases: Case[], documentSize: number): Promise<Map<string, T>> {
-  return runJob<T>({ browser, mode, cases, documentSize, lib }).then(result => result.results)
-}
-
-async function gate(browser: BrowserKind, cases: Case[]): Promise<boolean> {
-  const scored = await check(browser, cases)
+export async function gate(browser: BrowserKind, cases: Case[], o: Options, io: Io): Promise<boolean> {
+  const job = <T extends Recording | Prediction>(mode: Mode, list: Case[], documentSize: number): Promise<Map<string, T>> =>
+    io.run<T>({ browser, mode, cases: list, documentSize, lib: o.lib }).then(result => result.results)
+  const scored = await check(browser, cases, o, io)
   const ids = scored.pinned.map(c => c.id)
   const out: string[] = []
   // The same predictions in reverse order, the pinned cases first: moved breaks mean results depend on what was
@@ -273,30 +281,33 @@ async function gate(browser: BrowserKind, cases: Case[]): Promise<boolean> {
   // (PLATFORM_BUGS.md), in main too; they only reach the shrink-wrap check, which reports. A case whose breaks the
   // browser's state moves is listed in harness/varying.
   const others = scored.predicted.slice(scored.pinned.length)
-  const reverse = await job<Prediction>(browser, 'predict', scored.pinned.slice().reverse().concat(others.reverse()), WHOLE)
+  const reverse = await job<Prediction>('predict', scored.pinned.slice().reverse().concat(others.reverse()), WHOLE)
   const order = reverseOrder(ids, scored.predictions, reverse, scored.varying)
   if (order.widths.length > 0) out.push(`  ${order.widths.length} predictions change only their line widths in reverse order (report only): ${shown(order.widths)}`)
   if (order.listed.length > 0) out.push(`  ${order.listed.length} varying predictions break differently in reverse order (listed, not blocking)`)
   // A fresh recording of a seeded sample, then each case that differs alone, in forward and in reverse order: blocks
   // where the browser lays it out differently from the recording every time.
-  const sample = gateSample(scored.pinned, seed, Number(flags.get('sample') ?? 1000))
-  const first = await runJob<Recording>({ browser, mode: 'record', cases: sample, documentSize: RECORD_DOCUMENT, lib })
+  const sample = gateSample(scored.pinned, o.seed, o.sample ?? 1000)
+  const first = await io.run<Recording>({ browser, mode: 'record', cases: sample, documentSize: RECORD_DOCUMENT, lib: o.lib })
   if (sample.length > 0) assertSameEnvironment(browser, scored.env, first.env)
   const attempts = [first.results]
   const differ = sample.filter(c => recordingText(first.results.get(c.id)!) !== recordingText(scored.recordings.get(c.id)!))
   if (differ.length > 0) {
-    attempts.push(await job<Recording>(browser, 'record', differ, ALONE))
-    attempts.push(await job<Recording>(browser, 'record', differ.slice().reverse(), ALONE))
+    attempts.push(await job<Recording>('record', differ, ALONE))
+    attempts.push(await job<Recording>('record', differ.slice().reverse(), ALONE))
   }
   const fresh = freshRecordings(sample.map(c => c.id), scored.recordings, attempts)
-  out.push(`  ${sample.length} cases recorded again (seed ${seed}): ${differ.length} differ from the recordings, ${fresh.history.length} of them laid out as recorded when alone`)
+  out.push(`  ${sample.length} cases recorded again (seed ${o.seed}): ${differ.length} differ from the recordings, ${fresh.history.length} of them laid out as recorded when alone`)
   // Those depend on the cases before them: page history the recordings missed, which goes on the page-history list as
-  // record would put it, so check stops pinning them.
+  // record would put it, so check stops pinning them. An accepted entry of one leaves the list in the same write, since
+  // the next check would block on an accepted case no longer pinned.
   if (fresh.history.length > 0) {
     splitHistory(fresh.history, first.results, first.results, scored.recordings, scored.history, { recordings: new Map(scored.recordings), history: new Map(scored.history) })
-    writeRecordings(recordingsPath(browser), { env: scored.env, recordings: scored.recordings })
-    writeHistory(historyPath(browser), { env: scored.env, cases: scored.history })
-    out.push(`  ${fresh.history.length} moved to recordings/${browser}.history.txt as page history (not blocking; commit it): ${shown(fresh.history)}`)
+    writeRecordings(recordingsPath(io.root, browser), { env: scored.env, recordings: scored.recordings })
+    writeHistory(historyPath(io.root, browser), { env: scored.env, cases: scored.history })
+    const unaccepted = fresh.history.filter(id => scored.accepted.delete(id))
+    if (unaccepted.length > 0) writeAccepted(acceptedPath(io.root, browser), scored.accepted)
+    out.push(`  ${fresh.history.length} moved to recordings/${browser}.history.txt as page history, ${unaccepted.length} of them off accepted/${browser}.txt (not blocking; commit it): ${shown(fresh.history)}`)
   }
   const blocks = gateBlocks(order, reverse, fresh)
   for (let i = 0; i < blocks.length; i++) out.push(`  ${blocks[i]}`)
@@ -304,8 +315,8 @@ async function gate(browser: BrowserKind, cases: Case[]): Promise<boolean> {
   const failures = scored.newFailures.slice(0, ATTRIBUTE_AT_MOST)
   if (scored.newFailures.length > ATTRIBUTE_AT_MOST) out.push(`  ${scored.newFailures.length} new failures; attributing the first ${ATTRIBUTE_AT_MOST} (more than that usually means the change is wrong)`)
   if (failures.length > 0) {
-    const alone = await job<Recording>(browser, 'record', failures, ALONE)
-    const predicted = [await job<Prediction>(browser, 'predict', failures, ALONE), await job<Prediction>(browser, 'predict', failures, ALONE)] as const
+    const alone = await job<Recording>('record', failures, ALONE)
+    const predicted = [await job<Prediction>('predict', failures, ALONE), await job<Prediction>('predict', failures, ALONE)] as const
     out.push(`  attribution of ${failures.length} new failures (a prediction that moves may be the library's caches or the browser's Canvas state; the browser's go in harness/varying with a reason)`)
     for (let i = 0; i < failures.length; i++) {
       const c = failures[i]!
@@ -313,13 +324,13 @@ async function gate(browser: BrowserKind, cases: Case[]): Promise<boolean> {
       out.push(`    ${verdict}  ${describe(c, scored.outcomes.get(c.id)!)}`)
     }
   }
-  console.log(`${browser} gate:\n${out.join('\n')}`)
+  io.log(`${browser} gate:\n${out.join('\n')}`)
   return scored.blocked || blocks.length > 0
 }
 
 // ---- equal and explain ----
 
-async function equal(browser: BrowserKind, cases: Case[], ref: string): Promise<boolean> {
+async function equal(browser: BrowserKind, cases: Case[], ref: string, lib: string): Promise<boolean> {
   const sha = execFileSync('git', ['rev-parse', ref], { encoding: 'utf8' }).trim()
   const dir = resolve(import.meta.dir, `../.artifacts/harness-equal/${sha}`)
   mkdirSync(dir, { recursive: true })
@@ -341,10 +352,10 @@ async function equal(browser: BrowserKind, cases: Case[], ref: string): Promise<
   return differ.length > 0
 }
 
-async function explain(browser: BrowserKind, cases: Case[], id: string): Promise<void> {
+async function explain(browser: BrowserKind, cases: Case[], id: string, lib: string): Promise<void> {
   const c = cases.find(x => x.id === id)
   if (c === undefined) throw new Error(`No case ${id}`)
-  const recording = readRecordings(recordingsPath(browser))?.recordings.get(id) ?? readHistory(historyPath(browser))?.cases.get(id)?.[0]
+  const recording = readRecordings(recordingsPath(import.meta.dir, browser))?.recordings.get(id) ?? readHistory(historyPath(import.meta.dir, browser))?.cases.get(id)?.[0]
   if (recording === undefined) throw new Error(`${browser} has no recording of ${id}`)
   if ('error' in recording) throw new Error(`${browser} couldn't record ${id}: ${recording.error}`)
   const job = await runJob<Prediction>({ browser, mode: 'predict', cases: [c], documentSize: ALONE, lib })
@@ -381,27 +392,30 @@ async function explain(browser: BrowserKind, cases: Case[], id: string): Promise
 }
 
 async function main(): Promise<number> {
-  const cases = loadCases(flags.has('cases') ? [flags.get('cases')!] : CASE_FILES)
+  const { command, positional, browsers, cases: file, options: o } = parseArgs(process.argv.slice(2))
+  const dir = join(import.meta.dir, 'cases')
+  const cases = loadCases(file !== null ? [file] : readdirSync(dir).filter(name => name.endsWith('.ndjson')).sort().map(name => join(dir, name)))
+  const io: Io = { root: import.meta.dir, run: runJob, log: text => console.log(text) }
   switch (command) {
     case 'record':
-      await Promise.all(browsers.map(b => record(b, cases)))
+      await Promise.all(browsers.map(b => record(b, cases, o, io)))
       return 0
     case 'check': {
-      const results = await Promise.all(browsers.map(b => check(b, cases)))
+      const results = await Promise.all(browsers.map(b => check(b, cases, o, io)))
       return results.some(r => r.blocked) ? 1 : 0
     }
     case 'gate': {
-      const blocked = await Promise.all(browsers.map(b => gate(b, cases)))
+      const blocked = await Promise.all(browsers.map(b => gate(b, cases, o, io)))
       return blocked.some(Boolean) ? 1 : 0
     }
     case 'equal': {
       if (positional[1] === undefined) throw new Error('equal needs a git ref')
-      const differ = await Promise.all(browsers.map(b => equal(b, cases, positional[1]!)))
+      const differ = await Promise.all(browsers.map(b => equal(b, cases, positional[1]!, o.lib)))
       return differ.some(Boolean) ? 1 : 0
     }
     case 'explain':
       if (positional[1] === undefined) throw new Error('explain needs a case id')
-      await explain(browsers[0]!, cases, positional[1])
+      await explain(browsers[0]!, cases, positional[1], o.lib)
       return 0
     default:
       console.error('Usage: bun harness record|check|gate|equal <ref>|explain <id> [--browser=...] [--cases=...] [--lib=...]')
@@ -409,4 +423,4 @@ async function main(): Promise<number> {
   }
 }
 
-process.exit(await main())
+if (import.meta.main) process.exit(await main())

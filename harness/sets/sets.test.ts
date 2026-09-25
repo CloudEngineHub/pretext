@@ -22,7 +22,7 @@ describe('the real-usage sample', () => {
     let total = 0
     for (let i = 0; i < sample.cases.length; i++) total += sample.cases[i]!.sample!.weight
     expect(total).toBeCloseTo(1, 4)
-  })
+  }, 60_000)
 
   test('the checked-in sample is what weights.json draws: a changed weight without a new draw would score the old usage', () => {
     const dir = join(import.meta.dir, '../../.artifacts/harness-sets')

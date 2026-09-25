@@ -3,13 +3,17 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { check, gate, parseArgs, record, type Io, type Options } from './cli.ts'
 import { groupLines, recordedLines, scanLineEnds, searchLineEnds, type RectsAt } from './observe.ts'
-import { documents } from './run.ts'
+import { documents, type Job } from './run.ts'
 import {
-  accept, attribute, checkBlocks, freshRecordings, gateBlocks, gateSample, judge, libraryFaults, pinning, predictionChange, reverseOrder, score, SEED,
+  accept, attribute, checkBlocks, freshRecordings, gateBlocks, gateSample, headline, judge, libraryFaults, pinning, predictionChange, reverseOrder, score, SEED,
   type Outcome, type Verdict,
 } from './score.ts'
-import { assertSameEnvironment, caseProblem, parseRecording, readRecordings, recordingText, splitHistory, writeRecordings, type Varying } from './store.ts'
+import {
+  acceptedPath, assertSameEnvironment, caseProblem, historyPath, parseRecording, readAccepted, readHistory, readRecordings, recordingsPath, recordingText, splitHistory,
+  varyingPath, writeHistory, writeRecordings, type Varying,
+} from './store.ts'
 import type { Case, Failure, Prediction, Recording, Rect, TextRun } from './types.ts'
 
 // A browser stand-in: the text laid out with a line starting at each of `starts`, every code point 8 px wide (a space 4)
@@ -155,6 +159,13 @@ describe('the pass rule', () => {
     if (!('lines' in shorter)) throw new Error('unreachable')
     shorter.lines[0]!.end = 9
     expect(predictionChange(forward, shorter)).toBe('lines')
+  })
+
+  test('the headline weighs each draw by its share: a rare group topped up to 300 draws would move it far more than it moves real apps', () => {
+    const draws = [{ group: 'chat', weight: 0.9, pass: true }]
+    for (let i = 0; i < 9; i++) draws.push({ group: 'soft hyphens', weight: 0.1 / 9, pass: false })
+    const head = headline(draws)!
+    expect([head.share, head.low, head.high].map(x => x.toFixed(9))).toEqual(['0.900000000', '0.900000000', '0.900000000'])
   })
 })
 
@@ -317,6 +328,7 @@ describe('what blocks', () => {
     expect(sample).toEqual(['case-15', 'case-24', 'case-36', 'case-2', 'case-1'])
     const fewer = gateSample(cases.filter(c => c.id !== sample[1]), SEED, 5).map(c => c.id)
     expect(fewer.filter(id => !sample.includes(id))).toHaveLength(1)
+    expect([parseArgs(['gate']).options.seed, parseArgs(['gate', '--seed=7']).options.seed]).toEqual([SEED, 7])
   })
 
   test('page history, Firefox\'s U+FE0E cases, cases with nothing visible and cases with no recording aren\'t pinned, but every case is predicted, the pinned first: line APIs that disagree on a case with no recording would go unseen', () => {
@@ -376,6 +388,110 @@ describe('the gate and page history of predictions', () => {
     expect(attribute(stored, stored, flipped, [passing, passing])).toBe('depends on what was predicted before')
     expect(attribute(stored, three, flipped, [flipped, flipped])).toBe('page history')
     expect(attribute(stored, stored, flipped, [flipped, flipped])).toBe('true loss')
+  })
+})
+
+// check, the gate and record as `bun harness` runs them, each in a harness folder of its own under .artifacts, with a
+// stand-in browser: what they read, predict, print and write.
+describe('the commands, with a stand-in browser', () => {
+  const laidOut = layOut(TEXT, STARTS).recording
+  const other = layOut(TEXT, [0, 10, 26]).recording
+  const right = predicted(TEXT, STARTS)
+  const wrong = predicted(TEXT, [0, 10, 21, 31])
+  const options: Options = parseArgs([]).options
+  const cases = (ids: string[]): Case[] => ids.map(id => ({ ...paragraphCase(TEXT), id }))
+
+  // Chrome's recordings under the environment 'test', its page history and its lists.
+  function folder(name: string, recordings: Record<string, Recording>, lists: { history?: string[]; accepted?: string; varying?: string } = {}): string {
+    const root = join(import.meta.dir, '../.artifacts/harness-test-commands', name)
+    for (const sub of ['recordings', 'accepted', 'varying']) mkdirSync(join(root, sub), { recursive: true })
+    writeRecordings(recordingsPath(root, 'chrome'), { env: 'test', recordings: new Map(Object.entries(recordings)) })
+    writeHistory(historyPath(root, 'chrome'), { env: 'test', cases: new Map((lists.history ?? []).map(id => [id, [laidOut, other]])) })
+    writeFileSync(acceptedPath(root, 'chrome'), lists.accepted ?? '')
+    writeFileSync(varyingPath(root, 'chrome'), lists.varying ?? '')
+    return root
+  }
+
+  // The browser records `layout(c, job)` for each case of a job, and the page predicts `prediction(c, job)`.
+  function browser(root: string, prediction: (c: Case, job: Job) => Prediction, layout = (_c: Case, _job: Job): Recording => laidOut, env = 'test'): Io & { printed: () => string } {
+    const printed: string[] = []
+    const run = <T extends Recording | Prediction>(job: Job): Promise<{ env: string; results: Map<string, T>; ms: number }> => {
+      const results = new Map<string, T>()
+      for (let i = 0; i < job.cases.length; i++) results.set(job.cases[i]!.id, (job.mode === 'record' ? layout(job.cases[i]!, job) : prediction(job.cases[i]!, job)) as T)
+      return Promise.resolve({ env, results, ms: 0 })
+    }
+    return { root, run, log: text => printed.push(text), printed: () => printed.join('\n') }
+  }
+
+  test('check blocks on a failure off the accepted list, --accept takes it, and a prediction that varies between runs is never judged or accepted: a regression would pass, or an accepted flip block the next run', async () => {
+    const root = folder('accept', { pass: laidOut, fail: laidOut, label: laidOut }, { varying: '## system-ui\nlabel runs\n' })
+    const io = browser(root, c => (c.id === 'pass' ? right : wrong))
+    const list = cases(['pass', 'fail', 'label'])
+    const first = await check('chrome', list, options, io)
+    expect([first.blocked, first.newFailures.map(c => c.id)]).toEqual([true, ['fail']])
+    await check('chrome', list, { ...options, accept: 'a written reason' }, io)
+    expect([...readAccepted(acceptedPath(root, 'chrome')).keys()]).toEqual(['fail'])
+    expect((await check('chrome', list, options, io)).blocked).toBe(false)
+  })
+
+  test('check predicts every case, and blocks on a line API that disagrees where nothing is pinned and on a case with no recording: a virtualized list would size rows for lines it doesn\'t paint', async () => {
+    const root = folder('unpinned', { pinned: laidOut, blank: { lines: [{ first: -1, last: -1, width: 0 }], height: 20 } }, { history: ['history'] })
+    const disagrees = { ...right, disagreement: 'layout() gives 3 lines, height 60; walkLineRanges 4 lines' } as Prediction
+    const io = browser(root, c => (c.id === 'pinned' ? right : disagrees))
+    expect((await check('chrome', cases(['pinned', 'history', 'blank', 'unrecorded']), options, io)).blocked).toBe(true)
+    expect(io.printed()).toContain('BLOCKS: 3 cases where another line API disagrees with the walk')
+    expect(io.printed()).toContain('BLOCKS: 1 cases have no recording; record them with record --only-new: unrecorded')
+    // A browser update would read as library regressions or fixes.
+    const refused = await check('chrome', cases(['pinned']), options, browser(root, () => right, undefined, 'another build')).then(() => '', (error: Error) => error.message)
+    expect(refused).toContain('Record again')
+  })
+
+  test('the gate blocks when check does, and attributes the failure: a regression would pass the gate', async () => {
+    const io = browser(folder('gate-check', { pass: laidOut, fail: laidOut }), c => (c.id === 'pass' ? right : wrong))
+    expect(await gate('chrome', cases(['pass', 'fail']), options, io)).toBe(true)
+    expect(io.printed()).toContain('true loss  fail')
+  })
+
+  test('the gate blocks on breaks and line APIs that move in reverse order and on recordings that no longer hold, and moves page history it finds off the pinned and accepted cases: a message would wrap differently after other messages, or the next check block', async () => {
+    // After "first" in a job, "moves" breaks otherwise and "measures" disagrees. "found", an accepted failure, is laid out
+    // otherwise among other cases and as recorded alone. "emoji" and "late" are laid out otherwise among other cases, and
+    // alone only after "found", as Firefox's color emoji are after a U+FE0E case: the sample puts one before "found" and
+    // one after it, so each is laid out as recorded in one of the lone orders. "stale" is laid out otherwise every time.
+    const recorded = { first: laidOut, moves: laidOut, measures: laidOut, found: laidOut, emoji: laidOut, late: laidOut, stale: laidOut }
+    const root = folder('gate-order', recorded, { accepted: '## why\nfound breaks\n' })
+    const afterFirst = (c: Case, job: Job): boolean => job.cases.indexOf(c) > job.cases.findIndex(x => x.id === 'first')
+    const io = browser(root, (c, job) => {
+      if (c.id === 'found') return wrong
+      if (afterFirst(c, job)) return right
+      return c.id === 'moves' ? wrong : c.id === 'measures' ? { ...right, disagreement: 'measureLineStats gives 3 lines' } as Prediction : right
+    }, (c, job) => {
+      if (c.id === 'stale' || (job.documentSize > 1 && c.id !== 'first' && c.id !== 'moves' && c.id !== 'measures')) return other
+      return (c.id === 'emoji' || c.id === 'late') && job.cases.indexOf(c) > job.cases.findIndex(x => x.id === 'found') ? other : laidOut
+    })
+    const list = cases(Object.keys(recorded))
+    expect(gateSample(list, SEED, 9).map(c => c.id).filter(id => ['emoji', 'found', 'late'].includes(id))).toEqual(['emoji', 'found', 'late'])
+    expect(await gate('chrome', list, options, io)).toBe(true)
+    expect(io.printed()).toContain('BLOCKS: 1 predictions break differently in reverse order: moves')
+    expect(io.printed()).toContain('BLOCKS: 1 cases in reverse order where another line API disagrees with the walk')
+    expect(io.printed()).toContain('BLOCKS: 1 laid out differently from the recordings every time, alone too: stale')
+    expect([...readHistory(historyPath(root, 'chrome'))!.cases.keys()]).toEqual(['emoji', 'found', 'late'])
+    expect([...readRecordings(recordingsPath(root, 'chrome'))!.recordings.keys()]).toEqual(['first', 'measures', 'moves', 'stale'])
+    expect(readAccepted(acceptedPath(root, 'chrome')).size).toBe(0)
+    expect((await check('chrome', list, options, io)).blocked).toBe(false)
+  })
+
+  test('record makes page history of a case its two orders lay out differently, and of one laid out otherwise than its recording under the same environment: cases that lay out differently after other cases would block changes at random', async () => {
+    const root = folder('record', { kept: laidOut, moved: laidOut })
+    const jobs: Job[] = []
+    const layout = (c: Case, job: Job): Recording => {
+      if (!jobs.includes(job)) jobs.push(job)
+      return c.id === 'moved' || (c.id === 'orders' && jobs.indexOf(job) === 1) ? other : laidOut
+    }
+    await record('chrome', cases(['orders', 'kept', 'moved']), options, browser(root, () => right, layout))
+    // Sorted, then shuffled, so each case sits among other cases in the second.
+    expect(jobs.map(job => job.cases.map(c => c.id).join(' '))).toEqual(['kept moved orders', 'kept orders moved'])
+    expect([...readRecordings(recordingsPath(root, 'chrome'))!.recordings.keys()]).toEqual(['kept'])
+    expect([...readHistory(historyPath(root, 'chrome'))!.cases.keys()]).toEqual(['moved', 'orders'])
   })
 })
 
@@ -550,5 +666,32 @@ describe('the library through the adapter', () => {
     expect(disagreement(adapter.predict(c))).toBeNull()
     const text = await planted('rich-fragment-text', 'rich-inline.ts', /fragment\.start\.segmentIndex,\n(\s*)fragment\.start\.graphemeIndex,/, 'fragment.start.segmentIndex,\n$10,')
     expect(disagreement(text.predict(c))).toMatch(/^materializeRichInlineLineRange line \d+ fragment \d+ is /)
+  })
+
+  test('layoutNextLineRange giving another width than the walk blocks: a bubble sized from streamed lines would be too wide', async () => {
+    const c = paragraph('A message long enough to wrap at a few widths', 120)
+    const range = await planted('next-line-range', 'layout.ts', /return width === null \? null : \{ width, start: lineStart, end \}/, 'return width === null ? null : { width: width + 1, start: lineStart, end }')
+    expect(disagreement(range.predict(c))).toStartWith('layoutNextLineRange line 0 is')
+  })
+
+  test('materializeLineRange giving a walked range another start blocks: a long word broken across lines would paint its start again', async () => {
+    const c = paragraph('A Supercalifragilistic word', 60)
+    expect(disagreement(adapter.predict(c))).toBeNull()
+    const start = await planted('materialize-start', 'layout.ts', /(getLineTextCache\(prepared\),\n\s*line\.width,\n\s*line\.start\.segmentIndex,\n\s*)line\.start\.graphemeIndex,/, '$10,')
+    expect(disagreement(start.predict(c))).toMatch(/^materializeLineRange of line \d+ gives/)
+  })
+
+  test('walkRichInlineLineRanges giving line ends that stepping doesn\'t blocks: a rich list resuming from a walked line\'s end would skip to the paragraph\'s end', async () => {
+    const c = spans(['A message ', 'long enough ', 'to wrap at a few widths'], 120)
+    const walk = await planted('rich-walk-end', 'rich-inline.ts', /onLine\(line\)/, 'onLine({ ...line, end: cursor })')
+    expect(disagreement(walk.predict(c))).toStartWith('layoutNextRichInlineLineRange line 0 differs')
+  })
+
+  test('prepare()\'s handle breaking otherwise than prepareWithSegments\' blocks: layout() would size a row for lines the list doesn\'t paint', async () => {
+    const c = paragraph('one\ntwo\nthree', 400)
+    c.paragraph.whiteSpace = 'pre-wrap'
+    expect(disagreement(adapter.predict(c))).toBeNull()
+    const fast = await planted('prepare-options', 'layout.ts', /return prepareInternal\(text, font, false, options\)/, 'return prepareInternal(text, font, false)')
+    expect(disagreement(fast.predict(c))).toStartWith('layout() gives 1 lines')
   })
 })

@@ -42,10 +42,11 @@ export function parseRecording(text: string): Recording {
 export type RecordingFile = { env: string; recordings: Map<string, Recording> }
 export type HistoryFile = { env: string; cases: Map<string, [Recording, Recording]> }
 
-export const recordingsPath = (browser: BrowserKind): string => `${import.meta.dir}/recordings/${browser}.txt`
-export const historyPath = (browser: BrowserKind): string => `${import.meta.dir}/recordings/${browser}.history.txt`
-export const acceptedPath = (browser: BrowserKind): string => `${import.meta.dir}/accepted/${browser}.txt`
-export const varyingPath = (browser: BrowserKind): string => `${import.meta.dir}/varying/${browser}.txt`
+// `root`: the harness folder, harness/ but in the tests.
+export const recordingsPath = (root: string, browser: BrowserKind): string => `${root}/recordings/${browser}.txt`
+export const historyPath = (root: string, browser: BrowserKind): string => `${root}/recordings/${browser}.history.txt`
+export const acceptedPath = (root: string, browser: BrowserKind): string => `${root}/accepted/${browser}.txt`
+export const varyingPath = (root: string, browser: BrowserKind): string => `${root}/varying/${browser}.txt`
 
 function readLines(path: string): string[] | null {
   try {
