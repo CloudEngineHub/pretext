@@ -6,6 +6,7 @@ Open engine work: decisions for the maintainer, known gaps and harness debt.
 
 - Decide on other Canvas font settings (#107), including whether a kerning-enabled Canvas is viable: Chromium layout kerns across spaces, ZWSP and soft hyphens, but default Canvas doesn't report that kerning. README says Pretext assumes default font kerning; #199 and #216 stay open in case Safari's OffscreenCanvas ever follows `fontKerning`.
 - Decide whether `prepareRichInline()` supports `whiteSpace: 'pre-wrap'` (#173, #193). Accepting it needs a native styled-inline pre-wrap oracle.
+- Decide whether a prepared handle must survive a JSON round trip. Since its per-segment flags became a `Uint8Array`, a `JSON.parse(JSON.stringify(prepared))` copy has no `length` on them and the line walkers never finish on it; `structuredClone()` and `postMessage()` copies work. README calls the handle opaque, and the harness's cache-lifetime check now copies with `structuredClone()`.
 - Revisit what rich-text editing needs from Pretext: source offsets through whitespace normalization (#90) and caret positions (#198), and whether bidi selection and copy/paste behavior stay outside this package. Do a pass over the open demo and showcase issues (#94, #99, #150, #167).
 
 ## Line breaking
