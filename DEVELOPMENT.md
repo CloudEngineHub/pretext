@@ -21,6 +21,21 @@ listener access. They do not launch browsers.
 See [the wrapping suite](tests/wrapping/README.md) for worktree comparisons,
 known-failure reporting, native observation limits and reproducible case IDs.
 
+### Harness
+
+The new harness in `harness/` keeps each browser's layout of every case in git, recorded once per browser build, and
+predicts every case in the browser the way an app does. See [harness/README.md](harness/README.md) for how a case is
+judged, the case sets and the pinned browsers.
+
+- `bun test harness` — the harness's offline tests, each planting a fault it exists to catch
+- `bun harness check` — predict every pinned case in Chrome, Firefox and webkit-host and score it; a failure that
+  `harness/accepted/<browser>.txt` doesn't list under a written reason blocks, and `--accept="<reason>"` lists the new ones
+- `bun harness gate` — `check`, plus predictions in reverse order, a fresh recording of 1,000 cases and the attribution
+  of new failures
+- `bun harness record --only-new` — record new cases; after a browser or OS update, `bun harness record` records every
+  case again
+- `bun harness explain <id>` — one case's recorded lines against the predicted ones
+
 ### Packaging And Release
 
 - `bun run build:package` — emit `dist/` for the published ESM package
