@@ -1442,9 +1442,9 @@ reason still holds, and record the new decision here with its date.
   another Unicode version: one a version behind would differ on about 1,417 code
   points, about half of them symbols such as chess pieces and playing cards that
   Unicode 17 took out of Extended_Pictographic and most of the rest conjuncts in
-  Myanmar, Khmer, Javanese and 11 other scripts. They are
-  refreshed with the line tables, which are fixed the same way, when browsers move
-  to Unicode 18. The tables add about 4 KB gzipped.
+  Myanmar, Khmer, Javanese and 11 other scripts. They are refreshed with the line
+  tables, which are fixed the same way, when browsers move to Unicode 18. The
+  tables add about 4 KB gzipped.
 - **2026-09-24: Safari's generic families come from a generated Core Text table**,
   not from measuring through a `<canvas>` element. An element's context runs the
   document's pending style update in every `font` assignment and `measureText()`,

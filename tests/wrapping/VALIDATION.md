@@ -62,7 +62,7 @@ the corpus sweeps stay 1,093, 1,098 and 1,098 of 1,098.
 
 Chrome and Safari benchmark snapshots were refreshed: three foreground runs each at
 DPR 2, visible and focused, on the 2560x1440 screen. Every shape row makes the same
-Canvas calls as in main's snapshots. Chrome's ran from `88df2ca` while other jobs
+Canvas calls as in main's snapshots. Chrome's ran from `83621ea` while other jobs
 used the machine. Its DOM rows read as main's (2.20ms and 27.65ms, against 2.20 and
 27.4), and there `prepare()` reads 2.80ms (3.00), the fresh-sentences row's first
 batch 9.10ms (15.5) and its cold batches 6.67ms (11.6), letter-spaced CJK seen
