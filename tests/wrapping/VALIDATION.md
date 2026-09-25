@@ -23,8 +23,10 @@ This runtime change starts from main `f26640e` (#340). Grapheme clusters come
 from Chrome 153's and libicucore 78.1's ICU character rules (`src/graphemes.ts`)
 instead of `Intl.Segmenter`; the Gecko scan sets up each shaped word's clusters
 with them; the word segmenter is created only when a dictionary run shows up;
-and the full walker reads a pending soft hyphen from the segment before its
-break instead of keeping a flag.
+the full walker reads a pending soft hyphen from the segment before its break
+instead of keeping a flag; and a run of combining marks after zero-width glue or
+a control finds the grapheme it is measured with once for all the runs chained
+to that grapheme.
 
 Main and this branch were compared on prepared data and every line and
 rich-inline API: `layout()`, `layoutWithLines()`, `walkLineRanges()`,
@@ -76,6 +78,44 @@ hot `layout()` 0.0225ms (0.025), `prepare()` 3ms (3) at Safari's 1ms timer, the
 fresh-sentences row's first batch 15.0ms (23.0) and its cold batches 8.33ms (24.0),
 letter-spaced CJK seen before 1.67ms (14.5) and the long-form corpus total 209ms
 (262).
+
+A run of combining marks after zero-width glue or a control is measured with the
+grapheme before it and everything between them. The rules found that grapheme's
+start by running over the whole segment before the run, once for every run
+chained to it, so `x` × 20,000 followed by 3,000 soft hyphen and U+0301 pairs
+took about twice main's time, and 8 times that word before the same pairs took
+main from 80 to 134ms offline and the branch from 154 to 858ms. Now a run whose
+walk back reaches the last run that asked takes that run's answer, so each
+segment is walked and each grapheme found once, which also ends main's walk over
+the whole chain for every run. `prepareWithSegments()` of that text at 1, 2, 4
+and 8 times its length, in ms, for main, the branch before this and the branch:
+
+| Size | Offline, main | before | now | Chrome 154, main | before | now |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| ×1 | 65 | 132 | 2.6 | 92 | 196 | 1.9 |
+| ×2 | 248 | 501 | 4.0 | 343 | 723 | 4.4 |
+| ×4 | 1,017 | 2,010 | 5.7 | 1,322 | 3,004 | 7.7 |
+| ×8 | 3,957 | 8,045 | 9.2 | 5,274 | 12,904 | 15.2 |
+
+Offline is the Blink profile under Bun with the stand-in Canvas, median of 3,
+interleaved. Chrome ran headless, each library in a document of its own, median
+of 5. Main's page reached 5 GB after three prepares at ×4 and its renderer died
+on the fifth, so each of main's times is a fresh document's, median of 3. In the
+WebKit profile both stay quadratic, at about 0.45 of main's time, since each run is
+measured with the whole chain before it, as with U+0001 in place of the soft
+hyphen in every profile (ENGINE_FOLLOWUPS.md); the Gecko scan gives each soft
+hyphen a segment of its own, so no run is chained there.
+
+The comparison above, rerun against main on this change over 40,000 plain and
+8,000 rich-inline fuzz-built texts in each of six profiles (Blink, WebKit, Gecko,
+unknown, Android and iOS; 432,000 widths each), and over 20,000 plain and 4,000
+rich texts of mark runs chained through glue and controls (216,000 widths, where
+about 52,000 runs per Blink and WebKit profile take the last run's answer), finds
+nothing different, with the same `measureText()` calls in the same order. A copy
+whose answer outlives its `prepareWithSegments()` differs on 38 to 60 of 5,000
+texts and 29 to 46 of 1,000 rich ones. The snapshots above come from before this
+change: of the benchmark page's texts only the soft-hyphen row's 917 marks take
+the walk, and none reaches another run.
 
 RESEARCH.md has the same-document `prepare()` timing against main.
 

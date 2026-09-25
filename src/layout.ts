@@ -281,20 +281,30 @@ function measureAnalysis(
   // The source a run of combining marks shapes after when only zero-width glue,
   // controls or other such runs, with no break, separate the run from the grapheme
   // before it: that grapheme and what separates them. Without the separators, Canvas
-  // can compose the marks with the grapheme or draw both in another font.
+  // can compose the marks with the grapheme or draw both in another font. A walk that
+  // reaches the last run that asked takes that run's answer, so each segment is walked
+  // and each grapheme found once, however many runs share it.
+  let markRunIndex = -1
+  let markBaseStart = -1 // where that run's grapheme starts in the normalized text, or -1
   function getMarkContext(analysisIndex: number): string | null {
     if (analysis.breaksBefore?.[analysisIndex] !== false || !markRunRe.test(analysis.texts[analysisIndex]!)) return null
+    let baseStart = -1
     for (let k = analysisIndex - 1; k >= 0; k--) {
       const kind = analysis.kinds[k]!
       const text = analysis.texts[k]!
-      if (kind === 'zero-width-glue' || ((kind === 'text' || kind === 'control') && controlOrMarkRunRe.test(text))) continue
-      if (kind !== 'text') return null
-      const ends = new Int32Array(text.length)
-      const count = findGraphemeEnds(engineProfile.graphemeTable, text, 0, text.length, ends)
-      const baseStart = count > 1 ? ends[count - 2]! : 0
-      return analysis.normalized.slice(analysis.starts[k]! + baseStart, analysis.starts[analysisIndex]!)
+      if (kind === 'zero-width-glue' || ((kind === 'text' || kind === 'control') && controlOrMarkRunRe.test(text))) {
+        if (k !== markRunIndex) continue
+        baseStart = markBaseStart
+      } else if (kind === 'text') {
+        const ends = new Int32Array(text.length)
+        const count = findGraphemeEnds(engineProfile.graphemeTable, text, 0, text.length, ends)
+        baseStart = analysis.starts[k]! + (count > 1 ? ends[count - 2]! : 0)
+      }
+      break
     }
-    return null
+    markRunIndex = analysisIndex
+    markBaseStart = baseStart
+    return baseStart < 0 ? null : analysis.normalized.slice(baseStart, analysis.starts[analysisIndex]!)
   }
 
   const widths: number[] = []
