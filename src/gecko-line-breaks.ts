@@ -35,77 +35,47 @@ import {
 } from './generated/engine-break-data.js'
 import { getParagraphLevels } from './gecko-bidi-levels.js'
 import { findGraphemeEnds } from './graphemes.js'
-import { BREAK as OPPORTUNITY, CLUSTER_START, SOFT_HYPHEN_BREAK, getBreakLanguage, getSmallTrieValue, getWordSegmenter, unpackTable, unpackUint32Table } from './line-breaks.js'
+import {
+  BREAK as OPPORTUNITY,
+  CLUSTER_START,
+  DEFAULT_IGNORABLE,
+  EMOJI,
+  HANGUL,
+  MARK,
+  PUNCTUATION,
+  SOFT_HYPHEN_BREAK,
+  getBreakLanguage,
+  getRangeValue,
+  getSmallTrieValue,
+  getWordSegmenter,
+  hasProperty,
+  readValues,
+  unpackRanges,
+  unpackTable,
+  type RangeTable,
+} from './line-breaks.js'
 
 const CH_SHY = 0x00ad
 
 const isSurrogatePair = (a: number, b: number) => (a & 0xfc00) === 0xd800 && (b & 0xfc00) === 0xdc00
 const combine = (a: number, b: number) => 0x10000 + ((a - 0xd800) << 10) + (b - 0xdc00)
 
-// --- Unicode properties, each filled on first use ---
-
-function codePointFlag(pattern: RegExp): (cp: number) => boolean {
-  let bmp: Int8Array | null = null
-  const astral = new Map<number, boolean>()
-  return (cp: number) => {
-    if (cp < 0x10000) {
-      bmp ??= new Int8Array(0x10000).fill(-1)
-      let value = bmp[cp]!
-      if (value < 0) bmp[cp] = value = pattern.test(String.fromCharCode(cp)) ? 1 : 0
-      return value === 1
-    }
-    let result = astral.get(cp)
-    if (result === undefined) astral.set(cp, result = pattern.test(String.fromCodePoint(cp)))
-    return result
-  }
-}
-
-const isMark = codePointFlag(/^\p{M}$/u)
-const isPunctuation = codePointFlag(/^\p{P}$/u)
-const isDefaultIgnorable = codePointFlag(/^\p{Default_Ignorable_Code_Point}$/u)
-const isEmoji = codePointFlag(/^\p{Emoji}$/u)
-const isHangul = codePointFlag(/^\p{sc=Hangul}$/u)
-
-let eawStarts: number[] | null = null
-let eawEnds: number[] = []
-let eawValues: number[] = []
-
-// East_Asian_Width H (2), F (3) or W (5), and 0 for any other value.
-function getEastAsianWidth(cp: number): number {
-  if (eawStarts === null) {
-    const geckoEastAsianWidthRanges = unpackUint32Table(geckoEastAsianWidthRangesPacked)
-    eawStarts = []
-    let previousEnd = -1
-    for (let i = 0; i < geckoEastAsianWidthRanges.length; i += 3) {
-      const start = previousEnd + 1 + geckoEastAsianWidthRanges[i]!
-      previousEnd = start + geckoEastAsianWidthRanges[i + 1]!
-      eawStarts.push(start)
-      eawEnds.push(previousEnd)
-      eawValues.push(geckoEastAsianWidthRanges[i + 2]!)
-    }
-  }
-  let lo = 0
-  let hi = eawStarts.length - 1
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1
-    if (cp < eawStarts[mid]!) hi = mid - 1
-    else if (cp > eawEnds[mid]!) lo = mid + 1
-    else return eawValues[mid]!
-  }
-  return 0
-}
+// East_Asian_Width H (2), F (3) or W (5), and 0 for any other value, in ranges, which the first East
+// Asian segment break test unpacks (isEastAsianSegmentBreak). A binary search over the few ranges
+// saves a table per code unit.
+let eastAsianWidths: RangeTable | null = null
 
 // --- Character classes ---
 
 // nsUnicodeProperties.h:202-207, nsUnicodeProperties.cpp:130-138
 function isClusterExtender(cp: number): boolean {
-  return cp >= 0x0300 && (isMark(cp) || cp === 0x200c || cp === 0x200d || (cp >= 0xff9e && cp <= 0xff9f) ||
+  return cp >= 0x0300 && (hasProperty(cp, MARK) || cp === 0x200c || cp === 0x200d || (cp >= 0xff9e && cp <= 0xff9f) ||
     (cp >= 0x1f3fb && cp <= 0x1f3ff) || (cp >= 0xe0020 && cp <= 0xe007f))
 }
 
 // nsUnicodeProperties.h:211-214, nsUnicodeProperties.cpp:140-147
 function isClusterExtenderExcludingJoiners(cp: number): boolean {
-  return cp >= 0x0300 && (isMark(cp) || (cp >= 0xff9e && cp <= 0xff9f) || (cp >= 0x1f3fb && cp <= 0x1f3ff) ||
+  return cp >= 0x0300 && (hasProperty(cp, MARK) || (cp >= 0xff9e && cp <= 0xff9f) || (cp >= 0x1f3fb && cp <= 0x1f3ff) ||
     (cp >= 0xe0020 && cp <= 0xe007f))
 }
 
@@ -116,19 +86,19 @@ function isBidiControl(cp: number): boolean {
 }
 
 // UnicodeProperties.h:205-218
-function isEastAsianWidthFHWExcludingEmoji(cp: number): boolean {
-  const width = getEastAsianWidth(cp)
-  return width === 2 || width === 3 || (width === 5 && !isEmoji(cp))
+function isEastAsianWidthFHWExcludingEmoji(widths: RangeTable, cp: number): boolean {
+  const width = getRangeValue(widths, cp)
+  return width === 2 || width === 3 || (width === 5 && !hasProperty(cp, EMOJI))
 }
 
 // nsUnicharUtils.cpp:500-504
-function isSegmentBreakSkipChar(cp: number): boolean {
-  return isEastAsianWidthFHWExcludingEmoji(cp) && !isHangul(cp) && cp !== 0x20a9
+function isSegmentBreakSkipChar(widths: RangeTable, cp: number): boolean {
+  return isEastAsianWidthFHWExcludingEmoji(widths, cp) && !hasProperty(cp, HANGUL) && cp !== 0x20a9
 }
 
 // nsUnicharUtils.cpp:506-527, with UnicodeProperties.h:187-199
-function isEastAsianPunctuation(cp: number): boolean {
-  return getEastAsianWidth(cp) !== 0 && ((isPunctuation(cp) && cp !== 0x20a9) || cp === 0xff5e || cp === 0x3000)
+function isEastAsianPunctuation(widths: RangeTable, cp: number): boolean {
+  return getRangeValue(widths, cp) !== 0 && ((hasProperty(cp, PUNCTUATION) && cp !== 0x20a9) || cp === 0xff5e || cp === 0x3000)
 }
 
 // gfxFontGroup::IsInvalidChar(char16_t), gfxTextRun.h:975-992. Below U+0100 it answers as
@@ -173,76 +143,44 @@ export function isJapaneseOrChinese(language: string | null): boolean {
 // punctuation. Only an interior run qualifies.
 export function isEastAsianSegmentBreak(text: string, start: number, end: number, japaneseOrChinese: boolean): boolean {
   if (start === 0 || end >= text.length) return false
+  const widths = eastAsianWidths ??= unpackRanges(geckoEastAsianWidthRangesPacked, false)
   let before: number
   let pos = start
   do {
     const low = text.charCodeAt(pos - 1)
     const high = pos > 1 ? text.charCodeAt(pos - 2) : 0
     if (isSurrogatePair(high, low)) { before = combine(high, low); pos -= 2 } else { before = low; pos-- }
-  } while (isDefaultIgnorable(before) && pos > 0)
+  } while (hasProperty(before, DEFAULT_IGNORABLE) && pos > 0)
   let after: number
   pos = end
   do {
     after = text.codePointAt(pos)!
     pos += after > 0xffff ? 2 : 1
-  } while (isDefaultIgnorable(after) && pos < text.length)
-  return (isSegmentBreakSkipChar(before) && isSegmentBreakSkipChar(after)) ||
-    (japaneseOrChinese && (isEastAsianPunctuation(before) || isEastAsianPunctuation(after)))
+  } while (hasProperty(after, DEFAULT_IGNORABLE) && pos < text.length)
+  return (isSegmentBreakSkipChar(widths, before) && isSegmentBreakSkipChar(widths, after)) ||
+    (japaneseOrChinese && (isEastAsianPunctuation(widths, before) || isEastAsianPunctuation(widths, after)))
 }
 
 function transformText(input: string, is8bit: boolean, preserveWhiteSpace: boolean): Transformed {
   const len = input.length
+  // The source index of each kept unit.
   const orig = new Int32Array(len)
   const skipped = new Uint8Array(len)
   let n = 0
-  // The transformed string is built from input slices: input[sliceStart, sliceEnd) is kept unchanged so far.
-  let text = ''
-  let sliceStart = 0
-  let sliceEnd = 0
-  const keep = (i: number, ch: number) => {
-    orig[n] = i
-    n++
-    if (ch !== input.charCodeAt(i)) {
-      text += input.slice(sliceStart, sliceEnd) + ' '
-      sliceStart = sliceEnd = i + 1
-    } else if (i !== sliceEnd) {
-      text += input.slice(sliceStart, sliceEnd)
-      sliceStart = i
-      sliceEnd = i + 1
-    } else {
-      sliceEnd++
-    }
-  }
-
   if (preserveWhiteSpace) {
     // COMPRESS_NONE, nsTextFrameUtils.cpp:222-271
     for (let i = 0; i < len; i++) {
-      const ch = input.charCodeAt(i)
-      if (isDiscardable(ch, is8bit)) skipped[i] = 1
-      else keep(i, ch)
+      if (isDiscardable(input.charCodeAt(i), is8bit)) skipped[i] = 1
+      else orig[n++] = i
     }
   } else {
     // COMPRESS_WHITESPACE_NEWLINE, :272-387
     let inWhitespace = false
-    // TransformWhiteSpaces, :84-209. The runs it deletes whole, next to a ZWSP or between East
-    // Asian characters (:120-150), are gone already (removeSkippableSegmentBreaks in
-    // src/analysis.ts), so a run keeps one space.
-    const transformWhiteSpaces = (begin: number, end: number, hasSegmentBreak: boolean) => {
-      for (let i = begin; i < end; i++) {
-        const ch = input.charCodeAt(i)
-        if (isDiscardable(ch, is8bit)) { skipped[i] = 1; continue }
-        // A space or tab in a run with a segment break goes (:152-162), and the run's first
-        // segment break stays as a space (:181-193).
-        if (inWhitespace || (hasSegmentBreak && isSpaceOrTab(ch))) { skipped[i] = 1; continue }
-        keep(i, 0x20)
-        inWhitespace = true
-      }
-    }
     let i = 0
     while (i < len) {
       const ch = input.charCodeAt(i)
       if (!isSpaceOrTabOrSegmentBreak(ch) && !isDiscardable(ch, is8bit)) {
-        keep(i, ch)
+        orig[n++] = i
         inWhitespace = false
         i++
         continue
@@ -258,15 +196,46 @@ function transformText(input: string, is8bit: boolean, preserveWhiteSpace: boole
         }
         while (isDiscardable(input.charCodeAt(j - 1), is8bit)) { j--; trailingDiscardables++ } // :334-336
         if (!is8bit && input.charCodeAt(j - 1) === 0x20 && j < len && isSpaceCombiningSequenceTail(input, j)) { keepLastSpace = true; j-- } // :339-345
-        if (j > i) transformWhiteSpaces(i, j, hasSegmentBreak)
-        if (keepLastSpace) { keep(j, 0x20); j++ }
-        for (let k = 0; k < trailingDiscardables; k++) { skipped[j] = 1; j++ }
+        // TransformWhiteSpaces over [i, j), :84-209. The runs it deletes whole, next to a ZWSP or
+        // between East Asian characters (:120-150), are gone already (removeSkippableSegmentBreaks in
+        // src/analysis.ts), so a run keeps one space. A space or tab in a run with a segment break
+        // goes (:152-162), and the run's first segment break stays as a space (:181-193).
+        for (let k = i; k < j; k++) {
+          const c = input.charCodeAt(k)
+          if (isDiscardable(c, is8bit) || inWhitespace || (hasSegmentBreak && isSpaceOrTab(c))) {
+            skipped[k] = 1
+          } else {
+            orig[n++] = k
+            inWhitespace = true
+          }
+        }
+        if (keepLastSpace) orig[n++] = j++
+        for (let k = 0; k < trailingDiscardables; k++) skipped[j++] = 1
         i = j
         continue
       }
       skipped[i] = 1 // :370-379
       inWhitespace = false
       i++
+    }
+  }
+  // The kept units, as slices of the input where they run unchanged: in collapsed white space, a kept
+  // tab or segment break becomes a space.
+  let text = ''
+  let sliceStart = 0
+  let sliceEnd = 0
+  for (let k = 0; k < n; k++) {
+    const i = orig[k]!
+    const ch = input.charCodeAt(i)
+    if (!preserveWhiteSpace && (ch === 0x09 || ch === 0x0a)) {
+      text += input.slice(sliceStart, sliceEnd) + ' '
+      sliceStart = sliceEnd = i + 1
+    } else if (i !== sliceEnd) {
+      text += input.slice(sliceStart, sliceEnd)
+      sliceStart = i
+      sliceEnd = i + 1
+    } else {
+      sliceEnd++
     }
   }
   text += input.slice(sliceStart, sliceEnd)
@@ -387,24 +356,13 @@ function splitAndInitTextRun(g: Glyphs, text: string, start: number, end: number
 
 // --- 4. ICU4X 2.1.2's line iterator for one word (icu_segmenter src/line.rs) ---
 
-let lineTrieIndex: Uint16Array | null = null
-let lineTrieData: Uint8Array
-let lineBreakStates: Uint8Array
-
-// Little-endian data, read on a little-endian platform.
-function unpackU16(packed: string): Uint16Array {
-  const bytes = unpackTable(packed)
-  return new Uint16Array(bytes.buffer, bytes.byteOffset, bytes.length >> 1)
-}
+// Firefox's line data, which the first scan unpacks (getGeckoLineBreaks).
+type LineData = { readonly trieIndex: Uint16Array, readonly trieData: Uint8Array, readonly states: Uint8Array }
+let lineData: LineData | null = null
 
 // The Line_Break value, with error value 0 above U+10FFFF.
-function getLineBreakClass(c: number): number {
-  if (lineTrieIndex === null) {
-    lineTrieIndex = unpackU16(geckoLineTrieIndexPacked)
-    lineTrieData = unpackTable(geckoLineTrieDataPacked)
-    lineBreakStates = unpackTable(geckoLineBreakStatesPacked)
-  }
-  return c > 0x10ffff ? 0 : getSmallTrieValue(lineTrieIndex, lineTrieData, geckoLineTrieHighStart, c)
+function getLineBreakClass(line: LineData, c: number): number {
+  return c > 0x10ffff ? 0 : getSmallTrieValue(line.trieIndex, line.trieData, geckoLineTrieHighStart, c)
 }
 
 // Line_Break property values of the data (line.rs:18-128).
@@ -450,194 +408,166 @@ function isKeepAllLetter(p: number): boolean {
     p === JV || p === JT || p === CJ
 }
 
-// LineBreakIterator (line.rs:820-1130) over text[start, end), yielding positions relative to start.
-// Unpaired surrogates are looked up as code points, as Utf16Indices does (indices.rs:58-83).
-type LineBreakIterator = {
-  readonly text: string
-  readonly base: number
-  len: number
-  readonly keepAll: boolean
-  // Utf16Indices front_offset and current_pos_data (line.rs:821-823).
-  front: number
-  curPos: number
-  curCp: number
+// Utf16Indices::next (indices.rs:58-83): the code point at text[i], in a pair that ends before `end`,
+// or an unpaired surrogate as a code point of its own.
+function readCodePoint(text: string, i: number, end: number): number {
+  const c = text.charCodeAt(i)
+  if ((c & 0xfc00) === 0xd800 && i + 1 < end) {
+    const next = text.charCodeAt(i + 1)
+    if ((next & 0xfc00) === 0xdc00) return ((c & 0x3ff) << 10) + (next & 0x3ff) + 0x10000
+  }
+  return c
+}
+
+// LineBreakIterator (line.rs:820-1130) over the word text[start, end), drained: state[start + p] = 1
+// at each break p inside the word that Iterator::next returns (:833-1067), which starts at the
+// word's first code point after the break at 0 and stops at the word's end. The position is
+// Utf16Indices' front_offset and current_pos_data (:821-823): `pos` is the current code point's
+// offset in the word, `cp` its code point and `front` the next one's offset, and `pos` reaches
+// the word's length past its end.
+function markWordBreaks(line: LineData, text: string, start: number, end: number, keepAll: boolean, state: Uint8Array): void {
+  const len = end - start
+  const states = line.states
+  let pos = 0
+  let cp = readCodePoint(text, start, end)
+  let front = cp > 0xffff ? 2 : 1
   // Break points cached by a complex-script run, each less `cacheOffset`, from `cacheAt`.
-  cache: number[]
-  cacheAt: number
-  cacheOffset: number
-}
+  let cache: number[] = []
+  let cacheAt = 0
+  let cacheOffset = 0
 
-function createLineBreakIterator(text: string, start: number, end: number, keepAll: boolean): LineBreakIterator {
-  return { text, base: start, len: end - start, keepAll, front: 0, curPos: -1, curCp: 0, cache: [], cacheAt: 0, cacheOffset: 0 }
-}
-
-// advance_iter (line.rs:1077-1079), Utf16Indices::next (indices.rs:58-83).
-function advanceLineIterator(it: LineBreakIterator): void {
-  const offset = it.front
-  if (offset >= it.len) { it.curPos = -1; return }
-  let c = it.text.charCodeAt(it.base + offset)
-  it.front = offset + 1
-  if ((c & 0xfc00) === 0xd800 && offset + 1 < it.len) {
-    const next = it.text.charCodeAt(it.base + offset + 1)
-    if ((next & 0xfc00) === 0xdc00) { c = ((c & 0x3ff) << 10) + (next & 0x3ff) + 0x10000; it.front = offset + 2 }
-  }
-  it.curPos = offset
-  it.curCp = c
-}
-
-// Iterator::next (line.rs:833-1067). Returns -1 for None.
-function nextLineBreak(it: LineBreakIterator): number {
-  // check_eof (:1086-1105)
-  if (it.curPos < 0) {
-    advanceLineIterator(it)
-    if (it.curPos < 0) {
-      if (it.len === 0) { it.len = 1; return 0 }
-      return -1
-    }
-    return 0
-  }
-
-  // Break points cached by a complex-script run (:840-855).
-  if (it.cacheAt < it.cache.length) {
-    const firstPos = it.cache[it.cacheAt]! - it.cacheOffset
-    let i = 0
-    for (;;) {
-      if (i === firstPos) {
-        it.cacheAt++
-        it.cacheOffset += i
-        return it.curPos
+  for (;;) {
+    // Break points cached by a complex-script run (:840-855).
+    if (cacheAt < cache.length) {
+      const firstPos = cache[cacheAt++]! - cacheOffset
+      let i = 0
+      while (i !== firstPos) {
+        i += cp > 0xffff ? 2 : 1 // Utf16::char_len (rule_segmenter.rs:335-341)
+        pos = front
+        if (pos >= len) return
+        cp = readCodePoint(text, start + pos, end)
+        front += cp > 0xffff ? 2 : 1
       }
-      i += it.curCp >= 0x10000 ? 2 : 1 // Utf16::char_len (rule_segmenter.rs:335-341)
-      advanceLineIterator(it)
-      if (it.curPos < 0) { it.cacheAt = it.cache.length; return it.len }
-    }
-  }
-
-  let lb9Left = -1 // (:858)
-  let lb8aAfterLb9 = false // (:861)
-
-  outer: for (;;) {
-    if (it.curPos < 0) return -1
-    const leftCodepoint = it.curCp
-    const leftProp = lb9Left >= 0 ? lb9Left : getLineBreakClass(leftCodepoint)
-    const afterZwj = lb8aAfterLb9 || (lb9Left < 0 && leftProp === ZWJ)
-    advanceLineIterator(it)
-    if (it.curPos < 0) return it.len
-    const rightCodepoint = it.curCp
-    const rightProp = getLineBreakClass(rightCodepoint)
-
-    // LB9 (:878-893)
-    if ((rightProp === CM || rightProp === ZWJ) && leftProp !== BK && leftProp !== CR && leftProp !== LF &&
-      leftProp !== NL && leftProp !== SP && leftProp !== ZW) {
-      lb9Left = leftProp
-      lb8aAfterLb9 = rightProp === ZWJ
+      cacheOffset += i
+      state[start + pos] = 1
       continue
     }
-    lb9Left = -1
-    lb8aAfterLb9 = false
 
-    // CSS word-break (:896-909)
-    if (it.keepAll && isKeepAllLetter(leftProp) && isKeepAllLetter(rightProp)) continue
+    let lb9Left = -1 // (:858)
+    let lb8aAfterLb9 = false // (:861)
+    outer: for (;;) {
+      const leftCodepoint = cp
+      const leftProp = lb9Left >= 0 ? lb9Left : getLineBreakClass(line, leftCodepoint)
+      const afterZwj = lb8aAfterLb9 || (lb9Left < 0 && leftProp === ZWJ)
+      pos = front
+      if (pos >= len) return
+      cp = readCodePoint(text, start + pos, end)
+      front += cp > 0xffff ? 2 : 1
+      const rightProp = getLineBreakClass(line, cp)
 
-    // Complex scripts (:941-950)
-    if (getLineBreakClass(leftCodepoint) === SA && rightProp === SA) {
-      const result = handleComplexLanguage(it, leftCodepoint)
-      if (result >= 0) return result
-    }
-
-    const state = lineBreakStates[leftProp * geckoLinePropertyCount + rightProp]! // (:702-706, 953)
-    if (state === BREAK || state === NO_MATCH) {
-      if (afterZwj) continue
-      return it.curPos
-    }
-    if (state === KEEP) continue
-
-    let index = state >= INTERMEDIATE ? state - INTERMEDIATE : state
-    let prevFront = it.front
-    let prevPos = it.curPos
-    let prevCp = it.curCp
-    let previousIsAfterZwj = afterZwj
-    let leftPropPreLb9 = rightProp
-    const isIntermediateRuleNoMatch = lb8aAfterLb9 ? true : index > geckoLineLastCodepointProperty // (:976-981)
-
-    for (;;) {
-      advanceLineIterator(it)
-      const innerAfterZwj = leftPropPreLb9 === ZWJ
-      const previousBreakStateIsCpProp = index <= geckoLineLastCodepointProperty
-
-      if (it.curPos < 0) { // (:990-1007)
-        if (lineBreakStates[index * geckoLinePropertyCount + geckoLineEotProperty] === NO_MATCH) {
-          it.front = prevFront; it.curPos = prevPos; it.curCp = prevCp
-          if (previousIsAfterZwj) continue outer
-          return it.curPos
-        }
-        return it.len
-      }
-      const prop = getLineBreakClass(it.curCp)
-
-      if ((prop === CM || prop === ZWJ) && leftPropPreLb9 !== BK && leftPropPreLb9 !== CR && leftPropPreLb9 !== LF &&
-        leftPropPreLb9 !== NL && leftPropPreLb9 !== SP && leftPropPreLb9 !== ZW) { // (:1009-1019)
-        leftPropPreLb9 = prop
+      // LB9 (:878-893)
+      if ((rightProp === CM || rightProp === ZWJ) && leftProp !== BK && leftProp !== CR && leftProp !== LF &&
+        leftProp !== NL && leftProp !== SP && leftProp !== ZW) {
+        lb9Left = leftProp
+        lb8aAfterLb9 = rightProp === ZWJ
         continue
       }
+      lb9Left = -1
+      lb8aAfterLb9 = false
 
-      const next = lineBreakStates[index * geckoLinePropertyCount + prop]! // (:1021-1061)
-      if (next === KEEP) continue outer
-      if (next === NO_MATCH) {
-        it.front = prevFront; it.curPos = prevPos; it.curCp = prevCp
-        if (innerAfterZwj) {
-          if (isIntermediateRuleNoMatch && !previousIsAfterZwj) return it.curPos
-          continue outer
+      // CSS word-break (:896-909)
+      if (keepAll && isKeepAllLetter(leftProp) && isKeepAllLetter(rightProp)) continue
+
+      // Complex scripts (:941-950), Utf16 line_handle_complex_language (:1263-1316), which counts
+      // code points one unit each: they are truncated to u16 there.
+      if (getLineBreakClass(line, leftCodepoint) === SA && rightProp === SA) {
+        const units = [leftCodepoint & 0xffff]
+        for (let p = pos, c = cp; ;) {
+          units.push(c & 0xffff)
+          p += c > 0xffff ? 2 : 1
+          if (p >= len) break
+          c = readCodePoint(text, start + p, end)
+          if (getLineBreakClass(line, c) !== SA) break
         }
-        if (previousIsAfterZwj) continue outer
-        return it.curPos
+        cache = segmentComplex(units)
+        cacheAt = 1
+        let i = 1
+        while (i !== cache[0]) {
+          i++
+          pos = front
+          if (pos >= len) return
+          cp = readCodePoint(text, start + pos, end)
+          front += cp > 0xffff ? 2 : 1
+        }
+        cacheOffset = i
+        break
       }
-      if (next === BREAK) {
-        if (innerAfterZwj) continue outer
-        return it.curPos
+
+      const breakState = states[leftProp * geckoLinePropertyCount + rightProp]! // (:702-706, 953)
+      if (breakState === BREAK || breakState === NO_MATCH) {
+        if (afterZwj) continue
+        break
       }
-      if (next >= INTERMEDIATE) {
-        index = next - INTERMEDIATE
-        prevFront = it.front; prevPos = it.curPos; prevCp = it.curCp
-        previousIsAfterZwj = innerAfterZwj
-      } else {
-        index = next
-        if (previousBreakStateIsCpProp) {
-          prevFront = it.front; prevPos = it.curPos; prevCp = it.curCp
+      if (breakState === KEEP) continue
+
+      let index = breakState >= INTERMEDIATE ? breakState - INTERMEDIATE : breakState
+      let prevFront = front
+      let prevPos = pos
+      let prevCp = cp
+      let previousIsAfterZwj = afterZwj
+      let leftPropPreLb9 = rightProp
+      const isIntermediateRuleNoMatch = lb8aAfterLb9 ? true : index > geckoLineLastCodepointProperty // (:976-981)
+
+      for (;;) {
+        const innerAfterZwj = leftPropPreLb9 === ZWJ
+        const previousBreakStateIsCpProp = index <= geckoLineLastCodepointProperty
+        pos = front
+        if (pos >= len) { // (:990-1007)
+          if (states[index * geckoLinePropertyCount + geckoLineEotProperty] !== NO_MATCH) return
+          front = prevFront; pos = prevPos; cp = prevCp
+          if (previousIsAfterZwj) continue outer
+          break outer
+        }
+        cp = readCodePoint(text, start + pos, end)
+        front += cp > 0xffff ? 2 : 1
+        const prop = getLineBreakClass(line, cp)
+
+        if ((prop === CM || prop === ZWJ) && leftPropPreLb9 !== BK && leftPropPreLb9 !== CR && leftPropPreLb9 !== LF &&
+          leftPropPreLb9 !== NL && leftPropPreLb9 !== SP && leftPropPreLb9 !== ZW) { // (:1009-1019)
+          leftPropPreLb9 = prop
+          continue
+        }
+
+        const next = states[index * geckoLinePropertyCount + prop]! // (:1021-1061)
+        if (next === KEEP) continue outer
+        if (next === NO_MATCH) {
+          front = prevFront; pos = prevPos; cp = prevCp
+          if (innerAfterZwj) {
+            if (isIntermediateRuleNoMatch && !previousIsAfterZwj) break outer
+            continue outer
+          }
+          if (previousIsAfterZwj) continue outer
+          break outer
+        }
+        if (next === BREAK) {
+          if (innerAfterZwj) continue outer
+          break outer
+        }
+        if (next >= INTERMEDIATE) {
+          index = next - INTERMEDIATE
+          prevFront = front; prevPos = pos; prevCp = cp
           previousIsAfterZwj = innerAfterZwj
+        } else {
+          index = next
+          if (previousBreakStateIsCpProp) {
+            prevFront = front; prevPos = pos; prevCp = cp
+            previousIsAfterZwj = innerAfterZwj
+          }
         }
+        leftPropPreLb9 = prop
       }
-      leftPropPreLb9 = prop
     }
-  }
-}
-
-// Utf16 line_handle_complex_language (line.rs:1263-1316). Code points are truncated to u16 there.
-function handleComplexLanguage(it: LineBreakIterator, leftCodepoint: number): number {
-  const startFront = it.front, startPos = it.curPos, startCp = it.curCp
-  const units = [leftCodepoint & 0xffff]
-  for (;;) {
-    if (it.curPos < 0) return -1
-    units.push(it.curCp & 0xffff)
-    advanceLineIterator(it)
-    if (it.curPos < 0 || getLineBreakClass(it.curCp) !== SA) break
-  }
-  it.front = startFront; it.curPos = startPos; it.curCp = startCp
-  it.cache = segmentComplex(units)
-  it.cacheAt = 0
-  it.cacheOffset = 0
-  if (it.cache.length === 0) return -1
-  const firstPos = it.cache[0]!
-  let i = 1
-  for (;;) {
-    if (i === firstPos) {
-      it.cacheAt = 1
-      it.cacheOffset = i
-      return it.curPos
-    }
-    i += 1
-    advanceLineIterator(it)
-    if (it.curPos < 0) { it.cacheAt = it.cache.length; return it.len }
+    state[start + pos] = 1
   }
 }
 
@@ -659,7 +589,7 @@ const NON_BREAKABLE_ASCII = new Uint8Array([
 // word's FlushCurrentWord from Reset (nsLineBreaker.cpp:134-226, 710-720). Each word of more than
 // ASCII letters goes to LineBreaker::ComputeBreakPositions (intl/lwbrk/LineBreaker.cpp:112-194),
 // which keeps the state before its first unit (AutoRestore, :342, :604; skipSet = 1, :200-206).
-function getBreakStates(text: string, is8bit: boolean, afterLeadingWhitespace: boolean, keepAll: boolean): Uint8Array {
+function getBreakStates(line: LineData, text: string, is8bit: boolean, afterLeadingWhitespace: boolean, keepAll: boolean): Uint8Array {
   const len = text.length
   const state = new Uint8Array(len)
   let afterBreakableSpace = afterLeadingWhitespace
@@ -676,12 +606,7 @@ function getBreakStates(text: string, is8bit: boolean, afterLeadingWhitespace: b
       if (!(ch >= 0x20 && ch <= 0x7f && NON_BREAKABLE_ASCII[ch - 0x20] === 1)) wordMightBeBreakable = true
       continue
     }
-    if (offset > wordStart && wordMightBeBreakable) {
-      const saved = state[wordStart]!
-      const iterator = createLineBreakIterator(text, wordStart, offset, keepAll)
-      for (let pos = nextLineBreak(iterator); pos >= 0 && pos < offset - wordStart; pos = nextLineBreak(iterator)) state[wordStart + pos] = 1
-      state[wordStart] = saved
-    }
+    if (offset > wordStart && wordMightBeBreakable) markWordBreaks(line, text, wordStart, offset, keepAll, state)
     wordMightBeBreakable = false
     wordStart = offset + 1
   }
@@ -689,12 +614,12 @@ function getBreakStates(text: string, is8bit: boolean, afterLeadingWhitespace: b
 }
 
 // Where a line may start in a text node's source, after the segment break transformation that
-// removeSkippableSegmentBreaks applies: flags[i] = 1 for 0 < i < source.length, at a
-// normal break (FLAG_BREAK_TYPE_NORMAL) or after a soft hyphen. gfxTextRun::SetPotentialLineBreaks
-// (gfxTextRun.cpp:210-236) keeps a break only at a cluster start or after a space. flags[i] = 3 at a
-// normal break right after a soft hyphen: BreakAndMeasureText takes it as
-// the normal break, which neither fits nor draws a hyphen (gfxTextRun.cpp:1053-1063). flags[i] = 2 where a cluster starts
-// without a break, where only break-word can wrap (gfxTextRun.cpp:1068-1074).
+// removeSkippableSegmentBreaks applies: a BREAK at flags[i] for 0 < i < source.length, at a normal
+// break (FLAG_BREAK_TYPE_NORMAL) or after a soft hyphen. gfxTextRun::SetPotentialLineBreaks
+// (gfxTextRun.cpp:210-236) keeps a break only at a cluster start or after a space. A normal break
+// right after a soft hyphen adds SOFT_HYPHEN_BREAK: BreakAndMeasureText takes it as the normal
+// break, which neither fits nor draws a hyphen (gfxTextRun.cpp:1053-1063). A CLUSTER_START marks
+// where a cluster starts without a break, where only break-word can wrap (gfxTextRun.cpp:1068-1074).
 export function getGeckoLineBreaks(
   source: string,
   preserveWhiteSpace: boolean,
@@ -728,7 +653,12 @@ export function getGeckoLineBreaks(
   for (let k = 0; k < runStarts.length; k++) splitAndInitTextRun(g, tr.text, runStarts[k]!, k + 1 < runStarts.length ? runStarts[k + 1]! : n, graphemeTable, ends)
   for (let k = 0; k < runStarts.length; k++) g.clusterStart[runStarts[k]!] = 1 // gfxTextRun.cpp:2828-2835
 
-  const state = getBreakStates(tr.text, is8bit, hasCompressedLeadingWhitespace(source, tr.skipped, is8bit, preserveWhiteSpace), keepAll)
+  const line = lineData ??= {
+    trieIndex: readValues(Uint16Array, unpackTable(geckoLineTrieIndexPacked)),
+    trieData: unpackTable(geckoLineTrieDataPacked),
+    states: unpackTable(geckoLineBreakStatesPacked),
+  }
+  const state = getBreakStates(line, tr.text, is8bit, hasCompressedLeadingWhitespace(source, tr.skipped, is8bit, preserveWhiteSpace), keepAll)
   for (let t = 1; t < n; t++) {
     const rawPos = tr.orig[t]!
     const normal = state[t] === 1 && (g.clusterStart[t] === 1 || g.isSpace[t - 1] === 1)

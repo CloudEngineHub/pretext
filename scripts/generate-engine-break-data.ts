@@ -52,6 +52,7 @@ import {
   getSmallTrieValue,
   markRuleBoundaries,
   parseBreakRules,
+  readValues,
   unpackTable,
   type BreakRules,
 } from '../src/line-breaks.ts'
@@ -365,7 +366,7 @@ if (geckoLineField('complex_property') !== 46) throw new Error('Expected SA to b
 // without complex properties) ends clusters where ICU's handleNext does, on every string of up to
 // four code points taking one per class and on 100,000 random longer ones.
 const geckoGrapheme = readRuleBreakData('firefox-156/segmenter_break_grapheme_cluster_v1.rs.data')
-const geckoGraphemeIndex = new Uint16Array(geckoGrapheme.index.buffer, geckoGrapheme.index.byteOffset, geckoGrapheme.index.length >> 1)
+const geckoGraphemeIndex = readValues(Uint16Array, geckoGrapheme.index)
 const geckoGraphemeHighStart = geckoGrapheme.field('high_start')
 const getGeckoGraphemeProperty = (c: number) => getSmallTrieValue(geckoGraphemeIndex, geckoGrapheme.data, geckoGraphemeHighStart, c)
 const classRepresentatives: number[] = []
