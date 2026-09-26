@@ -1468,11 +1468,11 @@ apart, 12% slower in Chrome 154 in both sessions. The analysis also slices each
 segment's text, in a loop of its own once the flags are final, and measurement
 and the neighbours it looks at read those strings. Sliced where measurement
 reads them instead, by a helper or inline at the top of its loop, the texts made
-Firefox 156 prepare the bench's rich items 11 to 19% slower than with them
-sliced in the analysis, in all 15 sessions of three runs, with the plain array
-as with the typed one. Sliced in the analysis again, the row reads within noise
-of main, 4% faster and faster in 4 of 5 sessions. Chrome doesn't tell the two
-apart: its copies of the same code there move up to 17% apart.
+Firefox 156 prepare the bench's rich items slower than with them sliced in the
+analysis in all 15 sessions of three runs, by medians of 11 to 19%, with the
+plain array as with the typed one. Sliced in the analysis again, the row reads
+within noise of main, 4% faster and faster in 4 of 5 sessions. Chrome doesn't
+tell the two apart: its copies of the same code there move up to 17% apart.
 
 `layout()` needs only a count. On simple text, `countPreparedLines()` keeps just
 the line width and whether the line has content, with no line ends, pending
