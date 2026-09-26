@@ -2,8 +2,13 @@
 //
 // Chrome and Firefox are pinned: private copies of the installed apps, so an update of /Applications can't change the
 // build under a recording. Make one with `ditto "/Applications/Google Chrome.app" "<apps>/Google Chrome <version>.app"`
-// and bump the version here. WebKit runs as webkit-host, the system WebKit.framework that installed Safari runs, in a
-// background window (harness/webkit-host/build.sh); installed Safari opens one window of its own. None of them takes focus.
+// and bump the version here. Firefox updates the bundle it runs from under any profile but the harness's: macOS
+// reopened the 156.0 copy at login after a crash, under the default profile, and Firefox updated it to 156.0.1. A
+// release build takes the update policy only from its bundle or the system, so a Firefox copy also gets
+// Contents/Resources/distribution/policies.json holding {"policies": {"DisableAppUpdate": true}} before its first
+// launch, after which macOS keeps other apps from writing inside it. WebKit runs as webkit-host, the system
+// WebKit.framework that installed Safari runs, in a background window (harness/webkit-host/build.sh); installed Safari
+// opens one window of its own. None of them takes focus.
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -11,7 +16,7 @@ import { join, resolve } from 'node:path'
 import type { BrowserKind, PageEnv } from './types.ts'
 
 const APPS = process.env['HARNESS_APPS'] ?? join(homedir(), 'github/browser-engines/apps')
-export const PINNED = { chrome: 'Google Chrome 154.0.8037.57', firefox: 'Firefox 156.0' } as const
+export const PINNED = { chrome: 'Google Chrome 154.0.8037.57', firefox: 'Firefox 156.0.1' } as const
 const ROOT = resolve(import.meta.dir, '..')
 const PROFILES = join(ROOT, '.artifacts/harness-profiles')
 export const WEBKIT_HOST = join(ROOT, '.artifacts/webkit-host/webkit-host')

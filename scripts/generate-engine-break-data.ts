@@ -26,8 +26,8 @@
 //   macOS 26.5.2 by a small C program against libicucore; macOS 27 lists a few locales more
 //   or fewer, all with root's table and delimiters, which generate the same module.
 // - quotation.json: the code points libicucore's u_getIntPropertyValue gives Line_Break=QU.
-// firefox-156/, from Firefox 155.0.1's source tree. Firefox 156.0's XUL holds the same line
-// data and icu_properties Bidi_Class data byte for byte:
+// firefox-156/, from Firefox 155.0.1's source tree. Firefox 156.0's and 156.0.1's XUL hold the
+// same line data and icu_properties Bidi_Class data byte for byte:
 // - segmenter_break_line_v1.rs.data: intl/icu_segmenter_data/data/, Firefox's baked ICU4X
 //   line data (icuexport release-78.1, CLDR 48), databake output for RuleBreakData
 //   (icu_segmenter 2.1.2 src/provider/mod.rs:151-180).

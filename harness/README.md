@@ -190,8 +190,10 @@ other, so one the library doesn't model goes on the accepted list with a reason 
 ## Browsers
 
 Chrome and Firefox are pinned copies in `~/github/browser-engines/apps` (`HARNESS_APPS`), named in `browsers.ts`: make one
-with `ditto` from `/Applications` and bump the version there. Chrome gets its own profile, an en-US interface and one
-background window opened through the DevTools protocol; Firefox launches through LaunchServices, which macOS 27 needs.
+with `ditto` from `/Applications` and bump the version there. A Firefox copy also gets the `DisableAppUpdate` policy in
+its bundle before its first launch (`browsers.ts`), since Firefox updates the bundle it runs from under any profile but
+the harness's. Chrome gets its own profile, an en-US interface and one background window opened through the DevTools
+protocol; Firefox launches through LaunchServices, which macOS 27 needs.
 For about 12 s after it starts, Firefox changes fonts under a page (`PLATFORM_BUGS.md`, the late family names), so every
 Firefox job holds its first document until 15 s after launch. WebKit runs as webkit-host (`webkit-host/build.sh`), the
 system WebKit.framework that installed Safari runs, in a window below every other. Nothing takes focus.
