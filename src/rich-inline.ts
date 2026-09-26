@@ -11,10 +11,7 @@ import {
 } from './analysis.js'
 import { findGraphemeEnds } from './graphemes.js'
 import { getWebKitBreakBetweenItems } from './line-breaks.js'
-import {
-  buildLineTextFromRange,
-  getLineTextCache,
-} from './line-text.js'
+import { buildLineTextFromRange } from './line-text.js'
 import {
   canReturnFromUnfitHyphen,
   endsLineBefore,
@@ -849,7 +846,6 @@ function materializeFragmentText(
 ): string {
   return buildLineTextFromRange(
     item.prepared,
-    getLineTextCache(item.prepared),
     fragment.start.segmentIndex,
     fragment.start.graphemeIndex,
     fragment.end.segmentIndex,

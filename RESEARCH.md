@@ -1455,6 +1455,30 @@ doesn't need. One walker for every text would make chat `layout()` two to seven
 times main's time, and chat's line APIs 1.4 to 7.2 times as slow as on the simple
 stepper, several of them then slower than main, so the simple walkers stay.
 
+The full walker walks every line of a text in one call. A version that stepped
+exactly one line per call, with one loop composing it and the simple stepper for
+walks, counts and streams, gave the same lines but repeated the walker's setup for
+every line: nine reads of the handle, the engine profile and six values derived
+from them. In both sessions of a bench against main, `layout()` of pre-wrap chunks
+took 1.26 to 1.28 times main's time in Chrome 154, 1.11 to 1.15 in Firefox 156 and
+1.37 to 1.40 in Safari 27, and `walkLineRanges()` of them 1.10 to 1.12, 1.09 to
+1.10 and 1.33 to 1.36; `layout()` of letter-spaced CJK took 1.07, 1.13 to 1.15 and
+1.11 to 1.12, and of soft hyphens with marks 1.14 to 1.15 in Firefox and Safari.
+The shared loop also started each line of simple text through
+`normalizePreparedLineStart()` and `stepPreparedLineGeometryFromStart()`, in place
+of the simple walk's own skip and stepper call, and `walkLineRanges()` and
+`measureLineStats()` of chat messages took 1.06 to 1.10 of main's time in Chrome and
+1.18 to 1.32 in Firefox. Both walkers keep their own loops over lines.
+
+The full walker also admits a whole segment on two paths, one for a fresh line and
+one for a line with content, each followed by the same nine lines. One path for
+both, which tests at each step whether the line has content, read slower in both
+sessions of a bench against main on the text the full walker lays out: `layout()`
+of letter-spaced CJK took 1.05 times main's time in Chrome and 1.05 to 1.10 in
+Safari, of soft hyphens with marks 1.05 to 1.07 in Firefox and 1.16 to 1.17 in
+Safari, of pre-wrap chunks 1.03 to 1.04 in Chrome and 1.11 to 1.15 in Safari, and
+of controls 1.08 to 1.11 in Safari. The walker keeps the two paths.
+
 Text of the simple walkers' kinds with a segment boundary the scan doesn't break
 at takes the full walker in the line APIs. `layout()` counts it with the simple
 stepper instead, and the full walker steps a line again where the stepper ended it
