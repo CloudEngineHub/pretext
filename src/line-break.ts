@@ -1,43 +1,23 @@
-import type { SegmentBreakKind } from './analysis.js'
+import {
+  CONTROL,
+  HARD_BREAK,
+  KIND_BITS,
+  PRESERVED_SPACE,
+  RETURNABLE,
+  SOFT_HYPHEN,
+  SPACE,
+  SPACED,
+  TAB,
+  TEXT,
+  UNBROKEN,
+  ZERO_WIDTH_BREAK,
+  ZERO_WIDTH_GLUE,
+} from './analysis.js'
 import type { LayoutCursor, LineStats } from './layout.js'
 import { getEngineProfile } from './measurement.js'
 import { getFreshLineEnd, getSegmentEntryWidth, type SegmentEntryGeometry } from './entry-geometry.js'
 
-// A segment's flags byte: its kind's code in the low four bits, then what else
-// the walkers read of it.
-export const TEXT = 0
-export const SPACE = 1
-export const ZERO_WIDTH_BREAK = 2
-export const SOFT_HYPHEN = 3
-export const PRESERVED_SPACE = 4
-export const TAB = 5
-export const ZERO_WIDTH_GLUE = 6
-export const CONTROL = 7
-// Ends its chunk: a line's walk stops there, and the next line starts after it.
-export const HARD_BREAK = 8
-export const KIND_BITS = 0x0F
-// The segment takes letter spacing after its graphemes.
-export const SPACED = 0x10
-// The engine's scan gives no break before the segment, so no line ends there.
-export const UNBROKEN = 0x20
-// The scan gives a break before the segment, in text that also has unbroken
-// boundaries, where a line that overflows at one returns to the latest such break.
-export const RETURNABLE = 0x40
 const BREAK_AFTER_KINDS = 1 << SPACE | 1 << ZERO_WIDTH_BREAK | 1 << SOFT_HYPHEN | 1 << PRESERVED_SPACE | 1 << TAB
-
-export function getKindCode(kind: SegmentBreakKind): number {
-  switch (kind) {
-    case 'text': return TEXT
-    case 'space': return SPACE
-    case 'zero-width-break': return ZERO_WIDTH_BREAK
-    case 'soft-hyphen': return SOFT_HYPHEN
-    case 'preserved-space': return PRESERVED_SPACE
-    case 'tab': return TAB
-    case 'zero-width-glue': return ZERO_WIDTH_GLUE
-    case 'control': return CONTROL
-    case 'hard-break': return HARD_BREAK
-  }
-}
 
 // The prepared handle's line-break data: parallel arrays per segment.
 export type PreparedLineBreakData = {

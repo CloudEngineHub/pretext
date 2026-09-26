@@ -20,20 +20,53 @@ export type SegmentBreakKind =
   | 'hard-break'
   | 'control'
 
+// A segment's flags byte: its kind's code in the low four bits, then what else the
+// walkers read of it.
+export const TEXT = 0
+export const SPACE = 1
+export const ZERO_WIDTH_BREAK = 2
+export const SOFT_HYPHEN = 3
+export const PRESERVED_SPACE = 4
+export const TAB = 5
+export const ZERO_WIDTH_GLUE = 6
+export const CONTROL = 7
+// Ends its chunk: a line's walk stops there, and the next line starts after it.
+export const HARD_BREAK = 8
+export const KIND_BITS = 0x0F
+// The segment takes letter spacing after its graphemes. Set by measurement.
+export const SPACED = 0x10
+// The engine's scan gives no break before the segment, so no line ends there.
+export const UNBROKEN = 0x20
+// The scan gives a break before the segment, in text that also has unbroken
+// boundaries, where a line that overflows at one returns to the latest such break.
+export const RETURNABLE = 0x40
+// The engine's clusters don't split the segment, so no emergency break splits it
+// either. Measurement clears it.
+export const ONE_CLUSTER = 0x80
+export type SegmentKindCode = typeof TEXT | typeof SPACE | typeof ZERO_WIDTH_BREAK | typeof SOFT_HYPHEN |
+  typeof PRESERVED_SPACE | typeof TAB | typeof ZERO_WIDTH_GLUE | typeof CONTROL | typeof HARD_BREAK
+// Each kind's name by its code, as prepareWithSegments() gives them.
+export const SEGMENT_KINDS: readonly SegmentBreakKind[] = [
+  'text', 'space', 'zero-width-break', 'soft-hyphen', 'preserved-space', 'tab', 'zero-width-glue', 'control', 'hard-break',
+]
+
 // `spaceSources` holds, in the WebKit profile where normal white space collapsed, the source
 // unit each normalized unit starts from, such as the TAB or LF a space came from. Null otherwise.
-// `breaksBefore` is false where the engine's scan gives no break before text, zero-width
-// glue or a control, other than at a line start. Null where it always does.
-// `clusterSplits` is false for a segment the engine's clusters don't split, which no
-// emergency break splits either. Null where the scan has no clusters of its own.
+// `starts` holds where each segment starts in `normalized`, and `flags` its flags byte: its
+// kind, UNBROKEN where the engine's scan gives no break before text, zero-width glue or a
+// control, other than at a line start, RETURNABLE at the other segments of text with such a
+// boundary, which `hasUnbroken` tells, and ONE_CLUSTER where the scan has clusters of its own.
 export type TextAnalysis = {
   normalized: string
   spaceSources: Uint16Array | null
-  texts: string[]
-  kinds: SegmentBreakKind[]
   starts: number[]
-  breaksBefore: boolean[] | null
-  clusterSplits: boolean[] | null
+  flags: number[]
+  hasUnbroken: boolean
+}
+
+export function getSegmentText(analysis: TextAnalysis, i: number): string {
+  const { normalized, starts } = analysis
+  return normalized.slice(starts[i]!, i + 1 < starts.length ? starts[i + 1]! : normalized.length)
 }
 
 export type AnalysisProfile = {
@@ -125,15 +158,15 @@ function normalizeWhitespacePreWrap(text: string): string {
 
 const combiningMarkRe = /\p{M}/u
 
-function classifySegmentBreakCode(code: number, whiteSpace: WhiteSpaceMode, scan: AnalysisProfile['lineBreakScan']): SegmentBreakKind {
+function classifySegmentBreakCode(code: number, whiteSpace: WhiteSpaceMode, scan: AnalysisProfile['lineBreakScan']): SegmentKindCode {
   if (whiteSpace === 'pre-wrap') {
-    if (code === 0x20) return 'preserved-space'
-    if (code === 0x09) return 'tab'
-    if (code === 0x0A) return 'hard-break'
+    if (code === 0x20) return PRESERVED_SPACE
+    if (code === 0x09) return TAB
+    if (code === 0x0A) return HARD_BREAK
   }
-  if (code === 0x20) return 'space'
-  if (code === 0x200B) return 'zero-width-break'
-  if (code === 0x00AD) return 'soft-hyphen'
+  if (code === 0x20) return SPACE
+  if (code === 0x200B) return ZERO_WIDTH_BREAK
+  if (code === 0x00AD) return SOFT_HYPHEN
   // NEL (UAX #14 NL) offers a break after itself and no ordinary break before it (LB5, LB6),
   // as the scans find. The WebKit profile gives NEL its own control segment for letter
   // spacing: WebKit's simple text path gives NEL no letter spacing, at either sign, and its
@@ -143,8 +176,8 @@ function classifySegmentBreakCode(code: number, whiteSpace: WhiteSpaceMode, scan
   // page's it keeps spacing Safari omits. Blink spaces NEL outside cursive runs, and release
   // Gecko draws NEL with no advance while its Canvas measures a space, so both keep NEL as
   // ordinary text.
-  if (code === 0x0085 && scan === 'webkit') return 'control'
-  return 'text'
+  if (code === 0x0085 && scan === 'webkit') return CONTROL
+  return TEXT
 }
 
 export function isCollapsibleSpaceCode(code: number): boolean {
@@ -198,9 +231,9 @@ function mapSourceLineBreaks(source: string, normalizedLength: number, sourceBre
 // without a hyphen. One with only soft hyphens before it on its chunk stays a soft hyphen, since
 // a zero-width break there holds a line and Firefox, which drops soft hyphens from its text runs,
 // gives it none.
-function classifySegmentUnit(normalized: string, breaks: Uint8Array, i: number, code: number, whiteSpace: WhiteSpaceMode, scan: AnalysisProfile['lineBreakScan']): SegmentBreakKind {
-  if ((code === 0x2028 || code === 0x2029) && (breaks[i + 1]! & FORCED_BREAK) !== 0) return 'hard-break'
-  if (code === 0x00AD && (breaks[i + 1]! & SOFT_HYPHEN_BREAK) !== 0 && followsChunkContent(normalized, i)) return 'zero-width-break'
+function classifySegmentUnit(normalized: string, breaks: Uint8Array, i: number, code: number, whiteSpace: WhiteSpaceMode, scan: AnalysisProfile['lineBreakScan']): SegmentKindCode {
+  if ((code === 0x2028 || code === 0x2029) && (breaks[i + 1]! & FORCED_BREAK) !== 0) return HARD_BREAK
+  if (code === 0x00AD && (breaks[i + 1]! & SOFT_HYPHEN_BREAK) !== 0 && followsChunkContent(normalized, i)) return ZERO_WIDTH_BREAK
   return classifySegmentBreakCode(code, whiteSpace, scan)
 }
 
@@ -212,8 +245,8 @@ function followsChunkContent(normalized: string, i: number): boolean {
 
 // Characters of these kinds share a segment when no break falls between them. Each
 // tab, hard break, ZWSP and NEL control stays its own segment.
-function gathersKind(kind: SegmentBreakKind): boolean {
-  return kind === 'text' || kind === 'space' || kind === 'preserved-space' || kind === 'soft-hyphen'
+function gathersKind(kind: number): boolean {
+  return kind === TEXT || kind === SPACE || kind === PRESERVED_SPACE || kind === SOFT_HYPHEN
 }
 
 // A control character that stays its own text segment, measured alone: the C0 and C1
@@ -230,53 +263,55 @@ function isControlSegmentCode(code: number): boolean {
 // segment, takes no letter spacing and doesn't end a line.
 // Combining marks right after it, or after a control, stay apart from the text after
 // them, since they shape on the grapheme before it (measureAnalysis). Where the Gecko
-// scan marks cluster starts, a segment records whether one falls inside it.
+// scan marks cluster starts, a segment is ONE_CLUSTER unless one falls inside it.
 function segmentAtLineBreaks(normalized: string, spaceSources: Uint16Array | null, breaks: Uint8Array, whiteSpace: WhiteSpaceMode, scan: AnalysisProfile['lineBreakScan']): TextAnalysis {
-  if (normalized.length === 0) return { normalized, spaceSources, texts: [], kinds: [], starts: [], breaksBefore: null, clusterSplits: null }
+  if (normalized.length === 0) return { normalized, spaceSources, starts: [], flags: [], hasUnbroken: false }
+  const oneCluster = scan === 'gecko' ? ONE_CLUSTER : 0
   // The first unit starts the first segment before the loop: V8 ran the loop about 10% slower
   // over long texts when it started at the first unit (RESEARCH.md, Keeping Work Bounded).
   const starts = [0]
-  const kinds = [classifySegmentUnit(normalized, breaks, 0, normalized.charCodeAt(0), whiteSpace, scan)]
-  const clusterSplits = scan === 'gecko' ? [false] : null
-  let lastAlone = kinds[0] === 'text' && isControlSegmentCode(normalized.charCodeAt(0))
+  const firstKind = classifySegmentUnit(normalized, breaks, 0, normalized.charCodeAt(0), whiteSpace, scan)
+  // A plain array, which measurement copies into the prepared handle's bytes: a Uint8Array for
+  // each text slowed short texts' preparation (RESEARCH.md, Keeping Work Bounded).
+  const flags = [firstKind | oneCluster]
+  let lastAlone = firstKind === TEXT && isControlSegmentCode(normalized.charCodeAt(0))
   let markRun = false
   for (let i = 1; i < normalized.length; i++) {
     const code = normalized.charCodeAt(i)
     const kind = classifySegmentUnit(normalized, breaks, i, code, whiteSpace, scan)
-    const alone = kind === 'text' && isControlSegmentCode(code)
-    const last = kinds.length - 1
+    const alone = kind === TEXT && isControlSegmentCode(code)
+    const last = flags.length - 1
+    const lastKind = flags[last]! & KIND_BITS
     const unbroken = (breaks[i]! & BREAK) === 0
     if (
       unbroken && !alone && !lastAlone && !(markRun && !combiningMarkRe.test(normalized[i]!)) &&
-      kind === kinds[last] && gathersKind(kind)
+      kind === lastKind && gathersKind(kind)
     ) {
-      if (clusterSplits !== null && (breaks[i]! & CLUSTER_START) !== 0) clusterSplits[last] = true
+      if ((breaks[i]! & CLUSTER_START) !== 0) flags[last] = flags[last]! & ~ONE_CLUSTER
       continue
     }
-    markRun = unbroken && kind === 'text' && combiningMarkRe.test(normalized[i]!) &&
-      (lastAlone || kinds[last] === 'zero-width-break' || kinds[last] === 'soft-hyphen' || kinds[last] === 'control')
+    markRun = unbroken && kind === TEXT && combiningMarkRe.test(normalized[i]!) &&
+      (lastAlone || lastKind === ZERO_WIDTH_BREAK || lastKind === SOFT_HYPHEN || lastKind === CONTROL)
     starts.push(i)
-    kinds.push(kind)
-    clusterSplits?.push(false)
+    flags.push(kind | oneCluster)
     lastAlone = alone
   }
   // A line ends only where the scan breaks, so the walkers learn where it doesn't:
   // before text, zero-width glue or a control, other than at a line start. A
   // ZWSP or soft hyphen there is zero-width glue. Before a space, tab or hard break
   // the scan has no break either, but the line can still end there, so it keeps its kind.
-  const len = kinds.length
-  let breaksBefore: boolean[] | null = null
-  for (let j = len - 2; j >= 0; j--) {
-    const kind = kinds[j]!
-    const next = kinds[j + 1]!
-    if ((breaks[starts[j + 1]!]! & BREAK) !== 0 || kind === 'hard-break' || !(next === 'text' || next === 'zero-width-glue' || next === 'control')) continue
-    if (kind === 'zero-width-break' || kind === 'soft-hyphen') kinds[j] = 'zero-width-glue'
-    breaksBefore ??= Array.from({ length: len }, () => true)
-    breaksBefore[j + 1] = false
+  let hasUnbroken = false
+  const count = flags.length
+  for (let j = count - 2; j >= 0; j--) {
+    const kind = flags[j]! & KIND_BITS
+    const next = flags[j + 1]! & KIND_BITS
+    if ((breaks[starts[j + 1]!]! & BREAK) !== 0 || kind === HARD_BREAK || !(next === TEXT || next === ZERO_WIDTH_GLUE || next === CONTROL)) continue
+    if (kind === ZERO_WIDTH_BREAK || kind === SOFT_HYPHEN) flags[j] = flags[j]! & ~KIND_BITS | ZERO_WIDTH_GLUE
+    flags[j + 1] = flags[j + 1]! | UNBROKEN
+    hasUnbroken = true
   }
-  const texts: string[] = []
-  for (let j = 0; j < len; j++) texts.push(normalized.slice(starts[j]!, j + 1 < len ? starts[j + 1]! : normalized.length))
-  return { normalized, spaceSources, texts, kinds, starts, breaksBefore, clusterSplits }
+  if (hasUnbroken) for (let j = 0; j < count; j++) if ((flags[j]! & UNBROKEN) === 0) flags[j] = flags[j]! | RETURNABLE
+  return { normalized, spaceSources, starts, flags, hasUnbroken }
 }
 
 export function analyzeText(
