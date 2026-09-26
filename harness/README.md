@@ -22,8 +22,9 @@ bun harness explain --text=<text> --width=<px> [--font=] [--lang=] [--white-spac
 Every command takes `--browser=chrome|firefox|webkit-host|safari` (several with commas; default Chrome, Firefox and
 webkit-host side by side, Chrome for `explain`, which takes one, and for `bench` the browsers under Bench),
 `--cases=<file.ndjson>` in place of `harness/cases/*.ndjson`, and `--lib=<dir>` to predict with another build: a `src/`
-directory and the adapter beside it in `../harness`, or this tree's adapter where it has none. The adapter maps the
-library's cursors to the source with the library's own graphemes, so a build needs `src/graphemes.ts` (#344).
+directory and the adapter beside it in `../harness`, or this tree's adapter where it has none. This tree's adapter maps
+the library's cursors to the source with the library's own graphemes, so a `src/` it predicts with needs
+`src/graphemes.ts` (#344).
 `record` and `gate` draw with `--seed=<n>`, 20260924 by default, so a gate's result doesn't depend on the clock.
 `bun test harness` runs the offline tests.
 
@@ -108,11 +109,12 @@ The gate adds three checks:
 `bun harness equal <ref>` predicts every case in each browser with this tree's build and with `<ref>`'s, a git ref or a
 `src/` directory. A build is its `src/` and the adapter that predicts with it: a ref's `harness/*.ts`, unpacked with its
 `src/` into `.artifacts/harness-builds/<sha>`, or this tree's adapter for a `src/` directory with none beside it. So a
-change to the adapter shows as well as one to the library; a ref from before `src/graphemes.ts` (#344) doesn't bundle. A case differs when its lines, their widths or their text
-move, or its line APIs disagree otherwise or make other Canvas calls after preparing. A case that varies between runs
-(`harness/varying`) is listed apart, not counted. It prints each case file's measureText calls and submitted units, here
-against there, and exits 1 on a difference. Line text goes out as a hash, which adapters before it send none of; texts
-are then not compared, and it says so.
+change to the adapter shows as well as one to the library. A ref from the harness on (#341) bundles with its own
+adapter; one from before it, such as 6d1d210, has none, and this tree's needs `src/graphemes.ts` (#344), so it doesn't
+bundle. A case differs when its lines, their widths or their text move, or its line APIs disagree otherwise or make
+other Canvas calls after preparing. A case that varies between runs (`harness/varying`) is listed apart, not counted. It
+prints each case file's measureText calls and submitted units, here against there, and exits 1 on a difference. Line
+text goes out as a hash, which adapters before it send none of; texts are then not compared, and it says so.
 
 `--offline` runs no browser. `offline-equal.ts` gives this tree's `src/` and `<ref>`'s the same inputs in the same order
 on the invariants' stand-in Canvas, in one process per engine profile (Blink, WebKit, Gecko, and an engine Pretext
