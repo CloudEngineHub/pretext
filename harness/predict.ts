@@ -13,7 +13,9 @@
 // counted apart while preparing and while the line APIs run. A walk that goes past a line per source unit, plus one,
 // fails its case instead of stalling the page, and so does a range or a rich fragment that names no place in its text,
 // before its text is built, since builds before #353, which --lib can run, build the text of a range that ends at
-// segment Infinity without end. The offline invariants (invariants.ts) call the same agreement checks.
+// segment Infinity without end. A cursor's place is found with the library's own graphemes (cursorOffsets), so the
+// adapter needs a build with src/graphemes.ts (from 2026-09-24). The offline invariants (invariants.ts) call the same
+// agreement checks and the same cursor map.
 import {
   layout, layoutNextLine, layoutNextLineRange, layoutWithLines, materializeLineRange, measureLineStats, prepare, prepareWithSegments,
   walkLineRanges, type LayoutCursor, type LayoutLineRange, type PrepareOptions, type PreparedTextWithSegments,
@@ -22,6 +24,8 @@ import {
   layoutNextRichInlineLineRange, materializeRichInlineLineRange, measureRichInlineStats, prepareRichInline, walkRichInlineLineRanges,
   type RichInlineCursor, type RichInlineFragmentRange, type RichInlineItem, type RichInlineLineRange,
 } from '../src/rich-inline.ts'
+import { findGraphemeEnds } from '../src/graphemes.ts'
+import { getEngineProfile } from '../src/measurement.ts'
 import type { Case, CssFont, Prediction, PredictedLine, TextRun } from './types.ts'
 
 function sameStyle(a: TextRun, b: TextRun): boolean {
@@ -103,28 +107,42 @@ export function alignStream(source: string, stream: string, whiteSpace: 'normal'
   return { starts, ends }
 }
 
-const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+// A cursor's UTF-16 offset in the text its prepared `segments` hold, with a segment's graphemes, the library's own
+// (src/graphemes.ts) under the engine's profile, found when a cursor first names a place inside it; -1 for a cursor that
+// names no place there. A browser's Intl.Segmenter can move to another Unicode version, which the library's rules don't
+// follow (RESEARCH.md, Decisions Log, 2026-09-24).
+export function cursorOffsets(segments: readonly string[]): (cursor: LayoutCursor) => number {
+  const starts: number[] = []
+  let total = 0
+  for (let i = 0; i < segments.length; i++) {
+    starts.push(total)
+    total += segments[i]!.length
+  }
+  const ends: Array<Int32Array | undefined> = []
+  return ({ segmentIndex: s, graphemeIndex: g }) => {
+    if (!Number.isInteger(s) || !Number.isInteger(g) || s < 0 || g < 0 || s > segments.length) return -1
+    if (s === segments.length) return g === 0 ? total : -1
+    if (g === 0) return starts[s]!
+    let list = ends[s]
+    if (list === undefined) {
+      const segment = segments[s]!
+      const buffer = new Int32Array(segment.length)
+      ends[s] = list = buffer.subarray(0, findGraphemeEnds(getEngineProfile().graphemeTable, segment, 0, segment.length, buffer))
+    }
+    return g <= list.length ? starts[s]! + list[g - 1]! : -1
+  }
+}
 
 // Maps the library's cursors in one prepared text to UTF-16 source ranges: `range(start, end)` for the cursors of a line
-// or a fragment.
+// or a fragment. A cursor that names no place in the text, which the agreement checks report, maps to its end.
 function sourceRanges(source: string, prepared: PreparedTextWithSegments, whiteSpace: 'normal' | 'pre-wrap'): (start: LayoutCursor, end: LayoutCursor) => { start: number; end: number } {
-  const segments = prepared.segments
-  const stream = segments.join('')
+  const stream = prepared.segments.join('')
   const aligned = alignStream(source, stream, whiteSpace)
   if (aligned === null) throw new Error('adapter: the library\'s segments don\'t align with the source text')
-  const segmentStarts: number[] = []
-  for (let i = 0, offset = 0; i < segments.length; i++) {
-    segmentStarts.push(offset)
-    offset += segments[i]!.length
-  }
+  const offsetOf = cursorOffsets(prepared.segments)
   const unit = (cursor: LayoutCursor): number => {
-    if (cursor.segmentIndex >= segments.length) return stream.length
-    let at = segmentStarts[cursor.segmentIndex]!
-    if (cursor.graphemeIndex > 0) {
-      let k = 0
-      for (const g of graphemes.segment(segments[cursor.segmentIndex]!)) if (k++ === cursor.graphemeIndex) at += g.index
-    }
-    return at
+    const at = offsetOf(cursor)
+    return at < 0 ? stream.length : at
   }
   return (startCursor, endCursor) => {
     const from = unit(startCursor)
@@ -173,14 +191,6 @@ function showRange(line: { start: LayoutCursor; end: LayoutCursor; width: number
   return `${showCursor(line.start)}-${showCursor(line.end)} width ${line.width}`
 }
 
-// Whether a cursor names a place in a text of `segments` segments. The checks test each range before building its text:
-// the text builders of builds before #353, given a range that ends elsewhere, such as at segment Infinity, build its
-// text without end.
-function inText(c: LayoutCursor, segments: number): boolean {
-  return Number.isInteger(c.segmentIndex) && Number.isInteger(c.graphemeIndex) && c.graphemeIndex >= 0
-    && c.segmentIndex >= 0 && (c.segmentIndex < segments || c.segmentIndex === segments && c.graphemeIndex === 0)
-}
-
 // The line APIs the agreement checks call: this build's in the page, the build under test in the offline invariants
 // (invariants.ts).
 const LIBRARY = { layoutNextLine, layoutNextLineRange, layoutWithLines, materializeLineRange, measureLineStats, layoutNextRichInlineLineRange, materializeRichInlineLineRange, measureRichInlineStats }
@@ -196,10 +206,13 @@ export function plainDisagreement(api: LineApis, prepared: PreparedTextWithSegme
   for (let i = 0; i < n; i++) widest = Math.max(widest, walked[i]!.width)
   const stats = api.measureLineStats(prepared, width)
   if (stats.lineCount !== n || !sameWidth(stats.maxLineWidth, widest)) return `measureLineStats gives ${stats.lineCount} lines, widest ${stats.maxLineWidth}; walkLineRanges ${n}, widest ${widest}`
+  // The checks test each range before building its text: the text builders of builds before #353, given a range that
+  // ends elsewhere, such as at segment Infinity, build its text without end.
+  const offsetOf = cursorOffsets(prepared.segments)
   const segments = prepared.segments.length
   const texts: string[] = []
   for (let i = 0; i < n; i++) {
-    if (!inText(walked[i]!.start, segments) || !inText(walked[i]!.end, segments)) return `walkLineRanges line ${i} is ${showRange(walked[i]!)}, outside the text's ${segments} segments`
+    if (offsetOf(walked[i]!.start) < 0 || offsetOf(walked[i]!.end) < 0) return `walkLineRanges line ${i} is ${showRange(walked[i]!)}, outside the text's ${segments} segments`
     const line = api.materializeLineRange(prepared, walked[i]!)
     if (!sameCursor(line.start, walked[i]!.start) || !sameCursor(line.end, walked[i]!.end) || !sameWidth(line.width, walked[i]!.width)) return `materializeLineRange of line ${i} gives ${showRange(line)}; walkLineRanges ${showRange(walked[i]!)}`
     texts.push(line.text)
@@ -214,7 +227,7 @@ export function plainDisagreement(api: LineApis, prepared: PreparedTextWithSegme
   for (let i = 0; ; i++) {
     const range = api.layoutNextLineRange(prepared, cursor, width)
     // layoutNextLine builds the text of the same range.
-    if (range !== null && !inText(range.end, segments)) return `layoutNextLineRange line ${i} is ${showRange(range)}, outside the text's ${segments} segments`
+    if (range !== null && offsetOf(range.end) < 0) return `layoutNextLineRange line ${i} is ${showRange(range)}, outside the text's ${segments} segments`
     const line = api.layoutNextLine(prepared, cursor, width)
     if (range === null || line === null) {
       if (range !== line) return `at line ${i}, layoutNextLineRange ${range === null ? 'ends' : 'goes on'} and layoutNextLine ${line === null ? 'ends' : 'goes on'}`
@@ -239,8 +252,8 @@ function sameFragments(a: readonly RichInlineFragmentRange[], b: readonly RichIn
 }
 
 // The same for rich-inline, against walkRichInlineLineRanges' lines. A fragment's cursors index its item's own prepared
-// text, of `segmentsOf(itemIndex)` segments.
-export function richDisagreement(api: LineApis, prepared: ReturnType<typeof prepareRichInline>, walked: RichInlineLineRange[], walkedCount: number, width: number, steps: number, segmentsOf: (itemIndex: number) => number): string | null {
+// text, whose cursorOffsets() `offsetsOf(itemIndex)` gives.
+export function richDisagreement(api: LineApis, prepared: ReturnType<typeof prepareRichInline>, walked: RichInlineLineRange[], walkedCount: number, width: number, steps: number, offsetsOf: (itemIndex: number) => ((cursor: LayoutCursor) => number) | undefined): string | null {
   const n = walked.length
   if (walkedCount !== n) return `walkRichInlineLineRanges returns ${walkedCount} for ${n} lines`
   let widest = 0
@@ -256,8 +269,8 @@ export function richDisagreement(api: LineApis, prepared: ReturnType<typeof prep
     if (!sameFragments(range.fragments, line.fragments) || !sameWidth(range.width, line.width) || range.end.itemIndex !== line.end.itemIndex || !sameCursor(range.end, line.end)) return `layoutNextRichInlineLineRange line ${i} differs from walkRichInlineLineRanges'`
     for (let k = 0; k < line.fragments.length; k++) {
       const f = line.fragments[k]!
-      const segments = segmentsOf(f.itemIndex)
-      if (!inText(f.start, segments) || !inText(f.end, segments)) return `walkRichInlineLineRanges line ${i} fragment ${k} is item ${f.itemIndex}'s ${showCursor(f.start)}-${showCursor(f.end)}, outside its ${segments} segments`
+      const offsetOf = offsetsOf(f.itemIndex)
+      if (offsetOf === undefined || offsetOf(f.start) < 0 || offsetOf(f.end) < 0) return `walkRichInlineLineRanges line ${i} fragment ${k} is item ${f.itemIndex}'s ${showCursor(f.start)}-${showCursor(f.end)}, outside its text`
     }
     const materialized = api.materializeRichInlineLineRange(prepared, line)
     if (!sameFragments(materialized.fragments, line.fragments) || materialized.width !== line.width) return `materializeRichInlineLineRange of line ${i} changes its fragments`
@@ -333,7 +346,8 @@ export function predict(c: Case): Prediction {
       counting = null
       const handles = items.map(item => prepareWithSegments(item.text, item.font, item.letterSpacing === undefined ? {} : { letterSpacing: item.letterSpacing }))
       counting = 'lines'
-      disagreement = richDisagreement(LIBRARY, prepared, walked, walkedCount, p.width, steps, i => handles[i]?.segments.length ?? -1)
+      const offsets = handles.map(handle => cursorOffsets(handle.segments))
+      disagreement = richDisagreement(LIBRARY, prepared, walked, walkedCount, p.width, steps, i => offsets[i])
       counting = null
       for (let i = 0; i < walked.length && disagreement === null; i++) {
         const fragments = materializeRichInlineLineRange(prepared, walked[i]!).fragments

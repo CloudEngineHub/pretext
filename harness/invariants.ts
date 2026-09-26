@@ -34,7 +34,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import type { LayoutCursor, LayoutLine, LayoutLineRange, PrepareOptions, PreparedText, PreparedTextWithSegments } from '../src/layout.ts'
 import type { PreparedRichInline, RichInlineCursor, RichInlineItem, RichInlineLineRange } from '../src/rich-inline.ts'
-import { canvasFont, isRich, plainDisagreement, prepareOptions, richDisagreement, richItems, unsupported } from './predict.ts'
+import { canvasFont, cursorOffsets, isRich, plainDisagreement, prepareOptions, richDisagreement, richItems, unsupported } from './predict.ts'
 import { createRng } from './sets/build.ts'
 import type { Case } from './types.ts'
 
@@ -120,8 +120,6 @@ type Failures = { list: string[]; counts: Record<string, number> }
 export async function runInvariants(profile: Profile, lib: string, draws: { dir: string; seed: string; plain: number; rich: number }): Promise<{ cases: number; failures: Failures }> {
   installStandIn(profile)
   const api = { ...await import(join(lib, 'layout.ts')), ...await import(join(lib, 'rich-inline.ts')) } as Api
-  const { findGraphemeEnds } = await import(join(lib, 'graphemes.ts')) as typeof import('../src/graphemes.ts')
-  const { getEngineProfile } = await import(join(lib, 'measurement.ts')) as typeof import('../src/measurement.ts')
   const failures: Failures = { list: [], counts: {} }
   const fail = (check: string, label: string, detail: string): void => {
     failures.counts[check] = (failures.counts[check] ?? 0) + 1
@@ -130,27 +128,6 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
   const same = (a: unknown, b: unknown): boolean => Bun.deepEquals(a, b, true)
   const json = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 
-  // A cursor's UTF-16 offset in the prepared text, by the library's own graphemes; -1 for one that names none.
-  const offsetsOf = (segments: readonly string[]): ((cursor: LayoutCursor) => number) => {
-    const starts: number[] = []
-    let total = 0
-    for (let i = 0; i < segments.length; i++) {
-      starts.push(total)
-      total += segments[i]!.length
-    }
-    const ends: Array<Int32Array | undefined> = []
-    return cursor => {
-      if (cursor.segmentIndex >= segments.length) return cursor.segmentIndex === segments.length && cursor.graphemeIndex === 0 ? total : -1
-      if (cursor.graphemeIndex === 0) return starts[cursor.segmentIndex] ?? -1
-      const segment = segments[cursor.segmentIndex]!
-      let list = ends[cursor.segmentIndex]
-      if (list === undefined) {
-        const buffer = new Int32Array(segment.length)
-        ends[cursor.segmentIndex] = list = buffer.subarray(0, findGraphemeEnds(getEngineProfile().graphemeTable, segment, 0, segment.length, buffer))
-      }
-      return cursor.graphemeIndex <= list.length ? starts[cursor.segmentIndex]! + list[cursor.graphemeIndex - 1]! : -1
-    }
-  }
   // Lines that cover `stream` forward without overlap, leaving between them only what may go unpainted there.
   const covers = (stream: string, spans: ReadonlyArray<[number, number]>, whiteSpace: 'normal' | 'pre-wrap', from = 0): string | null => {
     const unpainted = whiteSpace === 'normal' ? /^[ \u00AD\u200B]*$/ : /^[\n\u00AD\u200B]*$/
@@ -175,7 +152,7 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
       const disagreement = plainDisagreement(api, prepared, api.layout(fast, width, lineHeight), walked, count, width, lineHeight, steps)
       if (disagreement !== null) return fail('agreement', at, disagreement)
       const batch = api.layoutWithLines(prepared, width, lineHeight).lines
-      const offset = offsetsOf(prepared.segments)
+      const offset = cursorOffsets(prepared.segments)
       const stream = prepared.segments.join('')
       const spans = (lines: readonly LayoutLineRange[]): Array<[number, number]> => lines.map(line => [offset(line.start), offset(line.end)])
       const coverage = covers(stream, spans(batch), whiteSpace)
@@ -255,7 +232,8 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
     try {
       const walked: RichInlineLineRange[] = []
       const count = api.walkRichInlineLineRanges(prepared, width, line => { if (walked.push(line) > steps) throw new Error(`walkRichInlineLineRanges gives more than ${steps} lines`) })
-      const disagreement = richDisagreement(api, prepared, walked, count, width, steps, i => handles[i]?.segments.length ?? -1)
+      const offsets = handles.map(handle => cursorOffsets(handle.segments))
+      const disagreement = richDisagreement(api, prepared, walked, count, width, steps, i => offsets[i])
       if (disagreement !== null) return fail('agreement', at, disagreement)
       const lines: RichInlineLineRange[] = []
       let cursor: RichInlineCursor = { itemIndex: 0, segmentIndex: 0, graphemeIndex: 0 }
@@ -276,7 +254,6 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
         cursor = { ...range.end }
       }
       // Each item's fragments cover its own prepared text.
-      const offsets = handles.map(handle => offsetsOf(handle.segments))
       const spans: Array<Array<[number, number]>> = items.map(() => [])
       const whole = items.map(() => 0)
       for (let i = 0; i < lines.length; i++) {

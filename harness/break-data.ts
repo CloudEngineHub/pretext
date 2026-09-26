@@ -4,6 +4,7 @@
 // trie into XUL as byte arrays, which the databake files hold as Rust byte strings. `bun harness repin` prints it.
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import SOURCES from '../scripts/engine-data/sources.json'
 
 const ENGINE_DATA = join(import.meta.dir, '../scripts/engine-data')
 
@@ -53,18 +54,11 @@ export function rustByteStrings(source: string): Uint8Array[] {
   return out
 }
 
-// What each browser's tables come from: Chrome's icudtl.dat, the system's ICU data (Safari's line and character rules),
-// Firefox's XUL.
-const SOURCES = {
-  chrome: { dir: 'chrome-153', files: ['line_normal.brk', 'line_normal_cj.brk', 'char.brk'] },
-  safari: { dir: 'safari-27.0', files: ['line.brk', 'line_normal.brk', 'line_cj.brk', 'char.brk'] },
-  firefox: { dir: 'firefox-156', files: ['segmenter_break_line_v1.rs.data', 'segmenter_break_grapheme_cluster_v1.rs.data', 'property_enum_bidi_class_v1.rs.data'] },
-} as const
-
-// One line: each file of the browser's scripts/engine-data folder, and whether the browser (the app at `app`, or the
-// system for Safari) holds its bytes.
+// One line: each file of the browser's scripts/engine-data folder that the browser holds as it is (sources.json, which the
+// generator reads too), and whether the browser holds its bytes: Chrome in its icudtl.dat, Safari in the system's ICU
+// data (its line and character rules), Firefox in XUL, where `app` is the app, or the system for Safari.
 export function breakDataReport(browser: 'chrome' | 'firefox' | 'safari', app: string): string {
-  const { dir, files } = SOURCES[browser]
+  const { dir, inBrowser: files } = SOURCES[browser]
   const verdicts: string[] = []
   let same = true
   if (browser === 'firefox') {

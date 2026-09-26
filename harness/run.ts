@@ -5,8 +5,8 @@ import { randomUUID } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { environmentKey, FONTS_DIR, launch, type Session } from './browsers.ts'
-import { firefoxTextEmoji } from './score.ts'
-import type { BrowserKind, Case, PageEnv, Prediction, Recording } from './types.ts'
+import { lateTextEmoji } from './score.ts'
+import { BROWSER, type BrowserKind, type Case, type PageEnv, type Prediction, type Recording } from './types.ts'
 
 export type Mode = 'record' | 'predict'
 export type Job = { browser: BrowserKind; mode: Mode; cases: Case[]; documentSize: number; lib: string }
@@ -19,14 +19,10 @@ const FIXTURES = JSON.parse(readFileSync(join(FONTS_DIR, 'fonts.json'), 'utf8'))
 const CHUNK = 25
 const CHUNK_UNITS = 20_000
 export const LIB = resolve(import.meta.dir, '../src')
-// Firefox changes fonts under a page for about 12 s after it starts (PLATFORM_BUGS.md, the late family names): emoji
-// beside Arial laid out differently when recorded 11 s after launch than at 12, 15 or 30 s. So its first document is held
-// until 15 s after launch, in every job, recording or predicting.
-const FIREFOX_SETTLE_MS = 15_000
 
 // A build is a src/ and the adapter beside it, ../harness/page.ts, which predicts with it, so equal and --lib run whole
-// builds. A src/ with none beside it, such as a ref's from before the harness (096ae30e), takes this tree's adapter,
-// whose imports of the library go to that src/.
+// builds. A src/ with none beside it takes this tree's adapter. Either adapter's imports of the library go to that src/,
+// which needs src/graphemes.ts (#344) for the cursor map (predict.ts).
 export async function bundle(lib: string): Promise<string> {
   const own = join(lib, '../harness/page.ts')
   const built = await Bun.build({
@@ -36,7 +32,7 @@ export async function bundle(lib: string): Promise<string> {
     plugins: [{
       name: 'library-build',
       setup(builder) {
-        builder.onResolve({ filter: /^\.\.\/src\/(layout|rich-inline)\.ts$/ }, args => ({ path: join(lib, args.path.slice('../src/'.length)) }))
+        builder.onResolve({ filter: /^\.\.\/src\/[\w-]+\.ts$/ }, args => ({ path: join(lib, args.path.slice('../src/'.length)) }))
       },
     }],
   })
@@ -57,7 +53,7 @@ export function documents(browser: BrowserKind, cases: Case[], size: number): Ca
   const groups = new Map<string, { late: boolean; cases: Case[] }>()
   for (let i = 0; i < cases.length; i++) {
     const c = cases[i]!
-    const late = firefoxTextEmoji(browser, c)
+    const late = lateTextEmoji(browser, c)
     const key = JSON.stringify([late, c.pageLang, [...(c.fontFixtures ?? [])].sort()])
     let group = groups.get(key)
     if (group === undefined) groups.set(key, group = { late, cases: [] })
@@ -79,19 +75,46 @@ function pageHtml(doc: Case[]): string {
     + `<script id="fonts" type="application/json">${JSON.stringify(fonts)}</script><script type="module" src="/page.js"></script></body></html>`
 }
 
-// A server on the first free port from 3002 (`bun start` takes 3000), which another job may take between the check and
-// the bind.
-function serve(fetch: (request: Request) => Promise<Response>): ReturnType<typeof Bun.serve> {
-  for (let port = 3002; port < 3100; port++) {
-    if (Bun.spawnSync(['lsof', '-nP', `-iTCP:${port}`, '-sTCP:LISTEN']).exitCode === 0) continue
-    try {
-      // idleTimeout 0: Bun drops a request after 10 s without a response, and Firefox's first document is held longer.
-      return Bun.serve({ hostname: '127.0.0.1', port, maxRequestBodySize: 1 << 30, idleTimeout: 0, fetch })
-    } catch {
-      // Taken meanwhile.
-    }
+// Serves one job to one browser, and returns once the job ends, with the browser and the server gone: a server on a port
+// the OS assigns, the browser opened at `path` there, and a watchdog that ends the job after `stallMs` without a request,
+// saying where it stood (`stalled`). `handle` answers the page and ends the job with `finish`; a handler that throws
+// ends it with that error.
+export async function serveJob(
+  browser: BrowserKind,
+  id: string,
+  path: string,
+  o: { stallMs: number; stalled: () => string; foreground?: boolean; boundMb?: number },
+  handle: (request: Request, url: URL, finish: (error: Error | null) => void) => Promise<Response>,
+): Promise<void> {
+  let finish: (error: Error | null) => void = () => {}
+  const finished = new Promise<void>((done, fail) => { finish = error => (error === null ? done() : fail(error)) })
+  let lastActivity = Date.now()
+  // idleTimeout 0: Bun drops a request after 10 s without a response, and Firefox's first document is held longer.
+  const server = Bun.serve({
+    hostname: '127.0.0.1', port: 0, maxRequestBodySize: 1 << 30, idleTimeout: 0,
+    async fetch(request) {
+      lastActivity = Date.now()
+      try {
+        return await handle(request, new URL(request.url), finish)
+      } catch (error) {
+        finish(error instanceof Error ? error : new Error(String(error)))
+        return new Response(String(error), { status: 500 })
+      }
+    },
+  })
+  const base = `http://127.0.0.1:${server.port}`
+  const watchdog = setInterval(() => {
+    if (Date.now() - lastActivity > o.stallMs) finish(new Error(`${browser}: no page activity for ${o.stallMs / 60_000} minutes, ${o.stalled()}`))
+  }, 1000)
+  let session: Session | null = null
+  try {
+    session = await launch(browser, base + path, id, tabUrl => tabUrl.startsWith(`${base}/`), finish, o.foreground, o.boundMb)
+    await finished
+  } finally {
+    clearInterval(watchdog)
+    await session?.close()
+    await server.stop(true)
   }
-  throw new Error('No free port in 3002-3099')
 }
 
 export async function runJob<T extends Recording | Prediction>(job: Job): Promise<JobResult<T>> {
@@ -105,12 +128,9 @@ export async function runJob<T extends Recording | Prediction>(job: Job): Promis
   let doc = 0
   let next = 0
   let pending: { start: number; end: number } | null = null
-  let lastActivity = Date.now()
-  let finish: (error: Error | null) => void = () => {}
-  const finished = new Promise<void>((done, fail) => { finish = error => (error === null ? done() : fail(error)) })
   const docUrl = (n: number): string => `/doc?job=${id}&n=${n}`
 
-  const step = async (request: Request): Promise<Response> => {
+  const step = async (request: Request, finish: (error: Error | null) => void): Promise<Response> => {
     const body = await request.json() as { job: string; env: PageEnv; results: T[] | null }
     if (body.job !== id) return new Response('Inactive job', { status: 409 })
     env ??= body.env
@@ -143,49 +163,29 @@ export async function runJob<T extends Recording | Prediction>(job: Job): Promis
     return asciiJson({ kind: 'chunk', mode: job.mode, browser: job.browser, cases: docs[doc]!.slice(pending.start, pending.end) })
   }
 
-  const server = serve(async request => {
-    lastActivity = Date.now()
-    const url = new URL(request.url)
-    try {
-      switch (url.pathname) {
-        case '/doc': {
-          const n = Number(url.searchParams.get('n'))
-          if (url.searchParams.get('job') !== id || n !== doc) return new Response('Inactive document', { status: 409 })
-          const wait = settled - Date.now()
-          if (wait > 0) await Bun.sleep(wait)
-          return new Response(pageHtml(docs[n]!), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } })
-        }
-        case '/page.js': return new Response(script, { headers: { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-store' } })
-        case '/api/step': return await step(request)
-        case '/api/fatal': {
-          const body = await request.json() as { job: string; message: string }
-          if (body.job === id) finish(new Error(`Page error: ${body.message}`))
-          return new Response('ok')
-        }
-        case '/favicon.ico': return new Response(null, { status: 204 })
-        default: {
-          const fixture = FIXTURES.find(font => url.pathname === `/fonts/${font.file}`)
-          return fixture === undefined ? new Response('Not found', { status: 404 }) : new Response(Bun.file(join(FONTS_DIR, fixture.file)))
-        }
+  const settled = Date.now() + BROWSER[job.browser].settleMs
+  await serveJob(job.browser, id, docUrl(0), { stallMs: 120_000, stalled: () => `${results.size} of ${job.cases.length} cases done` }, async (request, url, finish) => {
+    switch (url.pathname) {
+      case '/doc': {
+        const n = Number(url.searchParams.get('n'))
+        if (url.searchParams.get('job') !== id || n !== doc) return new Response('Inactive document', { status: 409 })
+        const wait = settled - Date.now()
+        if (wait > 0) await Bun.sleep(wait)
+        return new Response(pageHtml(docs[n]!), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } })
       }
-    } catch (error) {
-      finish(error instanceof Error ? error : new Error(String(error)))
-      return new Response(String(error), { status: 500 })
+      case '/page.js': return new Response(script, { headers: { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-store' } })
+      case '/api/step': return await step(request, finish)
+      case '/api/fatal': {
+        const body = await request.json() as { job: string; message: string }
+        if (body.job === id) finish(new Error(`Page error: ${body.message}`))
+        return new Response('ok')
+      }
+      case '/favicon.ico': return new Response(null, { status: 204 })
+      default: {
+        const fixture = FIXTURES.find(font => url.pathname === `/fonts/${font.file}`)
+        return fixture === undefined ? new Response('Not found', { status: 404 }) : new Response(Bun.file(join(FONTS_DIR, fixture.file)))
+      }
     }
   })
-  const base = `http://127.0.0.1:${server.port}`
-  let session: Session | null = null
-  const watchdog = setInterval(() => {
-    if (Date.now() - lastActivity > 120_000) finish(new Error(`${job.browser}: no page activity for 2 minutes (${results.size} of ${job.cases.length} cases done)`))
-  }, 1000)
-  const settled = Date.now() + (job.browser === 'firefox' ? FIREFOX_SETTLE_MS : 0)
-  try {
-    session = await launch(job.browser, base + docUrl(0), id, tabUrl => tabUrl.startsWith(`${base}/doc?job=${id}`), finish)
-    await finished
-  } finally {
-    clearInterval(watchdog)
-    await session?.close()
-    await server.stop(true)
-  }
   return { env: environmentKey(job.browser, env!), results, ms: Date.now() - start }
 }

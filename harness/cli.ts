@@ -21,7 +21,7 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
 import { basename, join, resolve } from 'node:path'
 import {
-  accept, attribute, buildChange, checkBlocks, freshRecordings, gateBlocks, gateSample, headline, judge, observable, outsideClaims, pinning, reverseOrder, SAMPLED, score,
+  accept, attribute, buildChange, checkBlocks, freshRecordings, gateBlocks, gateSample, headline, judge, observable, outsideClaims, pinning, reverseOrder, score,
   SEED, shown, shrinkWrapShort, widthBand, type Outcome,
 } from './score.ts'
 import { bench, ROWS } from './bench/run.ts'
@@ -34,7 +34,7 @@ import {
   acceptedPath, assertSameEnvironment, caseText, historyPath, readAccepted, readCases, readHistory, readRecordings, readVarying, recordingText,
   recordingsPath, splitHistory, varyingPath, writeAccepted, writeHistory, writeRecordings, type Accepted, type Varying,
 } from './store.ts'
-import { BROWSERS, type BrowserKind, type Case, type Paragraph, type Prediction, type Recording } from './types.ts'
+import { BROWSER, BROWSERS, type BrowserKind, type Case, type Paragraph, type Prediction, type Recording } from './types.ts'
 
 // A document holds this many cases while recording, so each case sees a short page history.
 const RECORD_DOCUMENT = 200
@@ -57,7 +57,7 @@ export function parseArgs(args: readonly string[]): Args {
   }
   const command = positional[0]
   const browserFlag = flags.get('browser') ?? (command === 'explain' ? 'chrome' : 'all')
-  const browsers: BrowserKind[] = browserFlag === 'all' ? ['chrome', 'firefox', 'webkit-host'] : browserFlag.split(',') as BrowserKind[]
+  const browsers: BrowserKind[] = browserFlag === 'all' ? BROWSERS.filter(browser => BROWSER[browser].background) : browserFlag.split(',') as BrowserKind[]
   for (let i = 0; i < browsers.length; i++) if (!BROWSERS.includes(browsers[i]!)) throw new Error(`Unknown browser ${browsers[i]}`)
   const options: Options = {
     lib: resolve(flags.get('lib') ?? LIB), seed: Number(flags.get('seed') ?? SEED), sample: flags.has('sample') ? Number(flags.get('sample')) : null,
@@ -86,9 +86,8 @@ function loadCases(files: readonly string[]): { cases: Case[]; sets: Map<string,
   return { cases, sets }
 }
 
-// webkit-host runs installed Safari's engine, so it takes Safari's cases.
 function applies(c: Case, browser: BrowserKind): boolean {
-  return c.browsers === undefined || c.browsers.includes(browser) || (browser === 'webkit-host' && c.browsers.includes('safari'))
+  return c.browsers === undefined || c.browsers.includes(browser) || c.browsers.includes(BROWSER[browser].cases)
 }
 
 function percent(part: number, whole: number): string {
@@ -120,7 +119,7 @@ export async function record(browser: BrowserKind, cases: Case[], o: Options, io
   let list = cases.filter(c => applies(c, browser))
   if (o.onlyNew) list = list.filter(c => old?.recordings.has(c.id) !== true && oldHistory?.cases.has(c.id) !== true)
   let sorted = list.slice().sort((a, b) => (a.id < b.id ? -1 : 1))
-  // A seeded sample of every set, for installed Safari, whose window has to stay uncovered while it records.
+  // A seeded sample of every set, for a browser recorded on one.
   if (o.sample !== null) sorted = shuffled(sorted, o.seed).slice(0, o.sample).sort((a, b) => (a.id < b.id ? -1 : 1))
   // One browser instance at a time per browser. The second order is shuffled, so each case sits among other cases in
   // other documents, as in the gate's fresh recording.
@@ -128,8 +127,8 @@ export async function record(browser: BrowserKind, cases: Case[], o: Options, io
   const b = await io.run<Recording>({ browser, mode: 'record', cases: shuffled(sorted, o.seed + 1), documentSize: RECORD_DOCUMENT, lib: o.lib })
   if (a.env !== b.env) throw new Error(`The environment changed between the two recordings: ${a.env} | ${b.env}`)
   // Recording some cases (--only-new, --cases, --sample) keeps the other recordings, which must share the environment.
-  // Installed Safari's recordings are a sample themselves, which a new one replaces.
-  const merge = (o.onlyNew || o.partial || (o.sample !== null && !SAMPLED.includes(browser))) && old !== null
+  // A browser recorded on a sample keeps nothing but the new one.
+  const merge = (o.onlyNew || o.partial || (o.sample !== null && BROWSER[browser].sample === null)) && old !== null
   if (merge && old.env !== a.env) throw new Error(`${browser}: the other recordings were made under ${old.env}; record every case`)
   const sameEnv = old !== null && old.env === a.env
   const prior = sameEnv ? { recordings: new Map(old.recordings), history: new Map(oldHistory?.cases ?? []) } : null
@@ -353,9 +352,6 @@ export async function gate(browser: BrowserKind, cases: Case[], o: Options, io: 
 
 // ---- repin ----
 
-// Installed Safari's sample, as harness/README.md records it.
-const SAFARI_SAMPLE = 2000
-
 // Records every case into a scratch copy of the browser's recordings (`scratch`, a harness folder of its own), as record
 // does, and prints what changed against the recordings in `io.root`. A new environment starts the page-history list
 // empty and two orders find few of Firefox's (ENGINE_FOLLOWUPS.md), so a case that was page history stays so. `write`
@@ -368,7 +364,7 @@ export async function drift(browser: BrowserKind, cases: Case[], o: Options, wri
     rmSync(paths[i]!(scratch, browser), { force: true })
     if (existsSync(paths[i]!(io.root, browser))) copyFileSync(paths[i]!(io.root, browser), paths[i]!(scratch, browser))
   }
-  await record(browser, cases, { ...o, sample: SAMPLED.includes(browser) ? SAFARI_SAMPLE : null }, { ...io, root: scratch })
+  await record(browser, cases, { ...o, sample: BROWSER[browser].sample }, { ...io, root: scratch })
   const before = readRecordings(recordingsPath(io.root, browser))
   const old = before?.recordings ?? new Map<string, Recording>()
   const oldHistory = readHistory(historyPath(io.root, browser))?.cases ?? new Map<string, [Recording, Recording]>()
@@ -551,7 +547,7 @@ async function main(): Promise<number> {
     case 'bench': {
       if (positional[1] === undefined) throw new Error('bench needs a base: a git ref or a src/ directory')
       const background = flags.has('background')
-      const chosen = flags.has('browser') ? browsers : background ? ['chrome', 'firefox', 'webkit-host'] as BrowserKind[] : ['chrome', 'firefox', 'safari'] as BrowserKind[]
+      const chosen = flags.has('browser') ? browsers : BROWSERS.filter(browser => BROWSER[browser][background ? 'background' : 'foreground'])
       await bench(positional[1], flags.get('lib') ?? LIB, chosen, Number(flags.get('sessions') ?? 3), flags.get('rows')?.split(',') ?? ROWS, background)
       return 0
     }
@@ -561,13 +557,13 @@ async function main(): Promise<number> {
       const target = positional[1]
       if (target !== 'chrome' && target !== 'firefox' && target !== 'safari') throw new Error('repin takes chrome, firefox or safari')
       if (target !== 'safari') pins[target] = pinInstalled(target)
-      const kinds: BrowserKind[] = target === 'safari' ? ['webkit-host', 'safari'] : [target]
+      const kinds = BROWSERS.filter(browser => BROWSER[browser].cases === target)
       for (let i = 0; i < kinds.length; i++) await drift(kinds[i]!, cases, o, flags.has('write'), io, join(import.meta.dir, '../.artifacts/harness-repin'))
       console.log(breakDataReport(target, appPath(target)))
       if (target === 'safari') return 0
       const bumped = pins[target] !== PINNED[target]
       if (bumped && flags.has('write')) writePin(target, pins[target])
-      console.log(`${target}: ${pins[target]}${!bumped ? ', already the pin' : flags.has('write') ? ', now the pin in harness/browsers.ts' : '; --write makes it the pin'}`)
+      console.log(`${target}: ${pins[target]}${!bumped ? ', already the pin' : flags.has('write') ? ', now the pin in harness/pins.json' : '; --write makes it the pin'}`)
       return 0
     }
     case 'explain': {

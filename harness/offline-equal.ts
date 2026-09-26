@@ -70,9 +70,9 @@ const bench = (id: string, lang: string, texts: readonly string[], font: string,
 }
 if (flag('bench') !== 'none') {
   for (const shape of shapes()) bench(`bench ${shape.id}`, shape.lang, shape.texts, shape.font, shape.options)
-  for (const family of MESSAGE_FAMILIES) bench(`bench ${family}`, STYLE[family].lang, reader(family).batch(20000), STYLE[family].font)
+  for (const family of MESSAGE_FAMILIES) bench(`bench ${family}`, STYLE[family].lang, reader(family).batch(20000)!, STYLE[family].font)
   bench('bench labels', STYLE.labels.lang, labels().slice(0, 3000), STYLE.labels.font)
-  for (const [i, text] of reader('latin').batch(20000).entries()) inputs.push({ id: `bench rich ${i}`, lang: 'en', width: 240, text, font: STYLE.latin.font, options: {}, items: benchItems(text, STYLE.latin.font) })
+  for (const [i, text] of reader('latin').batch(20000)!.entries()) inputs.push({ id: `bench rich ${i}`, lang: 'en', width: 240, text, font: STYLE.latin.font, options: {}, items: benchItems(text, STYLE.latin.font) })
 }
 
 // One build's outputs for an input, each part as `<part>: <hash of its JSON>`.
