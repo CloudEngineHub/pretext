@@ -49,10 +49,7 @@ import {
   walkPreparedLinesRaw,
   type PreparedLineBreakData,
 } from './line-break.js'
-import {
-  buildLineTextFromRange,
-  getLineTextCache,
-} from './line-text.js'
+import { buildLineTextFromRange } from './line-text.js'
 
 // --- Public types ---
 
@@ -648,7 +645,6 @@ export function layout(prepared: PreparedText, maxWidth: number, lineHeight: num
 // signed advance.
 function createLayoutLine(
   prepared: PreparedTextWithSegments,
-  cache: ReturnType<typeof getLineTextCache>,
   width: number,
   startSegmentIndex: number,
   startGraphemeIndex: number,
@@ -658,7 +654,6 @@ function createLayoutLine(
   return {
     text: buildLineTextFromRange(
       prepared,
-      cache,
       startSegmentIndex,
       startGraphemeIndex,
       endSegmentIndex,
@@ -702,7 +697,6 @@ export function materializeLineRange(
 ): LayoutLine {
   return createLayoutLine(
     prepared,
-    getLineTextCache(prepared),
     line.width,
     line.start.segmentIndex,
     line.start.graphemeIndex,
@@ -782,7 +776,6 @@ export function layoutNextLine(
 
   const text = buildLineTextFromRange(
     prepared,
-    getLineTextCache(prepared),
     lineStart.segmentIndex,
     lineStart.graphemeIndex,
     end.segmentIndex,
@@ -808,14 +801,12 @@ export function layoutNextLineRange(
 // resize hot path.
 export function layoutWithLines(prepared: PreparedTextWithSegments, maxWidth: number, lineHeight: number): LayoutLinesResult {
   const lines: LayoutLine[] = []
-  const graphemeCache = getLineTextCache(prepared)
   const lineCount = walkPreparedLinesRaw(
     getInternalPrepared(prepared),
     maxWidth,
     (width, startSegmentIndex, startGraphemeIndex, endSegmentIndex, endGraphemeIndex) => {
       lines.push(createLayoutLine(
         prepared,
-        graphemeCache,
         width,
         startSegmentIndex,
         startGraphemeIndex,

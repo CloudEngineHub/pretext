@@ -215,7 +215,10 @@ export function walkPreparedLinesRaw(
     return stats.lineCount
   }
   // A fast-path handle is one chunk of text, spaces and ZWSPs, so each line steps
-  // from where the last one ended, past what a line can't start with.
+  // from where the last one ended, past what a line can't start with. One loop for
+  // both walkers, normalizing each line start and stepping through
+  // stepPreparedLineGeometryFromStart(), walked chat 6 to 32% slower in Chrome and
+  // Firefox (RESEARCH.md, Keeping Work Bounded).
   const { segmentFlags } = prepared
   const segmentCount = segmentFlags.length
   while (true) {
@@ -383,7 +386,10 @@ export function canReturnFromUnfitHyphen(
 // start, every line into `stats`, or with `singleLine` one line, whose width it
 // returns (null without one). Every line state is a local of this one function,
 // with no closure over it: V8 boxes a captured number, so each write to one cost
-// 12-14ns there against about 1ns for a local.
+// 12-14ns there against about 1ns for a local. It keeps its own loop over lines:
+// stepping one line per call, it read the handle and the profile and derived its
+// limits again for every line, and short lines laid out 7 to 40% slower in all
+// three browsers (RESEARCH.md, Keeping Work Bounded).
 function walkPreparedComplexLines(
   prepared: PreparedLineBreakData,
   cursor: LayoutCursor,
@@ -585,6 +591,10 @@ function walkPreparedComplexLines(
               continue
             }
 
+            // A fresh line and a line with content admit a whole segment apart, each
+            // with its own copy of what follows admission. One path for both, testing
+            // at each step whether the line has content, laid out short lines 3 to 17%
+            // slower in all three browsers (RESEARCH.md, Keeping Work Bounded).
             if (!hasContent) {
               if (startGraphemeIndex > 0) {
                 fillStart = startGraphemeIndex

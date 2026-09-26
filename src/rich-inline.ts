@@ -9,19 +9,15 @@ import {
   removeSkippableSegmentBreaks,
   type AnalysisProfile,
 } from './analysis.js'
-import { findGraphemeEnds } from './graphemes.js'
 import { getWebKitBreakBetweenItems } from './line-breaks.js'
-import {
-  buildLineTextFromRange,
-  getLineTextCache,
-} from './line-text.js'
+import { buildLineTextFromRange, getGraphemeEnds } from './line-text.js'
 import {
   canReturnFromUnfitHyphen,
   endsLineBefore,
   getKindCode,
   isDiscretionaryLineEnd,
   KIND_BITS,
-  type PreparedLineBreakData,
+  RETURNABLE,
   stepPreparedLineGeometry,
   UNBROKEN,
 } from './line-break.js'
@@ -114,11 +110,13 @@ type PreparedRichInlineItem = {
   // Where the last ordinary break inside this item falls; the item start when
   // the last run starts at or before it. Set with a carry.
   lastRunStart: LayoutCursor
-  // Where the joined text breaks inside the item, and the item's own segment
-  // starts where it does not. Null while the item's segmentation agrees.
+  // Where the joined text breaks inside the item's segments, in order. Null without
+  // any.
   joinedBreaks: LayoutCursor[] | null
-  localOnlyBreaks: number[] | null
   naturalWidth: number
+  // The item's own handle, or where the joined text doesn't break at one of its
+  // segment starts, a copy whose flags follow the joined text's breaks
+  // (recordJoinedBreaks).
   prepared: PreparedTextWithSegments
 }
 
@@ -179,20 +177,16 @@ function measureItemPrefix(prepared: PreparedTextWithSegments, end: LayoutCursor
 // the line walker can end at: a segment start, or a grapheme inside a segment
 // that has fit advances. Null when the walker cannot end a line there.
 function getItemCursor(prepared: PreparedTextWithSegments, startSegmentIndex: number, offset: number): LayoutCursor | null {
-  const data: PreparedLineBreakData = prepared
   const { segments } = prepared
   let start = 0
   for (let i = startSegmentIndex; i < segments.length; i++) {
     if (offset === start) return { segmentIndex: i, graphemeIndex: 0 }
     const end = start + segments[i]!.length
     if (offset < end) {
-      if (data.breakableFitAdvances[i] === null || data.entryGeometry?.[i] != null) return null
-      const segment = segments[i]!
-      const ends = new Int32Array(segment.length)
-      const count = findGraphemeEnds(getEngineProfile().graphemeTable, segment, 0, segment.length, ends)
+      if (prepared.breakableFitAdvances[i] === null || prepared.entryGeometry?.[i] != null) return null
       // Grapheme k + 1 starts where grapheme k ends.
-      for (let k = 0; k < count - 1; k++) if (start + ends[k]! === offset) return { segmentIndex: i, graphemeIndex: k + 1 }
-      return null
+      const k = getGraphemeEnds(prepared, i).indexOf(offset - start)
+      return k < 0 ? null : { segmentIndex: i, graphemeIndex: k + 1 }
     }
     start = end
   }
@@ -246,53 +240,43 @@ function getItemBreakOffsets(portions: readonly JoinedPortion[], text: string, b
   return offsets
 }
 
-// Records where the joined text breaks inside a portion, as item cursors, and
-// the item's own segment starts inside it where the joined text does not break.
-// Offsets from `startIndex` are at or after the portion start.
+// Gives an item the joined text's breaks inside a portion, which its own segments
+// can disagree with. Where the joined text doesn't break at one of its segment
+// starts, the item's handle becomes a copy whose flags follow the joined text at
+// each segment start in the portion, unbroken where it doesn't break and returnable
+// where it does, and mark the item's own breaks elsewhere returnable, as preparation
+// marks text whose scan doesn't break at some segment boundary. The walker then
+// returns to the latest break or fills the word's graphemes. The joined breaks
+// inside segments become item cursors, which the rich stepper ends lines at
+// (stepRichInlineLine). Offsets from `startIndex` are at or after the portion start.
 function recordJoinedBreaks(portion: JoinedPortion, breakOffsets: readonly number[], startIndex: number, portionEnd: number): void {
   const { item } = portion
   const { segments } = item.prepared
-  const cursors: LayoutCursor[] = []
-  const localOnly: number[] = []
-  let agrees = true
+  const unbroken: number[] = []
+  const broken: number[] = []
   let breakIndex = breakOffsets[startIndex] === portion.start ? startIndex + 1 : startIndex
-  // Text after a collapsible space starts at an ordinary break.
-  if (portion.startSegmentIndex > 0) cursors.push({ segmentIndex: portion.startSegmentIndex, graphemeIndex: 0 })
   let segmentStart = portion.start
   for (let i = portion.startSegmentIndex; i < segments.length && segmentStart < portionEnd; i++) {
     if (i > portion.startSegmentIndex) {
       if (breakOffsets[breakIndex] === segmentStart) {
-        cursors.push({ segmentIndex: i, graphemeIndex: 0 })
+        broken.push(i)
         breakIndex++
       } else {
-        localOnly.push(i)
-        agrees = false
+        unbroken.push(i)
       }
     }
     const segmentEnd = segmentStart + segments[i]!.length
     for (; breakIndex < breakOffsets.length && breakOffsets[breakIndex]! < segmentEnd; breakIndex++) {
-      agrees = false
       const cursor = getItemCursor(item.prepared, i, breakOffsets[breakIndex]! - segmentStart)
-      if (cursor !== null) cursors.push(cursor)
+      if (cursor !== null) (item.joinedBreaks ??= []).push(cursor)
     }
     segmentStart = segmentEnd
   }
-  if (agrees) return
-  item.joinedBreaks = item.joinedBreaks === null ? cursors : item.joinedBreaks.concat(cursors)
-  item.localOnlyBreaks = item.localOnlyBreaks === null ? localOnly : item.localOnlyBreaks.concat(localOnly)
-}
-
-function getLatestJoinedBreak(
-  joinedBreaks: readonly LayoutCursor[] | null,
-  after: LayoutCursor,
-  before: LayoutCursor,
-): LayoutCursor | null {
-  let joinedBreak: LayoutCursor | null = null
-  if (joinedBreaks === null) return joinedBreak
-  for (let i = 0; i < joinedBreaks.length && isBeforeCursor(joinedBreaks[i]!, before); i++) {
-    if (isBeforeCursor(after, joinedBreaks[i]!)) joinedBreak = joinedBreaks[i]!
-  }
-  return joinedBreak
+  if (unbroken.length === 0) return
+  const segmentFlags = item.prepared.segmentFlags.map(flags => (flags & UNBROKEN) !== 0 ? flags : flags | RETURNABLE)
+  for (let k = 0; k < unbroken.length; k++) segmentFlags[unbroken[k]!] = (segmentFlags[unbroken[k]!]! & ~RETURNABLE) | UNBROKEN
+  for (let k = 0; k < broken.length; k++) segmentFlags[broken[k]!] = (segmentFlags[broken[k]!]! & ~UNBROKEN) | RETURNABLE
+  item.prepared = { ...item.prepared, segmentFlags, simpleLineWalkFastPath: false }
 }
 
 // Steps an item's line from `start` to an ordinary break at `end`. The line
@@ -311,33 +295,6 @@ function stepItemToBreak(
     lineEnd.graphemeIndex = cursor.graphemeIndex
   }
   return width
-}
-
-// Fills the graphemes of a segment that does not fit, as the line walker does
-// for a word that began the line: up to the last grapheme that fits. Null when
-// the item's own break before the segment is that end, or the segment has no
-// fit advances.
-function fillItemSegment(
-  prepared: PreparedTextWithSegments,
-  start: LayoutCursor,
-  availableWidth: number,
-  segmentIndex: number,
-  lineEnd: LayoutCursor,
-): number | null {
-  const data: PreparedLineBreakData = prepared
-  const fitAdvances = data.breakableFitAdvances[segmentIndex]
-  if (fitAdvances === null || fitAdvances === undefined || data.entryGeometry?.[segmentIndex] != null) return null
-  const overflow: LayoutCursor = { segmentIndex, graphemeIndex: 0 }
-  const cursor: LayoutCursor = { segmentIndex: 0, graphemeIndex: 0 }
-  for (let g = 1; g < fitAdvances.length; g++) {
-    cursor.segmentIndex = start.segmentIndex
-    cursor.graphemeIndex = start.graphemeIndex
-    stepPreparedLineGeometry(prepared, cursor, availableWidth, segmentIndex, g)
-    if (cursor.segmentIndex !== segmentIndex || cursor.graphemeIndex !== g) break
-    overflow.graphemeIndex = g
-  }
-  if (overflow.graphemeIndex === 0) return null
-  return stepItemToBreak(prepared, start, availableWidth, overflow, lineEnd)
 }
 
 // The first ordinary break inside a portion that starts at a no-break
@@ -378,19 +335,6 @@ function getLeadingRunWidth(portion: JoinedPortion, end: LayoutCursor | null): n
     if (kind === 'space') break
   }
   return width
-}
-
-type RichInlineFragmentCollector = (
-  itemIndex: number,
-  gapBefore: number,
-  gapItemIndex: number,
-  occupiedWidth: number,
-  start: LayoutCursor,
-  end: LayoutCursor,
-) => void
-
-function endsInsideFirstSegment(segmentIndex: number, graphemeIndex: number): boolean {
-  return segmentIndex === 0 && graphemeIndex > 0
 }
 
 export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
@@ -507,7 +451,6 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
       gapItemIndex,
       lastRunStart: EMPTY_LAYOUT_CURSOR,
       joinedBreaks: null,
-      localOnlyBreaks: null,
       naturalWidth: wholeWidth ?? 0,
       prepared,
     } satisfies PreparedRichInlineItem
@@ -578,16 +521,20 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
 
 // Emits a fragment covering a whole item, from its start to its source end.
 function collectWholeItem(
-  collectFragment: RichInlineFragmentCollector | undefined,
+  fragments: RichInlineFragmentRange[] | null,
   itemIndex: number,
   item: PreparedRichInlineItem,
   gapBefore: number,
   gapItemIndex: number,
   occupiedWidth: number,
 ): void {
-  collectFragment?.(itemIndex, gapBefore, gapItemIndex, occupiedWidth, cloneCursor(EMPTY_LAYOUT_CURSOR), {
-    segmentIndex: item.prepared.segments.length,
-    graphemeIndex: 0,
+  fragments?.push({
+    itemIndex,
+    gapBefore,
+    gapItemIndex,
+    occupiedWidth,
+    start: cloneCursor(EMPTY_LAYOUT_CURSOR),
+    end: { segmentIndex: item.prepared.segments.length, graphemeIndex: 0 },
   })
 }
 
@@ -598,7 +545,8 @@ function stepRichInlineLine(
   flow: InternalPreparedRichInline,
   maxWidth: number,
   cursor: RichInlineCursor,
-  collectFragment?: RichInlineFragmentCollector,
+  // The line's fragments go here, unless it is null.
+  fragments: RichInlineFragmentRange[] | null,
 ): number | null {
   if (flow.items.length === 0 || cursor.itemIndex >= flow.items.length) return null
 
@@ -626,7 +574,7 @@ function stepRichInlineLine(
     // turning their mere presence into a line. A following line can still
     // expose their consumed source.
     if (!item.establishesLine) {
-      collectWholeItem(collectFragment, itemIndex, item, 0, -1, 0)
+      collectWholeItem(fragments, itemIndex, item, 0, -1, 0)
       continue
     }
 
@@ -641,7 +589,7 @@ function stepRichInlineLine(
       const totalWidth = gapBefore + occupiedWidth
       if (hasContent && totalWidth > remainingWidth + lineFitEpsilon) break lineLoop
 
-      collectWholeItem(collectFragment, itemIndex, item, gapBefore, gapItemIndex, occupiedWidth)
+      collectWholeItem(fragments, itemIndex, item, gapBefore, gapItemIndex, occupiedWidth)
       hasContent = true
       lineWidth += totalWidth
       remainingWidth = safeWidth - lineWidth
@@ -668,7 +616,7 @@ function stepRichInlineLine(
           (isLineStartCursor(item.lastRunStart) && !(hasContent && item.breakBefore))
         )
       ) {
-        collectWholeItem(collectFragment, itemIndex, item, gapBefore, gapItemIndex, item.naturalWidth + item.extraWidth)
+        collectWholeItem(fragments, itemIndex, item, gapBefore, gapItemIndex, item.naturalWidth + item.extraWidth)
         hasContent = true
         lineWidth += totalWidth
         remainingWidth = safeWidth - lineWidth
@@ -718,41 +666,44 @@ function stepRichInlineLine(
       }
     }
 
-    // Preserve ordinary breaks before emergency splitting the next word: the
-    // last one the joined text offers inside its first segment, else the item
-    // boundary. SPACE advance need not be positive; ZWSP has no gap at all.
-    if (hasContent && atItemStart && endsInsideFirstSegment(lineEnd.segmentIndex, lineEnd.graphemeIndex)) {
-      const leadingBreak = getLatestJoinedBreak(item.joinedBreaks, cursor, {
-        segmentIndex: 0,
-        graphemeIndex: lineEnd.graphemeIndex + 1,
-      })
-      const width = leadingBreak === null ? null : stepItemToBreak(item.prepared, cursor, availableWidth, leadingBreak, lineEnd)
-      if (width !== null) {
-        lineWidthForItem = width
-        itemOccupiedWidth = lineWidthForItem + item.extraWidth
-        lineWidthContribution = gapBefore + itemOccupiedWidth
-      } else if (item.breakBefore) {
-        break lineLoop
+    // The walk sees neither the joined breaks inside the item's segments nor the
+    // line's breaks before the item. Where it splits a word, ending inside a segment
+    // or before one its flags mark unbroken, the line ends at the latest joined break
+    // before the split, else before the item where the line has content and a break
+    // precedes the item, as the flat walker returns to its last break. SPACE advance
+    // need not be positive; ZWSP has no gap at all. Where the walk ends at a break,
+    // the line ends at the latest joined break after it that fits before the next
+    // segment start with a break.
+    const { joinedBreaks } = item
+    const { segmentFlags, segments } = item.prepared
+    const splitsWord = lineEnd.graphemeIndex > 0 || (lineEnd.segmentIndex < segments.length && (segmentFlags[lineEnd.segmentIndex]! & UNBROKEN) !== 0)
+    let joinedWidth: number | null = null
+    if (joinedBreaks !== null && splitsWord) {
+      let k = 0
+      while (k < joinedBreaks.length && !isBeforeCursor(lineEnd, joinedBreaks[k]!)) k++
+      if (k > 0 && isBeforeCursor(cursor, joinedBreaks[k - 1]!)) {
+        joinedWidth = stepItemToBreak(item.prepared, cursor, availableWidth, joinedBreaks[k - 1]!, lineEnd)
       }
-    } else if (
-      item.localOnlyBreaks !== null &&
-      lineEnd.graphemeIndex === 0 &&
-      item.localOnlyBreaks.includes(lineEnd.segmentIndex)
-    ) {
-      // The item's own segmentation broke inside a word of the joined text.
-      // End at the joined text's latest break before it instead, or fill that
-      // word's graphemes when it began the line.
-      const joinedBreak = getLatestJoinedBreak(item.joinedBreaks, cursor, lineEnd)
-      const width = joinedBreak !== null
-        ? stepItemToBreak(item.prepared, cursor, availableWidth, joinedBreak, lineEnd)
-        : hasContent ? null : fillItemSegment(item.prepared, cursor, availableWidth, lineEnd.segmentIndex, lineEnd)
-      if (width !== null) {
-        lineWidthForItem = width
-        itemOccupiedWidth = lineWidthForItem + item.extraWidth
-        lineWidthContribution = gapBefore + itemOccupiedWidth
-      } else if (joinedBreak === null && hasContent && item.breakBefore) {
-        break lineLoop
+    } else if (joinedBreaks !== null) {
+      let runEnd = lineEnd.segmentIndex + 1
+      while (runEnd < segments.length && (segmentFlags[runEnd]! & UNBROKEN) !== 0) runEnd++
+      for (let k = joinedBreaks.length - 1; joinedWidth === null && k >= 0 && isBeforeCursor(lineEnd, joinedBreaks[k]!); k--) {
+        const joinedBreak = joinedBreaks[k]!
+        if (joinedBreak.segmentIndex >= runEnd) continue
+        const reached = cloneCursor(cursor)
+        const width = stepPreparedLineGeometry(item.prepared, reached, availableWidth, joinedBreak.segmentIndex, joinedBreak.graphemeIndex)
+        if (width === null || isBeforeCursor(reached, joinedBreak)) continue
+        joinedWidth = width
+        lineEnd.segmentIndex = reached.segmentIndex
+        lineEnd.graphemeIndex = reached.graphemeIndex
       }
+    }
+    if (joinedWidth !== null) {
+      lineWidthForItem = joinedWidth
+      itemOccupiedWidth = lineWidthForItem + item.extraWidth
+      lineWidthContribution = gapBefore + itemOccupiedWidth
+    } else if (splitsWord && hasContent && atItemStart && item.breakBefore) {
+      break lineLoop
     }
 
     if (
@@ -777,17 +728,14 @@ function stepRichInlineLine(
       }
     }
 
-    collectFragment?.(
+    fragments?.push({
       itemIndex,
       gapBefore,
       gapItemIndex,
-      itemOccupiedWidth,
-      cloneCursor(cursor),
-      {
-        segmentIndex: lineEnd.segmentIndex,
-        graphemeIndex: lineEnd.graphemeIndex,
-      },
-    )
+      occupiedWidth: itemOccupiedWidth,
+      start: cloneCursor(cursor),
+      end: { segmentIndex: lineEnd.segmentIndex, graphemeIndex: lineEnd.graphemeIndex },
+    })
     hasContent = true
     lineWidth += lineWidthContribution
     remainingWidth = safeWidth - lineWidth
@@ -822,16 +770,7 @@ export function layoutNextRichInlineLineRange(
     graphemeIndex: start.graphemeIndex,
   }
   const fragments: RichInlineFragmentRange[] = []
-  const width = stepRichInlineLine(flow, maxWidth, end, (itemIndex, gapBefore, gapItemIndex, occupiedWidth, fragmentStart, fragmentEnd) => {
-    fragments.push({
-      itemIndex,
-      gapBefore,
-      gapItemIndex,
-      occupiedWidth,
-      start: fragmentStart,
-      end: fragmentEnd,
-    })
-  })
+  const width = stepRichInlineLine(flow, maxWidth, end, fragments)
   if (width === null) return null
 
   // As in the text line APIs, only the reported width is clamped at zero;
@@ -849,7 +788,6 @@ function materializeFragmentText(
 ): string {
   return buildLineTextFromRange(
     item.prepared,
-    getLineTextCache(item.prepared),
     fragment.start.segmentIndex,
     fragment.start.graphemeIndex,
     fragment.end.segmentIndex,
@@ -922,7 +860,7 @@ export function measureRichInlineStats(
   }
 
   while (true) {
-    const lineWidth = stepRichInlineLine(flow, maxWidth, cursor)
+    const lineWidth = stepRichInlineLine(flow, maxWidth, cursor, null)
     if (lineWidth === null) {
       return {
         lineCount,

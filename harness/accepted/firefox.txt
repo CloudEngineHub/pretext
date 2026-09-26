@@ -549,10 +549,6 @@ catalog-db900db766e91e07 count
 ## Lost against main before #340 (6d1d210): a pre-wrap tab after a URL's "?"; Firefox moves the tab to the next line, the library keeps it on the first
 catalog-d85ac32aa3f65fa5 breaks
 
-## Lost against main before #340 (6d1d210): a tab, ZWSP and combining mark across rich items (the engine fact at layout.test.ts:893); the library breaks one character later than Firefox
-rich-25695740760ebdf4 breaks
-rich-cad75b27fe2ea2f3 breaks
-
 ## Mode oracle for pre-wrap, "a" and two tabs before "b" in 18 px serif at 50 px: Firefox breaks between the tabs, the library after them (main before #340 too)
 oracle-c9340cde69edff81 breaks
 
