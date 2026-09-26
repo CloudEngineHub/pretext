@@ -1082,10 +1082,37 @@ would, and an ordinary break falls only where a joined break unit starts. In the
 Chromium and Gecko profiles every break fact near a boundary comes from that
 joined analysis, not only the boundary itself. Splitting a word changes each
 item's own segmentation: Thai `ความสวยง` splits into `ความ/สวย/ง` alone but
-`ความ/สวยงาม` joined. Joined break positions therefore map into item cursors, down
-to a grapheme inside an item segment when needed. Where an item's segments hide a
-joined break, or offer one inside a joined word, the walker ends at the joined
-break or fills graphemes, as the flat walker splits a word.
+`ความ/สวยงาม` joined. The joined breaks therefore become facts of the item's
+handle. Where an item's segment starts inside a joined word, the item lays out from
+a copy of its handle whose flags follow the joined text at its segment starts, as
+preparation marks a scan's boundaries without a break, so the walker returns to the
+latest break or fills the word's graphemes. Joined breaks inside an item's segments
+map to item cursors, down to a grapheme. The walker sees neither
+those nor the line's breaks before the item, so the rich stepper corrects its walk.
+Where the walk splits a word, inside a segment or before an unbroken segment start,
+the line ends at the latest joined break before the split, else before the item
+where the line has content and a break precedes the item, as the flat walker
+returns to its last break. That end before the item holds in the WebKit profile
+too (below). Where the walk ends at a break, the line ends at the latest joined
+break after it that fits before the next segment start with a break.
+
+Before the flags, a list of the item's segment starts inside joined words had the
+stepper walk each line that ended at one again, to the joined break, or once per
+grapheme of the word that began the line. The flags with a correction only for a
+split inside an item's first segment kept every case's lines, but not others: on
+plain case texts split into same-font items at graphemes, at words or anywhere
+(31,359 inputs in each of the Chromium and Gecko profiles, on the invariants'
+stand-in Canvas), the list's lines matched the flat walker's at 114 and 93 widths
+where those didn't. With the corrections above, lines match the flat walker's at
+427 and 364 widths where the list's didn't, and at every width where they did but
+one, in the Gecko profile, where only an invisible ZWSP and mark after a newline
+item move to the next line. The item's own unbroken starts count too, in every
+profile: in the Gecko profile an item `\t\u200B\u0301ab` after `x` that doesn't
+fit moves to the next line, and two Firefox rich cases the library broke one
+character later than Firefox pass. Four Myanmar rich cases, which Firefox lays out
+in fewer lines than the library, take one more line: the list's lines split
+syllables where the joined text doesn't break, which packed them tighter
+(ENGINE_FOLLOWUPS.md).
 
 WebKit breaks differently, and the WebKit profile follows it. Its inline items
 builder runs a break iterator over each inline box's own text, and a boundary
@@ -1099,6 +1126,20 @@ boundary from that scan with the previous item's last two characters as prior
 context. An item's last run and the next item's first run come from the items' own
 segments. WebKit breaks `-1o(r)` before the parenthesis inside a box, where the
 scan over the item's text doesn't.
+
+An item keeps its own flags in the WebKit profile, and they leave some segment
+starts unbroken, such as those at a control character like NEL, VT or NUL, at a
+combining mark after a ZWSP, or at a soft hyphen inside an emoji sequence. The rich
+stepper's end before the item holds here too: after a break, an item whose first
+word runs past such a start moves to the next line. Before, the stepper ended a line
+before the item only where the walk split its first segment, and split the word at
+that start or inside a later segment: in 16px Arial at 42 and 46px, Safari lays out
+items `zz` and ` ab\u0085cd` as `zz` / `ab\u0085` / `cd`, which the library now
+gives, where it gave two lines. On the plain case texts split into items above,
+lines in the WebKit profile now match the flat walker's at 72 widths where they
+didn't, and at every width where they did. In a September 26, 2026 probe of 672 rich
+cases made from the shapes that move, at 10-90px, webkit-host passes 37 more and
+none fewer; none of the harness's cases moves.
 
 Gecko's line breaker keeps extending a word across text frames until a SPACE, TAB
 or CR, computes that word's breaks once with ICU4X's line segmenter, and hands each

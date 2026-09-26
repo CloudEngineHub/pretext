@@ -2994,12 +2994,27 @@ describe('rich-inline invariants', () => {
     expect(lineTexts(chip, measureWidth('Tag @maya', FONT) + 18 - epsilon / 2)).toEqual(['Tag @maya'])
   })
 
-  test('the Chromium profile breaks rich items only where their joined text breaks', () => {
+  test('the Chromium profile and the Gecko scan break rich items only where their joined text breaks', () => {
     // Same-font runs from a product page: native text keeps "community," whole,
     // so the comma that starts the third run moves with the word before it.
     // Run extents also come from the joined text: split words, dictionary
     // words, a kinsoku unit and a soft hyphen before a space. At width 30 the
-    // item's own segmentation breaks inside a joined Lao word.
+    // item's own segmentation breaks inside a joined Lao word. In the four rows
+    // after `T` and `po\u00ADd`, an item's first word runs past its first segment
+    // after a break, and the joined text breaks inside a later segment of an
+    // item. In the last row the walk ends at the space before the first item's
+    // Thai word, which doesn't fit, where the joined text breaks inside that word.
+    const expectFlatLines = (parts: readonly string[], width: number) => {
+      const prepared = prepareRichInline(parts.map(text => ({ text, font: FONT })))
+      const richLines: string[] = []
+      walkRichInlineLineRanges(prepared, width, range => {
+        const line = materializeRichInlineLineRange(prepared, range)
+        richLines.push(line.fragments.map(fragment => (fragment.gapItemIndex < 0 ? '' : ' ') + fragment.text).join('').trimEnd())
+      })
+      const flat = layoutWithLines(prepareWithSegments(parts.join(''), FONT), width, LINE_HEIGHT)
+      expect(richLines).toEqual(flat.lines.map(line => line.text.trimEnd()))
+      expect(measureRichInlineStats(prepared, width).lineCount).toBe(flat.lineCount)
+    }
     for (const [parts, width] of [
       [['Midjourney operates non-traditionally. Our features are suggested and prioritized by our ', 'community', ', projects are led by engineers and the founder, and the team is strikingly small compared to the size of our community and ambitions.'], 258],
       [['Hello wor', 'ld again'], 85],
@@ -3011,16 +3026,23 @@ describe('rich-inline invariants', () => {
       [['foo ba', 'r\u00AD baz'], 64],
       [['a xxxx', '\uFF0Cb'], 54.5],
       [['T', 'po\u00ADd'], 28.8],
-    ] as const) {
-      const prepared = prepareRichInline(parts.map(text => ({ text, font: FONT })))
-      const richLines: string[] = []
-      walkRichInlineLineRanges(prepared, width, range => {
-        const line = materializeRichInlineLineRange(prepared, range)
-        richLines.push(line.fragments.map(fragment => (fragment.gapItemIndex < 0 ? '' : ' ') + fragment.text).join('').trimEnd())
-      })
-      const flat = layoutWithLines(prepareWithSegments(parts.join(''), FONT), width, LINE_HEIGHT)
-      expect(richLines).toEqual(flat.lines.map(line => line.text.trimEnd()))
-      expect(measureRichInlineStats(prepared, width).lineCount).toBe(flat.lineCount)
+      [['zz ', 'ab\u0000', 'cd'], 45],
+      [['\u0E15\u0E32\u0E21\u0E18\u0E23\u0E23\u0E21\u0E40\u0E19\u0E35\u0E22\u0E21 \u0E43', '\u0E19\u0E17\u0E35\u0E48\u0E2A\u0E38\u0E14\u0E40\u0E21\u0E37\u0E48\u0E2D'], 48],
+      [['\u6F22', '\u5B57\u0000\u6F22\u5B57'], 32],
+      [['\u0E19\u0E32\u0E07\u0E40\u0E2B\u0E22\u0E35\u0E22\u0E1A\u0E14\u0E2D\u0E01\u0E1A\u0E31', '\u0E27\u0E19\u0E31\u0E49\u0E19'], 30],
+      [['x \u0E17\u0E39\u0E17\u0E39', '\u0E17\u0E39', ' y'], 35],
+    ] as const) expectFlatLines(parts, width)
+    // The Gecko scan of the second item alone doesn't break before `\u0000`, where
+    // the joined text does, so the item's copied flags mark that start returnable.
+    const profile = getEngineProfile()
+    const previous = profile.lineBreakScan
+    try {
+      profile.lineBreakScan = 'gecko'
+      clearCache()
+      expectFlatLines(['xx \u0E01', '\u0E02\u0000\u0E01\u0E02 yy'], 30)
+    } finally {
+      profile.lineBreakScan = previous
+      clearCache()
     }
   })
 
