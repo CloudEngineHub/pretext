@@ -13,7 +13,6 @@ import { clearWordSegmenter } from './line-breaks.js'
 import {
   analyzeText,
   CONTROL,
-  getSegmentText,
   HARD_BREAK,
   KIND_BITS,
   ONE_CLUSTER,
@@ -201,7 +200,7 @@ function measureAnalysis(
   engineProfile: EngineProfile,
   language: string | null,
 ): InternalPreparedText | PreparedTextWithSegments {
-  const { normalized, starts, flags } = analysis
+  const { normalized, texts, starts, flags } = analysis
   const segmentCount = flags.length
   const fontMeasurement = getFontMeasurement(font, language)
   const emojiCorrection = textMayContainEmoji(normalized) ? getEmojiCorrection(font, fontMeasurement) : 0
@@ -314,7 +313,7 @@ function measureAnalysis(
       const kind = flags[k]! & KIND_BITS
       const start = starts[k]!
       const end = starts[k + 1]!
-      if (kind === ZERO_WIDTH_GLUE || ((kind === TEXT || kind === CONTROL) && controlOrMarkRunRe.test(normalized.slice(start, end)))) {
+      if (kind === ZERO_WIDTH_GLUE || ((kind === TEXT || kind === CONTROL) && controlOrMarkRunRe.test(texts[k]!))) {
         if (k !== markRunIndex) continue
         baseStart = markBaseStart
       } else if (kind === TEXT) {
@@ -335,14 +334,14 @@ function measureAnalysis(
   // still inlines that one there (RESEARCH.md, Keeping Work Bounded). V8 inlines a
   // function only while its bytecode stays under about 460 bytes, whether or not the
   // source is minified: with this loop inside, getMarkContext() took 519 bytes and
-  // Chrome 154's prepare() ran 1-3% slower; without it, 392 (Node 23, V8 12.9). Before
+  // Chrome 154's prepare() ran 1-3% slower; without it, 374 (Node 23, V8 12.9). Before
   // growing getMarkContext(), check it with node --print-bytecode and
   // --trace-turbo-inlining, and bench Chrome's prepare() rows against main.
   function getLongMarkChainContext(baseStart: number, start: number): string {
     // The kept part starts after the grapheme or a run of marks, moves only forward and
     // never holds fewer than MARK_CHAIN_CONTEXT_UNITS.
     for (let k = markChainKept + 1; start - starts[k]! >= MARK_CHAIN_CONTEXT_UNITS; k++) {
-      if (markRunRe.test(getSegmentText(analysis, k - 1))) markChainKept = k
+      if (markRunRe.test(texts[k - 1]!)) markChainKept = k
     }
     if (markChainKept === markChainStart) return normalized.slice(baseStart, start)
     return normalized.slice(baseStart, starts[markChainStart]) + normalized.slice(starts[markChainKept], start)
@@ -381,7 +380,7 @@ function measureAnalysis(
     let next = analysisIndex + 1
     while (next < segmentCount && (flags[next]! & KIND_BITS) === SOFT_HYPHEN) next++
     if (next >= segmentCount || (flags[next]! & KIND_BITS) !== TEXT) return 0
-    const after = getSegmentText(analysis, next)
+    const after = texts[next]!
     const apart = getCorrectedSegmentWidth(before, beforeMetrics!, emojiCorrection) + getTextWidth(after, fontMeasurement, emojiCorrection)
     const together = getTextWidth(before + after, fontMeasurement, emojiCorrection)
     return apart - together > engineProfile.lineFitEpsilon ? apart - together : 0
@@ -409,7 +408,7 @@ function measureAnalysis(
   }
 
   for (let mi = 0; mi < segmentCount; mi++) {
-    const text = getSegmentText(analysis, mi)
+    const text = texts[mi]!
     const segment = flags[mi]!
     const kind = (segment & KIND_BITS) as SegmentKindCode
     let width = 0
@@ -429,7 +428,7 @@ function measureAnalysis(
         // takes no letter spacing of its own.
         const markContext = getMarkContext(mi, text)
         if (markContext !== null) {
-          width = engineProfile.shapesMarksAcrossSoftHyphen && getSegmentText(analysis, mi - 1) === '\u00AD' && nonspacingMarkRunRe.test(text)
+          width = engineProfile.shapesMarksAcrossSoftHyphen && texts[mi - 1] === '\u00AD' && nonspacingMarkRunRe.test(text)
             ? 0
             : getTextWidth(markContext + text, fontMeasurement, emojiCorrection) - getTextWidth(markContext, fontMeasurement, emojiCorrection)
           break
@@ -484,9 +483,9 @@ function measureAnalysis(
         // combining marks after it, and the complex text path spaces it. Complex
         // text shares the item only when its direction matches the page's, which
         // preparation cannot see, so NEL next to complex text keeps its spacing.
-        const nextText = mi + 1 < segmentCount ? getSegmentText(analysis, mi + 1) : ''
+        const nextText = mi + 1 < segmentCount ? texts[mi + 1]! : ''
         if (hasLetterSpacing && (
-          (mi > 0 && (flags[mi - 1]! & KIND_BITS) === TEXT && needsComplexTextPath(getSegmentText(analysis, mi - 1))) ||
+          (mi > 0 && (flags[mi - 1]! & KIND_BITS) === TEXT && needsComplexTextPath(texts[mi - 1]!)) ||
           (leadingCombiningMarkRe.test(nextText) && needsComplexTextPath(nextText))
         )) spacingGraphemeCount = 1
         break

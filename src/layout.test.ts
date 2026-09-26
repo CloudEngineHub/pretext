@@ -39,7 +39,6 @@ let getFontMeasurement: MeasurementModule['getFontMeasurement']
 let getPreparationLanguage: MeasurementModule['getPreparationLanguage']
 let getEngineProfile: MeasurementModule['getEngineProfile']
 let analyzeText: AnalysisModule['analyzeText']
-let getSegmentText: AnalysisModule['getSegmentText']
 let SEGMENT_KINDS: AnalysisModule['SEGMENT_KINDS']
 let KIND_BITS: AnalysisModule['KIND_BITS']
 let getBlinkLineBreaks: LineBreaksModule['getBlinkLineBreaks']
@@ -61,11 +60,8 @@ const punctuationRe = /[.,!?;:%)\]}'"”’»›…—-]/u
 const decimalDigitRe = /\p{Nd}/u
 const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 
-// An analysis' segment texts and kinds, as prepareWithSegments() gives them.
+// An analysis' segment kinds, as prepareWithSegments() gives them.
 type TextAnalysis = ReturnType<AnalysisModule['analyzeText']>
-function textsOf(analysis: TextAnalysis): string[] {
-  return Array.from(analysis.flags, (_, i) => getSegmentText(analysis, i))
-}
 function kindsOf(analysis: TextAnalysis): string[] {
   return Array.from(analysis.flags, flags => SEGMENT_KINDS[flags & KIND_BITS]!)
 }
@@ -278,7 +274,7 @@ beforeAll(async () => {
   } = mod)
   ;({ countPreparedLines, stepPreparedLineGeometry, walkPreparedLinesRaw } = lineBreakMod)
   ;({ getSegmentFit, getFontMeasurement, getPreparationLanguage, getEngineProfile } = measurementMod)
-  ;({ analyzeText, getSegmentText, SEGMENT_KINDS, KIND_BITS, SPACED } = analysisMod)
+  ;({ analyzeText, SEGMENT_KINDS, KIND_BITS, SPACED } = analysisMod)
   ;({ getBlinkLineBreaks } = lineBreaksMod)
   ;({ prepareRichInline, layoutNextRichInlineLineRange, materializeRichInlineLineRange, measureRichInlineStats, walkRichInlineLineRanges } = richInlineMod)
 })
@@ -451,7 +447,7 @@ describe('boundary-policy regressions', () => {
       ['""""[[aabb', ['""""[[aabb']],
       ['−+x«value»!', ['−', '+x«value»!']],
     ] as const) {
-      expect(textsOf(analyzeText(text, geckoProfile))).toEqual([...expected])
+      expect(analyzeText(text, geckoProfile).texts).toEqual([...expected])
     }
   })
 
@@ -459,7 +455,7 @@ describe('boundary-policy regressions', () => {
     const kinds = (text: string) => {
       const analysis = analyzeText(text, geckoProfile)
       const kinds = kindsOf(analysis)
-      return textsOf(analysis).map((segment, i) => [segment, kinds[i]])
+      return analysis.texts.map((segment, i) => [segment, kinds[i]])
     }
     // Ideographs break before Latin letters, so no hyphen is drawn or fitted there.
     expect(kinds('漢字\u00ADabc')).toEqual([['漢', 'text'], ['字', 'text'], ['\u00AD', 'zero-width-break'], ['abc', 'text']])
@@ -513,14 +509,14 @@ describe('boundary-policy regressions', () => {
       ['x!\u00ABb', ['x!\u00ABb']],
       ['\u0628\u061B\u0628\u0628', ['\u0628\u061B', '\u0628\u0628']],
     ] as const) {
-      expect(textsOf(analyzeText(text, profile))).toEqual([...expected])
+      expect(analyzeText(text, profile).texts).toEqual([...expected])
     }
-    expect(textsOf(analyzeText('x?-b', geckoProfile))).toEqual(['x?-', 'b'])
+    expect(analyzeText('x?-b', geckoProfile).texts).toEqual(['x?-', 'b'])
     // Iteration marks are NS and stay after EX. CJ such as U+30FC starts a line
     // under Chromium's normal rules, and not under Gecko's strict rules.
-    expect(textsOf(analyzeText('\u65E5\uFF01\u3005', profile))).toEqual(['\u65E5\uFF01\u3005'])
-    expect(textsOf(analyzeText('\u65E5\uFF1F\u30FC', profile))).toEqual(['\u65E5\uFF1F', '\u30FC'])
-    expect(textsOf(analyzeText('\u65E5\uFF1F\u30FC', geckoProfile))).toEqual(['\u65E5\uFF1F\u30FC'])
+    expect(analyzeText('\u65E5\uFF01\u3005', profile).texts).toEqual(['\u65E5\uFF01\u3005'])
+    expect(analyzeText('\u65E5\uFF1F\u30FC', profile).texts).toEqual(['\u65E5\uFF1F', '\u30FC'])
+    expect(analyzeText('\u65E5\uFF1F\u30FC', geckoProfile).texts).toEqual(['\u65E5\uFF1F\u30FC'])
   })
 
   test('closing punctuation and nonstarters stay with the text before them (#225)', () => {
@@ -563,11 +559,11 @@ describe('boundary-policy regressions', () => {
     expect(lines('abc」。d', measureWidth('c」', FONT) + 0.1)).toEqual(['ab', 'c」', '。d'])
     // Firefox breaks at the end of a run of complex-script letters, whatever follows.
     const khmer = 'a ខ\u17D2ម\u17C2រ，b'
-    expect(textsOf(analyzeText(khmer, baseProfile))).toEqual(['a', ' ', 'ខ\u17D2ម\u17C2រ，', 'b'])
-    expect(textsOf(analyzeText(khmer, geckoProfile))).toEqual(['a', ' ', 'ខ\u17D2ម\u17C2រ', '，', 'b'])
+    expect(analyzeText(khmer, baseProfile).texts).toEqual(['a', ' ', 'ខ\u17D2ម\u17C2រ，', 'b'])
+    expect(analyzeText(khmer, geckoProfile).texts).toEqual(['a', ' ', 'ខ\u17D2ម\u17C2រ', '，', 'b'])
     // Firefox splits text runs where the script changes, which would break before the
     // Bengali letter here. The Gecko scan doesn't, on purpose (RESEARCH.md, Decisions Log).
-    expect(textsOf(analyzeText('\u1019\u17D2\u09AF', geckoProfile))).toEqual(['\u1019\u17D2\u09AF'])
+    expect(analyzeText('\u1019\u17D2\u09AF', geckoProfile).texts).toEqual(['\u1019\u17D2\u09AF'])
   })
 
   test('small kana and U+30FC stay with the text before them where the profile resolves them to NS', () => {
@@ -603,15 +599,15 @@ describe('boundary-policy regressions', () => {
       ['x--1', ['x--1']],
       ['a-\u0661\u0662', ['a-\u0661\u0662']],
     ] as const) {
-      expect(textsOf(analyzeText(text, gecko))).toEqual([...expected])
+      expect(analyzeText(text, gecko).texts).toEqual([...expected])
     }
-    expect(textsOf(analyzeText('crash-log-2026-09-12.txt', baseProfile))).toEqual(['crash-', 'log-', '2026-', '09-', '12.txt'])
-    expect(textsOf(analyzeText('log-2026', gecko, 'normal', 'keep-all'))).toEqual(['log-2026'])
-    expect(textsOf(analyzeText('a 2025-08-01', gecko, 'pre-wrap'))).toEqual(['a', ' ', '2025-08-01'])
+    expect(analyzeText('crash-log-2026-09-12.txt', baseProfile).texts).toEqual(['crash-', 'log-', '2026-', '09-', '12.txt'])
+    expect(analyzeText('log-2026', gecko, 'normal', 'keep-all').texts).toEqual(['log-2026'])
+    expect(analyzeText('a 2025-08-01', gecko, 'pre-wrap').texts).toEqual(['a', ' ', '2025-08-01'])
     // Fullwidth digits are ID, and U+2010 and U+2013 aren't HY, so the pair
     // doesn't apply; Firefox still breaks there, as before a letter or `+`.
     for (const text of ['a-\uFF11\uFF12', 'a\u20101', 'a\u20131', 'x-y', '1-+2']) {
-      expect(textsOf(analyzeText(text, gecko))).toEqual(textsOf(analyzeText(text, baseProfile)))
+      expect(analyzeText(text, gecko).texts).toEqual(analyzeText(text, baseProfile).texts)
     }
   })
 
@@ -636,18 +632,18 @@ describe('boundary-policy regressions', () => {
       ['\u6f22/abc', ['\u6f22/', 'abc']],
       ['a/|b', ['a/|', 'b']],
     ] as const) {
-      expect(textsOf(analyzeText(text, gecko))).toEqual([...expected])
+      expect(analyzeText(text, gecko).texts).toEqual([...expected])
     }
     // The pair tables of Chromium and WebKit keep `/` with an ASCII letter.
     for (const text of ['https://example.com/2026/09/docs', 'and/or', '~/src/layout.ts', 'a//b', 'a/(b)', 'a/#b', 'a/|b', '\u6f22/abc']) {
-      expect(textsOf(analyzeText(text, baseProfile))).toEqual([text])
+      expect(analyzeText(text, baseProfile).texts).toEqual([text])
     }
-    expect(textsOf(analyzeText('and/or', gecko, 'normal', 'keep-all'))).toEqual(['and/', 'or'])
-    expect(textsOf(analyzeText('\u6f22/abc', gecko, 'normal', 'keep-all'))).toEqual(['\u6f22/', 'abc'])
-    expect(textsOf(analyzeText('a src/layout.ts', gecko, 'pre-wrap'))).toEqual(['a', ' ', 'src/', 'layout.ts'])
+    expect(analyzeText('and/or', gecko, 'normal', 'keep-all').texts).toEqual(['and/', 'or'])
+    expect(analyzeText('\u6f22/abc', gecko, 'normal', 'keep-all').texts).toEqual(['\u6f22/', 'abc'])
+    expect(analyzeText('a src/layout.ts', gecko, 'pre-wrap').texts).toEqual(['a', ' ', 'src/', 'layout.ts'])
     // No break before a quote, IS, BA, a Hebrew letter (LB21b) or a number (LB25).
     for (const text of ['a/"b"', 'a/.b', 'a/\u05e2\u05d1\u05e8', '1/2', 'a/1', 'docs/']) {
-      expect(textsOf(analyzeText(text, gecko))).toEqual(textsOf(analyzeText(text, baseProfile)))
+      expect(analyzeText(text, gecko).texts).toEqual(analyzeText(text, baseProfile).texts)
     }
   })
 
@@ -677,9 +673,9 @@ describe('boundary-policy regressions', () => {
       ['\u4e19}\u03b1\u03b2', ['\u4e19}', '\u03b1\u03b2'], ['\u4e19}', '\u03b1\u03b2'], ['\u4e19}', '\u03b1\u03b2']],
       ["\u4e19'\u03b1\u03b2", ["\u4e19'\u03b1\u03b2"], ["\u4e19'\u03b1\u03b2"], ["\u4e19'\u03b1\u03b2"]],
     ] as const) {
-      expect(textsOf(analyzeText(text, blink))).toEqual([...blinkTexts])
-      expect(textsOf(analyzeText(text, webkit))).toEqual([...webkitTexts])
-      expect(textsOf(analyzeText(text, gecko))).toEqual([...geckoTexts])
+      expect(analyzeText(text, blink).texts).toEqual([...blinkTexts])
+      expect(analyzeText(text, webkit).texts).toEqual([...webkitTexts])
+      expect(analyzeText(text, gecko).texts).toEqual([...geckoTexts])
     }
     // Punctuation attaches by its class, such as NS and PO, and a hyphen keeps its
     // own rules.
@@ -688,7 +684,7 @@ describe('boundary-policy regressions', () => {
       ['\u6587\uff05\u6587', ['\u6587\uff05', '\u6587']],
       ['\u4e19-first', ['\u4e19-', 'first']],
     ] as const) {
-      expect(textsOf(analyzeText(text, baseProfile))).toEqual([...expected])
+      expect(analyzeText(text, baseProfile).texts).toEqual([...expected])
     }
   })
 
@@ -696,36 +692,36 @@ describe('boundary-policy regressions', () => {
     const profile = baseProfile
     // UAX #14 LB8a and LB20a. The pair tables still break '-' before an ASCII letter,
     // and Firefox's ICU4X rules predate LB20a.
-    expect(textsOf(analyzeText('\u200Dab', profile))).toEqual(['\u200Dab'])
-    expect(textsOf(analyzeText('a\n\u200Db', profile, 'pre-wrap'))).toEqual(['a', '\n', '\u200Db'])
-    expect(textsOf(analyzeText('x \u{1F600}\u200Db', profile))).toEqual(['x', ' ', '\u{1F600}\u200Db'])
-    expect(textsOf(analyzeText('a \u2010b', profile))).toEqual(['a', ' ', '\u2010b'])
-    expect(textsOf(analyzeText('a -b', profile))).toEqual(['a', ' ', '-', 'b'])
+    expect(analyzeText('\u200Dab', profile).texts).toEqual(['\u200Dab'])
+    expect(analyzeText('a\n\u200Db', profile, 'pre-wrap').texts).toEqual(['a', '\n', '\u200Db'])
+    expect(analyzeText('x \u{1F600}\u200Db', profile).texts).toEqual(['x', ' ', '\u{1F600}\u200Db'])
+    expect(analyzeText('a \u2010b', profile).texts).toEqual(['a', ' ', '\u2010b'])
+    expect(analyzeText('a -b', profile).texts).toEqual(['a', ' ', '-', 'b'])
     // WebKit's scan still reads a collapsed TAB (BA) before the hyphen.
-    expect(textsOf(analyzeText('a\t\u2010b', profile))).toEqual(['a', ' ', '\u2010b'])
-    expect(textsOf(analyzeText('a\t\u2010b', { ...profile, lineBreakScan: 'webkit' })))
+    expect(analyzeText('a\t\u2010b', profile).texts).toEqual(['a', ' ', '\u2010b'])
+    expect(analyzeText('a\t\u2010b', { ...profile, lineBreakScan: 'webkit' }).texts)
       .toEqual(['a', ' ', '\u2010', 'b'])
-    expect(textsOf(analyzeText('a \u2010b', geckoProfile))).toEqual(['a', ' ', '\u2010', 'b'])
+    expect(analyzeText('a \u2010b', geckoProfile).texts).toEqual(['a', ' ', '\u2010', 'b'])
     // HL letters keep it too, and so do the other Unicode 17 HH dashes, astral ones included.
     const hebrewProfile = profile
     const noneProfile = geckoProfile
-    expect(textsOf(analyzeText('a \u2010\u05D1b', hebrewProfile))).toEqual(['a', ' ', '\u2010\u05D1b'])
-    expect(textsOf(analyzeText('a \u2012b', hebrewProfile))).toEqual(['a', ' ', '\u2012b'])
-    expect(textsOf(analyzeText('a \u2013\u05D1b', hebrewProfile))).toEqual(['a', ' ', '\u2013\u05D1b'])
+    expect(analyzeText('a \u2010\u05D1b', hebrewProfile).texts).toEqual(['a', ' ', '\u2010\u05D1b'])
+    expect(analyzeText('a \u2012b', hebrewProfile).texts).toEqual(['a', ' ', '\u2012b'])
+    expect(analyzeText('a \u2013\u05D1b', hebrewProfile).texts).toEqual(['a', ' ', '\u2013\u05D1b'])
     for (const text of ['a \u05BE\u05D1b', 'a \u1400b', 'a \u{10EAD}\u0430b']) {
-      expect(textsOf(analyzeText(text, hebrewProfile))).toEqual(['a', ' ', text.slice(2)])
+      expect(analyzeText(text, hebrewProfile).texts).toEqual(['a', ' ', text.slice(2)])
     }
-    expect(textsOf(analyzeText('a \u2013b', noneProfile))).toEqual(['a', ' ', '\u2013', 'b'])
+    expect(analyzeText('a \u2013b', noneProfile).texts).toEqual(['a', ' ', '\u2013', 'b'])
     // WebKit's scan reads the source, where a collapsed TAB is still BA, and Gecko's
     // has no LB20a, so both break after every hyphen that follows one.
     const tabProfile = { ...hebrewProfile, lineBreakScan: 'webkit' as const }
-    expect(textsOf(analyzeText('x-y  \t\u2012b  \u2013b', tabProfile)))
+    expect(analyzeText('x-y  \t\u2012b  \u2013b', tabProfile).texts)
       .toEqual(['x-', 'y', ' ', '\u2012', 'b', ' ', '\u2013b'])
     for (const text of ['a\t\u05BEb', 'a\t\u{10EAD}b']) {
       for (const breakingProfile of [tabProfile, noneProfile]) {
-        expect(textsOf(analyzeText(text, breakingProfile))).toEqual(['a', ' ', text.slice(2, -1), 'b'])
+        expect(analyzeText(text, breakingProfile).texts).toEqual(['a', ' ', text.slice(2, -1), 'b'])
       }
-      expect(textsOf(analyzeText(text, hebrewProfile))).toEqual(['a', ' ', text.slice(2)])
+      expect(analyzeText(text, hebrewProfile).texts).toEqual(['a', ' ', text.slice(2)])
     }
   })
 
@@ -734,7 +730,7 @@ describe('boundary-policy regressions', () => {
     const segments = (text: string, whiteSpace?: 'pre-wrap') => {
       const analysis = analyzeText(text, profile, whiteSpace)
       const kinds = kindsOf(analysis)
-      return textsOf(analysis).map((segment, i) => `${segment}:${kinds[i]}`)
+      return analysis.texts.map((segment, i) => `${segment}:${kinds[i]}`)
     }
     // The ZWSP stays its own zero-width segment, with no break after it, and the
     // mark after it stays apart from the letters.
@@ -751,7 +747,7 @@ describe('boundary-policy regressions', () => {
     const segments = (text: string, profile: Parameters<typeof analyzeText>[1], whiteSpace?: 'pre-wrap', wordBreak?: 'keep-all') => {
       const analysis = analyzeText(text, profile, whiteSpace, wordBreak)
       const kinds = kindsOf(analysis)
-      return textsOf(analysis).map((segment, i) => `${segment}:${kinds[i]}`)
+      return analysis.texts.map((segment, i) => `${segment}:${kinds[i]}`)
     }
     // No break between a soft hyphen and a combining mark or a closing bracket, or
     // between a ZWSP and a mark, so neither breaks like its kind; each stays apart
@@ -808,16 +804,16 @@ describe('boundary-policy regressions', () => {
     for (const profile of [blink, webkit]) {
       for (const control of ['\u0000', '\u000B', '\u007F', '\u009F', '\u2028', '\u2029']) {
         const analysis = analyzeText(`ab${control}cd`, profile)
-        expect(textsOf(analysis)).toEqual(['ab', control, 'cd'])
+        expect(analysis.texts).toEqual(['ab', control, 'cd'])
         // WebKit's items builder makes a separator that starts an item a forced break.
         const separator = profile === webkit && control >= '\u2028'
         expect(kindsOf(analysis)).toEqual(['text', separator ? 'hard-break' : 'text', 'text'])
-        expect(textsOf(analyzeText(`a${control}${control} b`, profile))).toEqual(['a', control, control, ' ', 'b'])
+        expect(analyzeText(`a${control}${control} b`, profile).texts).toEqual(['a', control, control, ' ', 'b'])
       }
     }
     // A separator that ICU's fast-forward passes stays inside a text item and ends no line.
     const passed = analyzeText('か中？\u2028b', webkit)
-    expect({ texts: textsOf(passed), kinds: kindsOf(passed) }).toEqual({ texts: ['か', '中？', '\u2028', 'b'], kinds: ['text', 'text', 'text', 'text'] })
+    expect({ texts: passed.texts, kinds: kindsOf(passed) }).toEqual({ texts: ['か', '中？', '\u2028', 'b'], kinds: ['text', 'text', 'text', 'text'] })
     // NEL is text in the Blink profile and a control in the WebKit profile.
     expect(kindsOf(analyzeText('ab\u0085cd', blink))).toEqual(['text', 'text', 'text'])
     expect(kindsOf(analyzeText('ab\u0085cd', webkit))).toEqual(['text', 'control', 'text'])
@@ -1178,7 +1174,7 @@ describe('boundary-policy regressions', () => {
       // WebKit's keep-all breaks only at spaces in this text. A NEL with no break after it still
       // stays its own control segment, measured alone.
       const keepAll = analyzeText('zz ab\u00A0\u0085cd \u6F22\u00A0\u0085\u5B57', profile, 'normal', 'keep-all')
-      expect(textsOf(keepAll)).toEqual(['zz', ' ', 'ab\u00A0', '\u0085', 'cd', ' ', '\u6F22\u00A0', '\u0085', '\u5B57'])
+      expect(keepAll.texts).toEqual(['zz', ' ', 'ab\u00A0', '\u0085', 'cd', ' ', '\u6F22\u00A0', '\u0085', '\u5B57'])
       expect(kindsOf(keepAll)).toEqual(['text', 'space', 'text', 'control', 'text', 'space', 'text', 'control', 'text'])
       // A rich item that ends in NEL breaks before the next item.
       const rich = prepareRichInline([{ text: 'ab\u0085', font: FONT }, { text: 'cd', font: FONT }])
@@ -2366,7 +2362,7 @@ describe('prepare invariants', () => {
 
   test("Safari's scan follows the page language, and Chromium's line rules don't", () => {
     const segments = (text: string, lineBreakScan: 'blink' | 'webkit', language: string) =>
-      textsOf(analyzeText(text, { ...getEngineProfile(), lineBreakScan }, 'normal', 'normal', language)).join('|')
+      analyzeText(text, { ...getEngineProfile(), lineBreakScan }, 'normal', 'normal', language).texts.join('|')
     // libicucore opens its normal line rules on ja and ko pages, where small kana (CJ)
     // are ID, and strict rules, where CJ is NS, on others. Chromium's line_normal.brk
     // resolves CJ to ID on every page.
@@ -2538,7 +2534,7 @@ describe('prepare invariants', () => {
       for (const lineBreakScan of ['blink', 'webkit', 'gecko'] as const) {
         const profile = { lineBreakScan, graphemeTable: 'chromium/char' as const }
         for (const text of ['Hello, world.', '漢字かな、한국어', 'العربية', '\u{1F468}\u200D\u{1F469}\u200D\u{1F467} #\uFE0F\u20E3', '\u0915\u094D\u0937\u093F', 'a\u00ADb c\u200Bd']) {
-          expect(textsOf(analyzeText(text, profile)).join('')).toBe(text)
+          expect(analyzeText(text, profile).texts.join('')).toBe(text)
         }
         expect(() => analyzeText('ภาษาไทย', profile)).toThrow()
       }

@@ -1421,10 +1421,10 @@ rows in every session, 1.8% on seen Arabic and 2.6% on letter-spaced CJK, while
 Firefox and Safari didn't move. With the loop apart, `getMarkContext()` takes 376
 bytes and is inlined again, and every Chrome row reads within noise: seen Arabic
 −0.2% and letter-spaced CJK +0.6% (#351). With `measureAnalysis()` as one switch
-over the segment kinds, it still takes 376 bytes, and 392 reading the analysis'
-flags bytes and slicing the segments it walks back over. V8's first optimized
-compile of `measureAnalysis()` leaves it out, as the loop's direct calls use the
-budget first, and the later ones, which the loop keeps running, inline it.
+over the segment kinds, it still takes 376 bytes, and 374 reading the analysis'
+flags bytes. V8's first optimized compile of `measureAnalysis()` leaves it out, as
+the loop's direct calls use the budget first, and the later ones, which the loop
+keeps running, inline it.
 
 That loop measures a text segment's width in `getTextSegmentWidth()`, apart from
 it. With the sum inline, JavaScriptCore's DFG tier (Safari 27, and macOS 27's
@@ -1464,7 +1464,15 @@ segments, and measurement copies the bytes into the prepared handle's
 kept as the handle's, with `prepareWithSegments()`'s kinds named from it by
 `Array.from`, made `prepareWithSegments()` of one word about a third slower in
 Node 23's V8, and the bench's rich-inline preparation, which prepares every item
-apart, 12 to 14% slower in Chrome 154 and Firefox 156 in both sessions.
+apart, 12% slower in Chrome 154 in both sessions. The analysis also slices each
+segment's text, in a loop of its own once the flags are final, and measurement
+and the neighbours it looks at read those strings. Sliced where measurement
+reads them instead, by a helper or inline at the top of its loop, the texts made
+Firefox 156 prepare the bench's rich items 11 to 19% slower than with them
+sliced in the analysis, in all 15 sessions of three runs, with the plain array
+as with the typed one. Sliced in the analysis again, the row reads within noise
+of main, 4% faster and faster in 4 of 5 sessions. Chrome doesn't tell the two
+apart: its copies of the same code there move up to 17% apart.
 
 `layout()` needs only a count. On simple text, `countPreparedLines()` keeps just
 the line width and whether the line has content, with no line ends, pending

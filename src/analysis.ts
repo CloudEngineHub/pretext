@@ -52,21 +52,18 @@ export const SEGMENT_KINDS: readonly SegmentBreakKind[] = [
 
 // `spaceSources` holds, in the WebKit profile where normal white space collapsed, the source
 // unit each normalized unit starts from, such as the TAB or LF a space came from. Null otherwise.
-// `starts` holds where each segment starts in `normalized`, and `flags` its flags byte: its
-// kind, UNBROKEN where the engine's scan gives no break before text, zero-width glue or a
-// control, other than at a line start, RETURNABLE at the other segments of text with such a
-// boundary, which `hasUnbroken` tells, and ONE_CLUSTER where the scan has clusters of its own.
+// `texts` holds each segment's text, `starts` where it starts in `normalized`, and `flags` its
+// flags byte: its kind, UNBROKEN where the engine's scan gives no break before text, zero-width
+// glue or a control, other than at a line start, RETURNABLE at the other segments of text with
+// such a boundary, which `hasUnbroken` tells, and ONE_CLUSTER where the scan has clusters of
+// its own.
 export type TextAnalysis = {
   normalized: string
   spaceSources: Uint16Array | null
+  texts: string[]
   starts: number[]
   flags: number[]
   hasUnbroken: boolean
-}
-
-export function getSegmentText(analysis: TextAnalysis, i: number): string {
-  const { normalized, starts } = analysis
-  return normalized.slice(starts[i], i + 1 < starts.length ? starts[i + 1] : normalized.length)
 }
 
 export type AnalysisProfile = {
@@ -265,7 +262,7 @@ function isControlSegmentCode(code: number): boolean {
 // them, since they shape on the grapheme before it (measureAnalysis). Where the Gecko
 // scan marks cluster starts, a segment is ONE_CLUSTER unless one falls inside it.
 function segmentAtLineBreaks(normalized: string, spaceSources: Uint16Array | null, breaks: Uint8Array, whiteSpace: WhiteSpaceMode, scan: AnalysisProfile['lineBreakScan']): TextAnalysis {
-  if (normalized.length === 0) return { normalized, spaceSources, starts: [], flags: [], hasUnbroken: false }
+  if (normalized.length === 0) return { normalized, spaceSources, texts: [], starts: [], flags: [], hasUnbroken: false }
   const oneCluster = scan === 'gecko' ? ONE_CLUSTER : 0
   // The first unit starts the first segment before the loop: V8 ran the loop about 10% slower
   // over long texts when it started at the first unit (RESEARCH.md, Keeping Work Bounded).
@@ -311,7 +308,12 @@ function segmentAtLineBreaks(normalized: string, spaceSources: Uint16Array | nul
     hasUnbroken = true
   }
   if (hasUnbroken) for (let j = 0; j < count; j++) if ((flags[j]! & UNBROKEN) === 0) flags[j] = flags[j]! | RETURNABLE
-  return { normalized, spaceSources, starts, flags, hasUnbroken }
+  // Each segment's text, sliced once here for measurement and the neighbours it reads: sliced
+  // where measurement reads it, Firefox's rich-inline preparation ran 11-19% slower (RESEARCH.md,
+  // Keeping Work Bounded).
+  const texts: string[] = []
+  for (let j = 0; j < count; j++) texts.push(normalized.slice(starts[j], j + 1 < count ? starts[j + 1] : normalized.length))
+  return { normalized, spaceSources, texts, starts, flags, hasUnbroken }
 }
 
 export function analyzeText(
