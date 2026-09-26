@@ -46,7 +46,7 @@ const graphemeRules: Partial<Record<CharTable, GraphemeRules>> = {}
 // and ended at `end`. Unless `ends` is null, writes where each cluster ends to it from index
 // 0; it needs room for end - start values.
 export function findGraphemeEnds(table: CharTable, text: string, start: number, end: number, ends: Int32Array | null): number {
-  const { rules, transitions } = graphemeRules[table] ??= parseGraphemeRules(unpackTableFrom(charTablesPacked, table))
+  const { rules, transitions } = graphemeRules[table] ?? (graphemeRules[table] = parseGraphemeRules(unpackTableFrom(charTablesPacked, table)))
   const catCount = rules.catCount
   let state = START_STATE
   let count = 0

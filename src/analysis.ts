@@ -66,7 +66,7 @@ export type TextAnalysis = {
 
 export function getSegmentText(analysis: TextAnalysis, i: number): string {
   const { normalized, starts } = analysis
-  return normalized.slice(starts[i]!, i + 1 < starts.length ? starts[i + 1]! : normalized.length)
+  return normalized.slice(starts[i], i + 1 < starts.length ? starts[i + 1] : normalized.length)
 }
 
 export type AnalysisProfile = {

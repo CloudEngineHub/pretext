@@ -516,7 +516,8 @@ function markWordBreaks(line: LineData, text: string, start: number, end: number
       let prevCp = cp
       let previousIsAfterZwj = afterZwj
       let leftPropPreLb9 = rightProp
-      const isIntermediateRuleNoMatch = lb8aAfterLb9 ? true : index > geckoLineLastCodepointProperty // (:976-981)
+      // (:976-981), where lb8a_after_lb9 is false once LB9 has passed.
+      const isIntermediateRuleNoMatch = index > geckoLineLastCodepointProperty
 
       for (;;) {
         const innerAfterZwj = leftPropPreLb9 === ZWJ

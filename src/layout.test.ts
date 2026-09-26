@@ -1039,11 +1039,11 @@ describe('boundary-policy regressions', () => {
     })
     // Chains of a grapheme and runs of U+0301, each after U+0001, and a space between chains.
     const shapes: Array<{ chains: Array<[string, number[]]>; longest: number }> = [
-      { chains: [['x', Array(40).fill(1)]], longest: 81 },
-      { chains: [['x', Array(400).fill(1)]], longest: 99 },
+      { chains: [['x', new Array<number>(40).fill(1)]], longest: 81 },
+      { chains: [['x', new Array<number>(400).fill(1)]], longest: 99 },
       { chains: [['x', [94, 95, 96, 97, 200, 1, 1, 1]]], longest: 300 },
-      { chains: [['x', [300, ...Array(60).fill(1)]]], longest: 398 },
-      { chains: [['x', Array(60).fill(1)], ['y', Array(60).fill(1)]], longest: 99 },
+      { chains: [['x', [300, ...new Array<number>(60).fill(1)]]], longest: 398 },
+      { chains: [['x', new Array<number>(60).fill(1)], ['y', new Array<number>(60).fill(1)]], longest: 99 },
     ]
     try {
       for (let s = 0; s < shapes.length; s++) {
@@ -3624,7 +3624,7 @@ describe('layout invariants', () => {
       // with ZWSP retains that source as a line, and one holding only a soft hyphen,
       // which a line start consumes, is an empty line.
       const retained = control === '\u200B' ? [control, control] : ['', '']
-      const expected = [...(prefix ? ['a'] : []), ...retained, ...(emptyLine ? [''] : []), 'b']
+      const expected = [...(prefix === '' ? [] : ['a']), ...retained, ...(emptyLine === '' ? [] : ['']), 'b']
       const batch = layoutWithLines(prepared, 100, LINE_HEIGHT)
       expect(batch.lines.map(line => line.text)).toEqual(expected)
       expect(layout(prepared, 100, LINE_HEIGHT).lineCount).toBe(expected.length)
@@ -4229,7 +4229,8 @@ test('the Safari profile keeps the kerning between a word and a following space'
       lineCount: layout(prepare('A\\u2060 B', '16px Test'), 8.5, 20).lineCount,
     } }))
   `
-  const { kerning, spaced, wordMeasurements, paragraphs, quote, remainder } = JSON.parse(runInChild(script))
+  const { kerning, spaced, wordMeasurements, paragraphs, quote, remainder } =
+    JSON.parse(runInChild(script)) as Record<'kerning' | 'spaced' | 'wordMeasurements' | 'paragraphs' | 'quote' | 'remainder', unknown>
   expect(kerning).toEqual([
     // The kerned word fits and the space hangs.
     { lines: [['AA ', 19], ['B', 8]], lineCount: 2 },

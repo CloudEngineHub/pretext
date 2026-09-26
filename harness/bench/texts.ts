@@ -92,7 +92,8 @@ export function reader(family: Exclude<Family, 'labels'>, from = 0): { batch: (n
         if (total + m.length > n) {
           let cut = n - total
           if ((m.charCodeAt(cut - 1) & 0xfc00) === 0xd800) cut++
-          carry = m.slice(cut).trimStart() || null
+          const rest = m.slice(cut).trimStart()
+          carry = rest === '' ? null : rest
           m = m.slice(0, cut)
         }
         out.push(m)

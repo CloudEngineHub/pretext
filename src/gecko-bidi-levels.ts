@@ -417,21 +417,20 @@ function resolveNeutral(text: Uint16Array, seq: Sequence, levels: Uint8Array, or
   }
   for (let p = 0; p < pairs.length; p++) { // N0
     const pair = pairs[p]!
-    let foundE = false
-    let foundNotE = false
+    // The strong type inside the pair, e once one matches the embedding direction, with EN
+    // and AN as R.
+    let strong = -1
     let classToSet = -1
     const startLen = charLenAt(pair.start)
     walkForwards(seq, pair.start + startLen, pair.startRun, k => {
       if (k >= pair.end) return true
       const c = pc[k]!
-      if (c === e) foundE = true
-      else if (c === notE) foundNotE = true
-      else if (c === EN || c === AN) { if (e === L) foundNotE = true; else foundE = true }
-      return foundE
+      if (c === L || c === R || c === EN || c === AN) strong = c === L ? L : R
+      return strong === e
     })
-    if (foundE) {
+    if (strong === e) {
       classToSet = e
-    } else if (foundNotE) {
+    } else if (strong === notE) {
       let previousStrong = seq.sos
       walkBackwards(seq, pair.start, pair.startRun, k => {
         const c = pc[k]!

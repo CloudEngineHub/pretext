@@ -176,13 +176,17 @@ const WORD_BREAK = ['normal', 'break-all', 'keep-all', 'break-word']
 const OVERFLOW_WRAP = ['normal', 'break-word', 'anywhere']
 const LINE_BREAK = ['auto', 'loose', 'normal', 'strict', 'anywhere']
 
-function fontProblem(font: Case['paragraph']['font'] | undefined): string | null {
+// A value as JSON gives it, before a check: each string, number or boolean field may hold any other of its kind.
+type Parsed<T> = T extends string ? string : T extends number ? number : T extends boolean ? boolean
+  : T extends object ? { [K in keyof T]: Parsed<T[K]> } : T
+
+function fontProblem(font: Parsed<Case['paragraph']['font']> | undefined): string | null {
   if (typeof font !== 'object' || typeof font.family !== 'string' || typeof font.size !== 'number' || typeof font.weight !== 'number') return 'bad font'
   return font.style === 'normal' || font.style === 'italic' ? null : 'bad font style'
 }
 
 // Why a parsed line isn't a case the harness can run, or null. Checked once, when a case file loads.
-export function caseProblem(c: Case): string | null {
+export function caseProblem(c: Parsed<Case>): string | null {
   if (typeof c.id !== 'string' || !/^[\w./:+-]+$/.test(c.id)) return 'id must be a non-empty string of word characters, . / : + -'
   if (typeof c.family !== 'string' || typeof c.origin !== 'string' || typeof c.pageLang !== 'string') return 'family, origin and pageLang must be strings'
   const p = c.paragraph

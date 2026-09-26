@@ -20,7 +20,7 @@ async function post(body: unknown): Promise<Reply> {
 }
 
 async function main(): Promise<void> {
-  const fonts = JSON.parse(document.getElementById('fonts')!.textContent!) as Array<{ family: string; weight: string; url: string }>
+  const fonts = JSON.parse(document.getElementById('fonts')!.textContent) as Array<{ family: string; weight: string; url: string }>
   for (let i = 0; i < fonts.length; i++) {
     const face = new FontFace(fonts[i]!.family, `url(${fonts[i]!.url})`, { weight: fonts[i]!.weight })
     document.fonts.add(await face.load())

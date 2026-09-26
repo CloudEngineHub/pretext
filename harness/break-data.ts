@@ -25,7 +25,7 @@ export function icuEntries(bytes: Uint8Array): Map<string, Uint8Array> {
   }
   const order = names.map((_, i) => i).sort((a, b) => starts[a]! - starts[b]!)
   const out = new Map<string, Uint8Array>()
-  for (let k = 0; k < count; k++) out.set(names[order[k]!]!, bytes.subarray(starts[order[k]!]!, k + 1 < count ? starts[order[k + 1]!]! : bytes.length))
+  for (let k = 0; k < count; k++) out.set(names[order[k]!]!, bytes.subarray(starts[order[k]!], k + 1 < count ? starts[order[k + 1]!] : bytes.length))
   return out
 }
 

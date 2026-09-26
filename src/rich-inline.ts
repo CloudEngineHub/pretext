@@ -502,12 +502,7 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
     const item = preparedItems[index]
     if (item === undefined || !item.establishesLine) continue
     if (nextItem !== null && !nextItem.breakBefore) {
-      const runWidth = leadingRunWidths[nextIndex] ?? null
-      item.carryWidth = nextItem.extraWidth + (
-        runWidth === null
-          ? nextItem.naturalWidth + nextItem.carryWidth
-          : runWidth
-      )
+      item.carryWidth = nextItem.extraWidth + (leadingRunWidths[nextIndex] ?? nextItem.naturalWidth + nextItem.carryWidth)
     }
     nextItem = item
     nextIndex = index

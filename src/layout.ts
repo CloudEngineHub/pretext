@@ -237,7 +237,7 @@ function measureAnalysis(
     if (next >= segmentCount) return null
     const nextKind = flags[next]! & KIND_BITS
     if ((nextKind !== SPACE && nextKind !== PRESERVED_SPACE) || getSpaceSourceCode(next) !== 0x20) return null
-    const tail = normalized.slice(starts[analysisIndex + 1]!, starts[next]!)
+    const tail = normalized.slice(starts[analysisIndex + 1], starts[next])
     return formatTailStaysWithWord(tail === '' ? text : text + tail, starts[next]!) ? tail : null
   }
 
@@ -345,7 +345,7 @@ function measureAnalysis(
       if (markRunRe.test(getSegmentText(analysis, k - 1))) markChainKept = k
     }
     if (markChainKept === markChainStart) return normalized.slice(baseStart, start)
-    return normalized.slice(baseStart, starts[markChainStart]!) + normalized.slice(starts[markChainKept]!, start)
+    return normalized.slice(baseStart, starts[markChainStart]) + normalized.slice(starts[markChainKept], start)
   }
 
   const widths: number[] = []

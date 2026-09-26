@@ -413,7 +413,7 @@ type ChromiumLineTable = 'line_normal' | 'line_normal_cj'
 const lineRules: Partial<Record<LineTable, BreakRules>> = {}
 
 function getLineRules(table: LineTable): BreakRules {
-  return lineRules[table] ??= parseBreakRules(unpackTableFrom(lineTablesPacked, table))
+  return lineRules[table] ?? (lineRules[table] = parseBreakRules(unpackTableFrom(lineTablesPacked, table)))
 }
 
 // Line_Break=SA for one code point: the line rules' dictionary categories.
@@ -625,32 +625,33 @@ function classify(c: number): number {
       if (c === 0x2018 || c === 0x201c) return QU | PI
       if (c === 0x2019 || c === 0x201d) return QU | PF
       return WEIRD
-  }
-  if (c >= 0x2e80 && c <= 0xa4cf) {
-    if ((c & 0xff00) === 0x3000) {
-      if (c <= 0x303f) {
-        switch (c & 0x1f) {
-          case 0x01: case 0x02: case 0x09: case 0x0b: case 0x0d: case 0x0f: case 0x11: case 0x15: case 0x17:
-          case 0x19: case 0x1b: case 0x1e: case 0x1f:
-            return CL
-          case 0x08: case 0x0a: case 0x0c: case 0x0e: case 0x10: case 0x16: case 0x14: case 0x18: case 0x1a:
-          case 0x1d:
-            return OP
-          default:
-            return WEIRD
+    default:
+      if (c >= 0x2e80 && c <= 0xa4cf) {
+        if ((c & 0xff00) === 0x3000) {
+          if (c <= 0x303f) {
+            switch (c & 0x1f) {
+              case 0x01: case 0x02: case 0x09: case 0x0b: case 0x0d: case 0x0f: case 0x11: case 0x15: case 0x17:
+              case 0x19: case 0x1b: case 0x1e: case 0x1f:
+                return CL
+              case 0x08: case 0x0a: case 0x0c: case 0x0e: case 0x10: case 0x16: case 0x14: case 0x18: case 0x1a:
+              case 0x1d:
+                return OP
+              default:
+                return WEIRD
+            }
+          }
+          return WEIRD
         }
+        if ((c & 0xfff0) === 0x31f0) return WEIRD
+        if ((c & 0xfff8) === 0x3248) return AL
+        if ((c & 0xffc0) === 0x4dc0) return AL
+        if (c === 0xa015) return WEIRD
+        return ID
       }
+      if (c >= 0xac00 && c <= 0xd7af) return ID
+      if (c >= 0xf900 && c <= 0xfaff) return ID
       return WEIRD
-    }
-    if ((c & 0xfff0) === 0x31f0) return WEIRD
-    if ((c & 0xfff8) === 0x3248) return AL
-    if ((c & 0xffc0) === 0x4dc0) return AL
-    if (c === 0xa015) return WEIRD
-    return ID
   }
-  if (c >= 0xac00 && c <= 0xd7af) return ID
-  if (c >= 0xf900 && c <= 0xfaff) return ID
-  return WEIRD
 }
 
 // CachedLineBreakIteratorFactory (TBI.h:236-351) with two characters of prior context

@@ -371,10 +371,11 @@ export function getEmojiCorrection(font: string, measurement: FontMeasurement): 
   const fontSize = parseFontSize(font)
   const canvasW = measurement.state.context.measureText('\u{1F600}').width
   correction = 0
+  // document.body is null until the parser reaches <body>, which lib.dom's type leaves out.
   if (
     canvasW > fontSize + 0.5 &&
     typeof document !== 'undefined' &&
-    document.body !== null
+    (document.body as HTMLElement | null) !== null
   ) {
     const span = document.createElement('span')
     span.style.font = font
@@ -398,7 +399,7 @@ function countEmojiGraphemes(text: string): number {
   const graphemeCount = findGraphemeEnds(getEngineProfile().graphemeTable, text, 0, text.length, ends)
   let count = 0
   for (let i = 0, start = 0; i < graphemeCount; start = ends[i++]!) {
-    if (emojiGraphemeRe.test(text.slice(start, ends[i]!))) count++
+    if (emojiGraphemeRe.test(text.slice(start, ends[i]))) count++
   }
   return count
 }

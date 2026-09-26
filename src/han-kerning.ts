@@ -60,13 +60,15 @@ function getStaticCharType(c: number): number {
     case 0xFF1A: return COLON
     case 0xFF1B: return SEMICOLON
     case 0x00B7: case 0x2027: case 0x3000: case 0x30FB: return MIDDLE
+    default: {
+      if (c < 0x28) return OTHER
+      const s = String.fromCharCode(c)
+      const wide = (c >= 0x3000 && c <= 0x303F) || (c >= 0xFF01 && c <= 0xFF60) || (c >= 0xFFE0 && c <= 0xFFE6)
+      if (openPunctuationRe.test(s)) return wide ? OPEN : OPEN_NARROW
+      if (closePunctuationRe.test(s)) return wide ? CLOSE : CLOSE_NARROW
+      return OTHER
+    }
   }
-  if (c < 0x28) return OTHER
-  const s = String.fromCharCode(c)
-  const wide = (c >= 0x3000 && c <= 0x303F) || (c >= 0xFF01 && c <= 0xFF60) || (c >= 0xFFE0 && c <= 0xFFE6)
-  if (openPunctuationRe.test(s)) return wide ? OPEN : OPEN_NARROW
-  if (closePunctuationRe.test(s)) return wide ? CLOSE : CLOSE_NARROW
-  return OTHER
 }
 
 export type HanKerningFontData = {

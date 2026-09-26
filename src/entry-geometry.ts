@@ -146,7 +146,7 @@ export function getSegmentEntryWidth(
   end: number,
 ): number | null {
   if (geometry === null) return null
-  const entry = geometry.entries[start]!
+  const entry = geometry.entries[start] as FreshEntry | null
   if (entry === null) return null
   if (end === start) return 0
   const anchor = start + entry.head.length

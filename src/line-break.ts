@@ -263,7 +263,7 @@ export function countPreparedLines(prepared: PreparedLineBreakData, maxWidth: nu
     }
 
     const startW = lineStartExtras === null ? w : w + lineStartExtras[i]!
-    const advances = breakableFitAdvances[i]!
+    const advances = breakableFitAdvances[i] as number[] | null
     if (startW - endTrim <= fitLimit || advances === null) {
       lineW += startW
       hasContent = true
