@@ -6,6 +6,28 @@
 export type BrowserKind = 'chrome' | 'firefox' | 'webkit-host' | 'safari'
 export const BROWSERS: readonly BrowserKind[] = ['chrome', 'firefox', 'webkit-host', 'safari']
 
+// What each browser is to the harness:
+// - `cases`: the browser whose cases it takes as well as its own; webkit-host runs installed Safari's engine.
+// - `sample`: installed Safari, whose window has to stay uncovered while it records, is recorded on a seeded sample of
+//   this many cases, which a new sample replaces, so cases with no recording are expected there.
+// - `settleMs`: Firefox changes fonts under a page for about 12 s after it starts (PLATFORM_BUGS.md, the late family
+//   names): emoji beside Arial laid out differently when recorded 11 s after launch than at 12, 15 or 30 s. So every job's
+//   first document is held until this long after launch.
+// - `textEmojiLast`: Firefox's cases holding U+FE0E go in documents after every other and are never pinned (score.ts).
+// - `hyphenCopies`: Chrome reports a soft hyphen's box for the code point next to it too, which the recorder leaves out.
+// - `systemWebKit`: the system WebKit's build is part of the environment key.
+// - `background`: a background harness job may run it, and check, gate and the others run these by default.
+// - `foreground`: the bench times it in the foreground, in these by default.
+export const BROWSER: Record<BrowserKind, {
+  cases: BrowserKind; sample: number | null; settleMs: number; textEmojiLast: boolean; hyphenCopies: boolean; systemWebKit: boolean
+  background: boolean; foreground: boolean
+}> = {
+  chrome: { cases: 'chrome', sample: null, settleMs: 0, textEmojiLast: false, hyphenCopies: true, systemWebKit: false, background: true, foreground: true },
+  firefox: { cases: 'firefox', sample: null, settleMs: 15_000, textEmojiLast: true, hyphenCopies: false, systemWebKit: false, background: true, foreground: true },
+  'webkit-host': { cases: 'safari', sample: null, settleMs: 0, textEmojiLast: false, hyphenCopies: false, systemWebKit: true, background: true, foreground: false },
+  safari: { cases: 'safari', sample: 2000, settleMs: 0, textEmojiLast: false, hyphenCopies: false, systemWebKit: true, background: false, foreground: true },
+}
+
 export type CssFont = { family: string; size: number; weight: number; style: 'normal' | 'italic' }
 
 export type TextRun = {

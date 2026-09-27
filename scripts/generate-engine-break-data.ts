@@ -52,12 +52,18 @@ import {
   getSmallTrieValue,
   markRuleBoundaries,
   parseBreakRules,
+  readValues,
   unpackTable,
   type BreakRules,
 } from '../src/line-breaks.ts'
+import SOURCES from './engine-data/sources.json'
 
 const scriptsDir = dirname(fileURLToPath(import.meta.url))
 const dataDir = join(scriptsDir, 'engine-data')
+// Each browser's folder there, which `bun harness repin` also reads (sources.json).
+const CHROME = SOURCES.chrome.dir
+const SAFARI = SOURCES.safari.dir
+const FIREFOX = SOURCES.firefox.dir
 const outputPath = join(scriptsDir, '..', 'src', 'generated', 'engine-break-data.ts')
 const readData = (path: string) => new Uint8Array(readFileSync(join(dataDir, path)))
 const readText = (path: string) => readFileSync(join(dataDir, path), 'utf8')
@@ -201,19 +207,19 @@ function readCompactBreakRules(path: string): Uint8Array {
 }
 
 // Pair tables.
-const blinkPairs = parsePairTable(readText('chrome-153/break_iterator_data_inline_header.h'), 'kFastLineBreakTable[')
-const webkitPairs = parsePairTable(readText('safari-27.0/BreakablePositions.cpp'), 'LineBreakTable::breakTable')
+const blinkPairs = parsePairTable(readText(`${CHROME}/break_iterator_data_inline_header.h`), 'kFastLineBreakTable[')
+const webkitPairs = parsePairTable(readText(`${SAFARI}/BreakablePositions.cpp`), 'LineBreakTable::breakTable')
 let differingPairs = 0
 for (let i = 0; i < blinkPairs.length; i++) for (let k = 0; k < 8; k++) if (((blinkPairs[i]! ^ webkitPairs[i]!) >> k) & 1) differingPairs++
 
 // Line tables. The five come from nearly the same rules, so each packs against the earlier table
 // that packs it shortest, or alone where none does.
 const lineTableSources = [
-  ['chromium/line_normal', 'chrome-153/line_normal.brk'],
-  ['chromium/line_normal_cj', 'chrome-153/line_normal_cj.brk'],
-  ['apple/line_normal', 'safari-27.0/line_normal.brk'],
-  ['apple/line', 'safari-27.0/line.brk'],
-  ['apple/line_cj', 'safari-27.0/line_cj.brk'],
+  ['chromium/line_normal', `${CHROME}/line_normal.brk`],
+  ['chromium/line_normal_cj', `${CHROME}/line_normal_cj.brk`],
+  ['apple/line_normal', `${SAFARI}/line_normal.brk`],
+  ['apple/line', `${SAFARI}/line.brk`],
+  ['apple/line_cj', `${SAFARI}/line_cj.brk`],
 ] as const
 const lineTableBytes: Uint8Array[] = []
 const lineTablesPacked: Record<string, [string | null, string]> = {}
@@ -253,8 +259,8 @@ function checkSinglePass(rules: BreakRules, name: string): void {
     }
   }
 }
-const chromiumCharBytes = readCompactBreakRules('chrome-153/char.brk')
-const appleCharBytes = readCompactBreakRules('safari-27.0/char.brk')
+const chromiumCharBytes = readCompactBreakRules(`${CHROME}/char.brk`)
+const appleCharBytes = readCompactBreakRules(`${SAFARI}/char.brk`)
 const chromiumChar = parseBreakRules(chromiumCharBytes)
 const appleChar = parseBreakRules(appleCharBytes)
 checkSinglePass(chromiumChar, 'chromium/char')
@@ -283,8 +289,8 @@ const appleCharDifferences: number[] = []
 for (let c = 0; c <= 0x10ffff; c++) if (getCategory(chromiumChar, c) !== getCategory(appleChar, c)) appleCharDifferences.push(c)
 
 // Quotation remaps per locale, setCategoryOverrides in apple-rbbi.cpp:406-487.
-const quotation = new Set(JSON.parse(readText('safari-27.0/quotation.json')) as number[])
-const locales = JSON.parse(readText('safari-27.0/locales.json')) as Record<string, [string, number, number, number, number]>
+const quotation = new Set(JSON.parse(readText(`${SAFARI}/quotation.json`)) as number[])
+const locales = JSON.parse(readText(`${SAFARI}/locales.json`)) as Record<string, [string, number, number, number, number]>
 function getQuoteRemap(language: string, delimiters: readonly number[]): number[] {
   const remap: number[] = []
   if (language === 'da') return remap
@@ -355,7 +361,7 @@ function readRuleBreakData(path: string) {
 }
 const {
   index: geckoLineIndex, data: geckoLineData, states: geckoLineStates, field: geckoLineField, propertyCount: geckoLinePropertyCount,
-} = readRuleBreakData('firefox-156/segmenter_break_line_v1.rs.data')
+} = readRuleBreakData(`${FIREFOX}/segmenter_break_line_v1.rs.data`)
 // src/gecko-line-breaks.ts reads Line_Break values by number (icu_segmenter line.rs:18-128).
 if (geckoLineField('complex_property') !== 46) throw new Error('Expected SA to be Line_Break value 46')
 
@@ -364,8 +370,8 @@ if (geckoLineField('complex_property') !== 46) throw new Error('Expected SA to b
 // same classes, and ICU4X's RuleBreakIterator::next (icu_segmenter 2.1.2 rule_segmenter.rs:72-213,
 // without complex properties) ends clusters where ICU's handleNext does, on every string of up to
 // four code points taking one per class and on 100,000 random longer ones.
-const geckoGrapheme = readRuleBreakData('firefox-156/segmenter_break_grapheme_cluster_v1.rs.data')
-const geckoGraphemeIndex = new Uint16Array(geckoGrapheme.index.buffer, geckoGrapheme.index.byteOffset, geckoGrapheme.index.length >> 1)
+const geckoGrapheme = readRuleBreakData(`${FIREFOX}/segmenter_break_grapheme_cluster_v1.rs.data`)
+const geckoGraphemeIndex = readValues(Uint16Array, geckoGrapheme.index)
 const geckoGraphemeHighStart = geckoGrapheme.field('high_start')
 const getGeckoGraphemeProperty = (c: number) => getSmallTrieValue(geckoGraphemeIndex, geckoGrapheme.data, geckoGraphemeHighStart, c)
 const classRepresentatives: number[] = []
@@ -459,7 +465,7 @@ function getGeckoClusterEnds(classes: readonly number[]): number[] {
 
 // Firefox's Unicode properties.
 type Ranges = [number, number, number][]
-const properties = JSON.parse(readText('firefox-156/properties.json')) as {
+const properties = JSON.parse(readText(`${FIREFOX}/properties.json`)) as {
   bidiClass: Ranges, eastAsianWidth: Ranges
 }
 // Flat [start - previous end - 1, end - start, value] triples of the kept values, from ranges
@@ -482,7 +488,7 @@ const geckoEastAsianWidthRanges = deltaRanges(properties.eastAsianWidth, value =
 
 // unicode-bidi's bracket pairs: [opening, closing, normalized opening or 0].
 const geckoBidiPairs: number[] = []
-const pairsSource = readText('firefox-156/bidi_pairs_table.rs')
+const pairsSource = readText(`${FIREFOX}/bidi_pairs_table.rs`)
 for (const match of pairsSource.matchAll(/\(\s*'\\u\{([0-9a-f]+)\}',\s*'\\u\{([0-9a-f]+)\}',\s*(?:None|Some\(\s*'\\u\{([0-9a-f]+)\}'\s*\))\s*\)/g)) {
   geckoBidiPairs.push(parseInt(match[1]!, 16), parseInt(match[2]!, 16), match[3] === undefined ? 0 : parseInt(match[3], 16))
 }

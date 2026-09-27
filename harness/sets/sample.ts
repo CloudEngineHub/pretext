@@ -101,7 +101,7 @@ const WEIGHTS = JSON.parse(readFileSync(join(import.meta.dir, 'weights.json'), '
 // Every source names a key of `sources`, a guess, or a file in the repo.
 function checkSources(value: unknown, path: string): void {
   if (Array.isArray(value)) {
-    const last = value[value.length - 1]
+    const last: unknown = value[value.length - 1]
     if (value.length >= 2 && typeof last === 'string' && typeof value[value.length - 2] === 'number') {
       const key = /^([A-Z0-9]+)(?::|$)/.exec(last)?.[1]
       const file = /^([\w./-]+\.\w+)(?::|$)/.exec(last)?.[1]
@@ -208,7 +208,7 @@ function inlinePieces(tokens: readonly Token[], style: Piece['style'], out: Piec
       case 'em': inlinePieces(token.tokens ?? [], style === 'bold' ? 'bold-italic' : 'italic', out); break
       case 'codespan': out.push({ text: (token as { text: string }).text, style: 'code' }); break
       case 'link': case 'del': inlinePieces(token.tokens ?? [], token.type === 'link' ? 'link' : style, out); break
-      case 'image': out.push({ text: (token as { text: string }).text || 'image', style: 'image' }); break
+      case 'image': { const alt = (token as { text: string }).text; out.push({ text: alt === '' ? 'image' : alt, style: 'image' }); break }
       case 'br': out.push({ text: '\n', style }); break
       default: {
         const nested = (token as { tokens?: Token[] }).tokens

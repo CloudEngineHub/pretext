@@ -11,52 +11,17 @@
 // ICU4C numbering (icu_properties BidiClass::to_icu4c_value).
 
 import { geckoBidiClassRangesPacked, geckoBidiPairsPacked } from './generated/engine-break-data.js'
-import { unpackUint32Table } from './line-breaks.js'
+import { getRangeValue, readValues, unpackRanges, unpackTable, type RangeTable } from './line-breaks.js'
 
 const L = 0, R = 1, EN = 2, ES = 3, ET = 4, AN = 5, CS = 6, B = 7, S = 8, WS = 9, ON = 10, LRE = 11,
   LRO = 12, AL = 13, RLE = 14, RLO = 15, PDF = 16, NSM = 17, BN = 18, FSI = 19, LRI = 20, RLI = 21, PDI = 22
 
 const MAX_DEPTH = 125 // level.rs:42-46
 
-// Bidi_Class below U+10000 per code unit, and the ranges above it, filled on first use.
-// The ranges are flat [start - previous end - 1, end - start, class] triples of classes
-// other than L.
-let bidiBmp: Uint8Array | null = null
-let astralStarts: number[] | null = null
-let astralEnds: number[] | null = null
-let astralClasses: number[] | null = null
-
-function bidiClassOf(cp: number): number {
-  if (bidiBmp === null) {
-    const geckoBidiClassRanges = unpackUint32Table(geckoBidiClassRangesPacked)
-    bidiBmp = new Uint8Array(0x10000)
-    astralStarts = []
-    astralEnds = []
-    astralClasses = []
-    let previousEnd = -1
-    for (let i = 0; i < geckoBidiClassRanges.length; i += 3) {
-      const start = previousEnd + 1 + geckoBidiClassRanges[i]!
-      previousEnd = start + geckoBidiClassRanges[i + 1]!
-      const value = geckoBidiClassRanges[i + 2]!
-      if (start < 0x10000) bidiBmp.fill(value, start, Math.min(previousEnd + 1, 0x10000))
-      if (previousEnd >= 0x10000) {
-        astralStarts.push(Math.max(start, 0x10000))
-        astralEnds.push(previousEnd)
-        astralClasses.push(value)
-      }
-    }
-  }
-  if (cp < 0x10000) return bidiBmp[cp]!
-  let lo = 0
-  let hi = astralStarts!.length - 1
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1
-    if (cp < astralStarts![mid]!) hi = mid - 1
-    else if (cp > astralEnds![mid]!) lo = mid + 1
-    else return astralClasses![mid]!
-  }
-  return L
-}
+// Bidi_Class, from ranges of classes other than L, and unicode-bidi's bracket pairs as flat
+// [opening, closing, normalized opening or 0] triples, unpacked by the first paragraph resolved.
+let bidiClasses: RangeTable | null = null
+let bidiPairs: Uint32Array | null = null
 
 // TextSource::char_at for [u16] (utf16.rs): a valid pair is one char of length 2, the low half of a
 // valid pair has no char (-1), any other surrogate reads as U+FFFD. Packed as char | length << 21.
@@ -104,6 +69,8 @@ export function getParagraphLevels(text: Uint16Array): Uint8Array {
   const original = new Uint8Array(n)
   const levels = new Uint8Array(n)
   if (n === 0) return levels
+  const classes = bidiClasses ??= unpackRanges(geckoBidiClassRangesPacked, true)
+  const bracketPairs = bidiPairs ??= readValues(Uint32Array, unpackTable(geckoBidiPairsPacked))
 
   // compute_initial_info with split_paragraphs None and a given paragraph level (lib.rs:304-452).
   let isPureLtr = true
@@ -112,7 +79,7 @@ export function getParagraphLevels(text: Uint16Array): Uint8Array {
   for (let i = 0; i < n;) {
     const packed = charAt(text, i)
     const len = lenOf(packed)
-    const cls = bidiClassOf(charOf(packed))
+    const cls = getRangeValue(classes, charOf(packed))
     for (let j = 0; j < len; j++) original[i + j] = cls
     if (cls === L || cls === R || cls === AL) {
       if (cls !== L) isPureLtr = false
@@ -268,7 +235,7 @@ export function getParagraphLevels(text: Uint16Array): Uint8Array {
 
   for (let s = 0; s < sequences.length; s++) {
     resolveWeak(text, sequences[s]!, processing)
-    resolveNeutral(text, sequences[s]!, levels, original, processing)
+    resolveNeutral(text, sequences[s]!, levels, original, processing, bracketPairs)
   }
 
   // implicit::resolve_levels (implicit.rs:582-598).
@@ -395,22 +362,17 @@ function resolveWeak(text: Uint16Array, seq: Sequence, pc: Uint8Array): void {
   }
 }
 
-// unicode-bidi's bracket pairs as flat [opening, closing, normalized opening or 0] triples,
-// unpacked on first use.
-let bidiPairs: Uint32Array | null = null
-
 // char_data::bidi_matched_opening_bracket (char_data/mod.rs:44-56): [opening, isOpen] or null.
-function matchedOpeningBracket(c: number): [number, boolean] | null {
-  const geckoBidiPairs = bidiPairs ??= unpackUint32Table(geckoBidiPairsPacked)
-  for (let k = 0; k < geckoBidiPairs.length; k += 3) {
-    const open = geckoBidiPairs[k]!, close = geckoBidiPairs[k + 1]!, normalized = geckoBidiPairs[k + 2]!
+function matchedOpeningBracket(pairs: Uint32Array, c: number): [number, boolean] | null {
+  for (let k = 0; k < pairs.length; k += 3) {
+    const open = pairs[k]!, close = pairs[k + 1]!, normalized = pairs[k + 2]!
     if (open === c || close === c) return [normalized !== 0 ? normalized : open, open === c]
   }
   return null
 }
 
 // implicit::resolve_neutral (implicit.rs:263-486) with identify_bracket_pairs (:504-574).
-function resolveNeutral(text: Uint16Array, seq: Sequence, levels: Uint8Array, original: Uint8Array, pc: Uint8Array): void {
+function resolveNeutral(text: Uint16Array, seq: Sequence, levels: Uint8Array, original: Uint8Array, pc: Uint8Array, bracketPairs: Uint32Array): void {
   const e = levelClass(levels[seq.runs[0]![0]]!)
   const notE = e === L ? R : L
 
@@ -431,7 +393,7 @@ function resolveNeutral(text: Uint16Array, seq: Sequence, levels: Uint8Array, or
       const at = i
       i += len
       if (pc[at] !== ON) continue
-      const matched = matchedOpeningBracket(ch)
+      const matched = matchedOpeningBracket(bracketPairs, ch)
       if (matched === null) continue
       if (matched[1]) {
         if (stack.length >= 63) break
@@ -455,21 +417,20 @@ function resolveNeutral(text: Uint16Array, seq: Sequence, levels: Uint8Array, or
   }
   for (let p = 0; p < pairs.length; p++) { // N0
     const pair = pairs[p]!
-    let foundE = false
-    let foundNotE = false
+    // The strong type inside the pair, e once one matches the embedding direction, with EN
+    // and AN as R.
+    let strong = -1
     let classToSet = -1
     const startLen = charLenAt(pair.start)
     walkForwards(seq, pair.start + startLen, pair.startRun, k => {
       if (k >= pair.end) return true
       const c = pc[k]!
-      if (c === e) foundE = true
-      else if (c === notE) foundNotE = true
-      else if (c === EN || c === AN) { if (e === L) foundNotE = true; else foundE = true }
-      return foundE
+      if (c === L || c === R || c === EN || c === AN) strong = c === L ? L : R
+      return strong === e
     })
-    if (foundE) {
+    if (strong === e) {
       classToSet = e
-    } else if (foundNotE) {
+    } else if (strong === notE) {
       let previousStrong = seq.sos
       walkBackwards(seq, pair.start, pair.startRun, k => {
         const c = pc[k]!

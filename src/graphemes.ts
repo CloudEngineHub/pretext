@@ -6,9 +6,8 @@
 // 2026-09-24).
 
 import { charTablesPacked, type CharTable } from './generated/engine-break-data.js'
-import { getCategory, parseBreakRules, unpackTable, type BreakRules } from './line-breaks.js'
+import { getCategory, parseBreakRules, START_STATE, unpackTableFrom, type BreakRules } from './line-breaks.js'
 
-const START_STATE = 1 // rbbi.cpp:48
 const CLUSTER_END = 0x80
 
 type GraphemeRules = {
@@ -43,17 +42,11 @@ function parseGraphemeRules(bytes: Uint8Array): GraphemeRules {
 
 const graphemeRules: Partial<Record<CharTable, GraphemeRules>> = {}
 
-// A character table ships packed against the table it repeats, if any.
-function getCharTableBytes(table: CharTable): Uint8Array {
-  const [reference, packed] = charTablesPacked[table]
-  return unpackTable(packed, reference === null ? null : getCharTableBytes(reference))
-}
-
 // The number of grapheme clusters in text[start, end), read as if the text began at `start`
 // and ended at `end`. Unless `ends` is null, writes where each cluster ends to it from index
 // 0; it needs room for end - start values.
 export function findGraphemeEnds(table: CharTable, text: string, start: number, end: number, ends: Int32Array | null): number {
-  const { rules, transitions } = graphemeRules[table] ??= parseGraphemeRules(getCharTableBytes(table))
+  const { rules, transitions } = graphemeRules[table] ?? (graphemeRules[table] = parseGraphemeRules(unpackTableFrom(charTablesPacked, table)))
   const catCount = rules.catCount
   let state = START_STATE
   let count = 0

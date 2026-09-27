@@ -1,5 +1,6 @@
 import { findGraphemeEnds } from './graphemes.js'
-import { HARD_BREAK, isDiscretionaryLineEnd, KIND_BITS, SOFT_HYPHEN, ZERO_WIDTH_BREAK, ZERO_WIDTH_GLUE } from './line-break.js'
+import { HARD_BREAK, KIND_BITS, SOFT_HYPHEN, ZERO_WIDTH_BREAK, ZERO_WIDTH_GLUE } from './analysis.js'
+import { isDiscretionaryLineEnd } from './line-break.js'
 import { getEngineProfile } from './measurement.js'
 import type { PreparedTextWithSegments } from './layout.js'
 

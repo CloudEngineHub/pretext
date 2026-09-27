@@ -1,8 +1,8 @@
 // The browsers a job runs in, and the environment key a recording is kept under.
 //
 // Chrome and Firefox are pinned: private copies of the installed apps, so an update of /Applications can't change the
-// build under a recording. `bun harness repin chrome|firefox` makes one (pinInstalled) and, with --write, bumps the
-// version here. Firefox updates the bundle it runs from under any profile but the harness's: macOS
+// build under a recording. `bun harness repin chrome|firefox` makes one (pinInstalled) and, with --write, names it in
+// harness/pins.json. Firefox updates the bundle it runs from under any profile but the harness's: macOS
 // reopened the 156.0 copy at login after a crash, under the default profile, and Firefox updated it to 156.0.1. A
 // release build takes the update policy only from its bundle or the system, so a Firefox copy also gets
 // Contents/Resources/distribution/policies.json holding {"policies": {"DisableAppUpdate": true}} before its first
@@ -15,10 +15,11 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
-import type { BrowserKind, PageEnv } from './types.ts'
+import { BROWSER, type BrowserKind, type PageEnv } from './types.ts'
 
 const APPS = process.env['HARNESS_APPS'] ?? join(homedir(), 'github/browser-engines/apps')
-export const PINNED = { chrome: 'Google Chrome 154.0.8037.57', firefox: 'Firefox 156.0.1' } as const
+const PINS = join(import.meta.dir, 'pins.json')
+export const PINNED = JSON.parse(readFileSync(PINS, 'utf8')) as { readonly chrome: string; readonly firefox: string }
 // The copies this process runs: PINNED, unless `repin` pointed one at a new copy.
 export const pins: Record<keyof typeof PINNED, string> = { ...PINNED }
 const ROOT = resolve(import.meta.dir, '..')
@@ -78,12 +79,9 @@ export function pinInstalled(browser: keyof typeof PINNED): string {
   return name
 }
 
-// `repin --write`: PINNED in this file names the copy.
+// `repin --write`: harness/pins.json names the copy.
 export function writePin(browser: keyof typeof PINNED, name: string): void {
-  const text = readFileSync(import.meta.path, 'utf8')
-  const next = text.replace(`${browser}: '${PINNED[browser]}'`, `${browser}: '${name}'`)
-  if (next === text) throw new Error(`No ${browser} pin in ${import.meta.path}`)
-  writeFileSync(import.meta.path, next)
+  writeFileSync(PINS, `${JSON.stringify({ ...PINNED, [browser]: name }, null, 2)}\n`)
 }
 
 // What a recording depends on besides the case: the browser build (and WebKit's, for the browsers that run the system
@@ -107,11 +105,10 @@ export function fontsKey(dir: string): string {
 }
 
 export function environmentKey(browser: BrowserKind, env: PageEnv): string {
-  const system = browser === 'webkit-host' || browser === 'safari'
   return keyOf({
     browser,
     version: bundleVersion(join(appPath(browser), 'Contents/Info.plist')),
-    webkit: system ? bundleVersion('/System/Library/Frameworks/WebKit.framework/Resources/Info.plist', 'CFBundleVersion') : null,
+    webkit: BROWSER[browser].systemWebKit ? bundleVersion('/System/Library/Frameworks/WebKit.framework/Resources/Info.plist', 'CFBundleVersion') : null,
     os: command('sw_vers', ['-buildVersion']),
     osLanguages: command('defaults', ['read', '-g', 'AppleLanguages']).replace(/[\s"()]/g, ''),
     pageLanguages: env.languages,

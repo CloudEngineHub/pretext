@@ -33,12 +33,14 @@ let clearCache: LayoutModule['clearCache']
 let countPreparedLines: LineBreakModule['countPreparedLines']
 let stepPreparedLineGeometry: LineBreakModule['stepPreparedLineGeometry']
 let walkPreparedLinesRaw: LineBreakModule['walkPreparedLinesRaw']
-let SPACED: LineBreakModule['SPACED']
+let SPACED: AnalysisModule['SPACED']
 let getSegmentFit: MeasurementModule['getSegmentFit']
 let getFontMeasurement: MeasurementModule['getFontMeasurement']
 let getPreparationLanguage: MeasurementModule['getPreparationLanguage']
 let getEngineProfile: MeasurementModule['getEngineProfile']
 let analyzeText: AnalysisModule['analyzeText']
+let SEGMENT_KINDS: AnalysisModule['SEGMENT_KINDS']
+let KIND_BITS: AnalysisModule['KIND_BITS']
 let getBlinkLineBreaks: LineBreaksModule['getBlinkLineBreaks']
 let prepareRichInline: RichInlineModule['prepareRichInline']
 let layoutNextRichInlineLineRange: RichInlineModule['layoutNextRichInlineLineRange']
@@ -57,6 +59,12 @@ const emojiPresentationRe = /\p{Emoji_Presentation}/u
 const punctuationRe = /[.,!?;:%)\]}'"”’»›…—-]/u
 const decimalDigitRe = /\p{Nd}/u
 const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+
+// An analysis' segment kinds, as prepareWithSegments() gives them.
+type TextAnalysis = ReturnType<AnalysisModule['analyzeText']>
+function kindsOf(analysis: TextAnalysis): string[] {
+  return Array.from(analysis.flags, flags => SEGMENT_KINDS[flags & KIND_BITS]!)
+}
 
 type TestLayoutCursor = {
   segmentIndex: number
@@ -264,9 +272,9 @@ beforeAll(async () => {
     setLocale,
     clearCache,
   } = mod)
-  ;({ countPreparedLines, stepPreparedLineGeometry, walkPreparedLinesRaw, SPACED } = lineBreakMod)
+  ;({ countPreparedLines, stepPreparedLineGeometry, walkPreparedLinesRaw } = lineBreakMod)
   ;({ getSegmentFit, getFontMeasurement, getPreparationLanguage, getEngineProfile } = measurementMod)
-  ;({ analyzeText } = analysisMod)
+  ;({ analyzeText, SEGMENT_KINDS, KIND_BITS, SPACED } = analysisMod)
   ;({ getBlinkLineBreaks } = lineBreaksMod)
   ;({ prepareRichInline, layoutNextRichInlineLineRange, materializeRichInlineLineRange, measureRichInlineStats, walkRichInlineLineRanges } = richInlineMod)
 })
@@ -446,7 +454,8 @@ describe('boundary-policy regressions', () => {
   test('the Gecko profile takes a soft hyphen at a normal break as a zero-width break', () => {
     const kinds = (text: string) => {
       const analysis = analyzeText(text, geckoProfile)
-      return analysis.texts.map((segment, i) => [segment, analysis.kinds[i]])
+      const kinds = kindsOf(analysis)
+      return analysis.texts.map((segment, i) => [segment, kinds[i]])
     }
     // Ideographs break before Latin letters, so no hyphen is drawn or fitted there.
     expect(kinds('漢字\u00ADabc')).toEqual([['漢', 'text'], ['字', 'text'], ['\u00AD', 'zero-width-break'], ['abc', 'text']])
@@ -459,7 +468,7 @@ describe('boundary-policy regressions', () => {
     expect(kinds(' \u00ADcd')[0]).toEqual(['\u00AD', 'soft-hyphen'])
     expect(kinds(' \u00AD\u00ADcd').map(([, kind]) => kind)).toEqual(['soft-hyphen', 'text'])
     const preWrap = analyzeText('ab\n\u00ADcd', geckoProfile, 'pre-wrap')
-    expect(preWrap.kinds).toEqual(['text', 'hard-break', 'soft-hyphen', 'text'])
+    expect(kindsOf(preWrap)).toEqual(['text', 'hard-break', 'soft-hyphen', 'text'])
   })
 
   test('the Gecko profile removes a newline between East Asian characters', () => {
@@ -720,7 +729,8 @@ describe('boundary-policy regressions', () => {
     const profile = { ...baseProfile, lineBreakScan: 'webkit' as const }
     const segments = (text: string, whiteSpace?: 'pre-wrap') => {
       const analysis = analyzeText(text, profile, whiteSpace)
-      return analysis.texts.map((segment, i) => `${segment}:${analysis.kinds[i]}`)
+      const kinds = kindsOf(analysis)
+      return analysis.texts.map((segment, i) => `${segment}:${kinds[i]}`)
     }
     // The ZWSP stays its own zero-width segment, with no break after it, and the
     // mark after it stays apart from the letters.
@@ -736,7 +746,8 @@ describe('boundary-policy regressions', () => {
     const webkit = { ...baseProfile, lineBreakScan: 'webkit' as const }
     const segments = (text: string, profile: Parameters<typeof analyzeText>[1], whiteSpace?: 'pre-wrap', wordBreak?: 'keep-all') => {
       const analysis = analyzeText(text, profile, whiteSpace, wordBreak)
-      return analysis.texts.map((segment, i) => `${segment}:${analysis.kinds[i]}`)
+      const kinds = kindsOf(analysis)
+      return analysis.texts.map((segment, i) => `${segment}:${kinds[i]}`)
     }
     // No break between a soft hyphen and a combining mark or a closing bracket, or
     // between a ZWSP and a mark, so neither breaks like its kind; each stays apart
@@ -796,16 +807,16 @@ describe('boundary-policy regressions', () => {
         expect(analysis.texts).toEqual(['ab', control, 'cd'])
         // WebKit's items builder makes a separator that starts an item a forced break.
         const separator = profile === webkit && control >= '\u2028'
-        expect(analysis.kinds).toEqual(['text', separator ? 'hard-break' : 'text', 'text'])
+        expect(kindsOf(analysis)).toEqual(['text', separator ? 'hard-break' : 'text', 'text'])
         expect(analyzeText(`a${control}${control} b`, profile).texts).toEqual(['a', control, control, ' ', 'b'])
       }
     }
     // A separator that ICU's fast-forward passes stays inside a text item and ends no line.
     const passed = analyzeText('か中？\u2028b', webkit)
-    expect({ texts: passed.texts, kinds: passed.kinds }).toEqual({ texts: ['か', '中？', '\u2028', 'b'], kinds: ['text', 'text', 'text', 'text'] })
+    expect({ texts: passed.texts, kinds: kindsOf(passed) }).toEqual({ texts: ['か', '中？', '\u2028', 'b'], kinds: ['text', 'text', 'text', 'text'] })
     // NEL is text in the Blink profile and a control in the WebKit profile.
-    expect(analyzeText('ab\u0085cd', blink).kinds).toEqual(['text', 'text', 'text'])
-    expect(analyzeText('ab\u0085cd', webkit).kinds).toEqual(['text', 'control', 'text'])
+    expect(kindsOf(analyzeText('ab\u0085cd', blink))).toEqual(['text', 'text', 'text'])
+    expect(kindsOf(analyzeText('ab\u0085cd', webkit))).toEqual(['text', 'control', 'text'])
   })
 
   test('the Gecko profile gives control characters no advance, only letter spacing', () => {
@@ -1024,11 +1035,11 @@ describe('boundary-policy regressions', () => {
     })
     // Chains of a grapheme and runs of U+0301, each after U+0001, and a space between chains.
     const shapes: Array<{ chains: Array<[string, number[]]>; longest: number }> = [
-      { chains: [['x', Array(40).fill(1)]], longest: 81 },
-      { chains: [['x', Array(400).fill(1)]], longest: 99 },
+      { chains: [['x', new Array<number>(40).fill(1)]], longest: 81 },
+      { chains: [['x', new Array<number>(400).fill(1)]], longest: 99 },
       { chains: [['x', [94, 95, 96, 97, 200, 1, 1, 1]]], longest: 300 },
-      { chains: [['x', [300, ...Array(60).fill(1)]]], longest: 398 },
-      { chains: [['x', Array(60).fill(1)], ['y', Array(60).fill(1)]], longest: 99 },
+      { chains: [['x', [300, ...new Array<number>(60).fill(1)]]], longest: 398 },
+      { chains: [['x', new Array<number>(60).fill(1)], ['y', new Array<number>(60).fill(1)]], longest: 99 },
     ]
     try {
       for (let s = 0; s < shapes.length; s++) {
@@ -1164,7 +1175,7 @@ describe('boundary-policy regressions', () => {
       // stays its own control segment, measured alone.
       const keepAll = analyzeText('zz ab\u00A0\u0085cd \u6F22\u00A0\u0085\u5B57', profile, 'normal', 'keep-all')
       expect(keepAll.texts).toEqual(['zz', ' ', 'ab\u00A0', '\u0085', 'cd', ' ', '\u6F22\u00A0', '\u0085', '\u5B57'])
-      expect(keepAll.kinds).toEqual(['text', 'space', 'text', 'control', 'text', 'space', 'text', 'control', 'text'])
+      expect(kindsOf(keepAll)).toEqual(['text', 'space', 'text', 'control', 'text', 'space', 'text', 'control', 'text'])
       // A rich item that ends in NEL breaks before the next item.
       const rich = prepareRichInline([{ text: 'ab\u0085', font: FONT }, { text: 'cd', font: FONT }])
       expect(measureRichInlineStats(rich, measureWidth('ab\u0085', FONT) + 0.5).lineCount).toBe(2)
@@ -1518,7 +1529,7 @@ describe('engine break scans', () => {
   test('grapheme clusters end where ICU ends them, in one pass', async () => {
     const { findGraphemeEnds } = await import('./graphemes.ts')
     const { charTablesPacked } = await import('./generated/engine-break-data.ts')
-    const { markRuleBoundaries, parseBreakRules, unpackTable } = await import('./line-breaks.ts')
+    const { markRuleBoundaries, parseBreakRules, unpackTableFrom } = await import('./line-breaks.ts')
     const ends = (table: 'chromium/char' | 'apple/char', text: string) => {
       const out = new Int32Array(text.length)
       return Array.from(out.subarray(0, findGraphemeEnds(table, text, 0, text.length, out)))
@@ -1549,9 +1560,7 @@ describe('engine break scans', () => {
     let seed = 7
     const random = (n: number) => { seed = (seed * 48271) % 0x7fffffff; return seed % n }
     for (const table of ['chromium/char', 'apple/char'] as const) {
-      const [reference, packed] = charTablesPacked[table]
-      const bytes = unpackTable(packed, reference === null ? null : unpackTable(charTablesPacked[reference][1]))
-      const rules = parseBreakRules(bytes)
+      const rules = parseBreakRules(unpackTableFrom(charTablesPacked, table))
       for (let t = 0; t < 20_000; t++) {
         const alphabet = Array.from({ length: 2 + random(4) }, () => samples[random(samples.length)]!)
         let text = ''
@@ -3611,7 +3620,7 @@ describe('layout invariants', () => {
       // with ZWSP retains that source as a line, and one holding only a soft hyphen,
       // which a line start consumes, is an empty line.
       const retained = control === '\u200B' ? [control, control] : ['', '']
-      const expected = [...(prefix ? ['a'] : []), ...retained, ...(emptyLine ? [''] : []), 'b']
+      const expected = [...(prefix === '' ? [] : ['a']), ...retained, ...(emptyLine === '' ? [] : ['']), 'b']
       const batch = layoutWithLines(prepared, 100, LINE_HEIGHT)
       expect(batch.lines.map(line => line.text)).toEqual(expected)
       expect(layout(prepared, 100, LINE_HEIGHT).lineCount).toBe(expected.length)
@@ -4216,7 +4225,8 @@ test('the Safari profile keeps the kerning between a word and a following space'
       lineCount: layout(prepare('A\\u2060 B', '16px Test'), 8.5, 20).lineCount,
     } }))
   `
-  const { kerning, spaced, wordMeasurements, paragraphs, quote, remainder } = JSON.parse(runInChild(script))
+  const { kerning, spaced, wordMeasurements, paragraphs, quote, remainder } =
+    JSON.parse(runInChild(script)) as Record<'kerning' | 'spaced' | 'wordMeasurements' | 'paragraphs' | 'quote' | 'remainder', unknown>
   expect(kerning).toEqual([
     // The kerned word fits and the space hangs.
     { lines: [['AA ', 19], ['B', 8]], lineCount: 2 },

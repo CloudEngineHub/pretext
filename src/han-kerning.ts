@@ -19,7 +19,7 @@
 // Canvas once per font: in `cc` HanKerning halts exactly one of the two, so a character's trim
 // is 2 W(c) - W(cc), and the types of dots, colons, semicolons and quotes follow their ink
 // bounds under the page's Han script (han_kerning.cc:47-168, 400-535).
-import type { TextAnalysis } from './analysis.js'
+import { KIND_BITS, TEXT, UNBROKEN, type TextAnalysis } from './analysis.js'
 import { getSegmentMetrics, type FontMeasurement } from './measurement.js'
 
 const OTHER = 0
@@ -60,13 +60,15 @@ function getStaticCharType(c: number): number {
     case 0xFF1A: return COLON
     case 0xFF1B: return SEMICOLON
     case 0x00B7: case 0x2027: case 0x3000: case 0x30FB: return MIDDLE
+    default: {
+      if (c < 0x28) return OTHER
+      const s = String.fromCharCode(c)
+      const wide = (c >= 0x3000 && c <= 0x303F) || (c >= 0xFF01 && c <= 0xFF60) || (c >= 0xFFE0 && c <= 0xFFE6)
+      if (openPunctuationRe.test(s)) return wide ? OPEN : OPEN_NARROW
+      if (closePunctuationRe.test(s)) return wide ? CLOSE : CLOSE_NARROW
+      return OTHER
+    }
   }
-  if (c < 0x28) return OTHER
-  const s = String.fromCharCode(c)
-  const wide = (c >= 0x3000 && c <= 0x303F) || (c >= 0xFF01 && c <= 0xFF60) || (c >= 0xFFE0 && c <= 0xFFE6)
-  if (openPunctuationRe.test(s)) return wide ? OPEN : OPEN_NARROW
-  if (closePunctuationRe.test(s)) return wide ? CLOSE : CLOSE_NARROW
-  return OTHER
 }
 
 export type HanKerningFontData = {
@@ -187,33 +189,35 @@ export function getHanKerningTrims(measurement: FontMeasurement, analysis: TextA
   const out: HanKerningTrims = { widthTrims: null, lineStartExtras: null, lineEndTrims: null }
   const data = getFontData(measurement)
   if (data === null) return out
-  const { texts, kinds, starts, normalized, breaksBefore } = analysis
+  const { flags, starts, normalized } = analysis
+  const count = flags.length
   const addWidthTrim = (i: number, trim: number): void => {
-    out.widthTrims ??= Array.from({ length: texts.length }, () => 0)
+    out.widthTrims ??= Array.from({ length: count }, () => 0)
     out.widthTrims[i] = out.widthTrims[i]! + trim
   }
-  for (let i = 0; i < texts.length; i++) {
-    if (kinds[i] !== 'text') continue
-    const text = texts[i]!
-    const first = text.charCodeAt(0)
-    if (i > 0 && maybeHanKerns(first) && haltedSide(getCharType(data, normalized.charCodeAt(starts[i]! - 1)), getCharType(data, first)) === 1) {
+  for (let i = 0; i < count; i++) {
+    if ((flags[i]! & KIND_BITS) !== TEXT) continue
+    const start = starts[i]!
+    const end = i + 1 < count ? starts[i + 1]! : normalized.length
+    const first = normalized.charCodeAt(start)
+    if (i > 0 && maybeHanKerns(first) && haltedSide(getCharType(data, normalized.charCodeAt(start - 1)), getCharType(data, first)) === 1) {
       const trim = getTrim(data, first, measurement)
-      out.lineStartExtras ??= Array.from({ length: texts.length }, () => 0)
+      out.lineStartExtras ??= Array.from({ length: count }, () => 0)
       out.lineStartExtras[i] = trim
       addWidthTrim(i, trim)
     }
-    for (let k = 1; k < text.length; k++) {
-      const earlier = text.charCodeAt(k - 1)
-      const later = text.charCodeAt(k)
+    for (let k = start + 1; k < end; k++) {
+      const earlier = normalized.charCodeAt(k - 1)
+      const later = normalized.charCodeAt(k)
       if (!(maybeHanKerns(earlier) || maybeHanKerns(later)) || isCanvasCjkSymbol(earlier) === isCanvasCjkSymbol(later)) continue
       const side = haltedSide(getCharType(data, earlier), getCharType(data, later))
       if (side !== 0) addWidthTrim(i, getTrim(data, side === 1 ? later : earlier, measurement))
     }
-    const last = text.charCodeAt(text.length - 1)
+    const last = normalized.charCodeAt(end - 1)
     if (!maybeHanKerns(last)) continue
     // The text after it halts a closing mark wherever the line ends.
-    const atEnd = i + 1 === texts.length
-    if (!atEnd && haltedSide(getCharType(data, last), getCharType(data, normalized.charCodeAt(starts[i + 1]!))) === -1) {
+    const atEnd = i + 1 === count
+    if (!atEnd && haltedSide(getCharType(data, last), getCharType(data, normalized.charCodeAt(end))) === -1) {
       addWidthTrim(i, getTrim(data, last, measurement))
       continue
     }
@@ -223,8 +227,8 @@ export function getHanKerningTrims(measurement: FontMeasurement, analysis: TextA
     const lastType = getStaticCharType(last)
     // A break directly after the segment: text after a break, or the end of the text.
     if ((lastType === CLOSE || lastType === CLOSE_QUOTE) && getCharType(data, last) === CLOSE &&
-      (atEnd || (kinds[i + 1] === 'text' && breaksBefore?.[i + 1] !== false))) {
-      out.lineEndTrims ??= Array.from({ length: texts.length }, () => 0)
+      (atEnd || ((flags[i + 1]! & KIND_BITS) === TEXT && (flags[i + 1]! & UNBROKEN) === 0))) {
+      out.lineEndTrims ??= Array.from({ length: count }, () => 0)
       out.lineEndTrims[i] = getTrim(data, last, measurement)
     }
   }

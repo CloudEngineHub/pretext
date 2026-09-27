@@ -655,7 +655,7 @@ describe('the browser\'s break data', () => {
     let name = 20
     for (let i = 0; i < 2; i++) {
       view.setUint32(36 + 8 * i, name, true)
-      bytes.set(new TextEncoder().encode(names[i]!), 32 + name)
+      bytes.set(new TextEncoder().encode(names[i]), 32 + name)
       name += names[i]!.length + 1
     }
     view.setUint32(40, 58, true)

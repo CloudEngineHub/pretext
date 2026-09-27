@@ -22,7 +22,9 @@ bun harness explain --text=<text> --width=<px> [--font=] [--lang=] [--white-spac
 Every command takes `--browser=chrome|firefox|webkit-host|safari` (several with commas; default Chrome, Firefox and
 webkit-host side by side, Chrome for `explain`, which takes one, and for `bench` the browsers under Bench),
 `--cases=<file.ndjson>` in place of `harness/cases/*.ndjson`, and `--lib=<dir>` to predict with another build: a `src/`
-directory and the adapter beside it in `../harness`, or this tree's adapter where it has none.
+directory and the adapter beside it in `../harness`, or this tree's adapter where it has none. This tree's adapter maps
+the library's cursors to the source with the library's own graphemes, so a `src/` it predicts with needs
+`src/graphemes.ts` (#344).
 `record` and `gate` draw with `--seed=<n>`, 20260924 by default, so a gate's result doesn't depend on the clock.
 `bun test harness` runs the offline tests.
 
@@ -106,12 +108,13 @@ The gate adds three checks:
 
 `bun harness equal <ref>` predicts every case in each browser with this tree's build and with `<ref>`'s, a git ref or a
 `src/` directory. A build is its `src/` and the adapter that predicts with it: a ref's `harness/*.ts`, unpacked with its
-`src/` into `.artifacts/harness-builds/<sha>`, or this tree's adapter for a ref from before the harness (096ae30e). So a
-change to the adapter shows as well as one to the library. A case differs when its lines, their widths or their text
-move, or its line APIs disagree otherwise or make other Canvas calls after preparing. A case that varies between runs
-(`harness/varying`) is listed apart, not counted. It prints each case file's measureText calls and submitted units, here
-against there, and exits 1 on a difference. Line text goes out as a hash, which adapters before it send none of; texts
-are then not compared, and it says so.
+`src/` into `.artifacts/harness-builds/<sha>`, or this tree's adapter for a `src/` directory with none beside it. So a
+change to the adapter shows as well as one to the library. A ref from the harness on (#341) bundles with its own
+adapter; one from before it, such as 6d1d210, has none, and this tree's needs `src/graphemes.ts` (#344), so it doesn't
+bundle. A case differs when its lines, their widths or their text move, or its line APIs disagree otherwise or make
+other Canvas calls after preparing. A case that varies between runs (`harness/varying`) is listed apart, not counted. It
+prints each case file's measureText calls and submitted units, here against there, and exits 1 on a difference. Line
+text goes out as a hash, which adapters before it send none of; texts are then not compared, and it says so.
 
 `--offline` runs no browser. `offline-equal.ts` gives this tree's `src/` and `<ref>`'s the same inputs in the same order
 on the invariants' stand-in Canvas, in one process per engine profile (Blink, WebKit, Gecko, and an engine Pretext
@@ -309,27 +312,29 @@ other, so one the library doesn't model goes on the accepted list with a reason 
 
 ## Browsers
 
-Chrome and Firefox are pinned copies in `~/github/browser-engines/apps` (`HARNESS_APPS`), named in `browsers.ts`. A
+Chrome and Firefox are pinned copies in `~/github/browser-engines/apps` (`HARNESS_APPS`), named in `pins.json`. A
 Firefox copy also gets the `DisableAppUpdate` policy in its bundle before its first launch (`browsers.ts`), since Firefox
 updates the bundle it runs from under any profile but the harness's. Chrome gets its own profile, an en-US interface and
 one background window opened through the DevTools protocol; Firefox launches through LaunchServices, which macOS 27 needs.
 For about 12 s after it starts, Firefox changes fonts under a page (`PLATFORM_BUGS.md`, the late family names), so every
 Firefox job holds its first document until 15 s after launch. WebKit runs as webkit-host (`webkit-host/build.sh`), the
-system WebKit.framework that installed Safari runs, in a window below every other. Nothing takes focus.
+system WebKit.framework that installed Safari runs, in a window below every other. Nothing takes focus. What else differs
+by browser, such as whose cases it takes, a recorded sample, that hold and whether it runs in the background or the
+foreground, is one table, `BROWSER` in `types.ts`.
 
 The installed browsers are likely a version newer each time the project is picked up again, so `bun harness repin
 <browser>` comes first. For Chrome and Firefox it copies the installed app as a pinned copy named by its version, as the
 rebuild's `rebuild/lab/pin-browser.sh` makes one: a clone that must hash as the installed tree does, the policy for
-Firefox, and the tree hash beside it, its paths sorted under `LC_ALL=C`. It then records every case with that copy into a
-copy of the recordings in `.artifacts/harness-repin`. Safari can't be pinned, so `repin safari` records webkit-host and
-installed Safari's sample as the system has them. It prints the cases laid out otherwise than the checked-in
-recordings, the new page history and the cases newly recorded or gone, and whether the browser's break data is still
-the bytes of `scripts/engine-data`: Chrome's `line_normal.brk`, `line_normal_cj.brk` and `char.brk` in its
-`icudtl.dat`, the system ICU's four tables for Safari, and for Firefox the byte arrays of the Gecko line, grapheme and
-Bidi_Class data in XUL. A new environment starts the page-history list empty and two orders find few of Firefox's, so a
-case that was page history stays so. `--write` then replaces the recordings, takes the cases now page history off the
-accepted list and bumps the pin in `browsers.ts`. Commit that on its own, and calibrate the bench floors again after a
-pin bump.
+Firefox, and the tree hash beside it, its paths sorted under `LC_ALL=C`. It then records every case with that copy into
+a copy of the recordings in `.artifacts/harness-repin`. Safari can't be pinned, so `repin safari` records webkit-host
+and installed Safari's sample as the system has them. It prints the cases laid out otherwise than the checked-in
+recordings, the new page history and the cases newly recorded or gone, and whether the browser's break data is still the
+bytes of `scripts/engine-data` (the files `scripts/engine-data/sources.json` names, which the generator reads too):
+Chrome's `line_normal.brk`, `line_normal_cj.brk` and `char.brk` in its `icudtl.dat`, the system ICU's four tables for
+Safari, and for Firefox the byte arrays of the Gecko line, grapheme and Bidi_Class data in XUL. A new environment starts
+the page-history list empty and two orders find few of Firefox's, so a case that was page history stays so. `--write`
+then replaces the recordings, takes the cases now page history off the accepted list and bumps the pin in `pins.json`.
+Commit that on its own, and calibrate the bench floors again after a pin bump.
 
 While a job runs, the harness sums the memory footprint of its browser's processes every 100 ms: the one it launched,
 their descendants, and webkit-host's web content process, which launchd starts and the host names on its stdout

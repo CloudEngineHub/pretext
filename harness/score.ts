@@ -6,7 +6,7 @@
 // passed 4.5-8.1% of its census cases that way by accident.
 import { createRng } from './sets/build.ts'
 import { recordingText, type Varying } from './store.ts'
-import type { BrowserKind, Case, Failure, Prediction, Recording, Status } from './types.ts'
+import { BROWSER, type BrowserKind, type Case, type Failure, type Prediction, type Recording, type Status } from './types.ts'
 
 export type Outcome = { status: Status; line: number; detail: string }
 
@@ -21,14 +21,11 @@ export function observable(recording: Recording): boolean {
 // documents after it in the same process, in most runs, and lays out and measures the other U+FE0E cases otherwise too.
 // So in Firefox such a case is page history, which check never pins, and every job lays it out in documents after all
 // the others, where it can't move them (run.ts).
-export function firefoxTextEmoji(browser: BrowserKind, c: Case): boolean {
-  if (browser !== 'firefox') return false
+export function lateTextEmoji(browser: BrowserKind, c: Case): boolean {
+  if (!BROWSER[browser].textEmojiLast) return false
   for (let i = 0; i < c.paragraph.runs.length; i++) if (c.paragraph.runs[i]!.text.includes('\uFE0E')) return true
   return false
 }
-
-// Installed Safari is recorded on a sample (its window must stay uncovered), so cases it has no recording of are expected.
-export const SAMPLED: readonly BrowserKind[] = ['safari']
 
 // Which of a browser's cases check pins, and which it predicts. A case is pinned when its recording shows a visible
 // character and every recording of it agrees; page history (with Firefox's U+FE0E cases), cases with nothing visible
@@ -42,7 +39,7 @@ export function pinning(browser: BrowserKind, cases: readonly Case[], recordings
   for (let i = 0; i < cases.length; i++) {
     const c = cases[i]!
     const recording = recordings.get(c.id)
-    if (history.has(c.id) || firefoxTextEmoji(browser, c)) out.history++
+    if (history.has(c.id) || lateTextEmoji(browser, c)) out.history++
     else if (recording === undefined) out.unrecorded.push(c.id)
     else if (!observable(recording)) out.unobservable++
     else {
@@ -297,7 +294,7 @@ function faultLines(label: string, faults: Faults): string[] {
 export function checkBlocks(browser: BrowserKind, predictions: ReadonlyMap<string, Prediction>, unrecorded: readonly string[], verdict: Verdict, accepting: boolean, describe: (id: string) => string): string[] {
   const out = faultLines('', libraryFaults(predictions))
   // A case without a recording is unpinned silently otherwise, as when a generator change renames ids.
-  if (unrecorded.length > 0 && !SAMPLED.includes(browser)) out.push(`BLOCKS: ${unrecorded.length} cases have no recording; record them with record --only-new: ${shown(unrecorded)}`)
+  if (unrecorded.length > 0 && BROWSER[browser].sample === null) out.push(`BLOCKS: ${unrecorded.length} cases have no recording; record them with record --only-new: ${shown(unrecorded)}`)
   if (verdict.stale.length > 0) out.push(`BLOCKS: ${verdict.stale.length} entries of harness/varying/${browser}.txt name no case; take them off: ${shown(verdict.stale)}`)
   if (!accepting && verdict.fixed.length > 0) out.push(`BLOCKS: ${verdict.fixed.length} accepted cases pass, are no longer pinned or name no case; take them off with --accept: ${shown(verdict.fixed)}`)
   if (!accepting && verdict.newFailures.length > 0) {

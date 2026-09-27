@@ -91,7 +91,7 @@ type State = { env: string; recordings: Map<string, Recording>; probes: Record<s
 function loadState(set: string, browser: CutBrowser): State {
   const file = readRecordings(recordingsFile(set, browser))
   const probes = existsSync(probesFile(set, browser)) ? JSON.parse(readFileSync(probesFile(set, browser), 'utf8')) as Record<string, number[]> : {}
-  return { env: file?.env ?? '', recordings: file?.recordings ?? new Map(), probes }
+  return { env: file?.env ?? '', recordings: file?.recordings ?? new Map<string, Recording>(), probes }
 }
 
 function saveState(set: string, browser: CutBrowser, state: State): void {

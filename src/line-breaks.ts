@@ -103,10 +103,95 @@ export function unpackTable(packed: string, dictionary: Uint8Array | null = null
   return dictionary === null ? bytes : bytes.subarray(base)
 }
 
-// A packed table of 32-bit values: little-endian data, read on a little-endian platform.
-export function unpackUint32Table(packed: string): Uint32Array {
-  const bytes = unpackTable(packed)
-  return new Uint32Array(bytes.buffer, bytes.byteOffset, bytes.length >> 2)
+// A table of a record that ships each table packed against the earlier table it repeats most, if any.
+export function unpackTableFrom<T extends string>(tables: Readonly<Record<T, readonly [T | null, string]>>, table: T): Uint8Array {
+  const [reference, packed] = tables[table]
+  return unpackTable(packed, reference === null ? null : unpackTableFrom(tables, reference))
+}
+
+// `count` little-endian values of `Type` from `offset` in `bytes`, which needn't be aligned, copied
+// out on a little-endian platform.
+export function readValues<T extends Uint16Array | Uint32Array>(
+  Type: { new (length: number): T, readonly BYTES_PER_ELEMENT: number },
+  bytes: Uint8Array,
+  offset = 0,
+  count = (bytes.length - offset) / Type.BYTES_PER_ELEMENT,
+): T {
+  const out = new Type(count)
+  new Uint8Array(out.buffer).set(bytes.subarray(offset, offset + count * Type.BYTES_PER_ELEMENT))
+  return out
+}
+
+// Code point ranges packed as flat [start - previous end - 1, end - start, value] uint32 triples, which
+// a binary search looks up, with `bmp` a value per code unit below U+10000 in place of the ranges
+// there. A code point in no range reads as 0.
+export type RangeTable = { readonly bmp: Uint8Array | null, readonly starts: number[], readonly ends: number[], readonly values: number[] }
+
+export function unpackRanges(packed: string, bmp: boolean): RangeTable {
+  const triples = readValues(Uint32Array, unpackTable(packed))
+  const table: RangeTable = { bmp: bmp ? new Uint8Array(0x10000) : null, starts: [], ends: [], values: [] }
+  let previousEnd = -1
+  for (let i = 0; i < triples.length; i += 3) {
+    const start = previousEnd + 1 + triples[i]!
+    previousEnd = start + triples[i + 1]!
+    const value = triples[i + 2]!
+    if (table.bmp !== null && start < 0x10000) table.bmp.fill(value, start, Math.min(previousEnd + 1, 0x10000))
+    if (table.bmp === null || previousEnd >= 0x10000) {
+      table.starts.push(table.bmp === null ? start : Math.max(start, 0x10000))
+      table.ends.push(previousEnd)
+      table.values.push(value)
+    }
+  }
+  return table
+}
+
+export function getRangeValue(table: RangeTable, cp: number): number {
+  if (cp < 0x10000 && table.bmp !== null) return table.bmp[cp]!
+  const { starts, ends } = table
+  let lo = 0
+  let hi = starts.length - 1
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1
+    if (cp < starts[mid]!) hi = mid - 1
+    else if (cp > ends[mid]!) lo = mid + 1
+    else return table.values[mid]!
+  }
+  return 0
+}
+
+// Unicode properties the scans read with RegExp's \p{...}, as two bits per property and code point:
+// whether it was tested, and whether the code point has it. A scan tests a property the first time it
+// asks about a code point, so a page runs only the tests its engine's scan makes. Code points below
+// U+10000 keep their bits in one table, the others in a map.
+const PROPERTY_TESTS = [
+  /^[\p{L}\p{N}]$/u,
+  /^\p{M}$/u,
+  /^\p{P}$/u,
+  /^[\p{Ps}\p{Pe}\p{Pi}\p{Pf}\p{Po}]$/u,
+  /^\p{Default_Ignorable_Code_Point}$/u,
+  /^\p{Emoji}$/u,
+  /^\p{sc=Hangul}$/u,
+]
+export const LETTER_OR_NUMBER = 0
+export const MARK = 1
+export const PUNCTUATION = 2
+export const PUNCTUATION_BUT_DASH_OR_CONNECTOR = 3
+export const DEFAULT_IGNORABLE = 4
+export const EMOJI = 5
+export const HANGUL = 6
+let bmpProperties: Uint16Array | null = null
+const astralProperties = new Map<number, number>()
+
+export function hasProperty(cp: number, property: number): boolean {
+  const bmp = bmpProperties ??= new Uint16Array(0x10000)
+  const has = 1 << (property * 2)
+  let bits = cp < 0x10000 ? bmp[cp]! : astralProperties.get(cp) ?? 0
+  if ((bits & has << 1) === 0) {
+    bits |= has << 1 | (PROPERTY_TESTS[property]!.test(String.fromCodePoint(cp)) ? has : 0)
+    if (cp < 0x10000) bmp[cp] = bits
+    else astralProperties.set(cp, bits)
+  }
+  return (bits & has) !== 0
 }
 
 // The scans read word boundaries only inside runs of Thai, Lao, Khmer and Myanmar
@@ -125,7 +210,7 @@ export function clearWordSegmenter(): void {
 
 // --- ICU's rule-based iterator over compiled line rules ---
 
-const START_STATE = 1 // rbbi.cpp:48
+export const START_STATE = 1 // rbbi.cpp:48
 const STOP_STATE = 0 // rbbi.cpp:51
 const ACCEPTING_UNCONDITIONAL = 1 // rbbidata.h:127
 const RBBI_8BITS_ROWS = 4 // rbbidata.h:152
@@ -141,13 +226,6 @@ export type BreakRules = {
   trieData: Uint16Array
   trieDataLength: number
   trieHighStart: number
-}
-
-// Little-endian data, read on a little-endian platform.
-function copyU16(bytes: Uint8Array, offset: number, count: number): Uint16Array {
-  const out = new Uint16Array(count)
-  new Uint8Array(out.buffer).set(bytes.subarray(offset, offset + count * 2))
-  return out
 }
 
 // A trie's data index past its fast range and below its high start: ucptrie_internalSmallIndex
@@ -198,7 +276,7 @@ export function parseBreakRules(bytes: Uint8Array): BreakRules {
   if (rowLength !== rowWidth * (eightBitRows ? 1 : 2)) throw new Error('Unexpected state table row length')
   const rows = eightBitRows
     ? Uint16Array.from(bytes.subarray(table + 20, table + 20 + numStates * rowLength))
-    : copyU16(bytes, table + 20, numStates * rowWidth)
+    : readValues(Uint16Array, bytes, table + 20, numStates * rowWidth)
 
   // UCPTrieHeader, ucptrie_impl.h:24-56, checked as ucptrie_openFromBinary does
   // (ucptrie.cpp:44-68). RBBI asks for a fast trie with 8- or 16-bit values
@@ -212,10 +290,10 @@ export function parseBreakRules(bytes: Uint8Array): BreakRules {
   const indexLength = view.getUint16(trie + 6, true)
   const trieDataLength = ((options & 0xf000) << 4) | view.getUint16(trie + 8, true) // ucptrie.cpp:74-75
   const trieHighStart = view.getUint16(trie + 14, true) << 9 // UCPTRIE_SHIFT_2, ucptrie.cpp:80
-  const trieIndex = copyU16(bytes, trie + 16, indexLength) // ucptrie.cpp:117-119
+  const trieIndex = readValues(Uint16Array, bytes, trie + 16, indexLength) // ucptrie.cpp:117-119
   const dataStart = trie + 16 + indexLength * 2
   const trieData = valueWidth === 0
-    ? copyU16(bytes, dataStart, trieDataLength)
+    ? readValues(Uint16Array, bytes, dataStart, trieDataLength)
     : Uint16Array.from(bytes.subarray(dataStart, dataStart + trieDataLength))
 
   return {
@@ -332,21 +410,10 @@ export function markRuleBoundaries(r: BreakRules, text: string, flags: Uint8Arra
 
 type ChromiumLineTable = 'line_normal' | 'line_normal_cj'
 
-const lineRules = new Map<LineTable, BreakRules>()
-
-// A line table ships packed against the earlier table it repeats most, if any.
-function getLineTableBytes(table: LineTable): Uint8Array {
-  const [reference, packed] = lineTablesPacked[table]
-  return unpackTable(packed, reference === null ? null : getLineTableBytes(reference))
-}
+const lineRules: Partial<Record<LineTable, BreakRules>> = {}
 
 function getLineRules(table: LineTable): BreakRules {
-  let rules = lineRules.get(table)
-  if (rules === undefined) {
-    rules = parseBreakRules(getLineTableBytes(table))
-    lineRules.set(table, rules)
-  }
-  return rules
+  return lineRules[table] ?? (lineRules[table] = parseBreakRules(unpackTableFrom(lineTablesPacked, table)))
 }
 
 // Line_Break=SA for one code point: the line rules' dictionary categories.
@@ -398,12 +465,6 @@ let blinkDefaultLocale: string | undefined
 export function getBlinkDefaultLocale(): string {
   return blinkDefaultLocale ??= new Intl.DateTimeFormat().resolvedOptions().locale
 }
-// General category bits per UTF-16 code unit, filled on first use: 1 known, 2 letter
-// or number, 4 mark, 8 punctuation other than dashes and connectors.
-let categoryBits: Uint8Array | null = null
-const letterOrNumberRe = /^[\p{L}\p{N}]$/u
-const markRe = /^\p{M}$/u
-const punctuationRe = /^[\p{Ps}\p{Pe}\p{Pi}\p{Pf}\p{Po}]$/u
 
 const NO_BREAK = 0
 const CAN_BREAK = 1
@@ -436,22 +497,11 @@ function shouldBreakFast(pairs: Uint8Array, lastLast: number, last: number, ch: 
   return UNKNOWN
 }
 
-function getCategoryBits(unit: number): number {
-  const bits = categoryBits ??= new Uint8Array(0x10000)
-  let value = bits[unit]!
-  if (value === 0) {
-    const s = String.fromCharCode(unit)
-    value = 1 | (letterOrNumberRe.test(s) ? 2 : 0) | (markRe.test(s) ? 4 : 0) | (punctuationRe.test(s) ? 8 : 0)
-    bits[unit] = value
-  }
-  return value
-}
-
 // ShouldKeepAfterKeepAll, tbi.cc:157-165, per UTF-16 code unit.
 function shouldKeepAfterKeepAll(rules: BreakRules, lastLast: number, last: number, ch: number): boolean {
-  const pre = (getCategoryBits(last) & 4) !== 0 ? lastLast : last
-  return (getCategoryBits(pre) & 2) !== 0 && !isComplexContext(rules, pre) &&
-    (getCategoryBits(ch) & 2) !== 0 && !isComplexContext(rules, ch)
+  const pre = hasProperty(last, MARK) ? lastLast : last
+  return hasProperty(pre, LETTER_OR_NUMBER) && !isComplexContext(rules, pre) &&
+    hasProperty(ch, LETTER_OR_NUMBER) && !isComplexContext(rules, ch)
 }
 
 // Where a line may start in text Blink collapsed as Pretext does: flags[i] = 1 for
@@ -575,32 +625,33 @@ function classify(c: number): number {
       if (c === 0x2018 || c === 0x201c) return QU | PI
       if (c === 0x2019 || c === 0x201d) return QU | PF
       return WEIRD
-  }
-  if (c >= 0x2e80 && c <= 0xa4cf) {
-    if ((c & 0xff00) === 0x3000) {
-      if (c <= 0x303f) {
-        switch (c & 0x1f) {
-          case 0x01: case 0x02: case 0x09: case 0x0b: case 0x0d: case 0x0f: case 0x11: case 0x15: case 0x17:
-          case 0x19: case 0x1b: case 0x1e: case 0x1f:
-            return CL
-          case 0x08: case 0x0a: case 0x0c: case 0x0e: case 0x10: case 0x16: case 0x14: case 0x18: case 0x1a:
-          case 0x1d:
-            return OP
-          default:
-            return WEIRD
+    default:
+      if (c >= 0x2e80 && c <= 0xa4cf) {
+        if ((c & 0xff00) === 0x3000) {
+          if (c <= 0x303f) {
+            switch (c & 0x1f) {
+              case 0x01: case 0x02: case 0x09: case 0x0b: case 0x0d: case 0x0f: case 0x11: case 0x15: case 0x17:
+              case 0x19: case 0x1b: case 0x1e: case 0x1f:
+                return CL
+              case 0x08: case 0x0a: case 0x0c: case 0x0e: case 0x10: case 0x16: case 0x14: case 0x18: case 0x1a:
+              case 0x1d:
+                return OP
+              default:
+                return WEIRD
+            }
+          }
+          return WEIRD
         }
+        if ((c & 0xfff0) === 0x31f0) return WEIRD
+        if ((c & 0xfff8) === 0x3248) return AL
+        if ((c & 0xffc0) === 0x4dc0) return AL
+        if (c === 0xa015) return WEIRD
+        return ID
       }
+      if (c >= 0xac00 && c <= 0xd7af) return ID
+      if (c >= 0xf900 && c <= 0xfaff) return ID
       return WEIRD
-    }
-    if ((c & 0xfff0) === 0x31f0) return WEIRD
-    if ((c & 0xfff8) === 0x3248) return AL
-    if ((c & 0xffc0) === 0x4dc0) return AL
-    if (c === 0xa015) return WEIRD
-    return ID
   }
-  if (c >= 0xac00 && c <= 0xd7af) return ID
-  if (c >= 0xf900 && c <= 0xfaff) return ID
-  return WEIRD
 }
 
 // CachedLineBreakIteratorFactory (TBI.h:236-351) with two characters of prior context
@@ -715,7 +766,7 @@ function nextBreakableSpace(s: string, startPosition: number, punctuationBreaks:
     const c = s.charCodeAt(i)
     if (isWebKitBreakableSpace(c) || c === ZWSP) return i
     if (c === IDEOGRAPHIC_SPACE) return i + 1
-    if (punctuationBreaks && (getCategoryBits(c) & 8) !== 0 && i + 1 < s.length) return i + 1
+    if (punctuationBreaks && hasProperty(c, PUNCTUATION_BUT_DASH_OR_CONNECTOR) && i + 1 < s.length) return i + 1
   }
   return s.length
 }
@@ -830,5 +881,5 @@ export function getWebKitBreakBetweenItems(previous: string, next: string, langu
 // canBreakBefore, InlineContentBreaker.cpp:124-137, for line-break auto: whether a line
 // that holds only an overflowing first character ends before this code unit.
 export function canWebKitLineStartWith(unit: number): boolean {
-  return unit === 0x5c || (unit !== 0xa0 && unit !== 0x2010 && unit !== 0x2013 && (getCategoryBits(unit) & 8) === 0)
+  return unit === 0x5c || (unit !== 0xa0 && unit !== 0x2010 && unit !== 0x2013 && !hasProperty(unit, PUNCTUATION_BUT_DASH_OR_CONNECTOR))
 }

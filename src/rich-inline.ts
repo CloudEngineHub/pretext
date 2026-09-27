@@ -6,7 +6,10 @@ import {
 import {
   analyzeText,
   isCollapsibleSpaceCode,
+  KIND_BITS,
   removeSkippableSegmentBreaks,
+  RETURNABLE,
+  UNBROKEN,
   type AnalysisProfile,
 } from './analysis.js'
 import { getWebKitBreakBetweenItems } from './line-breaks.js'
@@ -14,12 +17,8 @@ import { buildLineTextFromRange, getGraphemeEnds } from './line-text.js'
 import {
   canReturnFromUnfitHyphen,
   endsLineBefore,
-  getKindCode,
   isDiscretionaryLineEnd,
-  KIND_BITS,
-  RETURNABLE,
   stepPreparedLineGeometry,
-  UNBROKEN,
 } from './line-break.js'
 import { getEngineProfile, getFontMeasurement, getPreparationLanguage, getSegmentMetrics, readLetterSpacing } from './measurement.js'
 
@@ -198,10 +197,10 @@ function getItemCursor(prepared: PreparedTextWithSegments, startSegmentIndex: nu
 // prepare() and returns the offsets of the segments the line walker could end a
 // line before.
 function getJoinedBreakOffsets(text: string, profile: AnalysisProfile, language: string | null): number[] {
-  const { kinds, breaksBefore, starts } = analyzeText(text, profile, 'normal', 'normal', language)
+  const { flags, starts } = analyzeText(text, profile, 'normal', 'normal', language)
   const offsets: number[] = []
-  for (let i = 1; i < kinds.length; i++) {
-    if (endsLineBefore(getKindCode(kinds[i - 1]!), getKindCode(kinds[i]!), breaksBefore?.[i] === false)) offsets.push(starts[i]!)
+  for (let i = 1; i < flags.length; i++) {
+    if (endsLineBefore(flags[i - 1]! & KIND_BITS, flags[i]! & KIND_BITS, (flags[i]! & UNBROKEN) !== 0)) offsets.push(starts[i]!)
   }
   return offsets
 }
@@ -503,12 +502,7 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
     const item = preparedItems[index]
     if (item === undefined || !item.establishesLine) continue
     if (nextItem !== null && !nextItem.breakBefore) {
-      const runWidth = leadingRunWidths[nextIndex] ?? null
-      item.carryWidth = nextItem.extraWidth + (
-        runWidth === null
-          ? nextItem.naturalWidth + nextItem.carryWidth
-          : runWidth
-      )
+      item.carryWidth = nextItem.extraWidth + (leadingRunWidths[nextIndex] ?? nextItem.naturalWidth + nextItem.carryWidth)
     }
     nextItem = item
     nextIndex = index

@@ -12,7 +12,22 @@ import type { CharTable } from './generated/engine-break-data.js'
 import { clearWordSegmenter } from './line-breaks.js'
 import {
   analyzeText,
+  CONTROL,
+  HARD_BREAK,
+  KIND_BITS,
+  ONE_CLUSTER,
+  PRESERVED_SPACE,
+  SEGMENT_KINDS,
+  SOFT_HYPHEN,
+  SPACE,
+  SPACED,
+  TAB,
+  TEXT,
+  UNBROKEN,
+  ZERO_WIDTH_BREAK,
+  ZERO_WIDTH_GLUE,
   type SegmentBreakKind,
+  type SegmentKindCode,
   type TextAnalysis,
   type WhiteSpaceMode,
   type WordBreakMode as AnalysisWordBreakMode,
@@ -40,12 +55,8 @@ import {
 } from './measurement.js'
 import {
   countPreparedLines,
-  getKindCode,
   normalizePreparedLineStart,
-  RETURNABLE,
-  SPACED,
   stepPreparedLineGeometryFromStart,
-  UNBROKEN,
   walkPreparedLinesRaw,
   type PreparedLineBreakData,
 } from './line-break.js'
@@ -113,8 +124,8 @@ export type PrepareOptions = {
 // --- Public API ---
 
 // Text and spaces take letter spacing after each grapheme; a ZWSP takes none.
-function countRenderedSpacingGraphemes(text: string, kind: SegmentBreakKind, graphemeTable: CharTable): number {
-  return kind === 'zero-width-break' ? 0 : findGraphemeEnds(graphemeTable, text, 0, text.length, null)
+function countRenderedSpacingGraphemes(text: string, kind: SegmentKindCode, graphemeTable: CharTable): number {
+  return kind === ZERO_WIDTH_BREAK ? 0 : findGraphemeEnds(graphemeTable, text, 0, text.length, null)
 }
 
 function addInternalLetterSpacing(width: number, graphemeCount: number, letterSpacing: number): number {
@@ -189,8 +200,10 @@ function measureAnalysis(
   engineProfile: EngineProfile,
   language: string | null,
 ): InternalPreparedText | PreparedTextWithSegments {
+  const { normalized, texts, starts, flags } = analysis
+  const segmentCount = flags.length
   const fontMeasurement = getFontMeasurement(font, language)
-  const emojiCorrection = textMayContainEmoji(analysis.normalized) ? getEmojiCorrection(font, fontMeasurement) : 0
+  const emojiCorrection = textMayContainEmoji(normalized) ? getEmojiCorrection(font, fontMeasurement) : 0
   // The gap before the hyphen, plus the hyphen's own spacing where the engine
   // letter-spaces it.
   const discretionaryHyphenWidth = getTextWidth('-', fontMeasurement, emojiCorrection) +
@@ -202,8 +215,8 @@ function measureAnalysis(
   // A collapsed space's first source character, for engines that look at the
   // source after a text item.
   function getSpaceSourceCode(analysisIndex: number): number {
-    const start = analysis.starts[analysisIndex]!
-    return analysis.spaceSources === null ? analysis.normalized.charCodeAt(start) : analysis.spaceSources[start]!
+    const start = starts[analysisIndex]!
+    return analysis.spaceSources === null ? normalized.charCodeAt(start) : analysis.spaceSources[start]!
   }
 
   // A WebKit text item runs to its next break opportunity, so it also owns any
@@ -218,16 +231,13 @@ function measureAnalysis(
   // between the text and the space, or null when the text takes no kerning.
   function getFollowingSpaceTail(analysisIndex: number, text: string): string | null {
     if (!engineProfile.measureTextWithFollowingSpace || hasLetterSpacing) return null
-    let tail = ''
     let next = analysisIndex + 1
-    while (next < analysis.kinds.length && analysis.kinds[next] === 'zero-width-break') {
-      tail += analysis.texts[next]!
-      next++
-    }
-    if (next >= analysis.kinds.length) return null
-    const nextKind = analysis.kinds[next]!
-    if ((nextKind !== 'space' && nextKind !== 'preserved-space') || getSpaceSourceCode(next) !== 0x20) return null
-    return formatTailStaysWithWord(tail === '' ? text : text + tail, analysis.starts[next]!) ? tail : null
+    while (next < segmentCount && (flags[next]! & KIND_BITS) === ZERO_WIDTH_BREAK) next++
+    if (next >= segmentCount) return null
+    const nextKind = flags[next]! & KIND_BITS
+    if ((nextKind !== SPACE && nextKind !== PRESERVED_SPACE) || getSpaceSourceCode(next) !== 0x20) return null
+    const tail = normalized.slice(starts[analysisIndex + 1], starts[next])
+    return formatTailStaysWithWord(tail === '' ? text : text + tail, starts[next]!) ? tail : null
   }
 
   // Text directly before such a space is measured together with the space
@@ -257,16 +267,15 @@ function measureAnalysis(
   let controlParagraphEnd = -1
   let paragraphHasExplicitBidiControls = false
   function spaceParagraphHasExplicitBidiControls(spaceStart: number): boolean {
-    hasExplicitBidiControls ??= explicitBidiControlRe.test(analysis.normalized)
+    hasExplicitBidiControls ??= explicitBidiControlRe.test(normalized)
     if (!hasExplicitBidiControls) return false
     if (spaceStart < controlParagraphEnd) return paragraphHasExplicitBidiControls
-    const text = analysis.normalized
     let start = spaceStart
-    while (start > 0 && !isParagraphSeparatorCode(text.charCodeAt(start - 1))) start--
+    while (start > 0 && !isParagraphSeparatorCode(normalized.charCodeAt(start - 1))) start--
     let end = spaceStart
-    while (end < text.length && !isParagraphSeparatorCode(text.charCodeAt(end))) end++
+    while (end < normalized.length && !isParagraphSeparatorCode(normalized.charCodeAt(end))) end++
     controlParagraphEnd = end
-    paragraphHasExplicitBidiControls = explicitBidiControlRe.test(text.slice(start, end))
+    paragraphHasExplicitBidiControls = explicitBidiControlRe.test(normalized.slice(start, end))
     return paragraphHasExplicitBidiControls
   }
   function formatTailStaysWithWord(item: string, spaceStart: number): boolean {
@@ -274,7 +283,7 @@ function measureAnalysis(
     const before = letterBeforeFormatTailRe.exec(item)
     if (before === null) return false
     letterAfterSpacesRe.lastIndex = spaceStart
-    const after = letterAfterSpacesRe.exec(analysis.normalized)
+    const after = letterAfterSpacesRe.exec(normalized)
     if (after === null) return false
     // An ASCII digit takes the direction of the text before it (UAX #9 W7 and N1).
     const next = after[1]!
@@ -297,19 +306,20 @@ function measureAnalysis(
   let markBaseStart = -1 // where that run's grapheme starts in the normalized text, or -1
   let markChainStart = -1 // the segment after that grapheme
   let markChainKept = -1 // the first segment of the chain the context keeps
-  function getMarkContext(analysisIndex: number): string | null {
-    if (analysis.breaksBefore?.[analysisIndex] !== false || !markRunRe.test(analysis.texts[analysisIndex]!)) return null
+  function getMarkContext(analysisIndex: number, text: string): string | null {
+    if ((flags[analysisIndex]! & UNBROKEN) === 0 || !markRunRe.test(text)) return null
     let baseStart = -1
     for (let k = analysisIndex - 1; k >= 0; k--) {
-      const kind = analysis.kinds[k]!
-      const text = analysis.texts[k]!
-      if (kind === 'zero-width-glue' || ((kind === 'text' || kind === 'control') && controlOrMarkRunRe.test(text))) {
+      const kind = flags[k]! & KIND_BITS
+      const start = starts[k]!
+      const end = starts[k + 1]!
+      if (kind === ZERO_WIDTH_GLUE || ((kind === TEXT || kind === CONTROL) && controlOrMarkRunRe.test(texts[k]!))) {
         if (k !== markRunIndex) continue
         baseStart = markBaseStart
-      } else if (kind === 'text') {
-        const ends = new Int32Array(text.length)
-        const count = findGraphemeEnds(engineProfile.graphemeTable, text, 0, text.length, ends)
-        baseStart = analysis.starts[k]! + (count > 1 ? ends[count - 2]! : 0)
+      } else if (kind === TEXT) {
+        const ends = new Int32Array(end - start)
+        const count = findGraphemeEnds(engineProfile.graphemeTable, normalized, start, end, ends)
+        baseStart = count > 1 ? ends[count - 2]! : start
         markChainStart = markChainKept = k + 1
       }
       break
@@ -317,30 +327,30 @@ function measureAnalysis(
     markRunIndex = analysisIndex
     markBaseStart = baseStart
     if (baseStart < 0) return null
-    const start = analysis.starts[analysisIndex]!
-    return start - baseStart > MARK_CHAIN_CONTEXT_UNITS ? getLongMarkChainContext(baseStart, start) : analysis.normalized.slice(baseStart, start)
+    const start = starts[analysisIndex]!
+    return start - baseStart > MARK_CHAIN_CONTEXT_UNITS ? getLongMarkChainContext(baseStart, start) : normalized.slice(baseStart, start)
   }
   // Apart from getMarkContext(), which prepare() calls for every segment, so that V8
   // still inlines that one there (RESEARCH.md, Keeping Work Bounded). V8 inlines a
   // function only while its bytecode stays under about 460 bytes, whether or not the
   // source is minified: with this loop inside, getMarkContext() took 519 bytes and
-  // Chrome 154's prepare() ran 1-3% slower; without it, 376 (Node 23, V8 12.9). Before
+  // Chrome 154's prepare() ran 1-3% slower; without it, 374 (Node 23, V8 12.9). Before
   // growing getMarkContext(), check it with node --print-bytecode and
   // --trace-turbo-inlining, and bench Chrome's prepare() rows against main.
   function getLongMarkChainContext(baseStart: number, start: number): string {
     // The kept part starts after the grapheme or a run of marks, moves only forward and
     // never holds fewer than MARK_CHAIN_CONTEXT_UNITS.
-    for (let k = markChainKept + 1; start - analysis.starts[k]! >= MARK_CHAIN_CONTEXT_UNITS; k++) {
-      if (markRunRe.test(analysis.texts[k - 1]!)) markChainKept = k
+    for (let k = markChainKept + 1; start - starts[k]! >= MARK_CHAIN_CONTEXT_UNITS; k++) {
+      if (markRunRe.test(texts[k - 1]!)) markChainKept = k
     }
-    if (markChainKept === markChainStart) return analysis.normalized.slice(baseStart, start)
-    return analysis.normalized.slice(baseStart, analysis.starts[markChainStart]!) + analysis.normalized.slice(analysis.starts[markChainKept]!, start)
+    if (markChainKept === markChainStart) return normalized.slice(baseStart, start)
+    return normalized.slice(baseStart, starts[markChainStart]) + normalized.slice(starts[markChainKept], start)
   }
 
   const widths: number[] = []
-  // An engine's scan makes one prepared segment per analysis segment.
-  const breaksBefore = analysis.breaksBefore
-  const segmentFlags = new Uint8Array(analysis.kinds.length)
+  // An engine's scan makes one prepared segment per analysis segment, whose flags the
+  // walkers, layout()'s count and rich-inline layout read where the scan gives no break.
+  const segmentFlags = new Uint8Array(segmentCount)
   // Text of the simple walkers' kinds without letter spacing. They lay it out where
   // the scan breaks at every segment boundary, and layout() counts it with the
   // simple stepper where it doesn't (countPreparedLines).
@@ -353,8 +363,9 @@ function measureAnalysis(
   // line, in text holding a code unit above U+00FF (InlineContentBreaker.cpp:124-158,
   // 222-233), by its scan's line-start table. Blink and Gecko end the line after the
   // first grapheme.
-  const keepsLineStartPunctuation = engineProfile.lineBreakScan === 'webkit' && /[\u0100-\uFFFF]/.test(analysis.normalized)
+  const keepsLineStartPunctuation = engineProfile.lineBreakScan === 'webkit' && /[\u0100-\uFFFF]/.test(normalized)
   const segments = includeSegments ? [] as string[] : null
+  const kinds = includeSegments ? [] as SegmentBreakKind[] : null
   const retreatsFromUnfitHyphen = engineProfile.unfitHyphenRetreat !== 'none'
   let discretionaryHyphenContexts: number[] | null = null
   let previousJoinablePiece: string | null = null
@@ -367,9 +378,9 @@ function measureAnalysis(
   function getJoinedNarrowing(analysisIndex: number, before: string | null, beforeMetrics: SegmentMetrics | null): number {
     if (before === null) return 0
     let next = analysisIndex + 1
-    while (next < analysis.kinds.length && analysis.kinds[next] === 'soft-hyphen') next++
-    if (next >= analysis.kinds.length || analysis.kinds[next] !== 'text') return 0
-    const after = analysis.texts[next]!
+    while (next < segmentCount && (flags[next]! & KIND_BITS) === SOFT_HYPHEN) next++
+    if (next >= segmentCount || (flags[next]! & KIND_BITS) !== TEXT) return 0
+    const after = texts[next]!
     const apart = getCorrectedSegmentWidth(before, beforeMetrics!, emojiCorrection) + getTextWidth(after, fontMeasurement, emojiCorrection)
     const together = getTextWidth(before + after, fontMeasurement, emojiCorrection)
     return apart - together > engineProfile.lineFitEpsilon ? apart - together : 0
@@ -396,9 +407,10 @@ function measureAnalysis(
     return getCorrectedSegmentWidth(text, textMetrics, emojiCorrection) - (measuredWithSpace ? spaceWidth : 0) + followingSpaceKerning
   }
 
-  for (let mi = 0; mi < analysis.kinds.length; mi++) {
-    const text = analysis.texts[mi]!
-    const kind = analysis.kinds[mi]!
+  for (let mi = 0; mi < segmentCount; mi++) {
+    const text = texts[mi]!
+    const segment = flags[mi]!
+    const kind = (segment & KIND_BITS) as SegmentKindCode
     let width = 0
     // Graphemes that take letter spacing after them.
     let spacingGraphemeCount = 0
@@ -406,7 +418,7 @@ function measureAnalysis(
     let entry: SegmentEntryGeometry | null = null
     let prohibitions: number[] | null = null
     switch (kind) {
-      case 'text': {
+      case TEXT: {
         // A control the engine hides takes no advance, only letter spacing.
         if (engineProfile.hidesControlCharacters && controlCharacterRe.test(text)) {
           spacingGraphemeCount = 1
@@ -414,9 +426,9 @@ function measureAnalysis(
         }
         // Such a run of marks adds its context with the marks, minus the context, and
         // takes no letter spacing of its own.
-        const markContext = getMarkContext(mi)
+        const markContext = getMarkContext(mi, text)
         if (markContext !== null) {
-          width = engineProfile.shapesMarksAcrossSoftHyphen && analysis.texts[mi - 1] === '\u00AD' && nonspacingMarkRunRe.test(text)
+          width = engineProfile.shapesMarksAcrossSoftHyphen && texts[mi - 1] === '\u00AD' && nonspacingMarkRunRe.test(text)
             ? 0
             : getTextWidth(markContext + text, fontMeasurement, emojiCorrection) - getTextWidth(markContext, fontMeasurement, emojiCorrection)
           break
@@ -435,7 +447,7 @@ function measureAnalysis(
         // any two graphemes (line_breaker.cc), WebKit searches the word's grapheme prefixes
         // (TextUtil::breakWord) and Gecko may wrap before any cluster (gfxTextRun.cpp:1069-1072),
         // so every text segment takes emergency grapheme breaks, unless it is one Gecko cluster.
-        if (analysis.clusterSplits?.[mi] === false || text.length === 1) break
+        if ((segment & ONE_CLUSTER) !== 0 || text.length === 1) break
         const fitMode: BreakableFitMode = letterSpacing !== 0 ? 'segment-prefixes'
           : numericRunRe.test(text) ? 'pair-context'
           : textMetrics.width >= engineProfile.prefixFitMinWidth ? 'segment-prefixes'
@@ -456,39 +468,36 @@ function measureAnalysis(
         if (keepsLineStartPunctuation) prohibitions = fit.lineStartProhibitions
         break
       }
-      case 'space':
-      case 'preserved-space':
-      case 'zero-width-break':
+      case SPACE:
+      case PRESERVED_SPACE:
+      case ZERO_WIDTH_BREAK:
         width = getTextWidth(text, fontMeasurement, emojiCorrection)
         if (hasLetterSpacing) spacingGraphemeCount = countRenderedSpacingGraphemes(text, kind, engineProfile.graphemeTable)
         break
-      case 'tab':
+      case TAB:
         spacingGraphemeCount = 1
         break
-      case 'control': {
+      case CONTROL: {
         width = getTextWidth(text, fontMeasurement, emojiCorrection)
         // NEL shares a WebKit text item with the text before it and with
         // combining marks after it, and the complex text path spaces it. Complex
         // text shares the item only when its direction matches the page's, which
         // preparation cannot see, so NEL next to complex text keeps its spacing.
-        const nextText = mi + 1 < analysis.kinds.length ? analysis.texts[mi + 1]! : ''
+        const nextText = mi + 1 < segmentCount ? texts[mi + 1]! : ''
         if (hasLetterSpacing && (
-          (mi > 0 && analysis.kinds[mi - 1] === 'text' && needsComplexTextPath(analysis.texts[mi - 1]!)) ||
+          (mi > 0 && (flags[mi - 1]! & KIND_BITS) === TEXT && needsComplexTextPath(texts[mi - 1]!)) ||
           (leadingCombiningMarkRe.test(nextText) && needsComplexTextPath(nextText))
         )) spacingGraphemeCount = 1
         break
       }
-      case 'soft-hyphen':
-      case 'zero-width-glue':
-      case 'hard-break':
+      case SOFT_HYPHEN:
+      case ZERO_WIDTH_GLUE:
+      case HARD_BREAK:
         break
     }
-    if (kind !== 'text' && kind !== 'space' && kind !== 'zero-width-break') simpleKinds = false
-    if (kind !== 'text' && kind !== 'soft-hyphen') previousJoinablePiece = null
-    // The full walker, layout()'s count and rich-inline layout read where the scan
-    // gives no break.
-    segmentFlags[mi] = getKindCode(kind) | (hasLetterSpacing && spacingGraphemeCount > 0 ? SPACED : 0) |
-      (breaksBefore === null ? 0 : breaksBefore[mi] ? RETURNABLE : UNBROKEN)
+    if (kind !== TEXT && kind !== SPACE && kind !== ZERO_WIDTH_BREAK) simpleKinds = false
+    if (kind !== TEXT && kind !== SOFT_HYPHEN) previousJoinablePiece = null
+    segmentFlags[mi] = (segment & ~ONE_CLUSTER) | (hasLetterSpacing && spacingGraphemeCount > 0 ? SPACED : 0)
     widths.push(addInternalLetterSpacing(width, spacingGraphemeCount, letterSpacing))
     breakableFitAdvances.push(fitAdvances)
     if (entry !== null && entryGeometry === null) entryGeometry = Array.from({ length: mi }, () => null)
@@ -496,7 +505,8 @@ function measureAnalysis(
     if (prohibitions !== null && lineStartProhibitions === null) lineStartProhibitions = Array.from({ length: mi }, () => null)
     lineStartProhibitions?.push(prohibitions)
     if (segments !== null) segments.push(text)
-    if (kind === 'soft-hyphen' && retreatsFromUnfitHyphen) {
+    kinds?.push(SEGMENT_KINDS[kind]!)
+    if (kind === SOFT_HYPHEN && retreatsFromUnfitHyphen) {
       discretionaryHyphenContexts ??= Array.from({ length: mi }, () => 0)
       discretionaryHyphenContexts.push(getJoinedNarrowing(mi, previousJoinablePiece, previousJoinableMetrics))
     } else {
@@ -507,19 +517,19 @@ function measureAnalysis(
   // A segment's width is its width between the text before and after it; one that starts
   // a line takes back the halt Blink gives its first character there.
   let hanKerning: HanKerningTrims = { widthTrims: null, lineStartExtras: null, lineEndTrims: null }
-  if (engineProfile.hanKerning && textMayHanKern(analysis.normalized)) {
+  if (engineProfile.hanKerning && textMayHanKern(normalized)) {
     hanKerning = getHanKerningTrims(fontMeasurement, analysis)
     const trims = hanKerning.widthTrims
     if (trims !== null) for (let i = 0; i < trims.length; i++) widths[i] = widths[i]! - trims[i]!
   }
   let lineEndTrims = hanKerning.lineEndTrims
-  if (engineProfile.hangsIdeographicSpace && analysis.normalized.includes('\u3000')) {
-    lineEndTrims = addIdeographicSpaceHangs(lineEndTrims, analysis.texts, analysis.kinds, breaksBefore, fontMeasurement, letterSpacing, discretionaryHyphenWidth)
+  if (engineProfile.hangsIdeographicSpace && normalized.includes('\u3000')) {
+    lineEndTrims = addIdeographicSpaceHangs(lineEndTrims, analysis, fontMeasurement, letterSpacing, discretionaryHyphenWidth)
   }
   const prepared = {
     widths,
     segmentFlags,
-    simpleLineWalkFastPath: simpleKinds && breaksBefore === null,
+    simpleLineWalkFastPath: simpleKinds && !analysis.hasUnbroken,
     simpleLineCountFastPath: simpleKinds,
     breakableFitAdvances,
     entryGeometry,
@@ -531,9 +541,9 @@ function measureAnalysis(
     lineEndTrims,
     tabStopAdvance,
   } as unknown as PreparedTextWithSegments
-  if (segments !== null) {
+  if (segments !== null && kinds !== null) {
     prepared.segments = segments
-    prepared.kinds = analysis.kinds
+    prepared.kinds = kinds
   }
   return prepared
 }
@@ -553,26 +563,26 @@ function measureAnalysis(
 // 1175), so Firefox hangs the run too.
 function addIdeographicSpaceHangs(
   trims: number[] | null,
-  texts: readonly string[],
-  kinds: readonly SegmentBreakKind[],
-  breaksBefore: readonly boolean[] | null,
+  analysis: TextAnalysis,
   measurement: FontMeasurement,
   letterSpacing: number,
   hyphenWidth: number,
 ): number[] | null {
-  for (let i = 0; i < texts.length; i++) {
-    const text = texts[i]!
-    if (kinds[i] !== 'text' || text.charCodeAt(text.length - 1) !== 0x3000) continue
-    const next = i + 1 < kinds.length ? kinds[i + 1]! : null
-    if (next !== null && next !== 'hard-break' && next !== 'space' && !(next === 'text' && breaksBefore?.[i + 1] !== false)) continue
-    let start = text.length - 1
-    while (start > 0 && text.charCodeAt(start - 1) === 0x3000) start--
-    const run = text.slice(start)
-    const previous = i > 0 ? texts[i - 1]! : ''
-    const afterSoftHyphen = start === 0 && previous.charCodeAt(previous.length - 1) === 0xAD
+  const { normalized, starts, flags } = analysis
+  for (let i = 0; i < flags.length; i++) {
+    const end = i + 1 < flags.length ? starts[i + 1]! : normalized.length
+    if ((flags[i]! & KIND_BITS) !== TEXT || normalized.charCodeAt(end - 1) !== 0x3000) continue
+    if (i + 1 < flags.length) {
+      const next = flags[i + 1]! & KIND_BITS
+      if (next !== HARD_BREAK && next !== SPACE && !(next === TEXT && (flags[i + 1]! & UNBROKEN) === 0)) continue
+    }
+    let start = end - 1
+    while (start > starts[i]! && normalized.charCodeAt(start - 1) === 0x3000) start--
+    const run = normalized.slice(start, end)
+    const afterSoftHyphen = i > 0 && start === starts[i] && normalized.charCodeAt(start - 1) === 0xAD
     const hang = getSegmentMetrics(run, measurement).width + run.length * letterSpacing - (afterSoftHyphen ? hyphenWidth : 0)
     if (hang <= 0) continue
-    trims ??= Array.from({ length: texts.length }, () => 0)
+    trims ??= Array.from({ length: flags.length }, () => 0)
     trims[i] = trims[i]! + hang
   }
   return trims

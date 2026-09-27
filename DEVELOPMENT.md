@@ -10,7 +10,7 @@ bun install
 
 - `bun start` — stable local page server at <http://localhost:3000>
 - `bun run start:windows` — Windows-friendly fallback without automatic port cleanup
-- `bun run check` — typecheck, lint, dead-code scan (`knip`) and a check that the generated engine break data is current
+- `bun run check` — typecheck, which also finds unreachable code, lint with `.oxlintrc.json`'s rules, dead-code scan (`knip`) and a check that the generated engine break data is current
 - `bun test` — the unit tests, the harness's offline tests and the demo models' tests
 
 ### Harness

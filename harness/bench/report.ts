@@ -41,6 +41,8 @@ export function verdict(sessions: ReadonlyArray<{ candidate: number; control: nu
   return sessions.length > 0 && slower ? 'slower' : sessions.length > 0 && faster ? 'faster' : 'within noise'
 }
 
+type FreshTimes = { compile: number[]; run: number[]; first: number[]; second: number[] }
+
 const pct = (x: number): string => `${x >= 1 ? '+' : ''}${((x - 1) * 100).toFixed(1)}%`
 
 export function report(all: readonly SessionResults[], o: { hypotheses: boolean; sizes: Record<string, { bytes: number; gzipped: number }> }): string {
@@ -51,7 +53,7 @@ export function report(all: readonly SessionResults[], o: { hypotheses: boolean;
     out.push(`\n## ${browser}`, '| row | family / operation | base | candidate | candidate/base [quartiles] per session | control/base per session | verdict |', '|---|---|---:|---:|---|---|---|')
     // key -> session -> rounds
     const entries = new Map<string, { row: string; perCall: boolean; bySession: Map<number, Sample[][]> }>()
-    const fresh = new Map<string, Map<string, { compile: number[]; run: number[]; first: number[]; second: number[] }>>()
+    const fresh = new Map<string, Map<string, FreshTimes>>()
     const steps: number[] = []
     const dprs = new Set<number>()
     for (const r of all.filter(x => x.browser === browser)) {
@@ -61,7 +63,7 @@ export function report(all: readonly SessionResults[], o: { hypotheses: boolean;
         steps.push(result.timerStep)
         dprs.add(result.start.dpr).add(result.end.dpr)
         if ('compileMs' in result) {
-          const byLabel = fresh.get(d.family) ?? new Map()
+          const byLabel = fresh.get(d.family) ?? new Map<string, FreshTimes>()
           fresh.set(d.family, byLabel)
           const e = byLabel.get(result.label) ?? { compile: [], run: [], first: [], second: [] }
           byLabel.set(result.label, e)
@@ -73,7 +75,7 @@ export function report(all: readonly SessionResults[], o: { hypotheses: boolean;
         }
         for (let o2 = 0; o2 < result.ops.length; o2++) {
           const key = `${d.row}\t${d.family} ${result.ops[o2]!.op}${d.row === 'resize' ? (o2 === 0 ? ' at widths seen before' : ' at new widths') : ''}`
-          const e = entries.get(key) ?? { row: d.row, perCall: d.family === 'labels', bySession: new Map() }
+          const e = entries.get(key) ?? { row: d.row, perCall: d.family === 'labels', bySession: new Map<number, Sample[][]>() }
           entries.set(key, e)
           e.bySession.set(r.session, [...(e.bySession.get(r.session) ?? []), ...result.ops[o2]!.rounds])
         }

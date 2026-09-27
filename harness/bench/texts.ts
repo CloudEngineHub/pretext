@@ -62,18 +62,18 @@ export function units(list: readonly string[]): number {
 
 // Reads a family's text forward in chat-length messages; nothing is read twice. `batch(n)` returns messages holding
 // exactly n UTF-16 units (one more where the cut would split a surrogate pair): the last message is cut, and its rest
-// starts the next batch. Throws when the text runs out.
-export function reader(family: Exclude<Family, 'labels'>, from = 0): { batch: (n: number) => string[]; at: () => number } {
+// starts the next batch. It returns null once the text runs out.
+export function reader(family: Exclude<Family, 'labels'>): { batch: (n: number) => string[] | null } {
   const text = familyText(family)
-  const rng = createRng(`bench-${family}-${from}`)
-  let at = from
+  const rng = createRng(`bench-${family}-0`)
+  let at = 0
   let carry: string | null = null
-  const next = (): string => {
+  const next = (): string | null => {
     const r = rng.next()
     const [min, max] = r < 0.25 ? [5, 19] : r < 0.75 ? [20, 100] : [101, 400]
     while (at > 0 && at < text.length && !BOUNDARY.test(text[at - 1]!)) at++
     while (at < text.length && /\s/u.test(text[at]!)) at++
-    if (at + max >= text.length) throw new Error(`${family}: the text ran out at ${at}`)
+    if (at + max >= text.length) return null
     let end = at + max
     while (end > at + min && !BOUNDARY.test(text[end - 1]!)) end--
     if ((text.charCodeAt(end - 1) & 0xfc00) === 0xd800) end++
@@ -82,17 +82,18 @@ export function reader(family: Exclude<Family, 'labels'>, from = 0): { batch: (n
     return family === 'mixed' && rng.chance(0.2) ? `${message} ${rng.pick(EMOJI)}` : message
   }
   return {
-    at: () => at,
     batch(n) {
       const out: string[] = []
       for (let total = 0; total < n;) {
         let m = carry ?? next()
+        if (m === null) return null
         carry = null
         if (m === '') continue
         if (total + m.length > n) {
           let cut = n - total
           if ((m.charCodeAt(cut - 1) & 0xfc00) === 0xd800) cut++
-          carry = m.slice(cut).trimStart() || null
+          const rest = m.slice(cut).trimStart()
+          carry = rest === '' ? null : rest
           m = m.slice(0, cut)
         }
         out.push(m)
