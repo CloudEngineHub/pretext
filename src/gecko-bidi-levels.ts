@@ -24,7 +24,7 @@ let bidiClasses: RangeTable | null = null
 let bidiBrackets: Map<number, number> | null = null
 
 // char_data::bidi_matched_opening_bracket (char_data/mod.rs:44-56) for every bracket: its pair's opening
-// bracket, or the one that normalizes to, << 1, | 1 for an opening bracket. The data gives flat
+// bracket, or the bracket it normalizes to, << 1, | 1 for an opening bracket. The data gives flat
 // [opening, closing, normalized opening or 0] triples, and no bracket is in two.
 function unpackBrackets(): Map<number, number> {
   const triples = readValues(Uint32Array, unpackTable(geckoBidiPairsPacked))
