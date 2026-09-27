@@ -1,4 +1,4 @@
-// The behaviour catalog's templates, before widths.ts cuts them. Five sources:
+// The behaviour catalog's templates, before widths.ts cuts them. Six sources:
 // - the per-engine rebuild's rule families (data/rule-families.ndjson), the flat ones within what the library takes;
 // - filed reports whose reporter measured the width with their own Canvas;
 // - a matrix of every UAX #14 line-break class between the scripts apps mix, under the CSS settings the library takes,
@@ -6,13 +6,14 @@
 // - shapes ENGINE_FOLLOWUPS.md names, with their neighbours, each neighbour a family of its own, so the cover keeps a
 //   change of each;
 // - chains of combining-mark runs longer than the part of the chain a run's context keeps, each shape a family of its own,
-//   so the cover keeps a change of each.
+//   so the cover keeps a change of each;
+// - CJK closing marks at a line end before a line feed, a space or the paragraph end, each a family of its own.
 // main's adversarial families were taken once from the old harness's generator, which is gone: their cases,
 // `catalog/main/*` and `rich/main/*`, stay in the case files as they were cut, and `make.ts cut` keeps them.
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { SYSTEM_UI_FONT } from '../score.ts'
-import type { Paragraph } from '../types.ts'
+import type { CssFont, Paragraph } from '../types.ts'
 import { font, lineBreakTable, paragraph, parseFont } from './build.ts'
 import { templateKey, type Template } from './widths.ts'
 
@@ -213,13 +214,43 @@ export function markChainTemplates(): Template[] {
   return out
 }
 
+// A closing mark after two characters, in pre-wrap, before a line feed with text after it, a line feed that ends the
+// paragraph, a space with text after it, or the paragraph end, in Chinese and Japanese. Chrome halts a closing mark at a
+// line end where a break follows it: before text or at the paragraph end, and before a line feed or a space where no
+// break before the mark fits, as that line breaks after every grapheme (src/han-kerning.ts). It never halts the full
+// stops and commas there. The second character and the mark alone on a line give the widths where the halt decides;
+// 20, 28 and 40 px besides the grid give each layout from one character to three a width inside it.
+export function lineEndMarkTemplates(): Template[] {
+  const marks: ReadonlyArray<readonly [string, string]> = [
+    ['\u300D', 'corner-bracket'], ['\u300F', 'white-corner-bracket'], ['\uFF09', 'parenthesis'], ['\u3011', 'lenticular-bracket'],
+    ['\u3009', 'angle-bracket'], ['\u300B', 'double-angle-bracket'], ['\u3002', 'full-stop'], ['\u3001', 'comma'], ['\uFF0C', 'fullwidth-comma'],
+  ]
+  const languages: ReadonlyArray<readonly [string, string, CssFont]> = [['zh', '漢字', font('"PingFang SC"', 16)], ['ja', 'かな', font('"Hiragino Sans"', 16)]]
+  const out: Template[] = []
+  for (let l = 0; l < languages.length; l++) {
+    const [lang, word, cjkFont] = languages[l]!
+    const endings: ReadonlyArray<readonly [string, string]> = [['line-feed-text', `\n${word}`], ['line-feed-end', '\n'], ['space-text', ` ${word}`], ['paragraph-end', '']]
+    for (let e = 0; e < endings.length; e++) {
+      const [ending, tail] = endings[e]!
+      for (let m = 0; m < marks.length; m++) {
+        const [mark, name] = marks[m]!
+        out.push({
+          family: `line-end-marks/${ending}/${name}/${lang}`, origin: `src/han-kerning.ts: a closing mark at a line end, ${ending}, ${lang}`,
+          pageLang: lang, paragraph: paragraph({ font: cjkFont, lang, whiteSpace: 'pre-wrap', lineHeight: 32 }, [`${word}${mark}${tail}`]), widths: [20, 28, 40], grid: true,
+        })
+      }
+    }
+  }
+  return out
+}
+
 export function catalogTemplates(): Template[] {
   const catalog: Template[] = []
   const seen = new Set<string>()
   // The order decides which template shows a line break first, which the cover keeps (widths.ts): filed reports, the
-  // rebuild's rule families, the class matrix, the follow-ups' shapes, then the mark chains. main's families came before
-  // the class matrix when they were cut.
-  const lists = [reportedTemplates(), ruleFamilyTemplates(), classMatrixTemplates(), followupTemplates(), markChainTemplates()]
+  // rebuild's rule families, the class matrix, the follow-ups' shapes, the mark chains, then the line-end marks. main's
+  // families came before the class matrix when they were cut.
+  const lists = [reportedTemplates(), ruleFamilyTemplates(), classMatrixTemplates(), followupTemplates(), markChainTemplates(), lineEndMarkTemplates()]
   for (let l = 0; l < lists.length; l++) {
     for (let i = 0; i < lists[l]!.length; i++) {
       const t = lists[l]![i]!

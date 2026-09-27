@@ -3974,16 +3974,30 @@ describe('layout invariants', () => {
         // 。 types as a closing mark from its Han shape, so the page halts it before ”.
         ['中。”中', 47, ['中。”中'], [46.4]],
         ['中。”中', 46, ['中。”', '中'], [30.4, 16]],
+        // A line that no break fits breaks after every grapheme, so a closing mark before a
+        // space or a line feed that doesn't fit otherwise is halted there, and only there.
+        ['中」 中', 24, ['中」 ', '中'], [24, 16]],
+        ['中」 中', 23, ['中', '」 ', '中'], [16, 16, 16]],
+        ['中中」 中', 40, ['中', '中」 ', '中'], [16, 32, 16]],
+        ['中」 中\n', 24, ['中」 ', '中'], [24, 16]],
+        ['中」\n中', 24, ['中」', '中'], [24, 16]],
+        ['中」\n中', 23, ['中', '」', '中'], [16, 16, 16]],
+        ['中中」\n', 40, ['中', '中」'], [16, 32]],
+        ['」\n', 8, ['」'], [8]],
+        ['」\n', 7, ['」'], [16]],
+        // So is a line whose closing mark follows text the scan gives no break before.
+        ['中\u0001」\n', 34, ['中\u0001」'], [33.6]],
       ]
       for (const [text, width, expected, widths] of cases) {
-        const prepared = prepareWithSegments(text, font)
+        const options = { whiteSpace: text.includes('\n') ? 'pre-wrap' : 'normal' } as const
+        const prepared = prepareWithSegments(text, font, options)
         const lines = layoutWithLines(prepared, width, LINE_HEIGHT)
         expect({ text, width, lines: lines.lines.map(line => line.text), widths: lines.lines.map(line => line.width) })
           .toEqual({ text, width, lines: expected, widths })
         expect(collectStreamedLines(prepared, width)).toEqual(lines.lines)
         expect(countPreparedLines(prepared, width)).toBe(expected.length)
         expect(walkPreparedLinesRaw(prepared, width)).toBe(expected.length)
-        expect(layout(prepare(text, font), width, LINE_HEIGHT).lineCount).toBe(expected.length)
+        expect(layout(prepare(text, font, options), width, LINE_HEIGHT).lineCount).toBe(expected.length)
         // The complex walker, for text that leaves the fast path, agrees.
         const complex = { ...prepared, simpleLineWalkFastPath: false } as typeof prepared
         expect(layoutWithLines(complex, width, LINE_HEIGHT)).toEqual(lines)
