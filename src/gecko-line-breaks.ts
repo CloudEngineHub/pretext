@@ -33,7 +33,7 @@ import {
   geckoLineTrieIndexPacked,
   type CharTable,
 } from './generated/engine-break-data.js'
-import { getParagraphLevels } from './gecko-bidi-levels.js'
+import { getParagraphLevels, getTrailingWhiteSpaceStart, keepsClusterLevel } from './gecko-bidi-levels.js'
 import { findGraphemeEnds } from './graphemes.js'
 import {
   BREAK as OPPORTUNITY,
@@ -280,14 +280,9 @@ function replaceSeparator(u: number): number {
 }
 
 // Raw indices where a logical level run starts (ResolveParagraph :877-1110, EnsureBidiContinuation
-// :1043-1053, Bidi::GetLogicalRun intl/components/src/Bidi.cpp:165-183). A left-to-right block
-// resolves bidi only for 16-bit text with right-to-left characters (Resolve :790-854,
-// ChildListMayRequireBidi :1467-1475).
+// :1043-1053, Bidi::GetLogicalRun intl/components/src/Bidi.cpp:165-183).
 function getBidiRunStarts(source: string, preserveWhiteSpace: boolean): number[] {
   const starts: number[] = []
-  let requires = false
-  for (let i = 0; i < source.length && !requires; i++) requires = isUtf16CodeUnitBidi(source.charCodeAt(i))
-  if (!requires) return starts
   // Pre-wrap text resolves one line at a time, each ending after its LF (:1262-1357, :1089-1098).
   for (let start = 0; start < source.length;) {
     let end = preserveWhiteSpace ? source.indexOf('\n', start) + 1 : source.length
@@ -300,6 +295,42 @@ function getBidiRunStarts(source: string, preserveWhiteSpace: boolean): number[]
     start = end
   }
   return starts
+}
+
+// Whether bidi levels can change the glyph records of this text node's text run, set up in one
+// piece. A left-to-right block resolves bidi only for 16-bit text with right-to-left characters
+// (Resolve :790-854, ChildListMayRequireBidi :1467-1475), and the levels only split the text run
+// (ContinueTextRunAcrossFrames, nsTextFrame.cpp:2023-2030). A split makes a cluster start
+// (gfxTextRun.cpp:2828-2835), restarts clusters within its word and ends a word after a space before
+// a cluster extender, so it changes the records only inside a cluster, or after a space inside one,
+// which only a Prepend character (UAX #29 GB9b) such as U+0600 gives. Bidi controls leave the text
+// run, so with one a level run can start inside any cluster, and in pre-wrap every line starts a
+// text run; otherwise a unit inside a cluster starts none when it keeps the level of the unit
+// before it. A level run that starts at a unit the scan drops splits at the next unit kept: after
+// collapsed white space that is a space, which counts here whatever its level, a soft hyphen is BN,
+// which keepsClusterLevel() looks past, and a bidi control counts already.
+function levelsMayMatter(source: string, tr: Transformed, g: Glyphs, preserveWhiteSpace: boolean): boolean {
+  let requires = false
+  for (let i = 0; i < source.length && !requires; i++) requires = isUtf16CodeUnitBidi(source.charCodeAt(i))
+  if (!requires) return false
+  let hasControl = false
+  for (let i = 0; i < source.length && !hasControl; i++) hasControl = isBidiControl(source.charCodeAt(i))
+  // The paragraph holding the unit: the text, or in pre-wrap its line with the LF.
+  let from = 0, to = 0, trailingFrom = 0
+  for (let t = 1; t < tr.text.length; t++) {
+    if (g.clusterStart[t] === 1) continue
+    const at = tr.orig[t]!
+    if (at === tr.orig[t - 1]! + 1 && isSurrogatePair(source.charCodeAt(at - 1), source.charCodeAt(at))) continue
+    const ch = tr.text.charCodeAt(t)
+    if (hasControl || ch === 0x20 || ch === 0xa0 || (preserveWhiteSpace && tr.text.charCodeAt(t - 1) === 0x0a)) return true
+    if (at >= to) {
+      from = preserveWhiteSpace ? source.lastIndexOf('\n', at - 1) + 1 : 0
+      to = preserveWhiteSpace ? source.indexOf('\n', at) + 1 || source.length : source.length
+      trailingFrom = getTrailingWhiteSpaceStart(source, from, to)
+    }
+    if (!keepsClusterLevel(source, at, from, trailingFrom)) return true
+  }
+  return false
 }
 
 // --- 3. Text-run glyph records (gfxTextRun.cpp, gfxFont.cpp) ---
@@ -336,6 +367,15 @@ function setupClusterBoundaries(g: Glyphs, text: string, from: number, to: numbe
   }
 }
 
+// Whether text[i] ends a shaped word of a text run that ends at `end` (gfxFont.cpp:3778-3790): a
+// space or NBSP before no cluster extender (IsBoundarySpace, :3317-3330), or an invalid character.
+// splitAndInitTextRun() and the setup again of the words a level run cuts share it (RESEARCH.md,
+// Decisions Log).
+function endsWord(text: string, i: number, end: number): boolean {
+  const ch = text.charCodeAt(i)
+  return ((ch === 0x20 || ch === 0xa0) && !(i + 1 < end && isClusterExtender(text.charCodeAt(i + 1)))) || isInvalidChar(ch)
+}
+
 // gfxFont::SplitAndInitTextRun, gfxFont.cpp:3707-3900: sets up the shaped words of one text run. A
 // space glyph (SetSpaceGlyphIfSimple, gfxTextRun.cpp:1612-1619) only sets isSpace, and an invalid
 // character (:3877-3892) keeps a zero record. Below U+0100, IsBoundarySpace (:3317-3330) and
@@ -344,11 +384,9 @@ function setupClusterBoundaries(g: Glyphs, text: string, from: number, to: numbe
 function splitAndInitTextRun(g: Glyphs, text: string, start: number, end: number, graphemeTable: CharTable, ends: Int32Array): void {
   let wordStart = start
   for (let i = start; i < end; i++) {
-    const ch = text.charCodeAt(i)
-    const boundary = (ch === 0x20 || ch === 0xa0) && !(i + 1 < end && isClusterExtender(text.charCodeAt(i + 1)))
-    if (!boundary && !isInvalidChar(ch)) continue
+    if (!endsWord(text, i, end)) continue
     if (i > wordStart) setupClusterBoundaries(g, text, wordStart, i, graphemeTable, ends)
-    if (ch === 0x20) g.isSpace[i] = 1
+    if (text.charCodeAt(i) === 0x20) g.isSpace[i] = 1
     wordStart = i + 1
   }
   if (end > wordStart) setupClusterBoundaries(g, text, wordStart, end, graphemeTable, ends)
@@ -637,21 +675,35 @@ export function getGeckoLineBreaks(
   const n = tr.text.length
   if (n === 0) return flags
 
-  // The text run is built before the break sinks are set up (nsTextFrame.cpp:2860-2864).
-  const runStarts = [0]
-  const bidiRunStarts = is8bit ? [] : getBidiRunStarts(source, preserveWhiteSpace)
-  for (let k = 0; k < bidiRunStarts.length; k++) {
-    let lo = 0, hi = n // partition_point(orig < start)
-    while (lo < hi) {
-      const mid = (lo + hi) >> 1
-      if (tr.orig[mid]! < bidiRunStarts[k]!) lo = mid + 1
-      else hi = mid
-    }
-    if (lo > 0 && lo < n && runStarts[runStarts.length - 1] !== lo) runStarts.push(lo)
-  }
+  // The text run is built before the break sinks are set up (nsTextFrame.cpp:2860-2864), in one
+  // piece unless bidi levels split it where that matters.
   const g: Glyphs = { clusterStart: new Uint8Array(n).fill(1), isSpace: new Uint8Array(n) }
   const ends = new Int32Array(n)
-  for (let k = 0; k < runStarts.length; k++) splitAndInitTextRun(g, tr.text, runStarts[k]!, k + 1 < runStarts.length ? runStarts[k + 1]! : n, graphemeTable, ends)
+  splitAndInitTextRun(g, tr.text, 0, n, graphemeTable, ends)
+  const runStarts = [0]
+  if (!is8bit && levelsMayMatter(source, tr, g, preserveWhiteSpace)) {
+    const bidiRunStarts = getBidiRunStarts(source, preserveWhiteSpace)
+    for (let k = 0; k < bidiRunStarts.length; k++) {
+      let lo = 0, hi = n // partition_point(orig < start)
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1
+        if (tr.orig[mid]! < bidiRunStarts[k]!) lo = mid + 1
+        else hi = mid
+      }
+      if (lo > 0 && lo < n && runStarts[runStarts.length - 1] !== lo) runStarts.push(lo)
+    }
+    // A split changes only the shaped word it cuts, which is set up again as the split's two pieces.
+    for (let k = 1; k < runStarts.length; k++) {
+      const at = runStarts[k]!, next = k + 1 < runStarts.length ? runStarts[k + 1]! : n
+      let from = at, to = at
+      while (from > runStarts[k - 1]! && !endsWord(tr.text, from - 1, n)) from--
+      if (from === at) continue
+      while (to < next && !endsWord(tr.text, to, n)) to++
+      g.clusterStart.fill(1, from, to)
+      splitAndInitTextRun(g, tr.text, from, at, graphemeTable, ends)
+      splitAndInitTextRun(g, tr.text, at, to, graphemeTable, ends)
+    }
+  }
   for (let k = 0; k < runStarts.length; k++) g.clusterStart[runStarts[k]!] = 1 // gfxTextRun.cpp:2828-2835
 
   const line = lineData ??= {
