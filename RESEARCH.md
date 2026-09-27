@@ -1445,27 +1445,18 @@ same text in the same order as the closures in all four profiles offline, but to
 16 more lines, so they weren't timed: the hoist was to land only if it removed lines
 and the bench showed a gain.
 
-Rich-inline's line stepper keeps three checks that change no result: an early
-return the loop repeats at the end of every walk, a line-start test before
-testing whether a cursor sits at an item's end, and a skip for a step that
-doesn't advance, which never happens. Without the three, Chrome 154 measured the
-bench's rich stats 12% slower than main in both sessions, and Node 23's V8 10 to
-13% offline. Restoring only the early return gave nothing back; the line-start
-test, which saves three reads per item, gave back 2 to 6 points, and with the
-skip beside it all but 2 to 4%. Only all three read as main. Likewise the full
-walker still tests the engine's `unfitHyphenRetreat` beside the soft-hyphen
-contexts, which preparation makes only where the engine retreats: without the
-test, Chrome 154's `layout()` read 5 to 7% slower on letter-spaced CJK and 3 to
-5% slower on pre-wrap chunks, and its `walkLineRanges()` of pre-wrap chunks 3 to
-6% faster, in every session of four runs.
-
-`segmentAtLineBreaks()` starts the first segment before its loop, which then runs
-from the second unit. Run from the first unit, with nothing else changed, the loop
-made Chrome 154 prepare the bench's pre-wrap chunks 9% slower and its long
-breakable runs 10% slower in both sessions, and Node 23's V8 9 to 16% slower
-offline; Firefox read the long runs 3% slower. Reordering or replacing the loop's
-`i > 0` test, or seeding the arrays with an element, didn't help. Peeling the first
-unit read as main.
+Rich-inline's line stepper, the full walker's retreat from an unfit hyphen and
+`segmentAtLineBreaks()` are written plainly (Decisions Log, 2026-09-26). Against
+the code before, which kept three stepper checks that change no result, tested
+the engine's `unfitHyphenRetreat` beside the soft-hyphen contexts, which
+preparation makes only where the engine retreats, and started the first segment
+before the segmentation loop, Chrome 154 measures the bench's rich stats 11%
+slower, its rich walk and stream 6 to 7%, and `layout()` of letter-spaced CJK 5%,
+and prepares pre-wrap chunks 13%, long breakable runs 8% and most other text 1 to
+3% slower, in both sessions. Firefox 156 prepares seen CJK and measures mixed
+stats 2% slower. Safari 27 reads those rows within noise; it resizes Arabic at
+widths seen before 13% slower, against 5% for its control, and its mixed-line rows
+read 2 to 26% slower, about as far as its control moved.
 
 The analysis gives each segment's flags byte in a plain array while it finds the
 segments, and measurement copies the bytes into the prepared handle's
@@ -1709,7 +1700,7 @@ reason still holds, and record the new decision here with its date.
   language, which the maintainer rejected as DOM access on 2026-09-12.
 - **2026-09-24: `countPreparedLines()` keeps its leading-space skip**, a loop that
   never runs: without it Firefox 156 resized Latin chat messages to new widths in
-  1.10 to 1.15 of main's time instead of 0.98.
+  1.10 to 1.15 of main's time instead of 0.98. Replaced on 2026-09-26, below.
 - **2026-09-24: the full walker got engineering, not heuristics.** The maintainer
   asked for data layout, fewer allocations, smaller representations and plain
   indexed code rather than new shortcuts: its state moved into locals, each
@@ -1752,3 +1743,20 @@ reason still holds, and record the new decision here with its date.
   entry geometry, where desktop Chrome fits the segment's rest by its fresh width.
   Only unrecognized user agents move, such as Samsung TV web views, and the third
   only on desktop ones.
+- **2026-09-26: no dead code for one JIT.** Dead or redundant code kept only
+  because one JIT runs it faster is removed, whatever the regression, and the
+  regression is noted: the effect is accidental, and nobody writing the code
+  plainly would reproduce it. A loop's first pass peeled before the loop counts,
+  since the loop repeats it. Live code split apart or placed for a JIT isn't dead
+  and stays, such as `getLongMarkChainContext()` (#351), `getTextSegmentWidth()`
+  (#358) and the analysis' slicing of segment texts (#360). #357 had kept three
+  pieces of such dead code for Chrome 154, which now cost it, in both sessions of
+  the bench: rich-inline's line stepper without its three checks that change no
+  result measures rich stats 11% slower; the full walker without its redundant
+  `unfitHyphenRetreat` test lays out letter-spaced CJK 5% slower; and
+  `segmentAtLineBreaks()` as one loop from the first unit prepares pre-wrap chunks
+  13% and long breakable runs 8% slower (Keeping Work Bounded).
+  `countPreparedLines()`'s leading-space skip went too: without it Firefox 156
+  resizes Latin chat messages to new widths 3 to 7% slower, and every other resize
+  row in the three browsers reads within noise except Firefox's mixed text at
+  widths seen before, 8% faster.

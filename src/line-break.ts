@@ -236,14 +236,8 @@ export function countPreparedLines(prepared: PreparedLineBreakData, maxWidth: nu
   let lineW = 0
   let hasContent = false
 
-  // Fast-path handles never start with a space, so this skip never runs, but
-  // without it Firefox 156 counted Latin chat messages at new widths in 1.10 to
-  // 1.15 of main's time (RESEARCH.md, Decisions Log). To re-check it, remove the
-  // skip and run `bun harness bench main --browser=firefox --rows=resize
-  // --sessions=2`. A ZWSP at `first` starts the first line.
-  let first = 0
-  while (first < segmentCount && (segmentFlags[first]! & KIND_BITS) === SPACE) first++
-  for (let i = first; i < segmentCount; i++) {
+  // A ZWSP at the start of the text starts the first line.
+  for (let i = 0; i < segmentCount; i++) {
     const kind = segmentFlags[i]! & KIND_BITS
     const w = widths[i]!
     const endTrim = lineEndTrims === null ? 0 : lineEndTrims[i]!
@@ -258,7 +252,7 @@ export function countPreparedLines(prepared: PreparedLineBreakData, maxWidth: nu
       lineW = 0
       hasContent = false
       if (kind !== TEXT) continue
-    } else if (kind === SPACE || (kind === ZERO_WIDTH_BREAK && i !== first)) {
+    } else if (kind === SPACE || (kind === ZERO_WIDTH_BREAK && i > 0)) {
       continue
     }
 
@@ -409,10 +403,8 @@ function walkPreparedComplexLines(
   const availableWidth = Math.max(0, maxWidth)
   const fitLimit = availableWidth + engineProfile.lineFitEpsilon
   // Preparation records soft-hyphen contexts only where the engine retreats
-  // and the text has a soft hyphen. The profile test changes no result, but
-  // without it Chrome counted letter-spaced CJK and pre-wrap text 3-7% slower
-  // (RESEARCH.md, Keeping Work Bounded).
-  const retreatsFromUnfitHyphen = prepared.discretionaryHyphenContexts !== null && engineProfile.unfitHyphenRetreat !== 'none'
+  // and the text has a soft hyphen.
+  const retreatsFromUnfitHyphen = prepared.discretionaryHyphenContexts !== null
   // Blink's retry leaves room for the hyphen at every earlier opportunity. Gecko
   // returns to any opportunity whose line fits, such as a break between text segments.
   const retreatsAtFullWidth = retreatsFromUnfitHyphen && engineProfile.unfitHyphenRetreat === 'full-width'

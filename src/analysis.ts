@@ -262,23 +262,20 @@ function isControlSegmentCode(code: number): boolean {
 // them, since they shape on the grapheme before it (measureAnalysis). Where the Gecko
 // scan marks cluster starts, a segment is ONE_CLUSTER unless one falls inside it.
 function segmentAtLineBreaks(normalized: string, spaceSources: Uint16Array | null, breaks: Uint8Array, whiteSpace: WhiteSpaceMode, scan: AnalysisProfile['lineBreakScan']): TextAnalysis {
-  if (normalized.length === 0) return { normalized, spaceSources, texts: [], starts: [], flags: [], hasUnbroken: false }
   const oneCluster = scan === 'gecko' ? ONE_CLUSTER : 0
-  // The first unit starts the first segment before the loop: V8 ran the loop about 10% slower
-  // over long texts when it started at the first unit (RESEARCH.md, Keeping Work Bounded).
-  const starts = [0]
-  const firstKind = classifySegmentUnit(normalized, breaks, 0, normalized.charCodeAt(0), whiteSpace, scan)
+  const starts: number[] = []
   // A plain array, which measurement copies into the prepared handle's bytes: a Uint8Array for
   // each text slowed short texts' preparation (RESEARCH.md, Keeping Work Bounded).
-  const flags = [firstKind | oneCluster]
-  let lastAlone = firstKind === TEXT && isControlSegmentCode(normalized.charCodeAt(0))
+  const flags: number[] = []
+  let lastAlone = false
   let markRun = false
-  for (let i = 1; i < normalized.length; i++) {
+  for (let i = 0; i < normalized.length; i++) {
     const code = normalized.charCodeAt(i)
     const kind = classifySegmentUnit(normalized, breaks, i, code, whiteSpace, scan)
     const alone = kind === TEXT && isControlSegmentCode(code)
     const last = flags.length - 1
-    const lastKind = flags[last]! & KIND_BITS
+    // The first unit has no segment before it to join, so it starts one.
+    const lastKind = last < 0 ? -1 : flags[last]! & KIND_BITS
     const unbroken = (breaks[i]! & BREAK) === 0
     if (
       unbroken && !alone && !lastAlone && !(markRun && !combiningMarkRe.test(normalized[i]!)) &&
