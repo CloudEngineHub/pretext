@@ -16,7 +16,9 @@
 //   soft hyphens that start an item, and a line separator in an item or after a collapsed space before one; then, cut
 //   on their own too, an item holding only a soft hyphen between a break and a run that continues it, or after a
 //   collapsed space, a newline next to a ZWSP in another item, and a soft hyphen after a space in an item that
-//   continues a run from an earlier item, which Chrome breaks at the space (ENGINE_FOLLOWUPS.md).
+//   continues a run from an earlier item, which Chrome breaks at the space (ENGINE_FOLLOWUPS.md); and, cut on their
+//   own too, white space after such an item's soft hyphen, white space between an item's soft hyphens, and an item
+//   that starts with white space and soft hyphens, whose soft hyphen after the white space Firefox drops.
 import { TEXTS } from '../../src/test-data.ts'
 import type { CssFont, TextRun } from '../types.ts'
 import { codePoints, createRng, font, paragraph, span } from './build.ts'
@@ -125,6 +127,9 @@ export function richTemplates(): Template[] {
     ['space-before-consumed-item', ['word ', '\u{AD}', 'more text here']], ['space-before-consumed-item', ['see', ' \u{AD}', 'this word']],
     ['segment-break-by-zwsp', ['ab\u{200B}', '\n\u{AD}\ncd ef']], ['segment-break-by-zwsp', ['word\n', '\u{200B}next words']],
     ['soft-hyphen-after-space-in-run', ['中文a', 'b \u{AD}cd ef'], 'zh'],
+    ['space-before-consumed-item', ['see', ' \u{AD} ', 'this word']],
+    ['space-between-consumed-soft-hyphens', ['ab', ' \u{AD} \u{AD}', 'cd ef gh']], ['space-between-consumed-soft-hyphens', ['this word', ' \u{AD} \u{AD}', '\u{3002}more text'], 'zh'],
+    ['soft-hyphen-break-at-line-start', ['ab', ' \u{AD} \u{AD}xyzw more']],
   ]
   for (let i = 0; i < continued.length; i++) {
     const [family, parts, lang] = continued[i]!

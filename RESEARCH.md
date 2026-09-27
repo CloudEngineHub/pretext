@@ -1268,13 +1268,16 @@ lost 118 Chrome and 120 webkit-host line widths of the September 27, 2026 probe 
 Firefox discards soft hyphens from a text frame's text (IsDiscardable), paints no
 hyphen after white space, and keeps 25.80px there, and it hangs the space at the end of
 the paragraph as well, where Chrome and Safari lay the soft hyphen out after the space
-and give it a line of its own where the space doesn't fit: items `see`, ` \u00AD` take
-2 lines in Chrome at 26-31px and in Safari at 26-30px, and one 25.80px line in Firefox.
+and give it a line of its own where it doesn't fit, Chrome where the space and the hyphen
+don't and Safari where the space doesn't: items `see`, ` \u00AD` take 2 lines in Chrome
+at 26-35.5px, and one from 35.57px, the width of `see`, the space and the hyphen, and in
+Safari at 26-30px, and one 25.80px line in Firefox.
 The harness records Chrome's line there as 25.80px, since it leaves out a U+0020 that
 ends a line, and Chrome gives the soft hyphen after it no box, so hanging the space at
 the end of the paragraph in the Chromium profile matched Chrome's recorded widths at 460
 more lines of the probe of 43,462 shapes, though Chrome moves the soft hyphen to a line of
-its own where the space doesn't fit; in the WebKit profile it lost 104 webkit-host lines. Safari also keeps the soft hyphen,
+its own where the space and its hyphen don't fit; in the WebKit profile it lost 104
+webkit-host lines. Safari also keeps the soft hyphen,
 and the space before it, on a line that ends at white space after it: items `see`,
 ` \u00AD `, `this word` at 45px end their first line at 30.24px in Safari and at 25.80px
 in Chrome and Firefox. Keeping the space there fixed 335 webkit-host line widths of the
@@ -1290,6 +1293,60 @@ collapses to a box as it hangs past the line, which the harness doesn't leave ou
 leaves out only U+0020: items `ab`, `\n\u00AD`, `cd` at 22px record 22.25px in Firefox.
 Firefox's remaining losses without newlines are items that mix soft hyphens and white
 space, where it collapses white space across the soft hyphens (ENGINE_FOLLOWUPS.md).
+
+An item that a line start consumes can hold white space between its soft hyphens, as
+` \u00AD \u00AD`. That white space follows a soft hyphen rather than the collapsed space
+before the item, so Chrome and Safari give it room after content, as in one text node,
+and a line can end after it: items `ab`, ` \u00AD \u00AD`, `cd` in 16px Arial take 2
+lines in both at 40-43px, where rich lines that left it out, as a line start consumes
+it, took one 39.14px line. Such an item is walked where the line has content before it,
+as one that starts with a soft hyphen and a space is. Firefox drops a soft hyphen before
+it collapses white space (`nsTextFrameUtils::TransformText`), so there that white space
+collapses with the space before, and Firefox lays those items out in one 39.15px line:
+the Gecko profile keeps the item consumed (`collapsesSpaceAcrossSoftHyphens`), and
+walking it there too lost 421 Firefox cases of the September 27, 2026 review probe of
+28,435 rich fuzz shapes and fixed 30. White space after the soft hyphens of an item a line
+start consumes collapses there too, with a gap that takes no room where the line still
+breaks, as for items `see`, ` \u00AD `, `this word`, which Firefox fits on one 55.15px line
+at 55.17px: that fixed 358 Firefox cases of the probe and lost 84, 78 of which Firefox lays
+out otherwise as spans than as one text node, while in the other 6 an item after it ends
+with a soft hyphen whose hyphen rich-inline leaves out (ENGINE_FOLLOWUPS.md), where the
+space rich lines counted before ended the line where Firefox does. On the stand-in fuzz,
+whose reference is the flat walker, which keeps that white space, line text moves away
+from it at 8,679 Gecko widths and toward it at 942. Where a line ends after such an item,
+its white space hangs with the space before it, but WebKit keeps the first soft hyphen,
+and the space before it, on a line that ends at the white space after it (above), so only
+the item's white space hangs there: that moved 60 webkit-host line widths of that probe
+toward Safari's and 8 away against hanging both, on texts without newlines or tabs,
+where hanging only a line's last white space, in every item a line start consumes,
+moved 44 toward and 25 away. Against c09d264b on that probe, walking the item fixes 265
+Chrome and 288 webkit-host cases and loses 21 and 25. All but one of those losses fail
+as their text in one node does, or the browser lays the spans out otherwise than that
+node: in 16 Chrome and 21 webkit-host cases the browser keeps the white space after the
+first soft hyphen where the next line starts (ENGINE_FOLLOWUPS.md), which the flat
+walker consumes, and which rich lines passed by putting the whole item on the next
+line. The one that fails as spans only returns from an unfit hyphen to the break before
+a run, whose hyphen doesn't fit either, where Chrome returns further
+(ENGINE_FOLLOWUPS.md). Letting an item that starts with a hard break end the line
+wherever it falls, however little room the line has left, as a hard break in one text
+does, lost 159 webkit-host cases of the probe, where Safari gives the separator a line of
+its own after white space that hangs.
+
+In the Gecko profile a soft hyphen after collapsible white space is a zero-width break,
+which Firefox drops from its text (`IsDiscardable`, nsTextFrameUtils.cpp:32-49), so it
+holds no line: a rich line start consumes it wherever it reaches it, as the flat walker
+consumes a zero-width break inside a chunk. An item that starts with white space and
+soft hyphens, as ` \u00AD \u00ADx`, took a line of its own, holding nothing visible,
+where the word after them didn't fit: items `\u05E9\u05DC\u05D5\u05DD `,
+`\u05E9\u05DC\u05D5\u05DD`, ` a`, ` \u00AD \u00ADx`, U+00A0, `nation\u00ADal ation\u00AD`
+at 49px in 16px Arial take 5 lines in Firefox and took 6. That fixes 35 Firefox cases of
+the probe and loses none. Taking an item's start as a text's start only at its first
+segment instead, so that a line start consumes any zero-width break after a soft hyphen
+there, lost a ZWSP's line in all three browsers: items `ab `, `\u00AD\u200Bxyzwxyz` at
+20px take an empty second line in Chrome, Firefox and Safari, as their text in one node
+does, where the flat walker consumes the ZWSP (ENGINE_FOLLOWUPS.md). The line start tells
+the two apart by the segment's first code unit, which it reads only where it reaches a
+zero-width break.
 
 Safari's line builder for inline boxes returns from a soft hyphen whose hyphen
 doesn't fit to the line's latest earlier break, as its line breaking of one text node

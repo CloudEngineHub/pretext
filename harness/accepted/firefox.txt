@@ -3575,3 +3575,7 @@ rich-e4935f2ad4aee9c4 breaks
 ## A newline, soft hyphen and newline that start a span, at 24 px and wider: Firefox collapses them into one space, as it collapses white space across the characters it discards, where the library keeps a space on each side of the soft hyphen, as it does in one text (ENGINE_FOLLOWUPS.md)
 rich-13f67aacac931b88 count
 rich-90126064978ae3b0 breaks
+
+## White space and soft hyphens that start a span before a word, after a space, at 24 px and wider: Firefox collapses the white space between the soft hyphens with the space before, as it collapses white space across the characters it discards, where the library keeps both, as it does in one text (c09d264b too; ENGINE_FOLLOWUPS.md)
+rich-93d4d1a9bc5a8fdf count
+rich-afb8005e2a64451d count

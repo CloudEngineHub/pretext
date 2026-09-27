@@ -124,6 +124,8 @@ type PreparedRichInlineItem = {
   // Per segment, the graphemes inside it before which the joined text breaks, in
   // order. Null without any.
   innerBreaks: (number[] | null)[] | null
+  // The item's width on a line of its own, or, for one a line start consumes, the width it
+  // takes after content (0 unless it is walked).
   naturalWidth: number
   // The item's own handle, which its fragments' cursors follow.
   prepared: PreparedTextWithSegments
@@ -174,6 +176,12 @@ function getCollapsedSpaceWidth(font: string, letterSpacing: number, language: s
 // start consumes; null where that is all of it.
 function measureWholeItem(prepared: PreparedTextWithSegments, start: LayoutCursor): number | null {
   return normalizePreparedLineStart(prepared, start) ? stepPreparedLineGeometryFromStart(prepared, cloneCursor(start), Number.POSITIVE_INFINITY) : null
+}
+
+// The width of an item a line start consumes on a line with content before it.
+function measureAfterContent(prepared: PreparedTextWithSegments): number {
+  const line: ItemLine = { continues: true, breakBefore: false, fitsBreakBefore: false, innerBreaks: null, breakSegmentIndex: -1, breakGraphemeIndex: 0, breakWidth: 0 }
+  return stepPreparedLineGeometryFromStart(prepared, { segmentIndex: 0, graphemeIndex: 0 }, Number.POSITIVE_INFINITY, line)!
 }
 
 // Whether a line can end before segment `index` of an analysis or a handle, as the line
@@ -379,7 +387,7 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
     while (end > start && isCollapsibleSpaceCode(text.charCodeAt(end - 1))) end--
     const hasLeadingWhitespace = start > 0
     const hasTrailingWhitespace = end < text.length
-    const whitespaceBefore = pendingGapWidth !== null || hasLeadingWhitespace
+    const whitespaceBefore: boolean = pendingGapWidth !== null || hasLeadingWhitespace
     if (breaksFromItemText) boundaryContexts[index] = text.slice(Math.max(0, end - 2), end)
 
     let gapBefore = pendingGapWidth ?? (
@@ -407,19 +415,27 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
     const wholeStart: LayoutCursor = { segmentIndex: 0, graphemeIndex: 0 }
     const wholeWidth = measureWholeItem(prepared, wholeStart)
     const establishesLine = wholeWidth !== null || prepared.kinds.includes('zero-width-break')
+    // Such an item can hold white space between its soft hyphens, which follows a soft
+    // hyphen instead of the collapsed space before the item, so after content it takes
+    // room and the line can end at the soft hyphens around it, as in one text: the item
+    // is walked there, as one that starts with a soft hyphen and a space. Gecko discards
+    // soft hyphens before it collapses white space (EngineProfile), so that white space
+    // collapses with the space before.
+    const innerSpace = establishesLine ? -1 : prepared.kinds.indexOf('space')
+    const walksConsumed = innerSpace >= 0 && innerSpace < prepared.kinds.length - 1 && !profile.collapsesSpaceAcrossSoftHyphens
 
     const preparedItem = {
       break: itemBreak,
       breakBefore: whitespaceBefore,
       continued: false,
-      walked: prepared.kinds.includes('hard-break') || (wholeWidth !== null && wholeStart.segmentIndex > 0),
+      walked: prepared.kinds.includes('hard-break') || (wholeWidth !== null && wholeStart.segmentIndex > 0) || walksConsumed,
       establishesLine,
       extraWidth: item.extraWidth ?? 0,
       gapBefore,
       gapItemIndex,
       hyphenBefore: 0,
       innerBreaks: null,
-      naturalWidth: wholeWidth ?? 0,
+      naturalWidth: wholeWidth ?? (walksConsumed ? measureAfterContent(prepared) : 0),
       prepared,
       lineData: prepared,
     } satisfies PreparedRichInlineItem
@@ -462,9 +478,12 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
     }
     previousItem = preparedItem
 
-    pendingGapWidth = hasTrailingWhitespace
-      ? getCollapsedSpaceWidth(item.font, letterSpacing, language)
-      : null
+    // Where Gecko collapses white space across soft hyphens (EngineProfile), white space after
+    // those of an item a line start consumes collapses with white space before them: it still
+    // breaks there, but takes no room.
+    pendingGapWidth = !hasTrailingWhitespace
+      ? null
+      : !establishesLine && whitespaceBefore && profile.collapsesSpaceAcrossSoftHyphens ? 0 : getCollapsedSpaceWidth(item.font, letterSpacing, language)
     pendingGapItemIndex = hasTrailingWhitespace ? index : -1
   }
 
@@ -504,9 +523,11 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
     if (item === undefined || (item.innerBreaks === null && walkedFlags[index] === undefined)) continue
     item.lineData = getWalkedHandle(item.prepared, walkedFlags[index] ?? item.prepared.segmentFlags.slice(), item.innerBreaks)
     // A continued item that breaks inside is walked, which leaves the line's latest break.
+    // One a line start consumes is walked only where it holds white space (above).
+    if (!item.continued || !item.establishesLine) continue
     const { segmentFlags } = item.lineData
-    let breaks = item.continued && item.innerBreaks !== null
-    for (let i = 1; item.continued && !breaks && i < segmentFlags.length; i++) breaks = breaksBefore(segmentFlags, i)
+    let breaks = item.innerBreaks !== null
+    for (let i = 1; !breaks && i < segmentFlags.length; i++) breaks = breaksBefore(segmentFlags, i)
     item.walked ||= breaks
   }
 
@@ -600,8 +621,9 @@ function stepRichInlineLine(
     // space before such an item, as the flat text keeps a space before a soft
     // hyphen: content after it on the line pays for it, a line that ends after the
     // item can hang it (below), and it ends no line, as the item takes no room after it.
-    if (!item.establishesLine) {
-      collectItemRest(fragments, itemIndex, item, EMPTY_LAYOUT_CURSOR, gapBefore, gapItemIndex, 0)
+    // One that holds white space between its soft hyphens is walked there (below).
+    if (!item.establishesLine && !(hasContent && item.walked)) {
+      collectItemRest(fragments, itemIndex, item, cursor, gapBefore, gapItemIndex, 0)
       if (hasContent) consumedAfterContent = true
       lineWidth += gapBefore
       remainingWidth = safeWidth - lineWidth
@@ -653,10 +675,16 @@ function stepRichInlineLine(
     // A line start consumes the rest of the item, such as a soft hyphen, and a line
     // that starts at zero-width glue keeps it without taking it as content. A zero-width
     // break that only the joined text gives at the item's start follows text, so a line
-    // start consumes it too, where the item's own ZWSP there holds the line.
+    // start consumes it too, where the item's own ZWSP there holds the line. So does one
+    // the Gecko profile makes of a soft hyphen after white space, which Firefox drops
+    // from its text (IsDiscardable), wherever the line start reaches it.
     if (!hasContent) {
       if (atItemStart && (item.lineData.segmentFlags[0]! & KIND_BITS) === ZERO_WIDTH_BREAK && (item.prepared.segmentFlags[0]! & KIND_BITS) !== ZERO_WIDTH_BREAK) lineEnd.segmentIndex = 1
       if (!normalizePreparedLineStart(item.lineData, lineEnd)) continue
+      if ((item.lineData.segmentFlags[lineEnd.segmentIndex]! & KIND_BITS) === ZERO_WIDTH_BREAK && item.prepared.segments[lineEnd.segmentIndex]!.charCodeAt(0) === 0x00AD) {
+        lineEnd.segmentIndex++
+        if (!normalizePreparedLineStart(item.lineData, lineEnd)) continue
+      }
     }
     itemLine.continues = hasContent
     itemLine.breakBefore = hasContent && (item.breakBefore || breakItemIndex >= 0)
@@ -685,6 +713,7 @@ function stepRichInlineLine(
 
     const itemOccupiedWidth = lineWidthForItem + item.extraWidth
     const lineWidthBefore = lineWidth
+    if (!item.establishesLine) consumedAfterContent = true
     fragments?.push({
       itemIndex,
       gapBefore,
@@ -758,11 +787,17 @@ function stepRichInlineLine(
         const item = flow.items[i]
         if (item === undefined) continue
         if (item.establishesLine) break
-        lineWidth -= item.gapBefore
+        // WebKit keeps the soft hyphen before white space in the item, and the space
+        // before that soft hyphen, so only that white space hangs.
+        const keepsGap = spaceBeforeSoftHyphenHangs === 'own-break' && item.walked
+        lineWidth -= (keepsGap ? 0 : item.gapBefore) + item.naturalWidth
         if (fragments !== null) {
           const fragment = fragments[--fragmentCount]!
-          fragment.gapBefore = 0
-          fragment.gapItemIndex = -1
+          if (!keepsGap) {
+            fragment.gapBefore = 0
+            fragment.gapItemIndex = -1
+          }
+          fragment.occupiedWidth -= item.naturalWidth
         }
       }
     }
