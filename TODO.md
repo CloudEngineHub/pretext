@@ -6,7 +6,7 @@ What's next, one line each, with where the detail lives. Work depth-first: finis
 
 ## Now
 
-- The docs revamp, then its check: fresh agents doing each reader's job with only the docs, and fixing what they trip over. `scripts/doc-citations.test.ts` already keeps every `<DOC>.md, <Section>` citation in code naming a heading.
+- The docs revamp. Fresh agents built an app from the README, planned a mismatch fix and a new case from the docs alone, and what they tripped over is fixed; `scripts/doc-citations.test.ts` keeps every `<DOC>.md, <Section>` citation in code and docs naming a heading. Still unchecked: the app they built, in a browser.
 - X1, the last item of the engineering.md pass: rich-inline lines continue in the line walker instead of walking items again. Not landed.
 <!-- Q14 placeholder: if the maintainer answers, a task goes here: time one full `bun harness repin` per browser, and add a sampled first pass only if it takes more than minutes. -->
 <!-- Q10 placeholder: the rebuild branch's public refs; an answer adds a task here. -->

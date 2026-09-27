@@ -12,7 +12,7 @@ npm install @chenglou/pretext
 
 ## Demos
 
-The demos are exemplary API usage, so if you're an agent writing code with Pretext, play with them. They aren't in the npm package: clone the repo, run `bun install`, then `bun start`, and open <http://localhost:3000/demos> in your browser. On Windows, use `bun run start:windows`.
+The demos are exemplary API usage: if you, or an agent, write code with Pretext, play with them. They aren't in the npm package, so clone the repo, run `bun install`, then `bun start`, and open <http://localhost:3000/demos> in your browser. On Windows, use `bun run start:windows`.
 Alternatively, see them live at [chenglou.me/pretext](https://chenglou.me/pretext/). Some more at [somnai-dreams.github.io/pretext-demos](https://somnai-dreams.github.io/pretext-demos/)
 Building a chat or another long list? [pages/demos/markdown-chat.md](https://github.com/chenglou/pretext/blob/main/pages/demos/markdown-chat.md) walks through the Markdown chat demo's patterns and when you can skip each.
 
@@ -74,6 +74,8 @@ let maxW = 0
 walkLineRanges(prepared, 320, line => { if (line.width > maxW) maxW = line.width })
 // maxW is now the widest line — the tightest container width that still fits the text! This multiline "shrink wrap" has been missing from web
 ```
+
+Round `maxW` up (`Math.ceil(maxW)`, as the bubbles demo does) before you give an element that width: at the exact fractional width, the browser's sub-pixel layout can wrap the widest line.
 
 - `layoutNextLineRange()` lets you route text one row at a time when width changes as you go:
 
@@ -142,6 +144,7 @@ type PreparedTextWithSegments = PreparedText & {
   segments: string[] // The text split into segments, e.g. ['hello', ' ', 'world']. A LayoutCursor's segmentIndex indexes into this
   kinds: SegmentBreakKind[] // Break behavior per segment, e.g. ['text', 'space', 'text']
 }
+type SegmentBreakKind = 'text' | 'space' | 'preserved-space' | 'tab' | 'zero-width-break' | 'soft-hyphen' | 'zero-width-glue' | 'hard-break' | 'control' // 'zero-width-glue' is a zero-width space or soft hyphen the browser doesn't break after
 type LineStats = {
   lineCount: number // Number of wrapped lines, e.g. 3
   maxLineWidth: number // Widest wrapped line, e.g. 192.5
@@ -223,7 +226,7 @@ setLocale(locale?: string): void // optional (by default we use the page languag
 
 Notes:
 - `LayoutCursor` is a segment/grapheme cursor, not a raw string offset.
-- A line's `width` leaves out spaces and tabs that hang past its end, as browsers draw them: all of them where the line wraps, and in `pre-wrap` before a newline or at the end of the text, only the part that doesn't fit in `maxWidth`. `measureNaturalWidth()` still counts spaces before a newline, like CSS max-content.
+- A line's `width` leaves out spaces that hang past its end, as browsers draw them, and tabs where the browser hangs them: all of them where the line wraps, and in `pre-wrap` before a newline or at the end of the text, only the part that doesn't fit in `maxWidth`. `measureNaturalWidth()` still counts spaces before a newline, like CSS max-content.
 - `layout()` with an empty string returns `{ lineCount: 0, height: 0 }`. Browsers still size an empty block to one `line-height`, so clamp with `Math.max(1, lineCount) * lineHeight` if you need that behavior.
 - Pretext doesn't give bidi levels or a visual order. If you're drawing mixed bidi text, like English and Arabic, render each paragraph as one DOM element with its direction set, and the browser orders every line. If you draw lines separately, such as with Canvas `fillText()`, each line is ordered as its own paragraph, so numbers or punctuation next to a line break, or bidi controls that span lines, can come out in a different order.
 - A rich-inline fragment's `gapBefore` is a space in the font and letter spacing of item `gapItemIndex`: the fragment's own item, the previous fragment's item, or an item holding only whitespace, which gets no fragment. Draw the space inside that item's element so it paints at that width.
@@ -234,13 +237,13 @@ Notes:
 Pretext doesn't try to be a full font rendering engine (yet?). It currently targets the common text setup:
 - `white-space: normal` and `pre-wrap`
 - `word-break: normal` and `keep-all`
-- `overflow-wrap: break-word`. Very narrow widths can still break inside words, symbol runs and `keep-all` groups, but only at grapheme boundaries.
+- `overflow-wrap: break-word`, which isn't CSS's default, so set it on the text you paint. Very narrow widths can still break inside words, symbol runs and `keep-all` groups, but only at grapheme boundaries.
 - `line-break: auto`
 - `letter-spacing` as a numeric pixel value passed to `prepare()` / `prepareWithSegments()`
 - Tabs follow the default browser-style `tab-size: 8`
 - In `pre-wrap`, Pretext treats a lone `\r` as a line break, but browsers don't. Normalize `\r` to `\n` in the text you render, not just the text you measure.
 - `system-ui` and `-apple-system` are unsafe for `layout()` accuracy on macOS. Use a named font, by its English family name (`"Hiragino Kaku Gothic ProN"`, not `"ヒラギノ角ゴ ProN"` or a face name like `"Avenir Next Demi Bold"`): Firefox finds the other names late, and a page that measures one soon after Firefox starts can keep measuring it in a fallback font. See the [platform bug ledger](https://github.com/chenglou/pretext/blob/main/PLATFORM_BUGS.md) for the Chrome and Firefox issues. <!-- Q5: recommendation taken; the maintainer hasn't answered -->
-- Page language changes fonts and line breaks, and without `lang` Chrome and Firefox use the browser's or system's language. A generic font like `sans-serif`, or a character missing from a named font, may use a different font from the one Pretext measures, and curly quotes can wrap differently per language. Set `lang` on `<html>`, use a named font that covers your text, and check the result in your browser. If you change `<html lang>`, prepare your text again; existing prepared handles keep the widths and line-break rules from before the change.
+- Page language changes fonts and line breaks, and without `lang` Chrome and Firefox use the browser's or system's language. A generic font like `sans-serif`, or a character missing from every named font, may use a different font from the one Pretext measures, and curly quotes can wrap differently per language. Set `lang` on `<html>`, name a font for each script your text uses in one list (`16px "Helvetica Neue", "PingFang SC", "Geeza Pro", sans-serif`), and check the result in your browser, for example by comparing a painted element's height with `layout()`'s. Pretext reads only `<html lang>`, or `setLocale()`'s: an element's own `lang` changes that element's fonts and line breaks, which Pretext doesn't see. If you change `<html lang>`, prepare your text again; existing prepared handles keep the widths and line-break rules from before the change.
 - Runtime requires Canvas 2D text measurement and Unicode property escapes (`\p{...}`), and `Intl.Segmenter` for text in Thai, Lao, Khmer, Myanmar and the other Southeast Asian scripts written without spaces. Browsers without these features aren't supported. Without Unicode property escapes, Pretext can't load and throws a `SyntaxError`; without `Intl.Segmenter`, preparing such text throws.
 - Pretext uses the canvas `font` string. Separate CSS settings such as `font-optical-sizing`, `font-feature-settings`, and `font-variation-settings` aren't supported. Variable-font settings only apply when expressed through that string, such as font weight.
 - Pass font sizes in px. If your CSS sizes text in `rem` or `em`, resolve them to px once, higher up in your app (for example, when the root font size changes), and pass that string to Pretext. Firefox measures canvas text at a rounded font size, so a fractional size like `13.33px` can wrap differently there; prefer whole-pixel sizes.
@@ -249,7 +252,7 @@ Pretext doesn't try to be a full font rendering engine (yet?). It currently targ
 
 ## Develop
 
-See [DEVELOPMENT.md](https://github.com/chenglou/pretext/blob/main/DEVELOPMENT.md) for the dev setup and commands.
+See [DEVELOPMENT.md](https://github.com/chenglou/pretext/blob/main/DEVELOPMENT.md) for the demo server, engine data and releases.
 
 ## Credits
 

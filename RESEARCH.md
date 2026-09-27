@@ -1,10 +1,10 @@
 # Research Log
 
-Why Pretext is the way it is. Part 1 is the intent: the lines drawn, the merge bars and the stances behind them.
-Part 2 is the evidence: measured facts, traps and dead ends, each with its browser build, its date and what would
-reopen it. Part 3 is the Decisions Log. Quoted text is the maintainer's exact words, typos kept, dated in Pacific
-time; the rest is the project's wording. "Pre-#340 main" is 6d1d2106, before the engine ports; "the hybrid" is main
-since #340; "the redo" is the per-engine rebuild on branch `rebuild-20260916`.
+Why Pretext is the way it is. Part 1 is the intent: the lines drawn, the merge bars and the stances behind them. Part 2
+is the evidence: measured facts, traps and dead ends, each with its browser build, its date and what would reopen it.
+Part 3 is the Decisions Log. Quoted words attributed to the maintainer are exact, typos kept, dated in Pacific time; the
+rest is the project's wording. "Pre-#340 main" is 6d1d2106, before the engine ports; "the hybrid" is main since #340;
+"the redo" is the per-engine rebuild on branch `rebuild-20260916`.
 <!-- Q2: recommendation taken; the maintainer hasn't answered -->
 
 ## Part 1: Intent
@@ -53,17 +53,19 @@ Inside these, fixes land on judgement; outside them, ask the maintainer first.
   the fix is extremely cheap and shared. A modeled engine is never refused or shown nothing: detect the engine, not the
   brand. Unrecognized engines take Blink's profile, and runtimes such as React Native need only no crash and nothing
   catastrophically worse than pre-#340 main. Firefox ESR, old browsers and quirks mode get nothing that costs
-  complexity; Windows is untested; the WebKit profile follows Safari 27 only (Decisions Log).
+  complexity; Windows is untested; the WebKit profile follows Safari 27 only (Decisions Log). Sampling platforms we
+  can't run, Windows and Android, doesn't go overboard: fewer Pretext users target them, and the browser-agnostic
+  shares come first (2026-09-24).
 - **Where fixes stop.** Keep fixing common app text (Latin, CJK, Arabic, Hebrew, emoji, chat punctuation, URLs), rich
   inline, the documented CSS and the major browsers; rare Unicode, such as NEL or controls, only when cheap and
   lossless. Document rather than chase browser bugs, effects Canvas can't see and shapes only fuzzing makes. Speed may
-  regress a bit for a fix that matters. Accuracy under 80 px counts for little, and a behaviour narrower than 24 px
+  regress a bit for a fix that matters. Accuracy under 80 px counts for little, and a behavior narrower than 24 px
   that the library doesn't model may be accepted as narrower than real layouts.
 - **Out of scope, punted or parked.** Server-side measurement and other backends, such as React Native's. Mixed font
   sizes in a paragraph: Pretext gives widths and breaks, not line heights. `hyphens: auto` and `overflow-wrap: normal`
   (hyphenation stays on TODO.md as a possible feature). A `fontKerning` option: README assumes default kerning.
   `system-ui` (issue #336 says what support would take). Source offsets (#90) and carets (#198) for editing.
-  <!-- Q4: recommendation taken; the maintainer hasn't answered --> <!-- Q4 note: README drops "soon" before "server-side" -->
+  <!-- Q4: recommendation taken; the maintainer hasn't answered --> <!-- Q4 note: README drops "and soon, server-side", since server-side needs a Canvas supplied -->
   <!-- Q3: recommendation taken for hyphens; the maintainer hasn't answered -->
 - **Userland.** Stricter editorial whole-word handling, never a changed default: an overlong word breaks at grapheme
   boundaries, as `overflow-wrap: break-word` does. Scroll anchoring and overscan. The rich-inline API stays public, and
@@ -103,8 +105,9 @@ Not optimizing prematurely, and taking the rebuild's facts back to main, still s
 - **Sums.** Summing words must not become pre-#340 main's road, a sum patched with corrections tuned until tests pass:
   sum only where that provably equals the engine's answer, with the exact port as fallback and judge.
 - **Assumptions.** Hunt your own and test them: the biggest early Safari win came from dropping one, that an emoji's
-  DOM width equals the font size. Corrections are measured from the running browser, never hard-coded. A proof that a
-  fix is impossible under the current model is a definitive answer.
+  DOM width equals the font size. Corrections are measured from the running browser, never hard-coded, and don't vary
+  item by item in ways nobody can explain: the emoji correction is one value per font. A proof that a fix is
+  impossible under the current model is a definitive answer.
 
 ### The Redo And What Counts As Done
 
@@ -127,7 +130,9 @@ twice for its philosophy to be written down; the full text is `rebuild/README.md
 - Plain text only. Rich inline done correctly, with kerning between sibling spans, is "a big quest for another time"
   (the maintainer, 2026-09-26).
 
-Where the redo gets a plain-text case right, main ports its rule ("Fixing a mismatch").
+Where the redo gets a plain-text case right, main ports its rule ("Fixing a mismatch"). Its rules live per engine in
+`rebuild/src/engines/<engine>/`, with unit tests beside them, and it scores with a harness of its own: nothing runs it
+on main's cases, so compare a rule by reading it and its tests against the engine's source.
 <!-- Q11 placeholder: four rebuild documents quote paraphrases as the maintainer's words. This summary quotes only
 principles.md, so their answer changes nothing here. -->
 
@@ -142,12 +147,13 @@ principles.md, so their answer changes nothing here. -->
   <!-- Q7: recommendation taken; the maintainer hasn't answered -->
 - **A pass rate means little without the importance of its cases**: easy cases can drown out hard ones. So the harness
   has two kinds of set: a use-weighted real-usage sample (how often does a user see a wrong line?) and a generated
-  behaviour catalog, deduplicated by browser behaviour (which behaviours do we model?). Broad generated combinations are
+  behavior catalog, deduplicated by browser behavior (which behaviors do we model?). Broad generated combinations are
   fine while they're fast.
-- **What mustn't regress was decided afresh** when the old harness went (#341, #348). There's no must-pass tier
-  (Decisions Log, 2026-09-24). The gate protects the new engine's passes, not main's accidental ones, and CJK failures
-  block like any other. Failures are recorded too, so a rewrite that quietly moves an out-of-scope result shows up.
-- **Cases grow** by behaviour, not by repro, under the rules in harness/README.md, "How cases grow", without piling up
+- **What mustn't regress was decided afresh** when the harness replaced the old suite (harness/README.md, Why the old
+  suite went), with no must-pass tier (Decisions Log, 2026-09-24).
+- **True signals, fast.** Tests signal real regressions, not false ones, and run fast enough to iterate on; once a suite
+  is trusted, make it faster, by engineering and by batching what isn't timing-sensitive.
+- **Cases grow** by behavior, not by repro, under the rules in harness/README.md, "How cases grow", without piling up
   into pre-#340 main's repro per bug. A repro's exact string may drop out when the sets are made again, since the sets
   are probabilistic. <!-- Q3: recommendation taken; the maintainer hasn't answered -->
 - **"No change"** for a cleanup means no change by every tool (`bun harness equal main` and its offline replay, `check`,
@@ -157,7 +163,7 @@ principles.md, so their answer changes nothing here. -->
   expensive recordings only to confirm nothing changed: sample first (said of the redo's scans).
   <!-- Q14 placeholder: whether main's `bun harness repin` samples first. The answer goes here and in harness/README.md
   "Browsers and pins". -->
-- Behaviour is checked in installed browsers; headless replays are hypotheses. Every README claim is true of the
+- Behavior is checked in installed browsers; headless replays are hypotheses. Every README claim is true of the
   algorithm and confirmed in real browsers.
 
 ### Engineering
@@ -165,10 +171,12 @@ principles.md, so their answer changes nothing here. -->
 - **Tiny.** Remove, by ablation, complexity and state that cost no accuracy or speed, and don't overbuild. Complexity
   is what's kept down, with line count its usual proxy (2026-09-15); bundle bytes aren't tight, but aren't saved with
   hacks either. Per-engine code that barely interacts counts for less than its lines, and while correctness is still
-  being established, line count waits (said of the redo, 2026-09-18).
+  being established, line count waits (said of the redo, 2026-09-18). Reuse existing machinery before adding code, and
+  derive sets from the generated tables rather than keep them by hand.
   <!-- Q15: recommendation taken; the maintainer hasn't answered -->
-- **Simplifications.** One with the same results is exactly what's wanted. After an architecture change, remove the
-  logic it made redundant, saying what now gives the same answer. A simplification changes no observable behaviour and
+- **Simplifications.** Growth in complexity and cost is checked after each stretch of work, and a simplification with
+  the same results is exactly what's wanted. After an architecture change, remove the
+  logic it made redundant, saying what now gives the same answer. A simplification changes no observable behavior and
   adds no optimization machinery; removing public API or changing line breaks goes to the maintainer. A small deletion
   that loses coverage becomes a PR opened and closed at once, for the history (#343). Dead code is deleted, never
   silenced; no stale scripts or temporary tooling; rules against a class of bug stay light.
@@ -176,7 +184,8 @@ principles.md, so their answer changes nothing here. -->
   profiling and optimization, the API last. Engineering (data layout, typed arrays, no allocation) comes before
   algorithms. Engine work is picked by demand, not by sweeping ENGINE_FOLLOWUPS.md. Bound a design's best case before
   investing further: the Amdahl bound of 2026-09-22 showed the redo couldn't match main at preparing new text in Chrome
-  or Firefox, which led to the hybrid (Dead Ends). Speed work has no fixed stop threshold.
+  or Firefox, which led to the hybrid (Dead Ends). Speed work has no fixed stop threshold. A solution that costs much
+  speed or complexity for a tiny gain is recorded as one, so such solutions can be weighed together.
 - **Plain code.** Plain objects with fixed shapes, not classes. The maintainer prefers indexed `for` loops to
   `for...of`, `.forEach` and allocating `.map` chains in new code. Their principles are `docs/engineering.md` and
   `ui.md` in their `vibescript` repository: data first, one source of truth, per-browser differences in one place, no
@@ -186,10 +195,11 @@ principles.md, so their answer changes nothing here. -->
 - **Worst case.** Cater to it over the common path, meaning compute per frame, not only GC pauses, and prefer changes
   that improve it for every input over tuning to a guessed distribution. The maintainer (2026-09-26): "I think we've
   gained enough perf that regressing worst-case a slight bit can be accepted; the general advice is more that we should
-  cater to worst-case, not that worst-case can't regress ever." And of one proposal: "yeah 26% is a bit intense." That
+  cater to worst-case, not that worst-case can't regress ever." And of the width memo, whose new widths ran up to 26%
+  slower in Chrome: "yeah 26% is a bit intense." That
   replaced the assistant's rule of the same day that the worst case can't get worse. Layout stays on the main thread,
   with workers a last resort.
-- **JIT tuning**, in every change. The soft line (2026-09-25): don't optimize against JIT behaviour that depends on the
+- **JIT tuning**, in every change. The soft line (2026-09-25): don't optimize against JIT behavior that depends on the
   browser, its version or the machine. The hard line, the maintainer (2026-09-26): "we're not gonna cater to JIT magic
   like that, that'd be my line. Keeping dead code to please JIT is something accidental and not reproducible if we wrote
   the code clean". Such code goes whatever the regression, with its cost noted; that reversed the 2026-09-24 decision to
@@ -214,14 +224,15 @@ principles.md, so their answer changes nothing here. -->
   since line breaking needs the language.
 - **The API is open, and loved.** The prepare/layout split was a sweet spot and may not be now, but its direction is
   loved, and alternatives are additions to talk through. Idempotent layout without handles stays interesting if lifetime
-  can be controlled; a study of it recommends keeping handles (Dead Ends). Immediate mode: nothing relies on object
+  can be controlled; a study of it recommends keeping handles (Dead Ends). Old incremental-prepare work mostly made up
+  for slowness: it may inspire an API but shouldn't bias one. Immediate mode: nothing relies on object
   identity. Changing text should be cheap to prepare again (#313). A 2 s bar for 10,000 rich messages (2026-09-18) was
   withdrawn as unsubstantiated.
 - **Design from shared structure.** Once plain speed engineering is exhausted, find what calls share and skip
   recomputing it, from a cost model first. Demos aren't usage data. The maintainer (2026-09-26): "They're examplary
   technical edges for folks to interpolate their own usages from." Don't overfit to today's uses.
-- **Holds.** Exports stayed exact while engine work landed. The API discussion is the end-of-project item, with
-  issue #321's `direction` option and `devicePixelRatio` in `layout()` on its list, and no release comes before it. One bundle
+- **Holds.** Exports stayed exact while engine work landed. The API discussion is the end-of-project item, with issue
+  #321's `direction` option and `devicePixelRatio` in `layout()` on its list, and no release comes before it. One bundle
   serves every engine (Decisions Log, 2026-09-26).
   <!-- Q18: recommendation taken; the maintainer hasn't answered -->
 - **The rich surface** stays split between stats and range helpers and materializing ones, with one decision algorithm
@@ -268,7 +279,9 @@ principles.md, so their answer changes nothing here. -->
   such as rubber-banding to patch it. The macOS and iOS overlay scrollbar comes first, and a scrollbar appearing never
   nudges content.
 - **Exemplary.** The chat teaches the important patterns with no noise, so developers pick a subset rather than
-  extrapolate; its guide stays short. Its techniques move to the other rich demo only if strictly better.
+  extrapolate; its guide stays short. Its techniques move to the other rich demo only if strictly better. Clean control
+  and data flow in demo code count, not only its numbers, and a pass over a demo against vibescript's engineering.md
+  and ui.md looks for simplifications that bring fewer lines, fixes and speed together.
 - **Not in the package** (Decisions Log, 2026-09-25), which replaced the maintainer's wish, earlier that day, to keep
   them runnable from the package.
 - When a demo looks wrong, first find whether the library or the demo is at fault, and look in a real browser at
@@ -279,7 +292,8 @@ principles.md, so their answer changes nothing here. -->
 - **The criterion (2026-09-27).** The maintainer: "trust that the future agent is at least as smart as you so you don't
   need to document the obvious stuff they can discover" and "I'd document all the philosophies we've talked about,
   because the smart model would still want to know our intent (and can abide by it). And the various traps that
-  smartness doesn't necessarily solve, such as dead ends". They accepted three refinements the same morning:
+  smartness doesn't necessarily solve, such as dead ends (I'm making an example here so don't over-index on this in
+  particular please)". They accepted three refinements the same morning:
   discoverable means cheap to discover, so facts that take hours of browser runs stay; every measured fact and dead end
   carries its date, browser build and what would reopen it; AGENTS.md may hold one screen of pipeline map. README
   carries no per-browser accuracy or speed.
@@ -291,9 +305,9 @@ principles.md, so their answer changes nothing here. -->
   on, its API glossary kept (JSDoc in its place was tried and reverted), examples correct on their own and ordered
   simple to complex, every term defined, nothing changed that wasn't asked for.
 - **Voice.** Keep each document's tone unless it's wrong; `thoughts.md` is the maintainer's own voice. Short, with the
-  nuances kept. A rewrite keeps technical meaning and opinions, and loses pseudo-jargon, common words in uncommon senses,
-  vague pronouns and slogans, but not words that carry meaning, such as "regression". Concrete cases over a general
-  warning.
+  nuances kept. A rewrite keeps technical meaning and opinions, and loses pseudo-jargon, common words in uncommon
+  senses, vague pronouns and slogans, but not words that carry meaning, such as "regression". Concrete cases over a
+  general warning.
 - **What goes in.** Numbers that go stale are pointed to, not copied. A fresh agent gets objective facts, not designs
   that fence it in. A cleanup removes only what's provably stale, and docs another model wrote are checked for accuracy
   and for fitting what was done. The changelog and doc-sync rules are the maintainer's own AGENTS.md lines, kept word
@@ -396,11 +410,10 @@ spacing over one letter repeated 16 times, since a Canvas that rounds a fraction
 The same text on the same context returns the same bits in all three (0 of 2.17 million repeats differed in Chrome 153),
 except where Firefox's per-process fallback state moves it (Engine Facts, Firefox).
 
-A connected `<canvas>` isn't neutral. Chrome's keeps its element's CSS letter and word spacing, times the device pixel
-ratio, which `letterSpacing = '0px'` doesn't clear; Safari's copies the element's font and forces style updates;
-Firefox's holds the page's advances but needs `document`, while its OffscreenCanvas shapes at the CSS size and never
-applies optical sizing. A context can't be cloned or transferred, so a prepared paragraph can't cross to a worker
-(`DataCloneError`) and a worker makes its own (redo lab).
+A connected `<canvas>` isn't neutral. Chrome's keeps its element's CSS letter and word spacing (PLATFORM_BUGS.md);
+Safari's copies the element's font and forces style updates; Firefox's holds the page's advances but needs `document`,
+while its OffscreenCanvas shapes at the CSS size and never applies optical sizing. A context can't be cloned or
+transferred, so a prepared paragraph can't cross to a worker (`DataCloneError`) and a worker makes its own (redo lab).
 
 Each engine fits in its own units. Chrome rounds each item up to 1/64 of a device pixel, truncates the available width,
 and fits while the position is at most that plus one unit (`line_breaker.h:307-317`), so at a device pixel ratio of 2
@@ -422,11 +435,6 @@ Facts, Safari). They break only between the shaper's clusters, and a ligature me
 Firefox never split lam from alef, or `ffi`, in a font that ligates them. Those clusters aren't grapheme clusters:
 HarfBuzz joins marks, a ZWJ before a pictograph, emoji modifiers and tags to the cluster before them even across SHY,
 ZWSP or U+2060 (`hb-ot-shape.cc:471-585`), so `a`, U+2060, U+0301, `b` stays on one line at width 0 in Chrome 153.
-
-Canvas can't tell whether a font draws lam + alef as one cluster, so every default is a guess; Pretext sums isolated
-widths (Dead Ends, Arabic And Joined Scripts).
-<!-- Q12: recommendation taken; the maintainer hasn't answered -->
-<!-- Q12 note: no change now; the table goes under Dead Ends -->
 
 Widths don't compose simply. A string can be narrower than a window inside it, by up to 117 zoomed px in calligraphic
 Arabic faces at 256px. Two sides that sum to the whole don't make an offset safe to break: HarfBuzz can flag it unsafe
@@ -478,7 +486,7 @@ have no usable rect, but lines follow text order, so a character between two on 
 keeps that premise, which checked 5,018 to 13,358 more rows per browser with no false failures (old suite, removed
 2026-09-25).
 
-Each engine encodes rects its own way. Chrome floors a slice's start and ceils its end to its layout unit, so neighbours
+Each engine encodes rects its own way. Chrome floors a slice's start and ceils its end to its layout unit, so neighbors
 overlap by one, and is exact to 1/128 px at a device pixel ratio of 2 but not at zoom 1.5 or 2.2. Safari gives one rect
 per display box, snaps partial rects to whole px and splits a glyph's advance among its code points by UTF-16 units.
 Firefox puts edges on app units, stored as `floor(a × 65536/60 + 0.5)/65536` in float32, with a cluster's advance on its
@@ -506,12 +514,6 @@ on the wrong lines (old suite, 2026-09-17). `(ب` SHY `ب)abc` at 5 px is `( | �
 ب- | ب | ) | a | b | c` in main. So the harness checks each line's first and last visible character. Such bugs sit in
 combinations nobody can list: unit tests passed where a replay lost 9,068 line counts.
 
-Timings are browser output too. One copy of the library can run slower than another copy of the same code for a whole
-document: in the bench's calibration of HEAD against itself on 2026-09-26 (Chrome 154, Firefox 156.0.1, Safari 27.0,
-three sessions each), Firefox's base copy took about twice as long as the other two on kept CJK handles in one session,
-and Safari's 15-21% longer on keep-all brackets in two. So each document carries a control copy and a verdict needs
-every session; harness/README.md's Bench section has the floors.
-
 ### Break Opportunities From Engine Data
 
 Break opportunities come from ports of each engine's scan over each browser's own shipping data (Part 1, Tables Against
@@ -530,13 +532,13 @@ facts. The TypeScript scans matched its C++ ports of the engines' break code wit
 runs when Bun's segmenter stands in for Firefox's (2026-09-15 to 24). None of these tools is in the repo. The rule they
 leave: an engine rule's oracle is the engine's own library, such as ICU over Chrome's `icudtl.dat`, libicucore with
 Apple's overrides or `icu_segmenter` on Firefox's data, never a second port, and Blink's upstream tests in Ahem, where a
-stand-in Canvas is exact, pin behaviour cheaply.
+stand-in Canvas is exact, pin behavior cheaply.
 
 The scans differ from their engines on purpose in three places. One ICU pass per text, instead of Blink's restart at
 each line start, differs in 86 of 188,274 verdicts. The WebKit scan resolves no bidi levels and so misses WebKit's
-splits where levels change, at 15 right-to-left positions in the latest count (71 in an earlier one), such as
-`ab””tail`. The Gecko scan takes every paragraph as left-to-right, since Pretext takes no direction: none of 4,346
-right-to-left suite and corpus requests moves, and 192 of 8,125 fuzz requests do. ENGINE_FOLLOWUPS.md tracks all three.
+splits where levels change, at 15 right-to-left positions (2026-09-23), such as `ab””tail`. The Gecko scan takes every
+paragraph as left-to-right, since Pretext takes no direction: none of 4,346 right-to-left suite and corpus requests
+moves, and 192 of 8,125 fuzz requests do. ENGINE_FOLLOWUPS.md tracks all three.
 
 Take each browser's own shipping data, not upstream's latest: Chromium 147's `line_normal.brk` differs from 153's on 239
 code points, and headless Chromium 147's ICU 77 breaks otherwise wherever ICU 78 changed the rules (the HH dashes,
@@ -698,29 +700,12 @@ Chrome gives a form feed and a ZWSP two lines at width 1 and one at 100, though 
 pre-wrap a raw CR before a ZWSP occupies one native line where Pretext's CR is a hard break (Chrome 153, mid-September
 2026; ENGINE_FOLLOWUPS.md).
 
-Traces of source-built Chromium 152 and Playwright's WebKit 2272 (recorded 2026-09-08), which show those builds'
-executed paths and not the installed binaries', separate source rules from widths. In 16px Amiri at 14.75px, a
-left-to-right pre-wrap ZWSP, beh, SHY, beh gives WebKit four lines, empty, beh, hyphen, beh: WebKit leaves the soft
-hyphen unconsumed where Pretext consumes it, counts the possible hyphen before overflow, and makes a soft hyphen
-discretionary only at the end of its text item; a policy derived from that passed independent ICU checks but lost
-browser successes around resumed geometry. Chromium keeps the whole right-to-left item across the ZWSP and soft hyphen,
-reshapes the selected range with its surrounding source, adds a separately shaped left-to-right U+2010, and reshapes the
-rest at the next line's start, so isolated-letter widths aren't equivalent observations.
-
 Three quantities look like "remaining width": the width that decides whether the rest of a word fits intact, the width
 given to a selected prefix, and the suffix measured afresh after the break. Subtracting a prefix from the whole doesn't
 give the reshaped suffix. Prefix widths needn't grow: in 16px Arial at −8px letter spacing, `WWi`'s prefixes measure
 7.10, 14.20 and 9.76px, so the whole word fits 12px where a shorter prefix doesn't, and "the farthest prefix that fits"
 is the wrong search. Each engine admits the rest by its own one of these widths (`entryFitBasis`), and choosing
 otherwise lost elsewhere (Dead Ends).
-
-A fresh start changes shaping, not just spacing. Safari's Shantell Sans probes tell a suffix starting at a combining
-acute from one starting at the word joiner before it (Safari 26; unconfirmed on 27): zero width is a measured value, not
-proof that source is absent, and removing controls before measuring changes the experiment. Earlier breaks matter too:
-in 24px Times New Roman, Safari forced `AVAVbc` through different first-line indents and gave the same remaining `bc`
-three fit thresholds where Chrome kept one, and applying the inferred adjustment to every prefix failed a follow-up
-(Safari 26, recorded by 2026-09-07; unconfirmed on 27). The copied source cursor can't encode such histories, so don't
-hide continuation state in batch layout and rebuild it differently in the one-line API.
 
 HarfBuzz reaches past a word, so a line start inherits more than its first glyph. It normalizes a whole shaping call
 once the call holds a combining mark, so in italic Athelas `tở` measures up to 1px wider at 32px after a `café` spelled
@@ -776,9 +761,8 @@ and element geometry agreed with whole-word Canvas kerning on 2,440 of 2,551 sam
 and Monaspace Neon, WebKit's layout takes none of the kerning Canvas reports, which the profile doesn't model.
 
 Chrome's layout kerns across spaces, ZWSP, soft hyphens and same-font spans, while its Canvas shapes a string word by
-word and so reports none of that kerning for Arial or Times New Roman. The settings that make Canvas shape whole strings
-do so only for fonts whose lookups involve the space glyph, and turn features on for every measurement (Engine Facts,
-Chrome), so the Chromium profile follows Canvas's cuts (headless Chromium 147, 2026-09-12; Dead Ends, Kerning). In
+word and so reports none of that kerning for Arial or Times New Roman. No Canvas setting shapes whole strings in every
+font (Dead Ends, Kerning), so the Chromium profile follows Canvas's cuts (headless Chromium 147, 2026-09-12). In
 Chrome 153 a run measured whole equals its words measured with the spaces beside them, less each inner space once, at
 all 379,714 positions where both sides hold a character of a script of its own, and misses at 818 of 28,774 where one
 side holds none, all in Amiri (redo lab).
@@ -796,7 +780,7 @@ paints `V` at 11.833px, keeping half of the adjustment with `A` (redo lab; the `
 ### Rich Inline Boundaries
 
 Rich inline measures each item alone and takes its breaks from the paragraph's joined text. The measuring half is a
-premise with a named gap: Chromium shapes neighbouring same-font spans together, so Arial `community` + `,` natively
+premise with a named gap: Chromium shapes neighboring same-font spans together, so Arial `community` + `,` natively
 fits about a pixel earlier than the two measurements add up to, and Gecko frames kern there too; WebKit spans don't
 (2026-09-12). Fixing that is out of scope (Part 1, The Redo And What Counts As Done). Where the flat walker and one
 native text node disagree, rich inline follows the flat walker.
@@ -865,10 +849,11 @@ spacing, `x.ywordy\t\t foo` in the Gecko profile still does.
 
 Shaping stops at a span edge with padding, border or margin; otherwise Blink shapes items together when their fonts are
 equal, locale and spacing included, and Gecko when font and language are. WebKit shapes each text box alone, except
-complex right-to-left text across undecorated box edges in Safari 27; that and Firefox's end padding on every line are
-under Engine Facts. Main charges `extraWidth` on every fragment where engines slice box edges (ENGINE_FOLLOWUPS.md).
-Rich `pre-wrap` isn't blocked by the architecture: the per-engine rebuild got 99.3-100% of 1,334 rich pre-wrap cases'
-line counts right in each browser (September 2026; TODO.md).
+complex right-to-left text across undecorated box edges, which Safari 27 shapes as one run whose share Canvas gives only
+at the run's ends (`TextShapingAcrossInlineBoxes`, `InlineLineBuilder.cpp:780-1028`), and Firefox pads a span's end on
+every line (Engine Facts, Firefox). Main charges `extraWidth` on every fragment where engines slice box edges
+(ENGINE_FOLLOWUPS.md). Rich `pre-wrap` isn't blocked by the architecture: the per-engine rebuild got 99.3-100% of 1,334
+rich pre-wrap cases' line counts right in each browser (September 2026; TODO.md).
 
 #### Painting Lines
 
@@ -921,13 +906,12 @@ and 780 Firefox results of the old suite, whose pages mostly set no language (ol
 and harness cases therefore set an explicit, non-empty `lang`, and the harness pins Chrome's UI to en-US.
 <!-- Q7: recommendation taken; the maintainer hasn't answered -->
 
-Pretext reads only preparation's language: `<html lang>`, or `setLocale()`'s, or on a page with none in the Chromium
-profile `Intl`'s default locale. An element's own `lang` and a `Content-Language` header switch the browser's line
-tables and fallback fonts, but Pretext doesn't see them (the API discussion, TODO.md). No locale changes the Thai,
-Lao, Khmer and Myanmar word boundaries Pretext reads, under 20 locales in V8 and JavaScriptCore (2026-09-24). In a
+An element's own `lang` and a `Content-Language` header switch the browser's line tables and fallback fonts, but
+preparation reads one language for the page and doesn't see them (the API discussion, TODO.md). No locale changes the
+Thai, Lao, Khmer and Myanmar word boundaries Pretext reads, under 20 locales in V8 and JavaScriptCore (2026-09-24). In a
 worker, Chrome's Canvas takes the UI language, Safari's generic families get none, and Firefox's context follows the
-macOS locale (2026-09-18). Reading `<html lang>` costs about 16ns in headless Chromium and 4ns in headless WebKit,
-with no style recalculation (2026-09-12; Firefox not measured): the evidence behind AGENTS.md's exception and the
+macOS locale (2026-09-18). Reading `<html lang>` costs about 16ns in headless Chromium and 4ns in headless WebKit, with
+no style recalculation (2026-09-12; Firefox not measured): the evidence behind AGENTS.md's exception and the
 maintainer's condition on content language (Part 1, Lines Drawn).
 
 Chrome's OffscreenCanvas keeps the fonts it chose under the old language until the font string changes: headless
@@ -1019,32 +1003,12 @@ the one before it, not the one after. The Chromium profile still sums graphemes,
 accepted list.
 
 **Firefox's joined Arabic.** Gecko fits a line from the advances of the whole shaped word and doesn't reshape at a
-break, so a joined letter keeps its neighbour's form, while Pretext measures the letters beside a soft hyphen, or an
-emergency break in a segment under 80px, at isolated widths. A Canvas total is one equation per string, so no recipe
-splits a word right for every font. On 2026-09-12, in installed Firefox 155 at DPR 2, the probe compared DOM `Range`
-advances in the intact word with Canvas recipes over 200 words from each Arabic and Urdu corpus plus witnesses, 1,808
-rows per font setup, passing within 1/60px. The pair check tests at each split between letters L and R that W(L+ZWJ) +
-W(ZWJ+R) − W(L+R) is within 1/60px; a false accept is a split it let through whose widths still missed.
-
-| Font setup | Isolated widths | Per-grapheme ZWJ forms | Prefix + ZWJ |
-| --- | --- | --- | --- |
-| `16px "Noto Naskh Arabic"` | 144 pass / 1,432 fail | 1,458 / 118, 0 false accepts | 1,098 / 50, 0 false accepts |
-| `16px Arial` (system Arabic fallback) | 300 / 1,276 | 1,462 / 114, 0 false accepts | 1,104 / 44, 0 false accepts |
-| `16px "Geeza Pro"` | 316 / 1,260 | 1,432 / 144, 42 false accepts | 1,095 / 53, 21 false accepts |
-| `16px Georgia` (fallback) | 316 / 1,260 | 1,054 / 522, 10 false accepts | 936 / 212, 10 false accepts |
-| `16px Amiri` | 82 / 1,494 | 746 / 830, 0 false accepts | 702 / 446, 20 false accepts |
-| `16px "Noto Nastaliq Urdu"` | 94 / 1,482 | 438 / 1,138, 12 false accepts | 474 / 674, 66 false accepts |
-
-24px gave the same picture. The ZWJ forms need an `rtl` canvas, and took 66 distinct Canvas queries over the corpus
-words against 45 for isolated widths (prefixes 147, the check 243). So they recover joined advances for Noto Naskh
-Arabic and the system Arabic font behind Latin stacks, Amiri and Noto Nastaliq Urdu stay out of reach, and a Firefox
-rule would need the check with a per-font fallback (ENGINE_FOLLOWUPS.md). Only 8 old-suite rows failed on this (old
-suite, removed 2026-09-25).
-<!-- Q7: recommendation taken; the maintainer hasn't answered --> <!-- Q12: recommendation taken; the maintainer hasn't answered --> <!-- Q12 note: lam + alef: no change now; its table goes under Dead Ends -->
-
-**Shapers.** `text-shaper` found Unicode coverage gaps, but its segmentation and paragraph breaker aren't
-browser-compatible, and HarfBuzz probes didn't reproduce browser widths closely enough (March 2026). Shaping and font
-loading in the runtime would be a separate project, which Part 1 rules out (Lines Drawn).
+break, while Pretext measures the letters beside a soft hyphen, or an emergency break in a segment under 80px, at
+isolated widths. On 2026-09-12, in installed Firefox 155 at DPR 2, measuring each connected letter with a ZWJ (on an
+`rtl` canvas), gated by a check that a split's two sides add up to the pair (W(L+ZWJ) + W(ZWJ+R) − W(L+R) within
+1/60px), matched Firefox's advances on 1,458 of 1,576 corpus widths in Noto Naskh Arabic and 1,462 in the system Arabic
+font behind Latin stacks, against 144 and 300 for isolated widths, with no false accepts; it reached only 746 in Amiri
+and 438 in Noto Nastaliq Urdu, so a Firefox rule would need the check with a per-font fallback (ENGINE_FOLLOWUPS.md).
 
 ### Bidi Levels
 
@@ -1146,8 +1110,7 @@ font list names a font for the script.
 
 #### The Walkers' Shapes
 
-`layout()` counts through `countPreparedLines()`, the line APIs walk through the simple stepper, and text they don't
-cover takes the full walker. Each shape below was measured; the PRs hold the per-row tables.
+Each shape below was measured; the PRs hold the per-row tables.
 - **One walker for all text**: the full walker costs about 3 times the counter per segment in Chrome and Safari and 5
   in Firefox, so chat `layout()` would take 2-7 times main's time (#340, 2026-09-24).
 - **A count that sets a line's width from its first segment**, instead of starting at 0 and adding: 1.4-1.7 times
@@ -1269,14 +1232,12 @@ Firefox 155.
 
 #### Scroll Height
 
-Chrome and Safari cap an element near 33.5 million px and Firefox near 17.9 million, going by engine coordinate
-storage, not measured, and iOS Safari can crash above about 500,000px while the scrollbar is dragged (vibescript
-`Scrolling.md`). The 10,000-message chat is 1.0-1.8 million px. On the maintainer's iPhone (2026-09-16), main at
-10,000 messages scrolled fine, and at 100,000 froze during preparation and crashed, where draft #312's chunked window
-worked (Dead Ends). Fixes for the cap that need no chunking, none built: owning the scrolling in JavaScript, which
-`Scrolling.md` advises against, a scroll area a few screens tall with content shifted near its edges, or lossy scaled
-scrolling. Without `<!DOCTYPE html>`, quirks mode made `documentElement.clientHeight` the document's height, so the
-masonry demo mounted every item and crashed iOS Safari (ffc2a757, 2026-03-23).
+Chrome and Safari cap an element near 33.5 million px and Firefox near 17.9 million, going by engine coordinate storage,
+not measured, and iOS Safari can crash above about 500,000px while the scrollbar is dragged (vibescript `Scrolling.md`).
+The 10,000-message chat is 1.0-1.8 million px. Fixes for the cap that need no chunking, none built: owning the scrolling
+in JavaScript, which `Scrolling.md` advises against, a scroll area a few screens tall with content shifted near its
+edges, or lossy scaled scrolling. Without `<!DOCTYPE html>`, quirks mode made `documentElement.clientHeight` the
+document's height, so the masonry demo mounted every item and crashed iOS Safari (ffc2a757, 2026-03-23).
 
 #### Classic Scrollbars
 
@@ -1337,7 +1298,7 @@ passes were page history. Hence one context for the page, kept through `clearCac
 **`system-ui`.** Blink's font cache key holds the zoomed size while `opsz` follows the specified size
 (`font_description.cc:308-331`, `font_platform_data_mac.mm:170-178`), so a `system-ui` width depends on whether the
 DOM or a Canvas made the font first, and a context at `text-rendering: auto` shares the page's key: measuring can move
-the page's own text (16px drew 71.24 px wide instead of 81.125 px). `optimizeLegibility`, which Chrome's own measuring
+the page's own text (PLATFORM_BUGS.md has the repro). `optimizeLegibility`, which Chrome's own measuring
 uses, keeps a context apart; main's keeps `auto`. Issue #336 has the rest. (Chrome 153, 2026-09-16 to 09-18.)
 
 **HanKerning.** The profile adds Blink's halts itself (`src/han-kerning.ts`) because Canvas halts a pair only inside
@@ -1359,11 +1320,13 @@ where the DOM draws a fallback glyph 1 em wide. (Chrome 153, 2026-09-16 to 09-23
 
 **Letter spacing and tabs.** Blink gives cursive-script runs no letter spacing except on spaces
 (`shape_result.cc:977-990`), spaces a glyph cluster once, and turns liga, clig and calt off under any spacing
-(`font_features.cc:54-86`). Its tab stops are eight Canvas space advances rounded up to 1/128 px at DPR 2
-(`simple_font_data.cc:225-240`); read in source only, it skips to the next stop when less than half a space is left
-and counts letter spacing in stops. The profile models neither the cursive rule nor the skip (ENGINE_FOLLOWUPS.md).
+(`font_features.cc:54-86`). Its tab stops are eight Canvas space advances plus the letter and word spacing
+(`font.cc:303-317`), rounded up to 1/128 px at DPR 2 (`simple_font_data.cc:225-240`), and it skips to the next stop
+when less than half a space is left (`font.cc:333-337`). The recordings show the spacing in the stops: a tab-only line
+in 16px Arial is 27.563px at −1px letter spacing and 35.563px at 0 (Chrome 154, recordings at b1fd05fc). The Chromium
+profile takes stops of spaces alone with no skip, which a unit test pins ("letterSpacing participates in pre-wrap tab
+positioning"), and doesn't model the cursive rule (ENGINE_FOLLOWUPS.md). (Chrome 153 source, 2026-09-16 and 09-27.)
 <!-- Q18: recommendation taken; the maintainer hasn't answered --> <!-- Q18 note: side findings 2 and 3 become ENGINE_FOLLOWUPS gaps -->
-(Chrome 153, 2026-09-16.)
 
 **Line breaking.** Blink's ICU restarts at every line start with no context, so LB20a applies there (`a‐b` under
 break-all and loose gives `a` / `‐b`); the Blink scan makes one pass per text, differing in 86 of 188,274 verdicts (old
@@ -1386,7 +1349,9 @@ English UI. (Chrome 153, 2026-09-19 to 09-23.)
 **Canvas prices.** A first ask costs about 1 µs plus 0.06 µs a character (0.25 µs for Arabic), a repeat on the same
 canvas 0.14 µs at any length while another canvas pays in full, a new font size 30-45 µs, and a new context measured
 once 21-26 µs. A question costs Chrome about 1 µs from scratch, WebKit 0.12-0.17 µs and Firefox 0.22-0.32 µs, so
-Chrome's time is its question count. (Chrome 153, 2026-09-18 and 09-19.)
+Chrome's time is its question count. Resolving a fallback font the first time is the browser's own cost, which moving it
+to start-up doesn't shrink: for a Devanagari word, 3.0-3.25 ms in Helvetica and 16.6 ms in SF Mono in Chrome, 0.4-6 ms
+in Safari and 0.2-1.7 ms in Firefox (installed browsers, 2026-09-16). (Chrome 153, 2026-09-18 and 09-19.)
 
 **`getTextClusters()`.** Behind the `ExtendedTextMetrics` flag (off in Chrome 153; in windows and workers), it returns
 every cluster position of a string as Blink's own 16.16 sums, across fallback fonts and spacing. It took the redo's
@@ -1396,14 +1361,6 @@ says nothing of safe breaks, which Blink keeps per glyph; a flag for them would 
 of 2026-09-23 (read through a summarizer) its Intent to Ship had slipped to Chrome 157 at the earliest and WebKit was
 negative. Shipping it reopens the redo's speed floors (Dead Ends, The Per-Engine Redo); its two filed bugs are in
 PLATFORM_BUGS.md. (Chrome 153, 2026-09-20.)
-
-**Costs that aren't Pretext's.** Resolving a fallback font the first time is browser work: for a Devanagari word,
-3.0-3.25 ms in Helvetica and 16.6 ms in SF Mono in Chrome, 0.4-6 ms in Safari and 0.2-1.7 ms in Firefox, and moving it
-to startup doesn't shrink it (installed browsers, 2026-09-16). `TextMetrics::Update` computes every run's ink box on
-each `measureText()` (`text_metrics.cc:95-224`) though most callers read only `width` (Dead Ends, Simplifications Held
-Back). Blink's inline-box rules, such as the empty first line it makes when text-indent alone overflows a narrowed
-slot, where a port that forgets placed floats loops forever (`line_breaker.cc:4225-4248`), are in `rebuild/DESIGN.md`.
-(Chrome 153 source, 2026-09-16 to 09-20.)
 
 #### Safari (WebKit)
 
@@ -1454,26 +1411,11 @@ With no break that fits, Safari overflows with the hyphen where Chrome and Firef
 (`abc­def­ghi` at 26px; Safari 26.5.2), and inside spans it charges the hyphen and then backs off to an earlier break,
 which the WebKit profile doesn't model (webkit-host, 2026-09-26).
 
-**Box edges and zoom.** Safari 27 shapes complex RTL text across undecorated inline box edges as one run
-(`TextShapingAcrossInlineBoxes`, `InlineLineBuilder.cpp:780-1028`), so such a box's width is its share, which Canvas
-gives only at the run's ends; when RTL reordering splits a span, only the first box gets the start edge
-(`computeIsFirstIsLastBox`). Hyphenation points come from Core Text, out of Canvas's reach. <!-- Q3: recommendation taken; the maintainer hasn't answered -->
-Page zoom scales lengths and font sizes before the
-1/64 px truncation, Canvas never applies it, and a page can't tell zoom from `devicePixelRatio` (read in source only).
-(WebKit source, 2026-09-16 to 09-18.)
-
-**Tabs.** Safari 27's source still skips to the next stop when less than half a space would remain
-(`FontCascadeInlines.h:76-93`, read 2026-09-27), as the profile does. On Safari 26.5.2's rows that rule fixed 70
-left-to-right and 8 right-to-left tab rows, where WebKit trunk's threshold, half the advance of `0`, lost 10 and 6 more
-(old suite, removed 2026-09-25), so check which one each Safari ships. <!-- Q7: recommendation taken; the maintainer hasn't answered -->
-Stops use the font of the inline box that holds the
-tab (WebKit #230339, open since 2021). (Safari 26.5.2, 2026-09-12.)
-
-**NEL and keep-all dictionary scripts.** The NEL letter spacing the profile models (`src/analysis.ts`) was measured
-only in Safari 26.5.2. Under keep-all, Safari 26.5.2 broke Thai, Lao, Khmer and Myanmar only at spaces and ZWSP, and
-the WebKit scan matched 314 of 315 such rows where pre-#340 main matched 153 (old suite, removed 2026-09-25), so its
-27.6% more Canvas calls there were the price of right lines (2026-09-15).
-<!-- Q7: recommendation taken; the maintainer hasn't answered -->
+**Tabs.** Safari 27's source takes stops of eight spaces without the letter spacing and skips to the next stop when
+less than half a space would remain (`FontCascadeInlines.h:76-93`, read 2026-09-27), as the profile does, and its
+tab-only lines in the recordings are eight spaces plus one letter-spacing gap (webkit-host at b1fd05fc). CSS Text's
+minimum is half a `0` (0.5ch), which Gecko follows (Engine Facts, Firefox). Stops use the font of the inline box that
+holds the tab (WebKit #230339, open since 2021; Safari 26.5.2, 2026-09-12).
 
 **Emoji and the segmenter.** WebKit's DOM emoji width equals OffscreenCanvas's at the CSS size, bit for bit from 8 to
 32px, so a "size × DPR ÷ DPR" recipe is wrong there by up to 3.5 px, and its OffscreenCanvas gives a space followed by
@@ -1489,11 +1431,6 @@ to segment a short range, so the scans keep one for the page, and its `containin
 the set is empty (`FontCascadeCache.cpp:104-115`), and the set tells its observers before inserting
 (`CSSFontFaceSet.cpp:203-209`). Chrome's and Firefox's old contexts pick up a loaded family by themselves.
 (webkit-host, 2026-09-20.)
-
-**Fit allowance.** `availableWidth()` adds `LayoutUnit::epsilon()`, 1/64 px, except for a minimum intrinsic width
-(`InlineLineBuilder.cpp:1171-1182`, read 2026-09-27): the profile's `lineFitEpsilon` is that rule, not tuning. Blink
-and Gecko fit exactly in their own units (Measurement Model), so the other profiles' 0.005 px is a named gap
-(ENGINE_FOLLOWUPS.md).
 
 #### Firefox (Gecko)
 
@@ -1539,11 +1476,13 @@ unsigned count (`:249-289`), so a span starting between two marks of one cluster
 wide. (Firefox 156, 2026-09-17 to 09-23.)
 
 **Letter spacing.** Gecko spaces a text run's last character whatever it is, and others only where they aren't a tab
-or formatting character and a cluster starts after them: a tab alone on a pre-wrap line at 1px spacing is 43.6 px
-natively and 44.6 px painted alone. After a removed soft hyphen, a mark takes spacing as its own base.
-`letterSpacing = '0.001px'` turns ligatures off as the DOM's non-zero spacing does and adds nothing, in Firefox 153
-and later, so a port can add spacing in JavaScript; Firefox 140 ESR adds 0.00104 px a character and has no `ctx.lang`,
-and ESR is dropped where it costs complexity (Part 1, Lines Drawn). (Firefox 156, 2026-09-17 to 09-20.)
+or formatting character and a cluster starts after them (`CanAddSpacingAfter`, `nsTextFrame.cpp:3860-3873`): a tab
+alone on a pre-wrap line at 1px spacing is 43.6 px natively and 44.6 px painted alone. A tab before a change of
+direction ends a left-to-right text run too, so it takes a gap in `a\tبِبِ((tail` (44.6px at 1px in 16px Arial), which
+the Gecko profile can't see where it resolves no levels (Bidi Levels). After a removed soft hyphen, a mark takes spacing
+as its own base. `letterSpacing = '0.001px'` turns ligatures off as the DOM's non-zero spacing does and adds nothing, in
+Firefox 153 and later, so a port can add spacing in JavaScript; Firefox 140 ESR adds 0.00104 px a character and has no
+`ctx.lang`, and ESR is dropped where it costs complexity (Part 1, Lines Drawn). (Firefox 156, 2026-09-17 to 09-27.)
 
 **Breaks.** The Gecko scan ports Gecko's rules (Break Opportunities From Engine Data), such as keeping `-` with a
 digit (`COVID-19`) and breaking after `/` before an ASCII letter, where Chrome and Safari do the opposite. What it
@@ -1574,8 +1513,8 @@ Helvetica Neue), with no traced break moved; synthetic bold differs the same way
 element at the device size matched 243 of 243 units; why Firefox still measures on an OffscreenCanvas is under Dead
 Ends, DOM And Canvas-Element Paths. (Firefox 156, 2026-09-17 and 09-18.)
 
-**Optical sizing.** Firefox's OffscreenCanvas never applies automatic optical sizing (`nsFont.cpp:276-279`;
-Mozilla #2020917), so its `system-ui` is the page's family at another optical size, not another font, and every font with an
+**Optical sizing.** Firefox's OffscreenCanvas never applies automatic optical sizing (`nsFont.cpp:276-279`; Mozilla
+#2020917), so its `system-ui` is the page's family at another optical size, not another font, and every font with an
 `opsz` axis mismeasures the same way on every OS, web fonts included (Inter, Roboto Flex, Source Serif 4). Issue #336
 has the `system-ui` sweep. (Firefox 156, 2026-09-17 and 09-18.)
 
@@ -1586,10 +1525,16 @@ context with `lang = ''` follows the root element's `lang` on the page and the O
 `devicePixelRatio`, which a worker lacks, misleads on the page too: 2 in a `display: none` iframe, 1 in a removed one,
 and 2 under `privacy.resistFingerprinting` where layout is at 1. (Firefox 156, 2026-09-19.)
 
-**Tabs.** Firefox takes `tab-size` from the text frame but the space width from the containing block
-(`nsTextFrame.cpp:3875-3906`), where WebKit takes both from the span and Blink the span's `tab-size` with the block's
-font. A tab's position counts an advance only where a cluster starts (`:4349-4357`), and under letter spacing a tab
-grows by nine times the spacing. (Firefox 156 source, 2026-09-16.)
+**Tabs.** A stop falls every `tab-size` × (the containing block's space advance, rounded to app units, plus its letter
+and word spacing), with `tab-size` from the text frame (`ComputeTabWidthAppUnits`, `nsTextFrame.cpp:3875-3906`), where
+WebKit takes both from the span and Blink the span's `tab-size` with the block's font. The next stop is the first at
+least half the first font's `0` advance away (`AdvanceToNextTab`, :4298-4304; `GetMinTabAdvanceAppUnits`,
+:1931-1937). A tab's position counts an advance only where a cluster starts, plus each character's spacing
+(`CalcTabWidths`, :4306-4378), and a tab takes a gap of its own only where it ends its text run (Letter spacing, above).
+Firefox 156.0.1's recordings agree: a line holding only a tab that isn't the text's last character is 8 × (space +
+letter spacing) wide, as in 16px Arial at −1, 0 and 1px: 27.6, 35.6 and 43.6px. The Gecko profile takes stops of spaces
+alone, with no minimum and a gap on every tab (ENGINE_FOLLOWUPS.md). (Firefox 156.0 source, 2026-09-16 and 09-27;
+recordings at b1fd05fc.)
 
 Two Firefox facts live with their topics: a context first used before Firefox reads its late family names keeps the
 fallback (PLATFORM_BUGS.md, the late family names), and the joined Arabic study with its per-grapheme ZWJ recipe is
@@ -1606,7 +1551,7 @@ evidence first (Part 1, Docs). <!-- Q1: recommendation taken; the maintainer has
 <!-- Q2: recommendation taken; the maintainer hasn't answered -->
 
 Unless an entry says otherwise, the work was an agent's. A reopen condition several entries share is *contextual widths
-during preparation*: measuring text in its neighbours' context at `prepare()` time, which Pretext doesn't do and Chrome's
+during preparation*: measuring text in its neighbors' context at `prepare()` time, which Pretext doesn't do and Chrome's
 `getTextClusters()` could make cheap (Engine Facts, Chrome). The old suite's numbers appear only where a decision rests
 on them. <!-- Q7: recommendation taken; the maintainer hasn't answered -->
 
@@ -1636,11 +1581,9 @@ the numbers come from the transcripts. All of it predates the engine scans and t
   spaces and hyphens only), canvas-hypertxt (a trained weighting), chenglou/text-layout (Sebastian Markbage's
   prototype), tex-linebreak (Knuth-Plass, for quality) and foliojs/linebreak (UAX #14). None predicts the browser's own
   lines.
-- **pdf.js**, read 2026-09-13 for ideas. Worth borrowing: one span per text run with `dir`, letting the browser reorder;
-  scroll anchored as a point on the first visible page; carets from the painted DOM; offsets mapped through white-space
-  normalization by a sparse edit table, an idea for #90 if built lazily. Not to borrow: `scaleX` stretching to hide
-  mispredictions, CSS-transform zoom, default-size estimates, observers and timers. Its bidi code was the source of
-  Pretext's old "30% RTL" guess, which #82 showed wrong.
+- **pdf.js**, read 2026-09-13 for ideas rather than tried: its sparse edit table mapping offsets through white-space
+  normalization is one for #90, built lazily; its `scaleX` stretching, which hides mispredictions, is the opposite of
+  Pretext's aim.
 
 #### Rules Per Input Shape
 
@@ -1682,7 +1625,7 @@ Mostly main then, on the old suite in installed browsers, 2026-09-11 to 09-24.
 <!-- Q7: recommendation taken; the maintainer hasn't answered -->
 
 - **A ZWSP right after a forced break inside a word**: all three browsers give it its own line, but copying that lost
-  290-560 results per browser, as six unmodelled behaviours had hidden behind the old handling. Reopens once joined
+  290-560 results per browser, as six unmodelled behaviors had hidden behind the old handling. Reopens once joined
   Arabic widths and letter spacing on invisibles land (the U+3000 hang, the third prerequisite, has).
 - **Letter spacing on invisible characters.** Taking the gap off every invisible lost 73 cases, a required Firefox check
   among them (2026-09-11); a 14-line patch gave +442 / −172 cases, its losses passes that leaned on a cancelling bug
@@ -1693,14 +1636,14 @@ Mostly main then, on the old suite in installed browsers, 2026-09-11 to 09-24.
   Chrome; about 150 each in Firefox and Safari), and deleting raw CR or making it a zero-width break failed too. CR
   reaches normalization, segment kinds, measurement, line text, cursors, bidi, rich inline and the harness, so Pretext
   expects normalized line endings (README). Reopens with a per-engine model traced from the engines' line builders.
-- **Folding invisibles into neighbouring text** (2026-09-15/16, porting the scans): the offline replay lost 776 real
+- **Folding invisibles into neighboring text** (2026-09-15/16, porting the scans): the offline replay lost 776 real
   rows, since controls got zero width where browsers give them width, and folded soft hyphens and ZWSPs take letter
   spacing and width the page doesn't give them (1,887 Chrome and Safari rows in the old suite's gate). The variant that
   marks break bits lost 112 and became the design (Break Opportunities From Engine Data).
 - **Leaving invisibles out of Chrome's Canvas strings** (the redo, 2026-09-16) cost 325 line counts, as Canvas then
   joined emoji sequences and Arabic letters the page keeps apart; U+2060 in their place matched (Measurement Model). A
   rule choosing which to drop was removed as fitted to lab scores.
-- **NEL joined to its neighbours**: joined before, overlong words split at Canvas grapheme widths; joined both sides, a
+- **NEL joined to its neighbors**: joined before, overlong words split at Canvas grapheme widths; joined both sides, a
   following mark took a 12 px advance. The scans now take NEL as class NL.
 - **Soft-hyphen returns**, going back from an unfit soft hyphen to an earlier break. Returning past breaks with no
   segment kind lost 142 Chrome rows: a return needs an overflow isolated widths show, and a target that really is the
@@ -1742,7 +1685,8 @@ Mostly main then, on the old suite in installed browsers, 2026-09-11 to 09-24.
   as letters.
 - **Chrome Canvas settings for kerning across spaces** (`optimizeLegibility`, `fontKerning = 'normal'`) make Canvas
   shape whole strings only for fonts whose lookups involve the space glyph, and turn features on for every measurement,
-  so the port follows Canvas's cuts (`「」「」「」` measures 96 against 80 px). Reopens if Canvas gains a whole-string mode.
+  so the port follows Canvas's cuts (Engine Facts, Chrome, has which fonts). Reopens if Canvas gains a whole-string
+  mode.
 - **WebKit letter-spaced ligatures** (the redo, from 2026-09-17). No Canvas string sets two letters side by side
   unligated in one shaping call (U+200C ends the simple path's call, U+034F doesn't stop the ligature, U+180B brings a
   fallback glyph), and a heuristic for the group couldn't be grounded (a probe 1.9 px off). A connected `<canvas>`
@@ -1966,8 +1910,6 @@ group. Most are parked for the API discussion (TODO.md), not refuted.
 - **Removing the prefix-measurement cache**: 79% more cold Canvas calls.
 - **A growing bracket, then bisection, in the line counter** (the redo): 59% faster than a global binary search at
   narrow widths, 17% slower at wide ones; one counter was kept.
-- **Holding check runs while timed benchmarks run** (2026-09-20): timed jobs held the queue about 90% of the night and
-  the built-in version deadlocked twice. Moving other work to the efficiency cores (`taskpolicy -b`) replaced it.
 - **Upstream patches for engine hot spots** (2026-09-20): lazy ink bounds in `TextMetrics::Update`, per-call bidi and
   itemization, the font setter's fast path. Drafts only; nothing was posted. Reopens with the bugs to file at the end of
   the project (ENGINE_FOLLOWUPS.md).
@@ -2003,7 +1945,7 @@ something. "Main" here is pre-#340 main.
   more lines).
 - **Owned rendering**, drawing fixed fragments instead of letting the browser lay out painted lines: rejected before
   timing, since ordinary narrow Latin and Arabic words overflow and valid rich style boundaries were refused. Reopens
-  only with a probe that first establishes the required behaviour.
+  only with a probe that first establishes the required behavior.
 - **A reverse-engineered Core Text in JavaScript**, the maintainer's first idea for the redo (2026-09-16): a copy needs
   font bytes a page doesn't have for `16px -apple-system`, and Safari's Canvas already runs Core Text on the device's
   fonts (Measurement Model). Bring-your-own-font, HarfBuzz in WASM over the app's web fonts, reached about 13.4% of
@@ -2022,21 +1964,13 @@ something. "Main" here is pre-#340 main.
 
 #### Test And Harness Designs
 
-- **The old wrapping suite, replaced wholesale** (#341, removed 2026-09-25; measured 2026-09-17 on pre-#340 main):
-  main's line-count passes hid wrong lines (Reading Browser Output); 120 near-copies differing by one control character
-  weighed as 120 families; 88% of its 238,524 cases sat under 80 px; each browser ran all three browsers' widths; its
-  score mixed repros with usage. On 4,686 real paragraphs main's line count passed 99.96-100%, so its 20-26% failure
-  rate came from adversarial families and narrow widths (`rebuild/research/CALIBRATION.md`). The harness's pass rule and
-  sets answer each point (harness/README.md).
+- **The old wrapping suite**, replaced wholesale (#341; removed 2026-09-25): harness/README.md, "Why the old suite
+  went", has why.
 - **Scoring the hyphen drawn at a soft-hyphen break** from the painted boxes found 93-358 mismatches per browser and was
   left to `layout.test.ts`; loading system font files as web fonts changed Safari's results (no date or numbers kept).
   Reopens with a way to see the drawn hyphen (harness/README.md, Bounds and blind spots).
 - **Old-suite proposals the new pass rule made moot** (2026-09-17): not counting a row as lost when main's own lines
   were already wrong, and recording line placement for the grid and corpora.
-- **Noise floors from the single worst reading** (the bench's calibration, 2026-09-26): the worst readings came from
-  lone documents where even the control copy ran long (Reading Browser Output), and floors taken from them would have
-  hidden a real 20-25% slowdown. The floors are the largest deviation that held one way in all three sessions (1-6% by
-  row), which calls all four known slowdowns (217c84b8 against 6d1d2106).
   <!-- Q14 placeholder: whether `bun harness repin` samples before recording everything; if sampling is tried and rejected, its entry goes here -->
 
 ### Evaluation Traps
@@ -2060,7 +1994,7 @@ enforces; the rest are habits. AGENTS.md names six. Builds are as Part 2's openi
   Check the oracle's normalization before calling a loss real. The old suite used the Mac's installed fonts, so results
   moved with macOS updates; the harness serves pinned font files and keys on them.
 - **Passing the oracle isn't enough.** The cleanest of three keep-all implementations passed every oracle case and was
-  wrong under the Safari profile (`foo。bar日本語`), a case no oracle covered: test the behaviour class a change touches
+  wrong under the Safari profile (`foo。bar日本語`), a case no oracle covered: test the behavior class a change touches
   under every profile. A 29-line partial of an old rule matched every suite row but by Firefox's source got three shapes
   wrong: say "no measured loss" and probe what the source predicts. A clean proof on recorded cases can miss a whole
   class (no recorded text sat at a cut in a ligature font; Dead Ends, Fitting, Cuts And Fast Paths), so build an attack
@@ -2126,13 +2060,13 @@ enforces; the rest are habits. AGENTS.md names six. Builds are as Part 2's openi
   value from the library under test.
 - **Catalog growth leaks.** Each template family keeps a case, so a variant per family gets past the dedupe, and nothing
   old drops out. The Chrome HanKerning fix first added 72 families (9 marks × 4 endings × 2 languages), 751 cases and 18
-  new accepted failures, then was cut to 41 cases and a unit test. The dedupe's classes are coarser than behaviour (`」`
+  new accepted failures, then was cut to 41 cases and a unit test. The dedupe's classes are coarser than behavior (`」`
   and `。` share one, though Chrome trims `」` and never `。`). An exact rule goes in a unit test, and a fix adds a few
-  templates in the behaviour's shape, not a cross product (harness/README.md).
+  templates in the behavior's shape, not a cross product (harness/README.md).
   <!-- Q3: recommendation taken; the maintainer hasn't answered -->
 - **Main's own "facts" can be inherited opinions**: of 159,163 Chrome "visible pass" labels pre-#340 main carried, 678
   were refuted and 842 inconclusive. Triage main's passes by observation alone, as a fact to learn, an accident or an
-  opinion to drop: admit browser behaviour, never main's code. Main's unit tests still hold real browser facts the
+  opinion to drop: admit browser behavior, never main's code. Main's unit tests still hold real browser facts the
   redo's lab never saw (`rebuild/research/MAIN-FACTS-ANALYSIS.md`).
 - **A README claim checked offline only** (2026-09-26): splitting pre-wrap text at `\n` and counting each empty
   paragraph as a line matched a stand-in Canvas on 588 of 592 cases but failed about 190 of 10,087 browser comparisons
@@ -2160,8 +2094,9 @@ enforces; the rest are habits. AGENTS.md names six. Builds are as Part 2's openi
   choosing the old painter, which became bug #296: confirm what a short reply approves. A recorded prerequisite can be
   wrong (ENGINE_FOLLOWUPS.md said Firefox's styled-piece breaks needed a model of its segmentation; one engine setting
   sufficed), so re-verify one before planning around it.
-- **Answering "is this the last blocker?" before a sweep has targeted it** (2026-09-18): asked whether Firefox's
-  `<canvas>` element was the last big obstacle to `system-ui`, the answer rested on the rows seen so far; its
+- **Answering before a sweep has targeted the question** (2026-09-18): asked whether Firefox's `<canvas>` element was
+  "roughly the last architectural blocker" for `system-ui` (the maintainer's words), the answer rested on the rows seen
+  so far; its
   style-flush and memory costs (Dead Ends, DOM And Canvas-Element Paths) came out only when probes targeted them.
 
 #### Timing
@@ -2174,9 +2109,11 @@ enforces; the rest are habits. AGENTS.md names six. Builds are as Part 2's openi
   doesn't mean a quiet machine (a fixed arithmetic probe ran 60.7 ms before one run and 29.1 ms after). Record the load,
   treat loaded runs as upper bounds, and check a number against its source before it becomes a reference.
 - **Same-document ratios.** Base and change alternate in one document with a second base copy as a noise control, since
-  ratios within a document survive machine-wide slowdowns; timed apart, Safari's hybrid read 0.6, 0.3 and 0.7× main
-  where it was 0.82, 0.52 and 0.99× (2026-09-23/24). Order is shuffled every round, and samples last at least 20 ms: 5
-  ms ones inflated Chrome's replay floors 40-75% and let GC pauses of 55-160 ms decide medians.
+  ratios within a document survive machine-wide slowdowns: sessions drifted apart by 5-19% (2026-09-25), and timed
+  apart, Safari's hybrid read 0.6, 0.3 and 0.7× main where it was 0.82, 0.52 and 0.99× (2026-09-23/24). Order is
+  shuffled every round, since in a fixed order a variant inherited the leftover work of the one before (18.7× where the
+  real figure was 13.4×, September 2026), and samples last at least 20 ms: 5 ms ones inflated Chrome's replay floors
+  40-75% and let GC pauses of 55-160 ms decide medians.
 - **Focus and visibility.** A background window's timers are slowed, so timed runs check visibility and focus around
   each sample and fail rather than save. Using the Mac during a run failed all six Safari attempts; light concurrent
   work, or the bench window opening on another screen, moved Safari's `prepare()` by 1-2 ms of 11. An app's embedded
@@ -2227,8 +2164,8 @@ record the new decision here with its date; an entry that replaces another says 
   style update in every `measureText()`, each live one joins the refresh driver, and workers have none (Dead Ends, DOM
   And Canvas-Element Paths). On 2026-09-19 the maintainer allowed it only if it proved light and worked in workers,
   which it didn't. If it's ever taken, Firefox switches wholly, not only for `system-ui`.
-- **2026-09-23: each engine's own tables and scans find break opportunities**, in place of Pretext's rules and the
-  UAX #14 table. The maintainer accepted the bundle growth, about 30 KB gzipped then, because the tables made analysis much
+- **2026-09-23: each engine's own tables and scans find break opportunities**, in place of Pretext's rules and the UAX
+  #14 table. The maintainer accepted the bundle growth, about 30 KB gzipped then, because the tables made analysis much
   faster, and left one check for the end of the project: whether they could shrink or give way to cheap computation.
   That check is closed (2026-09-26, below).
 - **2026-09-23: premises nobody has falsified may be taken for speed.** The maintainer relaxed the correctness-first
@@ -2243,8 +2180,7 @@ record the new decision here with its date; an entry that replaces another says 
   of the tables' bundle that day covers it.
   <!-- Q18: recommendation taken; the maintainer hasn't answered -->
 - **2026-09-23: a new harness replaces the old suite, and what must not regress is decided afresh**, since main's tests
-  were old. The engine tables landed first (#340), judged by the old suite's installed gate, the real-text sets and an
-  attribution of every lost row; then the harness (#341), then the old suite's removal (#348). harness/README.md, "Why
+  were old: the engine tables (#340), then the harness (#341), then the suite's removal (#348). harness/README.md, "Why
   the old suite went", has the reasons.
 - **2026-09-24: no must-pass tier.** Every repeatable case is pinned the same way, and a change that fails one puts it
   on the accepted list with a written reason. A hard trade-off in the heuristics then gets marked case by case where
@@ -2275,11 +2211,10 @@ record the new decision here with its date; an entry that replaces another says 
   `JSON.stringify()` turns into an object without a `length`, so the line walkers never finish on a JSON copy.
   `structuredClone()` and `postMessage()` copies work, and README calls the handle opaque. Cursors and ranges are plain
   JSON and resume the same from a JSON copy.
-- **2026-09-25: the old wrapping suite, its snapshots and its diagnostic tools are gone.** Accuracy claims rest on the
-  harness's recordings and accepted lists, speed on `bun harness bench`'s same-document ratios in PR descriptions;
-  nothing timed is checked in. What the harness took from the old suite (adversarial families, rich items, oracles)
-  stays frozen, since the generator went with it. The benchmark page went once the bench's noise floors were calibrated
-  and it called a known change (Reading Browser Output).
+- **2026-09-25: the old wrapping suite, its snapshots, its diagnostic tools and the benchmark page are gone.** Accuracy
+  claims rest on the harness's recordings and accepted lists, speed on `bun harness bench`'s same-document ratios in PR
+  descriptions, and nothing timed is checked in; the benchmark page went once the bench's floors called a known change
+  (harness/README.md, Bench). What the harness took from the old suite stays frozen, since its generator went with it.
 - **2026-09-25: the npm package doesn't ship the demos (#342).** The README calls them exemplary API usage and asks
   agents writing Pretext code to clone the repo and play with them. Shipping them runnable from an install took the
   tarball from 238 kB to 620 kB, needed a Bun-only server script and shipped again content whose licenses aren't

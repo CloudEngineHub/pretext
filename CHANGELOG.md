@@ -14,8 +14,8 @@
 - Safari's line breaking follows Safari 27. Safari 26, on macOS 26 and iOS 26, breaks differently around curly quotes and guillemets, after punctuation with `word-break: keep-all`, at U+2028 and U+2029, and after a first character too wide for its line (#340).
 - In Chrome, text on a page without a `lang` now breaks and measures under Chrome's UI language, as Chrome lays it out: under a Chinese UI, curly double quotes wrap as brackets (#340).
 - `layout()` is two to three times faster in Chrome and Safari on text without letter spacing, preserved spaces, tabs, hard breaks, soft hyphens or invisible controls other than zero-width spaces, which covers most prose (#338).
-  <!-- Q8: recommendation taken; the maintainer hasn't answered -->
-- Bundles that import Pretext are about 5 KB smaller gzipped and 16 KB smaller minified, since Safari's check for keeping a word's kerning with a following space no longer uses a generated bidi class table (#311).
+<!-- Q8: recommendation taken; the maintainer hasn't answered -->
+- Bundles that import Pretext are about 5 KB smaller gzipped and 16 KB smaller minified, from a smaller check for when Safari keeps a word's kerning with a following space (#311).
 - `setLocale(locale)` now sets the language that later `prepare()`, `prepareWithSegments()` and `prepareRichInline()` calls break lines and measure under, in place of the page's `<html lang>`, which a worker doesn't have; `setLocale()` without a locale goes back to `<html lang>`. It no longer picks a locale for word boundaries: no locale changes the ones Pretext still reads, inside Thai, Lao, Khmer and Myanmar text (#340, #356).
 - `prepare()`, `prepareWithSegments()` and `prepareRichInline()` now throw a `RangeError` for a `letterSpacing` that isn't finite, such as `NaN` or `Infinity`, which gave lines of width `NaN`, or a line per grapheme (#356).
 
@@ -40,7 +40,7 @@
 - A run of no-break spaces (U+00A0, U+202F or U+2007) between other break opportunities, such as between two spaces, now breaks where it overflows its line, as browsers do, instead of staying on one line (#340).
 - In Firefox, a newline between East Asian characters no longer adds a space, and on `ja` and `zh` pages neither does one next to East Asian punctuation (#340).
 - In Firefox, a soft hyphen where the line could break anyway, as after a space or between an ideograph and a Latin letter, no longer draws a hyphen or needs room for one (#340).
-- In desktop Chrome and Firefox, where a word holding an invisible control, such as a word joiner, breaks across lines, the part that starts the next line is now measured more like the browser measures it there, so narrow text around such controls wraps more as those browsers wrap it.
+- In desktop Chrome and Firefox, where a word holding an invisible control, such as a word joiner, breaks across lines, the part that starts the next line is now measured more like the browser measures it there, so narrow text around such controls wraps more as those browsers wrap it (a28b5428).
 - Paragraphs made only of zero-width spaces now occupy one line instead of disappearing (#223).
 - A zero-width space at the start of a paragraph or after a hard line break no longer disappears when the following text wraps to the next line (#227).
 - Lines can now break after `?`, and after `!` or other exclamation punctuation such as `؟` and `۔`, before a following word, as browsers do, including after a space or zero-width space. Chrome and Safari still keep `!` with a following ASCII letter or digit; Firefox breaks there too (#228).

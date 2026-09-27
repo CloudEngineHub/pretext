@@ -45,7 +45,7 @@ export type EngineProfile = {
   // clusters Chrome's rules give.
   graphemeTable: CharTable
   // What a line may overflow its width by and still fit: WebKit's own 1/64 px, which availableWidth()
-  // adds (InlineLineBuilder.cpp:1171-1182). Blink and Gecko fit exactly in their own units, so their
+  // adds (InlineLineBuilder.cpp:1172-1183). Blink and Gecko fit exactly in their own units, so their
   // 0.005 px is a named gap (ENGINE_FOLLOWUPS.md, Fitting arithmetic).
   lineFitEpsilon: number
   // Where an emergency break falls inside a segment. WebKit measures the word's grapheme
@@ -56,11 +56,9 @@ export type EngineProfile = {
   // only on a line narrower than itself, so every line at least this wide gets prefixes.
   // Gecko's 80px is a premise, not a browser rule: prefixes cost a Canvas call per
   // grapheme of every new word, most of the calls a lower floor adds are in words 24-80px
-  // wide, and taking them from 24px or everywhere made Firefox 156 prepare new Latin,
-  // Arabic and mixed messages and UI labels 28-68% slower (99 measureText calls per 1,000
-  // units against 62). Its gap is at 24-80px: 281 of the harness's Firefox cases fail
-  // there that prefixes pass, and 14 pass that they fail, one of them a real-usage draw
-  // (RESEARCH.md, Decisions Log).
+  // wide, and taking them from 24px or everywhere fixed adversarial lines at 24-80px but
+  // made Firefox prepare new text much slower (RESEARCH.md, Break Opportunities From
+  // Engine Data; Decisions Log).
   prefixFitMinWidth: number
   // WebKit measures a text item together with a directly following U+0020 and
   // subtracts one unshaped space, so the item keeps its kerning with that space

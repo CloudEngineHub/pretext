@@ -43,8 +43,10 @@ rich sets, were taken once, and `make.ts` can't make them again.
 The harness replaced main's `tests/wrapping` wholesale (#341) and decided afresh what mustn't regress, because a pass
 rate means something only against how much its cases matter.
 <!-- Q7: recommendation taken; the maintainer hasn't answered -->
-88% of the suite's 238,524 cases were under 80 px, one family was 120 copies differing by one control character, and it
-mixed repros with usage (old suite, removed 2026-09-25). The harness keeps its exhaustive width sweeps, since
+88% of the suite's 238,524 cases were under 80 px, one family was 120 copies differing by one control character, it
+mixed repros with usage, and its line-count passes hid wrong lines. On 4,686 real paragraphs pre-#340 main's line counts
+passed 99.96-100%, so the suite's 20-26% failure rate came from adversarial families and narrow widths (old suite,
+2026-09-17; removed 2026-09-25). The harness keeps its exhaustive width sweeps, since
 typography's bugs sit in combinations nobody can list, and tracks failures as well as passes, so a rewrite that moves a
 case outside what Pretext claims still shows.
 
@@ -55,23 +57,30 @@ New cases mustn't pile up into the old suite's repro per bug.
 
 - **A fix never adds to the sample**, which moves only with a sourced change to `weights.json`; otherwise the headline
   drifts toward the bugs someone looked at.
-- **A fix adds a few templates in the behaviour's shape.** A template is an input without a width.
-  `bun harness/sets/make.ts` finds where each browser's lines change across widths. The catalog keeps a change only
-  when it shows a kind of break no earlier template showed (the dedupe), the facts and rich sets keep each, and at most
-  three per template are cut, with cases 1/64 px either side, where the fit is exact to 1/64 px, and well inside each
-  layout. A template that shows nothing new adds almost nothing. Never a cross product or a family per variant: every
-  family keeps a case, so that gets past the dedupe. The Chrome HanKerning fix (#366) first made 72 families (9 marks ×
-  4 line endings × 2 languages), 751 cases (+2%) and 18 accepted failures, and landed with 41 cases and a unit test
-  (2026-09-27).
+- **A fix adds a few templates in the behaviour's shape**, and so does a behaviour modelled but never recorded. A
+  template is an input without a width, and a new one goes in a family of `sets/catalog.ts`, as #366's did; the facts
+  set was taken once from `layout.test.ts`. `bun harness/sets/make.ts` finds where each browser's lines change across
+  widths, and `sets/widths.ts`'s header says what it keeps and cuts: the catalog keeps a change only when it shows a
+  kind of break no earlier template showed (the dedupe). A template that shows nothing new adds almost nothing. Never a
+  cross product or a family per variant: every family keeps a case, so that gets past the dedupe. The Chrome HanKerning
+  fix (#366) first made 72 families (9 marks × 4 line endings × 2 languages), 751 cases (+2%) and 18 accepted failures,
+  and landed with 41 cases and a unit test (2026-09-27).
 - **An exact rule's full matrix is a unit test** on the fake Canvas, confirmed by a few browser cases, and replaces any
   test of the same rule. The dedupe's kinds of break are coarser than behaviour: `」` and `。` share a UAX #14 class, so
   it dropped the `。` inputs, though Chrome trims `」` and never `。`.
 - **The PR states each set's growth**; more than about 1% of a set needs a sentence on why.
 
+Searching the whole catalog again derives every generated case again (8,926 at b1fd05fc), so a browser's drift lands in
+the PR. #366 searched its own templates alone; a template added to an existing family should bring that family's older
+cases back byte for byte. `make.ts cut catalog` writes the whole file from the search state in
+`.artifacts/harness-sets/catalog/`, so after a partial search it keeps the frozen `main/*` cases and the searched ones
+and silently drops the other generated cases: remove that state when done.
+
 A repro's exact string may drop out when the sets are made again: its width moves to where the lines change, or its
 template shows nothing new. That's accepted, since the sets sample behaviour; the filed report, `explain` and the fix's
-PR keep the repro. `sets/exact.ts` pins a case exactly, past the width search and the dedupe. It's for filed reports and
-the rare case the dedupe can't see, each with a written reason: a hand-pinned repro per fix is how the old suite grew.
+PR keep the repro. `sets/exact.ts` pins a filed report's case exactly, past the width search and the dedupe, under its
+issue number; a case the dedupe can't see calls for a finer dedupe (below), not a pin, since a hand-pinned repro per fix
+is how the old suite grew.
 
 When the sets are made again, drop the templates that show nothing other templates don't, audit `src/layout.test.ts`
 against the facts set, and sweep the pins: search each as a template, without its width. If the dedupe keeps a change
@@ -82,16 +91,12 @@ read them at that commit.
 
 ## Commands
 
-- **Coming back to the project:** `repin chrome`, `repin firefox` and `repin safari` first. The installed browsers have
-  likely moved on, and each prints what the new build changes; `--write` takes it, in a commit of its own, and the
-  bench's floors are calibrated again.
-  <!-- Q14 placeholder: whether repin records a seeded sample first, and every case only if the sample differs, goes here once the maintainer answers -->
-- **Every iteration:** `bun test` and `bun harness check`.
-- **Before landing a change to `src/` or `harness/`:** `gate`. It adds a prediction in reverse order (a message mustn't
-  wrap otherwise because of what the app prepared before), a seeded 1,000 cases recorded again (the recordings must
-  still describe the browser), and each new failure recorded and predicted alone, to attribute it.
-- **One case or any paragraph:** `explain`. **A change meant to change nothing:** `equal main`, `--offline` first.
-  **A change to `src/`:** `bench main`, in the foreground.
+AGENTS.md's Validation says when to run `repin`, `check`, `gate` and `bench`. `gate` adds a prediction in reverse order
+(a message mustn't wrap otherwise because of what the app prepared before), a seeded 1,000 cases recorded again (the
+recordings must still describe the browser), and each new failure recorded and predicted alone, to attribute it.
+`explain` shows one case or any paragraph; `equal main`, `--offline` first, checks a change meant to change nothing; and
+`record --only-new` records new cases.
+<!-- Q14 placeholder: whether repin records a seeded sample first, and every case only if the sample differs, goes here once the maintainer answers -->
 
 ## Accepted and varying lists
 
@@ -105,15 +110,13 @@ judged; an `order` case only with what was predicted before it, so check judges 
 can't tell the library's caches from the browser's Canvas, so attribution never calls such a move a library defect.
 Chrome's per-canvas shape cache (Chromium #560614560) is the known cause of `order` cases.
 
-Page history misleads:
+Page history misleads (`RESEARCH.md`, Evaluation Traps, has the cases; Engine Facts, Safari, WebKit's caches):
 
-- A page-history label explains a failure only once the case fails the same way alone: in the per-engine rebuild's
-  lab (branch `rebuild-20260916`, September 2026), one covered `system-ui` failures that failed alone too.
+- A page-history label explains a failure only once the case fails the same way alone, and a webkit-host win or loss
+  counts only if it holds in fresh documents in both orders, or alone.
 - Two orders miss history both share, so the list is kept across every recording under one environment: one recording's
   two orders found 11 of webkit-host's 87 (2026-09-24). `repin` carries it to a new build; without that, 33 cases would
   have blocked when Firefox went to 156.0.1 (2026-09-25).
-- WebKit caches break positions process-wide by text, so identical text breaks otherwise after other layouts. A
-  webkit-host win or loss counts only if it holds in fresh documents in both orders, or alone.
 
 ## Proving "no change"
 
@@ -136,19 +139,21 @@ prepared once, as a virtualized list does, to `layout()` alone on resize. Never 
 is paid once, the other on every resize. New text means text no library or browser has laid out: Firefox and Safari
 keep shaped text per font, shared by every canvas and the DOM, so a fresh canvas doesn't make text new.
 
-- **A control copy.** Each document runs base, the candidate and a second copy of base, shuffled each round. Sessions
-  drifted apart by 5-19% (2026-09-25), which only same-document ratios survive, and in a fixed order a variant inherited
-  the leftover work of the one before (18.7× where the real figure was 13.4×, September 2026).
-- **Focus.** A background window's timers are slowed, so Chrome and Safari need a visible, focused window for the whole
-  run. Using the machine spoils the sessions it overlaps, and only those. Two sessions per browser are the budget
-  (`--sessions=2`); add one only when they disagree on a verdict that matters.
+- **A control copy.** Each document runs base, the candidate and a second copy of base, shuffled each round, since only
+  same-document ratios survive drift between sessions (`RESEARCH.md`, Evaluation Traps, has the numbers behind this
+  and the next two).
+- **Focus and a quiet machine.** A background window's timers are slowed, so Chrome and Safari need a visible, focused
+  window for the whole run. Using the machine spoils the sessions it overlaps, and only those; a loaded machine spoils
+  them all.
+- **Two sessions.** Pass `--sessions=2`, two per browser, and add one only when they disagree on a verdict that
+  matters. The default of 3 is what calibrating the floors takes.
 - **Floors** are the largest deviation the candidate or the control held in one direction in all three calibration
-  sessions, not the worst reading: one copy of the same code can run slower for a whole document (`RESEARCH.md`, Reading Browser Output), and floors
-  from such readings would have hidden a real 20-25% slowdown.
+  sessions (1-6% by row), not the worst reading. One copy of the same code can run slower for a whole document: timing
+  HEAD against itself on 2026-09-26, Firefox 156.0.1's base copy took about twice as long as the other two on kept CJK
+  handles in one session, and Safari 27.0's 15-21% longer on keep-all brackets in two. Floors from such readings would
+  have hidden a real 20-25% slowdown; these call all four known slowdowns (217c84b8 against 6d1d2106).
 - **WebKit's width cache** samples one Canvas call in 21 after a run of misses, so a repeated prepare speeds up after
   21 / gcd(n, 21) runs. Compare submitted text and cold first prepares.
-- **Load and power.** A loaded machine made timings up to 50 times wrong. The bench won't time on battery under 20%,
-  below which this Mac throttles.
 
 A full bench took about 27 minutes (2026-09-26); `--rows` narrows it. Nothing timed is checked in.
 

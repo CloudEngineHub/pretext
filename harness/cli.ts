@@ -355,9 +355,8 @@ export async function gate(browser: BrowserKind, cases: Case[], o: Options, io: 
 // Records every case into a scratch copy of the browser's recordings (`scratch`, a harness folder of its own), as record
 // does, and prints what changed against the recordings in `io.root`. A new environment starts the page-history list
 // empty and two orders find few of Firefox's (harness/README.md, Accepted and varying lists), so a case that was page
-// history stays so. `write`
-// replaces the recordings with the scratch copy and takes the cases now page history off the accepted list, as the gate
-// does.
+// history stays so. `write` replaces the recordings with the scratch copy and takes the cases now page history off the
+// accepted list, as the gate does.
 export async function drift(browser: BrowserKind, cases: Case[], o: Options, write: boolean, io: Io, scratch: string): Promise<void> {
   const paths = [recordingsPath, historyPath]
   mkdirSync(join(scratch, 'recordings'), { recursive: true })
