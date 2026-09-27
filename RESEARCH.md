@@ -1723,13 +1723,13 @@ loop. Made with `Array.from({ length: count }, () => 0)`, which reads every inde
 off the object and calls the map function for each, one more such array, the
 overflow trims about a quarter of the bench's CJK messages hold, made Chrome 154
 prepare seen CJK 5.7% slower than main in both sessions of two runs; with all four
-pushed in a loop, it read 11% faster than main (#364). layout()'s numeric count
-loop (`countPreparedLines()`) takes no overflow trims: a handle with any leaves
-the simple walk fast path and counts with the simple stepper. Read in that loop,
-where only a line whose first segment overflows reaches them, they made Firefox
-156 count long breakable runs 13 to 26% slower than main and Thai at widths seen
-before 10 to 12% slower, in both sessions of two runs, and read through a helper
-there, Latin at widths seen before took 2.5 times as long (#364).
+pushed in a loop, it read 9 to 11% faster than main in two runs (#365). layout()'s
+numeric count loop (`countPreparedLines()`) takes no overflow trims: a handle with
+any leaves the simple walk fast path and counts with the simple stepper. Read in
+that loop, where only a line whose first segment overflows reaches them, they made
+Firefox 156 count long breakable runs 13 to 26% slower than main and Thai at widths
+seen before 10 to 12% slower, in both sessions of two runs, and read through a
+helper there, Latin at widths seen before took 2.5 times as long (#365).
 
 ## Decisions Log
 

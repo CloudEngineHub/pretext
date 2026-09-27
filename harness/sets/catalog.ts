@@ -7,7 +7,7 @@
 //   change of each;
 // - chains of combining-mark runs longer than the part of the chain a run's context keeps, each shape a family of its own,
 //   so the cover keeps a change of each;
-// - CJK closing marks at a line end before a line feed, a space or the paragraph end, each a family of its own.
+// - a CJK closing mark at a line end before a line feed, a space or the paragraph end, one family per ending.
 // main's adversarial families were taken once from the old harness's generator, which is gone: their cases,
 // `catalog/main/*` and `rich/main/*`, stay in the case files as they were cut, and `make.ts cut` keeps them.
 import { readFileSync } from 'node:fs'
@@ -214,31 +214,27 @@ export function markChainTemplates(): Template[] {
   return out
 }
 
-// A closing mark after two characters, in pre-wrap, before a line feed with text after it, a line feed that ends the
-// paragraph, a space with text after it, or the paragraph end, in Chinese and Japanese. Chrome halts a closing mark at a
-// line end where a break follows it: before text or at the paragraph end, and before a line feed or a space where no
-// break before the mark fits, as that line breaks after every grapheme (src/han-kerning.ts). It never halts the full
-// stops and commas there. The second character and the mark alone on a line give the widths where the halt decides;
-// 20, 28 and 40 px besides the grid give each layout from one character to three a width inside it.
+// A closing mark after two characters at a line end in pre-wrap, one family per ending: a line feed with text after it,
+// a line feed that ends the paragraph, a space with text after it, and the paragraph end. Chrome halts a closing mark
+// at a line end where a break follows it: before text or at the paragraph end, and before a line feed or a space where
+// no break before the mark fits, as that line breaks after every grapheme (src/han-kerning.ts). Each family holds `」`
+// in Chinese (PingFang SC) and Japanese (Hiragino Sans), and `。`, which Chrome never halts there; which marks halt
+// before which ending is src/layout.test.ts's. 20, 28 and 40 px besides the grid give each layout from one character
+// to three a width inside it.
 export function lineEndMarkTemplates(): Template[] {
-  const marks: ReadonlyArray<readonly [string, string]> = [
-    ['\u300D', 'corner-bracket'], ['\u300F', 'white-corner-bracket'], ['\uFF09', 'parenthesis'], ['\u3011', 'lenticular-bracket'],
-    ['\u3009', 'angle-bracket'], ['\u300B', 'double-angle-bracket'], ['\u3002', 'full-stop'], ['\u3001', 'comma'], ['\uFF0C', 'fullwidth-comma'],
+  const inputs: ReadonlyArray<readonly [string, string, string, CssFont]> = [
+    ['zh', '漢字', '\u300D', font('"PingFang SC"', 16)], ['ja', 'かな', '\u300D', font('"Hiragino Sans"', 16)], ['zh', '漢字', '\u3002', font('"PingFang SC"', 16)],
   ]
-  const languages: ReadonlyArray<readonly [string, string, CssFont]> = [['zh', '漢字', font('"PingFang SC"', 16)], ['ja', 'かな', font('"Hiragino Sans"', 16)]]
+  const endings = ['line-feed-text', 'line-feed-end', 'space-text', 'paragraph-end']
   const out: Template[] = []
-  for (let l = 0; l < languages.length; l++) {
-    const [lang, word, cjkFont] = languages[l]!
-    const endings: ReadonlyArray<readonly [string, string]> = [['line-feed-text', `\n${word}`], ['line-feed-end', '\n'], ['space-text', ` ${word}`], ['paragraph-end', '']]
-    for (let e = 0; e < endings.length; e++) {
-      const [ending, tail] = endings[e]!
-      for (let m = 0; m < marks.length; m++) {
-        const [mark, name] = marks[m]!
-        out.push({
-          family: `line-end-marks/${ending}/${name}/${lang}`, origin: `src/han-kerning.ts: a closing mark at a line end, ${ending}, ${lang}`,
-          pageLang: lang, paragraph: paragraph({ font: cjkFont, lang, whiteSpace: 'pre-wrap', lineHeight: 32 }, [`${word}${mark}${tail}`]), widths: [20, 28, 40], grid: true,
-        })
-      }
+  for (let e = 0; e < endings.length; e++) {
+    for (let i = 0; i < inputs.length; i++) {
+      const [lang, word, mark, cjkFont] = inputs[i]!
+      const tail = [`\n${word}`, '\n', ` ${word}`, ''][e]!
+      out.push({
+        family: `line-end-marks/${endings[e]}`, origin: `src/han-kerning.ts: a closing mark at a line end, ${endings[e]}`,
+        pageLang: lang, paragraph: paragraph({ font: cjkFont, lang, whiteSpace: 'pre-wrap', lineHeight: 32 }, [`${word}${mark}${tail}`]), widths: [20, 28, 40], grid: true,
+      })
     }
   }
   return out

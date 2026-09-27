@@ -3932,7 +3932,7 @@ describe('layout invariants', () => {
       value(this: TestCanvasRenderingContext2D, text: string) {
         canvasMeasurementCount++
         const em = parseFontSize(this.font)
-        const pairs = (text.match(/(?<=[」「、。，．])「|[」、。，．](?=[」、。，．])/g) ?? []).length
+        const pairs = (text.match(/(?<=[」』）】〉》「、。，．])「|[」』）】〉》、。，．](?=[」』）】〉》、。，．])/g) ?? []).length
         const width = measureWidth(text, this.font) - pairs * em / 2
         // Ink bounds over the characters, each at its advance.
         const han = /\p{sc=Han}/u.test(text)
@@ -3974,33 +3974,59 @@ describe('layout invariants', () => {
         // 。 types as a closing mark from its Han shape, so the page halts it before ”.
         ['中。”中', 47, ['中。”中'], [46.4]],
         ['中。”中', 46, ['中。”', '中'], [30.4, 16]],
-        // A line that no break fits breaks after every grapheme, so a closing mark before a
-        // space or a line feed that doesn't fit otherwise is halted there, and only there.
-        ['中」 中', 24, ['中」 ', '中'], [24, 16]],
+        // Just narrower than a halted closing mark fits, before a space or a line feed.
         ['中」 中', 23, ['中', '」 ', '中'], [16, 16, 16]],
-        ['中中」 中', 40, ['中', '中」 ', '中'], [16, 32, 16]],
-        ['中」 中\n', 24, ['中」 ', '中'], [24, 16]],
-        ['中」\n中', 24, ['中」', '中'], [24, 16]],
         ['中」\n中', 23, ['中', '」', '中'], [16, 16, 16]],
-        ['中中」\n', 40, ['中', '中」'], [16, 32]],
         ['」\n', 8, ['」'], [8]],
         ['」\n', 7, ['」'], [16]],
-        // So is a line whose closing mark follows text the scan gives no break before.
+        // A line whose closing mark follows text the scan gives no break before.
         ['中\u0001」\n', 34, ['中\u0001」'], [33.6]],
       ]
+      // Which marks halt at a line end, before which endings. Blink halts the marks
+      // Character::MaybeHanKerningClose takes, 」』）】〉》, and never 、。，, which type as dots,
+      // though this font draws them as closing marks. Before a space or a line feed the scan
+      // gives no break, and only Blink's retry of a line that no break fits, which breaks after
+      // every grapheme, halts the mark: `中` and the mark fit 24px only halted, while `中中`
+      // and the mark have a break before the mark that fits 40px.
+      const endings: [string, string, string[], boolean][] = [
+        // The text after the mark, what the mark's line holds after it, the lines after that,
+        // and whether the scan gives a break after the mark.
+        ['中', '', ['中'], true],
+        ['', '', [], true],
+        ['\n中', '', ['中'], false],
+        ['\n', '', [], false],
+        [' 中', ' ', ['中'], false],
+      ]
+      const marks: [string, boolean][] = [['」', true], ['』', true], ['）', true], ['】', true], ['〉', true], ['》', true], ['。', false], ['、', false], ['，', false]]
+      for (let m = 0; m < marks.length; m++) {
+        const [mark, halts] = marks[m]!
+        for (let e = 0; e < endings.length; e++) {
+          const [after, hung, rest, breakAfter] = endings[e]!
+          const restWidths = rest.map(() => 16)
+          if (halts) cases.push([`中${mark}${after}`, 24, [`中${mark}${hung}`, ...rest], [24, ...restWidths]])
+          else cases.push([`中${mark}${after}`, 24, ['中', `${mark}${hung}`, ...rest], [16, 16, ...restWidths]])
+          if (halts && breakAfter) cases.push([`中中${mark}${after}`, 40, [`中中${mark}${hung}`, ...rest], [40, ...restWidths]])
+          else cases.push([`中中${mark}${after}`, 40, ['中', `中${mark}${hung}`, ...rest], [16, 32, ...restWidths]])
+        }
+      }
       for (const [text, width, expected, widths] of cases) {
-        const options = { whiteSpace: text.includes('\n') ? 'pre-wrap' : 'normal' } as const
-        const prepared = prepareWithSegments(text, font, options)
-        const lines = layoutWithLines(prepared, width, LINE_HEIGHT)
-        expect({ text, width, lines: lines.lines.map(line => line.text), widths: lines.lines.map(line => line.width) })
-          .toEqual({ text, width, lines: expected, widths })
-        expect(collectStreamedLines(prepared, width)).toEqual(lines.lines)
-        expect(countPreparedLines(prepared, width)).toBe(expected.length)
-        expect(walkPreparedLinesRaw(prepared, width)).toBe(expected.length)
-        expect(layout(prepare(text, font, options), width, LINE_HEIGHT).lineCount).toBe(expected.length)
-        // The complex walker, for text that leaves the fast path, agrees.
-        const complex = { ...prepared, simpleLineWalkFastPath: false } as typeof prepared
-        expect(layoutWithLines(complex, width, LINE_HEIGHT)).toEqual(lines)
+        // Spaces hang in both white-space modes; a line feed is a hard break only in pre-wrap.
+        const modes = text.includes('\n') ? ['pre-wrap'] as const : ['normal', 'pre-wrap'] as const
+        for (let m = 0; m < modes.length; m++) {
+          const whiteSpace = modes[m]!
+          const options = { whiteSpace }
+          const prepared = prepareWithSegments(text, font, options)
+          const lines = layoutWithLines(prepared, width, LINE_HEIGHT)
+          expect({ text, whiteSpace, width, lines: lines.lines.map(line => line.text), widths: lines.lines.map(line => line.width) })
+            .toEqual({ text, whiteSpace, width, lines: expected, widths })
+          expect(collectStreamedLines(prepared, width)).toEqual(lines.lines)
+          expect(countPreparedLines(prepared, width)).toBe(expected.length)
+          expect(walkPreparedLinesRaw(prepared, width)).toBe(expected.length)
+          expect(layout(prepare(text, font, options), width, LINE_HEIGHT).lineCount).toBe(expected.length)
+          // The complex walker, for text that leaves the fast path, agrees.
+          const complex = { ...prepared, simpleLineWalkFastPath: false } as typeof prepared
+          expect(layoutWithLines(complex, width, LINE_HEIGHT)).toEqual(lines)
+        }
       }
     } finally {
       Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', measureText)
