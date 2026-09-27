@@ -202,8 +202,7 @@ function zeros(count: number): number[] {
 }
 
 // The trims of an analysis' text segments, read from the characters before and after each.
-// `overflowBreaks`: whether an overflowing line breaks between graphemes (measureAnalysis).
-export function getHanKerningTrims(measurement: FontMeasurement, analysis: TextAnalysis, overflowBreaks: boolean): HanKerningTrims {
+export function getHanKerningTrims(measurement: FontMeasurement, analysis: TextAnalysis): HanKerningTrims {
   const out: HanKerningTrims = { widthTrims: null, lineStartExtras: null, lineEndTrims: null, overflowLineEndTrims: null }
   const data = getFontData(measurement)
   if (data === null) return out
@@ -248,7 +247,7 @@ export function getHanKerningTrims(measurement: FontMeasurement, analysis: TextA
     if (atEnd || ((flags[i + 1]! & KIND_BITS) === TEXT && (flags[i + 1]! & UNBROKEN) === 0)) {
       out.lineEndTrims ??= zeros(count)
       out.lineEndTrims[i] = getTrim(data, last, measurement)
-    } else if (overflowBreaks) {
+    } else {
       out.overflowLineEndTrims ??= zeros(count)
       out.overflowLineEndTrims[i] = getTrim(data, last, measurement)
     }

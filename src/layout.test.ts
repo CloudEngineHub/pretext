@@ -3984,10 +3984,10 @@ describe('layout invariants', () => {
       ]
       // Which marks halt at a line end, before which endings. Blink halts the marks
       // Character::MaybeHanKerningClose takes, 」』）】〉》, and never 、。，, which type as dots,
-      // though this font draws them as closing marks. Before a space or a line feed the scan
-      // gives no break, and only Blink's retry of a line that no break fits, which breaks after
-      // every grapheme, halts the mark: `中` and the mark fit 24px only halted, while `中中`
-      // and the mark have a break before the mark that fits 40px.
+      // though this font draws them as closing marks. The scan gives no break before a space, a
+      // line feed or some text, such as a C0 control, and there only Blink's retry of a line that
+      // no break fits, which breaks after every grapheme, halts the mark: `中` and the mark fit
+      // 24px only halted, while `中中` and the mark have a break before the mark that fits 40px.
       const endings: [string, string, string[], boolean][] = [
         // The text after the mark, what the mark's line holds after it, the lines after that,
         // and whether the scan gives a break after the mark.
@@ -3996,13 +3996,14 @@ describe('layout invariants', () => {
         ['\n中', '', ['中'], false],
         ['\n', '', [], false],
         [' 中', ' ', ['中'], false],
+        ['\u0001', '', ['\u0001'], false],
       ]
       const marks: [string, boolean][] = [['」', true], ['』', true], ['）', true], ['】', true], ['〉', true], ['》', true], ['。', false], ['、', false], ['，', false]]
       for (let m = 0; m < marks.length; m++) {
         const [mark, halts] = marks[m]!
         for (let e = 0; e < endings.length; e++) {
           const [after, hung, rest, breakAfter] = endings[e]!
-          const restWidths = rest.map(() => 16)
+          const restWidths = rest.map(line => measureWidth(line, font))
           if (halts) cases.push([`中${mark}${after}`, 24, [`中${mark}${hung}`, ...rest], [24, ...restWidths]])
           else cases.push([`中${mark}${after}`, 24, ['中', `${mark}${hung}`, ...rest], [16, 16, ...restWidths]])
           if (halts && breakAfter) cases.push([`中中${mark}${after}`, 40, [`中中${mark}${hung}`, ...rest], [40, ...restWidths]])
@@ -4026,6 +4027,25 @@ describe('layout invariants', () => {
           // The complex walker, for text that leaves the fast path, agrees.
           const complex = { ...prepared, simpleLineWalkFastPath: false } as typeof prepared
           expect(layoutWithLines(complex, width, LINE_HEIGHT)).toEqual(lines)
+        }
+      }
+      // A rich line halts a mark before a space only where no break before its item fits, as
+      // the flat line does: one does after `中 ` and after a chip, and none after `中`.
+      const richCases: [Array<{ text: string, break?: 'never', extraWidth?: number }>, number, string[]][] = [
+        [[{ text: '中 ' }, { text: '中」 中' }], 46, ['中', '中」', '中']],
+        [[{ text: '中' }, { text: '」 中' }], 24, ['中」', '中']],
+        [[{ text: '@ab', break: 'never', extraWidth: 8 }, { text: '「中」 中' }], 80, ['@ab', '「中」 中']],
+      ]
+      for (const [items, width, expected] of richCases) {
+        const rich = prepareRichInline(items.map(item => ({ font, ...item })))
+        const lines: string[] = []
+        walkRichInlineLineRanges(rich, width, range => {
+          lines.push(materializeRichInlineLineRange(rich, range).fragments.map(fragment => (fragment.gapBefore > 0 ? ' ' : '') + fragment.text).join('').trimEnd())
+        })
+        expect({ items, width, lines }).toEqual({ items, width, lines: expected })
+        if (items.every(item => item.break === undefined)) {
+          const text = items.map(item => item.text).join('')
+          expect(layoutWithLines(prepareWithSegments(text, font), width, LINE_HEIGHT).lines.map(line => line.text.trimEnd())).toEqual(expected)
         }
       }
     } finally {

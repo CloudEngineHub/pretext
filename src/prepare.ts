@@ -446,7 +446,7 @@ export function measureAnalysis(
   // a line takes back the halt Blink gives its first character there.
   let hanKerning: HanKerningTrims = { widthTrims: null, lineStartExtras: null, lineEndTrims: null, overflowLineEndTrims: null }
   if (engineProfile.hanKerning && textMayHanKern(normalized)) {
-    hanKerning = getHanKerningTrims(fontMeasurement, analysis, overflowBreaks)
+    hanKerning = getHanKerningTrims(fontMeasurement, analysis)
     const trims = hanKerning.widthTrims
     if (trims !== null) for (let i = 0; i < trims.length; i++) widths[i] = widths[i]! - trims[i]!
   }

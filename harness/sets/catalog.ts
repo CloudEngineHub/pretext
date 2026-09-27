@@ -7,13 +7,13 @@
 //   change of each;
 // - chains of combining-mark runs longer than the part of the chain a run's context keeps, each shape a family of its own,
 //   so the cover keeps a change of each;
-// - a CJK closing mark at a line end before a line feed, a space or the paragraph end, one family per ending.
+// - a CJK closing mark at a line end before a line feed or a space.
 // main's adversarial families were taken once from the old harness's generator, which is gone: their cases,
 // `catalog/main/*` and `rich/main/*`, stay in the case files as they were cut, and `make.ts cut` keeps them.
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { SYSTEM_UI_FONT } from '../score.ts'
-import type { CssFont, Paragraph } from '../types.ts'
+import type { Paragraph } from '../types.ts'
 import { font, lineBreakTable, paragraph, parseFont } from './build.ts'
 import { templateKey, type Template } from './widths.ts'
 
@@ -214,28 +214,20 @@ export function markChainTemplates(): Template[] {
   return out
 }
 
-// A closing mark after two characters at a line end in pre-wrap, one family per ending: a line feed with text after it,
-// a line feed that ends the paragraph, a space with text after it, and the paragraph end. Chrome halts a closing mark
-// at a line end where a break follows it: before text or at the paragraph end, and before a line feed or a space where
-// no break before the mark fits, as that line breaks after every grapheme (src/han-kerning.ts). Each family holds `」`
-// in Chinese (PingFang SC) and Japanese (Hiragino Sans), and `。`, which Chrome never halts there; which marks halt
-// before which ending is src/layout.test.ts's. 20, 28 and 40 px besides the grid give each layout from one character
-// to three a width inside it.
+// `漢字」` at a line end in pre-wrap, before a line feed with text after it, a line feed that ends the paragraph and a
+// space with text after it, in one family, whose changes the cover keeps where they show a new line break. Chrome halts
+// a closing mark at a line end where a break follows it, and before a line feed or a space where no break before the
+// mark fits, as that line breaks after every grapheme (src/han-kerning.ts). Which marks halt before which ending is
+// src/layout.test.ts's: the cover describes `」` and `。` alike, both UAX #14 class CL. 20, 28 and 40 px besides the
+// grid give each layout from one character to three a width inside it.
 export function lineEndMarkTemplates(): Template[] {
-  const inputs: ReadonlyArray<readonly [string, string, string, CssFont]> = [
-    ['zh', '漢字', '\u300D', font('"PingFang SC"', 16)], ['ja', 'かな', '\u300D', font('"Hiragino Sans"', 16)], ['zh', '漢字', '\u3002', font('"PingFang SC"', 16)],
-  ]
-  const endings = ['line-feed-text', 'line-feed-end', 'space-text', 'paragraph-end']
+  const endings = ['\n漢字', '\n', ' 漢字']
   const out: Template[] = []
   for (let e = 0; e < endings.length; e++) {
-    for (let i = 0; i < inputs.length; i++) {
-      const [lang, word, mark, cjkFont] = inputs[i]!
-      const tail = [`\n${word}`, '\n', ` ${word}`, ''][e]!
-      out.push({
-        family: `line-end-marks/${endings[e]}`, origin: `src/han-kerning.ts: a closing mark at a line end, ${endings[e]}`,
-        pageLang: lang, paragraph: paragraph({ font: cjkFont, lang, whiteSpace: 'pre-wrap', lineHeight: 32 }, [`${word}${mark}${tail}`]), widths: [20, 28, 40], grid: true,
-      })
-    }
+    out.push({
+      family: 'line-end-marks', origin: 'src/han-kerning.ts: a closing mark at a line end', pageLang: 'zh', widths: [20, 28, 40], grid: true,
+      paragraph: paragraph({ font: font('"PingFang SC"', 16), lang: 'zh', whiteSpace: 'pre-wrap', lineHeight: 32 }, [`漢字\u300D${endings[e]}`]),
+    })
   }
   return out
 }
