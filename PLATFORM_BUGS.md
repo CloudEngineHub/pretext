@@ -108,7 +108,7 @@ Unfiled on purpose. Firefox's `Intl.Segmenter` runs a small model over every cha
 ### Engine rules Pretext models
 
 - Safari fits a line with 1/64 px to spare where Chrome and Firefox take 0.005 px, because WebKit's `availableWidth()` adds `LayoutUnit::epsilon()` (`InlineLineBuilder.cpp:1172-1183`, webkit-7625.1.29.11.27). The case behind it, `الأحمد, the results`, stayed on one line at about 150.0139 px in a 150 px box (Safari 26.4, June 2026). WebKit adds it only where its source does; main applies it at every fit.
-- An overlong word breaks by measured prefixes in Safari, and in Firefox in segments 80 px and wider; Chrome sums lone graphemes (`RESEARCH.md`, "Break Opportunities From Engine Data"). <!-- Q13 placeholder: the maintainer's answer on Firefox's 80 px floor (measure a 24 px floor and exact everywhere, or keep 80 as a premise with its gap) goes here -->
+- An overlong word breaks by measured prefixes in Safari, and in Firefox in segments 80 px and wider; Chrome sums lone graphemes (`RESEARCH.md`, "Break Opportunities From Engine Data").
 - Safari 27 breaks lines differently from Safari 26 on purpose (`RESEARCH.md`, Decisions Log, 2026-09-16); the profile follows 27, since only Safari's own user agent names a version.
 - Safari 27 lays line boxes on the 1/64 px grid, so three 20.96 px lines are 62.875 px tall, not 60 px as in Safari 26. `layout()` returns n × `lineHeight`, within 1/64 px, and the harness counts lines from rectangle positions, not the block's height.
 

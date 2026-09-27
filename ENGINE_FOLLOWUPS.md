@@ -13,13 +13,6 @@ Before starting one:
 - A prerequisite written here can be wrong: this file once said Firefox's breaks between styled pieces needed a model of its word segmentation, and one engine setting sufficed.
 - A fix may be on for one engine and off for another only when the off engine's losses come from a model named here as missing. <!-- Q3: recommendation taken; the maintainer hasn't answered --> <!-- Q3 note: P-COR-11 -->
 
-## Being probed: the width cache's key and Chrome's string storage
-
-<!-- Being probed on 2026-09-27. Replace this entry with the result: a gap with its cases, or a line under RESEARCH.md's String Storage saying why nothing moves. -->
-
-
-`getSegmentMetrics()` looks a segment up in its font's `Map` and, on a miss, measures that same string. V8 internalizes a `Map` key into a one-byte copy when every unit fits, and Chrome shapes one-byte and two-byte text differently: in 48px Amiri, 15 `)` measure 183.60px one-byte and 329.76px two-byte, while plain letters and digits don't move (Chrome 153, 2026-09-18). In the redo, a text-keyed lookup before each Canvas call moved 254 of 380 predictions in a set built to catch it; no offline replay can see storage. A browser `bun harness equal` with the key changed to `'|' + seg` settles whether main's lines move (RESEARCH.md, String Storage).
-
 ## Gaps
 
 ### Letter spacing
@@ -32,7 +25,7 @@ Before starting one:
 
 Pretext takes no paragraph direction, and only the Gecko scan resolves levels, taking every paragraph as left-to-right (RESEARCH.md, Bidi Levels). That premise moved none of 4,346 right-to-left suite and corpus requests and 192 of 8,125 right-to-left fuzz ones (old suite, 2026-09-23). Without levels:
 - WebKit keeps the punctuation after an overflowing first character with it only to the end of its item, which a level change ends, and the WebKit profile to the end of the scan's segment. So the profile keeps `((` after `ב` in `אב((tail` on a left-to-right page, where Safari 27 paints `ב` / `(` / `(` (633 cases; 124 / 73 / 128, most under 24px). WebKit also asks its scan again where levels change, as in `ab””tail` (2026-09-23).
-- Neutral characters measure with their neighbour's script: Chrome's `(` is 6.12px alone and 11px in an Arabic run, and in right-to-left text Safari paints `）` after Arabic at 9px instead of 16px, so at 12-18px it keeps the U+202F after `中（ابب）` on the line of `）`, where Pretext gives it one of its own (67 cases; 14 / 13 / 4) (by 2026-09-12).
+- Neutral characters measure with their neighbour's script: Chrome's `(` is 6.12px alone and 11px in an Arabic run, and in right-to-left text Safari paints `）` after Arabic at 9px instead of 16px, so at 12-18px it keeps the U+202F after `中（ابب）` on the line of `）`, where Pretext gives it one of its own (67 cases; 14 / 13 / 4) (by 2026-09-12). Chrome's page gives a run of script-neutral Latin-1 characters, such as `)` × 15 or `«»` × 8, the script of the text before it, and its Canvas measures every Latin-1 segment as Latin, so in Amiri and Noto Naskh Arabic such a run after Arabic or Han paints wider than Pretext charges (RESEARCH.md, String Storage, 2026-09-27).
 - Chrome measures under `<html dir>` as it was when Pretext made its context, so text against the page's direction wraps slightly differently around brackets. A `direction` option fixed it in a prototype and wasn't taken (RESEARCH.md, Dead Ends); it's on the API discussion's list (TODO.md) (2026-09-13).
 - In a right-to-left paragraph Safari breaks `src/|עברית`, and the WebKit scan doesn't. Not a case (2026-09-14, Safari 26.5.2).
 - Whether `direction: rtl` alone turns on Firefox's document bidi has no witness; it decides where the Gecko scan must resolve levels.
@@ -40,7 +33,7 @@ Pretext takes no paragraph direction, and only the Gecko scan resolves levels, t
 
 ### Emergency breaks inside a word
 
-- Each engine fits an overlong word its own way (#195): Chrome by right-context positions, Safari by line-start prefixes, Firefox by the advances of the word shaped whole, while the Blink profile sums standalone graphemes. At 248px, `'ه'.repeat(140)` in `400 14px Helvetica, Arial, sans-serif` fits 62 isolated letters a line, where Chrome fits 44 joined ones (2026-09-14). A mark that can't start a line sends the word before it through these fits: at about 105px in 16px Hiragino Sans, Chrome and Firefox keep `foo@bar.com` together before `，b`, and Pretext splits off `m` (19 cases; 1 / 0 / 0). In the WebKit profile, fits past 96 graphemes come from pairs: 96 `ه` break where Safari does, 97 don't. How the Gecko profile picks prefixes or standalone graphemes is in RESEARCH.md, Break Opportunities From Engine Data.
+- Each engine fits an overlong word its own way (#195): Chrome by right-context positions, Safari by line-start prefixes, Firefox by the advances of the word shaped whole, while the Blink profile sums standalone graphemes. At 248px, `'ه'.repeat(140)` in `400 14px Helvetica, Arial, sans-serif` fits 62 isolated letters a line, where Chrome fits 44 joined ones (2026-09-14). A mark that can't start a line sends the word before it through these fits: at about 105px in 16px Hiragino Sans, Chrome and Firefox keep `foo@bar.com` together before `，b`, and Pretext splits off `m` (19 cases; 1 / 0 / 0). In the WebKit profile, fits past 96 graphemes come from pairs: 96 `ه` break where Safari does, 97 don't. The Gecko profile sums standalone graphemes in segments under 80px, a premise whose measured gap, at 24-80px, is in RESEARCH.md, Break Opportunities From Engine Data (Decisions Log, 2026-09-27).
 - Chrome keeps kerning when it breaks an overflowing word (`'AV'.repeat(116)` at 109px: 22 lines, not 24), which Canvas can't show (by 2026-09-12). Safari carries the word's remaining width to the next line without measuring it again (`AbstractLineBuilder.cpp:54-98`; `'AV'.repeat(17)`: 3 lines, not 4, and 36 of 36 headless WebKit checks, 2026-09-15); modeling that needs a Safari fit model that loses nothing. Neither is a case.
 - In narrow boxes Safari keeps two joined Arabic graphemes on a line where Pretext splits them (by 2026-09-12, Safari 26.5.2).
 - Splits inside a segment take Unicode graphemes, where Firefox splits at its own cluster starts: it keeps a Myanmar spacing mark such as U+102C with the cluster before it, though its `Intl.Segmenter` splits them (by 2026-09-12, Firefox 155).
@@ -139,7 +132,6 @@ Check each with `bun harness explain`, then drop it.
 ## Deferred engine decisions
 
 - Lam + alef when an overlong Arabic word breaks: Canvas can't tell whether a font draws it as one cluster, so every default is a guess (RESEARCH.md, Dead Ends). No change now; decide if main ever breaks overlong Arabic words by cluster. Reopens when `getTextClusters()` or `TextMetrics.advances` ships. <!-- Q12: recommendation taken; the maintainer hasn't answered -->
-  <!-- Q13 placeholder: the maintainer's answer on Firefox's 80 px prefix floor goes here: a 24 px floor or exact prefixes everywhere, measured on the harness and the bench and chosen under the Pareto bar, or 80 kept as a named premise with its measured gap. -->
 - Per-paragraph contexts in the Gecko profile, against Firefox's late family names (Contexts kept for the page's life).
 - A version gate or a README line for cursive letter spacing in Chrome before 149 (Letter spacing).
 - An Arabic-script soft-hyphen policy, only once demand for Persian appears, and after observing how browsers render soft hyphens typed in place of ZWNJ: Persian Wikipedia holds about 225 per million articles, mostly Word's optional hyphen, against 3 in 1.22 million Arabic ones (2026-09-11).

@@ -93,8 +93,6 @@ Not optimizing prematurely, and taking the rebuild's facts back to main, still s
 - **No tolerances.** A gap between Canvas and the DOM is handled on purpose or named, never hidden in a tolerance: each
   engine's fit arithmetic is exact in its own units. Main's 0.005 px `lineFitEpsilon` in the Blink and Gecko profiles
   is an open gap (ENGINE_FOLLOWUPS.md).
-  <!-- Q13 placeholder: why Firefox's prefix fits start at 80 px (`prefixFitMinWidth`). Under (a) the measured choice
-  goes to the Decisions Log with a line here; under (b) a line here names 80 px as a premise with its gap. -->
 - **Per-engine rules.** A rule traced in an engine's source may be on for one profile and off for another only when the
   off engine's losses are attributed to a named missing model, with the off value explicit in the profile.
   <!-- Q3: recommendation taken; the maintainer hasn't answered -->
@@ -598,17 +596,26 @@ grapheme measured after the one before, did slightly worse at 21% more calls on 
 preparation starts cold (Firefox 155, 2026-09-16).
 
 So the Gecko profile takes prefixes only in segments at least 80px wide and sums graphemes in narrower ones, with letter
-spacing forcing prefixes, numeric runs taking pairs, and pairs past 96 graphemes. A segment breaks inside itself only on
-a line narrower than itself, so every line at least as wide as the floor gets exact prefixes. A cold Firefox preparation
-of real paragraphs then takes 88 Canvas calls a paragraph, against 113 for prefixes everywhere, 86 for sums everywhere
-and 79 before #340, and loses nothing against prefixes everywhere at 80px and over, where sums everywhere lose 58 line
-counts, such as `foo@bar.com：b` at 105px (Firefox 156.0, 2026-09-23). Below 80px it lost 1,870 and 316 line counts
-against prefixes everywhere and gained 652 and 291 (old suite). The number 80 has no browser reason: it was the old
-suite's boundary for narrow widths, a width-keyed branch of the kind "Fixing a mismatch" warns about. Tying it to the
-harness's 24px floor, or taking prefixes everywhere, was proposed on 2026-09-24 and not measured.
-<!-- Q13 placeholder: the maintainer asked why 80px on 2026-09-24 and hasn't picked an option. If (a), the
-measured result replaces the last two sentences and goes to the Decisions Log; if (b), a sentence here names 80px as a
-premise with the gap measured above. -->
+spacing forcing prefixes, numeric runs taking pairs, and pairs past 96 graphemes. A cold Firefox preparation of real
+paragraphs then took 88 Canvas calls a paragraph, against 113 for prefixes everywhere, 86 for sums everywhere and 79
+before #340, and lost nothing against prefixes everywhere at 80px and over, where sums everywhere lost 58 line counts,
+such as `foo@bar.com：b` at 105px (Firefox 156.0, 2026-09-23).
+
+The 80px has no browser reason: it was the old suite's boundary for narrow widths. Measured again with the harness in
+Firefox 156 (2026-09-27), a 24px floor, where the harness's layouts narrower than real ones end, costs what prefixes
+everywhere cost, since the prefixes' calls sit in words 24-80px wide. Either takes 99 measureText calls per 1,000
+units while preparing where 80px takes 62 (with the 24px floor, 11,367 against 5,857 on the census and 434,843 against
+278,106 on the real-usage draws), and `bun harness bench main` read new Latin, Arabic and mixed messages and UI labels
+28-68% slower in both sessions; new CJK and Thai, seen text and the worst shapes read within noise. Lines at 24px and
+wider move the same under both: 281 Firefox cases at 24-80px pass that fail with the floor, 172 of them the old gate's
+Arabic words with vowel marks before brackets, quotes, controls or Latin, and 14 fail that pass. Ten of those are
+`a ★ーb` in 16px Arial at 25-29px, where summed standalone widths (10.65px and 16px) match the paragraph's 26.65px for
+`★ー` by luck, as Firefox's Canvas measures `★ー` at 32px; three are Amiri Arabic split at 24.45px, 1/64px from where
+the lines change; and one is a real-usage draw, `TKT-84565` in a 31.25px table cell in 16px Helvetica Neue, where
+prefixes give the hyphen that starts the second line all 2.05px of its kerning with the `T` before it, so `-845` fits
+at 30.87px and Firefox moves the `5` on. No real-usage draw gains, and 188 of the 11,901 (1.5% of their weight) are
+narrower than 80px. Below 24px, the 24px floor fixes 40 cases and loses 36, prefixes everywhere 44 and 50. So the floor
+stays at 80px, a premise with that gap (Decisions Log, 2026-09-27).
 
 An overflowing segment used to end its emergency split after its last hyphen that fit, which recovered breaks the old
 merged segments hid. A scan segment ends at every break, so a hyphen inside one has no break after it and all three
@@ -1010,7 +1017,6 @@ face in Safari 26.5.2, where reshaping each line prefix matched 42. That support
 these inputs (ENGINE_FOLLOWUPS.md). Pretext's `pair-context` mode, which numeric runs use, measures a grapheme after
 the one before it, not the one after. The Chromium profile still sums graphemes, and the case stays on Chrome's
 accepted list.
-<!-- Q13 placeholder: the maintainer's answer on Firefox's 80 px prefix floor (a measured 24 px floor or exact everywhere, or 80 kept as a premise with its gap) goes here, in the joined Arabic paragraph below, and under Keeping Work Bounded, Canvas Work -->
 
 **Firefox's joined Arabic.** Gecko fits a line from the advances of the whole shaped word and doesn't reshape at a
 break, so a joined letter keeps its neighbour's form, while Pretext measures the letters beside a soft hyphen, or an
@@ -1132,7 +1138,6 @@ cap bounds the amplification, not the shaper's own cost, and context queries mus
 Cold-cache scaling probes tell cost from reuse; a numeric stand-in Canvas measures algorithmic work, not browser
 throughput; and a repeated prepare isn't a stable timing in WebKit, whose width cache samples calls
 (harness/README.md, Bench).
-<!-- Q13 placeholder: the Gecko floor here follows the maintainer's answer on the 80 px floor -->
 
 As reference points: over the corpora, main before #340 spent 46ms analyzing and 70ms measuring of Chrome 153's 115ms,
 but 46ms and 305ms of Safari 26.5.2's 350ms (2026-09-15), so a large Safari gain has to come from measuring less.
@@ -1203,7 +1208,7 @@ Part 1 (Engineering) says when an engine fact may shape code. These did, or move
   polymorphic over the two handle kinds (`--log-ic`), but one shape for both didn't help Chrome and cost Firefox up to
   14%. A private stepper copy, 77 lines, is the only cure measured and isn't taken (#350; Dead Ends,
   Simplifications Held Back).
-- **String keys.** V8 internalizes a string key on `Map.get` or `set`, which changes the string's storage (String
+- **String keys.** V8 internalizes a string key on `Map.get` or `set`, which can change the string's storage (String
   Storage); SpiderMonkey charges 44-48ns per `get` for short keys even on the same string; a lookup in front of a loop
   costs its latency, 23-50ns for a `get` that costs 11ns alone (per-engine rebuild, September 2026).
 - **Smaller costs.** A per-word regex in `prepare()` shows up (1.5% of a cold `prepare()` in V8, #248); V8 builds 172
@@ -1216,16 +1221,30 @@ Part 1 (Engineering) says when an engine fact may shape code. These did, or move
 
 #### String Storage
 
-V8 keeps a string in one byte per character when every unit is at most U+00FF and it was built that way (parser text,
-literals, `JSON.parse` and their concatenations), while a slice of 13 or more units from a string with a character
-above U+00FF stays two-byte. Chrome shapes the two differently (`harfbuzz_shaper.cc:1072-1101`): in 48px Amiri, `)` ×
-15 is 183.60px one-byte and 329.76px two-byte; plain letters and digits measure the same. A page can't see or choose
-storage, and an offline replay can't either. A `Map` key changes it: V8 internalizes the key into a one-byte copy when
-every unit fits (`string-table.cc:398-427`), so after `map.get(s)` Chrome's Canvas gets a one-byte `s`, where
-`map.get('|' + s)` leaves `s` alone. In the per-engine rebuild, a text-keyed lookup before each Canvas call would have
-moved 254 of 380 predictions in a set built to catch it (Chrome 153, September 2026). Main's `getSegmentMetrics()`
-looks a segment up and then measures the same string (`src/measurement.ts:287-298` at b1fd05fc); whether any line
-moves is unverified (ENGINE_FOLLOWUPS.md).
+In Chrome a Latin-1 string's storage decides how Canvas shapes it. Blink shapes a one-byte string as one Latin segment,
+and runs its script segmenter over a two-byte one alone (`harfbuzz_shaper.cc:1072-1101`): in 48px Amiri, `)` × 15 is
+183.60px one-byte and 329.76px two-byte, while plain letters and digits measure the same. V8 keeps a string one-byte
+when every unit is at most U+00FF and it was built that way (parser text, literals, `JSON.parse` and their
+concatenations), keeps a slice of 13 units or more cut from a string that holds a unit above U+00FF two-byte, and
+copies shorter ones into one byte. A page can't see or choose storage, and an offline replay can't either. Using a
+string as a `Map` key internalizes it, and V8 makes the internalized copy one-byte when its units fit only if that
+lookup is the first to hash the string (`known_one_byte_content`, `string-table.cc:411-421`); a two-byte string hashed
+earlier keeps two-byte storage. Nothing hashes a segment before its metrics lookup in `getSegmentMetrics()`, so every
+Latin-1 segment reaches Canvas one-byte and is measured as Latin. Chrome's page paints a run of script-neutral
+characters that way after Latin text and in text that is all Latin-1, but not after Arabic or Han, or between em
+dashes with no letter around: Blink gives the run the script of the text before it, and only a run at the paragraph
+start takes the script after it (`script_run_iterator.cc:503-516`; ENGINE_FOLLOWUPS.md). (Chrome 153 and 154,
+2026-09-18 to 09-27.)
+
+Rejected (2026-09-27): keying the caches by another string, so that Canvas gets each slice as it was built. It changes
+only runs of 13 units or more cut from such text, and moved none of 41,788 Chrome predictions. Of 18 fonts probed, only
+Amiri and Noto Naskh Arabic measure the two storages differently (17 of 504 font and run pairs). On templates in those
+fonts it fixed every such run after Arabic, Han or an em dash, and broke every one after Latin in text that also holds
+an emoji or `ā`: it breaks `)` × 15 between `abc ` and ` بتث`, and fixes it between `بتث ` and ` abc`. The storage
+follows a slice's length and the text it was cut from, not the text before the run, which the page follows. It also
+costs a string per lookup, and a canvas asked for the same characters in both storages answers both with whichever it
+shaped first (Engine Facts, Chrome). In the per-engine rebuild, a text-keyed lookup added before each Canvas call moved
+254 of 380 predictions in a set built to catch it (Chrome 153, September 2026).
 
 ### Scrolling And Scrollbars
 
@@ -1534,7 +1553,6 @@ doesn't carry:
 - Under `overflow-wrap: break-word`, every cluster of a line's first word is a candidate until an ordinary break is
   accepted (`gfxTextRun.cpp:1068-1073`), free for Gecko and 4-5 Canvas questions a cluster for a port; the profile's
   trade is under Break Opportunities From Engine Data.
-  <!-- Q13 placeholder: the maintainer's answer on Firefox's 80 px prefix floor goes in Break Opportunities From Engine Data; point to it from here -->
 - Cluster starts beyond ICU4X's grapheme rules: a leading extender continues a cluster, a Bengali YA joins after a
   VIRAMA, and Myanmar U+102C stays with the cluster before it. Whether that undoes the Gecko profile's use of Chrome's
   grapheme table isn't settled.
@@ -1762,7 +1780,9 @@ into windows under 256 px, where Canvas's float32 totals stay exact (Engine Fact
   unit is another use). No reopen condition was recorded.
 - **A Canvas check inside `layout()`** for sums very close to the width ("H3"): +1 / −1, and `layout()` makes no Canvas
   calls (Part 1, Lines Drawn); the emulation study's cheaper Chrome recipe needs them too.
-  <!-- Q13 placeholder: Firefox's 80 px prefix floor; if a 24 px floor or exact-everywhere is measured and loses, its entry goes here -->
+- **Gecko prefix fits from 24px, or everywhere** (2026-09-27, measured on the harness and the bench): the lines they
+  fix at 24-80px cost too much preparing new text (Break Opportunities From Engine Data). Reopens if prefixes get
+  cheaper to measure, or real usage shows the gap.
 
 #### DOM And Canvas-Element Paths
 
@@ -2294,7 +2314,8 @@ record the new decision here with its date; an entry that replaces another says 
   alternative the maintainer would weigh, Firefox's line data in Chrome's format if it wasn't a maintenance burden,
   wasn't worth it (Dead Ends, Tables, Bundles And Data). It reopens only if the tables' size and per-engine bundles both
   come back.
-
-<!-- Q13 placeholder: Firefox's 80px prefix floor (`prefixFitMinWidth`, src/measurement.ts) gets its entry here once the
-maintainer answers: the floor chosen after measuring a 24px floor and exact prefixes everywhere on the harness and the
-bench, or 80px kept as a premise with its measured gap. -->
+- **2026-09-27: the Gecko profile keeps its 80px floor for prefix fits, as a premise.** Prefixes model Firefox's
+  whole-word advances better than standalone graphemes, and the floor has no browser reason, but a lower floor made
+  Firefox prepare new Latin, Arabic and mixed text much slower for adversarial cases at 24-80px, and lost the one
+  real-usage draw that moves. Words narrower than 80px keep summing standalone graphemes where lines narrower than 80px
+  split them (Break Opportunities From Engine Data has the numbers).

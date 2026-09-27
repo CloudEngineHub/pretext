@@ -8,7 +8,6 @@ What's next, one line each, with where the detail lives. Work depth-first: finis
 
 - The docs revamp, then its check: fresh agents doing each reader's job with only the docs, and fixing what they trip over. `scripts/doc-citations.test.ts` already keeps every `<DOC>.md, <Section>` citation in code naming a heading.
 - X1, the last item of the engineering.md pass: rich-inline lines continue in the line walker instead of walking items again. Not landed.
-- Whether the width cache's `Map` key changes what Chrome measures: being probed (ENGINE_FOLLOWUPS.md).
 <!-- Q14 placeholder: if the maintainer answers, a task goes here: time one full `bun harness repin` per browser, and add a sampled first pass only if it takes more than minutes. -->
 <!-- Q10 placeholder: the rebuild branch's public refs; an answer adds a task here. -->
 <!-- Q11 placeholder: the quotes in the rebuild's docs; an answer adds a task here. -->
