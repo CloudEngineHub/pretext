@@ -15,7 +15,7 @@ Changelog updates guideline: don't add dev-facing notes, only user-facing ones. 
 - For plain text, the per-engine rebuild (`rebuild/` on branch `rebuild-20260916`) is the correctness reference: where it gets a case right, port its rule. For rich inline, follow the engine's own inline model: one paragraph's text broken across its spans.
 - Engine differences live in the engine profile and its tables, not in branches elsewhere.
 - Attribute every case a change moves (fixed, right by luck, page history) before landing; a new accepted failure needs a written reason.
-- Write plain predictable code; don't shape code to one JIT's heuristics, or keep dead or redundant code because one JIT runs it faster. Accept the regression a JIT alone explains, and note it (`RESEARCH.md`, Decisions Log).
+- Write plain predictable code; don't shape code to one JIT's heuristics, and accept a small regression a JIT alone explains. Don't keep dead or redundant code because one JIT runs it faster, whatever the regression, and note what it costs (`RESEARCH.md`, Decisions Log).
 
 ### Implementation notes
 
