@@ -409,10 +409,8 @@ function walkPreparedComplexLines(
   const availableWidth = Math.max(0, maxWidth)
   const fitLimit = availableWidth + engineProfile.lineFitEpsilon
   // Preparation records soft-hyphen contexts only where the engine retreats
-  // and the text has a soft hyphen. The profile test changes no result, but
-  // without it Chrome counted letter-spaced CJK and pre-wrap text 3-7% slower
-  // (RESEARCH.md, Keeping Work Bounded).
-  const retreatsFromUnfitHyphen = prepared.discretionaryHyphenContexts !== null && engineProfile.unfitHyphenRetreat !== 'none'
+  // and the text has a soft hyphen.
+  const retreatsFromUnfitHyphen = prepared.discretionaryHyphenContexts !== null
   // Blink's retry leaves room for the hyphen at every earlier opportunity. Gecko
   // returns to any opportunity whose line fits, such as a break between text segments.
   const retreatsAtFullWidth = retreatsFromUnfitHyphen && engineProfile.unfitHyphenRetreat === 'full-width'

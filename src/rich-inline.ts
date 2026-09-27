@@ -528,9 +528,6 @@ function collectWholeItem(
   })
 }
 
-// Three of its checks change no result: the early return, the line-start test before an
-// item's end, and the skip of a step that doesn't advance. Without them Chrome measured
-// rich stats 12% slower (RESEARCH.md, Keeping Work Bounded).
 function stepRichInlineLine(
   flow: InternalPreparedRichInline,
   maxWidth: number,
@@ -538,8 +535,6 @@ function stepRichInlineLine(
   // The line's fragments go here, unless it is null.
   fragments: RichInlineFragmentRange[] | null,
 ): number | null {
-  if (flow.items.length === 0 || cursor.itemIndex >= flow.items.length) return null
-
   const safeWidth = Math.max(1, maxWidth)
   const lineFitEpsilon = getEngineProfile().lineFitEpsilon
   let hasContent = false
@@ -552,13 +547,7 @@ function stepRichInlineLine(
   for (; itemIndex < flow.items.length; itemIndex++, cursor.segmentIndex = 0, cursor.graphemeIndex = 0) {
     const item = flow.items[itemIndex]
     if (item === undefined) continue
-    if (
-      !isLineStartCursor(cursor) &&
-      cursor.segmentIndex === item.prepared.segments.length &&
-      cursor.graphemeIndex === 0
-    ) {
-      continue
-    }
+    if (cursor.segmentIndex === item.prepared.segments.length && cursor.graphemeIndex === 0) continue
 
     // Retain inactive source items in the original coordinate space without
     // turning their mere presence into a line. A following line can still
@@ -621,12 +610,6 @@ function stepRichInlineLine(
     }
     let lineWidthForItem = stepPreparedLineGeometry(item.prepared, lineEnd, availableWidth)
     if (lineWidthForItem === null) continue
-    if (
-      cursor.segmentIndex === lineEnd.segmentIndex &&
-      cursor.graphemeIndex === lineEnd.graphemeIndex
-    ) {
-      continue
-    }
 
     let itemOccupiedWidth = lineWidthForItem + item.extraWidth
     let lineWidthContribution = gapBefore + itemOccupiedWidth
