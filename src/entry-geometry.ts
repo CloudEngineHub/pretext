@@ -5,6 +5,12 @@ const defaultIgnorable = /\p{Default_Ignorable_Code_Point}/u
 const MAX_GRAPHEMES = 96
 const MAX_HEAD_ENDPOINTS = 3
 
+// Whether a text holds a default-ignorable code point, without which no segment of it has entry
+// geometry (observeSegmentEntries).
+export function textMayHaveEntryGeometry(text: string): boolean {
+  return defaultIgnorable.test(text)
+}
+
 type FreshEntry = { head: number[]; admissionFit: number }
 export type SegmentEntryGeometry = {
   terminalPrefixes: number[]

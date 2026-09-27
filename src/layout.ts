@@ -5,7 +5,7 @@
 // Browser measurement limitations are documented in README.md and PLATFORM_BUGS.md.
 // Based on Sebastian Markbage's text-layout research (github.com/chenglou/text-layout).
 
-import { observeSegmentEntries, type SegmentEntryGeometry } from './entry-geometry.js'
+import { observeSegmentEntries, textMayHaveEntryGeometry, type SegmentEntryGeometry } from './entry-geometry.js'
 import { getHanKerningTrims, textMayHanKern, type HanKerningTrims } from './han-kerning.js'
 import { findGraphemeEnds } from './graphemes.js'
 import type { CharTable } from './generated/engine-break-data.js'
@@ -211,6 +211,9 @@ function measureAnalysis(
   const spaceWidth = getTextWidth(' ', fontMeasurement, emojiCorrection)
   const tabStopAdvance = spaceWidth * 8
   const hasLetterSpacing = letterSpacing !== 0
+  // Only a segment holding a default-ignorable code point has entry geometry, so text
+  // without one doesn't look for it.
+  const entryFitBasis = engineProfile.entryFitBasis !== 'disabled' && textMayHaveEntryGeometry(normalized) ? engineProfile.entryFitBasis : 'disabled'
 
   // A collapsed space's first source character, for engines that look at the
   // source after a text item.
@@ -462,8 +465,8 @@ function measureAnalysis(
           fitAdvances = fitAdvances.slice()
           fitAdvances[fitAdvances.length - 1] = fitAdvances[fitAdvances.length - 1]! + followingSpaceKerning
         }
-        if (engineProfile.entryFitBasis !== 'disabled') {
-          entry = getEntryGeometry(text, fit, addInternalLetterSpacing(width, spacingGraphemeCount, letterSpacing), engineProfile.entryFitBasis)
+        if (entryFitBasis !== 'disabled') {
+          entry = getEntryGeometry(text, fit, addInternalLetterSpacing(width, spacingGraphemeCount, letterSpacing), entryFitBasis)
         }
         if (keepsLineStartPunctuation) prohibitions = fit.lineStartProhibitions
         break
