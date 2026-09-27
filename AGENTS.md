@@ -5,9 +5,17 @@ Do not change the existing tone of the documents unless they're wrong.
 Before reversing a documented decision, read the Decisions Log at the end of `RESEARCH.md`; code comments that cite it mark where each one applies.
 Do `bun install` if you're in a fresh worktree.
 
-**Important:** do NOT monkey-patch. If you found yourself solving the symptom instead of the root cause, reconsider and do a proper fix, then YELL **I SOLVED THE ROOT CAUSE NOT THE SYMPTOM** with a brief summary.
-
 Changelog updates guideline: don't add dev-facing notes, only user-facing ones. Refer to closed PR numbers.
+
+### Fixing a mismatch
+
+- Start from the engine's source: find where Blink, WebKit or Gecko decides the behaviour, and port that rule or its data, citing where it lives.
+- Model the structure, not the symptom: a fix reads as "the browser does X", never as "inputs shaped like Y get Z". Nothing keyed on font names or on the failing strings.
+- Where Pretext can't do what the engine does cheaply, state the premise it takes instead and name its gap: what it gets wrong, and when. Pretext itself is such an approximation: Canvas widths summed per segment, with the engines' known differences corrected.
+- For plain text, the per-engine rebuild (`rebuild/` on branch `rebuild-20260916`) is the correctness reference: where it gets a case right, port its rule. For rich inline, follow the engine's own inline model: one paragraph's text broken across its spans.
+- Engine differences live in the engine profile and its tables, not in branches elsewhere.
+- Attribute every case a change moves (fixed, right by luck, page history) before landing; a new accepted failure needs a written reason.
+- Write plain predictable code; don't shape code to one JIT's heuristics, and accept a small regression a JIT alone explains.
 
 ### Implementation notes
 

@@ -1,8 +1,8 @@
 ---
-description: Follow project guidance from CLAUDE.md
+description: Follow project guidance from AGENTS.md
 alwaysApply: true
 ---
 
 # Project Guidance
 
-- Follow `CLAUDE.md` for project-specific instructions and conventions.
+- Follow `AGENTS.md` for project-specific instructions and conventions.
