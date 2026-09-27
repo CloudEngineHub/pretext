@@ -6,7 +6,7 @@ Measured on macOS at a device pixel ratio of 2 unless an entry says otherwise; W
 
 **Rechecking.** Both Bugzillas answer `curl` on their REST API (`curl -s 'https://bugzilla.mozilla.org/rest/bug/2075174?include_fields=status,resolution,last_change_time'`, same path on `bugs.webkit.org`); issues.chromium.org renders in script, so read it in a signed-in browser.
 
-**Filing.** Search the tracker first; where a report covers the case, comment there with the repro, as on WebKit #285993. Write plainly, without AI tone or jargon, with a small standalone repro page when the bug deserves one. The agent fills in the form and the maintainer submits it. Unfiled candidates are filed together at the end of the project. A crash or hang found while probing goes in as a restricted security report and stays out of public issues, branches and this file until triaged. <!-- Q2: recommendation taken; the maintainer hasn't answered --> <!-- Q2 note: filing rules stated as project rules, not quoted -->
+**Filing.** Search the tracker first; where a report covers the case, comment there with the repro, as on WebKit #285993. Write plainly, without AI tone or jargon, with a small standalone repro page when the bug deserves one. An agent may draft the report and fill in the form; the maintainer submits it. Unfiled candidates are filed together at the end of the project. A crash or hang found while probing goes in as a restricted security report and stays out of public issues, branches and this file until triaged.
 
 ## Open bugs
 
@@ -14,14 +14,14 @@ Measured on macOS at a device pixel ratio of 2 unless an entry says otherwise; W
 
 - **Reports:** [Chromium #489494015](https://issues.chromium.org/issues/489494015), open, no activity (2026-09-12). [Mozilla #2020894](https://bugzilla.mozilla.org/show_bug.cgi?id=2020894), `UNCONFIRMED`, untouched since March (2026-09-27). Both exact.
 - **Behavior:** `measureText()` gives Apple Color Emoji more width than the page draws, once per emoji, by an amount set by the size alone (Chrome: 4 px at 14-16 px, none from 24 px; March 2026, build not recorded). Headed (Chrome 153, Firefox 155, 2026-09-15), `1`, `#`, `*`, `©` and `✔` with U+FE0F took the full gap; U+FE0F after a letter, a space, U+3000 or a soft hyphen none.
-- **Pretext:** `prepare()` reads the gap once per font from a hidden DOM span and subtracts it per emoji; without it, the headed accuracy sweep (2026-06-22; removed 2026-09-05) lost 20 of 7,680 cases in Chrome and 28 in Firefox, and none with it. A worker gets no correction ([#292](https://github.com/chenglou/pretext/issues/292); PR #346 proposes a hand-off from the page), and it ignores `devicePixelRatio` (`ENGINE_FOLLOWUPS.md`). <!-- Q18: recommendation taken; the maintainer hasn't answered --> <!-- Q18 note: side finding 6 as an ENGINE_FOLLOWUPS gap --> The rebuild's formulas from the width at the device size (`RESEARCH.md`, "Content Language And Fonts") would drop the DOM read and work in workers, at the cost of DPR-dependent prepared widths; they belong as comments on both reports.
+- **Pretext:** `prepare()` reads the gap once per font from a hidden DOM span and subtracts it per emoji; without it, the accuracy sweep in headed browsers (2026-06-22; a tool removed on 2026-09-05) lost 20 of 7,680 cases in Chrome and 28 in Firefox, and none with it. A worker gets no correction ([#292](https://github.com/chenglou/pretext/issues/292); PR #346 proposes a hand-off from the page), and it ignores `devicePixelRatio` (`ENGINE_FOLLOWUPS.md`). The per-engine rebuild (branch `rebuild-20260916`, a from-scratch port of each engine's line breaking, never shipped, kept as the plain-text correctness reference) computes the correction by formula from the width at the device size (`RESEARCH.md`, "Content Language And Fonts"); that would drop the DOM read and work in workers, at the cost of DPR-dependent prepared widths. The formulas belong as comments on both reports.
 - **When fixed:** the correction goes for that engine.
 
 ### Chrome: `system-ui` in Canvas and DOM
 
 - **Report:** [Chromium #489579956](https://issues.chromium.org/issues/489579956), open, assigned (2026-09-12). Exact.
 - **Behavior:** Canvas and DOM pick different SF Pro optical variants at some sizes, moving between releases and pages, and measuring can move the page's own text: at DPR 2 a 13 px span shares a font cache entry with a 26 px Canvas font, so 13 px DOM text measured 67.875 px in a fresh renderer and 60.5703125 px after a Canvas measured 26 px (Chrome 153, 2026-09-18; the key: `RESEARCH.md`, "Engine Facts"). Main measures at the `text-rendering` that shares the page's entry (not checked on main).
-- **Pretext:** unsupported for accuracy: the README says to use a named font, and [#336](https://github.com/chenglou/pretext/issues/336) says what support would take. The rebuild's cache-key page is for a comment on the report.
+- **Pretext:** unsupported for accuracy: the README says to use a named font, and [#336](https://github.com/chenglou/pretext/issues/336) says what support would take. The rebuild's page showing the cache key is for a comment on the report.
 
 ### Firefox: `system-ui` in Canvas and DOM
 
@@ -38,9 +38,9 @@ Measured on macOS at a device pixel ratio of 2 unless an entry says otherwise; W
 
 ### Firefox: the late family names
 
-- **Report:** [Mozilla #2075174](https://bugzilla.mozilla.org/show_bug.cgi?id=2075174), filed by the maintainer on 2026-09-24; `NEW`, marked a likely regression from Mozilla #2063742, `wontfix` for 156 and affected in 157 to 159 (2026-09-27). Exact.
+- **Report:** [Mozilla #2075174](https://bugzilla.mozilla.org/show_bug.cgi?id=2075174), filed by us on 2026-09-24; `NEW`, marked a likely regression from Mozilla #2063742, `wontfix` for 156 and affected in 157 to 159 (2026-09-27). Exact.
 - **Behavior:** a Canvas context resolves its families at its first measurement, but Firefox reads localized family names (`ヒラギノ角ゴ ProN`) and single faces' legacy names (`Avenir Next Condensed Heavy`) only 8 s after start-up (60 s on Windows, by the source), or soon after a lookup of a non-ASCII name misses. DOM text then reflows onto the right font; a context that measured the font string before keeps the fallback for life, and since Firefox 156 nothing a page assigns to an OffscreenCanvas heals it, though a change to `document.fonts` does. Loaded first in a newly started Firefox 156.0.1, `20px "ヒラギノ角ゴ ProN", monospace` measured `Hamburgefonstiv 0123` at monospace's 240.67 px in 11 of 11 starts, while a new context and DOM text moved to 230.77 px 2 to 4 s after load; the English name gave 230.77 px from the start, and Chrome 153 and Safari 27 found the family at once (2026-09-24). 9 of 22 family names from common CSS font lists arrive late on this Mac.
-- **Pretext:** no workaround. With one context for the page's life, every later preparation of a font string first measured in that window keeps the fallback's widths, `clearCache()` or not, and nothing the page can see says when to prepare again. English family names avoid it (`"Hiragino Kaku Gothic ProN"`, or the English name first), as the README's named-font caveat says. <!-- Q5: recommendation taken; the maintainer hasn't answered --> Per-paragraph contexts, which the rebuild keeps in Firefox, are weighed in `ENGINE_FOLLOWUPS.md`.
+- **Pretext:** no workaround. With one context for the page's life, every later preparation of a font string first measured in that window keeps the fallback's widths, `clearCache()` or not, and nothing the page can see says when to prepare again. English family names avoid it (`"Hiragino Kaku Gothic ProN"`, or the English name first), as the README's named-font caveat says. Per-paragraph contexts, which the rebuild keeps in Firefox, are weighed in `ENGINE_FOLLOWUPS.md`.
 - **When fixed:** nothing to remove; the English-names advice stays while 156 is in use.
 
 ### Safari: Canvas text has no language
@@ -61,27 +61,27 @@ Measured on macOS at a device pixel ratio of 2 unless an entry says otherwise; W
 
 - **Reports:** [WebKit #262287](https://bugs.webkit.org/show_bug.cgi?id=262287), fixed in 308215@main (Related); [WebKit #324310](https://bugs.webkit.org/show_bug.cgi?id=324310), `NEW`, for what's left (Exact). Both 2026-09-27.
 - **Behavior:** in a wheel scroll, after a page removes content above the viewport and calls `scrollTo()` to keep the view in place, the next wheel event can apply to the old position, so `scrollTop` reads stale and the content skips: 10 to 18 stale reads per run on a plain scroller in installed Safari 26.5.2, none in Chrome 153 and Firefox 155. Safari Technology Preview 27.0 reads none but drops wheel input while the `scrollTo()` is pending (2026-09-15; not rechecked on Safari 27.0).
-- **Pretext:** it makes the Markdown chat's chunked history window (#312) skip up to 28 messages in Safari; main's chat scrolls from script only to anchor on resize and to jump.
+- **Pretext:** it made draft #312, a chunked history window for the Markdown chat, skip up to 28 messages in Safari; main's chat scrolls from script only to anchor on resize and to jump.
 
 ### WebKit: extra `Range` rectangles on wrapped text
 
 - **Report:** [WebKit #296765](https://bugs.webkit.org/show_bug.cgi?id=296765), `NEW` (2026-09-27). Related.
-- **Behavior:** a `Range` across wrapped text can report an extra zero-width rectangle on the preceding line; Safari 27 no longer gives a line-initial character one at the end of the previous line (2026-09-16). <!-- Q7: recommendation taken; the maintainer hasn't answered --> <!-- Q7 note: the old suite's row count is dropped -->
+- **Behavior:** a `Range` across wrapped text can report an extra zero-width rectangle on the preceding line; Safari 27 no longer gives a line-initial character one at the end of the previous line (2026-09-16).
 - **Pretext:** diagnostics only. The harness reads each code point's positive-size rectangles, since a span per character moves WebKit's breaks (`RESEARCH.md`, "Reading Browser Output").
 
 ### Filed, and not reaching Pretext
 
 - [WebKit #324036](https://bugs.webkit.org/show_bug.cgi?id=324036), filed by us, `NEW` (2026-09-27): JavaScriptCore's `Intl.Segmenter` `containing(n)` also returns the previous segment when code unit n starts a surrogate pair (for `' \u{1F600}'`, `containing(1)` gives index 0, length 3), in Safari 26.5.2 and Bun 1.4.0 (2026-09-12) and in Safari 27's source. Pretext doesn't call it; a test under Bun that does gets this answer.
-- Chromium 564022255 and 564022256, filed under the maintainer's account on 2026-09-20, not read since: `getTextClusters()`, behind a flag in Chrome 153, wraps cluster starts past 65,535 in one shaped item and clusters equal strings differently when stored one-byte and two-byte. Pretext doesn't call it (what it would buy: `RESEARCH.md`, "Engine Facts").
+- Chromium 564022255 and 564022256, filed by us on 2026-09-20, not read since: `getTextClusters()`, behind a flag in Chrome 153, wraps cluster starts past 65,535 in one shaped item and clusters equal strings differently when stored one-byte and two-byte. Pretext doesn't call it (what it would buy: `RESEARCH.md`, "Engine Facts").
 - [WebKit #230339](https://bugs.webkit.org/show_bug.cgi?id=230339), `NEW` since 2021 (2026-09-27): a tab in a 16 px Menlo span inside a 16 px Times New Roman block ends at 8 Menlo spaces (77.063 px), where CSS Text, Chrome and Firefox use the block's (32 px) (WebKit 22625.1.29.11.27, 2026-09-18). Rich inline collapses tabs and plain text has one font; the rebuild's page can go on the report.
 
 ## By design, or unfiled
 
-The rebuild's pages for the unfiled bugs, and for its candidates that don't reach main, are in `rebuild/platform-bugs/pages/` on branch `rebuild-20260916`, run in Chrome 153.0.8010.50, Firefox 156.0 and WebKit 22625.1.29.11.27 on 2026-09-18; Bugzilla searches found no report for them, and issues.chromium.org wasn't searched. <!-- Q10 placeholder: the rebuild's LEDGER.md on that public branch describes a withheld report, so this points at the pages directory only until the maintainer answers -->
+The rebuild's pages for the unfiled bugs, and for its candidates that don't reach main, are in `rebuild/platform-bugs/pages/` on branch `rebuild-20260916`, run in Chrome 153.0.8010.50, Firefox 156.0 and WebKit 22625.1.29.11.27 on 2026-09-18; Bugzilla searches found no report for them, and issues.chromium.org wasn't searched.
 
 ### Firefox: Canvas measures at a rounded font size
 
-By design: Firefox's Canvas keeps 7 significant bits of a font size (`QuantizeFontSize()`) so its font cache doesn't fill with near-equal sizes, where DOM text keeps 10 and rounds to 1/60 px (`RESEARCH.md`, "Engine Facts", has both roundings). <!-- Q18: recommendation taken; the maintainer hasn't answered --> <!-- Q18 note: side finding 13 corrects the old "1/64px grid" sentence --> At 13.33 px, Chrome's and Firefox's default button size, the same 3 test paragraphs changed line count at every DPR tested, while whole-pixel sizes matched within 0.02 px (Firefox 155.0.1, 2026-09-14); the README recommends whole pixels. Rescaling widths from the rounded size was rejected for leaving that residual; with both roundings known it may leave none, which would reopen it.
+By design: Firefox's Canvas keeps 7 significant bits of a font size (`QuantizeFontSize()`) so its font cache doesn't fill with near-equal sizes, where DOM text keeps 10 and rounds to 1/60 px (`RESEARCH.md`, "Engine Facts", has both roundings). At 13.33 px, Chrome's and Firefox's default button size, the same 3 test paragraphs changed line count at every DPR tested, while whole-pixel sizes matched within 0.02 px (Firefox 155.0.1, 2026-09-14); the README recommends whole pixels. Rescaling widths from the rounded size was rejected for leaving that residual; with both roundings known it may leave none, which would reopen it.
 
 ### Firefox: a text-presentation emoji changes later emoji
 
@@ -111,7 +111,7 @@ Unfiled on purpose: Firefox's `Intl.Segmenter` runs a small model over every cha
 
 ## Investigated, not platform bugs
 
-- [#195](https://github.com/chenglou/pretext/issues/195): Shantell Sans bold wraps unlike Pretext in Chrome 152 and Firefox 152 (2026-09-03), but whole-run Canvas and DOM widths agree; the gap is Pretext's per-letter sums (`RESEARCH.md`, "Content Language And Fonts"). <!-- Q6: recommendation taken; the maintainer hasn't answered --> <!-- Q6 note: FONT_DIAGNOSTICS.md folded into RESEARCH.md -->
+- [#195](https://github.com/chenglou/pretext/issues/195): Shantell Sans bold wraps unlike Pretext in Chrome 152 and Firefox 152 (2026-09-03), but whole-run Canvas and DOM widths agree; the gap is Pretext's per-letter sums (`RESEARCH.md`, "Content Language And Fonts").
 - An element's own `lang` doesn't reach an OffscreenCanvas; `<html lang>` does, within 0.05 px in Chrome 153 and Firefox 155 (2026-09-14). pdf.js says Firefox's Canvas follows the OS language ([Mozilla #1869001](https://bugzilla.mozilla.org/show_bug.cgi?id=1869001), on Windows); on this Chinese-language Mac that holds only in a worker, for a context with no language.
 - After `<html lang>` changes, Chrome's OffscreenCanvas keeps an unchanged font string's fonts from the old language (repro in `RESEARCH.md`, "Content Language And Fonts"). The [HTML spec](https://html.spec.whatwg.org/multipage/canvas.html#offscreencanvas-inherited-lang) sets an OffscreenCanvas's inherited language once, when it's created, so we didn't file it; preparation replaces the context when its language changes.
 - Safari's Canvas and DOM agree on emoji, though Apple Color Emoji is wider than `font-size` at small sizes (16 px at 12 px): compare Canvas with the DOM, never with the font size.

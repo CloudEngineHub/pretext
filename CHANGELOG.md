@@ -14,7 +14,6 @@
 - Safari's line breaking follows Safari 27. Safari 26, on macOS 26 and iOS 26, breaks differently around curly quotes and guillemets, after punctuation with `word-break: keep-all`, at U+2028 and U+2029, and after a first character too wide for its line (#340).
 - In Chrome, text on a page without a `lang` now breaks and measures under Chrome's UI language, as Chrome lays it out: under a Chinese UI, curly double quotes wrap as brackets (#340).
 - `layout()` is two to three times faster in Chrome and Safari on text without letter spacing, preserved spaces, tabs, hard breaks, soft hyphens or invisible controls other than zero-width spaces, which covers most prose (#338).
-<!-- Q8: recommendation taken; the maintainer hasn't answered -->
 - Bundles that import Pretext are about 5 KB smaller gzipped and 16 KB smaller minified, from a smaller check for when Safari keeps a word's kerning with a following space (#311).
 - `setLocale(locale)` now sets the language that later `prepare()`, `prepareWithSegments()` and `prepareRichInline()` calls break lines and measure under, in place of the page's `<html lang>`, which a worker doesn't have; `setLocale()` without a locale goes back to `<html lang>`. It no longer picks a locale for word boundaries: no locale changes the ones Pretext still reads, inside Thai, Lao, Khmer and Myanmar text (#340, #356).
 - `prepare()`, `prepareWithSegments()` and `prepareRichInline()` now throw a `RangeError` for a `letterSpacing` that isn't finite, such as `NaN` or `Infinity`, which gave lines of width `NaN`, or a line per grapheme (#356).
@@ -25,8 +24,6 @@
 - The npm package no longer includes the demos (`pages/demos` and `pages/assets`). They live in the repository (#342).
 
 ### Fixed
-
-<!-- Q8: recommendation taken; the maintainer hasn't answered -->
 
 - In Chrome, a CJK closing mark such as `」` or `）` before a newline in `white-space: pre-wrap`, or before a space, now fits at the end of a line with the narrower width Chrome's `text-spacing-trim` gives it there, where nothing earlier on the line can wrap, as in a narrow box, instead of moving to the next line (#366).
 - Rich-inline lines break where the same text in one element does in more cases. In Chrome and Firefox, where items split a word, as when part of a Thai or Myanmar word is styled, lines end at that word's own breaks instead of splitting it between letters or ending before the part of it that fits. In every browser, an item whose first word doesn't fit after a break moves to the next line instead of splitting that word; in Safari this is new where the word holds a character that Safari doesn't break at, such as a control character or a zero-width space followed by a combining mark (#359).
@@ -48,7 +45,7 @@
 - In Chrome, text prepared after changing `<html lang>` now uses the fonts for the new language, even when the font string is unchanged (#230).
 - Figure spaces (U+2007) now keep adjacent text on the same line, like no-break spaces, as browsers do (#232).
 - Lines can now break after `?` before `$`, `%`, `+`, `\`, `-` or `|`, after `!` or `?` before a symbol such as `©`, `¿` or `€`, and after the Arabic semicolon `؛` before a word, as browsers do. Firefox still keeps `?` with a following `-` or `|` (#233).
-- A zero-width joiner now keeps the character after it on the same line (#233, #340). <!-- Q8: recommendation taken; the maintainer hasn't answered -->
+- A zero-width joiner now keeps the character after it on the same line (#233, #340).
 - In Chrome and Safari, a hyphen or dash such as U+2010 HYPHEN, U+2012 FIGURE DASH or U+2013 EN DASH at the start of a word now stays with a following letter of an alphabetic script, such as Latin, Cyrillic, Arabic, Hebrew or Thai. For `-`, only letters outside Latin-1 count (#233).
 - In Chrome, lines can now break between a fullwidth closing bracket such as `」` or `）` and a following ideograph, kana or Hangul syllable, as Chrome does (#234).
 - Lines no longer start with CJK closing punctuation or nonstarters such as `〟`, `］`, `｡`, `､`, `｣` or `゛` (#234).
@@ -65,7 +62,7 @@
 - A time or number followed by closing punctuation such as a full-width comma, as in `00:00:00，`, now stays whole instead of breaking after a `:` or before the comma (#245).
 - In Safari, small kana and `ー` after CJK text can now start a line only on pages whose `<html lang>` is Japanese or Korean, as Safari does (#249).
 - In Chrome, `ー` can now start a line after CJK text, as Chrome does (#250).
-- In Firefox, small kana no longer start a line after CJK text, as Firefox does (#250). <!-- Q8: recommendation taken; the maintainer hasn't answered -->
+- In Firefox, small kana no longer start a line after CJK text, as Firefox does (#250).
 - When a line's first word is wider than the line, a following space or zero-width space now ends that line in `layoutWithLines()`, `walkLineRanges()`, `layoutNextLine()`, `layoutNextLineRange()` and rich-inline layout. Previously, other content such as a soft hyphen or a word joiner, or `letterSpacing`, moved it to the start of the next line. Plain-text line counts and widths don't change. With `letterSpacing`, rich-inline layout can also take fewer lines or give lines different widths, for example where invisible characters such as a zero-width space took a line of their own (#272).
 - A negative `maxWidth` now lays out like 0 in `layout()` and the other plain-text line APIs. Previously it could give a different line count than 0, which could also depend on whether the text contained a soft hyphen or used `letterSpacing` (#272).
 - In Safari, a word that ends in an invisible format character such as a word joiner now keeps its kerning with a following space when an explicit bidi control such as U+202A appears only in another paragraph, such as another line of `white-space: pre-wrap` text (#271).

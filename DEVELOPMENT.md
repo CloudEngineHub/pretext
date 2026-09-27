@@ -4,7 +4,7 @@ Commands are in `package.json` and the header of `harness/cli.ts`; the harness a
 
 ## The Demo Server
 
-`bun start` listens on every network interface, not only localhost, so a phone on the same Wi-Fi can open the demos; a PR binding it to localhost was closed for that (#114). It first kills whatever listens on port 3000, so a server left from an earlier session can't hold the port.
+`bun start` listens on every network interface, not only localhost, so a phone on the same Wi-Fi can open the demos; a PR binding it to localhost was closed for that (#114). It first kills whatever listens on port 3000, so a server left running from before can't hold the port.
 
 ## Engine Data
 
@@ -14,11 +14,11 @@ The engine files stay checked in so the tables rebuild offline, and so does the 
 
 ### Grapheme Check
 
-After a grapheme table changes, compare `src/graphemes.ts` with `Intl.Segmenter` in Chrome, Firefox and webkit-host; the headers in `scripts/grapheme-check/` have the commands.
+After a grapheme table changes, compare `src/graphemes.ts` with `Intl.Segmenter` in Chrome, Firefox and webkit-host (the harness's background app on the system WebKit that Safari runs); the headers in `scripts/grapheme-check/` have the commands.
 
 ## Releasing
 
-No release until after the API discussion (TODO.md). Before one, run `bun run package-smoke-test`, the only check that packs and imports the built package, so the only one an extensionless import in `src/` fails. License notices for the ported engine code and `scripts/engine-data/` aren't written yet. At release, fold CHANGELOG.md's pre-#340 break-rule entries into #340's. <!-- Q8: recommendation taken; the maintainer hasn't answered -->
+No release until after the API discussion, the review of the public API that TODO.md lists under End of project. Before one, run `bun run package-smoke-test`, the only check that packs and imports the built package, so the only one an extensionless import in `src/` fails. License notices for the ported engine code and `scripts/engine-data/` aren't written yet. At release, fold CHANGELOG.md's Unreleased entries for break rules that #340's engine ports replaced into #340's entry.
 
 Every push to `main` publishes the demo site (`.github/workflows/pages.yml`).
 
