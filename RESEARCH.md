@@ -244,6 +244,28 @@ against main it loses fewer rows than prefixes everywhere did (477 left-to-right
 and 314 right-to-left where main placed every character or wasn't placed, against
 675 and 343).
 
+The 80px has no browser reason: it was the old suite's boundary for narrow widths.
+Measured again with the harness in Firefox 156 (2026-09-27), a 24px floor, where the
+harness's layouts narrower than real ones end, costs what prefixes everywhere cost,
+since the prefixes' calls sit in words 24-80px wide. Either takes 99 measureText calls
+per 1,000 units while preparing where 80px takes 62 (with the 24px floor, 11,367
+against 5,857 on the census and 434,843 against 278,106 on the real-usage draws), and
+`bun harness bench main` reads new Latin, Arabic and mixed messages and UI labels
+28-68% slower in both sessions; new CJK and Thai, seen text and the worst shapes read
+within noise. Lines at 24px and wider move the same under both: 281 Firefox cases at
+24-80px pass that fail with the floor, 172 of them the old gate's Arabic words with
+vowel marks before brackets, quotes, controls or Latin, and 14 fail that pass. Ten of
+those are `a ★ーb` in 16px Arial at 25-29px: Firefox's Canvas measures `★ー` at 32px, as
+the browser lays it out alone, where the paragraph lays it out at 26.65px after `a `,
+which summed standalone widths (10.65px and 16px) match by luck. Three are Amiri
+Arabic split at 24.45px, 1/64px from where the lines change, and one is a real-usage
+draw, `TKT-84565` in a 31.25px table cell in 16px Helvetica Neue: prefixes give the
+hyphen that starts the second line all 2.05px of its kerning with the `T` before it,
+so `-845` fits at 30.87px, where Firefox moves the `5` on. No real-usage draw gains,
+and 188 of the 11,901 (1.5% of their weight) are narrower than 80px. Below 24px, the
+24px floor fixes 40 cases and loses 36, prefixes everywhere 44 and 50. The floor stays
+at 80px as a premise (Decisions Log).
+
 An overflowing segment used to end its emergency split after its last hyphen that
 fit. Those preferred breaks recovered ordinary breaks the merged segmentation hid
 inside a segment. A scan segment ends at every break, so a hyphen left inside one has
@@ -1889,3 +1911,11 @@ reason still holds, and record the new decision here with its date.
   breakable runs, pre-wrap chunks, keep-all CJK brackets and Latin messages seen
   before 2 to 5% slower than main; with the test also written out in the first
   setup's loop, every one of them reads within noise (Bidi Levels).
+- **2026-09-27: the Gecko profile keeps its 80px floor for prefix fits, as a
+  premise.** Prefixes model Firefox's whole-word advances better than standalone
+  graphemes, and the floor has no browser reason, but a floor at 24px or none made
+  Firefox 156 prepare new Latin, Arabic and mixed messages and UI labels 28-68%
+  slower. In exchange, 281 adversarial cases at 24-80px would pass and 14 fail, and
+  the one real-usage draw that moves would fail. Words narrower than 80px keep summing
+  standalone graphemes where lines narrower than 80px split them (Break Opportunities
+  From Engine Data).
