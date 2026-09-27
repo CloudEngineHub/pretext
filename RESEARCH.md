@@ -22,6 +22,32 @@ whole word also does not establish the widths of its possible line prefixes.
 Engine profiles describe the layout engine, not the browser brand;
 `getLayoutEngine()` in `src/measurement.ts` explains how the user agent names it.
 
+In Chrome a Latin-1 string's storage decides how Canvas shapes it. Blink shapes a
+one-byte string as one Latin segment, and runs its script segmenter over a two-byte
+one alone (harfbuzz_shaper.cc:1072-1101). V8 keeps a slice of 13 units or more cut
+from a string that holds a unit above U+00FF two-byte, and copies shorter ones into
+one byte. Using a string as a `Map` key internalizes it, and V8 makes the
+internalized copy one-byte when its units fit only if that lookup is the first to
+hash the string (`known_one_byte_content`, string-table.cc:411-421); a two-byte
+string hashed earlier keeps two-byte storage. Nothing hashes a segment before its
+metrics lookup, so every Latin-1 segment the metrics caches look up reaches Canvas
+one-byte and is measured as Latin. Chrome paints a run of script-neutral characters
+that way after Latin text and in text that is all Latin-1, but not after Arabic or
+Han, or between em dashes with no letter around: Blink gives the run the script of
+the text before it, and only a run at the paragraph start takes the script after it
+(script_run_iterator.cc:503-516, ENGINE_FOLLOWUPS.md). Rejected (2026-09-27):
+keying the caches by another string, so that Canvas gets each slice as it was built.
+It changes only runs of 13 units or more cut from such text, and moved none of
+41,788 Chrome predictions. Of 18 fonts probed, only Amiri and Noto Naskh Arabic
+measure the two storages differently (17 of 504 font and run pairs). On templates in
+those fonts it fixed every such run after Arabic, Han or an em dash, and broke every
+one after Latin in text that also holds an emoji or `ā`: it breaks `)`×15 between
+`abc ` and ` بتث`, and fixes it between `بتث ` and ` abc`. The storage follows a
+slice's length and the text it was cut from, not the text before the run, which the
+page follows. It also costs a string per lookup, and a canvas asked for the same
+characters in both storages answers both with whichever it shaped first
+(PLATFORM_BUGS.md).
+
 ## Break Opportunities From Engine Data
 
 Chrome, Safari and Firefox take break opportunities from ports of their engines' own

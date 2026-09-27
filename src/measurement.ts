@@ -284,6 +284,8 @@ export function measureWithLetterSpacing(text: string, letterSpacing: number, em
   }
 }
 
+// The lookup is the first to hash seg and internalizes it, so V8 hands Canvas a Latin-1
+// segment one-byte, which Chrome measures as Latin (RESEARCH.md, Measurement Model).
 export function getSegmentMetrics(seg: string, measurement: FontMeasurement): SegmentMetrics {
   return measurement.metrics.get(seg) ?? addMetrics(measurement.metrics, seg, seg, measurement)
 }
