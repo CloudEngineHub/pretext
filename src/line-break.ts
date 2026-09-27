@@ -41,7 +41,7 @@ export type PreparedLineBreakData = {
   // Per segment, width it drops where a line ends after it and it doesn't fit otherwise,
   // as Blink's line-end halt of a closing mark. Null without any.
   lineEndTrims: number[] | null
-  // Per segment, width it drops on top of that where it overflows a line that has no break
+  // Per segment, width it drops in place of that where it overflows a line that has no break
   // before it and the line ends after it: Blink retries such a line with a break after every
   // grapheme, so it halts a closing mark before a hard break or a space too. Null without any.
   overflowLineEndTrims: number[] | null

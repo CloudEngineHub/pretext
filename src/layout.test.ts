@@ -3981,6 +3981,9 @@ describe('layout invariants', () => {
         ['」\n', 7, ['」'], [16]],
         // A line whose closing mark follows text the scan gives no break before.
         ['中\u0001」\n', 34, ['中\u0001」'], [33.6]],
+        // Only where no break before it fits, and a space after it still hangs.
+        ['中 中\u0001」\n', 56, ['中 ', '中\u0001」'], [16, 41.6]],
+        ['中\u0001」 中', 34, ['中\u0001」 ', '中'], [33.6, 16]],
       ]
       // Which marks halt at a line end, before which endings. Blink halts the marks
       // Character::MaybeHanKerningClose takes, 」』）】〉》, and never 、。，, which type as dots,
@@ -3997,6 +4000,8 @@ describe('layout invariants', () => {
         ['\n', '', [], false],
         [' 中', ' ', ['中'], false],
         ['\u0001', '', ['\u0001'], false],
+        ['\t中', '\t', ['中'], false],
+        ['\u200B中', '\u200B', ['中'], false],
       ]
       const marks: [string, boolean][] = [['」', true], ['』', true], ['）', true], ['】', true], ['〉', true], ['》', true], ['。', false], ['、', false], ['，', false]]
       for (let m = 0; m < marks.length; m++) {
@@ -4012,7 +4017,7 @@ describe('layout invariants', () => {
       }
       for (const [text, width, expected, widths] of cases) {
         // Spaces hang in both white-space modes; a line feed is a hard break only in pre-wrap.
-        const modes = text.includes('\n') ? ['pre-wrap'] as const : ['normal', 'pre-wrap'] as const
+        const modes = /[\n\t]/.test(text) ? ['pre-wrap'] as const : ['normal', 'pre-wrap'] as const
         for (let m = 0; m < modes.length; m++) {
           const whiteSpace = modes[m]!
           const options = { whiteSpace }
