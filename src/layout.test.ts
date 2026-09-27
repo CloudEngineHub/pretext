@@ -2880,6 +2880,52 @@ describe('rich-inline invariants', () => {
     }
   })
 
+  test('a collapsed space before rich items a line start consumes hangs where the line ends after them', () => {
+    // Each line's width and its fragments' items and gaps, whose sum is the width.
+    const walk = (texts: readonly string[], maxWidth: number) => {
+      const prepared = prepareRichInline(texts.map(text => ({ text, font: FONT })))
+      const lines: Array<[number, Array<[number, number]>]> = []
+      walkRichInlineLineRanges(prepared, maxWidth, range => {
+        let sum = 0
+        for (const fragment of range.fragments) sum += fragment.gapBefore + fragment.occupiedWidth
+        expect(range.width).toBeCloseTo(sum, 8)
+        lines.push([range.width, range.fragments.map(fragment => [fragment.itemIndex, fragment.gapBefore])])
+      })
+      expect(measureRichInlineStats(prepared, maxWidth)).toEqual({ lineCount: lines.length, maxLineWidth: Math.max(...lines.map(line => line[0])) })
+      return lines
+    }
+    const see = measureWidth('see', FONT)
+    const space = measureWidth(' ', FONT)
+    const hyphen = measureWidth('-', FONT)
+    const profile = getEngineProfile()
+    const previous = [profile.lineBreakScan, profile.spaceBeforeSoftHyphenHangs] as const
+    try {
+      // Where the soft hyphen's hyphen doesn't fit, the line ends at the space before it,
+      // which hangs; where it fits, at the soft hyphen, which paints a hyphen that
+      // rich-inline leaves out, so the space stays, as on a line that returns to the break
+      // before a run the next item continues. Gecko discards the soft hyphen, which
+      // paints no hyphen after white space, so the space hangs wherever the line ends.
+      // At the paragraph's end, Blink and WebKit lay the soft hyphen out after the space,
+      // which stays, and so does WebKit where the line ends at white space after it.
+      for (const [lineBreakScan, hangs] of [['blink', 'break'], ['webkit', 'own-break'], ['gecko', 'line-end']] as const) {
+        profile.lineBreakScan = lineBreakScan
+        profile.spaceBeforeSoftHyphenHangs = hangs
+        clearCache()
+        const kept = hangs === 'line-end' ? 0 : space
+        expect(walk(['see', ' \u00AD', 'this word'], see + space + hyphen - 0.5)[0]).toEqual([see, [[0, 0], [1, 0]]])
+        expect(walk(['see', ' \u00AD', 'this word'], see + space + hyphen + 0.5)[0]).toEqual([see + kept, [[0, 0], [1, kept]]])
+        expect(walk(['see', ' \u00AD', 'this', 'word'], see + space + measureWidth('this', FONT) + 0.5)[0]).toEqual([see + kept, [[0, 0], [1, kept]]])
+        expect(walk(['see', ' \u00AD', ' \u00AD'], Infinity)).toEqual([[see + kept + kept, [[0, 0], [1, kept], [2, kept]]]])
+        expect(walk(['see', ' \u00AD', 'this word'], Infinity)).toEqual([[see + space + measureWidth('this word', FONT), [[0, 0], [1, space], [2, 0]]]])
+        const beforeWhiteSpace = hangs === 'own-break' ? space : 0
+        expect(walk(['see', ' \u00AD ', 'this word'], see + space + hyphen - 0.5)[0]).toEqual([see + beforeWhiteSpace, [[0, 0], [1, beforeWhiteSpace]]])
+      }
+    } finally {
+      [profile.lineBreakScan, profile.spaceBeforeSoftHyphenHangs] = previous
+      clearCache()
+    }
+  })
+
   test('rich ordinary break rights survive zero and negative SPACE advances', () => {
     for (const gap of [-2, 0, 2]) {
       const prepared = prepareRichInline([
@@ -3074,11 +3120,13 @@ describe('rich-inline invariants', () => {
     // the first item's end took (ENGINE_FOLLOWUPS.md). A collapsible run with a newline
     // right after a ZWSP that ends the item before, or before one that starts the next,
     // goes as in the text of the whole paragraph, where it leaves one space around a soft
-    // hyphen, not two.
+    // hyphen, not two, and where the run is an item of its own, the item before it keeps
+    // its text.
     for (let width = 16; width <= 72; width += 4) {
       expectFlatLines(['  cd', '\u0E44\u0E17\u0E22', '\u200B\u4E2D\u200B', '\u00AD', '-'], width)
       expectFlatLines(['ab\u200B', '\n\u00AD\nc', 'd'], width)
       expectFlatLines(['ab\n', '\u200Bcd'], width)
+      expectFlatLines(['wor', 'd', '\n', '\u200Bn', 'ext words'], width)
     }
     // The Gecko scan of the second item alone doesn't break before `\u0000`, where
     // the joined text does, so the item's copied flags mark that start returnable.

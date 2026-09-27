@@ -1254,6 +1254,43 @@ Chromium, Gecko, WebKit and unknown-engine profiles, and lose 15, 56, 60 and 13:
 to 7px, before a line separator the WebKit profile makes a hard break after the kept
 space, and where Gecko's transformation of each item keeps what the flat text removes.
 
+Where a line ends after an item that a line start consumes, after content, the
+collapsed space before that item can end the line, and then it hangs, as white space
+that ends a line does. Items `see`, ` \u00AD`, `this word` in 16px Arial end their
+first line at 25.80px at 30-34.67px in Chrome, Safari and Firefox, the width of `see`:
+the browsers break at the space and move the soft hyphen to the next line, where rich
+lines that kept the space reported 30.24px. From 36px, where the hyphen fits, Chrome
+and Safari end the line at the soft hyphen instead and paint its hyphen after the
+space, 35.57px, which rich-inline leaves out, so the space stays in the width, as the
+next item's `hyphenBefore` tells; hanging it there too, as the review's prototype did,
+lost 118 Chrome and 120 webkit-host line widths of the September 27, 2026 probe of
+32,830 rich fuzz shapes, on texts without newlines or tabs, which the fix keeps.
+Firefox discards soft hyphens from a text frame's text (IsDiscardable), paints no
+hyphen after white space, and keeps 25.80px there, and it hangs the space at the end of
+the paragraph as well, where Chrome and Safari lay the soft hyphen out after the space
+and give it a line of its own where the space doesn't fit: items `see`, ` \u00AD` take
+2 lines in Chrome at 26-31px and in Safari at 26-30px, and one 25.80px line in Firefox.
+The harness records Chrome's line there as 25.80px, since it leaves out a U+0020 that
+ends a line, and Chrome gives the soft hyphen after it no box, so hanging the space at
+the end of the paragraph in the Chromium profile matched Chrome's recorded widths at 460
+more lines of the probe of 43,462 shapes, though Chrome moves the soft hyphen to a line of
+its own where the space doesn't fit; in the WebKit profile it lost 104 webkit-host lines. Safari also keeps the soft hyphen,
+and the space before it, on a line that ends at white space after it: items `see`,
+` \u00AD `, `this word` at 45px end their first line at 30.24px in Safari and at 25.80px
+in Chrome and Firefox. Keeping the space there fixed 335 webkit-host line widths of the
+probe of 32,830 shapes and lost 136, and in the Chromium profile fixed 73 Chrome ones and
+lost 159. The profiles name the three (`spaceBeforeSoftHyphenHangs`). Against the rich
+lines that always kept the space (447a5bf9), on cases that main, the round start and both
+builds lay out right, on texts without newlines or tabs, line widths move toward the
+browser's and away at 97 and 7 Chrome lines of that probe, 492 and 32 Firefox and 59 and 2
+webkit-host, at 43 and 9, 1,104 and 17, and 37 and 0 of the probe of 43,462 shapes, and at
+14 and 0, 108 and 6, and 18 and 0 of those of 22,771 and 4,858. With newlines, Firefox
+records more away, 552 of that first probe, since Firefox gives a space that a newline
+collapses to a box as it hangs past the line, which the harness doesn't leave out, as it
+leaves out only U+0020: items `ab`, `\n\u00AD`, `cd` at 22px record 22.25px in Firefox.
+Firefox's remaining losses without newlines are items that mix soft hyphens and white
+space, where it collapses white space across the soft hyphens (ENGINE_FOLLOWUPS.md).
+
 Safari's line builder for inline boxes returns from a soft hyphen whose hyphen
 doesn't fit to the line's latest earlier break, as its line breaking of one text node
 does where it has one (Breaks And Source Positions names the partners that return

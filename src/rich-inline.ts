@@ -552,7 +552,7 @@ function stepRichInlineLine(
   fragments: RichInlineFragmentRange[] | null,
 ): number | null {
   const safeWidth = Math.max(1, maxWidth)
-  const { lineFitEpsilon, unfitHyphenRetreat } = getEngineProfile()
+  const { lineFitEpsilon, spaceBeforeSoftHyphenHangs, unfitHyphenRetreat } = getEngineProfile()
   let hasContent = false
   let lineWidth = 0
   let remainingWidth = safeWidth
@@ -571,6 +571,8 @@ function stepRichInlineLine(
   let breakOccupiedWidth = 0
   let breakFits = false
   let returnsToBreak = false
+  // Whether an item a line start consumes followed content on the line (below).
+  let consumedAfterContent = false
 
   // Every `continue` moves on to the start of the next item.
   for (; itemIndex < flow.items.length; itemIndex++, cursor.segmentIndex = 0, cursor.graphemeIndex = 0) {
@@ -596,9 +598,11 @@ function stepRichInlineLine(
     // turning their mere presence into a line. A following line can still
     // expose their consumed source. After content, the line keeps the collapsed
     // space before such an item, as the flat text keeps a space before a soft
-    // hyphen, which hangs where it doesn't fit, as the item takes no room after it.
+    // hyphen: content after it on the line pays for it, a line that ends after the
+    // item can hang it (below), and it ends no line, as the item takes no room after it.
     if (!item.establishesLine) {
       collectItemRest(fragments, itemIndex, item, EMPTY_LAYOUT_CURSOR, gapBefore, gapItemIndex, 0)
+      if (hasContent) consumedAfterContent = true
       lineWidth += gapBefore
       remainingWidth = safeWidth - lineWidth
       continue
@@ -734,6 +738,35 @@ function stepRichInlineLine(
     }
   }
   if (!hasContent) return null
+
+  // A line that ends after items a line start consumes, after its content, can end at the
+  // collapsed spaces before them, which then hang, as white space that ends a line does
+  // (CSS Text 3 §4.1.2): the browsers break at a space before a soft hyphen and move the
+  // soft hyphen to the next line. Where the engine keeps the soft hyphen on the line
+  // (EngineProfile), the spaces take room, and so they do where the line ends at the soft
+  // hyphen with its hyphen: where the item after it breaks before it and would paint a
+  // hyphen that fits, which rich-inline leaves out (ENGINE_FOLLOWUPS.md).
+  if (consumedAfterContent && cursor.segmentIndex === 0 && cursor.graphemeIndex === 0) {
+    const next = flow.items[itemIndex]
+    if (spaceBeforeSoftHyphenHangs === 'line-end' || (
+      next !== undefined &&
+      (spaceBeforeSoftHyphenHangs === 'break' || next.gapItemIndex < 0) &&
+      !(next.breakBefore && next.hyphenBefore > 0 && lineWidth + next.hyphenBefore <= safeWidth + lineFitEpsilon)
+    )) {
+      let fragmentCount = fragments === null ? 0 : fragments.length
+      for (let i = itemIndex - 1; i >= 0; i--) {
+        const item = flow.items[i]
+        if (item === undefined) continue
+        if (item.establishesLine) break
+        lineWidth -= item.gapBefore
+        if (fragments !== null) {
+          const fragment = fragments[--fragmentCount]!
+          fragment.gapBefore = 0
+          fragment.gapItemIndex = -1
+        }
+      }
+    }
+  }
 
   cursor.itemIndex = itemIndex
   return lineWidth
