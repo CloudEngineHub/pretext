@@ -1698,7 +1698,7 @@ reason still holds, and record the new decision here with its date.
   language, which the maintainer rejected as DOM access on 2026-09-12.
 - **2026-09-24: `countPreparedLines()` keeps its leading-space skip**, a loop that
   never runs: without it Firefox 156 resized Latin chat messages to new widths in
-  1.10 to 1.15 of main's time instead of 0.98.
+  1.10 to 1.15 of main's time instead of 0.98. Replaced on 2026-09-26, below.
 - **2026-09-24: the full walker got engineering, not heuristics.** The maintainer
   asked for data layout, fewer allocations, smaller representations and plain
   indexed code rather than new shortcuts: its state moved into locals, each
@@ -1750,4 +1750,6 @@ reason still holds, and record the new decision here with its date.
   slower; the full walker without its redundant `unfitHyphenRetreat` test lays out
   letter-spaced CJK 5% slower; and `segmentAtLineBreaks()` as one loop from the
   first unit prepares pre-wrap chunks 13% and long breakable runs 8% slower
-  (Keeping Work Bounded).
+  (Keeping Work Bounded). `countPreparedLines()`'s leading-space skip went too:
+  without it Firefox 156 resizes Latin chat messages to new widths 3 to 7% slower,
+  and every resize row reads within noise in all three browsers.
