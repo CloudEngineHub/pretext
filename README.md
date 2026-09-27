@@ -12,7 +12,7 @@ npm install @chenglou/pretext
 
 ## Demos
 
-The demos are exemplary API usage: if you, or an agent, write code with Pretext, clone the repo, run `bun install`, then `bun start`, and play with them at <http://localhost:3000/demos>. On Windows, use `bun run start:windows`.
+The demos are exemplary API usage: if you, or an agent, write code with Pretext, play with them. They aren't in the npm package, so clone the repo, run `bun install`, then `bun start`, and open <http://localhost:3000/demos> in your browser. On Windows, use `bun run start:windows`.
 Alternatively, see them live at [chenglou.me/pretext](https://chenglou.me/pretext/). Some more at [somnai-dreams.github.io/pretext-demos](https://somnai-dreams.github.io/pretext-demos/)
 Building a chat or another long list? [pages/demos/markdown-chat.md](https://github.com/chenglou/pretext/blob/main/pages/demos/markdown-chat.md) walks through the Markdown chat demo's patterns and when you can skip each.
 
@@ -226,7 +226,7 @@ setLocale(locale?: string): void // optional (by default we use the page languag
 
 Notes:
 - `LayoutCursor` is a segment/grapheme cursor, not a raw string offset.
-- A line's `width` leaves out spaces and tabs that hang past its end, as browsers draw them: all of them where the line wraps, and in `pre-wrap` before a newline or at the end of the text, only the part that doesn't fit in `maxWidth`. `measureNaturalWidth()` still counts spaces before a newline, like CSS max-content.
+- A line's `width` leaves out spaces that hang past its end, as browsers draw them, and tabs where the browser hangs them: all of them where the line wraps, and in `pre-wrap` before a newline or at the end of the text, only the part that doesn't fit in `maxWidth`. `measureNaturalWidth()` still counts spaces before a newline, like CSS max-content.
 - `layout()` with an empty string returns `{ lineCount: 0, height: 0 }`. Browsers still size an empty block to one `line-height`, so clamp with `Math.max(1, lineCount) * lineHeight` if you need that behavior.
 - Pretext doesn't give bidi levels or a visual order. If you're drawing mixed bidi text, like English and Arabic, render each paragraph as one DOM element with its direction set, and the browser orders every line. If you draw lines separately, such as with Canvas `fillText()`, each line is ordered as its own paragraph, so numbers or punctuation next to a line break, or bidi controls that span lines, can come out in a different order.
 - A rich-inline fragment's `gapBefore` is a space in the font and letter spacing of item `gapItemIndex`: the fragment's own item, the previous fragment's item, or an item holding only whitespace, which gets no fragment. Draw the space inside that item's element so it paints at that width.
@@ -252,7 +252,7 @@ Pretext doesn't try to be a full font rendering engine (yet?). It currently targ
 
 ## Develop
 
-See [DEVELOPMENT.md](https://github.com/chenglou/pretext/blob/main/DEVELOPMENT.md) for the dev setup and commands.
+See [DEVELOPMENT.md](https://github.com/chenglou/pretext/blob/main/DEVELOPMENT.md) for the demo server, engine data and releases.
 
 ## Credits
 

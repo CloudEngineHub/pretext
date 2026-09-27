@@ -106,8 +106,8 @@ every recording under one environment (one recording's two orders found 11 of we
 
 ## Proving "no change"
 
-A cleanup changes nothing only when every tool says so: `equal main` (`--offline` first, then in the browsers),
-`check`, `gate`, the invariants and the bench's floors.
+A cleanup changes nothing only when every tool says so, run on old and new with the same inputs: `equal main`
+(`--offline` first, then in the browsers), `check`, `gate`, the invariants and the bench's floors.
 
 - An offline replay detects change but isn't an oracle: its stand-in Canvas gives each character a fixed width, so it
   can't fail on shaping, painting or string storage.
@@ -138,7 +138,7 @@ canvas doesn't make text new.
 - **WebKit's width cache** samples one Canvas call in 21 after a run of misses, so a repeated prepare speeds up after
   21 / gcd(n, 21) runs: compare submitted text and cold first prepares.
 
-A full bench took about 27 minutes (2026-09-26).
+A full bench took about 27 minutes (2026-09-26). Nothing timed is checked in.
 
 ## Browsers and pins
 
@@ -147,10 +147,11 @@ the major version. Each copy gets its update policy before first launch, since a
 (`browsers.ts`, 2026-09-25). Safari can't be pinned, and a macOS update moves all three (system fonts, Core Text, ICU,
 emoji). Chrome 153 to 154 and Firefox 156.0 to 156.0.1 left every recording byte-identical.
 
-webkit-host (`browsers.ts`) lays text out as Safari 27.0 does: the same line geometry on 25,180 cases in both orders
-(2026-09-17) and on installed Safari's 2,000-case sample except page history (2026-09-24); a Safari or macOS update
-voids that until the comparison runs again. Installed Safari stalls when hidden (WebKit suspends a hidden page past a
-CPU limit averaged over 8 minutes), so keep its window uncovered during a job.
+webkit-host, the system WebKit that installed Safari runs, in a background app (`browsers.ts`), lays text out as Safari
+27.0 does: the same line geometry on 25,180 cases in both orders (2026-09-17) and on installed Safari's 2,000-case
+sample except page history (2026-09-24); a Safari or macOS update voids that until the comparison runs again. Installed
+Safari stalls when hidden (WebKit suspends a hidden page past a CPU limit averaged over 8 minutes), so keep its window
+uncovered during a job.
 
 Firefox changes fonts after it starts (see also `PLATFORM_BUGS.md`, the late family names): emoji beside Arial laid out
 otherwise when recorded 11 s after launch than at 12, 15 or 30 s (91 cases, 2026-09-24), so each Firefox job holds its
