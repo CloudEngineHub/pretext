@@ -700,7 +700,6 @@ export function getGeckoLineBreaks(
       if (from === at) continue
       while (to < next && !endsWord(tr.text, to, n)) to++
       g.clusterStart.fill(1, from, to)
-      g.isSpace.fill(0, from, to)
       splitAndInitTextRun(g, tr.text, from, at, graphemeTable, ends)
       splitAndInitTextRun(g, tr.text, at, to, graphemeTable, ends)
     }
