@@ -36,6 +36,10 @@ If you want textarea-like text where ordinary spaces, `\t` tabs, and `\n` hard b
 ```ts
 const prepared = prepare(textareaValue, '16px Inter', { whiteSpace: 'pre-wrap' })
 const { height } = layout(prepared, textareaWidth, 20)
+
+// Long text edited live: prepare each paragraph apart, keeping its \n, and re-prepare only the one an edit touches
+const paragraphs = textareaValue.split(/(?<=\n)/).map(p => prepare(p, '16px Inter', { whiteSpace: 'pre-wrap' }))
+const lineCount = paragraphs.reduce((n, p) => n + layout(p, textareaWidth, 20).lineCount, 0)
 ```
 
 Other `prepare()` options are `{ wordBreak: 'keep-all' }` for CSS-like `word-break: keep-all`, and `{ letterSpacing: n }` to match CSS `letter-spacing` (`n` is treated as a px value).

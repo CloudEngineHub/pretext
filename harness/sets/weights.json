@@ -24,11 +24,11 @@
     "notCheckedIn": "No chat that users wrote. WildChat-1M (huggingface.co/datasets/allenai/WildChat-1M, ODC-BY) and OpenAssistant oasst2 (huggingface.co/datasets/OpenAssistant/oasst2, Apache-2.0), licenses read 2026-09-24, both allow redistribution with attribution, but downloading them waits for the maintainer's OK. The Discord Unveiled extract's license wasn't checked, so its text stays out. Until one is added, every chat draw is a stand-in."
   },
   "surfaces": [
-    ["chat", 45, "guess: human chat, comments and reviews lead the README's uses (README.md:43-47, 100), the demos and the filed issues"],
+    ["chat", 45, "guess: human chat, comments and reviews lead the README's uses (README.md:47-51, 104), the demos and the filed issues"],
     ["ai", 20, "guess: AI replies in Markdown, as the markdown-chat demo lays out"],
     ["cards", 15, "guess: cards and feeds cut to a few lines, as the masonry demo"],
     ["documents", 10, "guess: documents, notes and table cells (#70, #210, #334)"],
-    ["ui", 7, "guess: UI labels and headings, checked for overflow at build time (README.md:45)"],
+    ["ui", 7, "guess: UI labels and headings, checked for overflow at build time (README.md:50)"],
     ["editorial", 3, "guess: canvas and editorial pages (#12, #99, #167)"]
   ],
   "scripts": {
@@ -70,7 +70,7 @@
     "documents": {
       "scripts": "web",
       "mixedScripts": [3, "guess"],
-      "kinds": [["paragraph", 70, "guess"], ["table-cell", 25, "guess: ISSUES; #334's paginated editor sizes table cells"], ["soft-hyphens", 5, "guess: soft hyphens appear only where the app inserts them (README.md:98); 0.03% of WILDCHAT assistant turns have one"]],
+      "kinds": [["paragraph", 70, "guess"], ["table-cell", 25, "guess: ISSUES; #334's paginated editor sizes table cells"], ["soft-hyphens", 5, "guess: soft hyphens appear only where the app inserts them (README.md:102); 0.03% of WILDCHAT assistant turns have one"]],
       "whiteSpace": [["normal", 80, "guess"], ["pre-wrap", 20, "guess: editors keep the author's spaces"]],
       "sizes": [[12, 15, "ISSUES: 12px Calibri in #210"], [14, 25, "guess"], [16, 50, "ISSUES: 16px in #212, #225, #274, #334"], [18, 10, "guess"]],
       "width": "document"
