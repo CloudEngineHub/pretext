@@ -6,9 +6,25 @@ report-23cd6052bc54f415 breaks
 report-953b7e9cd05588ed breaks
 report-b980d5159851daba breaks
 
+## A soft hyphen after a space, before white space in the next span or its own, or white space and a soft hyphen that start the paragraph before a ZWSP, at 24 px and wider: Chrome keeps the space after the soft hyphen visible where a line starts, as it doesn't consume a soft hyphen at a line start, where the library consumes both (main and 0fef0023 too; ENGINE_FOLLOWUPS.md)
+rich-0de3e74d8bc2e919 count
+rich-1d58246788b59c86 count
+rich-24a61d081017549d count
+rich-322be9dbc04c61c0 count
+rich-7cf9cca9a7384ae1 count
+rich-8490e462072dcf97 count
+rich-980e26df8bc10d47 breaks
+rich-af15c89ce4d5d9a8 breaks
+rich-b0c830aec8fcea25 breaks
+rich-c71a21ddc6fa35ca breaks
+rich-d7ac0a6af37a56bf count
+
 ## A soft hyphen whose hyphen doesn't fit, where rich items split its word, at 24 px and wider: Chrome breaks the word between letters, the library at the soft hyphen, as it does for the text in one node (ENGINE_FOLLOWUPS.md)
 rich-d5e8ab54da9c767a breaks
 rich-d95b699e131357ec breaks
+
+## A span of a soft hyphen between spaces after a word, at 24 px and wider: Chrome keeps the space after the soft hyphen visible at the start of the next line, as it doesn't consume a soft hyphen at a line start, where the library consumes both, as it does in one text (main and c09d264b too; ENGINE_FOLLOWUPS.md)
+rich-ed1f76e1c1bff59b count
 
 ## Arabic and Hebrew beside brackets, controls, U+FFFC or rich-item edges, at 24 px and wider: Chrome breaks there where the library doesn't
 catalog-01ed9a531b7a32b4 count
@@ -1975,7 +1991,9 @@ facts-fef088c479c829e9 count
 oracle-6ef7f131436695ac count
 oracle-7b318fbe27255616 count
 oracle-f1121833e4ed5ed7 count
+rich-40018982415644fb count
 rich-449749f2687176be breaks
+rich-5d9782cd7b729d95 count
 rich-845b4dcf20f5098f count
 rich-88284e86caadfd99 count
 rich-92a3f55de690d221 breaks
@@ -3139,10 +3157,14 @@ facts-f13d0fd190f3d60a count
 facts-f3a4b8f25d411b8d count
 facts-fc3ae276c1724213 count
 facts-fc69084749bc97f4 count
+rich-02422502faa37ede count
 rich-029e71d595e94f0c count
 rich-0a3fec9a06a04eef count
+rich-0cabfc789f6a4358 count
 rich-166322a1778d474c count
 rich-1e0d5476b00642c8 count
+rich-26f8627a88fc9819 count
+rich-2967857136330955 count
 rich-3055350027afea05 count
 rich-34075de5f2f50824 count
 rich-49d40a0beea8f837 count
@@ -3152,9 +3174,11 @@ rich-5591e87036a36b35 count
 rich-61a0d94181d91eec count
 rich-62a3fc75836c636c count
 rich-668d6722303f2370 count
+rich-7207dfa4e9dfe793 count
 rich-807cbc79ec3f2948 count
 rich-8acb5b79e29743bd count
 rich-91260660c787313b count
+rich-9caad05a8d6ec08d count
 rich-a09d53bd7aff382c count
 rich-a560650dfbeafe72 count
 rich-c604ab44311a3b58 count
@@ -3162,6 +3186,8 @@ rich-d2cbcec88b98434b count
 rich-e4d9d26e42f80135 count
 rich-ea6501c78957947f count
 rich-eac5e4eee615b1b8 count
+rich-f317f68bc8764b2d count
+rich-f58eb7323359596a count
 
 ## Other shapes (U+FFFC, U+058A, hyphens before curly quotes, kerning before a space, rich-item boundaries), at 24 px and wider: Chrome breaks there where the library doesn't
 catalog-568382c883fb7e93 count
@@ -4347,6 +4373,3 @@ catalog-9b79008d4ed64bed count
 catalog-c3bf2846dfb9d249 count
 facts-7b19cdf94aecde68 count
 facts-d5695a3c742ed219 count
-
-## A span of a soft hyphen between spaces after a word, at 24 px and wider: Chrome keeps the space after the soft hyphen visible at the start of the next line, as it doesn't consume a soft hyphen at a line start, where the library consumes both, as it does in one text (main and c09d264b too; ENGINE_FOLLOWUPS.md)
-rich-ed1f76e1c1bff59b count

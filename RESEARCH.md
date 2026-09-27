@@ -1300,20 +1300,36 @@ before the item, so Chrome and Safari give it room after content, as in one text
 and a line can end after it: items `ab`, ` \u00AD \u00AD`, `cd` in 16px Arial take 2
 lines in both at 40-43px, where rich lines that left it out, as a line start consumes
 it, took one 39.14px line. Such an item is walked where the line has content before it,
-as one that starts with a soft hyphen and a space is. Firefox drops a soft hyphen before
-it collapses white space (`nsTextFrameUtils::TransformText`), so there that white space
-collapses with the space before, and Firefox lays those items out in one 39.15px line:
-the Gecko profile keeps the item consumed (`collapsesSpaceAcrossSoftHyphens`), and
-walking it there too lost 421 Firefox cases of the September 27, 2026 review probe of
-28,435 rich fuzz shapes and fixed 30. White space after the soft hyphens of an item a line
-start consumes collapses there too, with a gap that takes no room where the line still
-breaks, as for items `see`, ` \u00AD `, `this word`, which Firefox fits on one 55.15px line
-at 55.17px: that fixed 358 Firefox cases of the probe and lost 84, 78 of which Firefox lays
-out otherwise as spans than as one text node, while in the other 6 an item after it ends
-with a soft hyphen whose hyphen rich-inline leaves out (ENGINE_FOLLOWUPS.md), where the
-space rich lines counted before ended the line where Firefox does. On the stand-in fuzz,
-whose reference is the flat walker, which keeps that white space, line text moves away
-from it at 8,679 Gecko widths and toward it at 942. Where a line ends after such an item,
+as one that starts with a soft hyphen and a space is. Firefox drops soft hyphens and
+bidi controls before it collapses white space, and collapses a run of white space with
+those characters after it as one, which it carries from one text frame to the next
+(`nsTextFrameUtils::TransformText`, nsTextFrameUtils.cpp:286-386, with
+INCOMING_WHITESPACE), so there that white space collapses with the space before, and
+Firefox lays those items out in one 39.15px line. The Gecko profile follows that run
+across items (`collapsesSpaceAcrossSoftHyphens`, `whitespaceRunOpen`): white space that
+starts an item collapses into a run the item before leaves open past such characters,
+whichever item holds it, so Firefox fits `see this` of items `see`, ` \u00AD`,
+` this word` in 16px Arial on a 55.15px line at 56-59px, where rich lines counted a space
+from each item and took 3 lines. White space and soft hyphens after an item's leading
+white space are part of that run, inside the item or after it, so such an item isn't
+walked in the Gecko profile, and what a line start consumes at its start takes no room
+after content either. A soft hyphen or bidi control that starts an item ends the run, as
+TransformText ends it for one that follows no white space in its frame, and an atomic
+inline ends it too (`BuildTextRunsScanner::ScanFrame`): Firefox takes 3 lines for items
+`see `, `\u00AD `, `this word` at 56-59px, and 2 from 60px with a 59.60px first line, two
+spaces wide, where their text in one node fits `see this` at 56px, and an item that starts
+with a soft hyphen is walked there, as in Chrome and Safari. On the second September 27,
+2026 review probe, 80,512 rich cases of 5,700 fuzz inputs with their one-node twins, that
+fixes 6,220 Firefox cases against 0fef0023 and loses 220, and no Chrome or webkit-host
+case moves. Walking an item that starts with a soft hyphen accounts for 1,402 of the fixes
+and 134 of the losses; walking every such item lost 421 Firefox cases of the first
+September 27, 2026 review probe, of 28,435 rich fuzz shapes, and fixed 30. Of the 220, 187 Firefox lays out otherwise as spans
+than as one text node; 112 hold white space, soft hyphens and white space again inside an
+item past its leading white space, which the Gecko profile's analysis keeps a space of on
+each side of each soft hyphen, where Firefox collapses them into one, as items that start
+with a soft hyphen are now walked, and in 96 the line ends at a soft hyphen that ends an
+item, whose hyphen rich-inline leaves out (ENGINE_FOLLOWUPS.md), where the space 0fef0023
+counted ended the line where Firefox does. Where a line ends after such an item,
 its white space hangs with the space before it, but WebKit keeps the first soft hyphen,
 and the space before it, on a line that ends at the white space after it (above), so only
 the item's white space hangs there: that moved 60 webkit-host line widths of that probe
@@ -1339,14 +1355,42 @@ consumes a zero-width break inside a chunk. An item that starts with white space
 soft hyphens, as ` \u00AD \u00ADx`, took a line of its own, holding nothing visible,
 where the word after them didn't fit: items `\u05E9\u05DC\u05D5\u05DD `,
 `\u05E9\u05DC\u05D5\u05DD`, ` a`, ` \u00AD \u00ADx`, U+00A0, `nation\u00ADal ation\u00AD`
-at 49px in 16px Arial take 5 lines in Firefox and took 6. That fixes 35 Firefox cases of
-the probe and loses none. Taking an item's start as a text's start only at its first
-segment instead, so that a line start consumes any zero-width break after a soft hyphen
-there, lost a ZWSP's line in all three browsers: items `ab `, `\u00AD\u200Bxyzwxyz` at
-20px take an empty second line in Chrome, Firefox and Safari, as their text in one node
-does, where the flat walker consumes the ZWSP (ENGINE_FOLLOWUPS.md). The line start tells
-the two apart by the segment's first code unit, which it reads only where it reaches a
-zero-width break.
+at 49px in 16px Arial take 5 lines in Firefox and took 6. A line start reaches such a
+break only at a chunk's start, where normalization holds a zero-width break, and the
+chunk's start goes on after it, past spaces and soft hyphens, which the rich line start
+skips itself (`normalizeItemLineStart`), since giving `normalizePreparedLineStart()`, which
+the flat walkers share, the chunk's start as a parameter read Firefox's lines mixed stream
+2.2% and 2.4% slower against 0fef0023 in a 2-session bench. 0fef0023 normalized again from
+the next segment, which is no chunk's start, and so consumed a ZWSP that holds the line
+there, as for items ` \u00AD \u00AD\u200B`, `textword`, which take an empty first line in
+Firefox at 20-60px, as spans and as one node, and which 0fef0023 laid out without it; its
+message's 35 fixed cases and none lost counted only the first review probe, and the
+second one's diagnostic of the rule fixed 431 Firefox cases of it and lost 21. A soft
+hyphen that the joined text makes such a break at an item's start goes on past it the same
+way, where a line start consumed a ZWSP after the zero-width break that only the joined
+text gives there: items ` \u00AD`, ` \u00AD\u200B`, `textword` take an empty first line in
+Firefox at 16-60px. Taking an item's start as a text's start only at its first segment
+instead, so that a line start consumes any zero-width break after a soft hyphen there,
+lost a ZWSP's line in all three browsers: items `ab `, `\u00AD\u200Bxyzwxyz` at 20px take
+an empty second line in Chrome, Firefox and Safari, as their text in one node does, where
+the flat walker consumes the ZWSP (ENGINE_FOLLOWUPS.md). The line start tells the two
+apart by the segment's first code unit, which it reads only where it reaches a zero-width
+break. Firefox also keeps white space after a soft hyphen that starts a paragraph, as its
+line start trims only white space (ENGINE_FOLLOWUPS.md): items `\u00AD \u00ADab`, `hyphen`
+take an empty first line in Firefox at 6-22px, as spans and as one node, which c09d264b
+gave them through the second soft hyphen, holding a line at it as the flat walker does,
+and which the line start no longer holds there.
+
+A line ends before an item whose reserved width, the gap and extra width before it,
+doesn't fit, even where the item reserves none after a line that already overflows, but
+for an item a line start consumes: its soft hyphen follows the line's content, and the walk
+ends the line after it, as in one text. Firefox ends the third line of items `see`,
+`\u00AD \u00AD`, `this word` in 16px Arial at 1px after `e` and the first soft hyphen's
+hyphen, 14.23px wide, where rich lines ended it before the item. That fixes 415 Firefox
+cases of the second review probe and loses none, and moves no Chrome or webkit-host case.
+Letting the walk end the line for every item that reserves nothing, on the build before the
+leading run collapsed, fixed 487 more Firefox cases and lost 245 more, and lost 11 Chrome
+and 58 webkit-host cases, 54 of which fail as their text in one node does.
 
 Safari's line builder for inline boxes returns from a soft hyphen whose hyphen
 doesn't fit to the line's latest earlier break, as its line breaking of one text node

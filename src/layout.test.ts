@@ -2988,6 +2988,56 @@ describe('rich-inline invariants', () => {
     }
   })
 
+  test('rich items collapse white space past soft hyphens and bidi controls where Gecko does, and soft hyphens and ZWSPs end and hold lines as in one text', () => {
+    // Each line's width and its fragments' items, gaps and occupied widths, to 1e-6 px.
+    const r = (width: number) => Math.round(width * 1e6) / 1e6
+    const walk = (texts: readonly string[], maxWidth: number) => {
+      const prepared = prepareRichInline(texts.map(text => ({ text, font: FONT })))
+      const lines: Array<[number, Array<[number, number, number]>]> = []
+      walkRichInlineLineRanges(prepared, maxWidth, range => {
+        lines.push([r(range.width), range.fragments.map(fragment => [fragment.itemIndex, r(fragment.gapBefore), r(fragment.occupiedWidth)])])
+      })
+      return lines
+    }
+    const see = measureWidth('see', FONT)
+    const space = measureWidth(' ', FONT)
+    const mark = measureWidth('\u200E', FONT)
+    const words = measureWidth('this word', FONT)
+    const bracket = measureWidth('\u300D', FONT)
+    const hyphen = measureWidth('-', FONT)
+    const profile = getEngineProfile()
+    const previous = [profile.lineBreakScan, profile.spaceBeforeSoftHyphenHangs, profile.collapsesSpaceAcrossSoftHyphens] as const
+    try {
+      // Gecko collapses a run of white space with the soft hyphens and bidi controls after it,
+      // whichever item holds it, so white space that starts the next item collapses into it;
+      // one of those that starts an item ends the run, so white space after it takes room.
+      for (const [lineBreakScan, hangs, collapses] of [['blink', 'break', false], ['webkit', 'own-break', false], ['gecko', 'line-end', true]] as const) {
+        profile.lineBreakScan = lineBreakScan
+        profile.spaceBeforeSoftHyphenHangs = hangs
+        profile.collapsesSpaceAcrossSoftHyphens = collapses
+        clearCache()
+        const second = collapses ? 0 : space
+        expect(walk(['see', ' \u00AD', ' this word'], Infinity)).toEqual([[r(see + space + second + words), [[0, 0, r(see)], [1, r(space), 0], [2, r(second), r(words)]]]])
+        expect(walk(['see', ' \u200E', ' this word'], Infinity)).toEqual([[r(see + space + mark + second + words), [[0, 0, r(see)], [1, r(space), r(mark)], [2, r(second), r(words)]]]])
+        expect(walk(['see \u00AD', ' this word'], Infinity)).toEqual([[r(see + space + second + words), [[0, 0, r(see + space)], [1, r(second), r(words)]]]])
+        expect(walk(['see', ' \u00AD', ' ', 'this word'], Infinity)).toEqual([[r(see + space + second + words), [[0, 0, r(see)], [1, r(space), 0], [3, r(second), r(words)]]]])
+        expect(walk(['see ', '\u00AD ', 'this word'], Infinity)).toEqual([[r(see + 2 * space + words), [[0, 0, r(see)], [1, r(space), 0], [2, r(space), r(words)]]]])
+        expect(walk(['see', '\u00AD \u00AD', 'this word'], Infinity)).toEqual([[r(see + space + words), [[0, 0, r(see)], [1, 0, r(space)], [2, 0, r(words)]]]])
+        // White space and soft hyphens after an item's leading white space are one run with it.
+        expect(walk(['see', ' \u00AD \u00ADthis word'], Infinity)).toEqual([[r(see + space + second + words), [[0, 0, r(see)], [1, r(space), r(second + words)]]]])
+        // A line that overflows goes on into such an item to its first soft hyphen, which
+        // follows the line's content without a break before it.
+        expect(walk(['\u300D', '\u00AD \u00AD', 'ab'], 1)[0]).toEqual([r(bracket + hyphen), [[0, 0, r(bracket)], [1, 0, r(hyphen)]]])
+        // Where a line starts, a ZWSP after white space and soft hyphens holds the line.
+        expect(walk([' \u00AD \u00AD\u200B', 'textword'], words / 2)[0]).toEqual([0, [[0, 0, 0]]])
+        expect(walk([' \u00AD', ' \u00AD\u200B', 'textword'], words / 2)[0]).toEqual([0, [[0, 0, 0], [1, 0, 0]]])
+      }
+    } finally {
+      [profile.lineBreakScan, profile.spaceBeforeSoftHyphenHangs, profile.collapsesSpaceAcrossSoftHyphens] = previous
+      clearCache()
+    }
+  })
+
   test('rich ordinary break rights survive zero and negative SPACE advances', () => {
     for (const gap of [-2, 0, 2]) {
       const prepared = prepareRichInline([

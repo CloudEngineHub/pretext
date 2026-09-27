@@ -9,12 +9,14 @@ import {
   removeSkippableSegmentBreaks,
   RETURNABLE,
   SOFT_HYPHEN,
+  SPACE,
   TEXT,
   UNBROKEN,
   ZERO_WIDTH_BREAK,
   ZERO_WIDTH_GLUE,
   type TextAnalysis,
 } from './analysis.js'
+import { isDiscardable } from './gecko-line-breaks.js'
 import { getWebKitBreakBetweenItems } from './line-breaks.js'
 import { buildLineTextFromRange, getGraphemeEnds } from './line-text.js'
 import {
@@ -110,7 +112,8 @@ type PreparedRichInlineItem = {
   // breaks inside, the walk leaves the line's latest break, which the line returns to
   // where the continuing run doesn't fit, a hard break inside it ends the line, and
   // where it starts with source a line start consumes, as a soft hyphen and a space,
-  // its whole width leaves out what a line with content before it keeps.
+  // its whole width leaves out what a line with content before it keeps, unless that
+  // source goes on from the item's leading white space, as in Gecko (whitespaceRunOpen).
   walked: boolean
   establishesLine: boolean
   extraWidth: number
@@ -172,10 +175,32 @@ function getCollapsedSpaceWidth(font: string, letterSpacing: number, language: s
   return getSegmentMetrics(' ', getFontMeasurement(font, language)).width + letterSpacing
 }
 
+// A zero-width break the Gecko profile makes of a soft hyphen after white space, which
+// Firefox drops from its text (IsDiscardable, nsTextFrameUtils.cpp:32-49).
+function isDiscardedBreak(data: PreparedTextWithSegments, segmentIndex: number): boolean {
+  return (data.segmentFlags[segmentIndex]! & KIND_BITS) === ZERO_WIDTH_BREAK && data.segments[segmentIndex]!.charCodeAt(0) === 0x00AD
+}
+
+// Moves `start` past what a rich line start consumes: what normalizePreparedLineStart()
+// consumes, and a discarded break (isDiscardedBreak), where normalization stops only at a
+// chunk's start. The chunk's start goes on after it, past spaces and soft hyphens, so a
+// ZWSP or a hard break after it still holds the line. False where that is all of the item.
+function normalizeItemLineStart(data: PreparedTextWithSegments, start: LayoutCursor): boolean {
+  if (!normalizePreparedLineStart(data, start)) return false
+  const { segmentFlags } = data
+  while (isDiscardedBreak(data, start.segmentIndex)) {
+    let index = start.segmentIndex + 1
+    while (index < segmentFlags.length && ((segmentFlags[index]! & KIND_BITS) === SPACE || (segmentFlags[index]! & KIND_BITS) === SOFT_HYPHEN)) index++
+    if (index === segmentFlags.length) return false
+    start.segmentIndex = index
+  }
+  return true
+}
+
 // The item's width on a line of its own, from `start`, which it moves past what a line
 // start consumes; null where that is all of it.
 function measureWholeItem(prepared: PreparedTextWithSegments, start: LayoutCursor): number | null {
-  return normalizePreparedLineStart(prepared, start) ? stepPreparedLineGeometryFromStart(prepared, cloneCursor(start), Number.POSITIVE_INFINITY) : null
+  return normalizeItemLineStart(prepared, start) ? stepPreparedLineGeometryFromStart(prepared, cloneCursor(start), Number.POSITIVE_INFINITY) : null
 }
 
 // The width of an item a line start consumes on a line with content before it.
@@ -284,6 +309,17 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
   // ordinary break opportunity must survive independently of that number.
   let pendingGapWidth: number | null = null
   let pendingGapItemIndex = -1
+  // Where Gecko collapses white space across soft hyphens (EngineProfile), whether a run of
+  // white space goes on at the item's start. TransformText drops soft hyphens and bidi
+  // controls (IsDiscardable), collapses a run of white space with those after it, and
+  // carries the run on from one text frame to the next (INCOMING_WHITESPACE), so white space
+  // that starts the next frame collapses into it, whichever frame holds it; one of those
+  // characters that follows no white space in its frame ends the run
+  // (nsTextFrameUtils.cpp:286-386), and so does an atomic inline
+  // (BuildTextRunsScanner::ScanFrame). In 16px Arial at 56px, Firefox fits `see this` of items
+  // `see`, ` \u00AD`, ` this word` on a 55.15px line, and not of `see `, `\u00AD `, `this word`,
+  // whose text in one node it fits.
+  let whitespaceRunOpen = false
   let previousItem: PreparedRichInlineItem | null = null
   // Collapsible spaces always break and atomic items always allow a break on
   // both sides. Only the text between them joins across item boundaries.
@@ -375,7 +411,7 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
 
     if (start === text.length) {
       if (start > 0 && pendingGapWidth === null) {
-        pendingGapWidth = getCollapsedSpaceWidth(item.font, letterSpacing, language)
+        pendingGapWidth = whitespaceRunOpen ? 0 : getCollapsedSpaceWidth(item.font, letterSpacing, language)
         pendingGapItemIndex = index
       }
       continue
@@ -391,7 +427,7 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
     if (breaksFromItemText) boundaryContexts[index] = text.slice(Math.max(0, end - 2), end)
 
     let gapBefore = pendingGapWidth ?? (
-      hasLeadingWhitespace ? getCollapsedSpaceWidth(item.font, letterSpacing, language) : 0
+      hasLeadingWhitespace ? whitespaceRunOpen && item.break !== 'never' ? 0 : getCollapsedSpaceWidth(item.font, letterSpacing, language) : 0
     )
     let gapItemIndex = pendingGapWidth !== null ? pendingGapItemIndex : hasLeadingWhitespace ? index : -1
     // Normalization already drops boundary whitespace, so the item's own text
@@ -419,16 +455,19 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
     // hyphen instead of the collapsed space before the item, so after content it takes
     // room and the line can end at the soft hyphens around it, as in one text: the item
     // is walked there, as one that starts with a soft hyphen and a space. Gecko discards
-    // soft hyphens before it collapses white space (EngineProfile), so that white space
-    // collapses with the space before.
+    // soft hyphens before it collapses white space (whitespaceRunOpen), so there white space
+    // and soft hyphens after the item's leading white space are one run with it: where the
+    // item starts with white space, what a line start consumes at its start takes no room
+    // after content either, and only an item that starts with a soft hyphen is walked.
+    const collapsesIntoLeading = profile.collapsesSpaceAcrossSoftHyphens && hasLeadingWhitespace
     const innerSpace = establishesLine ? -1 : prepared.kinds.indexOf('space')
-    const walksConsumed = innerSpace >= 0 && innerSpace < prepared.kinds.length - 1 && !profile.collapsesSpaceAcrossSoftHyphens
+    const walksConsumed = innerSpace >= 0 && innerSpace < prepared.kinds.length - 1 && !collapsesIntoLeading
 
     const preparedItem = {
       break: itemBreak,
       breakBefore: whitespaceBefore,
       continued: false,
-      walked: prepared.kinds.includes('hard-break') || (wholeWidth !== null && wholeStart.segmentIndex > 0) || walksConsumed,
+      walked: prepared.kinds.includes('hard-break') || (wholeWidth !== null && wholeStart.segmentIndex > 0 && !collapsesIntoLeading) || walksConsumed,
       establishesLine,
       extraWidth: item.extraWidth ?? 0,
       gapBefore,
@@ -478,13 +517,17 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
     }
     previousItem = preparedItem
 
-    // Where Gecko collapses white space across soft hyphens (EngineProfile), white space after
-    // those of an item a line start consumes collapses with white space before them: it still
-    // breaks there, but takes no room.
+    // Where the item's text before its trailing white space ends in white space and then
+    // characters Gecko drops, the run goes on past them: white space after them collapses into
+    // it, as a gap that takes no room where a line still breaks.
+    let runEnd = end
+    while (runEnd > 0 && isDiscardable(text.charCodeAt(runEnd - 1), false)) runEnd--
+    const runGoesOn = profile.collapsesSpaceAcrossSoftHyphens && itemBreak !== 'never' && runEnd < end && runEnd > 0 && isCollapsibleSpaceCode(text.charCodeAt(runEnd - 1))
     pendingGapWidth = !hasTrailingWhitespace
       ? null
-      : !establishesLine && whitespaceBefore && profile.collapsesSpaceAcrossSoftHyphens ? 0 : getCollapsedSpaceWidth(item.font, letterSpacing, language)
+      : runGoesOn ? 0 : getCollapsedSpaceWidth(item.font, letterSpacing, language)
     pendingGapItemIndex = hasTrailingWhitespace ? index : -1
+    whitespaceRunOpen = runGoesOn
   }
 
   finishJoinedText()
@@ -645,9 +688,14 @@ function stepRichInlineLine(
       continue
     }
 
-    // Every fit check here, including the line walker's, allows its fit epsilon.
+    // Every fit check here, including the line walker's, allows its fit epsilon. The line
+    // ends before an item whose reserved width doesn't fit, even where it reserves none
+    // after a line that overflows, but for an item a line start consumes: its soft hyphen
+    // follows the line's content, where the walk ends the line, as in one text. Firefox
+    // ends the third line of items `see`, `\u00AD \u00AD`, `this word` in 16px Arial at
+    // 1px after `e` and the first soft hyphen's hyphen.
     const reservedWidth = gapBefore + item.extraWidth
-    if (hasContent && reservedWidth > remainingWidth + lineFitEpsilon) {
+    if (hasContent && reservedWidth > remainingWidth + lineFitEpsilon && (item.establishesLine || reservedWidth > 0)) {
       returnsToBreak = !item.breakBefore
       break
     }
@@ -673,18 +721,14 @@ function stepRichInlineLine(
       graphemeIndex: cursor.graphemeIndex,
     }
     // A line start consumes the rest of the item, such as a soft hyphen, and a line
-    // that starts at zero-width glue keeps it without taking it as content. A zero-width
-    // break that only the joined text gives at the item's start follows text, so a line
-    // start consumes it too, where the item's own ZWSP there holds the line. So does one
-    // the Gecko profile makes of a soft hyphen after white space, which Firefox drops
-    // from its text (IsDiscardable), wherever the line start reaches it.
+    // that starts at zero-width glue keeps it without taking it as content. A ZWSP that
+    // the joined text breaks after at the item's start, where the item's own text doesn't,
+    // follows text, so a line start consumes it too, where the item's own ZWSP there holds
+    // the line. A soft hyphen that the joined text makes a discarded break there is one
+    // Firefox drops, which the line start goes on past (normalizeItemLineStart).
     if (!hasContent) {
-      if (atItemStart && (item.lineData.segmentFlags[0]! & KIND_BITS) === ZERO_WIDTH_BREAK && (item.prepared.segmentFlags[0]! & KIND_BITS) !== ZERO_WIDTH_BREAK) lineEnd.segmentIndex = 1
-      if (!normalizePreparedLineStart(item.lineData, lineEnd)) continue
-      if ((item.lineData.segmentFlags[lineEnd.segmentIndex]! & KIND_BITS) === ZERO_WIDTH_BREAK && item.prepared.segments[lineEnd.segmentIndex]!.charCodeAt(0) === 0x00AD) {
-        lineEnd.segmentIndex++
-        if (!normalizePreparedLineStart(item.lineData, lineEnd)) continue
-      }
+      if (atItemStart && (item.lineData.segmentFlags[0]! & KIND_BITS) === ZERO_WIDTH_BREAK && (item.prepared.segmentFlags[0]! & KIND_BITS) !== ZERO_WIDTH_BREAK && !isDiscardedBreak(item.lineData, 0)) lineEnd.segmentIndex = 1
+      if (!normalizeItemLineStart(item.lineData, lineEnd)) continue
     }
     itemLine.continues = hasContent
     itemLine.breakBefore = hasContent && (item.breakBefore || breakItemIndex >= 0)

@@ -130,12 +130,13 @@ export type EngineProfile = {
   // ` \u00AD `, `this word` end their first line at 30.24px in Safari at 45px, and at
   // 25.80px in Chrome and Firefox.
   spaceBeforeSoftHyphenHangs: 'line-end' | 'break' | 'own-break'
-  // Gecko drops a soft hyphen before it collapses white space, so white space after one
-  // collapses with the white space before it (nsTextFrameUtils::TransformText): Firefox
-  // lays out items `ab`, ` \u00AD \u00AD`, `cd` in 16px Arial in one 39.15px line at 40px,
-  // where Chrome and Safari give 2 lines, as they do for one text node. Rich-inline takes it
-  // for the white space inside and after an item a line start consumes; the Gecko profile's
-  // analysis doesn't (ENGINE_FOLLOWUPS.md).
+  // Gecko drops soft hyphens and bidi controls before it collapses white space, so white
+  // space after one collapses with the white space before it, in a run that goes on from one
+  // text frame to the next (nsTextFrameUtils::TransformText): Firefox lays out items `ab`,
+  // ` \u00AD \u00AD`, `cd` in 16px Arial in one 39.15px line at 40px, where Chrome and Safari
+  // give 2 lines, as they do for one text node. Rich-inline takes it across items and after an
+  // item's leading white space (whitespaceRunOpen in src/rich-inline.ts); the Gecko profile's
+  // analysis doesn't, inside a text past its first white space (ENGINE_FOLLOWUPS.md).
   collapsesSpaceAcrossSoftHyphens: boolean
 }
 

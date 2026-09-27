@@ -18,7 +18,10 @@
 //   collapsed space, a newline next to a ZWSP in another item, and a soft hyphen after a space in an item that
 //   continues a run from an earlier item, which Chrome breaks at the space (ENGINE_FOLLOWUPS.md); and, cut on their
 //   own too, white space after such an item's soft hyphen, white space between an item's soft hyphens, and an item
-//   that starts with white space and soft hyphens, whose soft hyphen after the white space Firefox drops.
+//   that starts with white space and soft hyphens, whose soft hyphen after the white space Firefox drops; and, cut on
+//   their own too, a run of white space that goes on across items past the soft hyphens and bidi controls Firefox
+//   drops, one that a soft hyphen starting an item ends, and a ZWSP after white space and soft hyphens where a line
+//   starts.
 import { TEXTS } from '../../src/test-data.ts'
 import type { CssFont, TextRun } from '../types.ts'
 import { codePoints, createRng, font, paragraph, span } from './build.ts'
@@ -130,6 +133,11 @@ export function richTemplates(): Template[] {
     ['space-before-consumed-item', ['see', ' \u{AD} ', 'this word']],
     ['space-between-consumed-soft-hyphens', ['ab', ' \u{AD} \u{AD}', 'cd ef gh']], ['space-between-consumed-soft-hyphens', ['this word', ' \u{AD} \u{AD}', '\u{3002}more text'], 'zh'],
     ['soft-hyphen-break-at-line-start', ['ab', ' \u{AD} \u{AD}xyzw more']],
+    ['white-space-run-across-items', ['see', ' \u{AD}', ' this word']], ['white-space-run-across-items', ['Hi,', ' \u{AD}', ' \u{AD}', 'this word']],
+    ['white-space-run-across-items', ['see \u{AD}', ' this word']], ['white-space-run-across-items', ['see', ' \u{200E}', ' this word']],
+    ['soft-hyphen-ends-white-space-run', ['see ', '\u{AD} ', 'this word']], ['soft-hyphen-ends-white-space-run', ['see', '\u{AD} \u{AD}', 'this word']],
+    ['zwsp-after-discarded-soft-hyphens', [' \u{AD} \u{AD}\u{200B}', 'textword']], ['zwsp-after-discarded-soft-hyphens', ['ab', ' \u{AD} \u{AD}\u{200B}', 'textword']],
+    ['zwsp-after-discarded-soft-hyphens', [' \u{AD}', ' \u{AD}\u{200B}', 'textword']],
   ]
   for (let i = 0; i < continued.length; i++) {
     const [family, parts, lang] = continued[i]!

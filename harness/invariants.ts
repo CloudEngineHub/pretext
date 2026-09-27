@@ -261,10 +261,12 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
         for (const f of lines[i]!.fragments) {
           occupied += f.gapBefore + f.occupiedWidth
           spans[f.itemIndex]!.push([offsets[f.itemIndex]!(f.start), offsets[f.itemIndex]!(f.end)])
+          // A gap is the SPACE of the item whose white space made it, or none where Gecko's run of
+          // white space took that white space in (whitespaceRunOpen in src/rich-inline.ts).
           if (f.gapItemIndex >= 0) {
             const gapItem = items[f.gapItemIndex]!
             const space = standInWidth(' ', gapItem.font, gapItem.letterSpacing ?? 0)
-            if (Math.abs(f.gapBefore - space) > 1e-6) fail('rich lines', at, `line ${i}'s gap before item ${f.itemIndex} is ${f.gapBefore}; item ${f.gapItemIndex}'s SPACE is ${space}`)
+            if (Math.abs(f.gapBefore - space) > 1e-6 && !(profile === 'gecko' && f.gapBefore === 0)) fail('rich lines', at, `line ${i}'s gap before item ${f.itemIndex} is ${f.gapBefore}; item ${f.gapItemIndex}'s SPACE is ${space}`)
           }
           const segments = handles[f.itemIndex]!.segments.length
           if (items[f.itemIndex]!.break === 'never' && segments > 0) {

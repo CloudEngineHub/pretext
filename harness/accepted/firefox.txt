@@ -3,6 +3,12 @@ report-23cd6052bc54f415 breaks
 report-953b7e9cd05588ed breaks
 report-b980d5159851daba breaks
 
+## A bidi control after a space that starts a span, before white space that starts the next, at 24 px and wider: Firefox drops it from its text (IsDiscardable) and ends the line past it, where the library keeps it as text of no width, which the next line starts with (main and 0fef0023 too; ENGINE_FOLLOWUPS.md)
+rich-426a9dc0f93dbfdb breaks
+
+## A newline, soft hyphen and newline that start a span, at 24 px and wider: Firefox collapses them into one space, as it collapses white space across the characters it discards, where the library keeps a space on each side of the soft hyphen, as it does in one text (ENGINE_FOLLOWUPS.md)
+rich-90126064978ae3b0 breaks
+
 ## A soft hyphen whose hyphen doesn't fit, where rich items split its word, at 24 px and wider: Firefox breaks the word between letters, the library at the soft hyphen, as it does for the text in one node (ENGINE_FOLLOWUPS.md)
 rich-4635ddffedd43c84 breaks
 rich-8736e842495c21ea count
@@ -2126,8 +2132,10 @@ facts-d5a3d937459712e1 count
 facts-fc69084749bc97f4 count
 rich-029e71d595e94f0c breaks
 rich-34075de5f2f50824 count
+rich-56f1ab0f866f4262 count
 rich-8acb5b79e29743bd count
 rich-9b4af34068e55c9a breaks
+rich-9caad05a8d6ec08d count
 rich-a560650dfbeafe72 count
 rich-c604ab44311a3b58 breaks
 rich-d2cbcec88b98434b breaks
@@ -3506,6 +3514,9 @@ rich-d46f633fad829104 count
 rich-ee31e728f8b9b40e count
 rich-fcc03bb8c805a9c8 count
 
+## White space and soft hyphens that start a span before a word, after a space, at 24 px and wider: Firefox collapses the white space between the soft hyphens with the space before, as it collapses white space across the characters it discards, where the library keeps both, as it does in one text (c09d264b too; ENGINE_FOLLOWUPS.md)
+rich-afb8005e2a64451d count
+
 ## Within 1/64 px of where the browser's lines change, at 24 px and wider: the library's fit lands on the other side there, while the whole-pixel widths inside both layouts pass
 catalog-005a8fe68a67e9a2 count
 catalog-007f7a7e64a6a3b4 count
@@ -3571,11 +3582,3 @@ rich-977e32db34176c49 count
 rich-97f64f1b7bc846e9 count
 rich-d55c691442fdcafe breaks
 rich-e4935f2ad4aee9c4 breaks
-
-## A newline, soft hyphen and newline that start a span, at 24 px and wider: Firefox collapses them into one space, as it collapses white space across the characters it discards, where the library keeps a space on each side of the soft hyphen, as it does in one text (ENGINE_FOLLOWUPS.md)
-rich-13f67aacac931b88 count
-rich-90126064978ae3b0 breaks
-
-## White space and soft hyphens that start a span before a word, after a space, at 24 px and wider: Firefox collapses the white space between the soft hyphens with the space before, as it collapses white space across the characters it discards, where the library keeps both, as it does in one text (c09d264b too; ENGINE_FOLLOWUPS.md)
-rich-93d4d1a9bc5a8fdf count
-rich-afb8005e2a64451d count
