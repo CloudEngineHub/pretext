@@ -1363,6 +1363,76 @@ Gecko's scan resolves levels of its own with a port of servo/unicode-bidi, only 
 split text runs where Firefox splits them (Break Opportunities From Engine Data).
 It returns no levels and assumes a left-to-right paragraph.
 
+A text run split changes the scan only inside a cluster. The run's first unit
+starts a cluster, clusters restart there within the word, and a space right
+before the split ends a word even before a cluster extender, which matters only
+for a space that is itself inside a cluster, after a Prepend character such as
+U+0600. So the scan sets its text run up in one piece and resolves levels only
+when a level run could start inside a cluster. In text with a bidi control one
+can start anywhere, since Firefox leaves controls out of its text runs, and in
+pre-wrap every line starts a text run. Otherwise a unit resolves to level 0 as
+L, 1 as R or 2 as a number, and a unit inside a cluster keeps the level of the
+unit before it when it is NSM (UAX #9 W1), BN outside the paragraph's trailing
+white space (L1), or L or a neutral after L or a neutral that is no bracket (N0
+to N2). The unit itself needs no bracket check: a bracket is inside a cluster
+only right after a Prepend character, which is L, AN or AL, and after L it
+resolves to L. A level run can also start at a unit the scan drops, and then
+splits the text run at the next unit it keeps. The scan drops three kinds of
+unit. Collapsed white space leaves a space, and a space inside a cluster
+resolves levels whatever its own level, so that check can't narrow to spaces
+whose level changes. A soft hyphen is BN, which the check looks past, and a bidi
+control resolves levels already. U+0600, a space, a line feed and U+0301 in
+normal white space start a level run at the space, which is dropped, and split
+the text run at the line feed, kept as a space inside U+0600's cluster. What is
+left are shapes such as a skin-tone modifier, a spacing mark or a Balinese or
+Batak vowel killer after a Hebrew or Arabic letter or a digit, anything after
+U+0600, and a ZWJ that ends a paragraph after a right-to-left letter. In
+`aa בבבב🏻` at 60px in 16px Arial, installed Firefox 156.0.1 starts a text run at
+the modifier and breaks before it, and without the levels the Gecko profile
+breaks after `aa`. Without them it also loses 22 pinned harness cases, all
+Balinese and Batak vowel killers after Arabic or Hebrew letters. The scan now
+resolves levels for none of the Arabic, Urdu, Hebrew or mixed corpus paragraphs
+or the Markdown chat's texts, and for 262 of the harness's 10,733 texts with a
+right-to-left unit.
+
+Where levels do split the text run, the scan sets up again only the words the
+splits cut, each as the split's two pieces. Setting the whole run up a second
+time made the Gecko profile's analysis 8 to 17% slower than main's where levels
+resolve, and in Firefox 156, with an RLM before every text, made `prepare()` 13%
+slower on the book-length Arabic paragraph, 8.5% on emoji and 7.6% on soft
+hyphens with marks. Setting up the cut words only took the analysis to within 5%
+of main's there, and in the same Firefox bench every row read within noise or
+faster, those three within 1.3% of main's. The word-end test is one function,
+which the first setup and the cut words share (Decisions Log).
+
+On 63 million strings, seeded mixed-direction ones of up to 32 code points with
+controls, marks, emoji sequences, Prepend characters, brackets, lone surrogates
+and line feeds, Unicode's BidiTest and BidiCharacterTest sequences with
+extenders and line feeds put in, every string of up to 4 or 5 units over
+alphabets of one unit per role, windows of the corpora and the chat's texts with
+insertions, and white space templates, the scan and `prepareWithSegments()` gave
+the results of resolving every text. The unit tests fail without the bracket
+rule, the trailing white space rule, the space check, the words set up again or
+their clusters found again, or with R taken to keep the level of the unit before
+it. It took 32 to 44% off the Gecko profile's analysis of text with a
+right-to-left unit (Arabic 59 to 38µs per 1,000 units in Bun and 89 to 53 in
+Node, the chat's right-to-left texts 57 to 36 and 83 to 46), and left
+left-to-right text as it was. In Firefox 156 it made `prepare()` 16% faster on
+the bench's new Arabic messages and 29% on seen ones, 23% on seen mixed-script
+ones, 32% on the book-length Arabic paragraph and 15 to 29% on its texts with
+emoji, controls and invisible tails. Four left-to-right rows read slower: long
+breakable runs 3 to 5% in each of three runs, and pre-wrap chunks, keep-all CJK
+brackets and Latin messages seen before 2 to 3.5% in some runs and within noise
+in the others; soft hyphens with marks read 2% slower in one. All of it is the
+word-end test's call: with the test written out again in the first setup's loop,
+every left-to-right row read within noise of main's, and long breakable runs
+4.5% and pre-wrap chunks 2% faster than with the one function. Every row in
+Chrome read within the noise, and in a second run every row in Safari, which
+runs none of the changed code. Resolving levels whenever a cluster holds more
+than one code point is exact as well, with a shorter argument, but vowel marks
+and emoji sequences put one in 37% of the Arabic paragraphs and 57% of the
+chat's right-to-left texts, so it saved only 5 to 15% there.
+
 ## Corpus Lessons
 
 Short examples catch regressions; long text reveals accumulated differences.
@@ -1759,4 +1829,9 @@ reason still holds, and record the new decision here with its date.
   `countPreparedLines()`'s leading-space skip went too: without it Firefox 156
   resizes Latin chat messages to new widths 3 to 7% slower, and every other resize
   row in the three browsers reads within noise except Firefox's mixed text at
-  widths seen before, 8% faster.
+  widths seen before, 8% faster. Nor is a rule written out twice for one JIT: the
+  Gecko scan's text run setup and its setup again of the words a bidi level run
+  cuts share one word-end test, whose call makes Firefox 156 prepare long
+  breakable runs, pre-wrap chunks, keep-all CJK brackets and Latin messages seen
+  before 2 to 5% slower than main; with the test also written out in the first
+  setup's loop, every one of them reads within noise (Bidi Levels).

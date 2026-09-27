@@ -34,6 +34,8 @@ let countPreparedLines: LineBreakModule['countPreparedLines']
 let stepPreparedLineGeometry: LineBreakModule['stepPreparedLineGeometry']
 let walkPreparedLinesRaw: LineBreakModule['walkPreparedLinesRaw']
 let SPACED: AnalysisModule['SPACED']
+let ONE_CLUSTER: AnalysisModule['ONE_CLUSTER']
+let UNBROKEN: AnalysisModule['UNBROKEN']
 let getSegmentFit: MeasurementModule['getSegmentFit']
 let getFontMeasurement: MeasurementModule['getFontMeasurement']
 let getPreparationLanguage: MeasurementModule['getPreparationLanguage']
@@ -274,7 +276,7 @@ beforeAll(async () => {
   } = mod)
   ;({ countPreparedLines, stepPreparedLineGeometry, walkPreparedLinesRaw } = lineBreakMod)
   ;({ getSegmentFit, getFontMeasurement, getPreparationLanguage, getEngineProfile } = measurementMod)
-  ;({ analyzeText, SEGMENT_KINDS, KIND_BITS, SPACED } = analysisMod)
+  ;({ analyzeText, SEGMENT_KINDS, KIND_BITS, SPACED, ONE_CLUSTER, UNBROKEN } = analysisMod)
   ;({ getBlinkLineBreaks } = lineBreaksMod)
   ;({ prepareRichInline, layoutNextRichInlineLineRange, materializeRichInlineLineRange, measureRichInlineStats, walkRichInlineLineRanges } = richInlineMod)
 })
@@ -564,6 +566,24 @@ describe('boundary-policy regressions', () => {
     // Firefox splits text runs where the script changes, which would break before the
     // Bengali letter here. The Gecko scan doesn't, on purpose (RESEARCH.md, Decisions Log).
     expect(analyzeText('\u1019\u17D2\u09AF', geckoProfile).texts).toEqual(['\u1019\u17D2\u09AF'])
+    // It does split them where bidi levels change, and a text run starts a cluster, so a Balinese
+    // vowel killer after Arabic letters, or a skin-tone modifier after a Hebrew letter, a closing
+    // bracket that resolves right-to-left or a vowel mark on an Arabic letter, starts one.
+    expect(analyzeText('\u0628\u0628\u1B44\u0628\u0628', geckoProfile).texts).toEqual(['\u0628\u0628', '\u1B44', '\u0628\u0628'])
+    for (const text of ['\u05D0', '\u05D0(\u05D1)', '\u0628\u064E']) expect(analyzeText(`${text}\uD83C\uDFFB`, geckoProfile).texts).toEqual([text, '\uD83C\uDFFB'])
+    // So does a Hebrew letter after U+0D4E, a Prepend character that resolves to level 0.
+    expect(analyzeText('\u0D4E\u05D0', geckoProfile).flags[0]! & ONE_CLUSTER).toBe(0)
+    // A word a level run cuts finds its clusters again in each piece: after the ALM, which the text
+    // run leaves out, the vowel killer starts a level run, and the Bengali letter after it a cluster.
+    expect(analyzeText('\u0937\u061C\u1B44\u09B0', geckoProfile).texts).toEqual(['\u0937\u061C', '\u1B44', '\u09B0'])
+    // A ZWJ that ends the paragraph resolves to level 0 (UAX #9 L1), so after a Hebrew letter it
+    // starts one too, and its segment is no longer one cluster. Before more text it keeps the
+    // letter's level.
+    expect(analyzeText('\u05D0\u200D', geckoProfile).flags[0]! & ONE_CLUSTER).toBe(0)
+    expect(analyzeText('\u05D0\u200D \u05D1', geckoProfile).flags[0]! & ONE_CLUSTER).toBe(ONE_CLUSTER)
+    // A level run can start at white space the scan drops, here the space before the LF, and then
+    // splits the text run at the LF, kept as a space inside U+0600's cluster, before the mark.
+    expect(analyzeText('\u0600 \n\u0301', geckoProfile).flags[2]! & UNBROKEN).toBe(0)
   })
 
   test('small kana and U+30FC stay with the text before them where the profile resolves them to NS', () => {
