@@ -457,8 +457,7 @@ export function measureAnalysis(
   const prepared = {
     widths,
     segmentFlags,
-    // The walkers take overflow trims; layout()'s numeric count loop doesn't.
-    simpleLineWalkFastPath: simpleKinds && !analysis.hasUnbroken && hanKerning.overflowLineEndTrims === null,
+    simpleLineWalkFastPath: simpleKinds && !analysis.hasUnbroken,
     simpleLineCountFastPath: simpleKinds,
     breakableFitAdvances,
     entryGeometry,

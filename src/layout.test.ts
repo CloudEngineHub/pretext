@@ -3979,11 +3979,13 @@ describe('layout invariants', () => {
         ['中」\n中', 23, ['中', '」', '中'], [16, 16, 16]],
         ['」\n', 8, ['」'], [8]],
         ['」\n', 7, ['」'], [16]],
+        ['」\u200B中', 7, ['」\u200B', '中'], [16, 16]],
         // A line whose closing mark follows text the scan gives no break before.
         ['中\u0001」\n', 34, ['中\u0001」'], [33.6]],
         // Only where no break before it fits, and a space after it still hangs.
         ['中 中\u0001」\n', 56, ['中 ', '中\u0001」'], [16, 41.6]],
         ['中\u0001」 中', 34, ['中\u0001」 ', '中'], [33.6, 16]],
+        ['中\u0001」\n', 33, ['中\u0001', '」'], [25.6, 16]],
       ]
       // Which marks halt at a line end, before which endings. Blink halts the marks
       // Character::MaybeHanKerningClose takes, 」』）】〉》, and never 、。，, which type as dots,
@@ -4034,10 +4036,28 @@ describe('layout invariants', () => {
           expect(layoutWithLines(complex, width, LINE_HEIGHT)).toEqual(lines)
         }
       }
+      // A line that ends with a halted mark paints it halted, where what follows it takes no room:
+      // a space, which fits with letter spacing where the mark and the gap after it don't, and
+      // a preserved space that fits at the end of the text.
+      const haltedCases: [string, { whiteSpace?: 'pre-wrap', letterSpacing?: number }, number, string[], number[]][] = [
+        ['中」 中', { letterSpacing: 2 }, 35, ['中」 ', '中'], [28, 18]],
+        ['中\u0001」 中', { letterSpacing: 2 }, 46, ['中\u0001」 ', '中'], [39.6, 18]],
+        ['中」 ', { whiteSpace: 'pre-wrap' }, 30, ['中」 '], [29.28]],
+        ['中」 \n中', { whiteSpace: 'pre-wrap' }, 30, ['中」 ', '中'], [29.28, 16]],
+      ]
+      for (const [text, options, width, expected, widths] of haltedCases) {
+        const prepared = prepareWithSegments(text, font, options)
+        const lines = layoutWithLines(prepared, width, LINE_HEIGHT)
+        expect({ text, options, width, lines: lines.lines.map(line => line.text), widths: lines.lines.map(line => line.width) })
+          .toEqual({ text, options, width, lines: expected, widths })
+        expect(collectStreamedLines(prepared, width)).toEqual(lines.lines)
+        expect(layout(prepare(text, font, options), width, LINE_HEIGHT).lineCount).toBe(expected.length)
+      }
       // A rich line halts a mark before a space only where no break before its item fits, as
       // the flat line does: one does after `中 ` and after a chip, and none after `中`.
       const richCases: [Array<{ text: string, break?: 'never', extraWidth?: number }>, number, string[]][] = [
         [[{ text: '中 ' }, { text: '中」 中' }], 46, ['中', '中」', '中']],
+        [[{ text: '中 ' }, { text: '中」 中' }], 24, ['中', '中」', '中']],
         [[{ text: '中' }, { text: '」 中' }], 24, ['中」', '中']],
         [[{ text: '@ab', break: 'never', extraWidth: 8 }, { text: '「中」 中' }], 80, ['@ab', '「中」 中']],
       ]

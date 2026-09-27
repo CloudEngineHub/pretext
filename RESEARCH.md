@@ -1724,12 +1724,18 @@ off the object and calls the map function for each, one more such array, the
 overflow trims about a quarter of the bench's CJK messages hold, made Chrome 154
 prepare seen CJK 5.7% slower than main in both sessions of two runs; with all four
 pushed in a loop, it read 9 to 11% faster than main in two runs (#366). layout()'s
-numeric count loop (`countPreparedLines()`) takes no overflow trims: a handle with
-any leaves the simple walk fast path and counts with the simple stepper. Read in
-that loop, where only a line whose first segment overflows reaches them, they made
-Firefox 156 count long breakable runs 13 to 26% slower than main and Thai at widths
-seen before 10 to 12% slower, in both sessions of two runs, and read through a
-helper there, Latin at widths seen before took 2.5 times as long (#366).
+numeric count loop (`countPreparedLines()`) takes no overflow trims: it hands a
+handle with any to the simple stepper, which takes them for a line's first segment.
+Read in that loop, where only a line whose first segment overflows reaches them,
+they made Firefox 156 count long breakable runs 13 to 26% slower than main and Thai
+at widths seen before 10 to 12% slower, in both sessions of two runs, and read
+through a helper there, Latin at widths seen before took 2.5 times as long. The line
+APIs keep such a handle on the simple walk fast path, since a halt later in a line
+follows text the scan gives no break before, which leaves the fast path anyway.
+Taken off it, the 31 of the bench's 134 CJK messages that hold overflow trims walked
+with the full walker, and in two foreground pages Chrome 154 ran `measureLineStats()`
+81 to 84%, `walkLineRanges()` 102 to 108% and `layoutNextLineRange()` 62 to 65% slower
+than main on the 134 (#366).
 
 ## Decisions Log
 
