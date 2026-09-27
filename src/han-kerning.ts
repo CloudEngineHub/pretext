@@ -20,6 +20,7 @@
 // is 2 W(c) - W(cc), and the types of dots, colons, semicolons and quotes follow their ink
 // bounds under the page's Han script (han_kerning.cc:47-168, 400-535).
 import { KIND_BITS, TEXT, UNBROKEN, type TextAnalysis } from './analysis.js'
+import { hasProperty, PUNCTUATION } from './line-breaks.js'
 import { getSegmentMetrics, type FontMeasurement } from './measurement.js'
 
 const OTHER = 0
@@ -34,8 +35,9 @@ const SEMICOLON = 8
 const OPEN_QUOTE = 9
 const CLOSE_QUOTE = 10
 
-const openPunctuationRe = /^\p{Ps}$/u
-const closePunctuationRe = /^\p{Pe}$/u
+// Sticky, to test a code unit where it sits in the text.
+const openPunctuationRe = /\p{Ps}/uy
+const closePunctuationRe = /\p{Pe}/uy
 
 // Character::MaybeHanKerningOpenOrCloseFast (character.h:138-141): every fullwidth opening
 // and closing mark and every quote is in these ranges.
@@ -49,10 +51,11 @@ export function textMayHanKern(text: string): boolean {
   return maybeHanKerningRe.test(text)
 }
 
-// HanKerningCharType (character_property_data_generator.cc:143-167, han_kerning_char_type.h:17-44):
-// the listed quotes, dots, colon, semicolon and middles, then Ps and Pe, fullwidth when in the CJK
-// Symbols block or East_Asian_Width F.
-function getStaticCharType(c: number): number {
+// HanKerningCharType (character_property_data_generator.cc:143-167, han_kerning_char_type.h:17-44)
+// of the code unit at `index`: the listed quotes, dots, colon, semicolon and middles, then Ps and Pe,
+// fullwidth when in the CJK Symbols block or East_Asian_Width F.
+function getStaticCharType(text: string, index: number): number {
+  const c = text.charCodeAt(index)
   switch (c) {
     case 0x2018: case 0x201C: return OPEN_QUOTE
     case 0x2019: case 0x201D: return CLOSE_QUOTE
@@ -61,11 +64,11 @@ function getStaticCharType(c: number): number {
     case 0xFF1B: return SEMICOLON
     case 0x00B7: case 0x2027: case 0x3000: case 0x30FB: return MIDDLE
     default: {
-      if (c < 0x28) return OTHER
-      const s = String.fromCharCode(c)
+      if (c < 0x28 || !hasProperty(c, PUNCTUATION)) return OTHER
       const wide = (c >= 0x3000 && c <= 0x303F) || (c >= 0xFF01 && c <= 0xFF60) || (c >= 0xFFE0 && c <= 0xFFE6)
-      if (openPunctuationRe.test(s)) return wide ? OPEN : OPEN_NARROW
-      if (closePunctuationRe.test(s)) return wide ? CLOSE : CLOSE_NARROW
+      openPunctuationRe.lastIndex = closePunctuationRe.lastIndex = index
+      if (openPunctuationRe.test(text)) return wide ? OPEN : OPEN_NARROW
+      if (closePunctuationRe.test(text)) return wide ? CLOSE : CLOSE_NARROW
       return OTHER
     }
   }
@@ -144,8 +147,8 @@ function getFontData(measurement: FontMeasurement): HanKerningFontData | null {
 }
 
 // HanKerning::GetCharType (han_kerning.cc:142-168).
-function getCharType(data: HanKerningFontData, c: number): number {
-  const type = getStaticCharType(c)
+function getCharType(data: HanKerningFontData, text: string, index: number): number {
+  const type = getStaticCharType(text, index)
   switch (type) {
     case DOT: return data.typeForDot
     case COLON: return data.typeForColon
@@ -200,7 +203,7 @@ export function getHanKerningTrims(measurement: FontMeasurement, analysis: TextA
     const start = starts[i]!
     const end = i + 1 < count ? starts[i + 1]! : normalized.length
     const first = normalized.charCodeAt(start)
-    if (i > 0 && maybeHanKerns(first) && haltedSide(getCharType(data, normalized.charCodeAt(start - 1)), getCharType(data, first)) === 1) {
+    if (i > 0 && maybeHanKerns(first) && haltedSide(getCharType(data, normalized, start - 1), getCharType(data, normalized, start)) === 1) {
       const trim = getTrim(data, first, measurement)
       out.lineStartExtras ??= Array.from({ length: count }, () => 0)
       out.lineStartExtras[i] = trim
@@ -210,23 +213,23 @@ export function getHanKerningTrims(measurement: FontMeasurement, analysis: TextA
       const earlier = normalized.charCodeAt(k - 1)
       const later = normalized.charCodeAt(k)
       if (!(maybeHanKerns(earlier) || maybeHanKerns(later)) || isCanvasCjkSymbol(earlier) === isCanvasCjkSymbol(later)) continue
-      const side = haltedSide(getCharType(data, earlier), getCharType(data, later))
+      const side = haltedSide(getCharType(data, normalized, k - 1), getCharType(data, normalized, k))
       if (side !== 0) addWidthTrim(i, getTrim(data, side === 1 ? later : earlier, measurement))
     }
     const last = normalized.charCodeAt(end - 1)
     if (!maybeHanKerns(last)) continue
     // The text after it halts a closing mark wherever the line ends.
     const atEnd = i + 1 === count
-    if (!atEnd && haltedSide(getCharType(data, last), getCharType(data, normalized.charCodeAt(end))) === -1) {
+    if (!atEnd && haltedSide(getCharType(data, normalized, end - 1), getCharType(data, normalized, end)) === -1) {
       addWidthTrim(i, getTrim(data, last, measurement))
       continue
     }
     // Character::MaybeHanKerningClose (character.h:131-133, character.cc:130-135). Blink then
     // halts the character whatever the font types it (han_kerning.cc:284-285, 312-313); the
     // port asks for a closing type, since only then does 2 W(c) - W(cc) measure the halt.
-    const lastType = getStaticCharType(last)
+    const lastType = getStaticCharType(normalized, end - 1)
     // A break directly after the segment: text after a break, or the end of the text.
-    if ((lastType === CLOSE || lastType === CLOSE_QUOTE) && getCharType(data, last) === CLOSE &&
+    if ((lastType === CLOSE || lastType === CLOSE_QUOTE) && getCharType(data, normalized, end - 1) === CLOSE &&
       (atEnd || ((flags[i + 1]! & KIND_BITS) === TEXT && (flags[i + 1]! & UNBROKEN) === 0))) {
       out.lineEndTrims ??= Array.from({ length: count }, () => 0)
       out.lineEndTrims[i] = getTrim(data, last, measurement)
