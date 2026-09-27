@@ -1,9 +1,9 @@
 // bun harness bench <base> [--lib=<dir|ref>] [--browser=chrome,firefox,safari] [--sessions=3] [--rows=new,seen,...]
 //   [--background]
 // Times <base>'s src/ against --lib's (this tree's by default) in the same documents, with a second copy of base as the
-// control (README, Bench). Pinned Chrome and Firefox and installed Safari run one at a time in the foreground; with
-// --background the harness's background browsers, webkit-host for WebKit, run instead and every verdict is a
-// hypothesis. Raw samples go to .artifacts/harness-bench/<time>/.
+// control (harness/README.md, Bench). Pinned Chrome and Firefox and installed Safari run one at a time in the
+// foreground; with --background the harness's background browsers, webkit-host for WebKit, run instead and every
+// verdict is a hypothesis. Raw samples go to .artifacts/harness-bench/<time>/.
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'

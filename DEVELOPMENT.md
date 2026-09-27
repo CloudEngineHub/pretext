@@ -1,85 +1,27 @@
-## Development Setup
+# Development
 
-Install once:
+Commands are in `package.json` and the header of `harness/cli.ts`; the harness and the bench are in [harness/README.md](harness/README.md).
 
-```sh
-bun install
-```
+## The Demo Server
 
-### Day-To-Day
+`bun start` listens on every network interface, not only localhost, so a phone on the same Wi-Fi can open the demos; a PR that bound it to localhost was closed for that (#114). It first kills whatever listens on port 3000, so a server left from an earlier session can't hold the port.
 
-- `bun start` — stable local page server at <http://localhost:3000>
-- `bun run start:windows` — Windows-friendly fallback without automatic port cleanup
-- `bun run check` — typecheck, which also finds unreachable code, lint with `.oxlintrc.json`'s rules, dead-code scan (`knip`) and a check that the generated engine break data is current
-- `bun test` — the unit tests, the harness's offline tests and the demo models' tests
+## Engine Data
 
-### Harness
+The break and grapheme tables are refreshed by hand, never in a build step: each must be the copy one browser build ships, and copies drift (Chromium 147's `line_normal.brk` differs from 153's on 239 code points, 2026-09-16). `bun harness repin` says when a browser no longer holds the bytes in `scripts/engine-data/`; refresh that folder as the generator's header describes, run `generate:engine-break-data`, then the grapheme check. Nothing checks Safari's generic-family table (`generate:webkit-generic-families`) against a newer macOS or iOS; only a new dump of Core Text's answers does.
 
-The harness in `harness/` keeps each browser's layout of every case in git, recorded once per browser build, and
-predicts every case in the browser the way an app does. See [harness/README.md](harness/README.md) for how a case is
-judged, the case sets and the pinned browsers.
-
-- `bun test harness` — the harness's offline tests, each planting a fault it exists to catch, and the line APIs'
-  invariants in four engine profiles on cases drawn from the case files (`harness/invariants.ts`)
-- `bun harness check` — predict every pinned case in Chrome, Firefox and webkit-host and score it; a failure that
-  `harness/accepted/<browser>.txt` doesn't list under a written reason blocks, and `--accept="<reason>"` lists the new ones
-- `bun harness gate` — `check`, plus predictions in reverse order, a fresh recording of 1,000 cases and the attribution
-  of new failures
-- `bun harness equal main` — whether `main`'s build, its `src/` and the harness adapter that predicts with it, predicts
-  what this tree's does on every case: the same lines, widths and line text, line APIs' disagreements and Canvas calls
-  after preparing; it prints each case file's `measureText` calls and submitted units, here against there. `--offline`
-  compares the two `src/` on a stand-in Canvas in four engine profiles in about 10 s, before any browser time
-- `bun harness repin chrome` (also `firefox`, `safari`) — the first thing to run when you come back to the project: pin
-  the installed Chrome or Firefox as a copy named by its version (Safari can't be pinned, so webkit-host and installed
-  Safari are recorded as the system has them), record every case into a scratch copy of the recordings, and print the
-  cases the new build lays out otherwise, the page history it changes and whether its break data is still
-  `scripts/engine-data`'s; `--write` replaces the recordings and the pin, for a commit of its own
-- `bun harness record --only-new` — record new cases; `bun harness record` records every case again
-- `bun harness bench main` — time `main`'s `src/` against this tree's in the same documents, in pinned Chrome and
-  Firefox and installed Safari in the foreground, 3 sessions, about 4-5 minutes per browser; `--rows=new,worst` narrows
-  it while iterating, and `--background` runs the background browsers, whose results are hypotheses
-  ([harness/README.md](harness/README.md), Bench)
-- `bun harness explain <id>` — one case's recorded lines against the predicted ones; `bun harness explain --text='...'
-  --width=120.5 --font='16px Arial'` (also `--lang=`, `--white-space=pre-wrap`, `--word-break=keep-all`,
-  `--letter-spacing=`) or `--cases=<file of one case>` records that paragraph alone in a fresh document first, in any
-  of the four browsers, and keeps nothing
-
-Background harness jobs may run side by side, each in its own instance of a pinned browser or webkit-host, while free
-plus inactive memory stays above about 30%. Installed Safari takes one job at a time, and the bench runs alone in the
-foreground.
-
-### Packaging And Release
-
-- `bun run build:package` — emit `dist/` for the published ESM package
-- `bun run package-smoke-test` — pack the tarball and verify temporary JS + TS consumers
-- `bun run site:build` — build the static demo site into `site/`
-- `bun run generate:engine-break-data` — refresh Chrome's, Safari's and Firefox's checked-in break and grapheme tables from the engine files in `scripts/engine-data/`, checking each table against its source; `--check` compares the generated file instead of writing it. After refreshing a grapheme table, run the grapheme check in each browser (below).
-- `bun run generate:webkit-generic-families` — refresh the families Safari draws `serif`, `sans-serif`, `cursive`, `fantasy` and `monospace` in under each page language, from WebKit's language-to-script map and Core Text's answers on macOS and iOS in `scripts/engine-data/safari-27.0/`; `--check` compares instead of writing
+The engine files stay checked in so the tables rebuild offline. So does the 30 MB behaviour catalog (`harness/cases/catalog.ndjson`): its widths came from bisecting in the browsers, so it can't be made again offline, and it's in history already.
 
 ### Grapheme Check
 
-- `bun scripts/grapheme-check/build.ts`, then `bun scripts/grapheme-check/run.ts --browser=chrome` — compare `src/graphemes.ts` with the browser's own `Intl.Segmenter` on every code point in contexts that tell the grapheme classes apart, the harness's case texts with their prepared segments, and random strings, under the table the engine profile takes and the other one; also `firefox` and `webkit-host`, in the harness's background browsers, side by side like other background harness jobs. `ENGINE=webkit bun scripts/grapheme-check/offline.ts` runs it under Bun. Node can't load `src/` directly, so bundle it with `bun build --target=node scripts/grapheme-check/offline.ts --outfile=.artifacts/grapheme-check/offline.mjs` and run `ENGINE=blink node .artifacts/grapheme-check/offline.mjs`.
+After a grapheme table changes, compare `src/graphemes.ts` with `Intl.Segmenter` in Chrome, Firefox and webkit-host; `scripts/grapheme-check/` has the commands in its headers.
 
-### Benchmarking
+## Releasing
 
-Speed claims rest on `bun harness bench` (above): each document times a base's `src/` and this tree's, with a second
-copy of the base as the control, and the PR pastes its table. Nothing timed is checked in. Each row's noise floor is in
-`harness/bench/report.ts`, with the date, builds, machine and device pixel ratio it was calibrated on; calibrate again
-after a browser pin bump or on another machine ([harness/README.md](harness/README.md), Bench).
+No release until after the API discussion (TODO.md). License notices for the ported engine code and the files in `scripts/engine-data/` aren't written yet. At release, fold CHANGELOG.md's pre-#340 break-rule entries into #340's. <!-- Q8: recommendation taken; the maintainer hasn't answered -->
 
-## Useful Pages
-
-- `/demos` — index of the public demos; `/` redirects there
+Every push to `main` publishes the demo site (`.github/workflows/pages.yml`).
 
 ## Deep Profiling
 
-For one-off performance and memory work, start with `bun start` and an isolated, foreground Chrome using a throwaway profile. Reproduce the issue in a bench row ([harness/bench/texts.ts](harness/bench/texts.ts)), or on a smaller dedicated page when the bench is too broad.
-
-Bun/Node microbenchmarks are useful for quick experiments, but browser behavior needs browser measurements.
-
-For algorithmic changes, scale both source length and the number of segments,
-forced lines and rich items. Include repeated punctuation,
-Arabic joins, CJK keep-all, long hyphenated URLs and internal whitespace runs.
-Count visited boundaries and submitted Canvas text, with cold caches, before
-relying on timings; doubling an input should not quadruple repeated work.
-The history and current bounds are recorded in [RESEARCH.md](RESEARCH.md).
+Bun and Node microbenchmarks suit quick experiments; browser behaviour needs browser measurements. For an algorithmic change, grow the text and its number of segments, forced lines and rich items (repeated punctuation, Arabic joins, CJK keep-all, long hyphenated URLs, whitespace runs), and count visited boundaries and submitted Canvas text with cold caches before trusting a timing: doubling an input should not quadruple repeated work ([RESEARCH.md](RESEARCH.md), Keeping Work Bounded).

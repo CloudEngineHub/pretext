@@ -556,7 +556,7 @@ rich-ec8d929c1f593e5f count
 rich-f9bad019852c108d count
 rich-fafc7e9b256b471b count
 
-## Lost against main before #340 (6d1d210): "£€£€" before curly quotes in 16 px Arial (ENGINE_FOLLOWUPS.md, not traced); Chrome keeps "£€£€" on the first line, the library ends it after "£€£"
+## Lost against main before #340 (6d1d210): "£€£€" before curly quotes in 16 px Arial (ENGINE_FOLLOWUPS.md, Small ones: not traced); Chrome keeps "£€£€" on the first line, the library ends it after "£€£"
 catalog-cbd37ad76e9177e0 count
 catalog-ecafac263f1592a3 count
 old-gate-efc1c4b9ac48c4e6 count
@@ -3262,7 +3262,7 @@ sample-f8fa718992cbb6bf error
 sample-fd68e1169d4616a4 error
 sample-ff4a29045b8ea4da error
 
-## Outside what Pretext claims: system-ui font lists (README); Chrome's Canvas and DOM pick different SF Pro variants (Chromium #489579956)
+## Outside what Pretext claims: system-ui font lists (README.md, Caveats); Chrome's Canvas and DOM pick different SF Pro variants (Chromium #489579956)
 sample-0c1ec78ea4cfbfeb breaks
 sample-0eab24ba03a95ed3 breaks
 sample-27ce1477fe0f0966 count

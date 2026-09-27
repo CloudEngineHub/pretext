@@ -22,7 +22,9 @@ const BREAK_AFTER_KINDS = 1 << SPACE | 1 << ZERO_WIDTH_BREAK | 1 << SOFT_HYPHEN 
 // The prepared handle's line-break data: parallel arrays per segment.
 export type PreparedLineBreakData = {
   widths: number[] // Segment widths, e.g. [42.5, 4.4, 37.2]
-  segmentFlags: Uint8Array // Per segment, its flags byte, e.g. [TEXT, SPACE, TEXT]
+  // Per segment, its flags byte, e.g. [TEXT, SPACE, TEXT]. A JSON copy of the handle turns it into an
+  // object with no length, on which the walkers never finish (RESEARCH.md, Decisions Log)
+  segmentFlags: Uint8Array
   // Normal text can use the simple line stepper across all layout APIs, and layout()
   // counts it with one numeric loop where it has no overflow trims
   simpleLineWalkFastPath: boolean

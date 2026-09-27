@@ -78,7 +78,8 @@ const controlCharacterRe = /^[\p{Cc}\u2028\u2029]$/u
 // the grapheme (getMarkContext): measured after the whole chain, a long chain prepared in
 // time that grows with the square of its length. Safari gives a run a width that depends
 // on how far it sits from the grapheme, up to 61 units in the chains measured
-// (RESEARCH.md), so a context that keeps fewer moves widths there.
+// (RESEARCH.md, Break Opportunities From Engine Data), so a context that keeps fewer
+// moves widths there.
 const MARK_CHAIN_CONTEXT_UNITS = 96
 
 function needsComplexTextPath(text: string): boolean {
@@ -228,7 +229,7 @@ export function measureAnalysis(
   // chain's last runs, each with the separators before it, that hold at least that many
   // units: in Chrome, Safari and Firefox, runs of 1 to 400 marks then measure as they do
   // after the whole chain, to 0.002px, and without the grapheme some took 25px less
-  // (RESEARCH.md).
+  // (RESEARCH.md, Break Opportunities From Engine Data).
   let markRunIndex = -1
   let markBaseStart = -1 // where that run's grapheme starts in the normalized text, or -1
   let markChainStart = -1 // the segment after that grapheme
@@ -261,7 +262,7 @@ export function measureAnalysis(
   // still inlines that one there (RESEARCH.md, Keeping Work Bounded). V8 inlines a
   // function only while its bytecode stays under about 460 bytes, whether or not the
   // source is minified: with this loop inside, getMarkContext() took 519 bytes and
-  // Chrome 154's prepare() ran 1-3% slower; without it, 374 (Node 23, V8 12.9). Before
+  // Chrome 154's prepare() ran 0.4-2.6% slower; without it, 374 (Node 23, V8 12.9). Before
   // growing getMarkContext(), check it with node --print-bytecode and
   // --trace-turbo-inlining, and bench Chrome's prepare() rows against main.
   function getLongMarkChainContext(baseStart: number, start: number): string {

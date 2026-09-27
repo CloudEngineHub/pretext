@@ -44,6 +44,9 @@ export type EngineProfile = {
   // libicucore's add Apple's transcoding hints to Extend. Firefox's ICU4X data gives the
   // clusters Chrome's rules give.
   graphemeTable: CharTable
+  // What a line may overflow its width by and still fit: WebKit's own 1/64 px, which availableWidth()
+  // adds (InlineLineBuilder.cpp:1171-1182). Blink and Gecko fit exactly in their own units, so their
+  // 0.005 px is a named gap (ENGINE_FOLLOWUPS.md, Fitting arithmetic).
   lineFitEpsilon: number
   // Where an emergency break falls inside a segment. WebKit measures the word's grapheme
   // prefixes (TextUtil::breakWord), and Gecko adds the advances of the word shaped whole

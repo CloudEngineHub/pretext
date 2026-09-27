@@ -130,7 +130,8 @@ export function libraryFaults(predictions: ReadonlyMap<string, Prediction>): Fau
   return out
 }
 
-// A font list the README says the library doesn't take: system-ui and its aliases resolve differently for Canvas on macOS.
+// A font list the library doesn't take (README.md, Caveats): system-ui and its aliases resolve differently for Canvas on
+// macOS.
 export const SYSTEM_UI_FONT = /^\s*(system-ui|-apple-system|BlinkMacSystemFont|ui-sans-serif)\b/
 
 // Whether a case is outside what the library claims: a style the adapter can't express (break-all, rich-inline in

@@ -2234,7 +2234,7 @@ sample-f8fa718992cbb6bf error
 sample-fd68e1169d4616a4 error
 sample-ff4a29045b8ea4da error
 
-## Outside what Pretext claims: system-ui font lists (README); Firefox's Canvas and DOM pick different fonts for them (Mozilla #2020917)
+## Outside what Pretext claims: system-ui font lists (README.md, Caveats); Firefox's Canvas measures them without the optical sizing its DOM applies (Mozilla #2020917)
 sample-0010c7bd919f706a breaks
 sample-0072bb6aec19d276 breaks
 sample-0103249972e29385 breaks

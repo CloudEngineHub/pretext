@@ -47,8 +47,9 @@ function bundleVersion(bundle: string, key = 'CFBundleShortVersionString'): stri
 const POLICY_FILE = 'Contents/Resources/distribution/policies.json'
 const POLICY = '{"policies": {"DisableAppUpdate": true}}\n'
 
-// A tree's hash as rebuild/lab/pin-browser.sh takes it: every file's path and sha256 and every link's target, the paths
-// sorted bytewise (LC_ALL=C; under a UTF-8 locale the same tree hashes otherwise), leaving out the file `skip` names.
+// A tree's hash as rebuild/lab/pin-browser.sh (on branch rebuild-20260916) takes it: every file's path and sha256 and
+// every link's target, the paths sorted bytewise (LC_ALL=C; under a UTF-8 locale the same tree hashes otherwise),
+// leaving out the file `skip` names.
 function treeHash(dir: string, skip = ''): string {
   const script = 'set -o pipefail; cd "$1" && { find . -type f ! -path "./$2" -print0 | sort -z | xargs -0 shasum -a 256; '
     + 'find . -type l -print0 | sort -z | while IFS= read -r -d "" link; do printf "link %s -> %s\\n" "$link" "$(readlink "$link")"; done; } | shasum -a 256 | cut -d" " -f1'

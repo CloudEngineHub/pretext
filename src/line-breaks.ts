@@ -1,7 +1,7 @@
 // Break opportunities as Chrome and Safari find them: ports of Blink's and WebKit's
 // line-break scans over their own pair tables and ICU line rules, which
 // scripts/generate-engine-break-data.ts writes to src/generated/engine-break-data.ts.
-// The tables' bundle cost is accepted for now (RESEARCH.md, Decisions Log).
+// The tables' bundle cost is accepted (RESEARCH.md, Decisions Log).
 //
 // Sources, cited as file:line:
 // - ICU 78.2 as vendored in Chromium 152, under third_party/icu/source/common. Chrome
@@ -30,7 +30,7 @@
 //   Content-Language headers and an element's own lang aren't read.
 // - WebKit splits items where bidi levels change (IIB:637-775), and swaps a Han-script
 //   locale for the user's first Chinese language (FontDescription.cpp:74-83, 107-113).
-//   Pretext resolves no bidi levels and takes the page language as it is.
+//   Pretext resolves no bidi levels here and takes preparation's language as it is.
 
 import {
   appleQuoteRemaps,
