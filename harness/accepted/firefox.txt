@@ -3,6 +3,12 @@ report-23cd6052bc54f415 breaks
 report-953b7e9cd05588ed breaks
 report-b980d5159851daba breaks
 
+## A soft hyphen whose hyphen doesn't fit, where rich items split its word, at 24 px and wider: Firefox breaks the word between letters, the library at the soft hyphen, as it does for the text in one node (ENGINE_FOLLOWUPS.md)
+rich-4635ddffedd43c84 breaks
+rich-8736e842495c21ea count
+rich-d232a1424826203f count
+rich-d7a1851aecf96951 breaks
+
 ## Arabic and Hebrew beside brackets, controls, U+FFFC or rich-item edges, at 24 px and wider: Firefox breaks there where the library doesn't
 catalog-0bbc041b22a8eb25 count
 catalog-17b324c3ade315fe breaks
@@ -1607,6 +1613,7 @@ oracle-f1121833e4ed5ed7 count
 rich-0228179eb16f7fed count
 rich-0e00bb1689b366cc count
 rich-7b25479467251799 count
+rich-8983391970c05be0 breaks
 rich-8992da35e9afd564 breaks
 rich-92a3f55de690d221 breaks
 rich-ac88f7d112e69240 count
@@ -2117,7 +2124,11 @@ facts-cc939d224ccd4816 count
 facts-d2b62a30cd13dbe6 count
 facts-d5a3d937459712e1 count
 facts-fc69084749bc97f4 count
+rich-029e71d595e94f0c breaks
+rich-9b4af34068e55c9a breaks
 rich-a560650dfbeafe72 count
+rich-c604ab44311a3b58 breaks
+rich-d2cbcec88b98434b breaks
 
 ## Other shapes (U+FFFC, U+058A, hyphens before curly quotes, kerning before a space, rich-item boundaries), at 24 px and wider: Firefox breaks there where the library doesn't
 rich-333b59dbb519401f breaks

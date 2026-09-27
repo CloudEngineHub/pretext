@@ -1087,14 +1087,55 @@ handle. Where an item's segment starts inside a joined word, the item lays out f
 a copy of its handle whose flags follow the joined text at its segment starts, as
 preparation marks a scan's boundaries without a break, so the walker returns to the
 latest break or fills the word's graphemes. Joined breaks inside an item's segments
-map to item cursors, down to a grapheme. The walker sees neither
-those nor the line's breaks before the item, so the rich stepper corrects its walk.
-Where the walk splits a word, inside a segment or before an unbroken segment start,
-the line ends at the latest joined break before the split, else before the item
-where the line has content and a break precedes the item, as the flat walker
-returns to its last break. That end before the item holds in the WebKit profile
-too (below). Where the walk ends at a break, the line ends at the latest joined
-break after it that fits before the next segment start with a break.
+become graphemes the walker can end a line before. A ZWSP or soft hyphen takes, in
+the copy, the kind of the last of the joined text's segments that start inside it,
+which ends where it does, as the text around it decides the kind: at the item's start
+its own analysis sees the start of a text, where Gecko's scan makes a soft hyphen
+before a combining mark zero-width glue, and after an ideograph or emoji the joined
+scan makes one a zero-width break; and the item's own analysis joins two soft hyphens
+that Gecko's joined scan splits into a soft hyphen and a zero-width break, so a line
+that ends after both paints no hyphen. Taking the kind of the joined segment that
+starts where the item's does gave those two the first one's kind, so the line fitted
+a hyphen Firefox doesn't draw: 14 Firefox probe cases that main passes, such as
+items `文文`, `\u00AD\u00ADحبا` at 37px. The fragments' text follows the copy's kinds too, so a
+fragment paints the hyphen its line's width counts; following the item's own handle,
+as `materializeLineRange()` over it would, painted one where the width left it out,
+as for items `中`, `\u0301\u00ADxy` in the Gecko profile, and none where Firefox
+paints one. A zero-width break that only the joined text
+gives at the item's start holds no line of its own there, as preparation keeps a
+soft hyphen at a text's start one, while a ZWSP that starts an item keeps the line it
+holds at the start of a text: taking every item start that continues a run as inside
+a chunk, where a line start consumes a ZWSP too, lost 76 webkit-host, 3 Chrome and 2
+Firefox probe cases. In the Gecko profile, a window that starts after collapsible
+white space is analyzed after a space, which normalization drops and Gecko's scan
+reads as context, as it reads an item's leading space: it breaks after a bidi control
+such as U+202A that follows a space, and at the start of a text joins it to the
+letter after it. Where content comes before that space, the analysis takes the
+window's start as following content too: preparation keeps a soft hyphen whose scan
+break after it is the space's as a soft hyphen only where nothing but soft hyphens
+comes before it on its chunk, as a line start's, so without that a soft hyphen after
+the space took a hyphen the paragraph's text doesn't, as in items `ab \u00AD\u200B`,
+`cd` or `a`, `b\t \u00ADc`, `d`: 29 Firefox probe cases, 25 of which main fails too,
+and 8 widths of the stand-in fuzz where main matched the flat walker.
+
+An item's walk continues the line instead of starting one: the full walker takes
+whether the line has content before the item, whether the line can end before it, at
+a break before the item or an earlier one, whether a return from an unfit soft
+hyphen can end it there, and the item's inner breaks. An item that starts a line on
+a fast-path handle still takes the simple stepper (Keeping Work Bounded). Where the
+next item continues its last run without a break, the item walks on the full
+walker's copy of its handle, and the walk leaves the line's latest break where the
+line takes the item's end. A ZWSP or soft hyphen that ends the item
+becomes zero-width glue there, and the next item's start unbroken, as analysis marks
+them before an unbroken start. A walk that can't take an item's start ends the line
+at the line's latest break, which the rich stepper keeps across items, as the flat
+walker returns to its last break, and at the item's start where no break comes
+before the line's content (a run that began the line). That end before the item
+holds in the WebKit profile too (below). A hard break inside an item ends its line
+there, so an item holding one doesn't go on the line whole, and a collapsed space
+before an item that starts with one leaves no gap, as it goes with the line's end:
+items `xx` and `  \u2028  yy` at 18px in 16px Arial, where the space doesn't fit,
+kept the separator off the first line and gave it a line of its own in webkit-host.
 
 Before the flags, a list of the item's segment starts inside joined words had the
 stepper walk each line that ended at one again, to the joined break, or once per
@@ -1103,7 +1144,7 @@ split inside an item's first segment kept every case's lines, but not others: on
 plain case texts split into same-font items at graphemes, at words or anywhere
 (31,359 inputs in each of the Chromium and Gecko profiles, on the invariants'
 stand-in Canvas), the list's lines matched the flat walker's at 114 and 93 widths
-where those didn't. With the corrections above, lines match the flat walker's at
+where those didn't. With corrections to the walk, lines matched the flat walker's at
 427 and 364 widths where the list's didn't, and at every width where they did but
 one, in the Gecko profile, where only an invisible ZWSP and mark after a newline
 item move to the next line. The item's own unbroken starts count too, in every
@@ -1113,6 +1154,76 @@ character later than Firefox pass. Four Myanmar rich cases, which Firefox lays o
 in fewer lines than the library, take one more line: the list's lines split
 syllables where the joined text doesn't break, which packed them tighter
 (ENGINE_FOLLOWUPS.md).
+
+Those corrections walked each item as if it began the line, then walked it again to
+an earlier end: to the latest joined break before a split word, to a joined break
+after the walk's end, to the text before a soft hyphen whose hyphen overflowed the
+line, and to the item's last break where the continuing items' width to their first
+break, measured at preparation, didn't fit. The walk continuing the line replaces
+all four and the walker's end limit, which existed only for them. On six seeds of the
+same fuzz, 31,359 inputs in each profile at ten widths, rich lines then match the
+flat walker's at 607 widths where the corrections' didn't in the Chromium profile
+and for unknown engines, 918 in the Gecko profile and 981 in the WebKit profile, and
+at every width where they did in the first two. Line text counts there, with the
+hyphen each fragment paints. The widths only the corrections matched are 13 in the
+Gecko profile and 117 in the WebKit profile. The 13 are an item ending in a ZWSP and a
+segment break, which the item's own white-space processing removes, so the flat text
+holds a space the items don't. 77 are a ZWSP
+that ends an item before an item that starts with a combining mark, where the WebKit
+profile's boundary rule gives no break and its scan of one text does, and 40 are a
+U+2028 or U+2029 after an overflowing line at 1px, which ends up on a line of its
+own, where the flat walker and the corrections kept it with the overflowing text.
+Safari lays both out as rich-inline does: webkit-host passes all 224 probe cases
+(below) of the first shape, of which the corrections failed 19, and all 79 at 1px
+holding a separator, of which they failed 20. In a probe of 4,858 rich cases made
+from the fuzz's shapes at 1-90px and recorded in all three browsers, Chrome passes 370
+cases the corrections failed and fails 11 they passed, Firefox 511 and 4, and
+webkit-host 1,308 and 11. Chrome's 11 and 4 of webkit-host's fail as the same text in
+one text node does in that browser: a soft hyphen right after a space or ZWSP, or
+whose hyphen doesn't fit a narrow line. The other 7 in webkit-host start an item with
+a soft hyphen and a space after a collapsed space, and Firefox's 4 start an Arabic
+item with a soft hyphen before a kasra, whose line doesn't fit its hyphen at the
+items' separate widths (ENGINE_FOLLOWUPS.md). The corrections matched all 11 only
+because they walked each item from a line start.
+
+Chrome returns into an earlier span only to a break that leaves a pixel of it: where
+a line overflows, Blink walks back over its items and breaks each text item again at
+its width on the line less one pixel (`LineBreaker::HandleOverflow`, line_breaker.cc
+at Chrome 152), else returns to an earlier break, else lays the line out again
+breaking anywhere. The Chromium profile returns to the line's latest break, which a
+controlled probe of 140 cases, spans beside the same text in one node, shows apart:
+after U+2028 or a ZWSP that a soft hyphen or word joiner follows in its span, Chrome's
+spans break anywhere where the text node breaks there, and after U+2028 that a
+combining mark or ZWJ follows, they break as the text node does. Blink puts a break
+inside a HarfBuzz cluster at its graphemes' share of the cluster's advance, and the
+mark or ZWJ joins the separator's cluster, so half its width follows the break;
+the soft hyphen and word joiner are clusters of their own. A return only to a break a
+pixel before its item's end, falling back to the break before the item, fixed 35
+cases of the September 27, 2026 probes that main and the tip fail, and lost 12 they
+pass, 10 of them main's: four after U+2028 and a mark, where the cluster's share was
+missing; three at 6px, where Blink's anywhere pass ends the line elsewhere, as before
+a soft hyphen whose hyphen doesn't fit; one where a span ends at a ZWSP before a span
+holding only a soft hyphen, a break the stepper doesn't keep; one where the return
+from a line that starts inside the span went back before its start, a bug of the
+attempt; and three widths of spans `😊\u00AD\u200B\u00AD`, `\u200Dمر\u00AD\u0651`,
+where Chrome ends the line at the first span's end with a hyphen, which neither one
+text node nor the walk does. It was held back (ENGINE_FOLLOWUPS.md).
+
+Safari's line builder for inline boxes returns from a soft hyphen whose hyphen
+doesn't fit to the line's latest earlier break, as its line breaking of one text node
+does where it has one (Breaks And Source Positions names the partners that return
+waits on in the WebKit profile), and it charges that hyphen where a line ends at
+collapsible white space right after a soft hyphen in the same box, though it paints
+none there. In September 26, 2026 webkit-host recordings in 16px Arial, items `ab`,
+` `, `x\u00AD cd` end the first line after `ab ` at 35px and after `x\u00AD ` from 36px,
+where `ab x` with the hyphen takes 35.57px; `ab x`, `\u00AD cd` and `ab`,
+` x\u00AD cd` end it after `ab ` at 34px too. A line that ends at white space that
+starts the next box, as for `ab x\u00AD`, ` cd`, and a soft hyphen alone in its box,
+as in `ab x`, U+00AD, ` cd`, charge nothing, nor do one text node and a single span.
+After a soft hyphen that starts an item after a collapsed space, the space after the
+soft hyphen then starts the next line and takes its width there, as in `ab\u200B`,
+` `, `\u00AD c`, `d` at 26px. Modeling the charge needs that return, which the WebKit
+profile makes only where a run continues from an earlier item (#323's cases, above).
 
 WebKit breaks differently, and the WebKit profile follows it. Its inline items
 builder runs a break iterator over each inline box's own text, and a boundary
@@ -1171,11 +1282,17 @@ heights of links and paths split across items by accident: Firefox breaks after
 the unit whole.
 
 When following items continue an item's last run, the run moves to the next line
-if the line already has an earlier break. The continuation's width is measured to
-its cheapest break, so a soft hyphen directly before a ZWSP or SPACE adds no
-hyphen, and it fits within the line walker's fit epsilon. Native Chrome and Safari
-spans reserved a hyphen width for a soft hyphen before a space at some widths;
-the flat walker does not, and neither does rich-inline.
+if the line already has an earlier break: the walk over the continuing item, which
+can't take its start, ends the line at the line's latest break. That walk follows the
+line walker's rules, so a soft hyphen directly before a ZWSP or SPACE adds no
+hyphen, and every fit allows the line walker's fit epsilon. A run whose first break
+is a soft hyphen whose hyphen doesn't fit moves too, in every profile: WebKit keeps
+an overflowing hyphen in one text, but Safari 27 moves the whole run across spans, as
+for `the `, `inter`, `na\u00ADtion\u00ADal` at 84px in 16px Arial (#323's cases), so the
+WebKit profile returns from such a hyphen only to a break before a run that
+continues from an earlier item. Native Chrome and Safari spans reserved a hyphen
+width for a soft hyphen before a space at some widths; the flat walker does not, and
+neither does rich-inline.
 
 A run that began the line still takes overflow breaks at item boundaries, as before.
 Restricting those to units that `prepare()` would split lost the `a`/ZWSP/`hello`
@@ -1194,22 +1311,25 @@ item has no earlier break to return to. Only the hyphen overflows there, not a
 unit the walker forced onto the line. Wrapping before the item anyway broke
 where the joined text has no break: items `T` and `po\u00add` gave `T` / `pod`
 where `Tpo\u00add` gives `Tpo-` / `d`, and line counts went up as the width grew
-(#323). Such a line now keeps its hyphen, as the flat walker does, unless the
+(#323). Such a line keeps its hyphen, as the flat walker does, unless the
 Chromium or Gecko profile returns to the break before the item with the flat walker's
 checks: that break leaves room for the hyphen in Chromium and fits in Gecko, the soft hyphens up to the hyphen
 measure narrower joined than apart by less than the overflow, and nothing after the break can hold a
 later opportunity. Blink retries the text item against the width minus the
 hyphen, then rewinds earlier items at the full width, so any break before the
 item counts, including one between ideographs, where the flat walker records no
-target. Whether the text before the hyphen fits comes from walking the item
-again up to the soft hyphen; subtracting the hyphen's width from the line's
-width left ranges under 1e-6px wide where layout still moved backward. In a
+target. The line's latest break before the item counts too, where the item continues
+a run from an earlier one, and a break after an item that ends with a soft hyphen
+fits with that hyphen, which the flat text paints there. The walk itself decides
+whether the text before the hyphen fits, as it continues the line. In a
 seeded search with a tabulated fake canvas, 400 flows per profile with and
 without kerning and item options, flows whose lines move backward as the width
-grows fell from 43-60 to 7-14 per profile, and no flow without a soft hyphen
+grows fell from 43-60 to 7-14 per profile when these returns came, and no flow without a soft hyphen
 changed. The rest have an item that starts or ends with a soft hyphen, or move
 backward in plain text too, where a Blink return appears only once its target
-leaves room for the hyphen.
+leaves room for the hyphen. A soft hyphen that starts an item after the line's
+content is a break there, as in the flat text: the walk from a line start consumed it,
+and lines ended inside the word after it instead.
 
 Items are measured separately. Chromium shapes neighboring same-font spans
 together, so Arial `community` + `,` natively fits about a pixel earlier than the
@@ -1457,6 +1577,49 @@ and prepares pre-wrap chunks 13%, long breakable runs 8% and most other text 1 t
 stats 2% slower. Safari 27 reads those rows within noise; it resizes Arabic at
 widths seen before 13% slower, against 5% for its control, and its mixed-line rows
 read 2 to 26% slower, about as far as its control moved.
+
+Letter-spaced CJK and pre-wrap chunks moved again when rich-inline items began to
+continue their lines in the full walker (Rich Inline Boundaries), though plain text
+never runs the item's code. With the block that leaves an item's latest break at a
+line's end, Chrome 154's `layout()` read 5 to 6% slower on letter-spaced CJK, and its
+`layout()` and `walkLineRanges()` of pre-wrap chunks 1 to 6% slower, in both sessions
+of each bench; Firefox 156 and Safari read the pre-wrap rows 2 to 10% faster and
+letter-spaced CJK within 4% of main. Without the block the rows read as main in
+Chrome, but the same block in a function of its own, or cut down to its three
+stores, read as slow, so the slowdown was accepted. By September 27, with the same
+walker, those rows read within noise of main in Chrome and `layout()` of long
+breakable runs 2.3 and 4.1% slower, against 1.9 and −0.3% for the second copy of
+main, as V8 moves such costs between rows. Items on fast-path handles
+continue in the full walker: taught to continue a line, the simple stepper made the
+plain line APIs' stats, walks and streams of mixed text 39 to 64% slower in Safari,
+10 to 13% in Chrome and 6 to 7% in Firefox.
+
+Safari 27 streamed that mixed text slower anyway, though almost none of it runs code
+that changed: 133 of the bench's 134 mixed texts take the simple stepper, which
+didn't change, through a test that now reads the item where it read an end limit,
+and only the text that holds a soft hyphen, 95 of their 20,000 units, takes the full
+walker. Its `layoutNextLineRange()` read 24.2 and 31.0% slower than main in the two
+sessions of the full bench and 39.6 and 9.4% in a re-time; 7.7 and 12.3% without the
+walker's item seeds and the block that leaves an item's latest break; and 12.3 and
+12.9% in a re-time on an idle machine, where a second copy of main read −0.4 and
+−18.7%. Stats, walks and lines of the same texts read within noise, and Chrome and
+Firefox streamed them as main. A profile finds no work that changed. Safari 27's own
+JavaScriptCore, the system `jsc` shell of its build (22625.1.29.11.27), ran the bench's
+bundles over its lines texts with stand-in widths: stepping the texts alone in a
+process, a build of this change read 5% slower than main in the median of 12
+processes (−1 to +12%) and a second copy of main within 3%, and its sampling profiler
+put all the extra time in `stepPreparedSimpleLineGeometry()`, whose source is the same
+in both builds and whose FTL machine code is the same but for one structure ID loaded
+in two instructions instead of one, at one loop whose cost moved between the two
+copies from process to process. Run after the other three line operations, as the
+bench's document runs them, the same stream read 7 to 12% faster than main in all 8
+processes, and the final build read as main stepping alone and 5 to 11% faster after
+them. The rich walk moves the same way: identical walk code over identical handles
+read 12 to 21% slower than main in the shell before the last round's preparation
+changes and as main after them, while Safari read the final build's rich walk 9.0%
+(5.3 and 12.3%) and 15.3% (12.6 and 15.9%) slower in two benches, and its stream 34.5%
+(32.9 and 35.1%, where the second copy of main read 25.6 and 14.8%). Only the JIT's
+placement and compile history differ, so the slowdowns were accepted.
 
 The analysis gives each segment's flags byte in a plain array while it finds the
 segments, and measurement copies the bytes into the prepared handle's

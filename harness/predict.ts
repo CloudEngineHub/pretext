@@ -341,8 +341,9 @@ export function predict(c: Case): Prediction {
       const walked: RichInlineLineRange[] = []
       const walkedCount = walkRichInlineLineRanges(prepared, p.width, line => { if (walked.push(line) > steps) throw new Error(`walkRichInlineLineRanges gives more than ${steps} lines`) })
       // Fragment cursors index prepareWithSegments(item.text) of the item's font and letter spacing, prepared here
-      // uncounted, as an app needs none of them. So each fragment's text is materializeLineRange's over those cursors; the
-      // text builder both share is src/layout.test.ts's to check.
+      // uncounted, as an app needs none of them. So each fragment's text is materializeLineRange's over those cursors, but
+      // for the hyphen of a soft hyphen it ends at, which the text the items join decides; the text builder both share is
+      // src/layout.test.ts's to check.
       counting = null
       const handles = items.map(item => prepareWithSegments(item.text, item.font, item.letterSpacing === undefined ? {} : { letterSpacing: item.letterSpacing }))
       counting = 'lines'
@@ -353,8 +354,10 @@ export function predict(c: Case): Prediction {
         const fragments = materializeRichInlineLineRange(prepared, walked[i]!).fragments
         for (let k = 0; k < fragments.length; k++) {
           const f = fragments[k]!
-          const text = materializeLineRange(handles[f.itemIndex]!, { start: f.start, end: f.end, width: 0 }).text
-          if (f.text !== text) disagreement ??= `materializeRichInlineLineRange line ${i} fragment ${k} is ${JSON.stringify(f.text)}; its item's text there ${JSON.stringify(text)}`
+          const handle = handles[f.itemIndex]!
+          const text = materializeLineRange(handle, { start: f.start, end: f.end, width: 0 }).text
+          const afterSoftHyphen = f.end.graphemeIndex === 0 && f.end.segmentIndex > 0 && handle.segments[f.end.segmentIndex - 1]?.charCodeAt(0) === 0x00AD
+          if (f.text !== text && !(afterSoftHyphen && f.text.replace(/-$/, '') === text.replace(/-$/, ''))) disagreement ??= `materializeRichInlineLineRange line ${i} fragment ${k} is ${JSON.stringify(f.text)}; its item's text there ${JSON.stringify(text)}`
           textHash = hashText(textHash, f.text)
         }
       }

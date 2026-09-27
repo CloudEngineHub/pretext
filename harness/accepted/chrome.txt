@@ -6,6 +6,10 @@ report-23cd6052bc54f415 breaks
 report-953b7e9cd05588ed breaks
 report-b980d5159851daba breaks
 
+## A soft hyphen whose hyphen doesn't fit, where rich items split its word, at 24 px and wider: Chrome breaks the word between letters, the library at the soft hyphen, as it does for the text in one node (ENGINE_FOLLOWUPS.md)
+rich-d5e8ab54da9c767a breaks
+rich-d95b699e131357ec breaks
+
 ## Arabic and Hebrew beside brackets, controls, U+FFFC or rich-item edges, at 24 px and wider: Chrome breaks there where the library doesn't
 catalog-01ed9a531b7a32b4 count
 catalog-2c2c30ca491d04db breaks
@@ -423,9 +427,11 @@ old-gate-f2fc195a76826702 count
 old-gate-f59a86459057b5a6 count
 old-gate-fd822def1878d1dc breaks
 rich-294bc955f6e33689 breaks
+rich-5d3ce06ac22e1dca count
 rich-5da941a1487a5c46 breaks
 rich-5e88c18e1e4c5903 breaks
 rich-f9d29965bd729819 breaks
+rich-fb89fcbe2ec753dd count
 
 ## Letter-spacing across scripts (Thai, Arabic, Khmer, CJK, digits and hyphens) and in rich runs, at 24 px and wider: Chrome spaces or breaks these where the library doesn't
 catalog-05a6b33d99f603bc breaks
@@ -3132,11 +3138,19 @@ facts-f13d0fd190f3d60a count
 facts-f3a4b8f25d411b8d count
 facts-fc3ae276c1724213 count
 facts-fc69084749bc97f4 count
+rich-029e71d595e94f0c count
 rich-166322a1778d474c count
 rich-1e0d5476b00642c8 count
+rich-3055350027afea05 count
 rich-4fb2c56ec3a40ccb count
+rich-5591e87036a36b35 count
 rich-807cbc79ec3f2948 count
+rich-a09d53bd7aff382c count
 rich-a560650dfbeafe72 count
+rich-c604ab44311a3b58 count
+rich-d2cbcec88b98434b count
+rich-e4d9d26e42f80135 count
+rich-ea6501c78957947f count
 
 ## Other shapes (U+FFFC, U+058A, hyphens before curly quotes, kerning before a space, rich-item boundaries), at 24 px and wider: Chrome breaks there where the library doesn't
 catalog-568382c883fb7e93 count
@@ -4267,6 +4281,7 @@ rich-451456e41e3a34f2 breaks
 rich-4c2404aa7b364681 count
 rich-53f18740a63eb988 count
 rich-5db99b6d6871d894 breaks
+rich-5eb046964ad9149e count
 rich-60e34554e1163990 count
 rich-66b47f20a096b984 count
 rich-6a7a46283df778cd breaks

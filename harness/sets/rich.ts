@@ -9,7 +9,11 @@
 // - styles changing at run boundaries (weight, size, family, italic, letter spacing) over src/test-data.ts's texts, as
 //   the rebuild's runs families do, and spaces at span edges;
 // - chips and code spans as the demos write them: an atomic mention chip with padding, and inline code with padding
-//   that can break (pages/demos/rich-note.model.ts, markdown-chat.model.ts).
+//   that can break (pages/demos/rich-note.model.ts, markdown-chat.model.ts);
+// - the shapes whose lines changed when items began to continue the line instead of starting one, each beside a
+//   neighbour, cut on their own since the other templates' widths were searched in older browser builds: a soft hyphen
+//   that starts an item after other text, after an ideograph or emoji, before a combining mark or after a space, two
+//   soft hyphens that start an item, and a line separator in an item or after a collapsed space before one.
 import { TEXTS } from '../../src/test-data.ts'
 import type { CssFont, TextRun } from '../types.ts'
 import { codePoints, createRng, font, paragraph, span } from './build.ts'
@@ -106,6 +110,18 @@ export function richTemplates(): Template[] {
     const lang = /[ぁ-ヿ一-龥]/.test(before) ? 'ja' : 'en'
     out.push(template(chip ? 'chips' : 'code-spans', chip ? 'an atomic mention chip with padding (pages/demos/rich-note.model.ts)' : 'inline code with padding (pages/demos/rich-note.model.ts)',
       HELVETICA, [...(before === '' ? [] : [before]), run, after], lang))
+  }
+  const continued: ReadonlyArray<readonly [string, readonly string[], string?]> = [
+    ['soft-hyphen-start', ['Pre', '\u{AD}text lays out text']], ['soft-hyphen-start', ['na', '\u{AD}tion', 'al parks']],
+    ['soft-hyphen-after-ideograph', ['漢字', '\u{AD}ab', 'cd'], 'zh'], ['soft-hyphen-after-ideograph', ['\u{1F60A}', '\u{AD}ab cd']],
+    ['soft-hyphen-before-mark', ['abc', '\u{AD}\u{301}def ghi']],
+    ['two-soft-hyphens', ['文文', '\u{AD}\u{AD}ab'], 'zh'], ['two-soft-hyphens', ['hello', '\u{AD}\u{AD}world again']],
+    ['soft-hyphen-after-space', ['see', ' \u{AD}this', 'word']], ['soft-hyphen-after-space', ['中', ' \u{AD}حبا', 'cd']],
+    ['separator', ['first\u{2028}', 'second line']], ['separator', ['hello ', '\u{2028}world']],
+  ]
+  for (let i = 0; i < continued.length; i++) {
+    const [family, parts, lang] = continued[i]!
+    out.push(template(`continued/${family}`, 'items that continue the line before them (src/layout.test.ts, rich-inline invariants)', ARIAL, parts.map(part => item(part)), lang))
   }
   return out
 }

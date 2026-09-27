@@ -87,6 +87,8 @@ old-gate-a4b0c2cd8b374d30 breaks
 old-gate-c55afebd1de7d4ff breaks
 old-gate-c7fff6370e1470f6 breaks
 old-gate-dd9785b9f09ad6a5 breaks
+rich-5d3ce06ac22e1dca count
+rich-fb89fcbe2ec753dd count
 
 ## Keycaps (U+20E3) after U+0001 in 24 px Georgia, at 24 px and wider: WebKit's page gives each 24.36 px and the chain's last 2.57 px, where its Canvas gives 24 px after the chain, so a line holds one keycap more or fewer (main too)
 catalog-286b0dc43de828bc count
@@ -2616,23 +2618,31 @@ facts-d5a3d937459712e1 count
 facts-f038a833918e39d7 count
 facts-f30eb70272204314 count
 facts-fc69084749bc97f4 count
+rich-029e71d595e94f0c count
 rich-166322a1778d474c count
 rich-1bb83fe38e3bd589 breaks
 rich-1e0d5476b00642c8 count
 rich-2c00457bd7ad6bcf count
+rich-3055350027afea05 count
 rich-388b66a049fe9fbd count
 rich-4fb2c56ec3a40ccb count
+rich-5591e87036a36b35 count
 rich-650f9c1a169f4811 count
 rich-6a71666ed4d69cb1 count
 rich-79670bc9d59f6e67 count
 rich-807cbc79ec3f2948 count
 rich-9367ecb62ffff68e count
 rich-943e608b099dd5a2 count
+rich-a09d53bd7aff382c count
 rich-a560650dfbeafe72 count
 rich-a89fcbe1a2cdab74 count
 rich-b0ae95da15d4fb3f count
 rich-be0a029c0b919953 count
+rich-c604ab44311a3b58 count
+rich-d2cbcec88b98434b count
 rich-e0fdbed3aed33077 count
+rich-e4d9d26e42f80135 count
+rich-ea6501c78957947f count
 rich-f56cf7d70b0a0366 count
 rich-f7c9c9dc3e42a15d breaks
 rich-f9df6a719b8e8745 breaks

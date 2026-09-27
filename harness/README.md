@@ -38,7 +38,8 @@ the library's cursors to the source with the library's own graphemes, so a `src/
   the resize path, `measureLineStats`, `layoutNextLineRange`, `layoutNextLine`, `layoutWithLines` and
   `materializeLineRange`; for rich cases `measureRichInlineStats`, `layoutNextRichInlineLineRange` and
   `materializeRichInlineLineRange`, whose fragments' text must be `materializeLineRange`'s over each fragment's cursors
-  in its item's own prepared text. A case where any of them gives other lines, counts, widths (to 1e-6 px) or text than
+  in its item's own prepared text, but for the hyphen of a soft hyphen a fragment ends at, which the text the items join
+  decides. A case where any of them gives other lines, counts, widths (to 1e-6 px) or text than
   the walk blocks, whatever the browser did, and so does a case whose line APIs call `measureText` after preparing.
   Every case is checked this way, page history and cases with nothing visible too, since it needs no recording. Calls
   while preparing are printed per 1,000 units. The text APIs build line text with one shared builder, so they are
@@ -276,7 +277,7 @@ origins, `sets/data/engine-facts.json`, the `rich.ts` header and five accepted-l
 | `sample.ndjson` | 11,901 | The real-usage sample: 10,000 draws by `sets/weights.json`, plus the draws that bring 21 rare groups to 300 each, weighted back to their real share | The headline |
 | `catalog.ndjson` | 37,822 (18,253-19,644 per browser) | main's adversarial families (taken once), the rebuild's rule families, filed reports whose reporter measured the width, every UAX #14 line-break class between the scripts apps mix, pairwise over the CSS settings the library takes, the shapes `ENGINE_FOLLOWUPS.md` names, with their neighbours, and long chains of combining-mark runs on one grapheme | Behaviours modelled |
 | `facts.ndjson` | 10,018 (4,820-4,929) | The 28 engine facts `src/layout.test.ts` checks on plain text with a fake Canvas, in a browser | Behaviours modelled |
-| `rich.ndjson` | 3,334 (1,617-1,636) | Rich-inline paragraphs: styled runs, span edges, atomic chips and padded code spans, main's inline items (taken once), #120, #171, #177, #323 and main's engine facts about rich items | Behaviours modelled |
+| `rich.ndjson` | 3,601 (1,741-1,755) | Rich-inline paragraphs: styled runs, span edges, atomic chips and padded code spans, main's inline items (taken once), #120, #171, #177, #323, main's engine facts about rich items, and the shapes whose lines changed when items began to continue the line (their widths searched on their own, in the current browser builds) | Behaviours modelled |
 | `census.ndjson` | 4,386 | The rebuild's census of real text (census-20260919): paragraphs of the 18 corpora at six widths, less the 300 in the smoke set | Pinned cases |
 | `books.ndjson` | 72 | The rebuild's book survey: each corpus whole, raw and as main normalizes it, at 220 and 820 px | Pinned cases |
 | `reports.ndjson` | 28 | Filed reports, with the input and width as filed | Pinned cases |

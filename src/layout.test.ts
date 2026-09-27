@@ -31,7 +31,6 @@ let walkLineRanges: LayoutModule['walkLineRanges']
 let setLocale: LayoutModule['setLocale']
 let clearCache: LayoutModule['clearCache']
 let countPreparedLines: LineBreakModule['countPreparedLines']
-let stepPreparedLineGeometry: LineBreakModule['stepPreparedLineGeometry']
 let walkPreparedLinesRaw: LineBreakModule['walkPreparedLinesRaw']
 let SPACED: AnalysisModule['SPACED']
 let getSegmentFit: MeasurementModule['getSegmentFit']
@@ -272,7 +271,7 @@ beforeAll(async () => {
     setLocale,
     clearCache,
   } = mod)
-  ;({ countPreparedLines, stepPreparedLineGeometry, walkPreparedLinesRaw } = lineBreakMod)
+  ;({ countPreparedLines, walkPreparedLinesRaw } = lineBreakMod)
   ;({ getSegmentFit, getFontMeasurement, getPreparationLanguage, getEngineProfile } = measurementMod)
   ;({ analyzeText, SEGMENT_KINDS, KIND_BITS, SPACED } = analysisMod)
   ;({ getBlinkLineBreaks } = lineBreaksMod)
@@ -1839,29 +1838,6 @@ describe('prepare invariants', () => {
     }
   })
 
-  test('an end-limited step returns from an unfit soft hyphen as the continuing text does', () => {
-    const profile = getEngineProfile()
-    const previous = profile.unfitHyphenRetreat
-    profile.unfitHyphenRetreat = 'reduced-width'
-    try {
-      // "foo trans" fits and "foo trans-" does not.
-      const prepared = prepareWithSegments('foo trans\u00ADatlantic', FONT)
-      const width = measureWidth('foo trans', FONT) + 0.1
-      const continuing = { segmentIndex: 0, graphemeIndex: 0 }
-      const continuingWidth = stepPreparedLineGeometry(prepared, continuing, width)
-      expect(continuing).toEqual({ segmentIndex: 2, graphemeIndex: 0 })
-      // A limit right after the soft hyphen, or inside the word after it, is an
-      // ordinary break before later text, so the line returns to the space too.
-      for (const [segmentIndex, graphemeIndex] of [[4, 0], [4, 2]] as const) {
-        const cursor = { segmentIndex: 0, graphemeIndex: 0 }
-        expect(stepPreparedLineGeometry(prepared, cursor, width, segmentIndex, graphemeIndex)).toBe(continuingWidth)
-        expect(cursor).toEqual(continuing)
-      }
-    } finally {
-      profile.unfitHyphenRetreat = previous
-    }
-  })
-
   test('treats soft hyphens as discretionary break points', () => {
     const prepared = prepareWithSegments('trans\u00ADatlantic', FONT)
     expect(prepared.segments).toEqual(['trans', '\u00AD', 'atlantic'])
@@ -3011,8 +2987,10 @@ describe('rich-inline invariants', () => {
     // item's own segmentation breaks inside a joined Lao word. In the four rows
     // after `T` and `po\u00ADd`, an item's first word runs past its first segment
     // after a break, and the joined text breaks inside a later segment of an
-    // item. In the last row the walk ends at the space before the first item's
-    // Thai word, which doesn't fit, where the joined text breaks inside that word.
+    // item. In the row after those the walk ends at the space before the first item's
+    // Thai word, which doesn't fit, where the joined text breaks inside that word. In
+    // the four after it a soft hyphen starts an item after other text, and in the last
+    // an inner break ties with a pending break before the item.
     const expectFlatLines = (parts: readonly string[], width: number) => {
       const prepared = prepareRichInline(parts.map(text => ({ text, font: FONT })))
       const richLines: string[] = []
@@ -3040,6 +3018,11 @@ describe('rich-inline invariants', () => {
       [['\u6F22', '\u5B57\u0000\u6F22\u5B57'], 32],
       [['\u0E19\u0E32\u0E07\u0E40\u0E2B\u0E22\u0E35\u0E22\u0E1A\u0E14\u0E2D\u0E01\u0E1A\u0E31', '\u0E27\u0E19\u0E31\u0E49\u0E19'], 30],
       [['x \u0E17\u0E39\u0E17\u0E39', '\u0E17\u0E39', ' y'], 35],
+      [['u', '\u00ADzv', 'uo'], 20],
+      [['u', '\u00ADzv', 'uo'], 28.8],
+      [['nmdo', '\u00ADau', 'o a'], 50],
+      [['nmdo', '\u00ADau', 'o a'], 57.6],
+      [['\u4E2D\u6587\u201C', '\uD83D\uDE0A\u201D\u4E2D\u6587'], 44],
     ] as const) expectFlatLines(parts, width)
     // The Gecko scan of the second item alone doesn't break before `\u0000`, where
     // the joined text does, so the item's copied flags mark that start returnable.
@@ -3049,6 +3032,24 @@ describe('rich-inline invariants', () => {
       profile.lineBreakScan = 'gecko'
       clearCache()
       expectFlatLines(['xx \u0E01', '\u0E02\u0000\u0E01\u0E02 yy'], 30)
+      // An item's soft hyphens take the kind of the joined text's segment that ends where
+      // theirs does, where the item's own analysis sees the start of a text, and its
+      // fragments paint the hyphen their line fits: after an ideograph, a zero-width
+      // break, which holds no line of its own at 1px; two there, which the item's own
+      // analysis joins as zero-width glue, the joined text's soft hyphen and zero-width
+      // break, so the line ends after both with no hyphen at 32px; after an ideograph and
+      // a mark, a zero-width break that paints no hyphen; and before a mark, a soft
+      // hyphen, which its own analysis makes zero-width glue. A bidi control after the
+      // space before the joined text breaks after it, as that space is the scan's context,
+      // and a soft hyphen that starts the joined text after that space follows the content
+      // before it, a zero-width break that paints no hyphen, as in one text.
+      for (const width of [1, 32, 40]) expectFlatLines(['\u6F22\u5B57', '\u00ADa', 'b', 'c'], width)
+      for (const width of [16, 32]) expectFlatLines(['\u6F22\u5B57', '\u00AD\u00ADa', 'b'], width)
+      expectFlatLines(['\u6F22', '\u0301\u00ADab'], 32)
+      for (const width of [40, 60]) expectFlatLines(['\u0628\u0628 \u0628\u0628\u0628', '\u00AD\u0650\u0628\u0628\u0628 \u0628\u0628'], width)
+      expectFlatLines(['AA\u2060 B\n\u202A', 'x'], 40)
+      for (const width of [12, 20]) expectFlatLines(['ab \u00AD\u200B', 'cd'], width)
+      for (const width of [20, 40]) expectFlatLines(['a', 'b\t \u00ADc', 'd'], width)
     } finally {
       profile.lineBreakScan = previous
       clearCache()
@@ -4062,7 +4063,9 @@ test('the Safari profile breaks inside rich items from each item alone', () => {
   // two characters at a boundary. The Thai item's own last run moves with the
   // continuation, where the joined text would split the word differently. The
   // Myanmar continuation is only the vowel sign: analysis of the second item
-  // alone would join that sign to the word after it.
+  // alone would join that sign to the word after it. A U+2028 that the WebKit scan
+  // makes a hard break ends its line, after the item before it too, and a collapsed
+  // space before it takes no room.
   const richInlineUrl = new URL('./rich-inline.ts', import.meta.url).href
   const script = `
     Object.defineProperty(globalThis, 'navigator', { configurable: true, value: {
@@ -4083,6 +4086,9 @@ test('the Safari profile breaks inside rich items from each item alone', () => {
     for (const [parts, width] of [
       [['\\u0E04\\u0E27\\u0E32\\u0E21\\u0E2A\\u0E27\\u0E22\\u0E07', '\\u0E32\\u0E21\\u0E02\\u0E2D\\u0E07'], 40],
       [['\\u1019\\u102C\\u1018\\u102C\\u101E', '\\u102C\\u101E\\u100A\\u103A\\u101C\\u103E\\u1015'], 28],
+      [['ab\\u2028cd', ' ef'], 40],
+      [['x', '\\u2028y'], 20],
+      [['xx', ' \\u2028yy'], 18],
     ]) {
       const prepared = prepareRichInline(parts.map(text => ({ text, font: '16px Test' })))
       const lines = []
@@ -4096,6 +4102,9 @@ test('the Safari profile breaks inside rich items from each item alone', () => {
   expect(JSON.parse(runInChild(script))).toEqual([
     [['\u0E04\u0E27\u0E32\u0E21'], ['\u0E2A\u0E27\u0E22'], ['\u0E07', '\u0E32\u0E21'], ['\u0E02\u0E2D\u0E07']],
     [['\u1019\u102C\u1018\u102C'], ['\u101E', '\u102C'], ['\u101E\u100A\u103A'], ['\u101C\u103E\u1015']],
+    [['ab'], ['cd', 'ef']],
+    [['x', ''], ['y']],
+    [['xx', ''], ['yy']],
   ])
 })
 
