@@ -1,11 +1,12 @@
 # Current Priorities
 
-One line per item, with where its detail lives. Work depth-first; a punted item stays here or in ENGINE_FOLLOWUPS.md with what would reopen it. The maintainer decides in conversation and rarely reads these lists, so an item leaves once they have decided it.
+One line per item, with where its detail lives. Work depth-first; a punted item stays here or in ENGINE_FOLLOWUPS.md with what would reopen it. An item leaves once the maintainer has decided it; they rarely read these lists, so raise an item that needs their decision with them directly.
 
 ## Now
 
 - Check the README as an app developer's only guide: build a long chat list from it and `pages/demos/markdown-chat.md` alone, then compare the app's heights, resizing and scroll anchoring with the browser's.
-- Rich inline: continue a line in the line walker instead of walking each item again as if it began a line, so an item's first character is classified by the paragraph's joined text. It's on branch `eng-x1`, unmerged (RESEARCH.md, Rich Inline Boundaries, Joined Text), and waits on Firefox's bidi-control gap (ENGINE_FOLLOWUPS.md, White space and controls; branch `gecko-bidi-control-gaps`).
+- Rich inline: continue a line in the line walker instead of walking each item again as if it began a line, so an item's first character is classified by the paragraph's joined text. It's on the unmerged branch `eng-x1` (RESEARCH.md, Rich Inline Boundaries, Joined Text) and waits on the next item.
+- Firefox's bidi controls laid out as its line breaker does, as if they weren't there, on the unmerged branch `gecko-bidi-control-gaps`: it fixes Firefox cases and reads some bench rows slower, a trade for the maintainer to decide (ENGINE_FOLLOWUPS.md, White space and controls).
 
 ## End of project
 
@@ -16,11 +17,11 @@ Held until the current work is done, and all before the first release.
   - who owns and bounds the per-font width cache, which grows with each new segment until `clearCache()`;
   - parked speed-ups: the width memo, where a handle remembers which widths gave its last lines (drag-resize frames 2.9-4.2× faster, new widths up to 26% slower in Chrome, 2026-09-26); the font given at `layout()` instead of `prepare()`; a Firefox cache of Thai word boundaries;
   - an element's own language and `Content-Language` as inputs (ENGINE_FOLLOWUPS.md, Language and generic families);
-  - the emoji correction in a worker (#292, PR #346);
-  - a paragraph direction, and the device pixel ratio for Chrome's fit grid (decisions 3 and 4 of issue #321, a study of offline engine emulators);
+  - the emoji-width correction in a worker, where the DOM span it reads doesn't exist (#292, PR #346; PLATFORM_BUGS.md);
+  - a paragraph direction, and the device pixel ratio for Chrome's fit grid, the 1/64 device px Chrome fits lines on (RESEARCH.md, Measurement Model; decisions 3 and 4 of issue #321, a study of offline engine emulators);
   - `getTextClusters()` once Chrome ships it, no help for Firefox;
   - `extraWidth` on a rich item split across lines, which browsers pad only at its outer ends, and #201's fixed-width inline item;
-  - how a browser whose Canvas lacks what its profile needs degrades, never to nothing.
+  - how a browser whose Canvas lacks what its profile needs degrades, still laying text out rather than showing nothing.
 - Then a release, not before.
 - License notices for the ported engine code and data.
 - File the collected browser bugs (ENGINE_FOLLOWUPS.md, External actions).
