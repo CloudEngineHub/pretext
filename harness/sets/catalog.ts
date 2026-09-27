@@ -186,7 +186,7 @@ export function followupTemplates(): Template[] {
 }
 
 // Runs of combining marks chained to one grapheme through soft hyphens or U+0001, past the 96 UTF-16 units after which a
-// run's context leaves out the chain's first runs (MARK_CHAIN_CONTEXT_UNITS in src/layout.ts): runs of 100 and 200 marks,
+// run's context leaves out the chain's first runs (MARK_CHAIN_CONTEXT_UNITS in src/prepare.ts): runs of 100 and 200 marks,
 // whose widths Safari gives by their place after the grapheme, a separator and one mark repeated, two chains in one
 // paragraph, a long run before such pairs, and Arabic vowel marks and keycaps after U+0001, which take no advance when
 // measured without the grapheme.

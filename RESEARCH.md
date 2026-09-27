@@ -1401,7 +1401,7 @@ history audit found these traps; the commits retain the implementation details:
 | Measuring every growing Canvas prefix | `fcf9c62` |
 | Searching hard-break chunks from the beginning for every streamed line | `2c52171` |
 | Retrying whitespace/font-size suffix regexes; restarting preferred-hyphen searches | [#221](https://github.com/chenglou/pretext/pull/221) |
-| Measuring each run of a chain of combining marks after the whole chain before it | `MARK_CHAIN_CONTEXT_UNITS` in `src/layout.ts` (#351) |
+| Measuring each run of a chain of combining marks after the whole chain before it | `MARK_CHAIN_CONTEXT_UNITS` in `src/prepare.ts` (#351) |
 
 The regex failures involved *internal* whitespace followed by content and long
 digit runs without `px`, not just long trailing whitespace or valid font strings.
@@ -1435,6 +1435,15 @@ Safari prepared the bench's letter-spaced CJK 45% and keep-all CJK brackets 59%
 slower than main in both sessions. With the sum in a function of its own, which
 JavaScriptCore inlines, the loop reaches the FTL with no such exit, as main's did,
 and Safari prepares the two shapes 9% and 10% faster than main.
+
+`measureAnalysis()` keeps its other helpers as closures over its locals too: the
+WebKit following-space check and its scan of a space's paragraph for bidi controls,
+the mark-chain context, the joined narrowing at a soft hyphen and the entry
+geometry. Hoisted to module functions with explicit arguments, with the state of
+the paragraph scan and of the mark chain in two small records, they measured the
+same text in the same order as the closures in all four profiles offline, but took
+16 more lines, so they weren't timed: the hoist was to land only if it removed lines
+and the bench showed a gain.
 
 Rich-inline's line stepper keeps three checks that change no result: an early
 return the loop repeats at the end of every walk, a line-start test before

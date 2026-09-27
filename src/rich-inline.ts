@@ -1,8 +1,4 @@
-import {
-  prepareWithSegments,
-  type PreparedTextWithSegments,
-  type LayoutCursor,
-} from './layout.js'
+import type { PreparedTextWithSegments, LayoutCursor } from './layout.js'
 import {
   analyzeText,
   isCollapsibleSpaceCode,
@@ -21,6 +17,7 @@ import {
   stepPreparedLineGeometry,
 } from './line-break.js'
 import { getEngineProfile, getFontMeasurement, getPreparationLanguage, getSegmentMetrics, readLetterSpacing } from './measurement.js'
+import { measureAnalysis } from './prepare.js'
 
 // Helper for rich-text inline flow under `white-space: normal`.
 // It keeps the core layout API low-level while taking over the boring shared
@@ -338,8 +335,7 @@ function getLeadingRunWidth(portion: JoinedPortion, end: LayoutCursor | null): n
 
 export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
   const preparedItems = Array.from<PreparedRichInlineItem | undefined>({ length: items.length })
-  // Each item reads the language as it prepares; the joined analysis and boundary
-  // spaces share one more read.
+  // One language read for every item, the joined analysis and the boundary spaces.
   const profile = getEngineProfile()
   const language = getPreparationLanguage(profile)
   // Blink runs one line-break iterator over the text of the whole inline formatting
@@ -428,12 +424,12 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
     // Normalization already drops boundary whitespace, so the item's own text
     // yields the same segments while analysis keeps the source before them:
     // a leading SPACE or TAB is break context inside the item's text node.
-    // Fragment cursors then index the same handle as prepareWithSegments(item.text).
-    const prepared = prepareWithSegments(
-      item.text,
-      item.font,
-      letterSpacing === 0 ? undefined : { letterSpacing },
-    )
+    // Fragment cursors then index the same segments and graphemes as
+    // prepareWithSegments(item.text). An atomic item, which is only laid out whole,
+    // is prepared without emergency breaks.
+    const itemBreak = item.break ?? 'normal'
+    const analysis = analyzeText(item.text, profile, 'normal', 'normal', language)
+    const prepared = measureAnalysis(analysis, item.font, true, letterSpacing, profile, language, itemBreak !== 'never') as PreparedTextWithSegments
     // The flat walker consumes spaces and soft hyphens at a line start, so an
     // item of only those has no whole width. Its result is a measurement
     // observation, not the rich item's identity or source end.
@@ -441,7 +437,7 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
     const establishesLine = wholeWidth !== null || prepared.kinds.includes('zero-width-break')
 
     const preparedItem = {
-      break: item.break ?? 'normal',
+      break: itemBreak,
       breakBefore: whitespaceBefore,
       carryWidth: 0,
       establishesLine,
