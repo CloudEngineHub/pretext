@@ -93,8 +93,9 @@ function isSegmentBreakRunSpace(code: number, scan: AnalysisProfile['lineBreakSc
 // - Gecko: SPACE, TAB and LF, continuing through the characters Gecko discards
 //   (SHY and bidi controls) without ending on one, and leaving out a last SPACE
 //   before a combining sequence tail. Text holding a ZWSP is 16-bit in Gecko.
-// Characters outside the run, such as FF, keep the ordinary collapse.
-export function removeSkippableSegmentBreaks(text: string, profile: AnalysisProfile, language: string | null = null): string {
+// Characters outside the run, such as FF, keep the ordinary collapse. `removed`, when given,
+// takes the index of each unit removed, in order.
+export function removeSkippableSegmentBreaks(text: string, profile: AnalysisProfile, language: string | null = null, removed: number[] | null = null): string {
   const scan = profile.lineBreakScan
   if (scan === 'webkit' || !text.includes('\n')) return text
   const eastAsian = scan === 'gecko' && maybeEastAsianRe.test(text)
@@ -125,6 +126,7 @@ export function removeSkippableSegmentBreaks(text: string, profile: AnalysisProf
     result += text.slice(copied, start)
     for (let member = start; member < end; member++) {
       if (!isSegmentBreakRunSpace(text.charCodeAt(member), scan)) result += text[member]
+      else removed?.push(member)
     }
     copied = end
   }

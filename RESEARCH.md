@@ -1212,11 +1212,47 @@ cases of the September 27, 2026 probes that main and the tip fail, and lost 12 t
 pass, 10 of them main's: four after U+2028 and a mark, where the cluster's share was
 missing; three at 6px, where Blink's anywhere pass ends the line elsewhere, as before
 a soft hyphen whose hyphen doesn't fit; one where a span ends at a ZWSP before a span
-holding only a soft hyphen, a break the stepper doesn't keep; one where the return
+holding only a soft hyphen, a break the stepper didn't keep then (below); one where the return
 from a line that starts inside the span went back before its start, a bug of the
 attempt; and three widths of spans `😊\u00AD\u200B\u00AD`, `\u200Dمر\u00AD\u0651`,
 where Chrome ends the line at the first span's end with a hyphen, which neither one
 text node nor the walk does. It was held back (ENGINE_FOLLOWUPS.md).
+
+An item that a line start consumes, one holding only soft hyphens and collapsible
+white space, is no line content, but it takes part in the paragraph's runs and breaks:
+where the next item continues its run with no break between, and a break comes before
+it, the run starts at that break, which a line that can't take the next item's start
+returns to, where the stepper passed over the item and returned to an earlier break or
+the one before the item before it, whose trailing ZWSP it made zero-width glue. After
+content, such an item keeps the collapsed space before it, as the flat text keeps a
+space before a soft hyphen, which hangs where it doesn't fit, as the item takes no room
+after it; ending the line before the item there lost 288 Firefox cases of the September
+27, 2026 probe of 43,462 rich fuzz shapes, where Firefox keeps the space and the soft
+hyphen on the line. An item that starts with source a line start consumes, as a soft
+hyphen and a space, is walked where a line has content before it: its whole width,
+measured from a line start, leaves the space out. Blink transforms segment breaks in
+the text of the whole inline formatting context (`ShouldRemoveNewline` and
+`RemoveTrailingCollapsibleNewlineIfNeeded`, inline_items_builder.cc), so in the
+Chromium profile a collapsible run with a newline next to a ZWSP in the item before or
+after goes, as in one text, where the item's own text kept it as a gap: items `ab\u200B`,
+`\n\u00AD\nc`, `d` held two spaces where Chrome lays out one. Gecko transforms each text
+frame's own text (`nsTextFrameUtils::TransformText`), so the Gecko profile keeps the
+item's own transformation; taking the paragraph's there too lost 30 Firefox cases of
+that probe and fixed 7. Against the round's start, on that probe and those of 22,771
+and 4,858 shapes, the four fix 432, 111 and 7 Chrome cases and lose 10, 6 and 0, 367,
+141 and 9 webkit-host cases against 11, 1 and 0, and 266, 83 and 7 Firefox cases
+against 92, 4 and 1. Every one of those losses fails as its text in one node does, or
+the browser lays the spans out otherwise than that node, but for 1 in Chrome, a soft
+hyphen after a space in an item that continues a run (ENGINE_FOLLOWUPS.md), 1 in
+webkit-host, where Safari measures Arabic joined across items, and 5 in Firefox, soft
+hyphens next to white space, 3 of them where Firefox collapses white space across the
+soft hyphen, which the Gecko profile keeps on both sides; 52 of Firefox's 59 losses
+that fail as one node does are that collapse too, which the round's start passed by
+leaving a space out. On the stand-in fuzz against the flat walker, rich
+lines match it at 842, 644, 434 and 852 widths where the round start's don't in the
+Chromium, Gecko, WebKit and unknown-engine profiles, and lose 15, 56, 60 and 13: at 1
+to 7px, before a line separator the WebKit profile makes a hard break after the kept
+space, and where Gecko's transformation of each item keeps what the flat text removes.
 
 Safari's line builder for inline boxes returns from a soft hyphen whose hyphen
 doesn't fit to the line's latest earlier break, as its line breaking of one text node
@@ -1698,7 +1734,11 @@ read 12 to 21% slower than main in the shell before the last round's preparation
 changes and as main after them, while Safari read the final build's rich walk 9.0%
 (5.3 and 12.3%) and 15.3% (12.6 and 15.9%) slower in two benches, and its stream 34.5%
 (32.9 and 35.1%, where the second copy of main read 25.6 and 14.8%). Only the JIT's
-placement and compile history differ, so the slowdowns were accepted.
+placement and compile history differ, so the slowdowns were accepted. The next round,
+which keeps the break and the space before an item holding only a soft hyphen and
+runs no new step in the WebKit profile for the bench's messages, read Safari's rich
+walk 21.0% faster than main and 12.5% and 12.0% slower than the round before it,
+and plain layout rows it doesn't change 2.5 to 8.5% slower than that round.
 
 The analysis gives each segment's flags byte in a plain array while it finds the
 segments, and measurement copies the bytes into the prepared handle's

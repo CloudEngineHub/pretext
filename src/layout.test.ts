@@ -2834,9 +2834,9 @@ describe('rich-inline invariants', () => {
       [['a ', '\t', 'b'], [[0, -1], [2, 0]]],
       [['a', '', '\n b'], [[0, -1], [2, 2]]],
       [['a ', '\u200B', 'b'], [[0, -1], [1, 0], [2, -1]]],
-      // An item holding only a soft hyphen isn't line content: its fragment
-      // has no gap, and it ends the pending space.
-      [['a ', '\u00AD', ' b'], [[0, -1], [1, -1], [2, 2]]],
+      // An item holding only a soft hyphen isn't line content, but after content its
+      // fragment keeps the space before it, as the text keeps a space before a soft hyphen.
+      [['a ', '\u00AD', ' b'], [[0, -1], [1, 0], [2, 2]]],
     ] as const) {
       expect(gapItems(texts.map(text => ({ text })))).toEqual([fragments.map(fragment => [...fragment])])
     }
@@ -2859,6 +2859,25 @@ describe('rich-inline invariants', () => {
       ['Call', -1], ['make build', 1], ['now', 2],
     ])
     expect(range.fragments[1]!.gapBefore).toBeCloseTo(measureWidth(' ', codeFont), 8)
+    // A collapsible run with a newline that a ZWSP in the item before or after touches
+    // goes in Blink, which transforms the paragraph's text, and stays in Gecko, which
+    // transforms each text frame's own text.
+    const profile = getEngineProfile()
+    const previous = profile.lineBreakScan
+    try {
+      for (const [lineBreakScan, afterZwsp, beforeZwsp] of [
+        ['blink', [[0, -1], [1, -1]], [[0, -1], [1, -1]]],
+        ['gecko', [[0, -1], [1, 1]], [[0, -1], [1, 0]]],
+      ] as const) {
+        profile.lineBreakScan = lineBreakScan
+        clearCache()
+        expect(gapItems([{ text: 'ab\u200B' }, { text: '\ncd' }])).toEqual([afterZwsp.map(fragment => [...fragment])])
+        expect(gapItems([{ text: 'ab\n' }, { text: '\u200Bcd' }])).toEqual([beforeZwsp.map(fragment => [...fragment])])
+      }
+    } finally {
+      profile.lineBreakScan = previous
+      clearCache()
+    }
   })
 
   test('rich ordinary break rights survive zero and negative SPACE advances', () => {
@@ -3049,6 +3068,18 @@ describe('rich-inline invariants', () => {
       [['nmdo', '\u00ADau', 'o a'], 57.6],
       [['\u4E2D\u6587\u201C', '\uD83D\uDE0A\u201D\u4E2D\u6587'], 44],
     ] as const) expectFlatLines(parts, width)
+    // An item that a line start consumes, holding only a soft hyphen, keeps the break
+    // before it, where the next item continues its run: the line ends there, after the
+    // ZWSP, instead of at the ZWSP before the ideograph, whose break a run starting at
+    // the first item's end took (ENGINE_FOLLOWUPS.md). A collapsible run with a newline
+    // right after a ZWSP that ends the item before, or before one that starts the next,
+    // goes as in the text of the whole paragraph, where it leaves one space around a soft
+    // hyphen, not two.
+    for (let width = 16; width <= 72; width += 4) {
+      expectFlatLines(['  cd', '\u0E44\u0E17\u0E22', '\u200B\u4E2D\u200B', '\u00AD', '-'], width)
+      expectFlatLines(['ab\u200B', '\n\u00AD\nc', 'd'], width)
+      expectFlatLines(['ab\n', '\u200Bcd'], width)
+    }
     // The Gecko scan of the second item alone doesn't break before `\u0000`, where
     // the joined text does, so the item's copied flags mark that start returnable.
     const profile = getEngineProfile()

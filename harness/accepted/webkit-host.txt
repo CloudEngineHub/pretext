@@ -2624,13 +2624,18 @@ rich-1bb83fe38e3bd589 breaks
 rich-1e0d5476b00642c8 count
 rich-2c00457bd7ad6bcf count
 rich-3055350027afea05 count
+rich-34075de5f2f50824 count
 rich-388b66a049fe9fbd count
+rich-4ab385df7ef60d77 count
 rich-4fb2c56ec3a40ccb count
 rich-5591e87036a36b35 count
+rich-61a0d94181d91eec count
 rich-650f9c1a169f4811 count
 rich-6a71666ed4d69cb1 count
 rich-79670bc9d59f6e67 count
 rich-807cbc79ec3f2948 count
+rich-8acb5b79e29743bd count
+rich-91260660c787313b count
 rich-9367ecb62ffff68e count
 rich-943e608b099dd5a2 count
 rich-a09d53bd7aff382c count
@@ -2643,6 +2648,7 @@ rich-d2cbcec88b98434b count
 rich-e0fdbed3aed33077 count
 rich-e4d9d26e42f80135 count
 rich-ea6501c78957947f count
+rich-eac5e4eee615b1b8 count
 rich-f56cf7d70b0a0366 count
 rich-f7c9c9dc3e42a15d breaks
 rich-f9df6a719b8e8745 breaks
@@ -3442,3 +3448,7 @@ rich-a18990f1807991ae count
 rich-af9c075b6be04eb4 count
 rich-eb1ed7501d82135e count
 rich-ed740eb70dd73211 count
+
+## A soft hyphen and a space that start a span after a ZWSP, at 24 px and wider: Safari ends the line after the ZWSP and keeps the space visible after the soft hyphen at the start of the next line, as it doesn't consume a soft hyphen at a line start, where the library consumes both (ENGINE_FOLLOWUPS.md)
+rich-a2a218c7d76d7837 breaks
+rich-b3cc002481d0d29b breaks

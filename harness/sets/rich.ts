@@ -13,7 +13,10 @@
 // - the shapes whose lines changed when items began to continue the line instead of starting one, each beside a
 //   neighbour, cut on their own since the other templates' widths were searched in older browser builds: a soft hyphen
 //   that starts an item after other text, after an ideograph or emoji, before a combining mark or after a space, two
-//   soft hyphens that start an item, and a line separator in an item or after a collapsed space before one.
+//   soft hyphens that start an item, and a line separator in an item or after a collapsed space before one; then, cut
+//   on their own too, an item holding only a soft hyphen between a break and a run that continues it, or after a
+//   collapsed space, a newline next to a ZWSP in another item, and a soft hyphen after a space in an item that
+//   continues a run from an earlier item, which Chrome breaks at the space (ENGINE_FOLLOWUPS.md).
 import { TEXTS } from '../../src/test-data.ts'
 import type { CssFont, TextRun } from '../types.ts'
 import { codePoints, createRng, font, paragraph, span } from './build.ts'
@@ -118,6 +121,10 @@ export function richTemplates(): Template[] {
     ['two-soft-hyphens', ['文文', '\u{AD}\u{AD}ab'], 'zh'], ['two-soft-hyphens', ['hello', '\u{AD}\u{AD}world again']],
     ['soft-hyphen-after-space', ['see', ' \u{AD}this', 'word']], ['soft-hyphen-after-space', ['中', ' \u{AD}حبا', 'cd']],
     ['separator', ['first\u{2028}', 'second line']], ['separator', ['hello ', '\u{2028}world']],
+    ['consumed-soft-hyphen', ['text\u{200B}', '\u{AD}', '\u{2013}more words']], ['consumed-soft-hyphen', ['中文\u{200B}中\u{200B}', '\u{AD}', '-'], 'zh'],
+    ['space-before-consumed-item', ['word ', '\u{AD}', 'more text here']], ['space-before-consumed-item', ['see', ' \u{AD}', 'this word']],
+    ['segment-break-by-zwsp', ['ab\u{200B}', '\n\u{AD}\ncd ef']], ['segment-break-by-zwsp', ['word\n', '\u{200B}next words']],
+    ['soft-hyphen-after-space-in-run', ['中文a', 'b \u{AD}cd ef'], 'zh'],
   ]
   for (let i = 0; i < continued.length; i++) {
     const [family, parts, lang] = continued[i]!

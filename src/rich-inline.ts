@@ -108,7 +108,9 @@ type PreparedRichInlineItem = {
   continued: boolean
   // A line walks the item even where it fits whole: where the item is continued and
   // breaks inside, the walk leaves the line's latest break, which the line returns to
-  // where the continuing run doesn't fit, and a hard break inside it ends the line.
+  // where the continuing run doesn't fit, a hard break inside it ends the line, and
+  // where it starts with source a line start consumes, as a soft hyphen and a space,
+  // its whole width leaves out what a line with content before it keeps.
   walked: boolean
   establishesLine: boolean
   extraWidth: number
@@ -168,9 +170,10 @@ function getCollapsedSpaceWidth(font: string, letterSpacing: number, language: s
   return getSegmentMetrics(' ', getFontMeasurement(font, language)).width + letterSpacing
 }
 
-function measureWholeItem(prepared: PreparedTextWithSegments): number | null {
-  const end: LayoutCursor = { segmentIndex: 0, graphemeIndex: 0 }
-  return normalizePreparedLineStart(prepared, end) ? stepPreparedLineGeometryFromStart(prepared, end, Number.POSITIVE_INFINITY) : null
+// The item's width on a line of its own, from `start`, which it moves past what a line
+// start consumes; null where that is all of it.
+function measureWholeItem(prepared: PreparedTextWithSegments, start: LayoutCursor): number | null {
+  return normalizePreparedLineStart(prepared, start) ? stepPreparedLineGeometryFromStart(prepared, cloneCursor(start), Number.POSITIVE_INFINITY) : null
 }
 
 // Whether a line can end before segment `index` of an analysis or a handle, as the line
@@ -286,6 +289,34 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
   // An item's last two source characters, read as prior context at the next
   // boundary where breaks come from each item's own text.
   const boundaryContexts: string[] = []
+  // Blink transforms segment breaks in the text of the whole inline formatting context,
+  // where an atomic inline is U+FFFC, so a collapsible run with a newline next to a ZWSP
+  // in another item goes too (ShouldRemoveNewline and
+  // RemoveTrailingCollapsibleNewlineIfNeeded, inline_items_builder.cc). Where an item
+  // holds a newline, the paragraph's text is transformed once, and where that removes a
+  // run, each item that isn't atomic takes its part of the result, which can only remove
+  // more than the item's own text does, at its ends. Gecko transforms each text frame's
+  // own text (nsTextFrameUtils::TransformText), as the item's own text does.
+  let transformedTexts: string[] | null = null
+  if (profile.lineBreakScan === 'blink' && items.some(item => item.text.includes('\n'))) {
+    let source = ''
+    const sourceEnds: number[] = []
+    for (let index = 0; index < items.length; index++) {
+      source += items[index]!.break === 'never' ? '\uFFFC' : items[index]!.text
+      sourceEnds.push(source.length)
+    }
+    const removed: number[] = []
+    const transformed = removeSkippableSegmentBreaks(source, profile, language, removed)
+    if (removed.length > 0) {
+      transformedTexts = []
+      for (let index = 0, r = 0, transformedStart = 0; index < items.length; index++) {
+        while (r < removed.length && removed[r]! < sourceEnds[index]!) r++
+        const transformedEnd = sourceEnds[index]! - r
+        transformedTexts.push(transformed.slice(transformedStart, transformedEnd))
+        transformedStart = transformedEnd
+      }
+    }
+  }
 
   function finishJoinedText(): void {
     if (joinedPortions.length > 1) {
@@ -328,9 +359,9 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
   for (let index = 0; index < items.length; index++) {
     const item = items[index]!
     const letterSpacing = readLetterSpacing(item.letterSpacing)
-    // The item's own segment break transformation can remove a boundary run.
-    // Context from a neighboring item is not modeled.
-    const text = removeSkippableSegmentBreaks(item.text, profile, language)
+    const text = transformedTexts === null || item.break === 'never'
+      ? removeSkippableSegmentBreaks(item.text, profile, language)
+      : transformedTexts[index]!
     let start = 0
     while (start < text.length && isCollapsibleSpaceCode(text.charCodeAt(start))) start++
 
@@ -373,14 +404,15 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
     // The flat walker consumes spaces and soft hyphens at a line start, so an
     // item of only those has no whole width. Its result is a measurement
     // observation, not the rich item's identity or source end.
-    const wholeWidth = measureWholeItem(prepared)
+    const wholeStart: LayoutCursor = { segmentIndex: 0, graphemeIndex: 0 }
+    const wholeWidth = measureWholeItem(prepared, wholeStart)
     const establishesLine = wholeWidth !== null || prepared.kinds.includes('zero-width-break')
 
     const preparedItem = {
       break: itemBreak,
       breakBefore: whitespaceBefore,
       continued: false,
-      walked: prepared.kinds.includes('hard-break'),
+      walked: prepared.kinds.includes('hard-break') || (wholeWidth !== null && wholeStart.segmentIndex > 0),
       establishesLine,
       extraWidth: item.extraWidth ?? 0,
       gapBefore,
@@ -439,15 +471,20 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
   finishJoinedText()
 
   // Without a break at the next boundary, the previous item's last run continues
-  // into the item, whose start is unbroken for the line walker. Where the item right
-  // before ends with a soft hyphen, a break before this item is that hyphen's.
+  // into the item, whose start is unbroken for the line walker. Where a break comes
+  // before an item a line start consumes between them, as one holding only a soft
+  // hyphen, the run starts at that break instead, which a line can end at. Where the
+  // item right before ends with a soft hyphen, a break before this item is that hyphen's.
   let previousIndex = -1
+  // The latest item a line start consumes since the previous item, where a break comes before it.
+  let consumedBreakIndex = -1
   for (let index = 0; index < preparedItems.length; index++) {
     const item = preparedItems[index]
-    if (item === undefined || !item.establishesLine) continue
-    if (previousIndex >= 0 && !item.breakBefore) {
-      preparedItems[previousIndex]!.continued = true
-      const before = walkedFlags[previousIndex] ??= preparedItems[previousIndex]!.prepared.segmentFlags.slice()
+    if (item === undefined) continue
+    if (item.establishesLine && previousIndex >= 0 && !item.breakBefore) {
+      const runIndex = consumedBreakIndex >= 0 ? consumedBreakIndex : previousIndex
+      preparedItems[runIndex]!.continued = true
+      const before = walkedFlags[runIndex] ??= preparedItems[runIndex]!.prepared.segmentFlags.slice()
       markUnbroken(walkedFlags[index] ??= item.prepared.segmentFlags.slice(), 0, before, before.length - 1)
     }
     const itemBefore = index > 0 ? preparedItems[index - 1] : undefined
@@ -455,7 +492,12 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
       const flags = walkedFlags[index - 1] ?? itemBefore.prepared.segmentFlags
       if ((flags[flags.length - 1]! & KIND_BITS) === SOFT_HYPHEN) item.hyphenBefore = itemBefore.prepared.discretionaryHyphenWidth
     }
-    previousIndex = index
+    if (item.establishesLine) {
+      previousIndex = index
+      consumedBreakIndex = -1
+    } else if (item.breakBefore) {
+      consumedBreakIndex = index
+    }
   }
   for (let index = 0; index < preparedItems.length; index++) {
     const item = preparedItems[index]
@@ -536,16 +578,31 @@ function stepRichInlineLine(
     if (item === undefined) continue
     if (cursor.segmentIndex === item.prepared.segments.length && cursor.graphemeIndex === 0) continue
 
-    // Retain inactive source items in the original coordinate space without
-    // turning their mere presence into a line. A following line can still
-    // expose their consumed source.
-    if (!item.establishesLine) {
-      collectItemRest(fragments, itemIndex, item, EMPTY_LAYOUT_CURSOR, 0, -1, 0)
-      continue
+    // The line can end before a continued item that follows a break, as the run the next
+    // item continues can move to the next line.
+    if (item.continued && hasContent && item.breakBefore) {
+      breakItemIndex = itemIndex
+      breakSegmentIndex = 0
+      breakGraphemeIndex = 0
+      breakLineWidth = lineWidth
+      breakFragmentCount = fragments === null ? 0 : fragments.length
+      breakFits = lineWidth + (item.hyphenBefore > 0 ? item.hyphenBefore : getHyphenRoom(item, unfitHyphenRetreat)) <= safeWidth + lineFitEpsilon
     }
 
     const gapBefore = hasContent ? item.gapBefore : 0
     const gapItemIndex = hasContent ? item.gapItemIndex : -1
+
+    // Retain inactive source items in the original coordinate space without
+    // turning their mere presence into a line. A following line can still
+    // expose their consumed source. After content, the line keeps the collapsed
+    // space before such an item, as the flat text keeps a space before a soft
+    // hyphen, which hangs where it doesn't fit, as the item takes no room after it.
+    if (!item.establishesLine) {
+      collectItemRest(fragments, itemIndex, item, EMPTY_LAYOUT_CURSOR, gapBefore, gapItemIndex, 0)
+      lineWidth += gapBefore
+      remainingWidth = safeWidth - lineWidth
+      continue
+    }
     const atItemStart = isLineStartCursor(cursor)
 
     if (item.break === 'never') {
@@ -567,17 +624,6 @@ function stepRichInlineLine(
     if (hasContent && reservedWidth > remainingWidth + lineFitEpsilon) {
       returnsToBreak = !item.breakBefore
       break
-    }
-
-    // The line can end before a continued item that follows a break, as the run the next
-    // item continues can move to the next line.
-    if (item.continued && hasContent && item.breakBefore) {
-      breakItemIndex = itemIndex
-      breakSegmentIndex = 0
-      breakGraphemeIndex = 0
-      breakLineWidth = lineWidth
-      breakFragmentCount = fragments === null ? 0 : fragments.length
-      breakFits = lineWidth + (item.hyphenBefore > 0 ? item.hyphenBefore : getHyphenRoom(item, unfitHyphenRetreat)) <= safeWidth + lineFitEpsilon
     }
 
     if (atItemStart && !item.walked) {

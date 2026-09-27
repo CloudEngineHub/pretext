@@ -242,7 +242,6 @@ catalog-0331fce0a921318e count
 catalog-03ac2690a57c6143 count
 catalog-03e546e5d250deed count
 catalog-074362713395f2bd count
-catalog-087db29a4aa53d03 breaks
 catalog-0ed9c52fd4388b56 count
 catalog-173c1179540aca26 count
 catalog-182e40bc4516e7e2 count
@@ -298,7 +297,6 @@ catalog-62c8def027cea88d count
 catalog-64c570254f8e6165 count
 catalog-6cad4e9b7698e491 count
 catalog-6cf2945f5f30c03f breaks
-catalog-6d07c2543ce3a2a9 breaks
 catalog-6f192a5c68cec80c count
 catalog-6f58351fa9263478 count
 catalog-6ffb4b8908e24bda count
@@ -1981,7 +1979,9 @@ rich-449749f2687176be breaks
 rich-845b4dcf20f5098f count
 rich-88284e86caadfd99 count
 rich-92a3f55de690d221 breaks
+rich-9644a14cf7757871 breaks
 rich-c26cf717c3859584 count
+rich-ddca88239fb74e75 breaks
 rich-eb45f8c12b7c6cda count
 
 ## Narrower than real layouts: width 1, where nothing fits and Chrome keeps spaces, marks, controls or zero-width characters with the character before them otherwise than the library
@@ -3143,15 +3143,21 @@ rich-029e71d595e94f0c count
 rich-166322a1778d474c count
 rich-1e0d5476b00642c8 count
 rich-3055350027afea05 count
+rich-34075de5f2f50824 count
+rich-4ab385df7ef60d77 count
 rich-4fb2c56ec3a40ccb count
 rich-5591e87036a36b35 count
+rich-61a0d94181d91eec count
 rich-807cbc79ec3f2948 count
+rich-8acb5b79e29743bd count
+rich-91260660c787313b count
 rich-a09d53bd7aff382c count
 rich-a560650dfbeafe72 count
 rich-c604ab44311a3b58 count
 rich-d2cbcec88b98434b count
 rich-e4d9d26e42f80135 count
 rich-ea6501c78957947f count
+rich-eac5e4eee615b1b8 count
 
 ## Other shapes (U+FFFC, U+058A, hyphens before curly quotes, kerning before a space, rich-item boundaries), at 24 px and wider: Chrome breaks there where the library doesn't
 catalog-568382c883fb7e93 count

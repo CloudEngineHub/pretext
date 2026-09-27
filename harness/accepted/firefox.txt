@@ -2125,10 +2125,13 @@ facts-d2b62a30cd13dbe6 count
 facts-d5a3d937459712e1 count
 facts-fc69084749bc97f4 count
 rich-029e71d595e94f0c breaks
+rich-34075de5f2f50824 count
+rich-8acb5b79e29743bd count
 rich-9b4af34068e55c9a breaks
 rich-a560650dfbeafe72 count
 rich-c604ab44311a3b58 breaks
 rich-d2cbcec88b98434b breaks
+rich-eac5e4eee615b1b8 count
 
 ## Other shapes (U+FFFC, U+058A, hyphens before curly quotes, kerning before a space, rich-item boundaries), at 24 px and wider: Firefox breaks there where the library doesn't
 rich-333b59dbb519401f breaks
@@ -3568,3 +3571,7 @@ rich-977e32db34176c49 count
 rich-97f64f1b7bc846e9 count
 rich-d55c691442fdcafe breaks
 rich-e4935f2ad4aee9c4 breaks
+
+## A newline, soft hyphen and newline that start a span, at 24 px and wider: Firefox collapses them into one space, as it collapses white space across the characters it discards, where the library keeps a space on each side of the soft hyphen, as it does in one text (ENGINE_FOLLOWUPS.md)
+rich-13f67aacac931b88 count
+rich-90126064978ae3b0 breaks
