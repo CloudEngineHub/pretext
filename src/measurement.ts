@@ -93,7 +93,7 @@ export type EngineProfile = {
   // don't trim them by default.
   hanKerning: boolean
   // Blink and Gecko hang U+3000 at a line end as they hang spaces (addIdeographicSpaceHangs
-  // in src/layout.ts). WebKit counts it: Safari 27 lays out 中文, U+3000, 中文 at 33px
+  // in src/prepare.ts). WebKit counts it: Safari 27 lays out 中文, U+3000, 中文 at 33px
   // in 16px PingFang SC in 3 lines.
   hangsIdeographicSpace: boolean
   // Blink lays out content without a language under its default locale, Chrome's UI
@@ -151,7 +151,7 @@ export type FontMeasurement = {
 let cachedEngineProfile: EngineProfile | null = null
 
 // Prefix fits, which preparation picks by engine, width and letter spacing
-// (measureAnalysis in src/layout.ts), measure every growing prefix of a
+// (measureAnalysis in src/prepare.ts), measure every growing prefix of a
 // segment. That suits word-sized runs, but a giant segment would prepare in time
 // that grows with the square of its length. Past this size, the cheaper
 // pair-context model keeps preparation linear.
