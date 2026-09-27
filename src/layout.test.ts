@@ -4044,6 +4044,7 @@ describe('layout invariants', () => {
         ['中\u0001」 中', { letterSpacing: 2 }, 46, ['中\u0001」 ', '中'], [39.6, 18]],
         ['中」 ', { whiteSpace: 'pre-wrap' }, 30, ['中」 '], [29.28]],
         ['中」 \n中', { whiteSpace: 'pre-wrap' }, 30, ['中」 ', '中'], [29.28, 16]],
+        ['中」 中', { whiteSpace: 'pre-wrap', letterSpacing: 2 }, 30, ['中」 ', '中'], [28, 18]],
       ]
       for (const [text, options, width, expected, widths] of haltedCases) {
         const prepared = prepareWithSegments(text, font, options)
@@ -4054,12 +4055,14 @@ describe('layout invariants', () => {
         expect(layout(prepare(text, font, options), width, LINE_HEIGHT).lineCount).toBe(expected.length)
       }
       // A rich line halts a mark before a space only where no break before its item fits, as
-      // the flat line does: one does after `中 ` and after a chip, and none after `中`.
+      // the flat line does: one does after `中 ` and after a chip, and none after `中`. A mark
+      // before text still halts at a line end after a break that fits.
       const richCases: [Array<{ text: string, break?: 'never', extraWidth?: number }>, number, string[]][] = [
         [[{ text: '中 ' }, { text: '中」 中' }], 46, ['中', '中」', '中']],
         [[{ text: '中 ' }, { text: '中」 中' }], 24, ['中', '中」', '中']],
         [[{ text: '中' }, { text: '」 中' }], 24, ['中」', '中']],
         [[{ text: '@ab', break: 'never', extraWidth: 8 }, { text: '「中」 中' }], 80, ['@ab', '「中」 中']],
+        [[{ text: '中 ' }, { text: '中」中」 中' }], 48, ['中 中」', '中」', '中']],
       ]
       for (const [items, width, expected] of richCases) {
         const rich = prepareRichInline(items.map(item => ({ font, ...item })))
