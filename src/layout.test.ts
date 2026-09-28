@@ -1026,9 +1026,10 @@ describe('boundary-policy regressions', () => {
       expect(lines('ab \u200E\ncd', measureWidth('ab', FONT), { whiteSpace: 'pre-wrap' })).toEqual(['ab \u200E', 'cd'])
       // A chunk that starts with what the text run drops, a control in it, offers no break after it.
       expect(lines('\u202C\u00ADab', 1)).toEqual(['\u202C\u00ADa', 'b'])
-      // Firefox collapses white space through a run of controls, keeping its first space, and the
-      // line end trims one before only controls.
+      // Firefox collapses white space through a run of controls, keeping its first space, or its
+      // segment break if it holds one, and the line end trims one before only controls.
       expect(prepareWithSegments('ab \u200E cd', FONT).segments).toEqual(['ab', ' \u200E', 'cd'])
+      expect(lines(' \u200E\nab', 1)).toEqual(lines('\u200E ab', 1))
       expect(prepareWithSegments('ab \u200E', FONT).segments).toEqual(['ab\u200E'])
       expect(measureRichInlineStats(prepareRichInline([{ text: 'ab \u200E', font: FONT }, { text: 'cd', font: FONT }]), 1000).maxLineWidth)
         .toBe(measureWidth('ab cd', FONT))

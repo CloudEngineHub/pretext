@@ -129,10 +129,10 @@ export function removeSkippableSegmentBreaks(text: string, profile: AnalysisProf
 }
 
 // Gecko's white-space run reads through the bidi controls in it, which its text run drops, and
-// keeps its first white space, and a last space before a combining sequence tail as the tail's base
-// (TransformText, nsTextFrameUtils.cpp:319-345). So white space after bidi controls that follow
-// white space goes, and so does white space before only bidi controls at the end, which the line
-// end trims.
+// keeps its segment break if it holds one, or else its first white space (TransformWhiteSpaces,
+// nsTextFrameUtils.cpp:151-193), and a last space before a combining sequence tail as the tail's
+// base (TransformText, nsTextFrameUtils.cpp:319-345). So the run's other white space goes, and so
+// does white space before only bidi controls at the end, which the line end trims.
 const whiteSpaceThroughBidiControlsRe = /(?<![ \t\n\r\f])[ \t\n\r\f]+(?:[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]+[ \t\n\r\f]*)+/g
 function collapseWhiteSpaceThroughBidiControls(text: string): string {
   return text.replace(whiteSpaceThroughBidiControlsRe, (run: string, at: number) => {
@@ -140,7 +140,9 @@ function collapseWhiteSpaceThroughBidiControls(text: string): string {
     let last = run.length - 1
     while (!isCollapsibleSpaceCode(run.charCodeAt(last))) last--
     const base = last > 0 && run.charCodeAt(last) === 0x20 && isSpaceCombiningSequenceTail(text, at + last + 1)
-    return run[0] + run.slice(1, base ? last : run.length).replace(collapsibleWhitespaceRunRe, '') + (base ? run.slice(last) : '')
+    const kept = Math.max(run.indexOf('\n'), 0)
+    const end = base ? last : run.length
+    return run.slice(0, kept).replace(collapsibleWhitespaceRunRe, '') + run[kept] + run.slice(kept + 1, end).replace(collapsibleWhitespaceRunRe, '') + (base ? run.slice(last) : '')
   })
 }
 
