@@ -2223,12 +2223,15 @@ stayed near 18ms in 11 of 12. Timed around `measureText` in a foreground page, a
 first cold prepare of that text spends 20ms in Canvas with main and 15ms with
 the scan, and both fall under 1ms once the cache holds the strings.
 
-HanKerning's per-segment trims (`src/han-kerning.ts`) start as zeros pushed in a
-loop. Made with `Array.from({ length: count }, () => 0)`, which reads every index
-off the object and calls the map function for each, one more such array, the
+Per-segment widths that start at zero, HanKerning's trims (`src/han-kerning.ts`),
+the soft-hyphen contexts and the U+3000 hangs, start as zeros pushed in a loop
+(`zeros()`). Made with `Array.from({ length: count }, () => 0)`, which reads every
+index off the object and calls the map function for each, one more such array, the
 overflow trims about a quarter of the bench's CJK messages hold, made Chrome 154
 prepare seen CJK 5.7% slower than main in both sessions of two runs; with all four
-pushed in a loop, it read 9 to 11% faster than main in two runs (#366). layout()'s
+pushed in a loop, it read 9 to 11% faster than main in two runs (#366). Lists of
+records or null keep `Array.from`: once one helper pushed nulls too, Node 23's V8
+made its zeros generic elements, storing each trim as a boxed double. layout()'s
 numeric count loop (`countPreparedLines()`) takes no overflow trims: it hands a
 handle with any to the simple stepper, which takes them for a line's first segment.
 Read in that loop, where only a line whose first segment overflows reaches them,

@@ -307,6 +307,14 @@ export function readLetterSpacing(letterSpacing: number | undefined): number {
   return value
 }
 
+// A zero per segment, where per-segment widths start, pushed in a loop: Array.from over
+// `{ length }` reads every index off the object and calls its map function for each.
+export function zeros(count: number): number[] {
+  const out: number[] = []
+  for (let i = 0; i < count; i++) out.push(0)
+  return out
+}
+
 // A direct measurement under letter spacing, borrowing the font's context for the
 // synchronous call. It never enters the unspaced segment cache, and letterSpacing
 // is restored even when assignment or measurement fails. Null where the context

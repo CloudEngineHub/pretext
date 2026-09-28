@@ -274,7 +274,7 @@ function recordJoinedBreaks(
     for (; j < starts.length && starts[j]! < segmentEnd; j++) {
       // A line ends inside a segment only between graphemes it has fit advances for,
       // and not in one with fresh-line geometry. Grapheme k + 1 starts where k ends.
-      if (!breaksBefore(joinedFlags, j) || breakableFitAdvances[i] === null || entryGeometry?.[i] != null) continue
+      if (!breaksBefore(joinedFlags, j) || breakableFitAdvances[i] === null || (entryGeometry !== null && entryGeometry[i] !== null)) continue
       const grapheme = getGraphemeEnds(item.prepared, i).indexOf(starts[j]! - segmentStart) + 1
       if (grapheme > 0) ((item.innerBreaks ??= Array.from({ length: segments.length }, () => null))[i] ??= []).push(grapheme)
     }
@@ -642,8 +642,13 @@ function collectItemRest(
 
 // The room a line that ends at a break without a hyphen leaves for the item's hyphen,
 // for a return from an unfit soft hyphen to it: Blink's retry leaves room for it.
-function getHyphenRoom(item: PreparedRichInlineItem, unfitHyphenRetreat: string): number {
+function getHyphenRoom(item: PreparedRichInlineItem, unfitHyphenRetreat: EngineProfile['unfitHyphenRetreat']): number {
   return unfitHyphenRetreat === 'reduced-width' ? item.prepared.discretionaryHyphenWidth : 0
+}
+
+// Whether a line that ends at the break before the item fits, with the hyphen it paints there or room for one.
+function fitsBreakBefore(item: PreparedRichInlineItem, lineWidth: number, fitLimit: number, unfitHyphenRetreat: EngineProfile['unfitHyphenRetreat']): boolean {
+  return lineWidth + (item.hyphenBefore > 0 ? item.hyphenBefore : getHyphenRoom(item, unfitHyphenRetreat)) <= fitLimit
 }
 
 // The line state a walked item takes and leaves, one for every walk.
@@ -678,6 +683,8 @@ function stepRichInlineLine(
   let returnsToBreak = false
   // Whether an item a line start consumes followed content on the line (below).
   let consumedAfterContent = false
+  // Where the walk of an item ends its part of the line (below), one for every walk.
+  const lineEnd: LayoutCursor = { segmentIndex: 0, graphemeIndex: 0 }
 
   // Every `continue` moves on to the start of the next item.
   for (; itemIndex < flow.items.length; itemIndex++, cursor.segmentIndex = 0, cursor.graphemeIndex = 0) {
@@ -693,7 +700,7 @@ function stepRichInlineLine(
       breakGraphemeIndex = 0
       breakLineWidth = lineWidth
       breakFragmentCount = fragments === null ? 0 : fragments.length
-      breakFits = lineWidth + (item.hyphenBefore > 0 ? item.hyphenBefore : getHyphenRoom(item, unfitHyphenRetreat)) <= safeWidth + lineFitEpsilon
+      breakFits = fitsBreakBefore(item, lineWidth, safeWidth + lineFitEpsilon, unfitHyphenRetreat)
     }
 
     const gapBefore = hasContent ? item.gapBefore : 0
@@ -757,10 +764,8 @@ function stepRichInlineLine(
     // earlier. A return from an unfit soft hyphen ends the line at the break before the
     // item where that line fits, with room for the hyphen in Blink's retry, or with the
     // hyphen where the break follows one.
-    const lineEnd: LayoutCursor = {
-      segmentIndex: cursor.segmentIndex,
-      graphemeIndex: cursor.graphemeIndex,
-    }
+    lineEnd.segmentIndex = cursor.segmentIndex
+    lineEnd.graphemeIndex = cursor.graphemeIndex
     // A line start consumes the rest of the item, such as a soft hyphen, and a line
     // that starts at zero-width glue keeps it without taking it as content. A ZWSP that
     // the joined text breaks after at the item's start, where the item's own text doesn't,
@@ -776,7 +781,7 @@ function stepRichInlineLine(
     // An engine that keeps an unfit hyphen returns only to a break before a run that
     // continues from an earlier item.
     itemLine.fitsBreakBefore = hasContent && (item.breakBefore
-      ? unfitHyphenRetreat !== 'none' && lineWidth + (item.hyphenBefore > 0 ? item.hyphenBefore : getHyphenRoom(item, unfitHyphenRetreat)) <= safeWidth + lineFitEpsilon
+      ? unfitHyphenRetreat !== 'none' && fitsBreakBefore(item, lineWidth, safeWidth + lineFitEpsilon, unfitHyphenRetreat)
       : breakFits)
     itemLine.innerBreaks = item.innerBreaks
     itemLine.breakSegmentIndex = -1
