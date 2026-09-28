@@ -1,5 +1,4 @@
-import type { CharTable } from './generated/engine-break-data.js'
-import { findGraphemeEnds } from './graphemes.js'
+import { findGraphemeEnds, type GraphemeTable } from './graphemes.js'
 import { canWebKitLineStartWith, getBlinkDefaultLocale } from './line-breaks.js'
 import { webkitGenericFamilies, webkitGenericFamilyNames, webkitScriptLanguages, webkitScriptSubtags } from './generated/webkit-generic-families.js'
 import type { SegmentEntryGeometry } from './entry-geometry.js'
@@ -25,7 +24,7 @@ export type SegmentFit = {
   entryGeometry: {
     letterSpacing: number
     emojiCorrection: number
-    geometry: SegmentEntryGeometry
+    geometry: SegmentEntryGeometry | null
   } | null
 }
 
@@ -42,14 +41,22 @@ export type EngineProfile = {
   lineBreakScan: 'blink' | 'webkit' | 'gecko'
   // Where grapheme clusters end: the engine's ICU character rules (src/graphemes.ts).
   // libicucore's add Apple's transcoding hints to Extend. Firefox's ICU4X data gives the
-  // clusters Chrome's rules give.
-  graphemeTable: CharTable
+  // clusters Chrome's rules give, over its text run, which leaves out bidi controls.
+  graphemeTable: GraphemeTable
   lineFitEpsilon: number
   // Where an emergency break falls inside a segment. WebKit measures the word's grapheme
   // prefixes (TextUtil::breakWord), and Gecko adds the advances of the word shaped whole
   // (gfxTextRun::BreakAndMeasureText), which prefixes follow in joined scripts where
   // standalone graphemes don't. Blink sums standalone graphemes. Segments at least this
-  // wide fit from prefixes, narrower ones from standalone graphemes.
+  // wide fit from prefixes, narrower ones from standalone graphemes. A segment breaks
+  // only on a line narrower than itself, so every line at least this wide gets prefixes.
+  // Gecko's 80px is a premise, not a browser rule: prefixes cost a Canvas call per
+  // grapheme of every new word, most of the calls a lower floor adds are in words 24-80px
+  // wide, and taking them from 24px or everywhere made Firefox 156 prepare new Latin,
+  // Arabic and mixed messages and UI labels 28-68% slower (99 measureText calls per 1,000
+  // units against 62). Its gap is at 24-80px: 281 of the harness's Firefox cases fail
+  // there that prefixes pass, and 14 pass that they fail, one of them a real-usage draw
+  // (RESEARCH.md, Decisions Log).
   prefixFitMinWidth: number
   // WebKit measures a text item together with a directly following U+0020 and
   // subtracts one unshaped space, so the item keeps its kerning with that space
@@ -136,7 +143,8 @@ export type EngineProfile = {
   // ` \u00AD \u00AD`, `cd` in 16px Arial in one 39.15px line at 40px, where Chrome and Safari
   // give 2 lines, as they do for one text node. Rich-inline takes it across items and after an
   // item's leading white space (whitespaceRunOpen in src/rich-inline.ts); the Gecko profile's
-  // analysis doesn't, inside a text past its first white space (ENGINE_FOLLOWUPS.md).
+  // analysis does only through bidi controls, inside a text past its first white space
+  // (ENGINE_FOLLOWUPS.md).
   collapsesSpaceAcrossSoftHyphens: boolean
 }
 
@@ -305,6 +313,8 @@ export function measureWithLetterSpacing(text: string, letterSpacing: number, em
   }
 }
 
+// The lookup is the first to hash seg and internalizes it, so V8 hands Canvas a Latin-1
+// segment one-byte, which Chrome measures as Latin (RESEARCH.md, Measurement Model).
 export function getSegmentMetrics(seg: string, measurement: FontMeasurement): SegmentMetrics {
   return measurement.metrics.get(seg) ?? addMetrics(measurement.metrics, seg, seg, measurement)
 }
@@ -355,7 +365,7 @@ export function getEngineProfile(): EngineProfile {
   const profile: EngineProfile = {
     entryFitBasis: isDesktop && engine === 'blink' ? 'fresh' : isDesktop && engine === 'gecko' ? 'original' : 'disabled',
     lineBreakScan: engine,
-    graphemeTable: engine === 'webkit' ? 'apple/char' : 'chromium/char',
+    graphemeTable: engine === 'webkit' ? 'apple/char' : engine === 'gecko' ? 'gecko/char' : 'chromium/char',
     lineFitEpsilon: engine === 'webkit' ? 1 / 64 : 0.005,
     prefixFitMinWidth: engine === 'webkit' ? 0 : engine === 'gecko' ? 80 : Infinity,
     measureTextWithFollowingSpace: engine === 'webkit',
