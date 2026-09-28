@@ -2032,6 +2032,23 @@ runs no new step in the WebKit profile for the bench's messages, read Safari's r
 walk 21.0% faster than main and 12.5% and 12.0% slower than the round before it,
 and plain layout rows it doesn't change 2.5 to 8.5% slower than that round.
 
+Firefox 156 measures the bench's rich stats 5.9% slower since items continue their
+lines (+5.9, +4.0 and +7.1% in three sessions against e73081fc, where the second
+copy of it read +2.9, −1.3 and +3.2%), and its rich walk and stream about 2%. #369
+put it down to the full walker, which steps about one item per line there where the
+simple stepper did. That isn't the cause: items on fast-path handles that continue a
+line, sent back to the simple stepper, give the same lines within 10⁻⁶ offline and
+read +0.2% against #369. The cost is in `src/rich-inline.ts` and `src/line-break.ts`,
+whose versions from before #369 read 8.5% faster on the same tree, and it comes from
+how SpiderMonkey compiles the rich stepper rather than from work it does: without the
+break it records before a continued item at the top of its item loop, whose body
+never runs on the bench, as every word item there follows a whitespace item, rich
+stats read 4.7% faster, and walk and stream 6.1 and 6.8%, faster than before #369
+too. No plain structure takes it back: the hang of the spaces before consumed items
+in a function of its own read 2.0% faster, without that block at all 2.4% faster,
+and the seven locals of the line's latest break in one record 3.0% slower, all
+within noise. So the slowdown is accepted (Decisions Log, 2026-09-26).
+
 The analysis gives each segment's flags byte in a plain array while it finds the
 segments, and measurement copies the bytes into the prepared handle's
 `Uint8Array`. A `Uint8Array` as long as the text, cut to the segments found and
@@ -2240,12 +2257,15 @@ stayed near 18ms in 11 of 12. Timed around `measureText` in a foreground page, a
 first cold prepare of that text spends 20ms in Canvas with main and 15ms with
 the scan, and both fall under 1ms once the cache holds the strings.
 
-HanKerning's per-segment trims (`src/han-kerning.ts`) start as zeros pushed in a
-loop. Made with `Array.from({ length: count }, () => 0)`, which reads every index
-off the object and calls the map function for each, one more such array, the
+Per-segment widths that start at zero, HanKerning's trims (`src/han-kerning.ts`),
+the soft-hyphen contexts and the U+3000 hangs, start as zeros pushed in a loop
+(`zeros()`). Made with `Array.from({ length: count }, () => 0)`, which reads every
+index off the object and calls the map function for each, one more such array, the
 overflow trims about a quarter of the bench's CJK messages hold, made Chrome 154
 prepare seen CJK 5.7% slower than main in both sessions of two runs; with all four
-pushed in a loop, it read 9 to 11% faster than main in two runs (#366). layout()'s
+pushed in a loop, it read 9 to 11% faster than main in two runs (#366). Lists of
+records or null keep `Array.from`: once one helper pushed nulls too, Node 23's V8
+made its zeros generic elements, storing each trim as a boxed double. layout()'s
 numeric count loop (`countPreparedLines()`) takes no overflow trims: it hands a
 handle with any to the simple stepper, which takes them for a line's first segment.
 Read in that loop, where only a line whose first segment overflows reaches them,
@@ -2258,6 +2278,15 @@ Taken off it, the 31 of the bench's 134 CJK messages that hold overflow trims wa
 with the full walker, and in two foreground pages Chrome 154 ran `measureLineStats()`
 81 to 84%, `walkLineRanges()` 102 to 108% and `layoutNextLineRange()` 62 to 65% slower
 than main on the 134 (#366).
+
+Rich preparation makes the paragraph's bidi levels for Gecko's white-space run
+(`getItemLevels()`) only the first time an item's run goes on past a character Firefox
+drops, which none of the bench's messages do. Made for every paragraph in the Gecko
+profile, they made `prepareRichInline()` of the bench's Latin and Arabic messages 8%
+and 25% slower than main, and made only where an item holds a soft hyphen or a bidi
+control, 5% and 3%, while made on first need they read within 2% (bun's
+JavaScriptCore on the stand-in Canvas with warm caches, medians of 5 or 6 processes,
+where a second copy of main read within 2%; hypotheses until a browser shows them).
 
 ## Decisions Log
 

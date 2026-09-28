@@ -20,3 +20,7 @@
 - Is automatic hyphenation in scope beyond caller-provided soft hyphens?
 - Are more intrinsic or logical-width APIs needed beyond `measureNaturalWidth()` and fixed-width layout?
 - Is a slower diagnostic verification mode useful enough to support without changing `layout()`?
+
+## API Discussion
+
+- Rich-inline analyses each item on its own, then patches it toward the text the items join: `recordJoinedBreaks()`, `markUnbroken()`, `getWalkedHandle()`, the joined windows and the passes after the item loop in `src/rich-inline.ts`, `ItemLine` and the walker's item mode in `src/line-break.ts`, and a second handle per item with its caches kept twice, about 330 lines with comments. They exist because fragment cursors index `prepareWithSegments(item.text)`. Written from scratch, it would be one analysis of the paragraph cut at item boundaries, as the engines lay out one paragraph's text across its spans and the rebuild indexes a paragraph's content (`rebuild/src/content.ts` on branch `rebuild-20260916`). That needs a new cursor contract, and letter spacing and `extraWidth` per segment in the walker. Not prototyped.

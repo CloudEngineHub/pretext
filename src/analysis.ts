@@ -43,9 +43,6 @@ export const RETURNABLE = 0x40
 // The engine's clusters don't split the segment, so no emergency break splits it
 // either. Measurement clears it.
 export const ONE_CLUSTER = 0x80
-// The same bit in a rich-inline item's walked handle: the text the items join breaks
-// inside the segment (src/rich-inline.ts).
-export const INNER_BREAKS = 0x80
 export type SegmentKindCode = typeof TEXT | typeof SPACE | typeof ZERO_WIDTH_BREAK | typeof SOFT_HYPHEN |
   typeof PRESERVED_SPACE | typeof TAB | typeof ZERO_WIDTH_GLUE | typeof CONTROL | typeof HARD_BREAK
 // Each kind's name by its code, as prepareWithSegments() gives them.
@@ -133,21 +130,6 @@ export function removeSkippableSegmentBreaks(text: string, profile: AnalysisProf
   return copied === 0 ? text : result + text.slice(copied)
 }
 
-// Where the collapsible white space that ends text[from, text.length) starts, which the analysis
-// leaves out and a line end trims, or the text's length where none ends it. Gecko's white-space
-// run reads through the bidi controls in it and after it (TransformText, nsTextFrameUtils.cpp:
-// 319-345), so there it is the first white space after the last character that is neither, and
-// the controls stay.
-export function getTrailingCollapsibleStart(text: string, from: number, scan: AnalysisProfile['lineBreakScan']): number {
-  let start = text.length
-  for (let i = text.length - 1; i >= from; i--) {
-    const code = text.charCodeAt(i)
-    if (isCollapsibleSpaceCode(code)) start = i
-    else if (!(scan === 'gecko' && isBidiControl(code))) break
-  }
-  return start
-}
-
 // Gecko's white-space run reads through the bidi controls in it, which its text run drops, and
 // keeps its segment break if it holds one, or else its first white space (TransformWhiteSpaces,
 // nsTextFrameUtils.cpp:151-193), and a last space before a combining sequence tail as the tail's
@@ -164,6 +146,21 @@ function collapseWhiteSpaceThroughBidiControls(text: string): string {
     const end = base ? last : run.length
     return run.slice(0, kept).replace(collapsibleWhitespaceRunRe, '') + run[kept] + run.slice(kept + 1, end).replace(collapsibleWhitespaceRunRe, '') + (base ? run.slice(last) : '')
   })
+}
+
+// Where the collapsible white space that ends text[from, text.length) starts, which the analysis
+// leaves out and a line end trims, or the text's length where none ends it. Gecko's white-space
+// run reads through the bidi controls in it and after it (TransformText, nsTextFrameUtils.cpp:
+// 319-345), so there it is the first white space after the last character that is neither, and
+// the controls stay.
+export function getTrailingCollapsibleStart(text: string, from: number, profile: AnalysisProfile): number {
+  let start = text.length
+  for (let i = text.length - 1; i >= from; i--) {
+    const code = text.charCodeAt(i)
+    if (isCollapsibleSpaceCode(code)) start = i
+    else if (!(profile.lineBreakScan === 'gecko' && isBidiControl(code))) break
+  }
+  return start
 }
 
 // Every East Asian wide, fullwidth or halfwidth character is at or above U+1100.
