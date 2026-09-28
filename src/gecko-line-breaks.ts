@@ -280,9 +280,29 @@ function isUtf16CodeUnitBidi(u: number): boolean {
   return true
 }
 
+// HasRTLChars (nsBidiUtils.h:107-111).
+function hasRtlChars(source: string): boolean {
+  for (let i = 0; i < source.length; i++) if (isUtf16CodeUnitBidi(source.charCodeAt(i))) return true
+  return false
+}
+
 // ReplaceSeparators, nsBidiPresUtils.cpp:861-875
 function replaceSeparator(u: number): number {
   return u === 0x09 || u === 0x0a || u === 0x0b || u === 0x0d || (u >= 0x1c && u <= 0x1f) || u === 0x85 || u === 0x2029 ? 0x20 : u
+}
+
+// The levels of source[start, end) as one paragraph, its separators replaced.
+function getLevels(source: string, start: number, end: number): Uint8Array {
+  const paragraph = new Uint16Array(end - start)
+  for (let i = 0; i < paragraph.length; i++) paragraph[i] = replaceSeparator(source.charCodeAt(start + i))
+  return getParagraphLevels(paragraph)
+}
+
+// A left-to-right block resolves bidi only where its text has right-to-left characters (Resolve
+// :790-854, ChildListMayRequireBidi :1467-1475): the levels of its paragraph in white-space: normal
+// there, else null.
+export function getGeckoParagraphLevels(source: string): Uint8Array | null {
+  return hasRtlChars(source) ? getLevels(source, 0, source.length) : null
 }
 
 // Raw indices where a logical level run starts (ResolveParagraph :877-1110, EnsureBidiContinuation
@@ -294,10 +314,8 @@ function getBidiRunStarts(source: string, preserveWhiteSpace: boolean): number[]
     let end = preserveWhiteSpace ? source.indexOf('\n', start) + 1 : source.length
     if (end === 0) end = source.length
     if (start > 0) starts.push(start)
-    const paragraph = new Uint16Array(end - start)
-    for (let i = 0; i < paragraph.length; i++) paragraph[i] = replaceSeparator(source.charCodeAt(start + i))
-    const levels = getParagraphLevels(paragraph)
-    for (let i = 1; i < paragraph.length; i++) if (levels[i] !== levels[i - 1]) starts.push(start + i)
+    const levels = getLevels(source, start, end)
+    for (let i = 1; i < levels.length; i++) if (levels[i] !== levels[i - 1]) starts.push(start + i)
     start = end
   }
   return starts
@@ -316,9 +334,7 @@ function getBidiRunStarts(source: string, preserveWhiteSpace: boolean): number[]
 // collapsed white space that is a space, which counts here whatever its level, a soft hyphen is BN,
 // which keepsClusterLevel() looks past, and a bidi control counts already.
 function levelsMayMatter(source: string, tr: Transformed, g: Glyphs, preserveWhiteSpace: boolean): boolean {
-  let requires = false
-  for (let i = 0; i < source.length && !requires; i++) requires = isUtf16CodeUnitBidi(source.charCodeAt(i))
-  if (!requires) return false
+  if (!hasRtlChars(source)) return false
   // The paragraph holding the unit: the text, or in pre-wrap its line with the LF.
   let from = 0, to = 0, trailingFrom = 0
   for (let t = 1; t < tr.text.length; t++) {

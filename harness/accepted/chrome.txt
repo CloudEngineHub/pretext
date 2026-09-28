@@ -6,6 +6,36 @@ report-23cd6052bc54f415 breaks
 report-953b7e9cd05588ed breaks
 report-b980d5159851daba breaks
 
+## A soft hyphen after a space, before white space in the next span or its own, or white space and a soft hyphen that start the paragraph before a ZWSP, at 24 px and wider: Chrome keeps the space after the soft hyphen visible where a line starts, as it doesn't consume a soft hyphen at a line start, where the library consumes both (main and 0fef0023 too; ENGINE_FOLLOWUPS.md)
+rich-0de3e74d8bc2e919 count
+rich-1d58246788b59c86 count
+rich-1e1236be2a71b169 breaks
+rich-24a61d081017549d count
+rich-322be9dbc04c61c0 count
+rich-7cf9cca9a7384ae1 count
+rich-8490e462072dcf97 count
+rich-980e26df8bc10d47 breaks
+rich-9881c81d4b5f26ca breaks
+rich-a4b44edb3de875c2 breaks
+rich-af15c89ce4d5d9a8 breaks
+rich-b0c830aec8fcea25 breaks
+rich-befcad2d664c96dc count
+rich-c71a21ddc6fa35ca breaks
+rich-d7ac0a6af37a56bf count
+rich-dc1f44c993d80708 breaks
+
+## A soft hyphen that ends a word before a space, or follows a space before a word, whose hyphen doesn't fit, at 24 px and wider: Chrome breaks the word before it between letters, as for the text in one node, where the library ends the line at the space or after the soft hyphen (main and fd8002ba too; ENGINE_FOLLOWUPS.md)
+rich-678c2f661ad5b57b count
+rich-848257104aba6eb8 count
+rich-9fb830f3b14af5c6 breaks
+
+## A soft hyphen whose hyphen doesn't fit, where rich items split its word, at 24 px and wider: Chrome breaks the word between letters, the library at the soft hyphen, as it does for the text in one node (ENGINE_FOLLOWUPS.md)
+rich-d5e8ab54da9c767a breaks
+rich-d95b699e131357ec breaks
+
+## A span of a soft hyphen between spaces after a word, at 24 px and wider: Chrome keeps the space after the soft hyphen visible at the start of the next line, as it doesn't consume a soft hyphen at a line start, where the library consumes both, as it does in one text (main and c09d264b too; ENGINE_FOLLOWUPS.md)
+rich-ed1f76e1c1bff59b count
+
 ## Arabic and Hebrew beside brackets, controls, U+FFFC or rich-item edges, at 24 px and wider: Chrome breaks there where the library doesn't
 catalog-01ed9a531b7a32b4 count
 catalog-2c2c30ca491d04db breaks
@@ -238,7 +268,6 @@ catalog-0331fce0a921318e count
 catalog-03ac2690a57c6143 count
 catalog-03e546e5d250deed count
 catalog-074362713395f2bd count
-catalog-087db29a4aa53d03 breaks
 catalog-0ed9c52fd4388b56 count
 catalog-173c1179540aca26 count
 catalog-182e40bc4516e7e2 count
@@ -294,7 +323,6 @@ catalog-62c8def027cea88d count
 catalog-64c570254f8e6165 count
 catalog-6cad4e9b7698e491 count
 catalog-6cf2945f5f30c03f breaks
-catalog-6d07c2543ce3a2a9 breaks
 catalog-6f192a5c68cec80c count
 catalog-6f58351fa9263478 count
 catalog-6ffb4b8908e24bda count
@@ -423,9 +451,11 @@ old-gate-f2fc195a76826702 count
 old-gate-f59a86459057b5a6 count
 old-gate-fd822def1878d1dc breaks
 rich-294bc955f6e33689 breaks
+rich-5d3ce06ac22e1dca count
 rich-5da941a1487a5c46 breaks
 rich-5e88c18e1e4c5903 breaks
 rich-f9d29965bd729819 breaks
+rich-fb89fcbe2ec753dd count
 
 ## Letter-spacing across scripts (Thai, Arabic, Khmer, CJK, digits and hyphens) and in rich runs, at 24 px and wider: Chrome spaces or breaks these where the library doesn't
 catalog-05a6b33d99f603bc breaks
@@ -1971,11 +2001,18 @@ facts-fef088c479c829e9 count
 oracle-6ef7f131436695ac count
 oracle-7b318fbe27255616 count
 oracle-f1121833e4ed5ed7 count
+rich-40018982415644fb count
 rich-449749f2687176be breaks
+rich-5d9782cd7b729d95 count
 rich-845b4dcf20f5098f count
+rich-85e4aa2bcd3972d7 count
 rich-88284e86caadfd99 count
 rich-92a3f55de690d221 breaks
+rich-9644a14cf7757871 breaks
+rich-9b6ad49d976868b9 count
+rich-a4c0d3d9594731bf count
 rich-c26cf717c3859584 count
+rich-ddca88239fb74e75 breaks
 rich-eb45f8c12b7c6cda count
 
 ## Narrower than real layouts: width 1, where nothing fits and Chrome keeps spaces, marks, controls or zero-width characters with the character before them otherwise than the library
@@ -3139,11 +3176,43 @@ facts-f13d0fd190f3d60a count
 facts-f3a4b8f25d411b8d count
 facts-fc3ae276c1724213 count
 facts-fc69084749bc97f4 count
+rich-02422502faa37ede count
+rich-029e71d595e94f0c count
+rich-0a3fec9a06a04eef count
+rich-0a8313779639e9ef count
+rich-0cabfc789f6a4358 count
 rich-166322a1778d474c count
 rich-1e0d5476b00642c8 count
+rich-26f8627a88fc9819 count
+rich-2967857136330955 count
+rich-3055350027afea05 count
+rich-34075de5f2f50824 count
+rich-3f7623a4b4dd94eb count
+rich-406ee1104d5987ce count
+rich-4138b24c4fe85f75 count
+rich-49d40a0beea8f837 count
+rich-4ab385df7ef60d77 count
 rich-4fb2c56ec3a40ccb count
+rich-5591e87036a36b35 count
+rich-61a0d94181d91eec count
+rich-62a3fc75836c636c count
+rich-668d6722303f2370 count
+rich-7207dfa4e9dfe793 count
 rich-807cbc79ec3f2948 count
+rich-857a18338463351b count
+rich-8acb5b79e29743bd count
+rich-91260660c787313b count
+rich-9caad05a8d6ec08d count
+rich-a09d53bd7aff382c count
 rich-a560650dfbeafe72 count
+rich-c604ab44311a3b58 count
+rich-d2cbcec88b98434b count
+rich-e4d9d26e42f80135 count
+rich-ea6501c78957947f count
+rich-eac5e4eee615b1b8 count
+rich-f317f68bc8764b2d count
+rich-f58eb7323359596a count
+rich-f925dd03f35ccc51 count
 
 ## Other shapes (U+FFFC, U+058A, hyphens before curly quotes, kerning before a space, rich-item boundaries), at 24 px and wider: Chrome breaks there where the library doesn't
 catalog-568382c883fb7e93 count
@@ -4274,6 +4343,7 @@ rich-451456e41e3a34f2 breaks
 rich-4c2404aa7b364681 count
 rich-53f18740a63eb988 count
 rich-5db99b6d6871d894 breaks
+rich-5eb046964ad9149e count
 rich-60e34554e1163990 count
 rich-66b47f20a096b984 count
 rich-6a7a46283df778cd breaks

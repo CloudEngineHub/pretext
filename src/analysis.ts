@@ -43,6 +43,9 @@ export const RETURNABLE = 0x40
 // The engine's clusters don't split the segment, so no emergency break splits it
 // either. Measurement clears it.
 export const ONE_CLUSTER = 0x80
+// The same bit in a rich-inline item's walked handle: the text the items join breaks
+// inside the segment (src/rich-inline.ts).
+export const INNER_BREAKS = 0x80
 export type SegmentKindCode = typeof TEXT | typeof SPACE | typeof ZERO_WIDTH_BREAK | typeof SOFT_HYPHEN |
   typeof PRESERVED_SPACE | typeof TAB | typeof ZERO_WIDTH_GLUE | typeof CONTROL | typeof HARD_BREAK
 // Each kind's name by its code, as prepareWithSegments() gives them.
@@ -90,8 +93,9 @@ function isSegmentBreakRunSpace(code: number, scan: AnalysisProfile['lineBreakSc
 // - Gecko: SPACE, TAB and LF, continuing through the characters Gecko discards
 //   (SHY and bidi controls) without ending on one, and leaving out a last SPACE
 //   before a combining sequence tail. Text holding a ZWSP is 16-bit in Gecko.
-// Characters outside the run, such as FF, keep the ordinary collapse.
-export function removeSkippableSegmentBreaks(text: string, profile: AnalysisProfile, language: string | null = null): string {
+// Characters outside the run, such as FF, keep the ordinary collapse. `removed`, when given,
+// takes the index of each unit removed, in order.
+export function removeSkippableSegmentBreaks(text: string, profile: AnalysisProfile, language: string | null = null, removed: number[] | null = null): string {
   const scan = profile.lineBreakScan
   if (scan === 'webkit' || !text.includes('\n')) return text
   const eastAsian = scan === 'gecko' && maybeEastAsianRe.test(text)
@@ -122,6 +126,7 @@ export function removeSkippableSegmentBreaks(text: string, profile: AnalysisProf
     result += text.slice(copied, start)
     for (let member = start; member < end; member++) {
       if (!isSegmentBreakRunSpace(text.charCodeAt(member), scan)) result += text[member]
+      else removed?.push(member)
     }
     copied = end
   }
@@ -245,17 +250,18 @@ function mapSourceLineBreaks(source: string, normalizedLength: number, sourceBre
 // mode, and a SOFT_HYPHEN_BREAK makes a soft hyphen a zero-width break: the line can end there
 // without a hyphen. One with only soft hyphens before it on its chunk stays a soft hyphen, since
 // a zero-width break there holds a line and Firefox, which drops soft hyphens from its text runs,
-// gives it none.
-function classifySegmentUnit(normalized: string, breaks: Uint8Array, i: number, code: number, whiteSpace: WhiteSpaceMode, scan: AnalysisProfile['lineBreakScan']): SegmentKindCode {
+// gives it none. Text that continues a line with content before it, as a rich-inline window
+// after a collapsible space does, has content before its start.
+function classifySegmentUnit(normalized: string, breaks: Uint8Array, i: number, code: number, whiteSpace: WhiteSpaceMode, scan: AnalysisProfile['lineBreakScan'], afterContent: boolean): SegmentKindCode {
   if ((code === 0x2028 || code === 0x2029) && (breaks[i + 1]! & FORCED_BREAK) !== 0) return HARD_BREAK
-  if (code === 0x00AD && (breaks[i + 1]! & SOFT_HYPHEN_BREAK) !== 0 && followsChunkContent(normalized, i)) return ZERO_WIDTH_BREAK
+  if (code === 0x00AD && (breaks[i + 1]! & SOFT_HYPHEN_BREAK) !== 0 && followsChunkContent(normalized, i, afterContent)) return ZERO_WIDTH_BREAK
   return classifySegmentBreakCode(code, whiteSpace, scan)
 }
 
-function followsChunkContent(normalized: string, i: number): boolean {
+function followsChunkContent(normalized: string, i: number, afterContent: boolean): boolean {
   let j = i - 1
   while (j >= 0 && normalized.charCodeAt(j) === 0x00AD) j--
-  return j >= 0 && normalized.charCodeAt(j) !== 0x0A
+  return j >= 0 ? normalized.charCodeAt(j) !== 0x0A : afterContent
 }
 
 // Characters of these kinds share a segment when no break falls between them. Each
@@ -296,7 +302,7 @@ function isControlSegmentCode(code: number): boolean {
 // profile's graphemes look past these characters (src/graphemes.ts), so a cluster extender after
 // them joins the cluster before, unless a bidi level run starts at it, where the scan starts a
 // cluster (gfxTextRun.cpp:2828-2835) and the extender starts a segment.
-function segmentAtLineBreaks(normalized: string, spaceSources: Uint16Array | null, breaks: Uint8Array, whiteSpace: WhiteSpaceMode, scan: AnalysisProfile['lineBreakScan'], dropsBidiControl: boolean): TextAnalysis {
+function segmentAtLineBreaks(normalized: string, spaceSources: Uint16Array | null, breaks: Uint8Array, whiteSpace: WhiteSpaceMode, scan: AnalysisProfile['lineBreakScan'], afterContent: boolean, dropsBidiControl: boolean): TextAnalysis {
   const oneCluster = scan === 'gecko' ? ONE_CLUSTER : 0
   const starts: number[] = []
   // A plain array, which measurement copies into the prepared handle's bytes: a Uint8Array for
@@ -320,7 +326,7 @@ function segmentAtLineBreaks(normalized: string, spaceSources: Uint16Array | nul
       if (controlEnd > 0) {
         const chunkStart = last < 0 || lastKind === HARD_BREAK
         if (chunkStart) {
-          const endsChunk = j === normalized.length || classifySegmentUnit(normalized, breaks, j, normalized.charCodeAt(j), whiteSpace, scan) === HARD_BREAK
+          const endsChunk = j === normalized.length || classifySegmentUnit(normalized, breaks, j, normalized.charCodeAt(j), whiteSpace, scan, afterContent) === HARD_BREAK
           if (!endsChunk) breaks[j] = breaks[j]! & ~(BREAK | SOFT_HYPHEN_BREAK)
           droppedEnd = j
           if (endsChunk && last >= 0) continue
@@ -336,7 +342,7 @@ function segmentAtLineBreaks(normalized: string, spaceSources: Uint16Array | nul
         continue
       }
     }
-    const kind = classifySegmentUnit(normalized, breaks, i, code, whiteSpace, scan)
+    const kind = classifySegmentUnit(normalized, breaks, i, code, whiteSpace, scan, afterContent)
     const alone = kind === TEXT && isControlSegmentCode(code)
     const unbroken = (breaks[i]! & BREAK) === 0
     const levelRunExtender = dropsBidiControl && i === droppedEnd && (breaks[i]! & CLUSTER_START) !== 0 && isBidiControl(normalized.charCodeAt(i - 1)) &&
@@ -386,6 +392,8 @@ export function analyzeText(
   // line tables, WebKit's quotation remap and Gecko's rule for newlines next to East
   // Asian punctuation.
   language: string | null = null,
+  // Whether the text continues a line that has content before it (classifySegmentUnit).
+  afterContent = false,
 ): TextAnalysis {
   const preserve = whiteSpace === 'pre-wrap'
   // The source a text node's engine scans, after the segment break transformation.
@@ -418,5 +426,5 @@ export function analyzeText(
     if (profile.lineBreakScan === 'webkit' && !preserve && source !== normalized) spaceSources = new Uint16Array(normalized.length)
     breaks = source === normalized ? sourceBreaks : mapSourceLineBreaks(source, normalized.length, sourceBreaks, whiteSpace, spaceSources)
   }
-  return segmentAtLineBreaks(normalized, spaceSources, breaks, whiteSpace, profile.lineBreakScan, dropsBidiControl)
+  return segmentAtLineBreaks(normalized, spaceSources, breaks, whiteSpace, profile.lineBreakScan, afterContent, dropsBidiControl)
 }

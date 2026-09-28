@@ -31,7 +31,6 @@ let walkLineRanges: LayoutModule['walkLineRanges']
 let setLocale: LayoutModule['setLocale']
 let clearCache: LayoutModule['clearCache']
 let countPreparedLines: LineBreakModule['countPreparedLines']
-let stepPreparedLineGeometry: LineBreakModule['stepPreparedLineGeometry']
 let walkPreparedLinesRaw: LineBreakModule['walkPreparedLinesRaw']
 let SPACED: AnalysisModule['SPACED']
 let ONE_CLUSTER: AnalysisModule['ONE_CLUSTER']
@@ -275,7 +274,7 @@ beforeAll(async () => {
     setLocale,
     clearCache,
   } = mod)
-  ;({ countPreparedLines, stepPreparedLineGeometry, walkPreparedLinesRaw } = lineBreakMod)
+  ;({ countPreparedLines, walkPreparedLinesRaw } = lineBreakMod)
   ;({ getSegmentFit, getFontMeasurement, getPreparationLanguage, getEngineProfile } = measurementMod)
   ;({ analyzeText, SEGMENT_KINDS, KIND_BITS, SPACED, ONE_CLUSTER, UNBROKEN } = analysisMod)
   ;({ getBlinkLineBreaks } = lineBreaksMod)
@@ -1927,29 +1926,6 @@ describe('prepare invariants', () => {
     }
   })
 
-  test('an end-limited step returns from an unfit soft hyphen as the continuing text does', () => {
-    const profile = getEngineProfile()
-    const previous = profile.unfitHyphenRetreat
-    profile.unfitHyphenRetreat = 'reduced-width'
-    try {
-      // "foo trans" fits and "foo trans-" does not.
-      const prepared = prepareWithSegments('foo trans\u00ADatlantic', FONT)
-      const width = measureWidth('foo trans', FONT) + 0.1
-      const continuing = { segmentIndex: 0, graphemeIndex: 0 }
-      const continuingWidth = stepPreparedLineGeometry(prepared, continuing, width)
-      expect(continuing).toEqual({ segmentIndex: 2, graphemeIndex: 0 })
-      // A limit right after the soft hyphen, or inside the word after it, is an
-      // ordinary break before later text, so the line returns to the space too.
-      for (const [segmentIndex, graphemeIndex] of [[4, 0], [4, 2]] as const) {
-        const cursor = { segmentIndex: 0, graphemeIndex: 0 }
-        expect(stepPreparedLineGeometry(prepared, cursor, width, segmentIndex, graphemeIndex)).toBe(continuingWidth)
-        expect(cursor).toEqual(continuing)
-      }
-    } finally {
-      profile.unfitHyphenRetreat = previous
-    }
-  })
-
   test('treats soft hyphens as discretionary break points', () => {
     const prepared = prepareWithSegments('trans\u00ADatlantic', FONT)
     expect(prepared.segments).toEqual(['trans', '\u00AD', 'atlantic'])
@@ -2921,13 +2897,16 @@ describe('rich-inline invariants', () => {
       [['a ', '\t', 'b'], [[0, -1], [2, 0]]],
       [['a', '', '\n b'], [[0, -1], [2, 2]]],
       [['a ', '\u200B', 'b'], [[0, -1], [1, 0], [2, -1]]],
-      // An item holding only a soft hyphen isn't line content: its fragment
-      // has no gap, and it ends the pending space.
-      [['a ', '\u00AD', ' b'], [[0, -1], [1, -1], [2, 2]]],
+      // An item holding only a soft hyphen isn't line content, but after content its
+      // fragment keeps the space before it, as the text keeps a space before a soft hyphen.
+      [['a ', '\u00AD', ' b'], [[0, -1], [1, 0], [2, 2]]],
     ] as const) {
       expect(gapItems(texts.map(text => ({ text })))).toEqual([fragments.map(fragment => [...fragment])])
     }
-    expect(gapItems([{ text: 'Tag' }, { text: ' @maya', break: 'never' }])).toEqual([[[0, -1], [1, 1]]])
+    // An atomic item's own white space is inside its box, which trims it, so it makes no gap.
+    expect(gapItems([{ text: 'Tag' }, { text: ' @maya', break: 'never' }])).toEqual([[[0, -1], [1, -1]]])
+    expect(gapItems([{ text: '@maya ', break: 'never' }, { text: 'Tag' }])).toEqual([[[0, -1], [1, -1]]])
+    expect(gapItems([{ text: '@maya ', break: 'never' }, { text: ' Tag' }])).toEqual([[[0, -1], [1, 1]]])
     // A gap of zero or negative advance still names its item.
     for (const letterSpacing of [-measureWidth(' ', FONT), -measureWidth(' ', FONT) - 2]) {
       expect(gapItems([{ text: 'A' }, { text: ' B', letterSpacing }])).toEqual([[[0, -1], [1, 1]]])
@@ -2946,6 +2925,228 @@ describe('rich-inline invariants', () => {
       ['Call', -1], ['make build', 1], ['now', 2],
     ])
     expect(range.fragments[1]!.gapBefore).toBeCloseTo(measureWidth(' ', codeFont), 8)
+    // A collapsible run with a newline that a ZWSP in the item before or after touches
+    // goes in Blink, which transforms the paragraph's text, and stays in Gecko, which
+    // transforms each text frame's own text.
+    const profile = getEngineProfile()
+    const previous = profile.lineBreakScan
+    try {
+      for (const [lineBreakScan, afterZwsp, beforeZwsp] of [
+        ['blink', [[0, -1], [1, -1]], [[0, -1], [1, -1]]],
+        ['gecko', [[0, -1], [1, 1]], [[0, -1], [1, 0]]],
+      ] as const) {
+        profile.lineBreakScan = lineBreakScan
+        clearCache()
+        expect(gapItems([{ text: 'ab\u200B' }, { text: '\ncd' }])).toEqual([afterZwsp.map(fragment => [...fragment])])
+        expect(gapItems([{ text: 'ab\n' }, { text: '\u200Bcd' }])).toEqual([beforeZwsp.map(fragment => [...fragment])])
+      }
+    } finally {
+      profile.lineBreakScan = previous
+      clearCache()
+    }
+  })
+
+  test('a collapsed space before rich items a line start consumes hangs where the line ends after them', () => {
+    // Each line's width and its fragments' items and gaps, whose sum is the width.
+    const walk = (texts: readonly string[], maxWidth: number) => {
+      const prepared = prepareRichInline(texts.map(text => ({ text, font: FONT })))
+      const lines: Array<[number, Array<[number, number]>]> = []
+      walkRichInlineLineRanges(prepared, maxWidth, range => {
+        let sum = 0
+        for (const fragment of range.fragments) sum += fragment.gapBefore + fragment.occupiedWidth
+        expect(range.width).toBeCloseTo(sum, 8)
+        lines.push([range.width, range.fragments.map(fragment => [fragment.itemIndex, fragment.gapBefore])])
+      })
+      expect(measureRichInlineStats(prepared, maxWidth)).toEqual({ lineCount: lines.length, maxLineWidth: Math.max(...lines.map(line => line[0])) })
+      return lines
+    }
+    const see = measureWidth('see', FONT)
+    const space = measureWidth(' ', FONT)
+    const hyphen = measureWidth('-', FONT)
+    const profile = getEngineProfile()
+    const previous = [profile.lineBreakScan, profile.spaceBeforeSoftHyphenHangs] as const
+    try {
+      // Where the soft hyphen's hyphen doesn't fit, the line ends at the space before it,
+      // which hangs; where it fits, at the soft hyphen, which paints a hyphen that
+      // rich-inline leaves out, so the space stays, as on a line that returns to the break
+      // before a run the next item continues. Gecko discards the soft hyphen, which
+      // paints no hyphen after white space, so the space hangs wherever the line ends.
+      // At the paragraph's end, Blink and WebKit lay the soft hyphen out after the space,
+      // which stays, and so does WebKit where the line ends at white space after it.
+      for (const [lineBreakScan, hangs] of [['blink', 'break'], ['webkit', 'own-break'], ['gecko', 'line-end']] as const) {
+        profile.lineBreakScan = lineBreakScan
+        profile.spaceBeforeSoftHyphenHangs = hangs
+        clearCache()
+        const kept = hangs === 'line-end' ? 0 : space
+        expect(walk(['see', ' \u00AD', 'this word'], see + space + hyphen - 0.5)[0]).toEqual([see, [[0, 0], [1, 0]]])
+        expect(walk(['see', ' \u00AD', 'this word'], see + space + hyphen + 0.5)[0]).toEqual([see + kept, [[0, 0], [1, kept]]])
+        expect(walk(['see', ' \u00AD', 'this', 'word'], see + space + measureWidth('this', FONT) + 0.5)[0]).toEqual([see + kept, [[0, 0], [1, kept]]])
+        expect(walk(['see', ' \u00AD', ' \u00AD'], Infinity)).toEqual([[see + kept + kept, [[0, 0], [1, kept], [2, kept]]]])
+        expect(walk(['see', ' \u00AD', 'this word'], Infinity)).toEqual([[see + space + measureWidth('this word', FONT), [[0, 0], [1, space], [2, 0]]]])
+        const beforeWhiteSpace = hangs === 'own-break' ? space : 0
+        expect(walk(['see', ' \u00AD ', 'this word'], see + space + hyphen - 0.5)[0]).toEqual([see + beforeWhiteSpace, [[0, 0], [1, beforeWhiteSpace]]])
+      }
+    } finally {
+      [profile.lineBreakScan, profile.spaceBeforeSoftHyphenHangs] = previous
+      clearCache()
+    }
+  })
+
+  test('white space between soft hyphens in a rich item a line start consumes takes room after content where the engine keeps it', () => {
+    // Each line's width and its fragments' items, gaps and occupied widths, whose sum is the
+    // width, to 1e-6 px, as a line that hangs spaces takes their width back off.
+    const r = (width: number) => Math.round(width * 1e6) / 1e6
+    const walk = (texts: readonly string[], maxWidth: number) => {
+      const prepared = prepareRichInline(texts.map(text => ({ text, font: FONT })))
+      const lines: Array<[number, Array<[number, number, number]>]> = []
+      walkRichInlineLineRanges(prepared, maxWidth, range => {
+        let sum = 0
+        for (const fragment of range.fragments) sum += fragment.gapBefore + fragment.occupiedWidth
+        expect(range.width).toBeCloseTo(sum, 8)
+        lines.push([r(range.width), range.fragments.map(fragment => [fragment.itemIndex, r(fragment.gapBefore), r(fragment.occupiedWidth)])])
+      })
+      const stats = measureRichInlineStats(prepared, maxWidth)
+      expect([stats.lineCount, r(stats.maxLineWidth)]).toEqual([lines.length, Math.max(...lines.map(line => line[0]))])
+      return lines
+    }
+    const ab = measureWidth('ab', FONT)
+    const cd = measureWidth('cd', FONT)
+    const space = measureWidth(' ', FONT)
+    const hyphen = measureWidth('-', FONT)
+    const closing = measureWidth(')x', FONT)
+    const profile = getEngineProfile()
+    const previous = [profile.lineBreakScan, profile.spaceBeforeSoftHyphenHangs, profile.collapsesSpaceAcrossSoftHyphens] as const
+    try {
+      // The white space between the soft hyphens follows a soft hyphen, not the collapsed
+      // space before the item, so after content it takes room in Blink and WebKit, as in
+      // one text, and the line can end after it, where a run the next item continues
+      // returns; Gecko collapses it, and white space after the item, with the space before,
+      // where it still breaks. Where the last soft hyphen's
+      // hyphen doesn't fit, both spaces hang, but for WebKit, which keeps the first soft
+      // hyphen, and the space before it, on a line that ends at the white space after it.
+      for (const [lineBreakScan, hangs, collapses] of [['blink', 'break', false], ['webkit', 'own-break', false], ['gecko', 'line-end', true]] as const) {
+        profile.lineBreakScan = lineBreakScan
+        profile.spaceBeforeSoftHyphenHangs = hangs
+        profile.collapsesSpaceAcrossSoftHyphens = collapses
+        clearCache()
+        const inner = collapses ? 0 : space
+        expect(walk(['ab', ' \u00AD \u00AD', 'cd'], Infinity)).toEqual([[r(ab + space + inner + cd), [[0, 0, r(ab)], [1, r(space), r(inner)], [2, 0, r(cd)]]]])
+        // White space after the item's soft hyphens collapses with the space before in Gecko too.
+        expect(walk(['ab', ' \u00AD ', 'cd'], Infinity)).toEqual([[r(ab + space + inner + cd), [[0, 0, r(ab)], [1, r(space), 0], [2, r(inner), r(cd)]]]])
+        expect(walk(['ab', ' \u00AD \u00AD', 'cd'], ab + 2 * space + cd - 0.5)[0]).toEqual(collapses
+          ? [r(ab + space + cd), [[0, 0, r(ab)], [1, r(space), 0], [2, 0, r(cd)]]]
+          : [r(ab + 2 * space), [[0, 0, r(ab)], [1, r(space), r(space)]]])
+        const kept = hangs === 'own-break' ? space : 0
+        expect(walk(['ab', ' \u00AD \u00AD', 'cd'], ab + 2 * space + hyphen - 0.5)[0]).toEqual([r(ab + kept), [[0, 0, r(ab)], [1, r(kept), 0]]])
+        expect(walk(['ab', ' \u00AD \u00AD', ')x'], ab + 2 * space + closing - 0.5)[0]).toEqual(collapses
+          ? [r(ab + space + closing), [[0, 0, r(ab)], [1, r(space), 0], [2, 0, r(closing)]]]
+          : [r(ab + space), [[0, 0, r(ab)], [1, r(space), 0]]])
+        // A line start consumes a zero-width break that the Gecko profile makes of a soft
+        // hyphen after white space, as Firefox drops the soft hyphen, so an item that
+        // starts with white space and soft hyphens gives no empty line before a word that
+        // doesn't fit; a ZWSP after a soft hyphen at an item's start still holds one.
+        expect(walk(['ab', ' \u00AD \u00ADxyzw'], ab).every(line => line[0] > 0)).toBe(true)
+        expect(walk(['ab ', '\u00AD\u200Bxyzw'], ab + space / 2)[1]).toEqual([0, [[1, 0, 0]]])
+      }
+    } finally {
+      [profile.lineBreakScan, profile.spaceBeforeSoftHyphenHangs, profile.collapsesSpaceAcrossSoftHyphens] = previous
+      clearCache()
+    }
+  })
+
+  test('rich items collapse white space past soft hyphens and bidi controls where Gecko does, and soft hyphens and ZWSPs end and hold lines as in one text', () => {
+    // Each line's width and its fragments' items, gaps and occupied widths, to 1e-6 px.
+    const r = (width: number) => Math.round(width * 1e6) / 1e6
+    const walk = (texts: ReadonlyArray<string | { text: string, break: 'never' }>, maxWidth: number) => {
+      const prepared = prepareRichInline(texts.map(text => typeof text === 'string' ? { text, font: FONT } : { ...text, font: FONT }))
+      const lines: Array<[number, Array<[number, number, number]>]> = []
+      walkRichInlineLineRanges(prepared, maxWidth, range => {
+        lines.push([r(range.width), range.fragments.map(fragment => [fragment.itemIndex, r(fragment.gapBefore), r(fragment.occupiedWidth)])])
+      })
+      return lines
+    }
+    const see = measureWidth('see', FONT)
+    const space = measureWidth(' ', FONT)
+    const mark = measureWidth('\u200E', FONT)
+    const words = measureWidth('this word', FONT)
+    const bracket = measureWidth('\u300D', FONT)
+    const control = measureWidth('\u200F', FONT)
+    const hebrew = measureWidth('\u05D0\u05D1', FONT)
+    const x = measureWidth('x', FONT)
+    const chip = measureWidth('chip', FONT)
+    const hyphen = measureWidth('-', FONT)
+    const profile = getEngineProfile()
+    const previous = [profile.lineBreakScan, profile.spaceBeforeSoftHyphenHangs, profile.collapsesSpaceAcrossSoftHyphens] as const
+    try {
+      // Gecko collapses a run of white space with the soft hyphens and bidi controls after it,
+      // whichever item holds it, so white space that starts the next item collapses into it;
+      // one of those that starts an item ends the run, so white space after it takes room.
+      for (const [lineBreakScan, hangs, collapses] of [['blink', 'break', false], ['webkit', 'own-break', false], ['gecko', 'line-end', true]] as const) {
+        profile.lineBreakScan = lineBreakScan
+        profile.spaceBeforeSoftHyphenHangs = hangs
+        profile.collapsesSpaceAcrossSoftHyphens = collapses
+        clearCache()
+        const second = collapses ? 0 : space
+        expect(walk(['see', ' \u00AD', ' this word'], Infinity)).toEqual([[r(see + space + second + words), [[0, 0, r(see)], [1, r(space), 0], [2, r(second), r(words)]]]])
+        expect(walk(['see', ' \u200E', ' this word'], Infinity)).toEqual([[r(see + space + mark + second + words), [[0, 0, r(see)], [1, r(space), r(mark)], [2, r(second), r(words)]]]])
+        expect(walk(['see \u00AD', ' this word'], Infinity)).toEqual([[r(see + space + second + words), [[0, 0, r(see + space)], [1, r(second), r(words)]]]])
+        expect(walk(['see', ' \u00AD', ' ', 'this word'], Infinity)).toEqual([[r(see + space + second + words), [[0, 0, r(see)], [1, r(space), 0], [3, r(second), r(words)]]]])
+        expect(walk(['see ', '\u00AD ', 'this word'], Infinity)).toEqual([[r(see + 2 * space + words), [[0, 0, r(see)], [1, r(space), 0], [2, r(space), r(words)]]]])
+        expect(walk(['see', '\u00AD \u00AD', 'this word'], Infinity)).toEqual([[r(see + space + words), [[0, 0, r(see)], [1, 0, r(space)], [2, 0, r(words)]]]])
+        // White space and soft hyphens after an item's leading white space are one run with it.
+        expect(walk(['see', ' \u00AD \u00ADthis word'], Infinity)).toEqual([[r(see + space + second + words), [[0, 0, r(see)], [1, r(space), r(second + words)]]]])
+        // A line that overflows goes on into such an item to its first soft hyphen, which
+        // follows the line's content without a break before it.
+        expect(walk(['\u300D', '\u00AD \u00AD', 'ab'], 1)[0]).toEqual([r(bracket + hyphen), [[0, 0, r(bracket)], [1, 0, r(hyphen)]]])
+        // Where a line starts, a ZWSP after white space and soft hyphens holds the line.
+        expect(walk([' \u00AD \u00AD\u200B', 'textword'], words / 2)[0]).toEqual([0, [[0, 0, 0]]])
+        expect(walk([' \u00AD', ' \u00AD\u200B', 'textword'], words / 2)[0]).toEqual([0, [[0, 0, 0], [1, 0, 0]]])
+        // A run carries past characters Gecko drops only at the white space's bidi level: after
+        // a space in left-to-right text, U+200F starts a text run of its own, where U+202B takes
+        // the space's level, as U+200F does between Hebrew letters.
+        expect(walk(['see \u200F\u00AD', ' this word'], Infinity)).toEqual([[r(see + space + control + space + words), [[0, 0, r(see + space + control)], [1, r(space), r(words)]]]])
+        expect(walk(['see \u202B\u00AD', ' this word'], Infinity)).toEqual([[r(see + space + control + second + words), [[0, 0, r(see + space + control)], [1, r(second), r(words)]]]])
+        expect(walk(['\u05D0\u05D1 \u200F\u00AD', ' \u05D2\u05D3'], Infinity)).toEqual([[r(hebrew + space + control + second + hebrew), [[0, 0, r(hebrew + space + control)], [1, r(second), r(hebrew)]]]])
+        // So do bidi controls after an item's trailing white space. Gecko's analysis leaves that
+        // white space out with them, so it is the gap before the next item, whose white space
+        // collapses into it whatever their level (ENGINE_FOLLOWUPS.md), and after a soft hyphen
+        // it collapses into the run before it, where white space after the controls takes room
+        // again at another level.
+        const inner = collapses ? 0 : space
+        expect(walk(['see \u200F', ' this word'], Infinity)).toEqual([[r(see + inner + control + space + words), [[0, 0, r(see + inner + control)], [1, r(space), r(words)]]]])
+        // The Gecko analysis gives the soft hyphen and U+200F to the space before them, which this
+        // Canvas measures with the soft hyphen's advance.
+        const spaceRun = collapses ? measureWidth(' \u00AD', FONT) : 2 * space
+        expect(walk(['see \u00AD \u200F', ' this word'], Infinity)).toEqual([[r(see + spaceRun + control + space + words), [[0, 0, r(see + spaceRun + control)], [1, r(space), r(words)]]]])
+        expect(walk(['see \u00AD \u202B', ' this word'], Infinity)).toEqual([[r(see + spaceRun + control + second + words), [[0, 0, r(see + spaceRun + control)], [1, r(second), r(words)]]]])
+        expect(walk(['see \u202A \u202B', ' this word'], Infinity)).toEqual([[r(see + 2 * (inner + control) + space + words), [[0, 0, r(see + 2 * (inner + control))], [1, r(space), r(words)]]]])
+        // An item that starts with white space and ends in bidi controls at its level leaves the run open.
+        expect(walk(['see', ' \u202B', ' this word'], Infinity)).toEqual([[r(see + space + control + second + words), [[0, 0, r(see)], [1, r(space), r(control)], [2, r(second), r(words)]]]])
+        // The levels are the paragraph's, which the items make together, each at its own offset
+        // there, with an atomic item as U+FFFC and a newline as a space, and every character the
+        // run goes past takes that of the white space before it: U+200F between Hebrew letters and
+        // a number, U+200E after Hebrew and a space, which takes the level of U+200E, U+200F after
+        // an item that comes after others, both marks after a soft hyphen, and U+061C after a
+        // newline between Arabic letters, which is a space there.
+        const gaps = (texts: Parameters<typeof walk>[0]) => walk(texts, Infinity)[0]![1].map(fragment => fragment[1])
+        expect(gaps(['\u05E9\u05DC\u05D5\u05DD \u200F\u00AD', ' 42 more'])).toEqual([0, r(second)])
+        expect(gaps(['\u05E9\u05DC\u05D5\u05DD \u200E\u00AD', ' this more'])).toEqual([0, r(second)])
+        expect(gaps(['ab ', 'see \u200F\u00AD', ' this more'])).toEqual([0, r(space), r(space)])
+        expect(gaps(['(q) \u00AD\u200F\u00AD', ' this more'])).toEqual([0, r(space)])
+        expect(gaps(['(q) \u00AD\u202B\u00AD', ' this more'])).toEqual([0, r(second)])
+        expect(gaps(['ab', '\u0628\u0628\n\u061C\u00AD', ' \u00ADmore'])).toEqual([0, 0, r(second)])
+        // A soft hyphen after no white space opens no run, and text after one closes it.
+        expect(walk(['see\u00AD', ' this word'], Infinity)).toEqual([[r(see + space + words), [[0, 0, r(see)], [1, r(space), r(words)]]]])
+        expect(walk(['see \u00AD', 'x', ' this word'], Infinity)).toEqual([[r(see + space + x + space + words), [[0, 0, r(see + space)], [1, 0, r(x)], [2, r(space), r(words)]]]])
+        // An atomic item's own white space makes no gap, and the run ends there.
+        expect(walk(['see \u00AD', { text: ' chip', break: 'never' }, ' this word'], Infinity)).toEqual([[r(see + space + chip + space + words), [[0, 0, r(see + space)], [1, 0, r(chip)], [2, r(space), r(words)]]]])
+        // A ZWSP after a soft hyphen that starts an item holds a line after a wrap.
+        expect(walk(['\u300D \u00AD', '\u00AD\u200B', '42'], 9).map(line => line[0])).toEqual([r(bracket), 0, r(measureWidth('4', FONT)), r(measureWidth('42', FONT) - measureWidth('4', FONT))])
+      }
+    } finally {
+      [profile.lineBreakScan, profile.spaceBeforeSoftHyphenHangs, profile.collapsesSpaceAcrossSoftHyphens] = previous
+      clearCache()
+    }
   })
 
   test('rich ordinary break rights survive zero and negative SPACE advances', () => {
@@ -3099,8 +3300,10 @@ describe('rich-inline invariants', () => {
     // item's own segmentation breaks inside a joined Lao word. In the four rows
     // after `T` and `po\u00ADd`, an item's first word runs past its first segment
     // after a break, and the joined text breaks inside a later segment of an
-    // item. In the last row the walk ends at the space before the first item's
-    // Thai word, which doesn't fit, where the joined text breaks inside that word.
+    // item. In the row after those the walk ends at the space before the first item's
+    // Thai word, which doesn't fit, where the joined text breaks inside that word. In
+    // the four after it a soft hyphen starts an item after other text, and in the last
+    // an inner break ties with a pending break before the item.
     const expectFlatLines = (parts: readonly string[], width: number) => {
       const prepared = prepareRichInline(parts.map(text => ({ text, font: FONT })))
       const richLines: string[] = []
@@ -3128,7 +3331,26 @@ describe('rich-inline invariants', () => {
       [['\u6F22', '\u5B57\u0000\u6F22\u5B57'], 32],
       [['\u0E19\u0E32\u0E07\u0E40\u0E2B\u0E22\u0E35\u0E22\u0E1A\u0E14\u0E2D\u0E01\u0E1A\u0E31', '\u0E27\u0E19\u0E31\u0E49\u0E19'], 30],
       [['x \u0E17\u0E39\u0E17\u0E39', '\u0E17\u0E39', ' y'], 35],
+      [['u', '\u00ADzv', 'uo'], 20],
+      [['u', '\u00ADzv', 'uo'], 28.8],
+      [['nmdo', '\u00ADau', 'o a'], 50],
+      [['nmdo', '\u00ADau', 'o a'], 57.6],
+      [['\u4E2D\u6587\u201C', '\uD83D\uDE0A\u201D\u4E2D\u6587'], 44],
     ] as const) expectFlatLines(parts, width)
+    // An item that a line start consumes, holding only a soft hyphen, keeps the break
+    // before it, where the next item continues its run: the line ends there, after the
+    // ZWSP, instead of at the ZWSP before the ideograph, whose break a run starting at
+    // the first item's end took (ENGINE_FOLLOWUPS.md). A collapsible run with a newline
+    // right after a ZWSP that ends the item before, or before one that starts the next,
+    // goes as in the text of the whole paragraph, where it leaves one space around a soft
+    // hyphen, not two, and where the run is an item of its own, the item before it keeps
+    // its text.
+    for (let width = 16; width <= 72; width += 4) {
+      expectFlatLines(['  cd', '\u0E44\u0E17\u0E22', '\u200B\u4E2D\u200B', '\u00AD', '-'], width)
+      expectFlatLines(['ab\u200B', '\n\u00AD\nc', 'd'], width)
+      expectFlatLines(['ab\n', '\u200Bcd'], width)
+      expectFlatLines(['wor', 'd', '\n', '\u200Bn', 'ext words'], width)
+    }
     // The Gecko scan of the second item alone doesn't break before `\u0000`, where
     // the joined text does, so the item's copied flags mark that start returnable.
     const profile = getEngineProfile()
@@ -3137,6 +3359,24 @@ describe('rich-inline invariants', () => {
       profile.lineBreakScan = 'gecko'
       clearCache()
       expectFlatLines(['xx \u0E01', '\u0E02\u0000\u0E01\u0E02 yy'], 30)
+      // An item's soft hyphens take the kind of the joined text's segment that ends where
+      // theirs does, where the item's own analysis sees the start of a text, and its
+      // fragments paint the hyphen their line fits: after an ideograph, a zero-width
+      // break, which holds no line of its own at 1px; two there, which the item's own
+      // analysis joins as zero-width glue, the joined text's soft hyphen and zero-width
+      // break, so the line ends after both with no hyphen at 32px; after an ideograph and
+      // a mark, a zero-width break that paints no hyphen; and before a mark, a soft
+      // hyphen, which its own analysis makes zero-width glue. A bidi control after the
+      // space before the joined text breaks after it, as that space is the scan's context,
+      // and a soft hyphen that starts the joined text after that space follows the content
+      // before it, a zero-width break that paints no hyphen, as in one text.
+      for (const width of [1, 32, 40]) expectFlatLines(['\u6F22\u5B57', '\u00ADa', 'b', 'c'], width)
+      for (const width of [16, 32]) expectFlatLines(['\u6F22\u5B57', '\u00AD\u00ADa', 'b'], width)
+      expectFlatLines(['\u6F22', '\u0301\u00ADab'], 32)
+      for (const width of [40, 60]) expectFlatLines(['\u0628\u0628 \u0628\u0628\u0628', '\u00AD\u0650\u0628\u0628\u0628 \u0628\u0628'], width)
+      expectFlatLines(['AA\u2060 B\n', '\u202Ax'], 40)
+      for (const width of [12, 20]) expectFlatLines(['ab \u00AD\u200B', 'cd'], width)
+      for (const width of [20, 40]) expectFlatLines(['a', 'b\t \u00ADc', 'd'], width)
     } finally {
       profile.lineBreakScan = previous
       clearCache()
@@ -4240,7 +4480,9 @@ test('the Safari profile breaks inside rich items from each item alone', () => {
   // two characters at a boundary. The Thai item's own last run moves with the
   // continuation, where the joined text would split the word differently. The
   // Myanmar continuation is only the vowel sign: analysis of the second item
-  // alone would join that sign to the word after it.
+  // alone would join that sign to the word after it. A U+2028 that the WebKit scan
+  // makes a hard break ends its line, after the item before it too, and a collapsed
+  // space before it takes no room.
   const richInlineUrl = new URL('./rich-inline.ts', import.meta.url).href
   const script = `
     Object.defineProperty(globalThis, 'navigator', { configurable: true, value: {
@@ -4261,6 +4503,9 @@ test('the Safari profile breaks inside rich items from each item alone', () => {
     for (const [parts, width] of [
       [['\\u0E04\\u0E27\\u0E32\\u0E21\\u0E2A\\u0E27\\u0E22\\u0E07', '\\u0E32\\u0E21\\u0E02\\u0E2D\\u0E07'], 40],
       [['\\u1019\\u102C\\u1018\\u102C\\u101E', '\\u102C\\u101E\\u100A\\u103A\\u101C\\u103E\\u1015'], 28],
+      [['ab\\u2028cd', ' ef'], 40],
+      [['x', '\\u2028y'], 20],
+      [['xx', ' \\u2028yy'], 18],
     ]) {
       const prepared = prepareRichInline(parts.map(text => ({ text, font: '16px Test' })))
       const lines = []
@@ -4274,6 +4519,9 @@ test('the Safari profile breaks inside rich items from each item alone', () => {
   expect(JSON.parse(runInChild(script))).toEqual([
     [['\u0E04\u0E27\u0E32\u0E21'], ['\u0E2A\u0E27\u0E22'], ['\u0E07', '\u0E32\u0E21'], ['\u0E02\u0E2D\u0E07']],
     [['\u1019\u102C\u1018\u102C'], ['\u101E', '\u102C'], ['\u101E\u100A\u103A'], ['\u101C\u103E\u1015']],
+    [['ab'], ['cd', 'ef']],
+    [['x', ''], ['y']],
+    [['xx', ''], ['yy']],
   ])
 })
 

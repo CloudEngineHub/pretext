@@ -124,6 +124,28 @@ export type EngineProfile = {
   // space (CanvasRenderingContext2D.cpp:4634-4637) and other controls as a hexbox. Chrome and
   // Safari give most controls an advance on the page, as their Canvas does.
   hidesControlCharacters: boolean
+  // Where collapsible white space before soft hyphens that end a rich-inline line hangs, as
+  // white space that ends a line does, where the line doesn't end at a soft hyphen with its
+  // hyphen. Gecko discards soft hyphens from a text frame's text (IsDiscardable,
+  // nsTextFrameUtils.cpp:32-49), so the white space ends the line wherever it ends
+  // ('line-end'): rich items `see`, ` \u00AD` in 16px Arial take one 25.8px line in Firefox
+  // at 26px. Blink hangs it where the line breaks before more content ('break') and lays a
+  // soft hyphen that ends the paragraph out after it, where it takes room: Chrome gives
+  // that soft hyphen a line of its own at 26px. WebKit does too, and also keeps a soft
+  // hyphen on a line that ends at white space after it, so it hangs the white space
+  // before a soft hyphen only where the line breaks there ('own-break'): items `see`,
+  // ` \u00AD `, `this word` end their first line at 30.24px in Safari at 45px, and at
+  // 25.80px in Chrome and Firefox.
+  spaceBeforeSoftHyphenHangs: 'line-end' | 'break' | 'own-break'
+  // Gecko drops soft hyphens and bidi controls before it collapses white space, so white
+  // space after one collapses with the white space before it, in a run that goes on from one
+  // text frame to the next (nsTextFrameUtils::TransformText): Firefox lays out items `ab`,
+  // ` \u00AD \u00AD`, `cd` in 16px Arial in one 39.15px line at 40px, where Chrome and Safari
+  // give 2 lines, as they do for one text node. Rich-inline takes it across items and after an
+  // item's leading white space (whitespaceRunOpen in src/rich-inline.ts); the Gecko profile's
+  // analysis does only through bidi controls, inside a text past its first white space
+  // (ENGINE_FOLLOWUPS.md).
+  collapsesSpaceAcrossSoftHyphens: boolean
 }
 
 export type BreakableFitMode = 'sum-graphemes' | 'segment-prefixes' | 'pair-context'
@@ -358,6 +380,8 @@ export function getEngineProfile(): EngineProfile {
     hangsIdeographicSpace: engine !== 'webkit',
     laysOutUnderDefaultLocale: engine === 'blink',
     namesGenericFamiliesByLanguage: engine === 'webkit',
+    spaceBeforeSoftHyphenHangs: engine === 'gecko' ? 'line-end' : engine === 'webkit' ? 'own-break' : 'break',
+    collapsesSpaceAcrossSoftHyphens: engine === 'gecko',
   }
   cachedEngineProfile = profile
   return profile
