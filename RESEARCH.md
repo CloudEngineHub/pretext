@@ -1446,16 +1446,23 @@ Gecko scan's port of Firefox's levels), made only for text with right-to-left ch
 as Firefox resolves levels only there, and only once a run would go on past such
 characters, so other rich text pays nothing for them. Since the Gecko profile's analysis
 reads white space through bidi controls alone as one run, whatever their levels, and
-leaves out white space before only controls at the end of a text (Break Opportunities
+leaves out the white space that ends a text with the controls among it (Break Opportunities
 From Engine Data), the item `see \u200F` is `see` and the mark, its space is the gap
 before the next item, and the next item's white space collapses into that gap: rich lines
 fit one 55.15px line at 56-59px there, as the one node's do, where Firefox's two spaces
 don't fit (ENGINE_FOLLOWUPS.md). A gap is one space in one item's font, so it can't hold
 both. The rule reads the item's segments where a soft hyphen among the characters the run
-goes past keeps the white space before them, and so do bidi controls after the trailing
-white space of a run that goes on, or after an item's leading white space: Firefox's first
-line of items `see \u200F\u00AD`, ` this more` at 60px is 59.60px, two spaces wide, which
-rich lines give too. An atomic item's own leading white
+goes past keeps the white space before them, or where that white space is the item's
+leading white space, and then reaches the bidi controls among and after the item's trailing
+white space, which the analysis reads as one run with it (`getTrailingCollapsibleStart`,
+shared with the analysis); white space there collapses into the run at any level, as
+Firefox carries the run into the next text run (INCOMING_WHITESPACE, FlushFrames,
+nsTextFrame.cpp:1800-1804): Firefox's first line of items `see \u200F\u00AD`, ` this more`
+at 60px is 59.60px, two spaces wide, which rich lines give too. Items `see`, ` \u200E `,
+`this word` now take one space, as in Firefox, where 9a559de2 gave a gap on each side of
+the mark: on a September 28, 2026 probe of 7,133 rich cases recorded in Firefox, of such
+items and of random ones where the two builds differ on the stand-in Canvas, that fixes
+287 cases and loses 14 (ENGINE_FOLLOWUPS.md). An atomic item's own leading white
 space sits inside its inline-block, which trims it, so it collapses into an open run too:
 Firefox's first line of items `see \u00AD`, atomic ` chip`, ` this word` at 60px is `see `
 and `chip`, 59.60px, where fd8002ba counted a space more. On the third September 27, 2026

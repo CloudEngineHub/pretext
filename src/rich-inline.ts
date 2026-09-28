@@ -2,6 +2,7 @@ import type { PreparedTextWithSegments, LayoutCursor } from './layout.js'
 import {
   analyzeText,
   CONTROL,
+  getTrailingCollapsibleStart,
   HARD_BREAK,
   INNER_BREAKS,
   isCollapsibleSpaceCode,
@@ -16,7 +17,6 @@ import {
   type TextAnalysis,
 } from './analysis.js'
 import { getGeckoParagraphLevels, isDiscardable } from './gecko-line-breaks.js'
-import { isBidiControl } from './graphemes.js'
 import { getWebKitBreakBetweenItems } from './line-breaks.js'
 import { buildLineTextFromRange, getGraphemeEnds } from './line-text.js'
 import {
@@ -337,13 +337,15 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
   // characters, and each item's offset there.
   let levels: Uint8Array | null | undefined
   const levelStarts: number[] = []
-  // Whether the characters [from, to) of item `index`'s text keep the level of the one at `at`.
-  function keepsLevel(index: number, at: number, from: number, to: number): boolean {
+  // Whether the characters Gecko drops among text[from, to), item `index`'s text, keep the level
+  // of the one at `at`. White space among them collapses into the run at any level, as the run goes
+  // on into the next text run (INCOMING_WHITESPACE, FlushFrames, nsTextFrame.cpp:1800-1804).
+  function keepsLevel(index: number, text: string, at: number, from: number, to: number): boolean {
     if (from === to) return true
     if (levels === undefined) levels = getItemLevels(items, profile, language, levelStarts)
     if (levels === null) return true
     const offset = levelStarts[index]!
-    for (let i = from; i < to; i++) if (levels[offset + i] !== levels[offset + at]) return false
+    for (let i = from; i < to; i++) if (levels[offset + i] !== levels[offset + at] && isDiscardable(text.charCodeAt(i), false)) return false
     return true
   }
   let previousItem: PreparedRichInlineItem | null = null
@@ -446,14 +448,10 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
 
     // Scan from the ends once. A trailing-whitespace regex retries every
     // position in a long internal space run when later content prevents a match.
-    // Gecko's white-space collapse also drops white space before only bidi controls
-    // at the end (analyzeText).
-    let end = text.length
-    if (profile.lineBreakScan === 'gecko') while (end > start && isBidiControl(text.charCodeAt(end - 1))) end--
-    const whiteSpaceEnd = end
-    while (end > start && isCollapsibleSpaceCode(text.charCodeAt(end - 1))) end--
+    // The trailing white space is what the item's analysis leaves out.
+    const end = getTrailingCollapsibleStart(text, start, profile.lineBreakScan)
     const hasLeadingWhitespace = start > 0
-    const hasTrailingWhitespace = end < whiteSpaceEnd
+    const hasTrailingWhitespace = end < text.length
     const whitespaceBefore: boolean = pendingGapWidth !== null || hasLeadingWhitespace
     if (breaksFromItemText) boundaryContexts[index] = text.slice(Math.max(0, end - 2), end)
 
@@ -559,33 +557,27 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
     previousItem = preparedItem
 
     // Where the item's text before its trailing white space ends in white space and then
-    // characters Gecko drops at the white space's bidi level, a soft hyphen among them, the run
-    // goes on past them: white space after them collapses into it, as a gap that takes no room
-    // where a line still breaks. The item's analysis reads white space through bidi controls
-    // alone as one run, whatever their levels, and leaves it out where only they follow it
-    // (analyzeText), so there the gap after the item stands for it and the next item's white
-    // space collapses into that (ENGINE_FOLLOWUPS.md). Bidi controls after the trailing white
-    // space of a run that goes on, or after the item's leading white space, leave the run open
-    // only at that white space's level.
+    // characters Gecko drops, which hold a soft hyphen unless that white space is the item's
+    // leading white space, as the trailing white space reads through bidi controls, the run goes
+    // on past them and past the bidi controls among the trailing white space, where they keep the
+    // white space's bidi level: the trailing white space collapses into it, as a gap that takes no
+    // room where a line still breaks. The item's analysis leaves the trailing white space out as
+    // one run, whatever the levels of the controls in it, so elsewhere the gap after the item
+    // stands for it and the next item's white space collapses into that (ENGINE_FOLLOWUPS.md).
+    // Bidi controls after the last white space of a run that goes on leave it open only at that
+    // white space's level.
     let runEnd = end
-    let runHoldsSoftHyphen = false
-    while (runEnd > 0 && isDiscardable(text.charCodeAt(runEnd - 1), false)) {
-      runEnd--
-      if (text.charCodeAt(runEnd) === 0x00AD) runHoldsSoftHyphen = true
-    }
+    while (runEnd > 0 && isDiscardable(text.charCodeAt(runEnd - 1), false)) runEnd--
+    let spaceEnd = text.length
+    while (spaceEnd > end && !isCollapsibleSpaceCode(text.charCodeAt(spaceEnd - 1))) spaceEnd--
     const levelsSplitRun = profile.collapsesSpaceAcrossSoftHyphens && itemBreak !== 'never'
-    const runGoesOn = levelsSplitRun && runHoldsSoftHyphen && runEnd > 0 && isCollapsibleSpaceCode(text.charCodeAt(runEnd - 1)) && keepsLevel(index, runEnd - 1, runEnd, end)
+    const runGoesOn = levelsSplitRun && runEnd > 0 && isCollapsibleSpaceCode(text.charCodeAt(runEnd - 1)) && keepsLevel(index, text, runEnd - 1, runEnd, spaceEnd)
     const gapsTrailingWhitespace = hasTrailingWhitespace && ownsWhiteSpace
     pendingGapWidth = !gapsTrailingWhitespace
       ? null
       : runGoesOn ? 0 : getCollapsedSpaceWidth(item.font, letterSpacing, language)
     pendingGapItemIndex = gapsTrailingWhitespace ? index : -1
-    if (gapsTrailingWhitespace && !runGoesOn) {
-      whitespaceRunOpen = true
-    } else {
-      const from = runGoesOn ? (hasTrailingWhitespace ? whiteSpaceEnd - 1 : runEnd - 1) : levelsSplitRun && end === start && start > 0 ? start - 1 : -1
-      whitespaceRunOpen = from >= 0 && keepsLevel(index, from, whiteSpaceEnd, text.length)
-    }
+    whitespaceRunOpen = runGoesOn ? keepsLevel(index, text, spaceEnd - 1, spaceEnd, text.length) : gapsTrailingWhitespace
   }
 
   finishJoinedText()

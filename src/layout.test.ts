@@ -3122,6 +3122,12 @@ describe('rich-inline invariants', () => {
         expect(walk(['see \u202A \u202B', ' this word'], Infinity)).toEqual([[r(see + 2 * (inner + control) + space + words), [[0, 0, r(see + 2 * (inner + control))], [1, r(space), r(words)]]]])
         // An item that starts with white space and ends in bidi controls at its level leaves the run open.
         expect(walk(['see', ' \u202B', ' this word'], Infinity)).toEqual([[r(see + space + control + second + words), [[0, 0, r(see)], [1, r(space), r(control)], [2, r(second), r(words)]]]])
+        // The run goes on past them into the item's trailing white space too, and past bidi
+        // controls among that white space at its level, where U+200F ends it.
+        expect(walk(['see', ' \u200E ', 'this word'], Infinity)).toEqual([[r(see + space + mark + second + words), [[0, 0, r(see)], [1, r(space), r(mark)], [2, r(second), r(words)]]]])
+        expect(walk(['see', ' \u200F ', 'this word'], Infinity)).toEqual([[r(see + space + control + space + words), [[0, 0, r(see)], [1, r(space), r(control)], [2, r(space), r(words)]]]])
+        expect(walk(['see \u00AD \u200E ', 'this word'], Infinity)).toEqual([[r(see + spaceRun + mark + second + words), [[0, 0, r(see + spaceRun + mark)], [1, r(second), r(words)]]]])
+        expect(walk(['see \u00AD \u200F ', 'this word'], Infinity)).toEqual([[r(see + spaceRun + control + space + words), [[0, 0, r(see + spaceRun + control)], [1, r(space), r(words)]]]])
         // The levels are the paragraph's, which the items make together, each at its own offset
         // there, with an atomic item as U+FFFC and a newline as a space, and every character the
         // run goes past takes that of the white space before it: U+200F between Hebrew letters and
