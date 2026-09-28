@@ -3128,6 +3128,9 @@ describe('rich-inline invariants', () => {
         expect(walk(['see', ' \u200F ', 'this word'], Infinity)).toEqual([[r(see + space + control + space + words), [[0, 0, r(see)], [1, r(space), r(control)], [2, r(space), r(words)]]]])
         expect(walk(['see \u00AD \u200E ', 'this word'], Infinity)).toEqual([[r(see + spaceRun + mark + second + words), [[0, 0, r(see + spaceRun + mark)], [1, r(second), r(words)]]]])
         expect(walk(['see \u00AD \u200F ', 'this word'], Infinity)).toEqual([[r(see + spaceRun + control + space + words), [[0, 0, r(see + spaceRun + control)], [1, r(space), r(words)]]]])
+        // White space among them collapses into the run at any level: U+2067 keeps the level of
+        // the space before it, and the space after it takes the isolate's.
+        expect(walk(['see', ' \u2067 ', 'this word'], Infinity)).toEqual([[r(see + space + control + second + words), [[0, 0, r(see)], [1, r(space), r(control)], [2, r(second), r(words)]]]])
         // The levels are the paragraph's, which the items make together, each at its own offset
         // there, with an atomic item as U+FFFC and a newline as a space, and every character the
         // run goes past takes that of the white space before it: U+200F between Hebrew letters and

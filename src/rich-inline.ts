@@ -556,16 +556,16 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
     }
     previousItem = preparedItem
 
-    // Where the item's text before its trailing white space ends in white space and then
-    // characters Gecko drops, which hold a soft hyphen unless that white space is the item's
-    // leading white space, as the trailing white space reads through bidi controls, the run goes
-    // on past them and past the bidi controls among the trailing white space, where they keep the
-    // white space's bidi level: the trailing white space collapses into it, as a gap that takes no
-    // room where a line still breaks. The item's analysis leaves the trailing white space out as
-    // one run, whatever the levels of the controls in it, so elsewhere the gap after the item
-    // stands for it and the next item's white space collapses into that (ENGINE_FOLLOWUPS.md).
-    // Bidi controls after the last white space of a run that goes on leave it open only at that
-    // white space's level.
+    // The run goes on past the item where its text before the trailing white space ends in white
+    // space and then characters Gecko drops, and those and the bidi controls among the trailing
+    // white space keep that white space's bidi level. The characters hold a soft hyphen unless
+    // that white space is the item's leading white space, since the trailing white space reads
+    // through bidi controls. The trailing white space then collapses into the run, as a gap that
+    // takes no room where a line still breaks. The item's analysis leaves the trailing white space
+    // out as one run, whatever the levels of the controls in it, so where the run doesn't go on,
+    // the gap after the item stands for it and the next item's white space collapses into that
+    // (ENGINE_FOLLOWUPS.md). Bidi controls after the last white space of a run that goes on leave
+    // it open only at that white space's level.
     let runEnd = end
     while (runEnd > 0 && isDiscardable(text.charCodeAt(runEnd - 1), false)) runEnd--
     let spaceEnd = text.length
