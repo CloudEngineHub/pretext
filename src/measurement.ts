@@ -146,6 +146,18 @@ export type EngineProfile = {
   // analysis does only through bidi controls, inside a text past its first white space
   // (ENGINE_FOLLOWUPS.md).
   collapsesSpaceAcrossSoftHyphens: boolean
+  // Where rich-inline finds break opportunities next to an item boundary. Blink runs one
+  // line-break iterator over the text of the whole inline formatting context, and Gecko
+  // collects a word across text frames until a space and breaks it in one pass, so every
+  // break fact near a boundary comes from the text the items join. WebKit finds breaks
+  // inside each inline box from that box's own text, and decides a boundary between boxes
+  // from the previous box's last two characters (TextUtil.cpp:374-396).
+  breaksFromItemText: boolean
+  // Blink transforms segment breaks in the text of the whole inline formatting context
+  // (ShouldRemoveNewline and RemoveTrailingCollapsibleNewlineIfNeeded, inline_items_builder.cc).
+  // Gecko transforms each text frame's own text (nsTextFrameUtils::TransformText), as
+  // rich-inline transforms an item's, and WebKit turns segment breaks into spaces.
+  transformsSegmentBreaksAcrossItems: boolean
 }
 
 export type BreakableFitMode = 'sum-graphemes' | 'segment-prefixes' | 'pair-context'
@@ -382,6 +394,8 @@ export function getEngineProfile(): EngineProfile {
     namesGenericFamiliesByLanguage: engine === 'webkit',
     spaceBeforeSoftHyphenHangs: engine === 'gecko' ? 'line-end' : engine === 'webkit' ? 'own-break' : 'break',
     collapsesSpaceAcrossSoftHyphens: engine === 'gecko',
+    breaksFromItemText: engine === 'webkit',
+    transformsSegmentBreaksAcrossItems: engine === 'blink',
   }
   cachedEngineProfile = profile
   return profile

@@ -2,6 +2,7 @@ import type { PreparedTextWithSegments, LayoutCursor } from './layout.js'
 import {
   analyzeText,
   CONTROL,
+  getTrailingWhiteSpaceEnd,
   HARD_BREAK,
   isCollapsibleSpaceCode,
   KIND_BITS,
@@ -15,7 +16,6 @@ import {
   type TextAnalysis,
 } from './analysis.js'
 import { getGeckoParagraphLevels, isDiscardable } from './gecko-line-breaks.js'
-import { isBidiControl } from './graphemes.js'
 import { getWebKitBreakBetweenItems } from './line-breaks.js'
 import { buildLineTextFromRange, getGraphemeEnds } from './line-text.js'
 import {
@@ -300,13 +300,6 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
   // One language read for every item, the joined analysis and the boundary spaces.
   const profile = getEngineProfile()
   const language = getPreparationLanguage(profile)
-  // Blink runs one line-break iterator over the text of the whole inline formatting
-  // context, and Gecko collects a word across text frames until a space and breaks it
-  // in one pass, so every break fact near a boundary comes from the joined text, as
-  // for engines Pretext doesn't recognize, which take Blink's scan. WebKit finds breaks
-  // inside each inline box from that box's own text, and decides a boundary between
-  // boxes from the previous box's last two characters.
-  const breaksFromItemText = profile.lineBreakScan === 'webkit'
   // A collapsed SPACE can have zero or negative advance. Its existence and
   // ordinary break opportunity must survive independently of that number.
   let pendingGapWidth: number | null = null
@@ -355,16 +348,13 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
   // An item's last two source characters, read as prior context at the next
   // boundary where breaks come from each item's own text.
   const boundaryContexts: string[] = []
-  // Blink transforms segment breaks in the text of the whole inline formatting context,
-  // where an atomic inline is U+FFFC, so a collapsible run with a newline next to a ZWSP
-  // in another item goes too (ShouldRemoveNewline and
-  // RemoveTrailingCollapsibleNewlineIfNeeded, inline_items_builder.cc). Where an item
-  // holds a newline, the paragraph's text is transformed once, and where that removes a
-  // run, each item that isn't atomic takes its part of the result, which can only remove
-  // more than the item's own text does, at its ends. Gecko transforms each text frame's
-  // own text (nsTextFrameUtils::TransformText), as the item's own text does.
+  // Where the engine transforms segment breaks in the text of the whole paragraph, in which an
+  // atomic inline is U+FFFC (EngineProfile), a collapsible run with a newline next to a ZWSP in
+  // another item goes too. Where an item holds a newline, the paragraph's text is transformed
+  // once, and where that removes a run, each item that isn't atomic takes its part of the
+  // result, which can only remove more than the item's own text does, at its ends.
   let transformedTexts: string[] | null = null
-  if (profile.lineBreakScan === 'blink' && items.some(item => item.text.includes('\n'))) {
+  if (profile.transformsSegmentBreaksAcrossItems && items.some(item => item.text.includes('\n'))) {
     let source = ''
     const sourceEnds: number[] = []
     for (let index = 0; index < items.length; index++) {
@@ -395,7 +385,7 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
         portion.start = joinedText.length
         for (let s = portion.startSegmentIndex; s < endSegmentIndex; s++) joinedText += segments[s]!
       }
-      if (breaksFromItemText) {
+      if (profile.breaksFromItemText) {
         // Inside each item, breaks come from its own text, which made its segments, and at
         // a boundary from the scan over the next item's text with the previous item's
         // last two characters as prior context (TextUtil.cpp:374-396).
@@ -442,16 +432,13 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
 
     // Scan from the ends once. A trailing-whitespace regex retries every
     // position in a long internal space run when later content prevents a match.
-    // Gecko's white-space collapse also drops white space before only bidi controls
-    // at the end (analyzeText).
-    let end = text.length
-    if (profile.lineBreakScan === 'gecko') while (end > start && isBidiControl(text.charCodeAt(end - 1))) end--
-    const whiteSpaceEnd = end
+    const whiteSpaceEnd = getTrailingWhiteSpaceEnd(text, start, profile)
+    let end = whiteSpaceEnd
     while (end > start && isCollapsibleSpaceCode(text.charCodeAt(end - 1))) end--
     const hasLeadingWhitespace = start > 0
     const hasTrailingWhitespace = end < whiteSpaceEnd
     const whitespaceBefore: boolean = pendingGapWidth !== null || hasLeadingWhitespace
-    if (breaksFromItemText) boundaryContexts[index] = text.slice(Math.max(0, end - 2), end)
+    if (profile.breaksFromItemText) boundaryContexts[index] = text.slice(Math.max(0, end - 2), end)
 
     // Leading white space collapses into a run left open before it. An atomic item's own white
     // space makes no gap: its inline-block lays its text out as a paragraph of its own, whose
