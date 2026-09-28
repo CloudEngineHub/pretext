@@ -105,9 +105,7 @@ function isInvalidChar(ch: number): boolean {
 
 // --- 1. TransformText (nsTextFrameUtils.cpp:84-401) ---
 
-// Whether the text run leaves out a bidi control, which only 16-bit text does (IsDiscardable), is
-// noted as it leaves them out.
-type Transformed = { text: string, orig: Int32Array, skipped: Uint8Array, dropsBidiControl: boolean }
+type Transformed = { text: string, orig: Int32Array, skipped: Uint8Array }
 
 // IsDiscardable, nsTextFrameUtils.cpp:32-49
 export function isDiscardable(ch: number, is8bit: boolean): boolean {
@@ -162,17 +160,11 @@ function transformText(input: string, is8bit: boolean, preserveWhiteSpace: boole
   const orig = new Int32Array(len)
   const skipped = new Uint8Array(len)
   let n = 0
-  let dropsBidiControl = false
   if (preserveWhiteSpace) {
     // COMPRESS_NONE, nsTextFrameUtils.cpp:222-271
     for (let i = 0; i < len; i++) {
-      const ch = input.charCodeAt(i)
-      if (!isDiscardable(ch, is8bit)) {
-        orig[n++] = i
-      } else {
-        skipped[i] = 1
-        dropsBidiControl ||= ch !== CH_SHY
-      }
+      if (isDiscardable(input.charCodeAt(i), is8bit)) skipped[i] = 1
+      else orig[n++] = i
     }
   } else {
     // COMPRESS_WHITESPACE_NEWLINE, :272-387
@@ -205,22 +197,17 @@ function transformText(input: string, is8bit: boolean, preserveWhiteSpace: boole
           const c = input.charCodeAt(k)
           if (isDiscardable(c, is8bit) || inWhitespace || (hasSegmentBreak && isSpaceOrTab(c))) {
             skipped[k] = 1
-            dropsBidiControl ||= c !== CH_SHY && !isSpaceOrTabOrSegmentBreak(c)
           } else {
             orig[n++] = k
             inWhitespace = true
           }
         }
         if (keepLastSpace) orig[n++] = j++
-        for (let k = 0; k < trailingDiscardables; k++) {
-          dropsBidiControl ||= input.charCodeAt(j) !== CH_SHY
-          skipped[j++] = 1
-        }
+        for (let k = 0; k < trailingDiscardables; k++) skipped[j++] = 1
         i = j
         continue
       }
       skipped[i] = 1 // :370-379
-      dropsBidiControl ||= ch !== CH_SHY
       inWhitespace = false
       i++
     }
@@ -245,7 +232,7 @@ function transformText(input: string, is8bit: boolean, preserveWhiteSpace: boole
     }
   }
   text += input.slice(sliceStart, sliceEnd)
-  return { text, orig: orig.subarray(0, n), skipped, dropsBidiControl }
+  return { text, orig: orig.subarray(0, n), skipped }
 }
 
 // IsTrimmableSpace, nsTextFrame.cpp:921-942, in normal white space.
@@ -333,7 +320,7 @@ function getBidiRunStarts(source: string, preserveWhiteSpace: boolean): number[]
 // before it. A level run that starts at a unit the scan drops splits at the next unit kept: after
 // collapsed white space that is a space, which counts here whatever its level, a soft hyphen is BN,
 // which keepsClusterLevel() looks past, and a bidi control counts already.
-function levelsMayMatter(source: string, tr: Transformed, g: Glyphs, preserveWhiteSpace: boolean): boolean {
+function levelsMayMatter(source: string, tr: Transformed, g: Glyphs, preserveWhiteSpace: boolean, dropsBidiControl: boolean): boolean {
   if (!hasRtlChars(source)) return false
   // The paragraph holding the unit: the text, or in pre-wrap its line with the LF.
   let from = 0, to = 0, trailingFrom = 0
@@ -342,7 +329,7 @@ function levelsMayMatter(source: string, tr: Transformed, g: Glyphs, preserveWhi
     const at = tr.orig[t]!
     if (at === tr.orig[t - 1]! + 1 && isSurrogatePair(source.charCodeAt(at - 1), source.charCodeAt(at))) continue
     const ch = tr.text.charCodeAt(t)
-    if (tr.dropsBidiControl || ch === 0x20 || ch === 0xa0 || (preserveWhiteSpace && tr.text.charCodeAt(t - 1) === 0x0a)) return true
+    if (dropsBidiControl || ch === 0x20 || ch === 0xa0 || (preserveWhiteSpace && tr.text.charCodeAt(t - 1) === 0x0a)) return true
     if (at >= to) {
       from = preserveWhiteSpace ? source.lastIndexOf('\n', at - 1) + 1 : 0
       to = preserveWhiteSpace ? source.indexOf('\n', at) + 1 || source.length : source.length
@@ -679,24 +666,23 @@ function getBreakStates(line: LineData, text: string, is8bit: boolean, afterLead
 // right after a soft hyphen adds SOFT_HYPHEN_BREAK: BreakAndMeasureText takes it as the normal
 // break, which neither fits nor draws a hyphen (gfxTextRun.cpp:1053-1063). A CLUSTER_START marks
 // where a cluster starts without a break, where only break-word can wrap (gfxTextRun.cpp:1068-1074).
-// The breaks, and whether the text run left out a bidi control.
-export type GeckoLineBreaks = { breaks: Uint8Array, dropsBidiControl: boolean }
-
 export function getGeckoLineBreaks(
   source: string,
   preserveWhiteSpace: boolean,
   keepAll: boolean,
   graphemeTable: GraphemeTable,
-): GeckoLineBreaks {
+  // Whether the source holds a bidi control, which the text run leaves out.
+  dropsBidiControl: boolean,
+): Uint8Array {
   const len = source.length
   const flags = new Uint8Array(len + 1)
-  if (len === 0) return { breaks: flags, dropsBidiControl: false }
+  if (len === 0) return flags
   let is8bit = true
   for (let i = 0; i < len && is8bit; i++) is8bit = source.charCodeAt(i) < 0x100
   // CharacterDataBuffer::SetTo stores 1b text when every unit is below 256 (CharacterDataBuffer.cpp:235-286).
   const tr = transformText(source, is8bit, preserveWhiteSpace)
   const n = tr.text.length
-  if (n === 0) return { breaks: flags, dropsBidiControl: tr.dropsBidiControl }
+  if (n === 0) return flags
 
   // The text run is built before the break sinks are set up (nsTextFrame.cpp:2860-2864), in one
   // piece unless bidi levels split it where that matters.
@@ -704,7 +690,7 @@ export function getGeckoLineBreaks(
   const ends = new Int32Array(n)
   splitAndInitTextRun(g, tr.text, 0, n, graphemeTable, ends)
   const runStarts = [0]
-  if (!is8bit && levelsMayMatter(source, tr, g, preserveWhiteSpace)) {
+  if (!is8bit && levelsMayMatter(source, tr, g, preserveWhiteSpace, dropsBidiControl)) {
     const bidiRunStarts = getBidiRunStarts(source, preserveWhiteSpace)
     for (let k = 0; k < bidiRunStarts.length; k++) {
       let lo = 0, hi = n // partition_point(orig < start)
@@ -745,5 +731,5 @@ export function getGeckoLineBreaks(
       flags[rawPos] = CLUSTER_START
     }
   }
-  return { breaks: flags, dropsBidiControl: tr.dropsBidiControl }
+  return flags
 }

@@ -1608,7 +1608,7 @@ describe('engine break scans', () => {
     ] as const) {
       // The transformation leaves these rows as they are.
       expect(preserve ? text : removeSkippableSegmentBreaks(text, { lineBreakScan: 'gecko', graphemeTable: 'chromium/char' }, language)).toBe(text)
-      expect({ text, language, keepAll, breaks: positions(getGeckoLineBreaks(text, preserve, keepAll, 'chromium/char').breaks, text.length) })
+      expect({ text, language, keepAll, breaks: positions(getGeckoLineBreaks(text, preserve, keepAll, 'chromium/char', /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/.test(text)), text.length) })
         .toEqual({ text, language, keepAll, breaks: [...expected] })
     }
   })

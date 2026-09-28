@@ -160,8 +160,9 @@ Safari rows in an offline replay. Gecko drops bidi controls from its text run to
 lines in text-run offsets and maps a line end past the characters it dropped
 (nsTextFrame.cpp:11161-11170), so a line never ends before one, starts with one after a
 wrap or breaks inside a word at one. The Gecko profile does this in its analysis, with no
-kind of its own for them. The scan's white-space step notes whether it dropped a bidi
-control, and only then does the analysis look for them. A run of soft hyphens and bidi
+kind of its own for them. Every bidi control leaves Firefox's text run, which only 16-bit
+text holds them in, so the analysis looks for them only where one test finds one in the
+text, before the scan. A run of soft hyphens and bidi
 controls with a control in it joins the segment before it, whether text, white space or a
 ZWSP, up to its last control, and the break after the run stays where the scan puts it, so
 a line that ends there hangs the space before the run. A soft hyphen before a control
@@ -176,7 +177,7 @@ characters joins the hard break before it, as Firefox lays no frame of them out 
 (TransformText, nsTextFrameUtils.cpp:319-345), so the profile's collapse does too: the
 spaces on both sides of a control take the room of one, which is the segment break where
 they hold one (TransformWhiteSpaces, nsTextFrameUtils.cpp:151-193), and white space before
-only controls at the end of the text goes, and the scan runs again on what's left. The
+only controls at the end of the text goes, before the scan reads what's left. The
 profile's graphemes look past soft hyphens and bidi controls (Grapheme Clusters From
 Engine Data), so a mark after a control joins the cluster before it, except where a bidi
 level run starts at the mark, which the scan marks as a cluster start and the analysis as
@@ -2133,7 +2134,11 @@ Finding Firefox's bidi controls in the analysis (Break Opportunities From Engine
 costs text without one nothing only where it looks for none. Testing each unit of every
 Gecko text for a soft hyphen or control, and scanning each run of them, made Firefox 156
 prepare seen messages 4 to 6% slower, and long breakable runs and pre-wrap chunks 9 to 17%;
-the analysis now looks only where the scan's white-space step noted a dropped control. The
+the analysis now looks only where the text holds a control, which one regular-expression
+test over the text finds: that test, in place of the scan's white-space step noting a
+dropped control, which ran the scan again where the collapse through controls dropped white
+space, reads within noise on Firefox's new, seen, rich and worst bench rows (September 28,
+2026, two sessions). The
 profile's grapheme table tests only code points in the rules' Control category for what the
 text run drops: testing every code point made Firefox prepare CJK and Arabic 2 to 3% slower.
 A soft hyphen's look for a control after it, repeated at each soft hyphen of a run, took time
