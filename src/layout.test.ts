@@ -3396,6 +3396,43 @@ describe('rich-inline invariants', () => {
     }
   })
 
+  test('a rich fragment shows its item\'s own text, and the hyphen of a soft hyphen it ends at where its line\'s width counts one', () => {
+    // Each line's fragments as their items and texts.
+    const texts = (parts: readonly string[], maxWidth: number) => {
+      const prepared = prepareRichInline(parts.map(text => ({ text, font: FONT })))
+      const lines: Array<Array<[number, string]>> = []
+      walkRichInlineLineRanges(prepared, maxWidth, range => {
+        lines.push(materializeRichInlineLineRange(prepared, range).fragments.map(fragment => [fragment.itemIndex, fragment.text]))
+      })
+      return lines
+    }
+    const profile = getEngineProfile()
+    const previous = profile.lineBreakScan
+    try {
+      profile.lineBreakScan = 'gecko'
+      clearCache()
+      // An item's soft hyphens take the kind of the joined text's segment there, which
+      // decides whether a line that ends at one counts a hyphen, and the fragment paints
+      // the hyphen its line counts: in Gecko's scan a soft hyphen that starts an item
+      // before a combining mark, which the item's own analysis makes zero-width glue,
+      // and not one after an ideograph and a mark, a zero-width break there.
+      expect(texts(['ab', '\u00AD\u0650cd'], 30)).toEqual([[[0, 'ab'], [1, '-']], [[1, '\u0650cd']]])
+      expect(texts(['\u6F22', '\u0301\u00ADab'], 32)).toEqual([[[0, '\u6F22'], [1, '\u0301']], [[1, 'ab']]])
+      // The fragment's text is otherwise its item's own. A soft hyphen that ends an item at
+      // the text's start or after white space is text in Gecko's scan of the joined text
+      // before a bidi control, as `\u00AD\u202B` is in one text, and shows in no
+      // fragment, as in the item's own text.
+      for (const width of [1, Infinity]) {
+        expect(texts(['\u00AD', '\u202B-'], width)).toEqual([[[0, ''], [1, '\u202B-']]])
+      }
+      expect(texts(['ab \u00AD', '\u2066cd'], Infinity)).toEqual([[[0, 'ab '], [1, '\u2066cd']]])
+      expect(texts(['ab \u00AD', '\u2066cd'], 1)).toEqual([[[0, 'a']], [[0, 'b ']], [[0, ''], [1, '\u2066']], [[1, 'c']], [[1, 'd']]])
+    } finally {
+      profile.lineBreakScan = previous
+      clearCache()
+    }
+  })
+
   test('rich line counts do not go up where a soft hyphen line fits only without its hyphen', () => {
     const lineTexts = (items: Parameters<typeof prepareRichInline>[0], maxWidth: number): string[] => {
       const prepared = prepareRichInline(items)

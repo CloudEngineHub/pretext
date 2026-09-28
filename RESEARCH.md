@@ -838,9 +838,13 @@ text's segments that start inside it: at an item's start the item's own analysis
 Gecko's scan makes a soft hyphen before a mark zero-width glue, after an ideograph or emoji the joined scan makes one a
 zero-width break, and the item's own analysis joins two soft hyphens that Gecko's joined scan splits into a soft hyphen
 and a zero-width break, after which a line paints no hyphen. Taking the kind of the joined segment that starts where the item's does fitted a hyphen Firefox
-doesn't draw in 14 probe cases main passed (items `文文`, `\u00AD\u00ADحبا` at 37px). A fragment's text follows the
+doesn't draw in 14 probe cases main passed (items `文文`, `\u00AD\u00ADحبا` at 37px). A fragment's hyphen follows the
 copy's kinds too, so it shows the hyphen its line's width counts, which `materializeLineRange()` over the item's own
-handle wouldn't (harness/README.md, What a case is and when it passes). A zero-width break that only the joined text
+handle wouldn't (harness/README.md, What a case is and when it passes), but the rest of its text is the item's own
+(#373): built from the copy, a fragment showed a soft hyphen that ends an item at a text's start or after white space,
+which Gecko's scan of the joined text makes text before a bidi control, as it makes `\u00AD\u202B` in one text, where
+the item's own text leaves it out (items `\u00AD`, `\u202B-`; 44 Firefox cases of a 2026-09-28 probe, on which the
+line APIs disagreed). A zero-width break that only the joined text
 gives at an item's start holds no line of its own, while a ZWSP that starts an item keeps the line it holds at a text's
 start: taking every item start that continues a run as inside a chunk, where a line start consumes a ZWSP too, lost 76
 webkit-host, 3 Chrome and 2 Firefox probe cases. In the Gecko profile a joined window that starts after collapsible
