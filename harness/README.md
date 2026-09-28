@@ -29,7 +29,9 @@ Widths aren't judged. The shrink-wrap check, whether a bubble sized to the predi
 least as wide as the browser's widest line, prints but never fails a run. The library's consistency blocks on every
 case, recorded or not: the line APIs (`layout()`, `measureLineStats()`, `walkLineRanges()`, `layoutNextLineRange()`,
 `layoutNextLine()`, `layoutWithLines()`, `materializeLineRange()` and their rich-inline counterparts) must agree on
-lines, widths and text, and none may call `measureText` after preparing.
+lines, widths and text, and none may call `measureText` after preparing. A rich fragment's text is
+`materializeLineRange()`'s over its cursors in its item's own prepared text, but for the hyphen of a soft hyphen it ends
+at, which the text the items join decides.
 
 A recording counts only under the environment that made it, the key in its file's first line: browser build, OS build,
 OS languages, page languages, device pixel ratio and a hash of the served fonts. `check` refuses to score under any
@@ -60,9 +62,9 @@ layouts" (the narrowest real-usage draw is 25 px).
 |---|---|---|
 | `sample.ndjson` | The real-usage sample | `make.ts write` |
 | `reports.ndjson` | Filed reports with the text, font and width as filed (`sets/exact.ts`) | `make.ts write` |
-| `catalog.ndjson` | Families of templates, from the engines' rules, the UAX #14 classes between the scripts apps mix and the shapes `ENGINE_FOLLOWUPS.md` names, plus adversarial `main/*` cases taken from the old test suite | the width search |
+| `catalog.ndjson` | Families of templates, from the engines' rules, the UAX #14 classes between the scripts apps mix, the shapes `ENGINE_FOLLOWUPS.md` names and bidi controls where Firefox's line breaking looks past them, plus adversarial `main/*` cases taken from the old test suite | the width search |
 | `facts.ndjson` | The engine facts `src/layout.test.ts` checks on plain text, in a browser | the width search |
-| `rich.ndjson` | Rich-inline paragraphs: styled runs, span edges, chips, padded code spans, plus `main/*` cases | the width search |
+| `rich.ndjson` | Rich-inline paragraphs: styled runs, span edges, chips, padded code spans, the shapes whose lines changed when items began to continue the line (#369), plus `main/*` cases | the width search |
 | `census.ndjson`, `books.ndjson`, `smoke.ndjson` | Real paragraphs of `corpora/` at several widths, and whole books, from the per-engine rebuild | taken once |
 | `oracles.ndjson` | The mode oracles (pre-wrap, keep-all, symbols, letter spacing, soft hyphens) the old test suite ran | taken once |
 | `followups.ndjson` | Two fuzz strings `ENGINE_FOLLOWUPS.md` names | taken once |
@@ -234,7 +236,8 @@ The harness can't see the hyphen drawn at a soft-hyphen break: recordings keep n
 found 93-358 mismatches per browser, some the recording's (2026-09-24), so it's left to `src/layout.test.ts`. Nor does
 it see re-layout at a line's own width; a defect that changes the widths a prepared handle keeps for one way of fitting
 lines when another is used (the stand-in Canvas gives the same widths to every way); a bracket-pair error in the Gecko
-bidi port; an emoji modifier split from its base across rich items; Chrome's UI language, and so its `zh` table for
+bidi port; several rules of the Gecko profile's analysis of bidi controls (`ENGINE_FOLLOWUPS.md`, Harness debt); an
+emoji modifier split from its base across rich items; Chrome's UI language, and so its `zh` table for
 pages without a `lang`; rendering other than macOS's, though Android and Windows are 65% of page views (`weights.json`);
 text chat users wrote (the sample's chat draws are stand-ins); or the demos' painted layout. No planted defect guards
 the watchdog's kill, the bench's shuffle and its separate compiles (each copy of the library compiled in a module of its

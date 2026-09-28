@@ -31,10 +31,9 @@ import {
   geckoLineTrieDataPacked,
   geckoLineTrieHighStart,
   geckoLineTrieIndexPacked,
-  type CharTable,
 } from './generated/engine-break-data.js'
 import { getParagraphLevels, getTrailingWhiteSpaceStart, keepsClusterLevel } from './gecko-bidi-levels.js'
-import { findGraphemeEnds } from './graphemes.js'
+import { findGraphemeEnds, isBidiControl, type GraphemeTable } from './graphemes.js'
 import {
   BREAK as OPPORTUNITY,
   CLUSTER_START,
@@ -68,7 +67,7 @@ let eastAsianWidths: RangeTable | null = null
 // --- Character classes ---
 
 // nsUnicodeProperties.h:202-207, nsUnicodeProperties.cpp:130-138
-function isClusterExtender(cp: number): boolean {
+export function isClusterExtender(cp: number): boolean {
   return cp >= 0x0300 && (hasProperty(cp, MARK) || cp === 0x200c || cp === 0x200d || (cp >= 0xff9e && cp <= 0xff9f) ||
     (cp >= 0x1f3fb && cp <= 0x1f3ff) || (cp >= 0xe0020 && cp <= 0xe007f))
 }
@@ -77,12 +76,6 @@ function isClusterExtender(cp: number): boolean {
 function isClusterExtenderExcludingJoiners(cp: number): boolean {
   return cp >= 0x0300 && (hasProperty(cp, MARK) || (cp >= 0xff9e && cp <= 0xff9f) || (cp >= 0x1f3fb && cp <= 0x1f3ff) ||
     (cp >= 0xe0020 && cp <= 0xe007f))
-}
-
-// nsBidiUtils.h:84-90
-function isBidiControl(cp: number): boolean {
-  return ((cp & 0xff00) === 0x2000 && ((cp >= 0x202a && cp <= 0x202e) || (cp >= 0x2066 && cp <= 0x2069) || (cp & ~1) === 0x200e)) ||
-    cp === 0x061c
 }
 
 // UnicodeProperties.h:205-218
@@ -112,7 +105,10 @@ function isInvalidChar(ch: number): boolean {
 
 // --- 1. TransformText (nsTextFrameUtils.cpp:84-401) ---
 
-type Transformed = { text: string, orig: Int32Array, skipped: Uint8Array }
+// Whether the text run leaves out a bidi control, which only 16-bit text does (IsDiscardable), is
+// noted as it leaves them out, as IsDiscardable notes a soft hyphen (HasShy): testing the text for
+// one before the scan costs every text a pass (RESEARCH.md, Keeping Work Bounded).
+type Transformed = { text: string, orig: Int32Array, skipped: Uint8Array, dropsBidiControl: boolean }
 
 // IsDiscardable, nsTextFrameUtils.cpp:32-49
 export function isDiscardable(ch: number, is8bit: boolean): boolean {
@@ -167,11 +163,17 @@ function transformText(input: string, is8bit: boolean, preserveWhiteSpace: boole
   const orig = new Int32Array(len)
   const skipped = new Uint8Array(len)
   let n = 0
+  let dropsBidiControl = false
   if (preserveWhiteSpace) {
     // COMPRESS_NONE, nsTextFrameUtils.cpp:222-271
     for (let i = 0; i < len; i++) {
-      if (isDiscardable(input.charCodeAt(i), is8bit)) skipped[i] = 1
-      else orig[n++] = i
+      const ch = input.charCodeAt(i)
+      if (!isDiscardable(ch, is8bit)) {
+        orig[n++] = i
+      } else {
+        skipped[i] = 1
+        dropsBidiControl ||= ch !== CH_SHY
+      }
     }
   } else {
     // COMPRESS_WHITESPACE_NEWLINE, :272-387
@@ -204,17 +206,22 @@ function transformText(input: string, is8bit: boolean, preserveWhiteSpace: boole
           const c = input.charCodeAt(k)
           if (isDiscardable(c, is8bit) || inWhitespace || (hasSegmentBreak && isSpaceOrTab(c))) {
             skipped[k] = 1
+            dropsBidiControl ||= c !== CH_SHY && !isSpaceOrTabOrSegmentBreak(c)
           } else {
             orig[n++] = k
             inWhitespace = true
           }
         }
         if (keepLastSpace) orig[n++] = j++
-        for (let k = 0; k < trailingDiscardables; k++) skipped[j++] = 1
+        for (let k = 0; k < trailingDiscardables; k++) {
+          dropsBidiControl ||= input.charCodeAt(j) !== CH_SHY
+          skipped[j++] = 1
+        }
         i = j
         continue
       }
       skipped[i] = 1 // :370-379
+      dropsBidiControl ||= ch !== CH_SHY
       inWhitespace = false
       i++
     }
@@ -239,7 +246,7 @@ function transformText(input: string, is8bit: boolean, preserveWhiteSpace: boole
     }
   }
   text += input.slice(sliceStart, sliceEnd)
-  return { text, orig: orig.subarray(0, n), skipped }
+  return { text, orig: orig.subarray(0, n), skipped, dropsBidiControl }
 }
 
 // IsTrimmableSpace, nsTextFrame.cpp:921-942, in normal white space.
@@ -274,9 +281,29 @@ function isUtf16CodeUnitBidi(u: number): boolean {
   return true
 }
 
+// HasRTLChars (nsBidiUtils.h:107-111).
+function hasRtlChars(source: string): boolean {
+  for (let i = 0; i < source.length; i++) if (isUtf16CodeUnitBidi(source.charCodeAt(i))) return true
+  return false
+}
+
 // ReplaceSeparators, nsBidiPresUtils.cpp:861-875
 function replaceSeparator(u: number): number {
   return u === 0x09 || u === 0x0a || u === 0x0b || u === 0x0d || (u >= 0x1c && u <= 0x1f) || u === 0x85 || u === 0x2029 ? 0x20 : u
+}
+
+// The levels of source[start, end) as one paragraph, its separators replaced.
+function getLevels(source: string, start: number, end: number): Uint8Array {
+  const paragraph = new Uint16Array(end - start)
+  for (let i = 0; i < paragraph.length; i++) paragraph[i] = replaceSeparator(source.charCodeAt(start + i))
+  return getParagraphLevels(paragraph)
+}
+
+// A left-to-right block resolves bidi only where its text has right-to-left characters (Resolve
+// :790-854, ChildListMayRequireBidi :1467-1475): the levels of its paragraph in white-space: normal
+// there, else null.
+export function getGeckoParagraphLevels(source: string): Uint8Array | null {
+  return hasRtlChars(source) ? getLevels(source, 0, source.length) : null
 }
 
 // Raw indices where a logical level run starts (ResolveParagraph :877-1110, EnsureBidiContinuation
@@ -288,10 +315,8 @@ function getBidiRunStarts(source: string, preserveWhiteSpace: boolean): number[]
     let end = preserveWhiteSpace ? source.indexOf('\n', start) + 1 : source.length
     if (end === 0) end = source.length
     if (start > 0) starts.push(start)
-    const paragraph = new Uint16Array(end - start)
-    for (let i = 0; i < paragraph.length; i++) paragraph[i] = replaceSeparator(source.charCodeAt(start + i))
-    const levels = getParagraphLevels(paragraph)
-    for (let i = 1; i < paragraph.length; i++) if (levels[i] !== levels[i - 1]) starts.push(start + i)
+    const levels = getLevels(source, start, end)
+    for (let i = 1; i < levels.length; i++) if (levels[i] !== levels[i - 1]) starts.push(start + i)
     start = end
   }
   return starts
@@ -310,11 +335,7 @@ function getBidiRunStarts(source: string, preserveWhiteSpace: boolean): number[]
 // collapsed white space that is a space, which counts here whatever its level, a soft hyphen is BN,
 // which keepsClusterLevel() looks past, and a bidi control counts already.
 function levelsMayMatter(source: string, tr: Transformed, g: Glyphs, preserveWhiteSpace: boolean): boolean {
-  let requires = false
-  for (let i = 0; i < source.length && !requires; i++) requires = isUtf16CodeUnitBidi(source.charCodeAt(i))
-  if (!requires) return false
-  let hasControl = false
-  for (let i = 0; i < source.length && !hasControl; i++) hasControl = isBidiControl(source.charCodeAt(i))
+  if (!hasRtlChars(source)) return false
   // The paragraph holding the unit: the text, or in pre-wrap its line with the LF.
   let from = 0, to = 0, trailingFrom = 0
   for (let t = 1; t < tr.text.length; t++) {
@@ -322,7 +343,7 @@ function levelsMayMatter(source: string, tr: Transformed, g: Glyphs, preserveWhi
     const at = tr.orig[t]!
     if (at === tr.orig[t - 1]! + 1 && isSurrogatePair(source.charCodeAt(at - 1), source.charCodeAt(at))) continue
     const ch = tr.text.charCodeAt(t)
-    if (hasControl || ch === 0x20 || ch === 0xa0 || (preserveWhiteSpace && tr.text.charCodeAt(t - 1) === 0x0a)) return true
+    if (tr.dropsBidiControl || ch === 0x20 || ch === 0xa0 || (preserveWhiteSpace && tr.text.charCodeAt(t - 1) === 0x0a)) return true
     if (at >= to) {
       from = preserveWhiteSpace ? source.lastIndexOf('\n', at - 1) + 1 : 0
       to = preserveWhiteSpace ? source.indexOf('\n', at) + 1 || source.length : source.length
@@ -351,7 +372,7 @@ function extendCluster(g: Glyphs, i: number): void {
 // reads the word alone (intl/lwbrk/Segmenter.cpp:174-187). Below U+0300 only CR and LF share a
 // cluster, which the generator checks, and words hold neither, so a word of such units has a
 // cluster at every unit. `ends` has room for the word's clusters.
-function setupClusterBoundaries(g: Glyphs, text: string, from: number, to: number, graphemeTable: CharTable, ends: Int32Array): void {
+function setupClusterBoundaries(g: Glyphs, text: string, from: number, to: number, graphemeTable: GraphemeTable, ends: Int32Array): void {
   let ch0 = text.charCodeAt(from)
   if (to - from > 1 && isSurrogatePair(ch0, text.charCodeAt(from + 1))) ch0 = combine(ch0, text.charCodeAt(from + 1))
   if (isClusterExtender(ch0)) extendCluster(g, from)
@@ -381,7 +402,7 @@ function endsWord(text: string, i: number, end: number): boolean {
 // character (:3877-3892) keeps a zero record. Below U+0100, IsBoundarySpace (:3317-3330) and
 // SetupClusterBoundaries(uint8_t) (gfxFont.cpp:771-795) answer as the char16_t versions, so 8-bit
 // text and 8-bit words take the char16_t path, at any word length (:3569-3577, :3817-3821).
-function splitAndInitTextRun(g: Glyphs, text: string, start: number, end: number, graphemeTable: CharTable, ends: Int32Array): void {
+function splitAndInitTextRun(g: Glyphs, text: string, start: number, end: number, graphemeTable: GraphemeTable, ends: Int32Array): void {
   let wordStart = start
   for (let i = start; i < end; i++) {
     if (!endsWord(text, i, end)) continue
@@ -659,21 +680,24 @@ function getBreakStates(line: LineData, text: string, is8bit: boolean, afterLead
 // right after a soft hyphen adds SOFT_HYPHEN_BREAK: BreakAndMeasureText takes it as the normal
 // break, which neither fits nor draws a hyphen (gfxTextRun.cpp:1053-1063). A CLUSTER_START marks
 // where a cluster starts without a break, where only break-word can wrap (gfxTextRun.cpp:1068-1074).
+// The breaks, and whether the text run left out a bidi control.
+export type GeckoLineBreaks = { breaks: Uint8Array, dropsBidiControl: boolean }
+
 export function getGeckoLineBreaks(
   source: string,
   preserveWhiteSpace: boolean,
   keepAll: boolean,
-  graphemeTable: CharTable,
-): Uint8Array {
+  graphemeTable: GraphemeTable,
+): GeckoLineBreaks {
   const len = source.length
   const flags = new Uint8Array(len + 1)
-  if (len === 0) return flags
+  if (len === 0) return { breaks: flags, dropsBidiControl: false }
   let is8bit = true
   for (let i = 0; i < len && is8bit; i++) is8bit = source.charCodeAt(i) < 0x100
   // CharacterDataBuffer::SetTo stores 1b text when every unit is below 256 (CharacterDataBuffer.cpp:235-286).
   const tr = transformText(source, is8bit, preserveWhiteSpace)
   const n = tr.text.length
-  if (n === 0) return flags
+  if (n === 0) return { breaks: flags, dropsBidiControl: tr.dropsBidiControl }
 
   // The text run is built before the break sinks are set up (nsTextFrame.cpp:2860-2864), in one
   // piece unless bidi levels split it where that matters.
@@ -722,5 +746,5 @@ export function getGeckoLineBreaks(
       flags[rawPos] = CLUSTER_START
     }
   }
-  return flags
+  return { breaks: flags, dropsBidiControl: tr.dropsBidiControl }
 }

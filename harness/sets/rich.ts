@@ -9,7 +9,23 @@
 // - styles changing at run boundaries (weight, size, family, italic, letter spacing) over src/test-data.ts's texts, as
 //   the rebuild's runs families do, and spaces at span edges;
 // - chips and code spans as the demos write them: an atomic mention chip with padding, and inline code with padding
-//   that can break (pages/demos/rich-note.model.ts, markdown-chat.model.ts).
+//   that can break (pages/demos/rich-note.model.ts, markdown-chat.model.ts);
+// - the shapes whose lines changed when items began to continue the line instead of starting one, each beside a
+//   neighbour, cut on their own since the other templates' widths were searched in older browser builds: a soft hyphen
+//   that starts an item after other text, after an ideograph or emoji, before a combining mark or after a space, two
+//   soft hyphens that start an item, and a line separator in an item or after a collapsed space before one; then, cut
+//   on their own too, an item holding only a soft hyphen between a break and a run that continues it, or after a
+//   collapsed space, a newline next to a ZWSP in another item, and a soft hyphen after a space in an item that
+//   continues a run from an earlier item, which Chrome breaks at the space (ENGINE_FOLLOWUPS.md); and, cut on their
+//   own too, white space after such an item's soft hyphen, white space between an item's soft hyphens, and an item
+//   that starts with white space and soft hyphens, whose soft hyphen after the white space Firefox drops; and, cut on
+//   their own too, a run of white space that goes on across items past the soft hyphens and bidi controls Firefox
+//   drops, one that a soft hyphen starting an item ends, and a ZWSP after white space and soft hyphens where a line
+//   starts; and, cut on their own too, a run that a right-to-left mark after its white space ends where one at the white
+//   space's bidi level doesn't, one that text after it ends, an atomic item whose leading white space collapses into
+//   one, a soft hyphen after no white space, which opens none, and a ZWSP after soft hyphens where a line starts after
+//   a wrap; and, cut on their own too, the levels that rule reads: the paragraph's, at each item's offset, of every
+//   character the run goes past against the white space before them, with a newline as a space.
 import { TEXTS } from '../../src/test-data.ts'
 import type { CssFont, TextRun } from '../types.ts'
 import { codePoints, createRng, font, paragraph, span } from './build.ts'
@@ -106,6 +122,42 @@ export function richTemplates(): Template[] {
     const lang = /[ぁ-ヿ一-龥]/.test(before) ? 'ja' : 'en'
     out.push(template(chip ? 'chips' : 'code-spans', chip ? 'an atomic mention chip with padding (pages/demos/rich-note.model.ts)' : 'inline code with padding (pages/demos/rich-note.model.ts)',
       HELVETICA, [...(before === '' ? [] : [before]), run, after], lang))
+  }
+  const continued: ReadonlyArray<readonly [string, readonly Part[], string?]> = [
+    ['soft-hyphen-start', ['Pre', '\u{AD}text lays out text']], ['soft-hyphen-start', ['na', '\u{AD}tion', 'al parks']],
+    ['soft-hyphen-after-ideograph', ['漢字', '\u{AD}ab', 'cd'], 'zh'], ['soft-hyphen-after-ideograph', ['\u{1F60A}', '\u{AD}ab cd']],
+    ['soft-hyphen-before-mark', ['abc', '\u{AD}\u{301}def ghi']],
+    ['two-soft-hyphens', ['文文', '\u{AD}\u{AD}ab'], 'zh'], ['two-soft-hyphens', ['hello', '\u{AD}\u{AD}world again']],
+    ['soft-hyphen-after-space', ['see', ' \u{AD}this', 'word']], ['soft-hyphen-after-space', ['中', ' \u{AD}حبا', 'cd']],
+    ['separator', ['first\u{2028}', 'second line']], ['separator', ['hello ', '\u{2028}world']],
+    ['consumed-soft-hyphen', ['text\u{200B}', '\u{AD}', '\u{2013}more words']], ['consumed-soft-hyphen', ['中文\u{200B}中\u{200B}', '\u{AD}', '-'], 'zh'],
+    ['space-before-consumed-item', ['word ', '\u{AD}', 'more text here']], ['space-before-consumed-item', ['see', ' \u{AD}', 'this word']],
+    ['segment-break-by-zwsp', ['ab\u{200B}', '\n\u{AD}\ncd ef']], ['segment-break-by-zwsp', ['word\n', '\u{200B}next words']],
+    ['soft-hyphen-after-space-in-run', ['中文a', 'b \u{AD}cd ef'], 'zh'],
+    ['space-before-consumed-item', ['see', ' \u{AD} ', 'this word']],
+    ['space-between-consumed-soft-hyphens', ['ab', ' \u{AD} \u{AD}', 'cd ef gh']], ['space-between-consumed-soft-hyphens', ['this word', ' \u{AD} \u{AD}', '\u{3002}more text'], 'zh'],
+    ['soft-hyphen-break-at-line-start', ['ab', ' \u{AD} \u{AD}xyzw more']],
+    ['white-space-run-across-items', ['see', ' \u{AD}', ' this word']], ['white-space-run-across-items', ['Hi,', ' \u{AD}', ' \u{AD}', 'this word']],
+    ['white-space-run-across-items', ['see \u{AD}', ' this word']], ['white-space-run-across-items', ['see', ' \u{200E}', ' this word']],
+    ['soft-hyphen-ends-white-space-run', ['see ', '\u{AD} ', 'this word']], ['soft-hyphen-ends-white-space-run', ['see', '\u{AD} \u{AD}', 'this word']],
+    ['zwsp-after-discarded-soft-hyphens', [' \u{AD} \u{AD}\u{200B}', 'textword']], ['zwsp-after-discarded-soft-hyphens', ['ab', ' \u{AD} \u{AD}\u{200B}', 'textword']],
+    ['zwsp-after-discarded-soft-hyphens', [' \u{AD}', ' \u{AD}\u{200B}', 'textword']],
+    ['bidi-level-ends-white-space-run', ['see \u{200F}', ' this']], ['bidi-level-ends-white-space-run', ['see \u{61C}', ' this word']],
+    ['bidi-level-ends-white-space-run', ['see \u{202B}', ' this']], ['bidi-level-ends-white-space-run', ['\u{5E9}\u{5DC}\u{5D5}\u{5DD} \u{200F}', ' this']],
+    ['text-ends-white-space-run', ['see \u{AD}', 'x', ' this']], ['soft-hyphen-after-no-space', ['see\u{AD}', ' this']],
+    ['atomic-item-in-white-space-run', ['see \u{AD}', span(' chip', ARIAL, { atomic: true }), ' this word']],
+    ['zwsp-after-discarded-soft-hyphens', ['\u{300D} \u{AD}', '\u{AD}\u{200B}', '42']],
+    ['bidi-level-of-the-paragraph', ['\u{5E9}\u{5DC}\u{5D5}\u{5DD} \u{200F}\u{AD}', ' 42 more']],
+    ['bidi-level-of-the-white-space', ['\u{5E9}\u{5DC}\u{5D5}\u{5DD} \u{200E}', span(' chip', ARIAL, { atomic: true }), ' this more']],
+    ['bidi-level-of-the-white-space', ['\u{5E9}\u{5DC}\u{5D5}\u{5DD} \u{200E}\u{AD}', span(' chip', ARIAL, { atomic: true }), ' this more']],
+    ['bidi-level-at-the-item-offset', ['ab ', 'see \u{200F}', ' this more']], ['bidi-level-at-the-item-offset', ['ab ', 'see \u{200F}\u{AD}', ' this more']],
+    ['bidi-level-of-every-dropped-character', ['(q) \u{AD}\u{200F}', ' this more']], ['bidi-level-of-every-dropped-character', ['(q) \u{AD}\u{200F}\u{AD}', ' this more']],
+    ['bidi-level-of-a-newline', ['\u{202D}\u{AD}', '\u{628}\u{628}\n\u{61C}', span(' \u{AD}more', ARIAL, { atomic: true })], 'ar'],
+    ['bidi-level-of-a-newline', ['\u{202D}\u{AD}', '\u{628}\u{628}\n\u{61C}\u{AD}', span(' \u{AD}more', ARIAL, { atomic: true })], 'ar'],
+  ]
+  for (let i = 0; i < continued.length; i++) {
+    const [family, parts, lang] = continued[i]!
+    out.push(template(`continued/${family}`, 'items that continue the line before them (src/layout.test.ts, rich-inline invariants)', ARIAL, parts.map(part => typeof part === 'string' ? item(part) : part), lang))
   }
   return out
 }

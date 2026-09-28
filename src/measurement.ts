@@ -1,5 +1,4 @@
-import type { CharTable } from './generated/engine-break-data.js'
-import { findGraphemeEnds } from './graphemes.js'
+import { findGraphemeEnds, type GraphemeTable } from './graphemes.js'
 import { canWebKitLineStartWith, getBlinkDefaultLocale } from './line-breaks.js'
 import { webkitGenericFamilies, webkitGenericFamilyNames, webkitScriptLanguages, webkitScriptSubtags } from './generated/webkit-generic-families.js'
 import type { SegmentEntryGeometry } from './entry-geometry.js'
@@ -25,7 +24,7 @@ export type SegmentFit = {
   entryGeometry: {
     letterSpacing: number
     emojiCorrection: number
-    geometry: SegmentEntryGeometry
+    geometry: SegmentEntryGeometry | null
   } | null
 }
 
@@ -42,8 +41,8 @@ export type EngineProfile = {
   lineBreakScan: 'blink' | 'webkit' | 'gecko'
   // Where grapheme clusters end: the engine's ICU character rules (src/graphemes.ts).
   // libicucore's add Apple's transcoding hints to Extend. Firefox's ICU4X data gives the
-  // clusters Chrome's rules give.
-  graphemeTable: CharTable
+  // clusters Chrome's rules give, over its text run, which leaves out bidi controls.
+  graphemeTable: GraphemeTable
   // What a line may overflow its width by and still fit: WebKit's own 1/64 px, which availableWidth()
   // adds (InlineLineBuilder.cpp:1172-1183). Blink and Gecko fit exactly in their own units, so their
   // 0.005 px is a named gap (ENGINE_FOLLOWUPS.md, Fitting arithmetic).
@@ -126,6 +125,40 @@ export type EngineProfile = {
   // space (CanvasRenderingContext2D.cpp:4634-4637) and other controls as a hexbox. Chrome and
   // Safari give most controls an advance on the page, as their Canvas does.
   hidesControlCharacters: boolean
+  // Where collapsible white space before soft hyphens that end a rich-inline line hangs, as
+  // white space that ends a line does, where the line doesn't end at a soft hyphen with its
+  // hyphen. Gecko discards soft hyphens from a text frame's text (IsDiscardable,
+  // nsTextFrameUtils.cpp:32-49), so the white space ends the line wherever it ends
+  // ('line-end'): rich items `see`, ` \u00AD` in 16px Arial take one 25.8px line in Firefox
+  // at 26px. Blink hangs it where the line breaks before more content ('break') and lays a
+  // soft hyphen that ends the paragraph out after it, where it takes room: Chrome gives
+  // that soft hyphen a line of its own at 26px. WebKit does too, and also keeps a soft
+  // hyphen on a line that ends at white space after it, so it hangs the white space
+  // before a soft hyphen only where the line breaks there ('own-break'): items `see`,
+  // ` \u00AD `, `this word` end their first line at 30.24px in Safari at 45px, and at
+  // 25.80px in Chrome and Firefox.
+  spaceBeforeSoftHyphenHangs: 'line-end' | 'break' | 'own-break'
+  // Gecko drops soft hyphens and bidi controls before it collapses white space, so white
+  // space after one collapses with the white space before it, in a run that goes on from one
+  // text frame to the next (nsTextFrameUtils::TransformText): Firefox lays out items `ab`,
+  // ` \u00AD \u00AD`, `cd` in 16px Arial in one 39.15px line at 40px, where Chrome and Safari
+  // give 2 lines, as they do for one text node. Rich-inline takes it across items and after an
+  // item's leading white space (whitespaceRunOpen in src/rich-inline.ts); the Gecko profile's
+  // analysis does only through bidi controls, inside a text past its first white space
+  // (ENGINE_FOLLOWUPS.md).
+  collapsesSpaceAcrossSoftHyphens: boolean
+  // Where rich-inline finds break opportunities next to an item boundary. Blink runs one
+  // line-break iterator over the text of the whole inline formatting context, and Gecko
+  // collects a word across text frames until a space and breaks it in one pass, so every
+  // break fact near a boundary comes from the text the items join. WebKit finds breaks
+  // inside each inline box from that box's own text, and decides a boundary between boxes
+  // from the previous box's last two characters (TextUtil.cpp:374-396).
+  breaksFromItemText: boolean
+  // Blink transforms segment breaks in the text of the whole inline formatting context
+  // (ShouldRemoveNewline and RemoveTrailingCollapsibleNewlineIfNeeded, inline_items_builder.cc).
+  // Gecko transforms each text frame's own text (nsTextFrameUtils::TransformText), as
+  // rich-inline transforms an item's, and WebKit turns segment breaks into spaces.
+  transformsSegmentBreaksAcrossItems: boolean
 }
 
 export type BreakableFitMode = 'sum-graphemes' | 'segment-prefixes' | 'pair-context'
@@ -275,6 +308,14 @@ export function readLetterSpacing(letterSpacing: number | undefined): number {
   return value
 }
 
+// A zero per segment, where per-segment widths start, pushed in a loop: Array.from over
+// `{ length }` reads every index off the object and calls its map function for each.
+export function zeros(count: number): number[] {
+  const out: number[] = []
+  for (let i = 0; i < count; i++) out.push(0)
+  return out
+}
+
 // A direct measurement under letter spacing, borrowing the font's context for the
 // synchronous call. It never enters the unspaced segment cache, and letterSpacing
 // is restored even when assignment or measurement fails. Null where the context
@@ -346,7 +387,7 @@ export function getEngineProfile(): EngineProfile {
   const profile: EngineProfile = {
     entryFitBasis: isDesktop && engine === 'blink' ? 'fresh' : isDesktop && engine === 'gecko' ? 'original' : 'disabled',
     lineBreakScan: engine,
-    graphemeTable: engine === 'webkit' ? 'apple/char' : 'chromium/char',
+    graphemeTable: engine === 'webkit' ? 'apple/char' : engine === 'gecko' ? 'gecko/char' : 'chromium/char',
     lineFitEpsilon: engine === 'webkit' ? 1 / 64 : 0.005,
     prefixFitMinWidth: engine === 'webkit' ? 0 : engine === 'gecko' ? 80 : Infinity,
     measureTextWithFollowingSpace: engine === 'webkit',
@@ -361,6 +402,10 @@ export function getEngineProfile(): EngineProfile {
     hangsIdeographicSpace: engine !== 'webkit',
     laysOutUnderDefaultLocale: engine === 'blink',
     namesGenericFamiliesByLanguage: engine === 'webkit',
+    spaceBeforeSoftHyphenHangs: engine === 'gecko' ? 'line-end' : engine === 'webkit' ? 'own-break' : 'break',
+    collapsesSpaceAcrossSoftHyphens: engine === 'gecko',
+    breaksFromItemText: engine === 'webkit',
+    transformsSegmentBreaksAcrossItems: engine === 'blink',
   }
   cachedEngineProfile = profile
   return profile

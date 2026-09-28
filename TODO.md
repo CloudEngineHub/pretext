@@ -5,8 +5,6 @@ One line per item, with where its detail lives. Work depth-first; a punted item 
 ## Now
 
 - Check the README as an app developer's only guide: build a long chat list from it and `pages/demos/markdown-chat.md` alone, then compare the app's heights, resizing and scroll anchoring with the browser's.
-- Rich inline: continue a line in the line walker instead of walking each item again as if it began a line, so an item's first character is classified by the paragraph's joined text. It's on the unmerged branch `eng-x1` (RESEARCH.md, Rich Inline Boundaries, Joined Text) and waits on the next item.
-- Firefox's bidi controls laid out as its line breaker does, as if they weren't there, on the unmerged branch `gecko-bidi-control-gaps`: it fixes Firefox cases and reads some bench rows slower, a trade for the maintainer to decide (ENGINE_FOLLOWUPS.md, White space and controls).
 
 ## End of project
 
@@ -21,6 +19,7 @@ Held until the current work is done, and all before the first release.
   - a paragraph direction, and the device pixel ratio for Chrome's fit grid, the 1/64 device px Chrome fits lines on (RESEARCH.md, Measurement Model; decisions 3 and 4 of issue #321, a study of offline engine emulators);
   - `getTextClusters()` once Chrome ships it, no help for Firefox;
   - `extraWidth` on a rich item split across lines, which browsers pad only at its outer ends, and #201's fixed-width inline item;
+  - rich inline as one analysis of the paragraph cut at item boundaries, in place of each item's own analysis patched toward the joined text, which needs fragment cursors that don't index each item's own prepared text (RESEARCH.md, Rich Inline Boundaries, Continuing The Line; not prototyped);
   - how a browser whose Canvas lacks what its profile needs degrades, still laying text out rather than showing nothing.
 - Then a release, not before.
 - License notices for the ported engine code and data.

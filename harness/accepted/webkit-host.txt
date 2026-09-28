@@ -1,3 +1,30 @@
+## A soft hyphen after a space, before white space in the next span or its own, or white space and a soft hyphen that start the paragraph before a ZWSP, at 24 px and wider: Safari keeps the space after the soft hyphen visible where a line starts, as it doesn't consume a soft hyphen at a line start, where the library consumes both (main and 0fef0023 too; ENGINE_FOLLOWUPS.md)
+rich-0de3e74d8bc2e919 count
+rich-1a6f9dd50d85f9f7 count
+rich-1d58246788b59c86 count
+rich-24a61d081017549d count
+rich-3459bfe315ba839b count
+rich-4c95137459fba8f3 count
+rich-5e89a6e1c470fd3c breaks
+rich-6db6bdca4194c83a count
+rich-8490e462072dcf97 count
+rich-a7a9f028222bb391 breaks
+
+## A soft hyphen and a space that start a span after a ZWSP, at 24 px and wider: Safari ends the line after the ZWSP and keeps the space visible after the soft hyphen at the start of the next line, as it doesn't consume a soft hyphen at a line start, where the library consumes both (ENGINE_FOLLOWUPS.md)
+rich-a2a218c7d76d7837 breaks
+rich-b3cc002481d0d29b breaks
+
+## A span of a soft hyphen between spaces after a word, at 24 px and wider: Safari keeps the space after the soft hyphen visible at the start of the next line, as it doesn't consume a soft hyphen at a line start, where the library consumes both (main and c09d264b too; ENGINE_FOLLOWUPS.md)
+rich-01312c32f1e8f3eb breaks
+rich-48fd0c4b502a439d breaks
+
+## An atomic item whose own text starts with white space, 1/64 px from where Safari's lines change: Safari's line is 0.008-0.016 px wider than the library's, which gives that white space no gap (with the gap, the library broke earlier)
+rich-06df2d6965d8bdb5 count
+rich-4be9bba20319f03b breaks
+rich-a0596c4161354759 breaks
+rich-afad4ff1d34aeb4d count
+rich-b57d9b0ab2a3b373 count
+
 ## Arabic and Hebrew beside brackets, controls, U+FFFC or rich-item edges, at 24 px and wider: WebKit breaks there where the library doesn't
 catalog-09ea9f41ec2a80d9 count
 catalog-c51ee2cf1b09e825 count
@@ -87,6 +114,8 @@ old-gate-a4b0c2cd8b374d30 breaks
 old-gate-c55afebd1de7d4ff breaks
 old-gate-c7fff6370e1470f6 breaks
 old-gate-dd9785b9f09ad6a5 breaks
+rich-5d3ce06ac22e1dca count
+rich-fb89fcbe2ec753dd count
 
 ## Keycaps (U+20E3) after U+0001 in 24 px Georgia, at 24 px and wider: WebKit's page gives each 24.36 px and the chain's last 2.57 px, where its Canvas gives 24 px after the chain, so a line holds one keycap more or fewer (main too)
 catalog-286b0dc43de828bc count
@@ -1689,6 +1718,9 @@ facts-f7c254312e6c517b count
 facts-f8b095bc5316218f breaks
 facts-fbb22836f590bd81 count
 facts-ff7192e8ae470ce9 count
+rich-40018982415644fb count
+rich-9d0c04c18c44fb34 count
+rich-f6d6190bf525ffc7 count
 
 ## Narrower than real layouts: width 1, where nothing fits and WebKit keeps spaces, marks, controls or zero-width characters with the character before them otherwise than the library
 catalog-0099ca5fe40e865a count
@@ -2616,25 +2648,54 @@ facts-d5a3d937459712e1 count
 facts-f038a833918e39d7 count
 facts-f30eb70272204314 count
 facts-fc69084749bc97f4 count
+rich-02422502faa37ede count
+rich-029e71d595e94f0c count
+rich-0a3fec9a06a04eef count
+rich-0cabfc789f6a4358 count
 rich-166322a1778d474c count
 rich-1bb83fe38e3bd589 breaks
 rich-1e0d5476b00642c8 count
+rich-26f8627a88fc9819 count
+rich-2967857136330955 count
 rich-2c00457bd7ad6bcf count
+rich-3055350027afea05 count
+rich-34075de5f2f50824 count
 rich-388b66a049fe9fbd count
+rich-406ee1104d5987ce count
+rich-49d40a0beea8f837 count
+rich-4ab385df7ef60d77 count
 rich-4fb2c56ec3a40ccb count
+rich-5591e87036a36b35 count
+rich-61a0d94181d91eec count
+rich-62a3fc75836c636c count
 rich-650f9c1a169f4811 count
+rich-668d6722303f2370 count
 rich-6a71666ed4d69cb1 count
+rich-7207dfa4e9dfe793 count
 rich-79670bc9d59f6e67 count
 rich-807cbc79ec3f2948 count
+rich-857a18338463351b count
+rich-8acb5b79e29743bd count
+rich-91260660c787313b count
 rich-9367ecb62ffff68e count
 rich-943e608b099dd5a2 count
+rich-9caad05a8d6ec08d count
+rich-a09d53bd7aff382c count
 rich-a560650dfbeafe72 count
 rich-a89fcbe1a2cdab74 count
 rich-b0ae95da15d4fb3f count
 rich-be0a029c0b919953 count
+rich-c604ab44311a3b58 count
+rich-d2cbcec88b98434b count
 rich-e0fdbed3aed33077 count
+rich-e4d9d26e42f80135 count
+rich-ea6501c78957947f count
+rich-eac5e4eee615b1b8 count
+rich-f317f68bc8764b2d count
 rich-f56cf7d70b0a0366 count
+rich-f58eb7323359596a count
 rich-f7c9c9dc3e42a15d breaks
+rich-f925dd03f35ccc51 count
 rich-f9df6a719b8e8745 breaks
 
 ## Other shapes (U+FFFC, U+058A, hyphens before curly quotes, kerning before a space, rich-item boundaries), at 24 px and wider: WebKit breaks there where the library doesn't

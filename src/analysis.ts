@@ -1,5 +1,5 @@
-import { getGeckoLineBreaks, isDiscardable, isEastAsianSegmentBreak, isJapaneseOrChinese, isSpaceCombiningSequenceTail } from './gecko-line-breaks.js'
-import type { CharTable } from './generated/engine-break-data.js'
+import { getGeckoLineBreaks, isClusterExtender, isDiscardable, isEastAsianSegmentBreak, isJapaneseOrChinese, isSpaceCombiningSequenceTail } from './gecko-line-breaks.js'
+import { isBidiControl, type GraphemeTable } from './graphemes.js'
 import { BREAK, CLUSTER_START, FORCED_BREAK, SOFT_HYPHEN_BREAK, getBlinkLineBreaks, getWebKitLineBreaks } from './line-breaks.js'
 
 export type WhiteSpaceMode = 'normal' | 'pre-wrap'
@@ -68,7 +68,7 @@ export type TextAnalysis = {
 
 export type AnalysisProfile = {
   lineBreakScan: 'blink' | 'webkit' | 'gecko'
-  graphemeTable: CharTable
+  graphemeTable: GraphemeTable
 }
 
 const collapsibleWhitespaceRunRe = /[ \t\n\r\f]+/g
@@ -90,8 +90,9 @@ function isSegmentBreakRunSpace(code: number, scan: AnalysisProfile['lineBreakSc
 // - Gecko: SPACE, TAB and LF, continuing through the characters Gecko discards
 //   (SHY and bidi controls) without ending on one, and leaving out a last SPACE
 //   before a combining sequence tail. Text holding a ZWSP is 16-bit in Gecko.
-// Characters outside the run, such as FF, keep the ordinary collapse.
-export function removeSkippableSegmentBreaks(text: string, profile: AnalysisProfile, language: string | null = null): string {
+// Characters outside the run, such as FF, keep the ordinary collapse. `removed`, when given,
+// takes the index of each unit removed, in order.
+export function removeSkippableSegmentBreaks(text: string, profile: AnalysisProfile, language: string | null = null, removed: number[] | null = null): string {
   const scan = profile.lineBreakScan
   if (scan === 'webkit' || !text.includes('\n')) return text
   const eastAsian = scan === 'gecko' && maybeEastAsianRe.test(text)
@@ -122,10 +123,44 @@ export function removeSkippableSegmentBreaks(text: string, profile: AnalysisProf
     result += text.slice(copied, start)
     for (let member = start; member < end; member++) {
       if (!isSegmentBreakRunSpace(text.charCodeAt(member), scan)) result += text[member]
+      else removed?.push(member)
     }
     copied = end
   }
   return copied === 0 ? text : result + text.slice(copied)
+}
+
+// Gecko's white-space run reads through the bidi controls in it, which its text run drops, and
+// keeps its segment break if it holds one, or else its first white space (TransformWhiteSpaces,
+// nsTextFrameUtils.cpp:151-193), and a last space before a combining sequence tail as the tail's
+// base (TransformText, nsTextFrameUtils.cpp:319-345). So the run's other white space goes, and so
+// does white space before only bidi controls at the end, which the line end trims.
+const whiteSpaceThroughBidiControlsRe = /(?<![ \t\n\r\f])[ \t\n\r\f]+(?:[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]+[ \t\n\r\f]*)+/g
+function collapseWhiteSpaceThroughBidiControls(text: string): string {
+  return text.replace(whiteSpaceThroughBidiControlsRe, (run: string, at: number) => {
+    if (at + run.length === text.length) return run.replace(collapsibleWhitespaceRunRe, '')
+    let last = run.length - 1
+    while (!isCollapsibleSpaceCode(run.charCodeAt(last))) last--
+    const base = last > 0 && run.charCodeAt(last) === 0x20 && isSpaceCombiningSequenceTail(text, at + last + 1)
+    const kept = Math.max(run.indexOf('\n'), 0)
+    const end = base ? last : run.length
+    return run.slice(0, kept).replace(collapsibleWhitespaceRunRe, '') + run[kept] + run.slice(kept + 1, end).replace(collapsibleWhitespaceRunRe, '') + (base ? run.slice(last) : '')
+  })
+}
+
+// Where the collapsible white space that ends text[from, text.length) starts, which the analysis
+// leaves out and a line end trims, or the text's length where none ends it. Gecko's white-space
+// run reads through the bidi controls in it and after it (TransformText, nsTextFrameUtils.cpp:
+// 319-345), so there it is the first white space after the last character that is neither, and
+// the controls stay.
+export function getTrailingCollapsibleStart(text: string, from: number, profile: AnalysisProfile): number {
+  let start = text.length
+  for (let i = text.length - 1; i >= from; i--) {
+    const code = text.charCodeAt(i)
+    if (isCollapsibleSpaceCode(code)) start = i
+    else if (!(profile.lineBreakScan === 'gecko' && isBidiControl(code))) break
+  }
+  return start
 }
 
 // Every East Asian wide, fullwidth or halfwidth character is at or above U+1100.
@@ -227,17 +262,18 @@ function mapSourceLineBreaks(source: string, normalizedLength: number, sourceBre
 // mode, and a SOFT_HYPHEN_BREAK makes a soft hyphen a zero-width break: the line can end there
 // without a hyphen. One with only soft hyphens before it on its chunk stays a soft hyphen, since
 // a zero-width break there holds a line and Firefox, which drops soft hyphens from its text runs,
-// gives it none.
-function classifySegmentUnit(normalized: string, breaks: Uint8Array, i: number, code: number, whiteSpace: WhiteSpaceMode, scan: AnalysisProfile['lineBreakScan']): SegmentKindCode {
+// gives it none. Text that continues a line with content before it, as a rich-inline window
+// after a collapsible space does, has content before its start.
+function classifySegmentUnit(normalized: string, breaks: Uint8Array, i: number, code: number, whiteSpace: WhiteSpaceMode, scan: AnalysisProfile['lineBreakScan'], afterContent: boolean): SegmentKindCode {
   if ((code === 0x2028 || code === 0x2029) && (breaks[i + 1]! & FORCED_BREAK) !== 0) return HARD_BREAK
-  if (code === 0x00AD && (breaks[i + 1]! & SOFT_HYPHEN_BREAK) !== 0 && followsChunkContent(normalized, i)) return ZERO_WIDTH_BREAK
+  if (code === 0x00AD && (breaks[i + 1]! & SOFT_HYPHEN_BREAK) !== 0 && followsChunkContent(normalized, i, afterContent)) return ZERO_WIDTH_BREAK
   return classifySegmentBreakCode(code, whiteSpace, scan)
 }
 
-function followsChunkContent(normalized: string, i: number): boolean {
+function followsChunkContent(normalized: string, i: number, afterContent: boolean): boolean {
   let j = i - 1
   while (j >= 0 && normalized.charCodeAt(j) === 0x00AD) j--
-  return j >= 0 && normalized.charCodeAt(j) !== 0x0A
+  return j >= 0 ? normalized.charCodeAt(j) !== 0x0A : afterContent
 }
 
 // Characters of these kinds share a segment when no break falls between them. Each
@@ -261,7 +297,24 @@ function isControlSegmentCode(code: number): boolean {
 // Combining marks right after it, or after a control, stay apart from the text after
 // them, since they shape on the grapheme before it (measureAnalysis). Where the Gecko
 // scan marks cluster starts, a segment is ONE_CLUSTER unless one falls inside it.
-function segmentAtLineBreaks(normalized: string, spaceSources: Uint16Array | null, breaks: Uint8Array, whiteSpace: WhiteSpaceMode, scan: AnalysisProfile['lineBreakScan']): TextAnalysis {
+//
+// Firefox leaves soft hyphens and bidi controls out of the text run it breaks and maps a line end
+// past the characters it left out (IsDiscardable, nsTextFrameUtils.cpp:32-49; nsTextFrame.cpp:
+// 11161-11170), so a line ends after a run of them, never before one, and none starts with one
+// after a wrap. Where the Gecko scan's text run left out a bidi control, a run of such characters
+// with a control in it goes with the segment before it up to its last control: the scan finds no
+// break inside the run and gives the one after it after the run. A soft hyphen after the last
+// control keeps its break, and one before it offers none (GetHyphenationBreaks,
+// nsTextFrame.cpp:4436-4442). A run that starts a chunk is a text segment that starts its line,
+// with the text after it: Firefox trims no leading space there, since the content doesn't start
+// with one (nsTextFrame.cpp:10935-10950), and the break the scan gives after the run, after a hard
+// break or collapsed leading white space, can't end a line that holds nothing yet. A chunk of only
+// such a run is no content of its own, so the hard break before it takes it (nsTextFrame.cpp:
+// 11421-11429). After a control or marks that stay alone, the run starts a text segment. The
+// profile's graphemes look past these characters (src/graphemes.ts), so a cluster extender after
+// them joins the cluster before, unless a bidi level run starts at it, where the scan starts a
+// cluster (gfxTextRun.cpp:2828-2835) and the extender starts a segment.
+function segmentAtLineBreaks(normalized: string, spaceSources: Uint16Array | null, breaks: Uint8Array, whiteSpace: WhiteSpaceMode, scan: AnalysisProfile['lineBreakScan'], afterContent: boolean, dropsBidiControl: boolean): TextAnalysis {
   const oneCluster = scan === 'gecko' ? ONE_CLUSTER : 0
   const starts: number[] = []
   // A plain array, which measurement copies into the prepared handle's bytes: a Uint8Array for
@@ -269,17 +322,46 @@ function segmentAtLineBreaks(normalized: string, spaceSources: Uint16Array | nul
   const flags: number[] = []
   let lastAlone = false
   let markRun = false
+  // Where the last run of what the text run drops, handled at its start, ends.
+  let droppedEnd = -1
   for (let i = 0; i < normalized.length; i++) {
     const code = normalized.charCodeAt(i)
-    const kind = classifySegmentUnit(normalized, breaks, i, code, whiteSpace, scan)
-    const alone = kind === TEXT && isControlSegmentCode(code)
     const last = flags.length - 1
     // The first unit has no segment before it to join, so it starts one.
     const lastKind = last < 0 ? -1 : flags[last]! & KIND_BITS
+    if (dropsBidiControl && i < droppedEnd) continue
+    if (dropsBidiControl && isDiscardable(code, false) && (i === 0 || !isDiscardable(normalized.charCodeAt(i - 1), false))) {
+      // The run of what the text run drops from here, and where its last bidi control ends.
+      let j = i
+      let controlEnd = -1
+      for (; j < normalized.length && isDiscardable(normalized.charCodeAt(j), false); j++) if (isBidiControl(normalized.charCodeAt(j))) controlEnd = j + 1
+      if (controlEnd > 0) {
+        const chunkStart = last < 0 || lastKind === HARD_BREAK
+        if (chunkStart) {
+          const endsChunk = j === normalized.length || classifySegmentUnit(normalized, breaks, j, normalized.charCodeAt(j), whiteSpace, scan, afterContent) === HARD_BREAK
+          if (!endsChunk) breaks[j] = breaks[j]! & ~(BREAK | SOFT_HYPHEN_BREAK)
+          droppedEnd = j
+          if (endsChunk && last >= 0) continue
+        } else {
+          droppedEnd = controlEnd
+        }
+        if (chunkStart || lastAlone || markRun) {
+          starts.push(i)
+          flags.push(TEXT | oneCluster)
+          lastAlone = false
+          markRun = false
+        }
+        continue
+      }
+    }
+    const kind = classifySegmentUnit(normalized, breaks, i, code, whiteSpace, scan, afterContent)
+    const alone = kind === TEXT && isControlSegmentCode(code)
     const unbroken = (breaks[i]! & BREAK) === 0
+    const levelRunExtender = dropsBidiControl && i === droppedEnd && (breaks[i]! & CLUSTER_START) !== 0 && isBidiControl(normalized.charCodeAt(i - 1)) &&
+      isClusterExtender(normalized.codePointAt(i)!)
     if (
       unbroken && !alone && !lastAlone && !(markRun && !combiningMarkRe.test(normalized[i]!)) &&
-      kind === lastKind && gathersKind(kind)
+      !levelRunExtender && kind === lastKind && gathersKind(kind)
     ) {
       if ((breaks[i]! & CLUSTER_START) !== 0) flags[last] = flags[last]! & ~ONE_CLUSTER
       continue
@@ -322,23 +404,39 @@ export function analyzeText(
   // line tables, WebKit's quotation remap and Gecko's rule for newlines next to East
   // Asian punctuation.
   language: string | null = null,
+  // Whether the text continues a line that has content before it (classifySegmentUnit).
+  afterContent = false,
 ): TextAnalysis {
   const preserve = whiteSpace === 'pre-wrap'
   // The source a text node's engine scans, after the segment break transformation.
-  const source = preserve ? text : removeSkippableSegmentBreaks(text, profile, language)
-  const normalized = preserve ? normalizeWhitespacePreWrap(text) : collapseWhitespaceNormal(source)
+  let source = preserve ? text : removeSkippableSegmentBreaks(text, profile, language)
+  let normalized = preserve ? normalizeWhitespacePreWrap(text) : collapseWhitespaceNormal(source)
   const keepAll = wordBreak === 'keep-all'
   let breaks: Uint8Array
   let spaceSources: Uint16Array | null = null
+  let dropsBidiControl = false
   if (profile.lineBreakScan === 'blink') {
     breaks = getBlinkLineBreaks(normalized, keepAll, language)
   } else {
     // WebKit and Gecko scan the source. Gecko's scan collapses its white space as Firefox does.
-    const sourceBreaks = profile.lineBreakScan === 'webkit'
-      ? getWebKitLineBreaks(source, preserve, keepAll, language)
-      : getGeckoLineBreaks(source, preserve, keepAll, profile.graphemeTable)
+    let sourceBreaks: Uint8Array
+    if (profile.lineBreakScan === 'webkit') {
+      sourceBreaks = getWebKitLineBreaks(source, preserve, keepAll, language)
+    } else {
+      let gecko = getGeckoLineBreaks(source, preserve, keepAll, profile.graphemeTable)
+      dropsBidiControl = gecko.dropsBidiControl
+      // Where that collapse drops white space, the scan runs again: its text run is the same, but
+      // its offsets move.
+      const collapsed = dropsBidiControl && !preserve ? collapseWhiteSpaceThroughBidiControls(source) : source
+      if (collapsed !== source) {
+        source = collapsed
+        normalized = collapseWhitespaceNormal(source)
+        gecko = getGeckoLineBreaks(source, preserve, keepAll, profile.graphemeTable)
+      }
+      sourceBreaks = gecko.breaks
+    }
     if (profile.lineBreakScan === 'webkit' && !preserve && source !== normalized) spaceSources = new Uint16Array(normalized.length)
     breaks = source === normalized ? sourceBreaks : mapSourceLineBreaks(source, normalized.length, sourceBreaks, whiteSpace, spaceSources)
   }
-  return segmentAtLineBreaks(normalized, spaceSources, breaks, whiteSpace, profile.lineBreakScan)
+  return segmentAtLineBreaks(normalized, spaceSources, breaks, whiteSpace, profile.lineBreakScan, afterContent, dropsBidiControl)
 }

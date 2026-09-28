@@ -8,6 +8,8 @@
 import { clearWordSegmenter } from './line-breaks.js'
 import {
   analyzeText,
+  KIND_BITS,
+  SEGMENT_KINDS,
   type SegmentBreakKind,
   type WhiteSpaceMode,
   type WordBreakMode as AnalysisWordBreakMode,
@@ -95,7 +97,7 @@ function prepareInternal(
   font: string,
   includeSegments: boolean,
   options?: PrepareOptions,
-): InternalPreparedText | PreparedTextWithSegments {
+): InternalPreparedText {
   const wordBreak = options?.wordBreak ?? 'normal'
   const letterSpacing = readLetterSpacing(options?.letterSpacing)
   const engineProfile = getEngineProfile()
@@ -131,7 +133,12 @@ export function prepare(text: string, font: string, options?: PrepareOptions): P
 // Rich variant used by callers that need enough information to render the
 // laid-out lines themselves.
 export function prepareWithSegments(text: string, font: string, options?: PrepareOptions): PreparedTextWithSegments {
-  return prepareInternal(text, font, true, options) as PreparedTextWithSegments
+  const prepared = prepareInternal(text, font, true, options) as PreparedTextWithSegments
+  // Each segment's kind by name, from its flags.
+  const kinds: SegmentBreakKind[] = []
+  for (let i = 0; i < prepared.segmentFlags.length; i++) kinds.push(SEGMENT_KINDS[prepared.segmentFlags[i]! & KIND_BITS]!)
+  prepared.kinds = kinds
+  return prepared
 }
 
 function getInternalPrepared(prepared: PreparedText): InternalPreparedText {

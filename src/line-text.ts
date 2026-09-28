@@ -1,15 +1,18 @@
 import { findGraphemeEnds } from './graphemes.js'
 import { HARD_BREAK, KIND_BITS, SOFT_HYPHEN, ZERO_WIDTH_BREAK, ZERO_WIDTH_GLUE } from './analysis.js'
-import { isDiscretionaryLineEnd } from './line-break.js'
+import { isDiscretionaryLineEnd, type PreparedLineBreakData } from './line-break.js'
 import { getEngineProfile } from './measurement.js'
-import type { PreparedTextWithSegments } from './layout.js'
+
+// A handle with each segment's text, which line text is built from: prepareWithSegments()'s, or
+// a rich-inline item's.
+export type PreparedSegments = PreparedLineBreakData & { segments: string[] }
 
 // Per handle, the grapheme ends of each segment a line or a rich item's break has
 // started or ended inside.
-const graphemeEndCaches = new WeakMap<PreparedTextWithSegments, Map<number, Int32Array>>()
+const graphemeEndCaches = new WeakMap<PreparedSegments, Map<number, Int32Array>>()
 
 // The offsets in a segment's text where its graphemes end, in order, then zeros.
-export function getGraphemeEnds(prepared: PreparedTextWithSegments, segmentIndex: number): Int32Array {
+export function getGraphemeEnds(prepared: PreparedSegments, segmentIndex: number): Int32Array {
   let cache = graphemeEndCaches.get(prepared)
   if (cache === undefined) {
     cache = new Map<number, Int32Array>()
@@ -26,12 +29,12 @@ export function getGraphemeEnds(prepared: PreparedTextWithSegments, segmentIndex
 }
 
 // Where grapheme `graphemeIndex` of a segment starts in its text.
-function getGraphemeStart(prepared: PreparedTextWithSegments, segmentIndex: number, graphemeIndex: number): number {
+function getGraphemeStart(prepared: PreparedSegments, segmentIndex: number, graphemeIndex: number): number {
   return graphemeIndex === 0 ? 0 : getGraphemeEnds(prepared, segmentIndex)[graphemeIndex - 1]!
 }
 
 export function buildLineTextFromRange(
-  prepared: PreparedTextWithSegments,
+  prepared: PreparedSegments,
   startSegmentIndex: number,
   startGraphemeIndex: number,
   endSegmentIndex: number,
