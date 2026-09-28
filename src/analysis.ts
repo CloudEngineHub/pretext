@@ -152,18 +152,18 @@ export function getTrailingCollapsibleStart(text: string, from: number, scan: An
 // keeps its segment break if it holds one, or else its first white space (TransformWhiteSpaces,
 // nsTextFrameUtils.cpp:151-193), and a last space before a combining sequence tail as the tail's
 // base (TransformText, nsTextFrameUtils.cpp:319-345). So the run's other white space goes, and so
-// does the white space that ends the text (getTrailingCollapsibleStart).
+// does white space before only bidi controls at the end, which the line end trims.
 const whiteSpaceThroughBidiControlsRe = /(?<![ \t\n\r\f])[ \t\n\r\f]+(?:[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]+[ \t\n\r\f]*)+/g
 function collapseWhiteSpaceThroughBidiControls(text: string): string {
-  const trailing = getTrailingCollapsibleStart(text, 0, 'gecko')
-  return text.slice(0, trailing).replace(whiteSpaceThroughBidiControlsRe, (run: string, at: number) => {
+  return text.replace(whiteSpaceThroughBidiControlsRe, (run: string, at: number) => {
+    if (at + run.length === text.length) return run.replace(collapsibleWhitespaceRunRe, '')
     let last = run.length - 1
     while (!isCollapsibleSpaceCode(run.charCodeAt(last))) last--
     const base = last > 0 && run.charCodeAt(last) === 0x20 && isSpaceCombiningSequenceTail(text, at + last + 1)
     const kept = Math.max(run.indexOf('\n'), 0)
     const end = base ? last : run.length
     return run.slice(0, kept).replace(collapsibleWhitespaceRunRe, '') + run[kept] + run.slice(kept + 1, end).replace(collapsibleWhitespaceRunRe, '') + (base ? run.slice(last) : '')
-  }) + text.slice(trailing).replace(collapsibleWhitespaceRunRe, '')
+  })
 }
 
 // Every East Asian wide, fullwidth or halfwidth character is at or above U+1100.

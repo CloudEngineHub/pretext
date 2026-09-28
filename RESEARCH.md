@@ -175,9 +175,8 @@ characters joins the hard break before it, as Firefox lays no frame of them out 
 (nsTextFrame.cpp:11421-11429). Firefox's white-space run reads through the controls in it
 (TransformText, nsTextFrameUtils.cpp:319-345), so the profile's collapse does too: the
 spaces on both sides of a control take the room of one, which is the segment break where
-they hold one (TransformWhiteSpaces, nsTextFrameUtils.cpp:151-193), and the white space
-that ends the text goes, read through the controls among and after it, which stay
-(`getTrailingCollapsibleStart`), and the scan runs again on what's left. The
+they hold one (TransformWhiteSpaces, nsTextFrameUtils.cpp:151-193), and white space before
+only controls at the end of the text goes, and the scan runs again on what's left. The
 profile's graphemes look past soft hyphens and bidi controls (Grapheme Clusters From
 Engine Data), so a mark after a control joins the cluster before it, except where a bidi
 level run starts at the mark, which the scan marks as a cluster start and the analysis as
@@ -1454,8 +1453,8 @@ don't fit (ENGINE_FOLLOWUPS.md). A gap is one space in one item's font, so it ca
 both. The rule reads the item's segments where a soft hyphen among the characters the run
 goes past keeps the white space before them, or where that white space is the item's
 leading white space, and then reaches the bidi controls among and after the item's trailing
-white space, which the analysis reads as one run with it (`getTrailingCollapsibleStart`,
-shared with the analysis); white space there collapses into the run at any level, as
+white space, which the analysis reads as one run with it (`getTrailingCollapsibleStart`);
+white space there collapses into the run at any level, as
 Firefox carries the run into the next text run (INCOMING_WHITESPACE, FlushFrames,
 nsTextFrame.cpp:1800-1804): Firefox's first line of items `see \u200F\u00AD`, ` this more`
 at 60px is 59.60px, two spaces wide, which rich lines give too. Items `see`, ` \u200E `,
