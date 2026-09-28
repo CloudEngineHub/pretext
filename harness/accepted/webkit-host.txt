@@ -18,6 +18,12 @@ rich-b3cc002481d0d29b breaks
 rich-01312c32f1e8f3eb breaks
 rich-48fd0c4b502a439d breaks
 
+## An atomic item whose own text starts with white space, at 24 px and wider: the browser trims that white space inside the inline-block, where the library gives it a collapsed gap before the item (main and fd8002ba too; ENGINE_FOLLOWUPS.md)
+rich-307012efb8c6695d breaks
+rich-639a49ba10b96be7 count
+rich-6ad3cbeccdc8ef9d breaks
+rich-cf3ad5d694000b24 breaks
+
 ## Arabic and Hebrew beside brackets, controls, U+FFFC or rich-item edges, at 24 px and wider: WebKit breaks there where the library doesn't
 catalog-09ea9f41ec2a80d9 count
 catalog-c51ee2cf1b09e825 count
@@ -1713,6 +1719,7 @@ facts-fbb22836f590bd81 count
 facts-ff7192e8ae470ce9 count
 rich-40018982415644fb count
 rich-9d0c04c18c44fb34 count
+rich-f6d6190bf525ffc7 count
 
 ## Narrower than real layouts: width 1, where nothing fits and WebKit keeps spaces, marks, controls or zero-width characters with the character before them otherwise than the library
 catalog-0099ca5fe40e865a count
@@ -2653,6 +2660,7 @@ rich-2c00457bd7ad6bcf count
 rich-3055350027afea05 count
 rich-34075de5f2f50824 count
 rich-388b66a049fe9fbd count
+rich-406ee1104d5987ce count
 rich-49d40a0beea8f837 count
 rich-4ab385df7ef60d77 count
 rich-4fb2c56ec3a40ccb count
@@ -2665,6 +2673,7 @@ rich-6a71666ed4d69cb1 count
 rich-7207dfa4e9dfe793 count
 rich-79670bc9d59f6e67 count
 rich-807cbc79ec3f2948 count
+rich-857a18338463351b count
 rich-8acb5b79e29743bd count
 rich-91260660c787313b count
 rich-9367ecb62ffff68e count
@@ -2685,6 +2694,7 @@ rich-f317f68bc8764b2d count
 rich-f56cf7d70b0a0366 count
 rich-f58eb7323359596a count
 rich-f7c9c9dc3e42a15d breaks
+rich-f925dd03f35ccc51 count
 rich-f9df6a719b8e8745 breaks
 
 ## Other shapes (U+FFFC, U+058A, hyphens before curly quotes, kerning before a space, rich-item boundaries), at 24 px and wider: WebKit breaks there where the library doesn't

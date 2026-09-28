@@ -1348,6 +1348,31 @@ wherever it falls, however little room the line has left, as a hard break in one
 does, lost 159 webkit-host cases of the probe, where Safari gives the separator a line of
 its own after white space that hangs.
 
+Firefox's bidi resolution splits text frames where the embedding level changes, and a
+text run doesn't go on across that split (`ContinueTextRunAcrossFrames`,
+nsTextFrame.cpp:2023-2030), so a character Firefox drops after white space, at another
+level than that white space, starts a text run, where TransformText meets it after no
+white space and ends the run: items `see \u200F`, ` this` in 16px Arial take 2 lines in
+Firefox at 56-59px, as spans and as one node, where fd8002ba carried the run past U+200F
+and fit one 55.15px line. U+061C ends it too, while U+202B and U+2067 take the level of
+the space before them, as U+200F does between Hebrew letters, and there Firefox keeps the
+run. The Gecko profile carries the run past such characters at an item's end only where
+the paragraph's levels give them the white space's level (`getGeckoParagraphLevels`, the
+Gecko scan's port of Firefox's levels), made only for text with right-to-left characters,
+as Firefox resolves levels only there, and only once a run would go on past such
+characters, so other rich text pays nothing for them. An atomic item's own leading white
+space sits inside its inline-block, which trims it, so it collapses into an open run too:
+Firefox's first line of items `see \u00AD`, atomic ` chip`, ` this word` at 60px is `see `
+and `chip`, 59.60px, where fd8002ba counted a space more. On the third September 27, 2026
+review probe, 59,415 rich cases of 3,349 fuzz inputs with their one-node twins, the two
+fix 183 Firefox cases against fd8002ba and lose 90, and move no Chrome or webkit-host
+case; of the 90, Firefox lays out 37 otherwise as spans than as one node, 46 fail as their
+one node does and 7 as spans only, where fd8002ba's collapsed space kept a bidi control
+Firefox drops off a line of its own (ENGINE_FOLLOWUPS.md), and main passes 5 of them. The
+review's diagnostic of the level rule alone fixed 153 and lost 91, and dropping the
+atomic item's exception alone fixed 35 and lost none. No case of the second probe, of
+80,512, moves.
+
 In the Gecko profile a soft hyphen after collapsible white space is a zero-width break,
 which Firefox drops from its text (`IsDiscardable`, nsTextFrameUtils.cpp:32-49), so it
 holds no line: a rich line start consumes it wherever it reaches it, as the flat walker
@@ -1357,9 +1382,14 @@ where the word after them didn't fit: items `\u05E9\u05DC\u05D5\u05DD `,
 `\u05E9\u05DC\u05D5\u05DD`, ` a`, ` \u00AD \u00ADx`, U+00A0, `nation\u00ADal ation\u00AD`
 at 49px in 16px Arial take 5 lines in Firefox and took 6. A line start reaches such a
 break only at a chunk's start, where normalization holds a zero-width break, and the
-chunk's start goes on after it, past spaces and soft hyphens, which the rich line start
-skips itself (`normalizeItemLineStart`), since giving `normalizePreparedLineStart()`, which
-the flat walkers share, the chunk's start as a parameter read Firefox's lines mixed stream
+chunk's start goes on after it, which the rich line start steps past itself
+(`normalizeItemLineStart`). The Gecko analysis makes one only of the last soft hyphen of
+white space and soft hyphens, before other source, so the step reaches no space or soft
+hyphen: skipping those after it too, as fd8002ba did, changed nothing in `bun test`,
+`equal --offline`, 40,000 Gecko fuzz inputs or the third September 27, 2026 review probe's
+59,415 rich cases in the three browsers, and cost six lines. Giving
+`normalizePreparedLineStart()`, which the flat walkers share, the chunk's start as a
+parameter read Firefox's lines mixed stream
 2.2% and 2.4% slower against 0fef0023 in a 2-session bench. 0fef0023 normalized again from
 the next segment, which is no chunk's start, and so consumed a ZWSP that holds the line
 there, as for items ` \u00AD \u00AD\u200B`, `textword`, which take an empty first line in

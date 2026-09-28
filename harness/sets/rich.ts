@@ -21,7 +21,10 @@
 //   that starts with white space and soft hyphens, whose soft hyphen after the white space Firefox drops; and, cut on
 //   their own too, a run of white space that goes on across items past the soft hyphens and bidi controls Firefox
 //   drops, one that a soft hyphen starting an item ends, and a ZWSP after white space and soft hyphens where a line
-//   starts.
+//   starts; and, cut on their own too, a run that a right-to-left mark after its white space ends where one at the white
+//   space's bidi level doesn't, one that text after it ends, an atomic item whose leading white space collapses into
+//   one, a soft hyphen after no white space, which opens none, and a ZWSP after soft hyphens where a line starts after
+//   a wrap.
 import { TEXTS } from '../../src/test-data.ts'
 import type { CssFont, TextRun } from '../types.ts'
 import { codePoints, createRng, font, paragraph, span } from './build.ts'
@@ -119,7 +122,7 @@ export function richTemplates(): Template[] {
     out.push(template(chip ? 'chips' : 'code-spans', chip ? 'an atomic mention chip with padding (pages/demos/rich-note.model.ts)' : 'inline code with padding (pages/demos/rich-note.model.ts)',
       HELVETICA, [...(before === '' ? [] : [before]), run, after], lang))
   }
-  const continued: ReadonlyArray<readonly [string, readonly string[], string?]> = [
+  const continued: ReadonlyArray<readonly [string, readonly Part[], string?]> = [
     ['soft-hyphen-start', ['Pre', '\u{AD}text lays out text']], ['soft-hyphen-start', ['na', '\u{AD}tion', 'al parks']],
     ['soft-hyphen-after-ideograph', ['漢字', '\u{AD}ab', 'cd'], 'zh'], ['soft-hyphen-after-ideograph', ['\u{1F60A}', '\u{AD}ab cd']],
     ['soft-hyphen-before-mark', ['abc', '\u{AD}\u{301}def ghi']],
@@ -138,10 +141,15 @@ export function richTemplates(): Template[] {
     ['soft-hyphen-ends-white-space-run', ['see ', '\u{AD} ', 'this word']], ['soft-hyphen-ends-white-space-run', ['see', '\u{AD} \u{AD}', 'this word']],
     ['zwsp-after-discarded-soft-hyphens', [' \u{AD} \u{AD}\u{200B}', 'textword']], ['zwsp-after-discarded-soft-hyphens', ['ab', ' \u{AD} \u{AD}\u{200B}', 'textword']],
     ['zwsp-after-discarded-soft-hyphens', [' \u{AD}', ' \u{AD}\u{200B}', 'textword']],
+    ['bidi-level-ends-white-space-run', ['see \u{200F}', ' this']], ['bidi-level-ends-white-space-run', ['see \u{61C}', ' this word']],
+    ['bidi-level-ends-white-space-run', ['see \u{202B}', ' this']], ['bidi-level-ends-white-space-run', ['\u{5E9}\u{5DC}\u{5D5}\u{5DD} \u{200F}', ' this']],
+    ['text-ends-white-space-run', ['see \u{AD}', 'x', ' this']], ['soft-hyphen-after-no-space', ['see\u{AD}', ' this']],
+    ['atomic-item-in-white-space-run', ['see \u{AD}', span(' chip', ARIAL, { atomic: true }), ' this word']],
+    ['zwsp-after-discarded-soft-hyphens', ['\u{300D} \u{AD}', '\u{AD}\u{200B}', '42']],
   ]
   for (let i = 0; i < continued.length; i++) {
     const [family, parts, lang] = continued[i]!
-    out.push(template(`continued/${family}`, 'items that continue the line before them (src/layout.test.ts, rich-inline invariants)', ARIAL, parts.map(part => item(part)), lang))
+    out.push(template(`continued/${family}`, 'items that continue the line before them (src/layout.test.ts, rich-inline invariants)', ARIAL, parts.map(part => typeof part === 'string' ? item(part) : part), lang))
   }
   return out
 }

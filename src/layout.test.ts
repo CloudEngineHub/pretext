@@ -2991,8 +2991,8 @@ describe('rich-inline invariants', () => {
   test('rich items collapse white space past soft hyphens and bidi controls where Gecko does, and soft hyphens and ZWSPs end and hold lines as in one text', () => {
     // Each line's width and its fragments' items, gaps and occupied widths, to 1e-6 px.
     const r = (width: number) => Math.round(width * 1e6) / 1e6
-    const walk = (texts: readonly string[], maxWidth: number) => {
-      const prepared = prepareRichInline(texts.map(text => ({ text, font: FONT })))
+    const walk = (texts: ReadonlyArray<string | { text: string, break: 'never' }>, maxWidth: number) => {
+      const prepared = prepareRichInline(texts.map(text => typeof text === 'string' ? { text, font: FONT } : { ...text, font: FONT }))
       const lines: Array<[number, Array<[number, number, number]>]> = []
       walkRichInlineLineRanges(prepared, maxWidth, range => {
         lines.push([r(range.width), range.fragments.map(fragment => [fragment.itemIndex, r(fragment.gapBefore), r(fragment.occupiedWidth)])])
@@ -3004,6 +3004,10 @@ describe('rich-inline invariants', () => {
     const mark = measureWidth('\u200E', FONT)
     const words = measureWidth('this word', FONT)
     const bracket = measureWidth('\u300D', FONT)
+    const control = measureWidth('\u200F', FONT)
+    const hebrew = measureWidth('\u05D0\u05D1', FONT)
+    const x = measureWidth('x', FONT)
+    const chip = measureWidth('chip', FONT)
     const hyphen = measureWidth('-', FONT)
     const profile = getEngineProfile()
     const previous = [profile.lineBreakScan, profile.spaceBeforeSoftHyphenHangs, profile.collapsesSpaceAcrossSoftHyphens] as const
@@ -3031,6 +3035,19 @@ describe('rich-inline invariants', () => {
         // Where a line starts, a ZWSP after white space and soft hyphens holds the line.
         expect(walk([' \u00AD \u00AD\u200B', 'textword'], words / 2)[0]).toEqual([0, [[0, 0, 0]]])
         expect(walk([' \u00AD', ' \u00AD\u200B', 'textword'], words / 2)[0]).toEqual([0, [[0, 0, 0], [1, 0, 0]]])
+        // A run carries past a character Gecko drops only at the white space's bidi level: after
+        // a space in left-to-right text, U+200F starts a text run of its own, where U+202B takes
+        // the space's level, as U+200F does between Hebrew letters.
+        expect(walk(['see \u200F', ' this word'], Infinity)).toEqual([[r(see + space + control + space + words), [[0, 0, r(see + space + control)], [1, r(space), r(words)]]]])
+        expect(walk(['see \u202B', ' this word'], Infinity)).toEqual([[r(see + space + control + second + words), [[0, 0, r(see + space + control)], [1, r(second), r(words)]]]])
+        expect(walk(['\u05D0\u05D1 \u200F', ' \u05D2\u05D3'], Infinity)).toEqual([[r(hebrew + space + control + second + hebrew), [[0, 0, r(hebrew + space + control)], [1, r(second), r(hebrew)]]]])
+        // A soft hyphen after no white space opens no run, and text after one closes it.
+        expect(walk(['see\u00AD', ' this word'], Infinity)).toEqual([[r(see + space + words), [[0, 0, r(see)], [1, r(space), r(words)]]]])
+        expect(walk(['see \u00AD', 'x', ' this word'], Infinity)).toEqual([[r(see + space + x + space + words), [[0, 0, r(see + space)], [1, 0, r(x)], [2, r(space), r(words)]]]])
+        // An atomic item's leading white space collapses into an open run, and the run ends there.
+        expect(walk(['see \u00AD', { text: ' chip', break: 'never' }, ' this word'], Infinity)).toEqual([[r(see + space + second + chip + space + words), [[0, 0, r(see + space)], [1, r(second), r(chip)], [2, r(space), r(words)]]]])
+        // A ZWSP after a soft hyphen that starts an item holds a line after a wrap.
+        expect(walk(['\u300D \u00AD', '\u00AD\u200B', '42'], 9).map(line => line[0])).toEqual([r(bracket), 0, r(measureWidth('4', FONT)), r(measureWidth('42', FONT) - measureWidth('4', FONT))])
       }
     } finally {
       [profile.lineBreakScan, profile.spaceBeforeSoftHyphenHangs, profile.collapsesSpaceAcrossSoftHyphens] = previous

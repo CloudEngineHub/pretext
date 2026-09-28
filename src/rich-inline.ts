@@ -9,14 +9,13 @@ import {
   removeSkippableSegmentBreaks,
   RETURNABLE,
   SOFT_HYPHEN,
-  SPACE,
   TEXT,
   UNBROKEN,
   ZERO_WIDTH_BREAK,
   ZERO_WIDTH_GLUE,
   type TextAnalysis,
 } from './analysis.js'
-import { isDiscardable } from './gecko-line-breaks.js'
+import { getGeckoParagraphLevels, isDiscardable } from './gecko-line-breaks.js'
 import { getWebKitBreakBetweenItems } from './line-breaks.js'
 import { buildLineTextFromRange, getGraphemeEnds } from './line-text.js'
 import {
@@ -27,7 +26,7 @@ import {
   stepPreparedLineGeometryFromStart,
   type ItemLine,
 } from './line-break.js'
-import { getEngineProfile, getFontMeasurement, getPreparationLanguage, getSegmentMetrics, readLetterSpacing } from './measurement.js'
+import { getEngineProfile, getFontMeasurement, getPreparationLanguage, getSegmentMetrics, readLetterSpacing, type EngineProfile } from './measurement.js'
 import { measureAnalysis } from './prepare.js'
 
 // Helper for rich-text inline flow under `white-space: normal`.
@@ -181,20 +180,26 @@ function isDiscardedBreak(data: PreparedTextWithSegments, segmentIndex: number):
   return (data.segmentFlags[segmentIndex]! & KIND_BITS) === ZERO_WIDTH_BREAK && data.segments[segmentIndex]!.charCodeAt(0) === 0x00AD
 }
 
+// The bidi levels Firefox resolves over the paragraph the items make (getGeckoParagraphLevels), each
+// item's text as prepareRichInline() takes it and an atomic one as U+FFFC (nsBidiPresUtils.cpp:1385-1396),
+// or null where it resolves none. `starts` takes each item's offset in that text.
+function getItemLevels(items: RichInlineItem[], profile: EngineProfile, language: string | null, starts: number[]): Uint8Array | null {
+  let source = ''
+  for (let index = 0; index < items.length; index++) {
+    starts.push(source.length)
+    source += items[index]!.break === 'never' ? '\uFFFC' : removeSkippableSegmentBreaks(items[index]!.text, profile, language)
+  }
+  return getGeckoParagraphLevels(source)
+}
+
 // Moves `start` past what a rich line start consumes: what normalizePreparedLineStart()
 // consumes, and a discarded break (isDiscardedBreak), where normalization stops only at a
-// chunk's start. The chunk's start goes on after it, past spaces and soft hyphens, so a
-// ZWSP or a hard break after it still holds the line. False where that is all of the item.
+// chunk's start. The Gecko analysis makes one only of the last soft hyphen of white space and
+// soft hyphens, before other source, so a ZWSP or a hard break after it still holds the line.
+// False where that is all of the item.
 function normalizeItemLineStart(data: PreparedTextWithSegments, start: LayoutCursor): boolean {
   if (!normalizePreparedLineStart(data, start)) return false
-  const { segmentFlags } = data
-  while (isDiscardedBreak(data, start.segmentIndex)) {
-    let index = start.segmentIndex + 1
-    while (index < segmentFlags.length && ((segmentFlags[index]! & KIND_BITS) === SPACE || (segmentFlags[index]! & KIND_BITS) === SOFT_HYPHEN)) index++
-    if (index === segmentFlags.length) return false
-    start.segmentIndex = index
-  }
-  return true
+  return !(isDiscardedBreak(data, start.segmentIndex) && ++start.segmentIndex === data.segmentFlags.length)
 }
 
 // The item's width on a line of its own, from `start`, which it moves past what a line
@@ -318,8 +323,18 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
   // (nsTextFrameUtils.cpp:286-386), and so does an atomic inline
   // (BuildTextRunsScanner::ScanFrame). In 16px Arial at 56px, Firefox fits `see this` of items
   // `see`, ` \u00AD`, ` this word` on a 55.15px line, and not of `see `, `\u00AD `, `this word`,
-  // whose text in one node it fits.
+  // whose text in one node it fits. Bidi resolution splits text frames where the embedding level
+  // changes, and a text run doesn't go on across that split (ContinueTextRunAcrossFrames,
+  // nsTextFrame.cpp:2023-2030), so one of those characters at another level than the white space
+  // before it starts a text run, where it follows no white space, and ends the run: Firefox takes
+  // 2 lines at 56-59px for items `see \u200F`, ` this`, as U+200F is right-to-left there, and 1
+  // for `see \u202B`, ` this`, whose U+202B takes the level of the space before it, as U+200F
+  // does between Hebrew letters.
   let whitespaceRunOpen = false
+  // The paragraph's bidi levels (getItemLevels), made where a run first goes on past such
+  // characters, and each item's offset there.
+  let levels: Uint8Array | null | undefined
+  const levelStarts: number[] = []
   let previousItem: PreparedRichInlineItem | null = null
   // Collapsible spaces always break and atomic items always allow a break on
   // both sides. Only the text between them joins across item boundaries.
@@ -426,8 +441,11 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
     const whitespaceBefore: boolean = pendingGapWidth !== null || hasLeadingWhitespace
     if (breaksFromItemText) boundaryContexts[index] = text.slice(Math.max(0, end - 2), end)
 
+    // Leading white space collapses into a run left open before it, an atomic item's too, which
+    // its box trims; elsewhere an atomic item's takes a gap the browsers don't paint
+    // (ENGINE_FOLLOWUPS.md).
     let gapBefore = pendingGapWidth ?? (
-      hasLeadingWhitespace ? whitespaceRunOpen && item.break !== 'never' ? 0 : getCollapsedSpaceWidth(item.font, letterSpacing, language) : 0
+      hasLeadingWhitespace ? whitespaceRunOpen ? 0 : getCollapsedSpaceWidth(item.font, letterSpacing, language) : 0
     )
     let gapItemIndex = pendingGapWidth !== null ? pendingGapItemIndex : hasLeadingWhitespace ? index : -1
     // Normalization already drops boundary whitespace, so the item's own text
@@ -518,11 +536,16 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
     previousItem = preparedItem
 
     // Where the item's text before its trailing white space ends in white space and then
-    // characters Gecko drops, the run goes on past them: white space after them collapses into
-    // it, as a gap that takes no room where a line still breaks.
+    // characters Gecko drops at the white space's bidi level, the run goes on past them: white
+    // space after them collapses into it, as a gap that takes no room where a line still breaks.
     let runEnd = end
     while (runEnd > 0 && isDiscardable(text.charCodeAt(runEnd - 1), false)) runEnd--
-    const runGoesOn = profile.collapsesSpaceAcrossSoftHyphens && itemBreak !== 'never' && runEnd < end && runEnd > 0 && isCollapsibleSpaceCode(text.charCodeAt(runEnd - 1))
+    let runGoesOn = profile.collapsesSpaceAcrossSoftHyphens && itemBreak !== 'never' && runEnd < end && runEnd > 0 && isCollapsibleSpaceCode(text.charCodeAt(runEnd - 1))
+    if (runGoesOn) {
+      if (levels === undefined) levels = getItemLevels(items, profile, language, levelStarts)
+      const offset = levelStarts[index]!
+      for (let i = runEnd; levels !== null && runGoesOn && i < end; i++) runGoesOn = levels[offset + i] === levels[offset + runEnd - 1]
+    }
     pendingGapWidth = !hasTrailingWhitespace
       ? null
       : runGoesOn ? 0 : getCollapsedSpaceWidth(item.font, letterSpacing, language)
