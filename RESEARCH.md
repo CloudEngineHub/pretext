@@ -27,6 +27,10 @@ throughout:
   the text it affects; `ENGINE_FOLLOWUPS.md` lists the open ones.
 - **Page history** is a result that depends on what the page measured or laid out before, through the browser's caches,
   which the paragraph alone can't predict.
+- **engineering.md** and **ui.md** are the maintainer's general rules for code and for UI, `docs/engineering.md` and
+  `docs/ui.md` in the vibescript repository, not yet public and to be open-sourced as chenguini; **Scrolling.md**,
+  `docs/Scrolling.md` there, argues the scrolling rules. A pointer such as (engineering.md, Caching) names a section
+  there. This file keeps only how such a rule applies to Pretext, its evidence and Pretext's own exceptions.
 
 ## Part 1: Intent
 
@@ -105,11 +109,11 @@ browser where only an ad hoc rule could, and next, requirements no real text exe
 stays well supported whatever else gives. It replaced three stances: fix measurement errors before optimizing
 (2026-03-03); correctness first in the rebuild (2026-09-16); and correctness not held religiously, so that a good-enough
 line may be chosen from numbers where what remains is local and doesn't threaten the architecture (2026-09-18). Not
-optimizing prematurely, and taking the rebuild's facts back to main, still stand.
+optimizing prematurely (engineering.md, Data Modeling), and taking the rebuild's facts back to main, still stand.
 
 - **"Fixing a mismatch"** (AGENTS.md) is the method, since no rule should be chosen by a score, an insight that
   generalizes beats special-casing a browser, and no shortcut that makes an early version look good may erode its
-  structure later. Its second point is the rule against monkey-patching (2026-04-15).
+  structure later. Its second point is engineering.md's rule against monkey-patching (Data Modeling; 2026-04-15).
 - **No tolerances**: a gap between Canvas and the DOM is handled on purpose or named, never hidden in a tolerance; each
   engine's fit arithmetic is exact in its own units. Main's 0.005 px `lineFitEpsilon` (Blink and Gecko profiles) is an
   open gap (ENGINE_FOLLOWUPS.md).
@@ -169,9 +173,9 @@ and its unit tests (`rebuild/src/engines/<engine>/`) against the engine's source
   generated catalog of behaviors (which behaviors are modeled?) (harness/README.md, Why the old suite went), with no
   must-pass tier (Decisions Log, 2026-09-24). Broad generated combinations are fine while they're fast.
 - **Cases grow** by behavior, not by a repro per bug as main before #340 grew (harness/README.md, "How cases grow").
-- **Tests signal real regressions**, not false ones, fast enough to iterate on; once a suite is trusted, speed it up by
-  engineering and by batching what isn't timing-sensitive. "No change" for a cleanup means that every tool listed under
-  Proving "no change" in harness/README.md agrees, never an argument from reading.
+- **Tests signal real regressions**, not false ones, in a fast loop (engineering.md, Project Setup); once a suite is
+  trusted, speed it up by engineering and by batching what isn't timing-sensitive. "No change" for a cleanup means that
+  every tool listed under Proving "no change" in harness/README.md agrees, never an argument from reading.
 - **Don't re-record only to confirm nothing changed**: repin first when coming back to the project (AGENTS.md), since
   the installed browsers will have moved, but don't redo expensive recordings only to confirm nothing changed (a rule
   set for the rebuild's scans, 2026-09-26). Whether main's `repin` should record a seeded sample first, and every case
@@ -184,11 +188,11 @@ and its unit tests (`rebuild/src/engines/<engine>/`) against the engine's source
   counts for less than its lines, and line count waits while correctness is being established (a rule set for the
   rebuild, 2026-09-18). Reuse existing machinery before adding code; derive sets from the generated tables, not by hand.
 - **Simplify** after each stretch of work, checking growth in complexity and cost: the same results from less is exactly
-  what's wanted, and an architecture change removes the logic it made redundant, saying what now gives the same answer.
-  A simplification changes no observable behavior and adds no optimization machinery; removing public API or changing
-  line breaks is the maintainer's call. A small deletion that would lose coverage is submitted as a PR and closed at
-  once, so its history is kept (2026-09-16; #314-#318). Delete dead code, don't silence it; no stale scripts or
-  temporary tooling; rules against a class of bug stay light.
+  what's wanted, and an architecture change removes the logic it made redundant (engineering.md, Refactors), saying what
+  now gives the same answer. A simplification changes no observable behavior and adds no optimization machinery;
+  removing public API or changing line breaks is the maintainer's call. A small deletion that would lose coverage is
+  submitted as a PR and closed at once, so its history is kept (2026-09-16; #314-#318). Delete dead code, don't silence
+  it; no stale scripts or temporary tooling; rules against a class of bug stay light.
 - **Order of work**: correctness with trusted tests, simpler data structures and flow, profiling and optimization, the
   API last; engineering (data layout, typed arrays, no allocation) before algorithms. Pick engine work by what users
   report, the maintainer asks for or the harness's real-usage sample shows failing (ENGINE_FOLLOWUPS.md says where to
@@ -199,16 +203,14 @@ and its unit tests (`rebuild/src/engines/<engine>/`) against the engine's source
   a change whose gain is small next to its cost in speed or complexity as such, so the maintainer can weigh those
   changes together (2026-09-20).
 - **Plain objects with fixed shapes** (AGENTS.md) and, in new code, indexed `for` loops over `for...of`, `.forEach` and
-  allocating `.map` chains. The maintainer's engineering principles are written in their private notes
-  (`docs/engineering.md` and `docs/ui.md` in their `vibescript` repository, which most readers can't open); what they
-  ask of Pretext is listed here: data first, one source of truth, per-browser differences in one place, no caches unless
-  measured and no defensive code.
-- **Cater to the worst case** over the common path, the worst case in time per frame, counting computation as well as GC
-  pauses, preferring changes that improve it for every input over tuning to a guessed distribution. Speed has improved
-  enough that the worst case may regress slightly for a real gain: the rule is to cater to it, not that it can never
-  regress (2026-09-26). The width memo, handles remembering which widths gave their last lines, made new widths up to
-  26% slower in Chrome, which isn't slight, so it stays parked (Dead Ends, Caching, State And API Designs). Layout stays
-  on the main thread, workers a last resort.
+  allocating `.map` chains, stricter than engineering.md, Control Flow, which allows one `forEach` or `map`. The rest of
+  engineering.md holds as written; per-browser behavior goes in the one place its Data Modeling asks for, the engine
+  profile.
+- **Cater to the worst case** (engineering.md, Control Flow), in time per frame, GC pauses counted with computation.
+  Speed has improved enough that the worst case may regress slightly for a real gain: the rule is to cater to it, not
+  that it can never regress (2026-09-26). The width memo, handles remembering which widths gave their last lines, made
+  new widths up to 26% slower in Chrome, which isn't slight, so it stays parked (Dead Ends, Caching, State And API
+  Designs). Layout stays on the main thread, workers a last resort.
 - **JIT tuning.** As a general preference for every change, don't optimize for JIT behavior that varies with the
   browser, its version or the machine (2026-09-25). As a rule, never keep code only because one JIT likes it
   (2026-09-26): dead or redundant code kept only because one JIT runs it faster is an accident that code written cleanly
@@ -220,11 +222,11 @@ and its unit tests (`rebuild/src/engines/<engine>/`) against the engine's source
 
 ### Caching And API Design
 
-- **Caching is a cost.** Pretext's prepare/layout split is itself a cache, reached for when there was no better choice;
-  the best case is needing none, which would be a large gain for userland (2026-09-18). Invisible acceleration that
-  can't go stale or leak is welcome; handles the app must carry hurt, worst when one text needs a prepare per font size.
-  This doesn't forbid caches: ablate, profile, put back those that earn it. What lives one frame or call is data flow,
-  not a cache; a cache's size limit must be well above what one page uses.
+- **Caching is a cost** (engineering.md, Caching). Pretext's prepare/layout split is itself a cache, reached for when
+  there was no better choice; the best case is needing none, which would be a large gain for userland (2026-09-18).
+  Invisible acceleration that can't go stale or leak is welcome; handles the app must carry hurt, worst when one text
+  needs a prepare per font size. A cache stays where ablating and profiling show it earns its place, with a size limit
+  well above what one page uses.
 - **Two lifetimes**: the shared width cache holds facts of one font and one segment's own characters, the prepared
   handle facts of the whole text; caching more globally would grow without bound. Name both wherever caching comes up,
   since the shared one is easy to forget. Handles going stale when the page language changes is a known cost, accepted
@@ -268,28 +270,27 @@ and its unit tests (`rebuild/src/engines/<engine>/`) against the engine's source
 
 ### Demos And The Chat
 
-- **Demos show Pretext's numbers**: no CSS sizes reverse-engineered in JS, DOM reads or hard-coded line counts, and
-  placement from Pretext, not quiet CSS flow. They never correct what Pretext reports: fix the library, or have it
-  expose the fact.
-- **Immediate mode**: with Pretext owning layout and virtualization, the rectangles on screen stay in the tens, so
-  rebuilding each frame is fine. Pooling ties state to an eviction policy; reusing a node and keeping its state are
-  separate. No ResizeObserver or other event-like control flow: if Pretext owns the breaks, nothing needs observing. The
-  maintainer's private UI notes (`docs/ui.md` in `vibescript`) hold more of this; the rules they add for Pretext are the
-  ones in this section, and a new UI architecture is proposed to the maintainer first.
+- **Demos show Pretext's numbers**, JS and CSS layout kept apart as ui.md, Layout, says, and no hard-coded line counts.
+  They never correct what Pretext reports: fix the library, or have it expose the fact.
+- **Immediate mode** (ui.md, DOM), without DOM pooling, which ui.md's DOM Update Strategies puts last: with Pretext
+  owning layout and virtualization, the rectangles on screen stay in the tens, so rebuilding each frame is fine, and
+  pooling would tie a node's state to an eviction policy. No ResizeObserver or other event-like control flow
+  (engineering.md, Model The Dependency Order Directly): if Pretext owns the breaks, nothing needs observing. A new UI
+  architecture is proposed to the maintainer first.
 - **The Markdown chat** (`pages/demos/markdown-chat.html`, taught in `pages/demos/markdown-chat.md`) takes the worst
   case first, resize and random scroll seek, and every lossy height method was worse (Dead Ends, The Markdown Chat At
   Scale). Its scrollbar has the full history's correct size, capped only by what the browser can handle (Scrolling And
   Scrollbars). It assumes fonts loaded up front and every embed size known.
-- **Scrolling** is designed to need no browser-specific handling, assuming as little as possible about `scrollTop` (the
-  maintainer's private `docs/Scrolling.md` in `vibescript` has the longer argument): scroll only when this frame's
-  layout moved the anchor, never clamp, and after setting `scrollTop` use the value the browser reports back, not the
-  one set; never detect a case such as rubber-banding to patch it. The macOS and iOS overlay scrollbar comes first, and
-  a scrollbar appearing never nudges content.
+- **Scrolling** is designed to need no browser-specific handling, assuming as little as possible about `scrollTop`
+  (Scrolling.md has the longer argument): scroll only when this frame's layout moved the anchor, never clamp, and after
+  setting `scrollTop` use the value the browser reports back, not the one set; never detect a case such as
+  rubber-banding to patch it. The macOS and iOS overlay scrollbar comes first, and a scrollbar appearing never nudges
+  content.
 - **The chat is exemplary**, teaching the important patterns without noise so developers pick a subset rather than
   extrapolate; its guide stays short. Its techniques move to the rich-note demo (`pages/demos/rich-note.html`) only if
   strictly better; otherwise their trade-offs are written down, since users will want to know them. Demo code's control
-  and data flow count, not only its numbers; a pass over a demo against the engineering rules above seeks
-  simplifications that bring fewer lines, fixes and speed together.
+  and data flow count, not only its numbers; a pass over a demo against engineering.md and ui.md seeks simplifications
+  that bring fewer lines, fixes and speed together.
 - **The demos aren't in the npm package** (Decisions Log, 2026-09-25).
 - When a demo looks wrong, first find whether the library or the demo is at fault, in a real browser at several widths.
   A layout fix's commit message names the bug and explains the fix.
@@ -859,8 +860,8 @@ the DOM gave 69.2px (2026-09-11, #230). So preparation replaces the context when
 In a worker, Chrome's Canvas takes the UI language, Safari's generics none and Firefox's the macOS locale (2026-09-18).
 Reading `<html lang>` costs about 16ns in headless Chromium and 4ns in WebKit, with no style recalculation (2026-09-12;
 Firefox unmeasured): the evidence behind AGENTS.md's exception for that read, and behind the condition on taking content
-language from the page, that `prepare()` and `layout()` do nothing new and expensive in the browser (Part 1, Lines
-Drawn). With `lang=ja` on the test element alone, Firefox's DOM measured `foo-bar日本語` in 18px serif at 114.867px and its
+language from the page, that `prepare()` and `layout()` do nothing new and expensive in the browser (Part 1, Limits).
+With `lang=ja` on the test element alone, Firefox's DOM measured `foo-bar日本語` in 18px serif at 114.867px and its
 OffscreenCanvas 106.983px (2026-09-03): put `lang` on `<html>`.
 
 #### Safari's Generic Families
@@ -988,9 +989,10 @@ Log, 2026-09-26).
 
 ### Keeping Work Bounded
 
-Small operations turn quadratic when they repeat over growing user text. Browsers break lines in linear time, so
-exactness forces nothing worse: the rebuild's slow giant paragraphs came from its own rescans to the text's end from
-every line start. Ratios below are `bun harness bench`'s, two sessions per browser, against main before each change.
+Small operations turn quadratic when they repeat over growing user text (engineering.md, Control Flow). Browsers break
+lines in linear time, so exactness forces nothing worse: the rebuild's slow giant paragraphs came from its own rescans
+to the text's end from every line start. Ratios below are `bun harness bench`'s, two sessions per browser, against main
+before each change.
 
 #### Quadratic Traps
 
@@ -1133,12 +1135,11 @@ app-facing patterns. Unless stated: macOS 26, Chrome 153, Safari 26.5.2 and Fire
 Chrome and Safari cap an element near 33.5 million px, 2^31 of their 1/64 px layout units (Blink's `LayoutUnit`, 6
 fraction bits in an `int32_t`, `layout_unit.h:473`), and Firefox near 17.9 million, 2^30 of its 1/60 px app units
 (`nscoord_MAX`, `nsCoord.h:28`): limits of engine coordinate storage, read in source, not measured. iOS Safari can crash
-above about 500,000px while the scrollbar is dragged (from the maintainer's private scrolling notes, `docs/Scrolling.md`
-in `vibescript`; unmeasured here). The Markdown chat with 10,000 messages is 1.0-1.8 million px tall. Unbuilt fixes for
-the cap that don't load the history in chunks: scrolling owned in JavaScript, which those notes advise against; a scroll
-area a few screens tall with content shifted near its edges; lossy scaled scrolling. Without `<!DOCTYPE html>`, quirks
-mode made `documentElement.clientHeight` the document's height, so the masonry demo mounted every item and crashed iOS
-Safari (ffc2a757, 2026-03-23).
+above about 500,000px while the scrollbar is dragged (Scrolling.md; unmeasured here). The Markdown chat with 10,000
+messages is 1.0-1.8 million px tall. Unbuilt fixes for the cap that don't load the history in chunks: scrolling owned in
+JavaScript, which Scrolling.md advises against; a scroll area a few screens tall with content shifted near its edges;
+lossy scaled scrolling. Without `<!DOCTYPE html>`, quirks mode made `documentElement.clientHeight` the document's
+height, so the masonry demo mounted every item and crashed iOS Safari (ffc2a757, 2026-03-23).
 
 #### Classic Scrollbars
 
@@ -1151,12 +1152,10 @@ switches live; Chrome on Windows and Linux; Firefox on Windows 10, or 11 with "A
 only with forced classic scrollbars on macOS.
 
 With `html { scrollbar-gutter: stable }`, Chrome's `documentElement.clientWidth` reports the full width until a
-scrollbar is drawn (1200 against the body's 1185), hence `document.body.clientWidth`, which needs a body with no margin,
-border or padding, fails in a `<head>` script, before there's a body, and forces stale layout, so read it before
-writing; height stays `documentElement.clientHeight`. A stable gutter off-centers content by half its width
-(`both-edges` centers it for another 15px of width), and breakpoints live in the model, since `@media` widths and
-`100vw` count the scrollbar and `clientWidth` doesn't. `html { overflow-y: scroll }` was dropped for painting an empty
-track on short pages.
+scrollbar is drawn (1200 against the body's 1185), hence `document.body.clientWidth`, read as ui.md, Layout, says. A
+stable gutter off-centers content by half its width (`both-edges` centers it for another 15px of width), and breakpoints
+live in the model, since `@media` widths and `100vw` count the scrollbar and `clientWidth` doesn't.
+`html { overflow-y: scroll }` was dropped for painting an empty track on short pages.
 
 Measuring the scrollbar (Safari 27 on macOS 27, 2026-09-16): a hidden probe element reads 0 in Safari 27 where the real
 scrollbar is 13px, and in Firefox one stayed 0 after a live switch while real scrollers went to 15px. Safari's stable
@@ -1855,7 +1854,7 @@ widths: both measure Pretext, not a browser.
   line feed, the empty text, Chrome's CJK closing marks); splitting after each `\n` (#362) matched 10,083-10,087.
 - **Finding repeated work.** Reading finds call sites, not how often each fires, and two predictions from reading were
   wrong; a per-call-site tally from stack traces over a deterministic replay ranked the repeats (in the rebuild,
-  2026-09-18). Then one fresh-eyes read of the library against the engineering rules (Part 1, Engineering) reports
+  2026-09-18). Then one fresh-eyes read of the library against engineering.md and Part 1, Engineering, reports
   complexity, before profiling adds some back.
 
 #### Agents' Reports
