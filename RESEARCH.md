@@ -2262,6 +2262,15 @@ with the full walker, and in two foreground pages Chrome 154 ran `measureLineSta
 81 to 84%, `walkLineRanges()` 102 to 108% and `layoutNextLineRange()` 62 to 65% slower
 than main on the 134 (#366).
 
+Rich preparation makes the paragraph's bidi levels for Gecko's white-space run
+(`getItemLevels()`) only the first time an item's run goes on past a character Firefox
+drops, which none of the bench's messages do. Made for every paragraph in the Gecko
+profile, they made `prepareRichInline()` of the bench's Latin and Arabic messages 8%
+and 25% slower than main, and made only where an item holds a soft hyphen or a bidi
+control, 5% and 3%, while made on first need they read within 2% (bun's
+JavaScriptCore on the stand-in Canvas with warm caches, medians of 5 or 6 processes,
+where a second copy of main read within 2%; hypotheses until a browser shows them).
+
 ## Decisions Log
 
 Decisions the maintainer made whose reasons the code doesn't show. Code comments
