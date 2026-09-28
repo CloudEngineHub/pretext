@@ -156,7 +156,36 @@ in the Gecko profile glue at a line start isn't the line's content and the segme
 it starts the line however wide it is. Letting the glue start the line gave `SHY a SHY b`
 at 0px an empty first line, which the Gecko scan's installed gate lost on 428 Firefox
 rows; applying the same rule to the Chrome and Safari profiles loses 101 Chrome and 866
-Safari rows in an offline replay. The walkers end a line only where the scan breaks: prepared
+Safari rows in an offline replay. Gecko drops bidi controls from its text run too, breaks
+lines in text-run offsets and maps a line end past the characters it dropped
+(nsTextFrame.cpp:11161-11170), so a line never ends before one, starts with one after a
+wrap or breaks inside a word at one. The Gecko profile does this in its analysis, with no
+kind of its own for them. The scan's white-space step notes whether it dropped a bidi
+control, and only then does the analysis look for them. A run of soft hyphens and bidi
+controls with a control in it joins the segment before it, whether text, white space or a
+ZWSP, up to its last control, and the break after the run stays where the scan puts it, so
+a line that ends there hangs the space before the run. A soft hyphen before a control
+offers no break, since Firefox takes a hyphenation break only from the last character it
+drops before one it keeps (nsTextFrame.cpp:4436-4442). A run at a chunk start is text that
+starts the line, and the text after it joins it: Firefox trims a line's leading white
+space only from the start of its content (nsTextFrame.cpp:10935-10950), so a control there
+keeps the space after it, and the break the scan gives after the run, the hard break's or
+the collapsed leading space's, can't end a line holding nothing yet. A chunk of only such
+characters joins the hard break before it, as Firefox lays no frame of them out as a line
+(nsTextFrame.cpp:11421-11429). Firefox's white-space run reads through the controls in it
+(TransformText, nsTextFrameUtils.cpp:319-345), so the profile's collapse does too: the
+spaces on both sides of a control take the room of one, and white space before only
+controls at the end of the text goes, and the scan runs again on what's left. The profile's
+graphemes look past soft hyphens and bidi controls (Grapheme Clusters From Engine Data), so
+a mark after a control joins the cluster before it, except where a bidi level run starts at
+the mark, which the scan marks as a cluster start and the analysis as a segment start. The
+walkers and `layout()`'s count are main's for every text, and text whose controls follow
+spaces, which had a boundary the scan doesn't break at, now takes the simple walkers. Making
+a run of controls zero-width glue that the walkers look past fixed the same cases, but it
+counted text ending in controls with the stepper, which made Firefox's `layout()` of the
+bench's invisible tails 12 to 13% slower, and its test for such glue in the shared walkers
+made Chrome's and Firefox's layout of some worst-case shapes that never hold any 5 to 11%
+slower (branch `gecko-bidi-control-gaps`, 5bc0b58a). The walkers end a line only where the scan breaks: prepared
 text records the segments that follow no break, a line that overflows before one
 returns to its last break, and a line without one fills graphemes across the unbroken
 run, as Blink's break-anywhere retry and WebKit's `TextUtil::breakWord` do. Ending at
@@ -305,7 +334,10 @@ U+F870-U+F87F, U+F884-U+F899 and U+F89F to Extend, and the WebKit profile takes 
 156's ICU4X grapheme data puts every code point in the same 18 classes as Chrome's table, and
 ICU4X's iterator ends clusters where ICU's does on all 2 million strings of up to five code
 points taking one per class and on a million random longer ones, so the Gecko profile takes
-Chrome's table. Below U+0300 only CR and LF share a cluster, so the Gecko scan skips words of
+Chrome's table. Firefox clusters its text run, which leaves out soft hyphens and bidi controls
+(IsDiscardable, nsTextFrameUtils.cpp:32-49), so the profile's table, `gecko/char`, reads
+Chrome's rules past them: one goes with the cluster before it, or at the start of a segment
+with the one after it, and takes no letter spacing. Below U+0300 only CR and LF share a cluster, so the Gecko scan skips words of
 such units; its `Intl.Segmenter` probes had skipped every word without a unit that may join.
 
 In each installed browser the table its profile takes gives `Intl.Segmenter`'s clusters on
@@ -1672,8 +1704,10 @@ benchmark page's control row, 46 of 120 texts in the Gecko profile have one: 32
 before NEL (UAX #14 LB6), as in the Blink and WebKit scans, and 14 more after a
 space before a bidi control. Firefox leaves bidi controls out of the text runs it
 breaks (IsDiscardable, nsTextFrameUtils.cpp:32-49), so its break lands on the next
-character it keeps, after the control. While the full walker counted those texts,
-1,748 of the row's 4,049 segments, at five times the counter's cost per segment,
+character it keeps, after the control. Since the space takes the control after it
+(Break Opportunities From Engine Data), those 14 have no such boundary any more.
+While the full walker counted those texts, 1,748 of the row's 4,049 segments, at
+five times the counter's cost per segment,
 Firefox's `layout()` of the row took 2.2 times the time of main before #340, which
 counted them with its counter. Stepping them, Firefox counts the row in 0.44 of
 main's time, Chrome in 0.59 and Safari, where NEL is a control segment, in 0.96.
@@ -1686,6 +1720,21 @@ The other rows' `layout()` reads 0.97 to 1.04 of main's time in Chrome, 0.99 to
 1.03 in Firefox and 0.92 to 0.99 in Safari, where a second copy of main reads 0.96
 to 1.05, and preparation doesn't move either (same-document interleaved,
 foreground, two sessions per browser).
+
+Finding Firefox's bidi controls in the analysis (Break Opportunities From Engine Data)
+costs text without one nothing only where it looks for none. Testing each unit of every
+Gecko text for a soft hyphen or control, and scanning each run of them, made Firefox 156
+prepare seen messages 4 to 6% slower, and long breakable runs and pre-wrap chunks 9 to 17%;
+the analysis now looks only where the scan's white-space step noted a dropped control. The
+profile's grapheme table tests only code points in the rules' Control category for what the
+text run drops: testing every code point made Firefox prepare CJK and Arabic 2 to 3% slower.
+A soft hyphen's look for a control after it, repeated at each soft hyphen of a run, took time
+that grew with the square of the run, and Firefox prepared the bench's invisible tails 44%
+slower; each run is now scanned once, at its start. A segment ending in a long run of
+controls is now a few clusters, not one per control, so it passes fresh-line geometry's bound
+of 96 graphemes, and observing that geometry again at every prepare, where it had found none,
+made Firefox prepare the invisible tails 6% slower. An empty observation is kept now, as a
+found one was.
 
 Chrome's line APIs pay a little for it. Once `layout()` has counted such text with
 the simple stepper, Chrome's `walkLineRanges()` of chat messages and other simple
@@ -1919,3 +1968,16 @@ reason still holds, and record the new decision here with its date.
   the one real-usage draw that moves would fail. Words narrower than 80px keep summing
   standalone graphemes where lines narrower than 80px split them (Break Opportunities
   From Engine Data).
+- **2026-09-27: Firefox's bidi controls are laid out by the Gecko profile's analysis, not
+  by its walkers.** A run of soft hyphens and bidi controls with a control in it joins the
+  segment before it, and the profile's graphemes and white-space collapse read past such
+  characters (Break Opportunities From Engine Data), so every walker and `layout()`'s count
+  stay main's. Making the run zero-width glue that the walkers look past fixed 39 of the 43
+  harness cases this fixes, in 23 fewer lines of code (branch `gecko-bidi-control-gaps`,
+  5bc0b58a), but it counted text ending in controls with the stepper, which made Firefox's
+  `layout()` of the bench's invisible tails 12 to 13% slower, and its test for glue in the
+  shared walkers made some of Chrome's and Firefox's worst-case rows that never hold any 5
+  to 11% slower. The
+  other four are `a`, LRI, U+0301, PDI, `b` at 1px, whose mark Firefox keeps with the `a`,
+  and here the two spaces around a control also take the room of one, which is about 20 of
+  the 66 lines.

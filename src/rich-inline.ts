@@ -8,6 +8,7 @@ import {
   UNBROKEN,
   type AnalysisProfile,
 } from './analysis.js'
+import { isBidiControl } from './graphemes.js'
 import { getWebKitBreakBetweenItems } from './line-breaks.js'
 import { buildLineTextFromRange, getGraphemeEnds } from './line-text.js'
 import {
@@ -410,10 +411,14 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
 
     // Scan from the ends once. A trailing-whitespace regex retries every
     // position in a long internal space run when later content prevents a match.
+    // Gecko's white-space collapse also drops white space before only bidi controls
+    // at the end (analyzeText).
     let end = text.length
+    if (profile.lineBreakScan === 'gecko') while (end > start && isBidiControl(text.charCodeAt(end - 1))) end--
+    const whiteSpaceEnd = end
     while (end > start && isCollapsibleSpaceCode(text.charCodeAt(end - 1))) end--
     const hasLeadingWhitespace = start > 0
-    const hasTrailingWhitespace = end < text.length
+    const hasTrailingWhitespace = end < whiteSpaceEnd
     const whitespaceBefore = pendingGapWidth !== null || hasLeadingWhitespace
     if (breaksFromItemText) boundaryContexts[index] = text.slice(Math.max(0, end - 2), end)
 

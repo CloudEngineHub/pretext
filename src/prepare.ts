@@ -4,8 +4,7 @@
 
 import { observeSegmentEntries, textMayHaveEntryGeometry, type SegmentEntryGeometry } from './entry-geometry.js'
 import { getHanKerningTrims, textMayHanKern, type HanKerningTrims } from './han-kerning.js'
-import { findGraphemeEnds } from './graphemes.js'
-import type { CharTable } from './generated/engine-break-data.js'
+import { findGraphemeEnds, type GraphemeTable } from './graphemes.js'
 import {
   CONTROL,
   HARD_BREAK,
@@ -45,7 +44,7 @@ import type { PreparedText, PreparedTextWithSegments } from './layout.js'
 import type { PreparedLineBreakData } from './line-break.js'
 
 // Text and spaces take letter spacing after each grapheme; a ZWSP takes none.
-function countRenderedSpacingGraphemes(text: string, kind: SegmentKindCode, graphemeTable: CharTable): number {
+function countRenderedSpacingGraphemes(text: string, kind: SegmentKindCode, graphemeTable: GraphemeTable): number {
   return kind === ZERO_WIDTH_BREAK ? 0 : findGraphemeEnds(graphemeTable, text, 0, text.length, null)
 }
 
@@ -322,7 +321,7 @@ export function measureAnalysis(
     const geometry = observeSegmentEntries(text, fit.advances!, letterSpacing, width, fitBasis,
       source => measureWithLetterSpacing(source, letterSpacing, emojiCorrection, fontMeasurement))
     // Replacing this last observation leaves prepared copies intact.
-    if (geometry !== null) fit.entryGeometry = { letterSpacing, emojiCorrection, geometry }
+    fit.entryGeometry = { letterSpacing, emojiCorrection, geometry }
     return geometry
   }
 

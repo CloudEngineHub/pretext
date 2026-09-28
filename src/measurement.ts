@@ -1,5 +1,4 @@
-import type { CharTable } from './generated/engine-break-data.js'
-import { findGraphemeEnds } from './graphemes.js'
+import { findGraphemeEnds, type GraphemeTable } from './graphemes.js'
 import { canWebKitLineStartWith, getBlinkDefaultLocale } from './line-breaks.js'
 import { webkitGenericFamilies, webkitGenericFamilyNames, webkitScriptLanguages, webkitScriptSubtags } from './generated/webkit-generic-families.js'
 import type { SegmentEntryGeometry } from './entry-geometry.js'
@@ -25,7 +24,7 @@ export type SegmentFit = {
   entryGeometry: {
     letterSpacing: number
     emojiCorrection: number
-    geometry: SegmentEntryGeometry
+    geometry: SegmentEntryGeometry | null
   } | null
 }
 
@@ -42,8 +41,8 @@ export type EngineProfile = {
   lineBreakScan: 'blink' | 'webkit' | 'gecko'
   // Where grapheme clusters end: the engine's ICU character rules (src/graphemes.ts).
   // libicucore's add Apple's transcoding hints to Extend. Firefox's ICU4X data gives the
-  // clusters Chrome's rules give.
-  graphemeTable: CharTable
+  // clusters Chrome's rules give, over its text run, which leaves out bidi controls.
+  graphemeTable: GraphemeTable
   lineFitEpsilon: number
   // Where an emergency break falls inside a segment. WebKit measures the word's grapheme
   // prefixes (TextUtil::breakWord), and Gecko adds the advances of the word shaped whole
@@ -344,7 +343,7 @@ export function getEngineProfile(): EngineProfile {
   const profile: EngineProfile = {
     entryFitBasis: isDesktop && engine === 'blink' ? 'fresh' : isDesktop && engine === 'gecko' ? 'original' : 'disabled',
     lineBreakScan: engine,
-    graphemeTable: engine === 'webkit' ? 'apple/char' : 'chromium/char',
+    graphemeTable: engine === 'webkit' ? 'apple/char' : engine === 'gecko' ? 'gecko/char' : 'chromium/char',
     lineFitEpsilon: engine === 'webkit' ? 1 / 64 : 0.005,
     prefixFitMinWidth: engine === 'webkit' ? 0 : engine === 'gecko' ? 80 : Infinity,
     measureTextWithFollowingSpace: engine === 'webkit',
