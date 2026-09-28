@@ -240,12 +240,14 @@ for (let t = 0; t < lineTableSources.length; t++) {
 // starting the next one there from the start state. That is ICU's handleNext when the start
 // state takes every category the trie gives, every state it enters accepts, and each
 // look-ahead state is entered only from states that record its position, one code point back.
-// No dictionary categories or start-of-text rules either, and at most 128 states.
+// No dictionary categories or start-of-text rules either, and at most 128 states. The start
+// state doesn't accept, so no code point leads back to it.
 function checkSinglePass(rules: BreakRules, name: string): void {
   const width = rules.rowWidth
   const rows = rules.rows
   if ((rules.flags & 2) !== 0 || rules.dictCategoriesStart < rules.catCount) throw new Error(`${name} has start-of-text rules or dictionaries`)
   if (rows.length / width > 128) throw new Error(`${name} has more states than src/graphemes.ts keeps in 7 bits`)
+  if (rows[width] !== 0) throw new Error(`${name}'s start state accepts`)
   for (let c = 0; c <= 0x10ffff; c++) {
     const category = getCategory(rules, c)
     if (category < 3 || category >= rules.catCount) throw new Error(`${name} gives U+${c.toString(16)} category ${category}`)

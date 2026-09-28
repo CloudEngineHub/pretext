@@ -127,7 +127,8 @@ function measureWidth(text: string, font: string): number {
       width += fontSize * 0.5
       continue
     }
-    if (ch === '\u200B') continue
+    // Real fonts give ZWSP and bidi controls no advance.
+    if (ch === '\u200B' || /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/.test(ch)) continue
     if (shapesMarksAndJoiners && ch === '\u0323' && /\p{L}/u.test(before)) {
       width += fontSize * 0.14
       continue
@@ -581,6 +582,11 @@ describe('boundary-policy regressions', () => {
     // A word a level run cuts finds its clusters again in each piece: after the ALM, which the text
     // run leaves out, the vowel killer starts a level run, and the Bengali letter after it a cluster.
     expect(analyzeText('\u0937\u061C\u1B44\u09B0', geckoProfile).texts).toEqual(['\u0937\u061C', '\u1B44', '\u09B0'])
+    // The profile's graphemes look past a bidi control, so a mark after one joins the cluster
+    // before it, unless a level run starts there: after an LRM between Arabic letters the kasra
+    // starts a cluster, and a segment.
+    expect(analyzeText('\u0628\u200E\u0650\u0628', geckoProfile).texts).toEqual(['\u0628\u200E', '\u0650\u0628'])
+    expect(analyzeText('a\u200E\u0301b', geckoProfile).texts).toEqual(['a\u200E\u0301b'])
     // A ZWJ that ends the paragraph resolves to level 0 (UAX #9 L1), so after a Hebrew letter it
     // starts one too, and its segment is no longer one cluster. Before more text it keeps the
     // letter's level.
@@ -978,6 +984,63 @@ describe('boundary-policy regressions', () => {
     } finally {
       profile.lineBreakScan = previous.lineBreakScan
       profile.zeroWidthGlueTakesLine = previous.zeroWidthGlueTakesLine
+    }
+  })
+
+  test('Gecko lays out bidi controls as its text run, which leaves them out', () => {
+    const profile = getEngineProfile()
+    const previous = { lineBreakScan: profile.lineBreakScan, graphemeTable: profile.graphemeTable, zeroWidthGlueTakesLine: profile.zeroWidthGlueTakesLine }
+    profile.lineBreakScan = 'gecko'
+    profile.graphemeTable = 'gecko/char'
+    profile.zeroWidthGlueTakesLine = false
+    clearCache()
+    try {
+      const lines = (text: string, width: number, options?: { whiteSpace?: 'normal' | 'pre-wrap' }) => {
+        const prepared = prepareWithSegments(text, FONT, options)
+        const result = layoutWithLines(prepared, width, LINE_HEIGHT)
+        expect(collectStreamedLines(prepared, width)).toEqual(result.lines)
+        expect(layout(prepare(text, FONT, options), width, LINE_HEIGHT).lineCount).toBe(result.lineCount)
+        return result.lines.map(line => line.text)
+      }
+      // A run inside a word goes with the cluster before it, and at the start with the one after
+      // it, so no emergency break falls at a control.
+      expect(prepareWithSegments('\u202A\u200Eab', FONT).kinds).toEqual(['text'])
+      expect(lines('\u202A\u200Eab', 1)).toEqual(['\u202A\u200Ea', 'b'])
+      expect(lines('a\u200Eb', 1)).toEqual(['a\u200E', 'b'])
+      // White space before a run takes it: a line that ends after the run hangs the space.
+      expect(prepareWithSegments('ab \u200Ecd', FONT).kinds).toEqual(['text', 'space', 'text'])
+      const fits = measureWidth('ab', FONT) + measureWidth(' ', FONT)
+      for (const whiteSpace of ['normal', 'pre-wrap'] as const) {
+        expect(lines('ab \u200Ecd', fits, { whiteSpace })).toEqual(['ab \u200E', 'cd'])
+        expect(layoutWithLines(prepareWithSegments('ab \u200Ecd', FONT, { whiteSpace }), fits, LINE_HEIGHT).lines[0]!.width).toBe(measureWidth('ab', FONT))
+      }
+      // A run that starts a paragraph starts its line, and a space after it takes room; one after
+      // a wrap goes with the line before.
+      expect(lines('\u200E ab', 1)).toEqual(['\u200E ', 'a', 'b'])
+      expect(lines('ab\u200E cd', 1)).toEqual(['a', 'b\u200E ', 'c', 'd'])
+      // After a hard break the text after a run joins it, and a chunk of only a run holds no line
+      // but its hard break's.
+      expect(lines('a\n\u200Eb', 1, { whiteSpace: 'pre-wrap' })).toEqual(['a', '\u200Eb'])
+      expect(lines('a\n\u200E\u200F\nb', 1, { whiteSpace: 'pre-wrap' })).toEqual(['a', '', 'b'])
+      expect(lines('a\n\u202A', 1, { whiteSpace: 'pre-wrap' })).toEqual(['a'])
+      expect(lines('ab \u200E\ncd', measureWidth('ab', FONT), { whiteSpace: 'pre-wrap' })).toEqual(['ab \u200E', 'cd'])
+      // A chunk that starts with what the text run drops, a control in it, offers no break after it.
+      expect(lines('\u202C\u00ADab', 1)).toEqual(['\u202C\u00ADa', 'b'])
+      // Firefox collapses white space through a run of controls, keeping its first space, or its
+      // segment break if it holds one, and the line end trims one before only controls.
+      expect(prepareWithSegments('ab \u200E cd', FONT).segments).toEqual(['ab', ' \u200E', 'cd'])
+      expect(lines(' \u200E\nab', 1)).toEqual(lines('\u200E ab', 1))
+      expect(prepareWithSegments('ab \u200E', FONT).segments).toEqual(['ab\u200E'])
+      expect(measureRichInlineStats(prepareRichInline([{ text: 'ab \u200E', font: FONT }, { text: 'cd', font: FONT }]), 1000).maxLineWidth)
+        .toBe(measureWidth('ab cd', FONT))
+      // Controls, and soft hyphens before them, take no letter spacing.
+      expect(prepareWithSegments('a\u200Eb', FONT, { letterSpacing: 2 }).widths).toEqual([measureWidth('ab', FONT) + 2])
+      expect(prepareWithSegments('a\u00AD\u200Eb', FONT, { letterSpacing: 2 }).widths).toEqual([measureWidth('a\u00AD\u200Eb', FONT) + 2])
+    } finally {
+      profile.lineBreakScan = previous.lineBreakScan
+      profile.graphemeTable = previous.graphemeTable
+      profile.zeroWidthGlueTakesLine = previous.zeroWidthGlueTakesLine
+      clearCache()
     }
   })
 
@@ -1546,7 +1609,7 @@ describe('engine break scans', () => {
     ] as const) {
       // The transformation leaves these rows as they are.
       expect(preserve ? text : removeSkippableSegmentBreaks(text, { lineBreakScan: 'gecko', graphemeTable: 'chromium/char' }, language)).toBe(text)
-      expect({ text, language, keepAll, breaks: positions(getGeckoLineBreaks(text, preserve, keepAll, 'chromium/char'), text.length) })
+      expect({ text, language, keepAll, breaks: positions(getGeckoLineBreaks(text, preserve, keepAll, 'chromium/char').breaks, text.length) })
         .toEqual({ text, language, keepAll, breaks: [...expected] })
     }
   })
@@ -3780,7 +3843,8 @@ describe('layout invariants', () => {
       'one\u0001two three\u0007 four fivesixseven\u0001eight',
       // A mark after a control stays apart from the text after it.
       'x\u0001\u0301yz abc\u0001\u0301',
-      // Gecko breaks after a bidi control that follows a space, not before it.
+      // Gecko finds no break before a bidi control, and a space before one takes it: the simple
+      // walkers lay the text out there.
       'said \u2066quoted\u2069 words and \u200Emore \u202Bnested\u202C text',
     ]
     const scans = ['blink', 'gecko'] as const
@@ -3794,7 +3858,8 @@ describe('layout invariants', () => {
           const prepared = prepareWithSegments(text, FONT)
           const internal = prepared as unknown as { widths: number[], simpleLineWalkFastPath: boolean, simpleLineCountFastPath: boolean }
           // The line APIs take the full walker, and layout() the simple stepper.
-          if (scan === 'gecko' || textIndex < 3) expect(internal.simpleLineWalkFastPath).toBe(false)
+          if (textIndex < 3) expect(internal.simpleLineWalkFastPath).toBe(false)
+          else if (scan === 'gecko') expect(internal.simpleLineWalkFastPath).toBe(true)
           expect(internal.simpleLineCountFastPath).toBe(true)
           const compact = prepare(text, FONT)
           const widths = [-5, 0, 0.5, 1]
