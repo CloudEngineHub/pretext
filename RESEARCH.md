@@ -1445,16 +1445,23 @@ Gecko scan's port of Firefox's levels), made only for text with right-to-left ch
 as Firefox resolves levels only there, and only once a run would go on past such
 characters, so other rich text pays nothing for them. Since the Gecko profile's analysis
 reads white space through bidi controls alone as one run, whatever their levels, and
-leaves out white space before only controls at the end of a text (Break Opportunities
+leaves out the white space that ends a text with the controls among it (Break Opportunities
 From Engine Data), the item `see \u200F` is `see` and the mark, its space is the gap
 before the next item, and the next item's white space collapses into that gap: rich lines
 fit one 55.15px line at 56-59px there, as the one node's do, where Firefox's two spaces
 don't fit (ENGINE_FOLLOWUPS.md). A gap is one space in one item's font, so it can't hold
 both. The rule reads the item's segments where a soft hyphen among the characters the run
-goes past keeps the white space before them, and so do bidi controls after the trailing
-white space of a run that goes on, or after an item's leading white space: Firefox's first
-line of items `see \u200F\u00AD`, ` this more` at 60px is 59.60px, two spaces wide, which
-rich lines give too. An atomic item's own leading white
+goes past keeps the white space before them, or where that white space is the item's
+leading white space, and then reaches the bidi controls among and after the item's trailing
+white space, which the analysis reads as one run with it (`getTrailingCollapsibleStart`);
+white space there collapses into the run at any level, as
+Firefox carries the run into the next text run (INCOMING_WHITESPACE, FlushFrames,
+nsTextFrame.cpp:1800-1804): Firefox's first line of items `see \u200F\u00AD`, ` this more`
+at 60px is 59.60px, two spaces wide, which rich lines give too. Items `see`, ` \u200E `,
+`this word` now take one space, as in Firefox, where 9a559de2 gave a gap on each side of
+the mark: on a September 28, 2026 probe of 7,133 rich cases recorded in Firefox, of such
+items and of random ones where the two builds differ on the stand-in Canvas, that fixes
+287 cases and loses 14 (ENGINE_FOLLOWUPS.md). An atomic item's own leading white
 space sits inside its inline-block, which trims it, so it collapses into an open run too:
 Firefox's first line of items `see \u00AD`, atomic ` chip`, ` this word` at 60px is `see `
 and `chip`, 59.60px, where fd8002ba counted a space more. On the third September 27, 2026
@@ -2150,7 +2157,17 @@ Finding Firefox's bidi controls in the analysis (Break Opportunities From Engine
 costs text without one nothing only where it looks for none. Testing each unit of every
 Gecko text for a soft hyphen or control, and scanning each run of them, made Firefox 156
 prepare seen messages 4 to 6% slower, and long breakable runs and pre-wrap chunks 9 to 17%;
-the analysis now looks only where the scan's white-space step noted a dropped control. The
+the analysis now looks only where the scan's white-space step noted a dropped control,
+which it notes as it drops one, as Firefox's IsDiscardable notes a soft hyphen (HasShy,
+nsTextFrameUtils.cpp:32-41). Testing the text for a control before the scan instead, so
+the scan runs once where the collapse through controls drops white space, costs a pass
+over every Gecko text (September 28, 2026, two sessions a run): a regular-expression test
+read one or two of Firefox's seen rows 1.1 to 3.4% slower in both sessions of each of four
+runs, and a loop over the text four rows 1.0 to 3.6% slower. Skipping 8-bit text, which
+holds no control, saves little, since a curly quote or a dash makes English 16-bit: that
+is 71% of the latin seen row's text and nearly all of the mixed row's, and latin seen
+still read 1.9 and 2.1% slower in one of two runs. The controls worst row, whose second
+scans the test saves, read 1.1% slower, within noise, not faster. The
 profile's grapheme table tests only code points in the rules' Control category for what the
 text run drops: testing every code point made Firefox prepare CJK and Arabic 2 to 3% slower.
 A soft hyphen's look for a control after it, repeated at each soft hyphen of a run, took time

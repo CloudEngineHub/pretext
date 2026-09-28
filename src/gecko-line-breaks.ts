@@ -106,7 +106,8 @@ function isInvalidChar(ch: number): boolean {
 // --- 1. TransformText (nsTextFrameUtils.cpp:84-401) ---
 
 // Whether the text run leaves out a bidi control, which only 16-bit text does (IsDiscardable), is
-// noted as it leaves them out.
+// noted as it leaves them out, as IsDiscardable notes a soft hyphen (HasShy): testing the text for
+// one before the scan costs every text a pass (RESEARCH.md, Keeping Work Bounded).
 type Transformed = { text: string, orig: Int32Array, skipped: Uint8Array, dropsBidiControl: boolean }
 
 // IsDiscardable, nsTextFrameUtils.cpp:32-49

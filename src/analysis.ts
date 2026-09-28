@@ -148,12 +148,19 @@ function collapseWhiteSpaceThroughBidiControls(text: string): string {
   })
 }
 
-// Where white space at the end of a text, after `start`, ends: at the end, or in Gecko before the bidi
-// controls there, as its collapse drops white space before only those (collapseWhiteSpaceThroughBidiControls).
-export function getTrailingWhiteSpaceEnd(text: string, start: number, profile: AnalysisProfile): number {
-  let end = text.length
-  if (profile.lineBreakScan === 'gecko') while (end > start && isBidiControl(text.charCodeAt(end - 1))) end--
-  return end
+// Where the collapsible white space that ends text[from, text.length) starts, which the analysis
+// leaves out and a line end trims, or the text's length where none ends it. Gecko's white-space
+// run reads through the bidi controls in it and after it (TransformText, nsTextFrameUtils.cpp:
+// 319-345), so there it is the first white space after the last character that is neither, and
+// the controls stay.
+export function getTrailingCollapsibleStart(text: string, from: number, profile: AnalysisProfile): number {
+  let start = text.length
+  for (let i = text.length - 1; i >= from; i--) {
+    const code = text.charCodeAt(i)
+    if (isCollapsibleSpaceCode(code)) start = i
+    else if (!(profile.lineBreakScan === 'gecko' && isBidiControl(code))) break
+  }
+  return start
 }
 
 // Every East Asian wide, fullwidth or halfwidth character is at or above U+1100.
