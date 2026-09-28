@@ -12,7 +12,7 @@ npm install @chenglou/pretext
 
 ## Demos
 
-The demos are exemplary API usage: if you, or an agent, write code with Pretext, play with them. They aren't in the npm package, so clone the repo, run `bun install`, then `bun start`, and open <http://localhost:3000/demos> in your browser. On Windows, use `bun run start:windows`.
+The demos are exemplary API usage patterns we encourage you to read. They don't ship in the npm package, so clone the repo, run `bun install`, then `bun start`, and open <http://localhost:3000/demos> in your browser. On Windows, use `bun run start:windows`.
 Alternatively, see them live at [chenglou.me/pretext](https://chenglou.me/pretext/). Some more at [somnai-dreams.github.io/pretext-demos](https://somnai-dreams.github.io/pretext-demos/)
 Building a chat or another long list? [pages/demos/markdown-chat.md](https://github.com/chenglou/pretext/blob/main/pages/demos/markdown-chat.md) walks through the Markdown chat demo's patterns and when you can skip each.
 
