@@ -1,4 +1,4 @@
-import type { PreparedTextWithSegments, LayoutCursor } from './layout.js'
+import type { LayoutCursor } from './layout.js'
 import {
   analyzeText,
   CONTROL,
@@ -9,6 +9,7 @@ import {
   removeSkippableSegmentBreaks,
   RETURNABLE,
   SOFT_HYPHEN,
+  SPACE,
   TEXT,
   UNBROKEN,
   ZERO_WIDTH_BREAK,
@@ -18,7 +19,7 @@ import {
 import { getGeckoParagraphLevels, isDiscardable } from './gecko-line-breaks.js'
 import { isBidiControl } from './graphemes.js'
 import { getWebKitBreakBetweenItems } from './line-breaks.js'
-import { buildLineTextFromRange, getGraphemeEnds } from './line-text.js'
+import { buildLineTextFromRange, getGraphemeEnds, type PreparedSegments } from './line-text.js'
 import {
   breaksAfterKind,
   endsLineBefore,
@@ -131,10 +132,10 @@ type PreparedRichInlineItem = {
   // takes after content (0 unless it is walked).
   naturalWidth: number
   // The item's own handle, which its fragments' cursors follow.
-  prepared: PreparedTextWithSegments
+  prepared: PreparedSegments
   // What the line walkers and fragment text take: `prepared`, or its copy for the full
   // walker (getWalkedHandle), so a fragment paints the hyphen its line fits.
-  lineData: PreparedTextWithSegments
+  lineData: PreparedSegments
 }
 
 // An item's text inside a joined window: the whole item, or its text before
@@ -177,18 +178,49 @@ function getCollapsedSpaceWidth(font: string, letterSpacing: number, language: s
 
 // A zero-width break the Gecko profile makes of a soft hyphen after white space, which
 // Firefox drops from its text (IsDiscardable, nsTextFrameUtils.cpp:32-49).
-function isDiscardedBreak(data: PreparedTextWithSegments, segmentIndex: number): boolean {
+function isDiscardedBreak(data: PreparedSegments, segmentIndex: number): boolean {
   return (data.segmentFlags[segmentIndex]! & KIND_BITS) === ZERO_WIDTH_BREAK && data.segments[segmentIndex]!.charCodeAt(0) === 0x00AD
 }
 
+// Each item's text after the segment break transformation. Blink transforms segment breaks in the
+// text of the whole inline formatting context, where an atomic inline is U+FFFC, so a collapsible
+// run with a newline next to a ZWSP in another item goes too (ShouldRemoveNewline and
+// RemoveTrailingCollapsibleNewlineIfNeeded, inline_items_builder.cc). Where an item holds a
+// newline, the paragraph's text is transformed once, and each item that isn't atomic takes its
+// part of the result, which can only remove more than the item's own text does, at its ends.
+// Gecko transforms each text frame's own text (nsTextFrameUtils::TransformText), as the item's
+// own text does.
+function getItemTexts(items: RichInlineItem[], profile: EngineProfile, language: string | null): string[] {
+  const texts: string[] = []
+  if (profile.lineBreakScan !== 'blink' || !items.some(item => item.text.includes('\n'))) {
+    for (let index = 0; index < items.length; index++) texts.push(removeSkippableSegmentBreaks(items[index]!.text, profile, language))
+    return texts
+  }
+  let source = ''
+  const sourceEnds: number[] = []
+  for (let index = 0; index < items.length; index++) {
+    source += items[index]!.break === 'never' ? '\uFFFC' : items[index]!.text
+    sourceEnds.push(source.length)
+  }
+  const removed: number[] = []
+  const transformed = removeSkippableSegmentBreaks(source, profile, language, removed)
+  for (let index = 0, r = 0, transformedStart = 0; index < items.length; index++) {
+    while (r < removed.length && removed[r]! < sourceEnds[index]!) r++
+    const transformedEnd = sourceEnds[index]! - r
+    texts.push(items[index]!.break === 'never' ? removeSkippableSegmentBreaks(items[index]!.text, profile, language) : transformed.slice(transformedStart, transformedEnd))
+    transformedStart = transformedEnd
+  }
+  return texts
+}
+
 // The bidi levels Firefox resolves over the paragraph the items make (getGeckoParagraphLevels), each
-// item's text as prepareRichInline() takes it and an atomic one as U+FFFC (nsBidiPresUtils.cpp:1385-1396),
-// or null where it resolves none. `starts` takes each item's offset in that text.
-function getItemLevels(items: RichInlineItem[], profile: EngineProfile, language: string | null, starts: number[]): Uint8Array | null {
+// item's text (getItemTexts) and an atomic one as U+FFFC (nsBidiPresUtils.cpp:1385-1396), or null
+// where it resolves none. `starts` takes each item's offset in that text.
+function getItemLevels(items: RichInlineItem[], texts: string[], starts: number[]): Uint8Array | null {
   let source = ''
   for (let index = 0; index < items.length; index++) {
     starts.push(source.length)
-    source += items[index]!.break === 'never' ? '\uFFFC' : removeSkippableSegmentBreaks(items[index]!.text, profile, language)
+    source += items[index]!.break === 'never' ? '\uFFFC' : texts[index]!
   }
   return getGeckoParagraphLevels(source)
 }
@@ -198,19 +230,19 @@ function getItemLevels(items: RichInlineItem[], profile: EngineProfile, language
 // chunk's start. The Gecko analysis makes one only of the last soft hyphen of white space and
 // soft hyphens, before other source, so a ZWSP or a hard break after it still holds the line.
 // False where that is all of the item.
-function normalizeItemLineStart(data: PreparedTextWithSegments, start: LayoutCursor): boolean {
+function normalizeItemLineStart(data: PreparedSegments, start: LayoutCursor): boolean {
   if (!normalizePreparedLineStart(data, start)) return false
   return !(isDiscardedBreak(data, start.segmentIndex) && ++start.segmentIndex === data.segmentFlags.length)
 }
 
 // The item's width on a line of its own, from `start`, which it moves past what a line
 // start consumes; null where that is all of it.
-function measureWholeItem(prepared: PreparedTextWithSegments, start: LayoutCursor): number | null {
+function measureWholeItem(prepared: PreparedSegments, start: LayoutCursor): number | null {
   return normalizeItemLineStart(prepared, start) ? stepPreparedLineGeometryFromStart(prepared, cloneCursor(start), Number.POSITIVE_INFINITY) : null
 }
 
 // The width of an item a line start consumes on a line with content before it.
-function measureAfterContent(prepared: PreparedTextWithSegments): number {
+function measureAfterContent(prepared: PreparedSegments): number {
   const line: ItemLine = { continues: true, breakBefore: false, fitsBreakBefore: false, innerBreaks: null, breakSegmentIndex: -1, breakGraphemeIndex: 0, breakWidth: 0 }
   return stepPreparedLineGeometryFromStart(prepared, { segmentIndex: 0, graphemeIndex: 0 }, Number.POSITIVE_INFINITY, line)!
 }
@@ -291,7 +323,7 @@ function recordJoinedBreaks(
 // returnable, as preparation marks text with an unbroken boundary, so a line returns
 // to its latest break, which the walker leaves where the line takes the item's end
 // (ItemLine).
-function getWalkedHandle(prepared: PreparedTextWithSegments, flags: Uint8Array, innerBreaks: (number[] | null)[] | null): PreparedTextWithSegments {
+function getWalkedHandle(prepared: PreparedSegments, flags: Uint8Array, innerBreaks: (number[] | null)[] | null): PreparedSegments {
   for (let i = 0; i < flags.length; i++) {
     if ((flags[i]! & UNBROKEN) === 0) flags[i] = flags[i]! | RETURNABLE
     if (innerBreaks !== null && innerBreaks[i] !== null) flags[i] = flags[i]! | INNER_BREAKS
@@ -304,6 +336,7 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
   // One language read for every item, the joined analysis and the boundary spaces.
   const profile = getEngineProfile()
   const language = getPreparationLanguage(profile)
+  const texts = getItemTexts(items, profile, language)
   // Blink runs one line-break iterator over the text of the whole inline formatting
   // context, and Gecko collects a word across text frames until a space and breaks it
   // in one pass, so every break fact near a boundary comes from the joined text, as
@@ -334,13 +367,13 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
   // at 62px 61.40px, one space wide, as U+200F takes the level of the space between Hebrew letters.
   let whitespaceRunOpen = false
   // The paragraph's bidi levels (getItemLevels), made where a run first goes on past such
-  // characters, and each item's offset there.
+  // characters (RESEARCH.md, Keeping Work Bounded), and each item's offset there.
   let levels: Uint8Array | null | undefined
   const levelStarts: number[] = []
   // Whether the characters [from, to) of item `index`'s text keep the level of the one at `at`.
   function keepsLevel(index: number, at: number, from: number, to: number): boolean {
     if (from === to) return true
-    if (levels === undefined) levels = getItemLevels(items, profile, language, levelStarts)
+    if (levels === undefined) levels = getItemLevels(items, texts, levelStarts)
     if (levels === null) return true
     const offset = levelStarts[index]!
     for (let i = from; i < to; i++) if (levels[offset + i] !== levels[offset + at]) return false
@@ -359,34 +392,6 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
   // An item's last two source characters, read as prior context at the next
   // boundary where breaks come from each item's own text.
   const boundaryContexts: string[] = []
-  // Blink transforms segment breaks in the text of the whole inline formatting context,
-  // where an atomic inline is U+FFFC, so a collapsible run with a newline next to a ZWSP
-  // in another item goes too (ShouldRemoveNewline and
-  // RemoveTrailingCollapsibleNewlineIfNeeded, inline_items_builder.cc). Where an item
-  // holds a newline, the paragraph's text is transformed once, and where that removes a
-  // run, each item that isn't atomic takes its part of the result, which can only remove
-  // more than the item's own text does, at its ends. Gecko transforms each text frame's
-  // own text (nsTextFrameUtils::TransformText), as the item's own text does.
-  let transformedTexts: string[] | null = null
-  if (profile.lineBreakScan === 'blink' && items.some(item => item.text.includes('\n'))) {
-    let source = ''
-    const sourceEnds: number[] = []
-    for (let index = 0; index < items.length; index++) {
-      source += items[index]!.break === 'never' ? '\uFFFC' : items[index]!.text
-      sourceEnds.push(source.length)
-    }
-    const removed: number[] = []
-    const transformed = removeSkippableSegmentBreaks(source, profile, language, removed)
-    if (removed.length > 0) {
-      transformedTexts = []
-      for (let index = 0, r = 0, transformedStart = 0; index < items.length; index++) {
-        while (r < removed.length && removed[r]! < sourceEnds[index]!) r++
-        const transformedEnd = sourceEnds[index]! - r
-        transformedTexts.push(transformed.slice(transformedStart, transformedEnd))
-        transformedStart = transformedEnd
-      }
-    }
-  }
 
   function finishJoinedText(): void {
     if (joinedPortions.length > 1) {
@@ -429,9 +434,7 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
   for (let index = 0; index < items.length; index++) {
     const item = items[index]!
     const letterSpacing = readLetterSpacing(item.letterSpacing)
-    const text = transformedTexts === null || item.break === 'never'
-      ? removeSkippableSegmentBreaks(item.text, profile, language)
-      : transformedTexts[index]!
+    const text = texts[index]!
     let start = 0
     while (start < text.length && isCollapsibleSpaceCode(text.charCodeAt(start))) start++
 
@@ -479,10 +482,11 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
     // is prepared without emergency breaks.
     const itemBreak = item.break ?? 'normal'
     const analysis = analyzeText(item.text, profile, 'normal', 'normal', language)
-    const prepared = measureAnalysis(analysis, item.font, true, letterSpacing, profile, language, itemBreak !== 'never') as PreparedTextWithSegments
+    const prepared = measureAnalysis(analysis, item.font, true, letterSpacing, profile, language, itemBreak !== 'never') as PreparedSegments
+    const { segmentFlags } = prepared
     // A collapsible space before a hard break goes with the line's end (CSS Text 3
     // §4.1.2), so an item that starts with one has no gap before it.
-    if ((prepared.segmentFlags[0]! & KIND_BITS) === HARD_BREAK) {
+    if ((segmentFlags[0]! & KIND_BITS) === HARD_BREAK) {
       gapBefore = 0
       gapItemIndex = -1
     }
@@ -491,7 +495,20 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
     // observation, not the rich item's identity or source end.
     const wholeStart: LayoutCursor = { segmentIndex: 0, graphemeIndex: 0 }
     const wholeWidth = measureWholeItem(prepared, wholeStart)
-    const establishesLine = wholeWidth !== null || prepared.kinds.includes('zero-width-break')
+    // The item's first and last collapsed space, and whether it holds a zero-width break and a
+    // hard break.
+    let firstSpace = -1
+    let lastSpace = -1
+    let holdsZeroWidthBreak = false
+    let holdsHardBreak = false
+    for (let i = 0; i < segmentFlags.length; i++) {
+      const kind = segmentFlags[i]! & KIND_BITS
+      if (kind === SPACE && firstSpace < 0) firstSpace = i
+      if (kind === SPACE) lastSpace = i
+      holdsZeroWidthBreak ||= kind === ZERO_WIDTH_BREAK
+      holdsHardBreak ||= kind === HARD_BREAK
+    }
+    const establishesLine = wholeWidth !== null || holdsZeroWidthBreak
     // Such an item can hold white space between its soft hyphens, which follows a soft
     // hyphen instead of the collapsed space before the item, so after content it takes
     // room and the line can end at the soft hyphens around it, as in one text: the item
@@ -501,14 +518,13 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
     // item starts with white space, what a line start consumes at its start takes no room
     // after content either, and only an item that starts with a soft hyphen is walked.
     const collapsesIntoLeading = profile.collapsesSpaceAcrossSoftHyphens && hasLeadingWhitespace
-    const innerSpace = establishesLine ? -1 : prepared.kinds.indexOf('space')
-    const walksConsumed = innerSpace >= 0 && innerSpace < prepared.kinds.length - 1 && !collapsesIntoLeading
+    const walksConsumed = !establishesLine && firstSpace >= 0 && firstSpace < segmentFlags.length - 1 && !collapsesIntoLeading
 
     const preparedItem = {
       break: itemBreak,
       breakBefore: whitespaceBefore,
       continued: false,
-      walked: prepared.kinds.includes('hard-break') || (wholeWidth !== null && wholeStart.segmentIndex > 0 && !collapsesIntoLeading) || walksConsumed,
+      walked: holdsHardBreak || (wholeWidth !== null && wholeStart.segmentIndex > 0 && !collapsesIntoLeading) || walksConsumed,
       establishesLine,
       extraWidth: item.extraWidth ?? 0,
       gapBefore,
@@ -530,8 +546,6 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
     } else {
       // Normal-mode segments hold single collapsed spaces. Text beyond the
       // first and last of them cannot reach a neighboring item's boundary.
-      const { kinds } = prepared
-      const firstSpace = kinds.indexOf('space')
       if (joinedPortions.length === 0) {
         joinedAfterSpace = whitespaceBefore
         joinedAfterContent = previousItem !== null
@@ -551,7 +565,7 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
           item: preparedItem,
           itemIndex: index,
           start: 0,
-          startSegmentIndex: kinds.lastIndexOf('space') + 1,
+          startSegmentIndex: lastSpace + 1,
           spaceEndSegmentIndex: -1,
         })
       }

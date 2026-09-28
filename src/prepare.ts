@@ -11,7 +11,6 @@ import {
   KIND_BITS,
   ONE_CLUSTER,
   PRESERVED_SPACE,
-  SEGMENT_KINDS,
   SOFT_HYPHEN,
   SPACE,
   SPACED,
@@ -20,7 +19,6 @@ import {
   UNBROKEN,
   ZERO_WIDTH_BREAK,
   ZERO_WIDTH_GLUE,
-  type SegmentBreakKind,
   type SegmentKindCode,
   type TextAnalysis,
 } from './analysis.js'
@@ -40,8 +38,9 @@ import {
   type SegmentFit,
   type SegmentMetrics,
 } from './measurement.js'
-import type { PreparedText, PreparedTextWithSegments } from './layout.js'
+import type { PreparedText } from './layout.js'
 import type { PreparedLineBreakData } from './line-break.js'
+import type { PreparedSegments } from './line-text.js'
 
 // Text and spaces take letter spacing after each grapheme; a ZWSP takes none.
 function countRenderedSpacingGraphemes(text: string, kind: SegmentKindCode, graphemeTable: GraphemeTable): number {
@@ -122,7 +121,7 @@ export function measureAnalysis(
   // Whether text segments take emergency breaks between graphemes: an atomic rich item,
   // which is only laid out whole, takes none.
   overflowBreaks: boolean,
-): (PreparedText & PreparedLineBreakData) | PreparedTextWithSegments {
+): (PreparedText & PreparedLineBreakData) | (PreparedText & PreparedSegments) {
   const { normalized, texts, starts, flags } = analysis
   const segmentCount = flags.length
   const fontMeasurement = getFontMeasurement(font, language)
@@ -291,7 +290,6 @@ export function measureAnalysis(
   // first grapheme.
   const keepsLineStartPunctuation = engineProfile.lineBreakScan === 'webkit' && /[\u0100-\uFFFF]/.test(normalized)
   const segments = includeSegments ? [] as string[] : null
-  const kinds = includeSegments ? [] as SegmentBreakKind[] : null
   const retreatsFromUnfitHyphen = engineProfile.unfitHyphenRetreat !== 'none'
   let discretionaryHyphenContexts: number[] | null = null
   let previousJoinablePiece: string | null = null
@@ -432,7 +430,6 @@ export function measureAnalysis(
     if (prohibitions !== null && lineStartProhibitions === null) lineStartProhibitions = Array.from({ length: mi }, () => null)
     lineStartProhibitions?.push(prohibitions)
     if (segments !== null) segments.push(text)
-    kinds?.push(SEGMENT_KINDS[kind]!)
     if (kind === SOFT_HYPHEN && retreatsFromUnfitHyphen) {
       discretionaryHyphenContexts ??= Array.from({ length: mi }, () => 0)
       discretionaryHyphenContexts.push(getJoinedNarrowing(mi, previousJoinablePiece, previousJoinableMetrics))
@@ -468,11 +465,8 @@ export function measureAnalysis(
     lineEndTrims,
     overflowLineEndTrims: hanKerning.overflowLineEndTrims,
     tabStopAdvance,
-  } as unknown as PreparedTextWithSegments
-  if (segments !== null && kinds !== null) {
-    prepared.segments = segments
-    prepared.kinds = kinds
-  }
+  } as unknown as PreparedText & PreparedSegments
+  if (segments !== null) prepared.segments = segments
   return prepared
 }
 
