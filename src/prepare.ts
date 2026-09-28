@@ -39,6 +39,7 @@ import {
   textMayContainEmoji,
   type SegmentFit,
   type SegmentMetrics,
+  zeros,
 } from './measurement.js'
 import type { PreparedText, PreparedTextWithSegments } from './layout.js'
 import type { PreparedLineBreakData } from './line-break.js'
@@ -434,7 +435,7 @@ export function measureAnalysis(
     if (segments !== null) segments.push(text)
     kinds?.push(SEGMENT_KINDS[kind]!)
     if (kind === SOFT_HYPHEN && retreatsFromUnfitHyphen) {
-      discretionaryHyphenContexts ??= Array.from({ length: mi }, () => 0)
+      discretionaryHyphenContexts ??= zeros(mi)
       discretionaryHyphenContexts.push(getJoinedNarrowing(mi, previousJoinablePiece, previousJoinableMetrics))
     } else {
       discretionaryHyphenContexts?.push(0)
@@ -510,7 +511,7 @@ function addIdeographicSpaceHangs(
     const afterSoftHyphen = i > 0 && start === starts[i] && normalized.charCodeAt(start - 1) === 0xAD
     const hang = getSegmentMetrics(run, measurement).width + run.length * letterSpacing - (afterSoftHyphen ? hyphenWidth : 0)
     if (hang <= 0) continue
-    trims ??= Array.from({ length: flags.length }, () => 0)
+    trims ??= zeros(flags.length)
     trims[i] = trims[i]! + hang
   }
   return trims

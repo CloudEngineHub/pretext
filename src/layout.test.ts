@@ -1172,8 +1172,9 @@ describe('boundary-policy regressions', () => {
 
   test('a rich item keeps its collapsed leading whitespace as WebKit break context', () => {
     const profile = getEngineProfile()
-    const previous = profile.lineBreakScan
+    const previous = { lineBreakScan: profile.lineBreakScan, breaksFromItemText: profile.breaksFromItemText }
     profile.lineBreakScan = 'webkit'
+    profile.breaksFromItemText = true
     try {
       // Rich fragment cursors index prepareWithSegments(item.text), where a
       // SPACE or TAB before the ZWSP separates the mark.
@@ -1190,16 +1191,18 @@ describe('boundary-policy regressions', () => {
         expect(texts).toEqual(items.map(item => item.segments.join('')))
       }
     } finally {
-      profile.lineBreakScan = previous
+      Object.assign(profile, previous)
     }
   })
 
   test('Chrome and Firefox remove a newline run next to a zero-width space through their own runs', () => {
     const profile = getEngineProfile()
-    const previous = profile.lineBreakScan
+    const previous = { lineBreakScan: profile.lineBreakScan, breaksFromItemText: profile.breaksFromItemText, transformsSegmentBreaksAcrossItems: profile.transformsSegmentBreaksAcrossItems }
     try {
       for (const [scan, column] of [['webkit', 1], ['blink', 2], ['gecko', 3]] as const) {
         profile.lineBreakScan = scan
+        profile.breaksFromItemText = scan === 'webkit'
+        profile.transformsSegmentBreaksAcrossItems = scan === 'blink'
         // Source, then the normalized text in Safari, Chrome and Firefox.
         for (const shape of [
           ['ab\n\u200Bcd', 'ab \u200Bcd', 'ab\u200Bcd', 'ab\u200Bcd'],
@@ -1232,7 +1235,7 @@ describe('boundary-policy regressions', () => {
         }
       }
     } finally {
-      profile.lineBreakScan = previous
+      Object.assign(profile, previous)
     }
   })
 
@@ -2929,19 +2932,20 @@ describe('rich-inline invariants', () => {
     // goes in Blink, which transforms the paragraph's text, and stays in Gecko, which
     // transforms each text frame's own text.
     const profile = getEngineProfile()
-    const previous = profile.lineBreakScan
+    const previous = { lineBreakScan: profile.lineBreakScan, transformsSegmentBreaksAcrossItems: profile.transformsSegmentBreaksAcrossItems }
     try {
       for (const [lineBreakScan, afterZwsp, beforeZwsp] of [
         ['blink', [[0, -1], [1, -1]], [[0, -1], [1, -1]]],
         ['gecko', [[0, -1], [1, 1]], [[0, -1], [1, 0]]],
       ] as const) {
         profile.lineBreakScan = lineBreakScan
+        profile.transformsSegmentBreaksAcrossItems = lineBreakScan === 'blink'
         clearCache()
         expect(gapItems([{ text: 'ab\u200B' }, { text: '\ncd' }])).toEqual([afterZwsp.map(fragment => [...fragment])])
         expect(gapItems([{ text: 'ab\n' }, { text: '\u200Bcd' }])).toEqual([beforeZwsp.map(fragment => [...fragment])])
       }
     } finally {
-      profile.lineBreakScan = previous
+      Object.assign(profile, previous)
       clearCache()
     }
   })

@@ -43,9 +43,6 @@ export const RETURNABLE = 0x40
 // The engine's clusters don't split the segment, so no emergency break splits it
 // either. Measurement clears it.
 export const ONE_CLUSTER = 0x80
-// The same bit in a rich-inline item's walked handle: the text the items join breaks
-// inside the segment (src/rich-inline.ts).
-export const INNER_BREAKS = 0x80
 export type SegmentKindCode = typeof TEXT | typeof SPACE | typeof ZERO_WIDTH_BREAK | typeof SOFT_HYPHEN |
   typeof PRESERVED_SPACE | typeof TAB | typeof ZERO_WIDTH_GLUE | typeof CONTROL | typeof HARD_BREAK
 // Each kind's name by its code, as prepareWithSegments() gives them.
@@ -149,6 +146,14 @@ function collapseWhiteSpaceThroughBidiControls(text: string): string {
     const end = base ? last : run.length
     return run.slice(0, kept).replace(collapsibleWhitespaceRunRe, '') + run[kept] + run.slice(kept + 1, end).replace(collapsibleWhitespaceRunRe, '') + (base ? run.slice(last) : '')
   })
+}
+
+// Where white space at the end of a text, after `start`, ends: at the end, or in Gecko before the bidi
+// controls there, as its collapse drops white space before only those (collapseWhiteSpaceThroughBidiControls).
+export function getTrailingWhiteSpaceEnd(text: string, start: number, profile: AnalysisProfile): number {
+  let end = text.length
+  if (profile.lineBreakScan === 'gecko') while (end > start && isBidiControl(text.charCodeAt(end - 1))) end--
+  return end
 }
 
 // Every East Asian wide, fullwidth or halfwidth character is at or above U+1100.
