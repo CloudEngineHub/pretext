@@ -3,7 +3,6 @@ import {
   analyzeText,
   CONTROL,
   HARD_BREAK,
-  INNER_BREAKS,
   isCollapsibleSpaceCode,
   KIND_BITS,
   removeSkippableSegmentBreaks,
@@ -291,11 +290,8 @@ function recordJoinedBreaks(
 // returnable, as preparation marks text with an unbroken boundary, so a line returns
 // to its latest break, which the walker leaves where the line takes the item's end
 // (ItemLine).
-function getWalkedHandle(prepared: PreparedTextWithSegments, flags: Uint8Array, innerBreaks: (number[] | null)[] | null): PreparedTextWithSegments {
-  for (let i = 0; i < flags.length; i++) {
-    if ((flags[i]! & UNBROKEN) === 0) flags[i] = flags[i]! | RETURNABLE
-    if (innerBreaks !== null && innerBreaks[i] !== null) flags[i] = flags[i]! | INNER_BREAKS
-  }
+function getWalkedHandle(prepared: PreparedTextWithSegments, flags: Uint8Array): PreparedTextWithSegments {
+  for (let i = 0; i < flags.length; i++) if ((flags[i]! & UNBROKEN) === 0) flags[i] = flags[i]! | RETURNABLE
   return { ...prepared, segmentFlags: flags, simpleLineWalkFastPath: false }
 }
 
@@ -622,7 +618,7 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
   for (let index = 0; index < preparedItems.length; index++) {
     const item = preparedItems[index]
     if (item === undefined || (item.innerBreaks === null && walkedFlags[index] === undefined)) continue
-    item.lineData = getWalkedHandle(item.prepared, walkedFlags[index] ?? item.prepared.segmentFlags.slice(), item.innerBreaks)
+    item.lineData = getWalkedHandle(item.prepared, walkedFlags[index] ?? item.prepared.segmentFlags.slice())
     // A continued item that breaks inside is walked, which leaves the line's latest break.
     // One a line start consumes is walked only where it holds white space (above).
     if (!item.continued || !item.establishesLine) continue

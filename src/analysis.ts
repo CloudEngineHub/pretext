@@ -43,9 +43,6 @@ export const RETURNABLE = 0x40
 // The engine's clusters don't split the segment, so no emergency break splits it
 // either. Measurement clears it.
 export const ONE_CLUSTER = 0x80
-// The same bit in a rich-inline item's walked handle: the text the items join breaks
-// inside the segment (src/rich-inline.ts).
-export const INNER_BREAKS = 0x80
 export type SegmentKindCode = typeof TEXT | typeof SPACE | typeof ZERO_WIDTH_BREAK | typeof SOFT_HYPHEN |
   typeof PRESERVED_SPACE | typeof TAB | typeof ZERO_WIDTH_GLUE | typeof CONTROL | typeof HARD_BREAK
 // Each kind's name by its code, as prepareWithSegments() gives them.

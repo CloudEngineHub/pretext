@@ -1,7 +1,6 @@
 import {
   CONTROL,
   HARD_BREAK,
-  INNER_BREAKS,
   KIND_BITS,
   PRESERVED_SPACE,
   RETURNABLE,
@@ -542,6 +541,8 @@ function walkPreparedComplexLines(
             : widths[i]!
           const advance = leadingSpacing + w
           const endTrim = lineEndTrims === null ? 0 : lineEndTrims[i]!
+          // The graphemes inside the segment before which the line can end, else null.
+          const segmentInner = innerBreaks === null ? null : innerBreaks[i]!
 
           if (kind === SOFT_HYPHEN && startGraphemeIndex === 0) {
             if (hasContent) {
@@ -606,8 +607,7 @@ function walkPreparedComplexLines(
                 lineEndGraphemeIndex = 0
                 lineW = w + startExtra
                 lineEndTrimmed = fitAdvance + startExtra > fitLimit ? startTrim : 0
-                if ((flags & INNER_BREAKS) !== 0) {
-                  const segmentInner = innerBreaks![i]!
+                if (segmentInner !== null) {
                   innerBreakSegmentIndex = i
                   innerBreakGraphemeIndex = segmentInner[segmentInner.length - 1]!
                   innerBreakWidth = getGraphemesAdvance(breakableFitAdvances[i]!, innerBreakGraphemeIndex, 0, letterSpacing)
@@ -647,8 +647,7 @@ function walkPreparedComplexLines(
               // where the scan gives no break before the segment, as before NEL (UAX #14
               // LB6), it returns to its last break. Without one, Blink and WebKit retry
               // between graphemes, so the segment's graphemes fill it.
-              if ((flags & INNER_BREAKS) !== 0) {
-                const segmentInner = innerBreaks![i]!
+              if (segmentInner !== null) {
                 const fitAdvances = breakableFitAdvances[i]!
                 let innerAdvance = leadingSpacing
                 for (let g = 0, k = 0; k < segmentInner.length; g++) {
@@ -702,8 +701,7 @@ function walkPreparedComplexLines(
                 fitBreakPaintWidth = lineW
               }
               // The last break inside the segment is the line's latest.
-              if ((flags & INNER_BREAKS) !== 0) {
-                const segmentInner = innerBreaks![i]!
+              if (segmentInner !== null) {
                 innerBreakSegmentIndex = i
                 innerBreakGraphemeIndex = segmentInner[segmentInner.length - 1]!
                 innerBreakWidth = lineW + getGraphemesAdvance(breakableFitAdvances[i]!, innerBreakGraphemeIndex, leadingSpacing, letterSpacing)
@@ -754,7 +752,9 @@ function walkPreparedComplexLines(
             lineEndGraphemeIndex = 0
             lineW = freshWhole - letterSpacing
           } else {
-            const segmentInner = (flags & INNER_BREAKS) !== 0 ? innerBreaks![i]! : null
+            // The first of the segment's inner breaks after the fill's start.
+            let nextInner = 0
+            while (segmentInner !== null && nextInner < segmentInner.length && segmentInner[nextInner]! <= fillStart) nextInner++
             for (let g = fillStart; g < fitCount; g++) {
               const baseGw = fitAdvances[g]!
               if (!hasContent) {
@@ -790,10 +790,11 @@ function walkPreparedComplexLines(
                 lineEndSegmentIndex = i
                 lineEndGraphemeIndex = g + 1
               }
-              if (segmentInner !== null && segmentInner.includes(g + 1)) {
+              if (segmentInner !== null && nextInner < segmentInner.length && segmentInner[nextInner] === g + 1) {
                 innerBreakSegmentIndex = i
                 innerBreakGraphemeIndex = g + 1
                 innerBreakWidth = lineW
+                nextInner++
               }
             }
           }
