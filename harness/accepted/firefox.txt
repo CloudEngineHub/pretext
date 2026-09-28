@@ -15,6 +15,13 @@ rich-8736e842495c21ea count
 rich-d232a1424826203f count
 rich-d7a1851aecf96951 breaks
 
+## A span of a soft hyphen after a word, before a span that starts with LRI, at 24 px and wider: Firefox breaks after the LRI, which it doesn't for the text in one node, where the library breaks as in one node, inside the word after the LRI (main too; ENGINE_FOLLOWUPS.md)
+rich-04d0135c57e7b691 breaks
+rich-05d465f9481322f1 breaks
+rich-2d085f35ed051005 breaks
+rich-50652eb4b3208acb count
+rich-9e0c6d33ecb015ae breaks
+
 ## Arabic and Hebrew beside brackets, controls, U+FFFC or rich-item edges, at 24 px and wider: Firefox breaks there where the library doesn't
 catalog-0bbc041b22a8eb25 count
 catalog-17b324c3ade315fe breaks
@@ -2107,12 +2114,14 @@ facts-d5a3d937459712e1 count
 facts-fc69084749bc97f4 count
 rich-029e71d595e94f0c breaks
 rich-34075de5f2f50824 count
+rich-3f6c610251935b3f count
 rich-56f1ab0f866f4262 count
 rich-8acb5b79e29743bd count
 rich-8d3626fe8bbced7a count
 rich-9b4af34068e55c9a breaks
 rich-9caad05a8d6ec08d count
 rich-a560650dfbeafe72 count
+rich-af536739c810f600 count
 rich-c604ab44311a3b58 breaks
 rich-d2cbcec88b98434b breaks
 rich-eac5e4eee615b1b8 count

@@ -25,7 +25,10 @@
 //   space's bidi level doesn't, one that text after it ends, an atomic item whose leading white space collapses into
 //   one, a soft hyphen after no white space, which opens none, and a ZWSP after soft hyphens where a line starts after
 //   a wrap; and, cut on their own too, the levels that rule reads: the paragraph's, at each item's offset, of every
-//   character the run goes past against the white space before them, with a newline as a space.
+//   character the run goes past against the white space before them, with a newline as a space; and, cut on their own
+//   too, a soft hyphen that ends an item before a bidi control that starts the next, at the paragraph's start, after a
+//   space in the item or a collapsed one before it, which Firefox's scan of the joined text takes as text, and after
+//   other text.
 import { TEXTS } from '../../src/test-data.ts'
 import type { CssFont, TextRun } from '../types.ts'
 import { codePoints, createRng, font, paragraph, span } from './build.ts'
@@ -154,6 +157,8 @@ export function richTemplates(): Template[] {
     ['bidi-level-of-every-dropped-character', ['(q) \u{AD}\u{200F}', ' this more']], ['bidi-level-of-every-dropped-character', ['(q) \u{AD}\u{200F}\u{AD}', ' this more']],
     ['bidi-level-of-a-newline', ['\u{202D}\u{AD}', '\u{628}\u{628}\n\u{61C}', span(' \u{AD}more', ARIAL, { atomic: true })], 'ar'],
     ['bidi-level-of-a-newline', ['\u{202D}\u{AD}', '\u{628}\u{628}\n\u{61C}\u{AD}', span(' \u{AD}more', ARIAL, { atomic: true })], 'ar'],
+    ['soft-hyphen-before-bidi-control', ['\u{AD}', '\u{202B}more words']], ['soft-hyphen-before-bidi-control', ['see \u{AD}', '\u{2066}this word']],
+    ['soft-hyphen-before-bidi-control', ['word ', '\u{AD}', '\u{200F}more text']], ['soft-hyphen-before-bidi-control', ['see', '\u{AD}', '\u{2066}this word']],
   ]
   for (let i = 0; i < continued.length; i++) {
     const [family, parts, lang] = continued[i]!
