@@ -458,7 +458,15 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
     if (breaksFromItemText) boundaryContexts[index] = text.slice(Math.max(0, end - 2), end)
 
     // Leading white space collapses into a run left open before it. An atomic item's own white
-    // space is inside its inline-block, which trims it at the box's edges, so it makes no gap.
+    // space makes no gap: its inline-block lays its text out as a paragraph of its own, whose
+    // lines drop white space at their start and end. Blink puts the box in the outer paragraph as
+    // one U+FFFC (inline_node.cc:408-422) and removes its own paragraph's leading and trailing
+    // spaces (inline_items_builder.cc:869-871, ExitBlock at 1622-1629); WebKit's atomic inline
+    // box is one item of the outer line (InlineItemsBuilder.cpp:1073-1074), and its own lines
+    // collapse leading white space (Line::appendText, InlineLine.cpp:348-373) and remove
+    // trailing (InlineLineBuilder.cpp:646); Gecko's text run stops at the box
+    // (BuildTextRunsScanner::ScanFrame, nsTextFrame.cpp:2248-2254), and its own lines skip
+    // leading white space (nsTextFrame.cpp:10935-10944) and trim trailing (nsBlockFrame.cpp:5844).
     const ownsWhiteSpace = item.break !== 'never'
     const takesOwnSpace = hasLeadingWhitespace && !whitespaceRunOpen && ownsWhiteSpace
     let gapBefore = takesOwnSpace ? getCollapsedSpaceWidth(item.font, letterSpacing, language) : pendingGapWidth ?? 0

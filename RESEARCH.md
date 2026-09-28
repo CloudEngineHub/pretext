@@ -1468,13 +1468,27 @@ atomic item's exception alone fixed 35 and lost none. No case of the second prob
 80,512, moves.
 
 An atomic item's own white space, leading or trailing, makes no gap anywhere, as every
-browser trims it inside the inline-block: items `see`, atomic ` chip`, `this` in 16px Arial
-at 60px take a 55.15px first line in all three browsers, where a gap made it 59.60px. On the
-three September 27, 2026 review probes that fixes 1,845 Chrome, 818 Firefox and 1,884
-webkit-host cases against giving it a gap and loses 76, 81 and 101, of which 2, 4 and none
-fail as spans only. In the rich set it fixes 12 Chrome and 12 webkit-host cases and loses 5
-webkit-host ones 1/64px from where Safari's lines change, where Safari's line is
-0.008-0.016px wider than the library's.
+browser lays an inline-block's text out as a paragraph of its own, whose lines drop white
+space at their start and end, and puts the box in the outer line as one object: Blink as
+one U+FFFC (`AppendAtomicInline`), removing its own paragraph's leading spaces and, in
+`ExitBlock`, its trailing ones (inline_items_builder.cc:869-871, 1622-1629); WebKit as one
+atomic inline box item, whose own lines collapse leading white space (`Line::appendText`,
+InlineLine.cpp:348-373) and remove trailing (InlineLineBuilder.cpp:646); Gecko by ending
+the text run at the box (`BuildTextRunsScanner::ScanFrame`), whose own lines skip leading
+white space (nsTextFrame.cpp:10935-10944) and trim trailing (nsBlockFrame.cpp:5844).
+Items `see`, atomic ` chip`, `this` in 16px Arial at 60px take a 55.15px first line in all
+three browsers, where a gap made it 59.60px. On the three September 27, 2026 review probes
+that fixes 1,845 Chrome, 818 Firefox and 1,884 webkit-host cases against giving it a gap
+and loses 76, 81 and 101. Of those, the browser lays out 11, 24 and 16 otherwise as spans
+than as one node, 63, 53 and 85 fail as their one node does, and 2, 4 and none fail as
+spans only; 241 of the 258 hold a soft hyphen or bidi control next to the atomic item's
+white space, where the gap made up for white space the library gets wrong there. In Firefox,
+items `42 \u200F`, ` \u00AD `, ` Wi-Fi see`, atomic ` ok`, U+200F, `über שלום \u202D` at
+140px take a 111.15px first line of `42`, two spaces, `Wi-Fi see` and `ok`, as the mark
+is at another level than the white space after it (above), where rich lines count one
+space there and, with no gap before `ok`, fit `über` too. In the rich set it fixes 12
+Chrome and 12 webkit-host cases and loses 5 webkit-host ones 1/64px from where Safari's
+lines change, where Safari's line is 0.008-0.016px wider than the library's.
 
 In the Gecko profile a soft hyphen after collapsible white space is a zero-width break,
 which Firefox drops from its text (`IsDiscardable`, nsTextFrameUtils.cpp:32-49), so it
