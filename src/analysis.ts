@@ -153,7 +153,6 @@ export function getTrailingCollapsibleStart(text: string, from: number, scan: An
 // nsTextFrameUtils.cpp:151-193), and a last space before a combining sequence tail as the tail's
 // base (TransformText, nsTextFrameUtils.cpp:319-345). So the run's other white space goes, and so
 // does the white space that ends the text (getTrailingCollapsibleStart).
-const bidiControlRe = /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/
 const whiteSpaceThroughBidiControlsRe = /(?<![ \t\n\r\f])[ \t\n\r\f]+(?:[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]+[ \t\n\r\f]*)+/g
 function collapseWhiteSpaceThroughBidiControls(text: string): string {
   const trailing = getTrailingCollapsibleStart(text, 0, 'gecko')
@@ -418,23 +417,27 @@ export function analyzeText(
   const keepAll = wordBreak === 'keep-all'
   let breaks: Uint8Array
   let spaceSources: Uint16Array | null = null
-  // Gecko's text run leaves out every bidi control (IsDiscardable), and its white-space
-  // collapse reads through them.
-  const dropsBidiControl = profile.lineBreakScan === 'gecko' && bidiControlRe.test(source)
-  if (dropsBidiControl && !preserve) {
-    const collapsed = collapseWhiteSpaceThroughBidiControls(source)
-    if (collapsed !== source) {
-      source = collapsed
-      normalized = collapseWhitespaceNormal(source)
-    }
-  }
+  let dropsBidiControl = false
   if (profile.lineBreakScan === 'blink') {
     breaks = getBlinkLineBreaks(normalized, keepAll, language)
   } else {
     // WebKit and Gecko scan the source. Gecko's scan collapses its white space as Firefox does.
-    const sourceBreaks = profile.lineBreakScan === 'webkit'
-      ? getWebKitLineBreaks(source, preserve, keepAll, language)
-      : getGeckoLineBreaks(source, preserve, keepAll, profile.graphemeTable, dropsBidiControl)
+    let sourceBreaks: Uint8Array
+    if (profile.lineBreakScan === 'webkit') {
+      sourceBreaks = getWebKitLineBreaks(source, preserve, keepAll, language)
+    } else {
+      let gecko = getGeckoLineBreaks(source, preserve, keepAll, profile.graphemeTable)
+      dropsBidiControl = gecko.dropsBidiControl
+      // Where that collapse drops white space, the scan runs again: its text run is the same, but
+      // its offsets move.
+      const collapsed = dropsBidiControl && !preserve ? collapseWhiteSpaceThroughBidiControls(source) : source
+      if (collapsed !== source) {
+        source = collapsed
+        normalized = collapseWhitespaceNormal(source)
+        gecko = getGeckoLineBreaks(source, preserve, keepAll, profile.graphemeTable)
+      }
+      sourceBreaks = gecko.breaks
+    }
     if (profile.lineBreakScan === 'webkit' && !preserve && source !== normalized) spaceSources = new Uint16Array(normalized.length)
     breaks = source === normalized ? sourceBreaks : mapSourceLineBreaks(source, normalized.length, sourceBreaks, whiteSpace, spaceSources)
   }
