@@ -2025,6 +2025,23 @@ runs no new step in the WebKit profile for the bench's messages, read Safari's r
 walk 21.0% faster than main and 12.5% and 12.0% slower than the round before it,
 and plain layout rows it doesn't change 2.5 to 8.5% slower than that round.
 
+Firefox 156 measures the bench's rich stats 5.9% slower since items continue their
+lines (+5.9, +4.0 and +7.1% in three sessions against e73081fc, where the second
+copy of it read +2.9, −1.3 and +3.2%), and its rich walk and stream about 2%. #369
+put it down to the full walker, which steps about one item per line there where the
+simple stepper did. That isn't the cause: items on fast-path handles that continue a
+line, sent back to the simple stepper, give the same lines within 10⁻⁶ offline and
+read +0.2% against #369. The cost is in `src/rich-inline.ts` and `src/line-break.ts`,
+whose versions from before #369 read 8.5% faster on the same tree, and it comes from
+how SpiderMonkey compiles the rich stepper rather than from work it does: without the
+break it records before a continued item at the top of its item loop, whose body
+never runs on the bench, as every word item there follows a whitespace item, rich
+stats read 4.7% faster, and walk and stream 6.1 and 6.8%, faster than before #369
+too. No plain structure takes it back: the hang of the spaces before consumed items
+in a function of its own read 2.0% faster, without that block at all 2.4% faster,
+and the seven locals of the line's latest break in one record 3.0% slower, all
+within noise. So the slowdown is accepted (Decisions Log, 2026-09-26).
+
 The analysis gives each segment's flags byte in a plain array while it finds the
 segments, and measurement copies the bytes into the prepared handle's
 `Uint8Array`. A `Uint8Array` as long as the text, cut to the segments found and
