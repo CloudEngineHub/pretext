@@ -1189,11 +1189,15 @@ that Gecko's joined scan splits into a soft hyphen and a zero-width break, so a 
 that ends after both paints no hyphen. Taking the kind of the joined segment that
 starts where the item's does gave those two the first one's kind, so the line fitted
 a hyphen Firefox doesn't draw: 14 Firefox probe cases that main passes, such as
-items `文文`, `\u00AD\u00ADحبا` at 37px. The fragments' text follows the copy's kinds too, so a
-fragment paints the hyphen its line's width counts; following the item's own handle,
+items `文文`, `\u00AD\u00ADحبا` at 37px. A fragment's hyphen follows the copy's kinds too,
+so a fragment paints the hyphen its line's width counts; following the item's own handle,
 as `materializeLineRange()` over it would, painted one where the width left it out,
 as for items `中`, `\u0301\u00ADxy` in the Gecko profile, and none where Firefox
-paints one. A zero-width break that only the joined text
+paints one. Its text is the item's own: built from the copy, it showed a soft hyphen
+that ends an item at a text's start or after white space, where Gecko's joined scan
+makes it text before a bidi control, as for items `\u00AD`, `\u202B-`, which the item's
+own text leaves out (44 Firefox cases of the September 28, 2026 review probe, whose
+line APIs disagreed). A zero-width break that only the joined text
 gives at the item's start holds no line of its own there, as preparation keeps a
 soft hyphen at a text's start one, while a ZWSP that starts an item keeps the line it
 holds at the start of a text: taking every item start that continues a run as inside
