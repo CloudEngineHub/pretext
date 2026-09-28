@@ -1467,6 +1467,15 @@ review's diagnostic of the level rule alone fixed 153 and lost 91, and dropping 
 atomic item's exception alone fixed 35 and lost none. No case of the second probe, of
 80,512, moves.
 
+An atomic item's own white space, leading or trailing, makes no gap anywhere, as every
+browser trims it inside the inline-block: items `see`, atomic ` chip`, `this` in 16px Arial
+at 60px take a 55.15px first line in all three browsers, where a gap made it 59.60px. On the
+three September 27, 2026 review probes that fixes 1,845 Chrome, 818 Firefox and 1,884
+webkit-host cases against giving it a gap and loses 76, 81 and 101, of which 2, 4 and none
+fail as spans only. In the rich set it fixes 12 Chrome and 12 webkit-host cases and loses 5
+webkit-host ones 1/64px from where Safari's lines change, where Safari's line is
+0.008-0.016px wider than the library's.
+
 In the Gecko profile a soft hyphen after collapsible white space is a zero-width break,
 which Firefox drops from its text (`IsDiscardable`, nsTextFrameUtils.cpp:32-49), so it
 holds no line: a rich line start consumes it wherever it reaches it, as the flat walker

@@ -2903,7 +2903,10 @@ describe('rich-inline invariants', () => {
     ] as const) {
       expect(gapItems(texts.map(text => ({ text })))).toEqual([fragments.map(fragment => [...fragment])])
     }
-    expect(gapItems([{ text: 'Tag' }, { text: ' @maya', break: 'never' }])).toEqual([[[0, -1], [1, 1]]])
+    // An atomic item's own white space is inside its box, which trims it, so it makes no gap.
+    expect(gapItems([{ text: 'Tag' }, { text: ' @maya', break: 'never' }])).toEqual([[[0, -1], [1, -1]]])
+    expect(gapItems([{ text: '@maya ', break: 'never' }, { text: 'Tag' }])).toEqual([[[0, -1], [1, -1]]])
+    expect(gapItems([{ text: '@maya ', break: 'never' }, { text: ' Tag' }])).toEqual([[[0, -1], [1, 1]]])
     // A gap of zero or negative advance still names its item.
     for (const letterSpacing of [-measureWidth(' ', FONT), -measureWidth(' ', FONT) - 2]) {
       expect(gapItems([{ text: 'A' }, { text: ' B', letterSpacing }])).toEqual([[[0, -1], [1, 1]]])
@@ -3127,16 +3130,16 @@ describe('rich-inline invariants', () => {
         // newline between Arabic letters, which is a space there.
         const gaps = (texts: Parameters<typeof walk>[0]) => walk(texts, Infinity)[0]![1].map(fragment => fragment[1])
         expect(gaps(['\u05E9\u05DC\u05D5\u05DD \u200F\u00AD', ' 42 more'])).toEqual([0, r(second)])
-        expect(gaps(['\u05E9\u05DC\u05D5\u05DD \u200E\u00AD', { text: ' chip', break: 'never' }, ' this more'])).toEqual([0, r(second), r(space)])
+        expect(gaps(['\u05E9\u05DC\u05D5\u05DD \u200E\u00AD', ' this more'])).toEqual([0, r(second)])
         expect(gaps(['ab ', 'see \u200F\u00AD', ' this more'])).toEqual([0, r(space), r(space)])
         expect(gaps(['(q) \u00AD\u200F\u00AD', ' this more'])).toEqual([0, r(space)])
         expect(gaps(['(q) \u00AD\u202B\u00AD', ' this more'])).toEqual([0, r(second)])
-        expect(gaps(['ab', '\u0628\u0628\n\u061C\u00AD', { text: ' \u00ADmore', break: 'never' }])).toEqual([0, 0, r(second)])
+        expect(gaps(['ab', '\u0628\u0628\n\u061C\u00AD', ' \u00ADmore'])).toEqual([0, 0, r(second)])
         // A soft hyphen after no white space opens no run, and text after one closes it.
         expect(walk(['see\u00AD', ' this word'], Infinity)).toEqual([[r(see + space + words), [[0, 0, r(see)], [1, r(space), r(words)]]]])
         expect(walk(['see \u00AD', 'x', ' this word'], Infinity)).toEqual([[r(see + space + x + space + words), [[0, 0, r(see + space)], [1, 0, r(x)], [2, r(space), r(words)]]]])
-        // An atomic item's leading white space collapses into an open run, and the run ends there.
-        expect(walk(['see \u00AD', { text: ' chip', break: 'never' }, ' this word'], Infinity)).toEqual([[r(see + space + second + chip + space + words), [[0, 0, r(see + space)], [1, r(second), r(chip)], [2, r(space), r(words)]]]])
+        // An atomic item's own white space makes no gap, and the run ends there.
+        expect(walk(['see \u00AD', { text: ' chip', break: 'never' }, ' this word'], Infinity)).toEqual([[r(see + space + chip + space + words), [[0, 0, r(see + space)], [1, 0, r(chip)], [2, r(space), r(words)]]]])
         // A ZWSP after a soft hyphen that starts an item holds a line after a wrap.
         expect(walk(['\u300D \u00AD', '\u00AD\u200B', '42'], 9).map(line => line[0])).toEqual([r(bracket), 0, r(measureWidth('4', FONT)), r(measureWidth('42', FONT) - measureWidth('4', FONT))])
       }

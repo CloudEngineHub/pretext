@@ -457,12 +457,12 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
     const whitespaceBefore: boolean = pendingGapWidth !== null || hasLeadingWhitespace
     if (breaksFromItemText) boundaryContexts[index] = text.slice(Math.max(0, end - 2), end)
 
-    // Leading white space collapses into a run left open before it, an atomic item's too, which
-    // its box trims; elsewhere an atomic item's takes a gap the browsers don't paint
-    // (ENGINE_FOLLOWUPS.md).
-    const takesOwnSpace = hasLeadingWhitespace && !whitespaceRunOpen
+    // Leading white space collapses into a run left open before it. An atomic item's own white
+    // space is inside its inline-block, which trims it at the box's edges, so it makes no gap.
+    const ownsWhiteSpace = item.break !== 'never'
+    const takesOwnSpace = hasLeadingWhitespace && !whitespaceRunOpen && ownsWhiteSpace
     let gapBefore = takesOwnSpace ? getCollapsedSpaceWidth(item.font, letterSpacing, language) : pendingGapWidth ?? 0
-    let gapItemIndex = takesOwnSpace ? index : pendingGapWidth !== null ? pendingGapItemIndex : hasLeadingWhitespace ? index : -1
+    let gapItemIndex = takesOwnSpace ? index : pendingGapWidth !== null ? pendingGapItemIndex : hasLeadingWhitespace && ownsWhiteSpace ? index : -1
     // Normalization already drops boundary whitespace, so the item's own text
     // yields the same segments while analysis keeps the source before them:
     // a leading SPACE or TAB is break context inside the item's text node.
@@ -567,11 +567,12 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
     }
     const levelsSplitRun = profile.collapsesSpaceAcrossSoftHyphens && itemBreak !== 'never'
     const runGoesOn = levelsSplitRun && runHoldsSoftHyphen && runEnd > 0 && isCollapsibleSpaceCode(text.charCodeAt(runEnd - 1)) && keepsLevel(index, runEnd - 1, runEnd, end)
-    pendingGapWidth = !hasTrailingWhitespace
+    const gapsTrailingWhitespace = hasTrailingWhitespace && ownsWhiteSpace
+    pendingGapWidth = !gapsTrailingWhitespace
       ? null
       : runGoesOn ? 0 : getCollapsedSpaceWidth(item.font, letterSpacing, language)
-    pendingGapItemIndex = hasTrailingWhitespace ? index : -1
-    if (hasTrailingWhitespace && !runGoesOn) {
+    pendingGapItemIndex = gapsTrailingWhitespace ? index : -1
+    if (gapsTrailingWhitespace && !runGoesOn) {
       whitespaceRunOpen = true
     } else {
       const from = runGoesOn ? (hasTrailingWhitespace ? whiteSpaceEnd - 1 : runEnd - 1) : levelsSplitRun && end === start && start > 0 ? start - 1 : -1
