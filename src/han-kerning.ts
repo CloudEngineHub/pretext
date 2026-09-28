@@ -24,7 +24,7 @@
 // bounds under the page's Han script (han_kerning.cc:47-168, 400-535).
 import { KIND_BITS, TEXT, UNBROKEN, type TextAnalysis } from './analysis.js'
 import { hasProperty, PUNCTUATION } from './line-breaks.js'
-import { getSegmentMetrics, type FontMeasurement } from './measurement.js'
+import { getSegmentMetrics, zeros, type FontMeasurement } from './measurement.js'
 
 const OTHER = 0
 const OPEN = 1
@@ -191,14 +191,6 @@ export type HanKerningTrims = {
   // Per segment, that halt where the scan gives no break after it, which only a line that
   // Blink retries between graphemes takes. Null without any.
   overflowLineEndTrims: number[] | null
-}
-
-// A zero per segment, pushed in a loop: Array.from over `{ length }` reads every index off the
-// object and calls its map function for each.
-function zeros(count: number): number[] {
-  const out: number[] = []
-  for (let i = 0; i < count; i++) out.push(0)
-  return out
 }
 
 // The trims of an analysis' text segments, read from the characters before and after each.

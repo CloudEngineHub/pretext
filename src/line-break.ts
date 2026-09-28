@@ -1,7 +1,6 @@
 import {
   CONTROL,
   HARD_BREAK,
-  INNER_BREAKS,
   KIND_BITS,
   PRESERVED_SPACE,
   RETURNABLE,
@@ -15,7 +14,7 @@ import {
   ZERO_WIDTH_GLUE,
 } from './analysis.js'
 import type { LayoutCursor, LineStats } from './layout.js'
-import { getEngineProfile } from './measurement.js'
+import { getEngineProfile, type EngineProfile } from './measurement.js'
 import { getFreshLineEnd, getSegmentEntryWidth, type SegmentEntryGeometry } from './entry-geometry.js'
 
 const BREAK_AFTER_KINDS = 1 << SPACE | 1 << ZERO_WIDTH_BREAK | 1 << SOFT_HYPHEN | 1 << PRESERVED_SPACE | 1 << TAB
@@ -372,6 +371,7 @@ function countSteppedLines(prepared: PreparedLineBreakData, maxWidth: number): n
 // boundary.
 function returnsFromUnfitHyphen(
   prepared: PreparedLineBreakData,
+  unfitHyphenRetreat: EngineProfile['unfitHyphenRetreat'],
   lineStartSegmentIndex: number,
   targetSegmentIndex: number,
   breakSegmentIndex: number,
@@ -381,7 +381,7 @@ function returnsFromUnfitHyphen(
   const { discretionaryHyphenContexts, segmentFlags } = prepared
   const softHyphenIndex = breakSegmentIndex - 1
   if (softHyphenIndex < lineStartSegmentIndex || (segmentFlags[softHyphenIndex]! & KIND_BITS) !== SOFT_HYPHEN || breakWidth <= fitLimit) return false
-  if (discretionaryHyphenContexts === null) {
+  if (unfitHyphenRetreat === 'none') {
     // Where the engine keeps an unfit hyphen, as WebKit does, a rich-inline item's line
     // returns only to its break before a run that continues from the previous item,
     // with no break between, as the whole run moves to the next line (ItemLine).
@@ -392,7 +392,7 @@ function returnsFromUnfitHyphen(
   }
   const overflow = breakWidth - fitLimit
   let narrowing = 0
-  for (let i = lineStartSegmentIndex; i <= softHyphenIndex; i++) narrowing += discretionaryHyphenContexts[i]!
+  if (discretionaryHyphenContexts !== null) for (let i = lineStartSegmentIndex; i <= softHyphenIndex; i++) narrowing += discretionaryHyphenContexts[i]!
   if (narrowing >= overflow) return false
   for (let i = targetSegmentIndex; i < softHyphenIndex; i++) {
     if (breaksAfterKind(segmentFlags[i]! & KIND_BITS)) continue
@@ -542,6 +542,8 @@ function walkPreparedComplexLines(
             : widths[i]!
           const advance = leadingSpacing + w
           const endTrim = lineEndTrims === null ? 0 : lineEndTrims[i]!
+          // The graphemes inside the segment before which the line can end, else null.
+          const segmentInner = innerBreaks === null ? null : innerBreaks[i]!
 
           if (kind === SOFT_HYPHEN && startGraphemeIndex === 0) {
             if (hasContent) {
@@ -606,8 +608,7 @@ function walkPreparedComplexLines(
                 lineEndGraphemeIndex = 0
                 lineW = w + startExtra
                 lineEndTrimmed = fitAdvance + startExtra > fitLimit ? startTrim : 0
-                if ((flags & INNER_BREAKS) !== 0) {
-                  const segmentInner = innerBreaks![i]!
+                if (segmentInner !== null) {
                   innerBreakSegmentIndex = i
                   innerBreakGraphemeIndex = segmentInner[segmentInner.length - 1]!
                   innerBreakWidth = getGraphemesAdvance(breakableFitAdvances[i]!, innerBreakGraphemeIndex, 0, letterSpacing)
@@ -647,8 +648,7 @@ function walkPreparedComplexLines(
               // where the scan gives no break before the segment, as before NEL (UAX #14
               // LB6), it returns to its last break. Without one, Blink and WebKit retry
               // between graphemes, so the segment's graphemes fill it.
-              if ((flags & INNER_BREAKS) !== 0) {
-                const segmentInner = innerBreaks![i]!
+              if (segmentInner !== null) {
                 const fitAdvances = breakableFitAdvances[i]!
                 let innerAdvance = leadingSpacing
                 for (let g = 0, k = 0; k < segmentInner.length; g++) {
@@ -702,8 +702,7 @@ function walkPreparedComplexLines(
                 fitBreakPaintWidth = lineW
               }
               // The last break inside the segment is the line's latest.
-              if ((flags & INNER_BREAKS) !== 0) {
-                const segmentInner = innerBreaks![i]!
+              if (segmentInner !== null) {
                 innerBreakSegmentIndex = i
                 innerBreakGraphemeIndex = segmentInner[segmentInner.length - 1]!
                 innerBreakWidth = lineW + getGraphemesAdvance(breakableFitAdvances[i]!, innerBreakGraphemeIndex, leadingSpacing, letterSpacing)
@@ -754,7 +753,9 @@ function walkPreparedComplexLines(
             lineEndGraphemeIndex = 0
             lineW = freshWhole - letterSpacing
           } else {
-            const segmentInner = (flags & INNER_BREAKS) !== 0 ? innerBreaks![i]! : null
+            // The first of the segment's inner breaks after the fill's start.
+            let nextInner = 0
+            while (segmentInner !== null && nextInner < segmentInner.length && segmentInner[nextInner]! <= fillStart) nextInner++
             for (let g = fillStart; g < fitCount; g++) {
               const baseGw = fitAdvances[g]!
               if (!hasContent) {
@@ -790,10 +791,11 @@ function walkPreparedComplexLines(
                 lineEndSegmentIndex = i
                 lineEndGraphemeIndex = g + 1
               }
-              if (segmentInner !== null && segmentInner.includes(g + 1)) {
+              if (segmentInner !== null && nextInner < segmentInner.length && segmentInner[nextInner] === g + 1) {
                 innerBreakSegmentIndex = i
                 innerBreakGraphemeIndex = g + 1
                 innerBreakWidth = lineW
+                nextInner++
               }
             }
           }
@@ -821,7 +823,7 @@ function walkPreparedComplexLines(
           fitBreakSegmentIndex >= 0 &&
           pendingBreakSegmentIndex === lineEndSegmentIndex &&
           lineEndGraphemeIndex === 0 &&
-          returnsFromUnfitHyphen(prepared, lineStartSegmentIndex, fitBreakSegmentIndex, lineEndSegmentIndex, pendingBreakWidth, fitLimit)
+          returnsFromUnfitHyphen(prepared, engineProfile.unfitHyphenRetreat, lineStartSegmentIndex, fitBreakSegmentIndex, lineEndSegmentIndex, pendingBreakWidth, fitLimit)
         ) {
           endSegmentIndex = fitBreakSegmentIndex
           endGraphemeIndex = 0
@@ -857,7 +859,7 @@ function walkPreparedComplexLines(
             breakSegmentIndex = innerBreakSegmentIndex
             breakGraphemeIndex = innerBreakGraphemeIndex
             breakWidth = innerBreakWidth
-          } else if (fitBreakSegmentIndex >= 0 && returnsFromUnfitHyphen(prepared, lineStartSegmentIndex, fitBreakSegmentIndex, breakSegmentIndex, breakWidth, fitLimit)) {
+          } else if (fitBreakSegmentIndex >= 0 && returnsFromUnfitHyphen(prepared, engineProfile.unfitHyphenRetreat, lineStartSegmentIndex, fitBreakSegmentIndex, breakSegmentIndex, breakWidth, fitLimit)) {
             breakSegmentIndex = fitBreakSegmentIndex
             breakWidth = fitBreakPaintWidth
           }
