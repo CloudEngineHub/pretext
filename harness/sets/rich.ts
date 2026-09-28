@@ -24,7 +24,8 @@
 //   starts; and, cut on their own too, a run that a right-to-left mark after its white space ends where one at the white
 //   space's bidi level doesn't, one that text after it ends, an atomic item whose leading white space collapses into
 //   one, a soft hyphen after no white space, which opens none, and a ZWSP after soft hyphens where a line starts after
-//   a wrap.
+//   a wrap; and, cut on their own too, the levels that rule reads: the paragraph's, at each item's offset, of every
+//   character the run goes past against the white space before them, with a newline as a space.
 import { TEXTS } from '../../src/test-data.ts'
 import type { CssFont, TextRun } from '../types.ts'
 import { codePoints, createRng, font, paragraph, span } from './build.ts'
@@ -146,6 +147,13 @@ export function richTemplates(): Template[] {
     ['text-ends-white-space-run', ['see \u{AD}', 'x', ' this']], ['soft-hyphen-after-no-space', ['see\u{AD}', ' this']],
     ['atomic-item-in-white-space-run', ['see \u{AD}', span(' chip', ARIAL, { atomic: true }), ' this word']],
     ['zwsp-after-discarded-soft-hyphens', ['\u{300D} \u{AD}', '\u{AD}\u{200B}', '42']],
+    ['bidi-level-of-the-paragraph', ['\u{5E9}\u{5DC}\u{5D5}\u{5DD} \u{200F}\u{AD}', ' 42 more']],
+    ['bidi-level-of-the-white-space', ['\u{5E9}\u{5DC}\u{5D5}\u{5DD} \u{200E}', span(' chip', ARIAL, { atomic: true }), ' this more']],
+    ['bidi-level-of-the-white-space', ['\u{5E9}\u{5DC}\u{5D5}\u{5DD} \u{200E}\u{AD}', span(' chip', ARIAL, { atomic: true }), ' this more']],
+    ['bidi-level-at-the-item-offset', ['ab ', 'see \u{200F}', ' this more']], ['bidi-level-at-the-item-offset', ['ab ', 'see \u{200F}\u{AD}', ' this more']],
+    ['bidi-level-of-every-dropped-character', ['(q) \u{AD}\u{200F}', ' this more']], ['bidi-level-of-every-dropped-character', ['(q) \u{AD}\u{200F}\u{AD}', ' this more']],
+    ['bidi-level-of-a-newline', ['\u{202D}\u{AD}', '\u{628}\u{628}\n\u{61C}', span(' \u{AD}more', ARIAL, { atomic: true })], 'ar'],
+    ['bidi-level-of-a-newline', ['\u{202D}\u{AD}', '\u{628}\u{628}\n\u{61C}\u{AD}', span(' \u{AD}more', ARIAL, { atomic: true })], 'ar'],
   ]
   for (let i = 0; i < continued.length; i++) {
     const [family, parts, lang] = continued[i]!

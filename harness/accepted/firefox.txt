@@ -2109,12 +2109,14 @@ rich-029e71d595e94f0c breaks
 rich-34075de5f2f50824 count
 rich-56f1ab0f866f4262 count
 rich-8acb5b79e29743bd count
+rich-8d3626fe8bbced7a count
 rich-9b4af34068e55c9a breaks
 rich-9caad05a8d6ec08d count
 rich-a560650dfbeafe72 count
 rich-c604ab44311a3b58 breaks
 rich-d2cbcec88b98434b breaks
 rich-eac5e4eee615b1b8 count
+rich-eafa066368d2585d count
 
 ## Other shapes (U+FFFC, U+058A, hyphens before curly quotes, kerning before a space, rich-item boundaries), at 24 px and wider: Firefox breaks there where the library doesn't
 rich-333b59dbb519401f breaks
@@ -3493,7 +3495,9 @@ rich-fcc03bb8c805a9c8 count
 rich-afb8005e2a64451d count
 
 ## White space before bidi controls at another bidi level at the end of a span, before white space that starts the next, at 24 px and wider: Firefox ends its text run at the controls and keeps both, where the Gecko analysis reads white space through bidi controls as one run whatever their levels and leaves out white space before only controls at the end of a text (#368), so the library gives the two one gap (main too; ENGINE_FOLLOWUPS.md)
+rich-27fd19a39448d520 count
 rich-4aaf3b30f4f2a014 count
+rich-66104da5d28ab8e4 breaks
 rich-8cd941655dd7be98 count
 rich-ce7bddd0b27c873e count
 

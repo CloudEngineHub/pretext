@@ -9,15 +9,20 @@ report-b980d5159851daba breaks
 ## A soft hyphen after a space, before white space in the next span or its own, or white space and a soft hyphen that start the paragraph before a ZWSP, at 24 px and wider: Chrome keeps the space after the soft hyphen visible where a line starts, as it doesn't consume a soft hyphen at a line start, where the library consumes both (main and 0fef0023 too; ENGINE_FOLLOWUPS.md)
 rich-0de3e74d8bc2e919 count
 rich-1d58246788b59c86 count
+rich-1e1236be2a71b169 breaks
 rich-24a61d081017549d count
 rich-322be9dbc04c61c0 count
 rich-7cf9cca9a7384ae1 count
 rich-8490e462072dcf97 count
 rich-980e26df8bc10d47 breaks
+rich-9881c81d4b5f26ca breaks
+rich-a4b44edb3de875c2 breaks
 rich-af15c89ce4d5d9a8 breaks
 rich-b0c830aec8fcea25 breaks
+rich-befcad2d664c96dc count
 rich-c71a21ddc6fa35ca breaks
 rich-d7ac0a6af37a56bf count
+rich-dc1f44c993d80708 breaks
 
 ## A soft hyphen that ends a word before a space, or follows a space before a word, whose hyphen doesn't fit, at 24 px and wider: Chrome breaks the word before it between letters, as for the text in one node, where the library ends the line at the space or after the soft hyphen (main and fd8002ba too; ENGINE_FOLLOWUPS.md)
 rich-678c2f661ad5b57b count
@@ -32,9 +37,17 @@ rich-d95b699e131357ec breaks
 rich-ed1f76e1c1bff59b count
 
 ## An atomic item whose own text starts with white space, at 24 px and wider: the browser trims that white space inside the inline-block, where the library gives it a collapsed gap before the item (main and fd8002ba too; ENGINE_FOLLOWUPS.md)
+rich-044fb7f7c390e10f count
 rich-213fa757c7563d04 count
 rich-582e30650ace09fb breaks
+rich-637e431271ef6bc3 breaks
 rich-82a1ce29ea599e57 breaks
+rich-84c1594e5af81f35 count
+rich-8f95bfb754c23349 count
+rich-984615dec3242729 count
+rich-9a0fd95939acf66f breaks
+rich-9c2093415cb89d06 count
+rich-a3194be81db48424 count
 rich-cf3ad5d694000b24 breaks
 
 ## Arabic and Hebrew beside brackets, controls, U+FFFC or rich-item edges, at 24 px and wider: Chrome breaks there where the library doesn't
@@ -2011,6 +2024,7 @@ rich-88284e86caadfd99 count
 rich-92a3f55de690d221 breaks
 rich-9644a14cf7757871 breaks
 rich-9b6ad49d976868b9 count
+rich-a4c0d3d9594731bf count
 rich-c26cf717c3859584 count
 rich-ddca88239fb74e75 breaks
 rich-eb45f8c12b7c6cda count
@@ -3179,6 +3193,7 @@ facts-fc69084749bc97f4 count
 rich-02422502faa37ede count
 rich-029e71d595e94f0c count
 rich-0a3fec9a06a04eef count
+rich-0a8313779639e9ef count
 rich-0cabfc789f6a4358 count
 rich-166322a1778d474c count
 rich-1e0d5476b00642c8 count
@@ -3188,6 +3203,7 @@ rich-3055350027afea05 count
 rich-34075de5f2f50824 count
 rich-3f7623a4b4dd94eb count
 rich-406ee1104d5987ce count
+rich-4138b24c4fe85f75 count
 rich-49d40a0beea8f837 count
 rich-4ab385df7ef60d77 count
 rich-4fb2c56ec3a40ccb count

@@ -20,9 +20,17 @@ rich-48fd0c4b502a439d breaks
 
 ## An atomic item whose own text starts with white space, at 24 px and wider: the browser trims that white space inside the inline-block, where the library gives it a collapsed gap before the item (main and fd8002ba too; ENGINE_FOLLOWUPS.md)
 rich-307012efb8c6695d breaks
+rich-637e431271ef6bc3 breaks
 rich-639a49ba10b96be7 count
 rich-6ad3cbeccdc8ef9d breaks
+rich-781702a1bcce6cef count
+rich-984615dec3242729 count
+rich-9a0fd95939acf66f breaks
+rich-a3194be81db48424 count
+rich-c0163dd565dc3b3e count
 rich-cf3ad5d694000b24 breaks
+rich-e1da5ba4fd122d96 count
+rich-f1be6d1ca5256284 count
 
 ## Arabic and Hebrew beside brackets, controls, U+FFFC or rich-item edges, at 24 px and wider: WebKit breaks there where the library doesn't
 catalog-09ea9f41ec2a80d9 count
