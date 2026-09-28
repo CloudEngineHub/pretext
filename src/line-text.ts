@@ -33,12 +33,16 @@ function getGraphemeStart(prepared: PreparedSegments, segmentIndex: number, grap
   return graphemeIndex === 0 ? 0 : getGraphemeEnds(prepared, segmentIndex)[graphemeIndex - 1]!
 }
 
+// A line's text from `prepared`'s segments, with a hyphen where the line ends at a soft
+// hyphen in `walkedFlags`, the flags it was walked on, whose width counted it: `prepared`'s
+// own, or a rich item's copy with the joined text's breaks (rich-inline.ts, lineData).
 export function buildLineTextFromRange(
   prepared: PreparedSegments,
   startSegmentIndex: number,
   startGraphemeIndex: number,
   endSegmentIndex: number,
   endGraphemeIndex: number,
+  walkedFlags: Uint8Array = prepared.segmentFlags,
 ): string {
   const { segmentFlags } = prepared
   // A range kept from a longer text, such as one prepared again since, can end
@@ -68,5 +72,5 @@ export function buildLineTextFromRange(
     )
   }
 
-  return isDiscretionaryLineEnd(segmentFlags, endSegmentIndex, endGraphemeIndex) ? text + '-' : text
+  return isDiscretionaryLineEnd(walkedFlags, endSegmentIndex, endGraphemeIndex) ? text + '-' : text
 }

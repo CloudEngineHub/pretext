@@ -132,8 +132,9 @@ type PreparedRichInlineItem = {
   naturalWidth: number
   // The item's own handle, which its fragments' cursors follow.
   prepared: PreparedSegments
-  // What the line walkers and fragment text take: `prepared`, or its copy for the full
-  // walker (getWalkedHandle), so a fragment paints the hyphen its line fits.
+  // What the line walkers take: `prepared`, or its copy for the full walker
+  // (getWalkedHandle). A fragment's text is the item's own, with the hyphen of a soft
+  // hyphen of this copy's that its line ends at, as the line's width counts it.
   lineData: PreparedSegments
 }
 
@@ -936,11 +937,12 @@ function materializeFragmentText(
   fragment: RichInlineFragmentRange,
 ): string {
   return buildLineTextFromRange(
-    item.lineData,
+    item.prepared,
     fragment.start.segmentIndex,
     fragment.start.graphemeIndex,
     fragment.end.segmentIndex,
     fragment.end.graphemeIndex,
+    item.lineData.segmentFlags,
   )
 }
 
