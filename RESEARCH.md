@@ -603,10 +603,12 @@ The 80px has no browser reason: it was the old suite's boundary for narrow width
 sit in words 24-80px wide: 99 `measureText` calls per 1,000 UTF-16 units prepared against 62, and the bench's `new`
 Latin, Arabic, mixed and UI-label rows 28-68% slower in both sessions. The two give the same lines from 24px up. At
 24-80px they pass 281 Firefox cases that fail with the floor, 172 of them Arabic words with vowel marks before brackets,
-quotes, controls or Latin in the harness's `old-gate` set, and fail 14: ten `a ★ーb` that 80px gets right by luck, three
-Amiri splits 1/64px from where the lines change, and the one draw of the real-usage sample that moves (`TKT-84565` in a
-31.25px table cell in 16px Helvetica Neue); no draw gains, and 1.5% of the sample's weight is narrower than 80px. So the
-floor stays at 80px, a premise with that gap (Decisions Log, 2026-09-27).
+quotes, controls or Latin in the harness's `old-gate` set, and fail 14: ten `a ★ーb` that 80px gets right by luck
+(Firefox's Canvas measures `★ー` at 32px, where the paragraph lays it out at 26.65px, which the summed graphemes match),
+three Amiri splits 1/64px from where the lines change, and the one draw of the real-usage sample that moves (`TKT-84565`
+in a 31.25px table cell in 16px Helvetica Neue, where prefixes give the hyphen that starts the second line its 2.05px of
+kerning with the `T` before it, so `-845` fits where Firefox moves the `5` on); no draw gains, and 1.5% of the sample's
+weight is narrower than 80px. So the floor stays at 80px, a premise with that gap (Decisions Log, 2026-09-27).
 
 A rule ending an overflowing segment's emergency split after its last fitting hyphen, which recovered breaks hidden when
 main merged segments before the engine scans, was dropped on 2026-09-16: a scan segment ends at every break, so a hyphen
@@ -770,7 +772,7 @@ and separators beside white space at a span's edge, is in ENGINE_FOLLOWUPS.md, R
 
 The rich-inline counts below from 2026-09-26 to 28 are of *probes*: cases generated for one change, each beside the
 same text in one text node, recorded in Chrome, Firefox and webkit-host and not checked in, and counted against the
-build before the change. The PRs named have the full counts and attributions.
+build before the change. The PRs named, and their commits' messages, have the full counts and attributions.
 
 #### Joined Text
 
@@ -798,14 +800,15 @@ four cases (a split word, a joined break after the walk's end, an overflowing hy
 which got some cases right only by luck. Now the full walker takes what the line holds before the item (whether it has
 content, its latest break, which the rich stepper keeps across items, and whether a return from an unfit soft hyphen can
 end the line there) and the joined text's breaks inside the item's segments, on a copy of the item's handle whose flags
-follow the joined text (`getWalkedHandle()`; `recordJoinedBreaks()` says which kind a ZWSP or soft hyphen takes there,
-as the text around it decides it: the kind of the joined segment that starts where the item's does fitted a hyphen
-Firefox doesn't draw in 14 probe cases). An item that starts a line on a fast-path handle still takes the simple stepper
-(Keeping Work Bounded, The Walkers' Shapes). On a stand-in fuzz of case texts split into same-font items, rich lines
-then matched the plain-text walker's at 607 to 981 more widths per profile, and lost only 117 in the WebKit profile,
-which Safari lays out as rich inline now does (webkit-host passes all 303 probe cases of those shapes), and 13 in the
-Gecko profile, where an item's own white-space processing removes a newline the joined text keeps; a 4,858-case probe
-fixed 370 Chrome, 511 Firefox and 1,308 webkit-host cases and lost 11, 4 and 11 (#369 attributes them).
+follow the joined text (`getWalkedHandle()`). There a ZWSP or soft hyphen takes the kind of the last of the joined
+text's segments inside it, as the text around it decides it (`recordJoinedBreaks()`); taking the kind of the one that
+starts where the item's does fitted a hyphen Firefox doesn't draw in 14 probe cases. An item that starts a line on a
+fast-path handle still takes the simple stepper (Keeping Work Bounded, The Walkers' Shapes). On a stand-in fuzz of case
+texts split into same-font items, rich lines then matched the plain-text walker's at 607 to 981 more widths per profile,
+and lost only 117 in the WebKit profile, which Safari lays out as rich inline now does (webkit-host passes all 303 probe
+cases of those shapes), and 13 in the Gecko profile, where an item's own white-space processing removes a newline the
+joined text keeps; a 4,858-case probe fixed 370 Chrome, 511 Firefox and 1,308 webkit-host cases and lost 11, 4 and 11
+(10e75bba, #369, attributes them).
 
 A ZWSP that starts an item keeps the line it holds at a text's start, and a zero-width break that only the joined text
 gives there holds none: taking every item start that continues a run as inside a chunk lost 76 webkit-host, 3 Chrome and
@@ -836,12 +839,13 @@ An item holding only soft hyphens and collapsible white space is no line content
 since #369 it takes part in the paragraph's runs and breaks as its text does in one text node. The rules, with each
 browser's example, are in the comments of `src/rich-inline.ts` and of the engine profile's `spaceBeforeSoftHyphenHangs`,
 and the harness's `rich/continued` families pin them; these results shaped them. After content the item keeps the
-collapsed space before it: ending the line before the item lost 288 Firefox cases of a 43,462-case probe. Where a line
+collapsed space before it: ending the line before the item lost 288 Firefox cases of a 43,462-case probe, as Firefox
+keeps the space and the soft hyphen on the line. Where a line
 ends after it, the browsers break at that space and move the soft hyphen on, so the space hangs, but each engine keeps
 the soft hyphen on the line in other places, so the profiles name three behaviours: hanging the space also where Chrome
 and Safari end the line at the soft hyphen with its hyphen lost 118 Chrome and 120 webkit-host line widths of a
-32,830-case probe, and Safari's rule, keeping it before white space after the soft hyphen, fixed 73 Chrome widths and
-lost 159 in the Chromium profile.
+32,830-case probe, and Safari's rule, keeping it before white space after the soft hyphen, fixed 335 webkit-host
+widths and lost 136 in the WebKit profile, and fixed 73 Chrome widths and lost 159 in the Chromium profile.
 
 White space between such an item's soft hyphens follows a soft hyphen, not the space before the item, so Chrome and
 Safari give it room after content and the item is walked there (Gecko collapses it into the run before: Firefox's
@@ -872,8 +876,9 @@ Since #369 the Gecko profile follows that run across items (`collapsesSpaceAcros
 `src/rich-inline.ts`, whose comments have the rules and Firefox's widths), with levels from the Gecko scan's port of
 Firefox's, made only for text with right-to-left characters and only once a run would go on past such characters
 (`getItemLevels()`, #371; Keeping Work Bounded, Work Done Only Where A Rule Applies). White space and soft hyphens after
-an item's leading white space are part of that run, so the Gecko profile doesn't walk an item of soft hyphens and white
-space as Chrome and Safari do: walking it there too lost 421 Firefox cases of a 28,435-case probe and fixed 30. The run
+an item's leading white space are part of that run, so the Gecko profile walks an item of soft hyphens and white space
+only where it starts with a soft hyphen, whose white space starts a run of its own: walking every such item there, as
+Chrome and Safari do, lost 421 Firefox cases of a 28,435-case probe and fixed 30. The run
 fixed 6,220 Firefox cases of an 80,512-case probe and lost 220, most of which Firefox lays out otherwise as spans than
 as one node, and moved no Chrome or webkit-host case; since #372 (2026-09-28) an item of only white space and bidi
 controls between words takes one space, as in Firefox. What it still gets wrong, such as two spaces around a control at
@@ -1147,8 +1152,9 @@ runs (Firefox 156.0.1, bench sessions of 2026-09-27 and 28, unless noted):
   slower (#368).
 - **Fresh-line geometry**, the widths a line that starts inside a segment holding an invisible character takes in
   desktop Chrome and Firefox (`src/entry-geometry.ts`), is observed only for segments of up to 96 graphemes, and an
-  empty observation is kept as a found one is: since #368 a segment ending in a long run of controls passes that bound,
-  and observing again at every prepare made Firefox prepare the invisible tails 6% slower.
+  empty observation is kept as a found one is: since #368 a segment ending in a long run of controls is a few clusters,
+  not one per control, so it falls within that bound, and observing again at every prepare made Firefox prepare the
+  invisible tails 6% slower.
 - **The paragraph's bidi levels for rich items** (#371; Rich Inline Boundaries, Firefox's White-Space Run Across Items)
   are made only the first time an item's white-space run goes on past a character Firefox drops, which none of the
   bench's messages do. Made for every Gecko paragraph they made `prepareRichInline()` of Latin and Arabic messages 8%
@@ -1190,7 +1196,8 @@ Continuing rich lines in the full walker (#369, 2026-09-27) moved rows whose cod
 placement of the changed bundle (Part 1, Engineering): Chrome 154's letter-spaced CJK `layout()` and pre-wrap chunks
 read 1-6% slower, and within noise a day later with the same walker, and Safari 27 streamed the bench's mixed texts
 24-31% slower, though 133 of its 134 texts take the unchanged simple stepper. In Safari's own JavaScriptCore, the
-system `jsc` shell of its build (22625.1.29.11.27), that stepper's optimized (FTL) machine code differed between the
+system `jsc` shell of its build (22625.1.29.11.27), the extra time sat in that stepper, whose optimized (FTL) machine
+code differed between the
 builds only in one structure ID loaded in two instructions instead of one, and the same stream run after the other line
 operations, as the bench's document runs them, read 7-12% faster than main. Firefox's rich stats are under JavaScript
 Engines.
@@ -1229,9 +1236,11 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   full walker slowed counting all other text up to 1.6 times in Firefox and 1.3 in Chrome, though the check alone cost
   nothing (#350, 2026-09-26).
 - **A block that never runs**: since rich items continue their lines, Firefox 156 measures the bench's rich stats about
-  6% slower, and its rich walk and stream about 2%. It isn't the full walker, as #369 supposed: without the block at the
-  top of the rich stepper's item loop that records the break before a continued item, whose body never runs on the
-  bench, rich stats read 4.7% faster, faster than before #369 too. None of three plain restructurings took it back, so
+  6% slower, and its rich walk and stream about 2%. It isn't the full walker, as #369 supposed (sending items on
+  fast-path handles back to the simple stepper read +0.2%): without the block at the top of the rich stepper's item loop
+  that records the break before a continued item, whose body never runs on the bench, rich stats read 4.7% faster,
+  faster than before #369 too. None of three plain restructurings took it back (the hang of the spaces before consumed
+  items in a function of its own, or left out, and the line's latest break as one record), so
   it was accepted as a regression one JIT alone explains in live code (#370, 2026-09-28; Decisions Log, 2026-09-26, no
   dead code for one JIT).
 - **Inline caches**: once `layout()` has stepped such text, Chrome's `walkLineRanges()` of simple text, sharing the
