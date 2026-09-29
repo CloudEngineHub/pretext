@@ -118,6 +118,11 @@ facts-d93fe86d92078783 breaks
 ## Firefox splits text runs where the script changes and the library's Gecko scan doesn't: mixed-script strings with a mark that clusters across the change, named in ENGINE_FOLLOWUPS.md (main before #340 fails them too)
 followup-730e77aebf008adb count
 
+## Inter at -0.08 px letter-spacing, at 80 px and wider: Firefox resolves letter-spacing to whole app units, 1/60 px, so each character takes -5/60 px and a line of 31 characters is 0.1 px narrower than the library's, which fits the next word that much sooner, as for the text in one node (main too; ENGINE_FOLLOWUPS.md)
+rich-697559a05df825f5 breaks
+rich-a6ed3a1be026c1c9 breaks
+rich-df49049d1869d200 count
+
 ## Invisible format characters (soft hyphen, ZWSP, ZWJ, WJ, CGJ, bidi controls) beside spaces, tabs, marks or U+3000, at 24 px and wider: Firefox breaks around them where the library doesn't
 catalog-054aa2eac8bfb8fe count
 catalog-08e8988c7ec5ac27 count
