@@ -808,10 +808,16 @@ function stepRichInlineLine(
     // the joined text breaks after at the item's start, where the item's own text doesn't,
     // follows text, so a line start consumes it too, where the item's own ZWSP there holds
     // the line. A soft hyphen that the joined text makes a discarded break there is one
-    // Firefox drops, which the line start goes on past (normalizeItemLineStart).
+    // Firefox drops, which the line start goes on past (normalizeItemLineStart). The
+    // line's first fragment starts after what the start consumes, as a flat line does:
+    // the browsers remove collapsible spaces at a line's start, whichever line takes them
+    // (CSS Text 3 §4.1.2; Blink's line_breaker.cc:1337-1352, Chromium 153), as where the
+    // line before ended before its space under negative letter spacing (ENGINE_FOLLOWUPS.md).
     if (!hasContent) {
       if (atItemStart && (item.lineData.segmentFlags[0]! & KIND_BITS) === ZERO_WIDTH_BREAK && (item.prepared.segmentFlags[0]! & KIND_BITS) !== ZERO_WIDTH_BREAK && !isDiscardedBreak(item.lineData, 0)) lineEnd.segmentIndex = 1
       if (!normalizeItemLineStart(item.lineData, lineEnd)) continue
+      cursor.segmentIndex = lineEnd.segmentIndex
+      cursor.graphemeIndex = lineEnd.graphemeIndex
     }
     itemLine.continues = hasContent
     itemLine.breakBefore = hasContent && (item.breakBefore || breakItemIndex >= 0)
