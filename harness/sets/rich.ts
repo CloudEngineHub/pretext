@@ -29,6 +29,8 @@
 //   too, a soft hyphen that ends an item before a bidi control that starts the next, at the paragraph's start, after a
 //   space in the item or a collapsed one before it, which Firefox's scan of the joined text takes as text, and after
 //   other text;
+// - cut on their own too, a line that ends at a space inside an item under negative letter spacing, whose next line the
+//   browsers start after the space, beside a break at the collapsed space between items;
 // - keep-all paragraphs, cut on their own: a Korean chat message with a mention chip, a bold run inside a word and a
 //   code span a particle follows, beside the same message without keep-all; a mention chip inside a Korean word; and
 //   Japanese whose bold run ends with a full stop, after which WebKit's check at an item boundary finds no break where
@@ -170,6 +172,15 @@ export function richTemplates(): Template[] {
   for (let i = 0; i < continued.length; i++) {
     const [family, parts, lang] = continued[i]!
     out.push(template(`continued/${family}`, 'items that continue the line before them (src/layout.test.ts, rich-inline invariants)', ARIAL, parts.map(part => typeof part === 'string' ? item(part) : part), lang))
+  }
+  // A line that ends at a space inside an item under negative letter spacing, at −1 as for large headings and at −0.08 as
+  // Signal Desktop sets Inter, and beside them a break at the collapsed space between items, at −0.2.
+  const tight: ReadonlyArray<readonly [CssFont, number, readonly string[]]> = [
+    [ARIAL, -1, ['zz ', 'ab cd']], [INTER, -0.08, ['I also want code ', 'fences, quotes and lists']], [HELVETICA, -0.2, ['The quick ', 'brown', ' fox jumps']],
+  ]
+  for (let i = 0; i < tight.length; i++) {
+    const [f, letterSpacing, parts] = tight[i]!
+    out.push(template('negative-letter-spacing', 'a line that ends at a space inside an item under negative letter spacing (src/layout.test.ts)', f, parts.map(part => span(part, f, { letterSpacing }))))
   }
   const message: Part[] = ['민수 씨, ', span('@지훈', BOLD(KOREAN_CHIP), { atomic: true, padding: 11 }), ' 오늘 ', span('회의', BOLD(KOREAN)), '는 세 시에 시작합니다. 자료는 ', span('notes.md', CODE, { padding: 7 }), '에 있어요']
   const keepAll: ReadonlyArray<readonly [string, CssFont, readonly Part[], string, Paragraph['wordBreak']]> = [

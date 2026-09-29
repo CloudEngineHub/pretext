@@ -1722,6 +1722,8 @@ facts-f8b095bc5316218f breaks
 facts-fbb22836f590bd81 count
 facts-ff7192e8ae470ce9 count
 rich-40018982415644fb count
+rich-4e7797d2c399aac5 breaks
+rich-94e63267840040ac breaks
 rich-9d0c04c18c44fb34 count
 rich-f6d6190bf525ffc7 count
 
@@ -3419,6 +3421,12 @@ catalog-ed797fdb4546b9b6 breaks
 old-gate-4b10fe4b73388914 breaks
 old-gate-5b751d92bd3fd93b breaks
 old-gate-8e57ffed8ca4d5e3 breaks
+
+## White space and soft hyphens before a ZWSP where a line starts, at 24 px and wider: Safari keeps the space after the first soft hyphen visible there, as it doesn't consume a soft hyphen at a line start, where the library consumes both, as it does in one text; main passed these only because its first fragment started before the space its line start consumed (ENGINE_FOLLOWUPS.md)
+rich-1e4eb256d9bee7b8 breaks
+rich-62e4228d958cf44e breaks
+rich-8058c8ea44ac27f5 breaks
+rich-ad4e0796eaaec403 breaks
 
 ## Within 1/64 px of where the browser's lines change, at 24 px and wider: the library's fit lands on the other side there, while the whole-pixel widths inside both layouts pass
 catalog-08343c18c4be4ee9 count
