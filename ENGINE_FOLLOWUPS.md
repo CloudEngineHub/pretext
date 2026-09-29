@@ -147,6 +147,7 @@ Unfiled; PLATFORM_BUGS.md takes any that gets filed.
 ### Cost
 
 - A run of combining marks after an invisible format character, such as a word joiner, or a control prepares in linear time since #351, but each run's context still holds the grapheme before the chain: `x` with 4,000 U+0301, then 4,000 control and mark pairs, submits 33 million units to Canvas offline, 64 million before #351 (2026-09-26).
+- `segmentAtLineBreaks()` reads the last segment's kind back from its flags at every unit. Carried in a local, as the loop carries `lastAlone`, Chrome 154 prepared pre-wrap chunks 4.1% faster and long breakable runs 3.4%, with nothing slower (2026-09-29; RESEARCH.md, Keeping Work Bounded). It needs its own PR, the gate and the full bench.
 
 ### Small ones
 

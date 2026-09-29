@@ -1186,11 +1186,30 @@ time (the PRs hold the per-row tables):
   1.39-1.64 in Safari, 1.10-1.13 in Chrome and 1.06-1.07 in Firefox, so items on fast-path handles continue their lines
   in the full walker (#369, 2026-09-27).
 
-Removing the three pieces #357 kept for Chrome's JIT (#364; Decisions Log, 2026-09-26), namely unreachable checks in
-rich inline's stepper, a redundant `unfitHyphenRetreat` test and the peeled first character of the segmentation loop,
-costs Chrome 154 11% on rich stats, 5% on letter-spaced CJK `layout()` and 8-13% on preparing long breakable runs and
-pre-wrap chunks, in both sessions; Firefox 156 moves 2% at most, and Safari 27 only on resizing Arabic to widths it has
-laid out before (13%, where the bench's control, a second copy of main, moved 5%).
+Removing the three pieces #357 kept for Chrome's JIT (#364; Decisions Log, 2026-09-26), namely checks in rich inline's
+stepper that change no result, a redundant `unfitHyphenRetreat` test and the peeled first character of the segmentation
+loop, cost Chrome 154 11% on rich stats, 5% on letter-spaced CJK `layout()` and 8-13% on preparing long breakable runs
+and pre-wrap chunks, in both sessions; Firefox 156 moved 2% at most, and Safari 27 only on resizing Arabic to widths it
+had laid out before (13%, where the bench's control, a second copy of main, moved 5%). All of it was taken as placement
+then. Counting the work each piece skips, with each put back as #364 removed it and no Chrome prediction moving (Chrome
+154 and Node 23's V8, all three back in one bench, 2026-09-29), sorts them:
+- **Skipped work**: the stepper's line-start test spared the read of an item's segment count on almost every item it
+  visits, which #375 took back with that test on the line's first item only (below). Its early return spares the setup
+  of the one call per paragraph that finds nothing left, 147 of a stats pass's 946 calls and about 0.5% of its time;
+  with it back Chrome's rich stats read 0.6% slower, within noise, so it stays out.
+- **Placement**: the `unfitHyphenRetreat` test is never reached on the rows that slowed, whose texts have no soft-hyphen
+  contexts, and with it back Chrome laid out letter-spaced CJK 1.6% faster, within noise. The peel spares one compare
+  per unit and one regular expression test per text, yet with it back Chrome prepared pre-wrap chunks 11.6% faster and
+  long breakable runs 6.1%. Put back as #364 removed it, the peel skips #368's handling of a text that starts with
+  characters Firefox drops, a bidi control among them, and moves 9 of Firefox's 43,572 predictions; put back today, it
+  would also have to send its first unit through that handling, which is more code than #364 removed. Carrying the last
+  segment's kind in a local, as the loop carries `lastAlone`, spares more per unit than the peel and took back only 4.1%
+  and 3.4%. Chrome's profiles of pre-wrap chunks put the loop at 11.3ns a unit on main, 8.3 with the peel and 11.0 with
+  the local, a gap of about ten compares, and in those of long breakable runs the loop's helpers carry samples of their
+  own on main and with the local but almost none with the peel, so V8 likely inlines the peeled loop differently. The
+  local is plain and removes real work, but needs its own PR and the full bench (ENGINE_FOLLOWUPS.md, Cost).
+
+The stepper's skip of a step that doesn't advance is live code since #369, which ends a line there after content.
 
 After content, the rich stepper doesn't walk an item whose first segment doesn't fit: the full walker there only ends
 the line before the item, as the stepper now does itself. `firstSegmentOverflows()` repeats the walker's fit for that
@@ -2200,11 +2219,14 @@ decisions for the maintainer.
   whatever the regression, which is noted: code written plainly wouldn't reproduce the effect (Part 1, Engineering). A
   loop's first pass peeled before the loop counts, since the loop repeats it. Live code split apart or placed for a JIT
   isn't dead and stays, such as `getLongMarkChainContext()` (#351) and `getTextSegmentWidth()` (#358). Removing the
-  three pieces #357 had kept for Chrome's JIT costs Chrome 154 up to 13% (Keeping Work Bounded); removing
-  `countPreparedLines()`'s leading-space skip, a loop that never runs, kept on 2026-09-24 for Firefox, costs Firefox 156
-  3 to 7% on resizing Latin chat messages to new widths (#364). Nor is a rule written out twice for one JIT: the Gecko
-  scan's two text-run setups share one word-end test, whose call makes Firefox 156 prepare four kinds of row 2 to 5%
-  slower than two copies would (#365; Bidi Levels has the rows). That was judged a good trade on 2026-09-27.
+  three pieces #357 had kept for Chrome's JIT cost Chrome 154 up to 13%, and removing `countPreparedLines()`'s
+  leading-space skip, a loop that never runs, kept on 2026-09-24 for Firefox, cost Firefox 156 3 to 7% on resizing Latin
+  chat messages to new widths (#364). Counted on 2026-09-29, only one of the checks removed skipped work that mattered,
+  the rich stepper's line-start test, whose saving #375 took back plainly; the rest was placement or too small to read
+  (Keeping Work Bounded). A check that changes no result can still skip work, so count the work it skips before calling
+  a slowdown one JIT's. Nor is a rule written out twice for one JIT: the Gecko scan's two text-run setups share one
+  word-end test, whose call makes Firefox 156 prepare four kinds of row 2 to 5% slower than two copies would (#365; Bidi
+  Levels has the rows). That was judged a good trade on 2026-09-27.
 - **2026-09-26: one bundle serves every engine.** An app can't import a bundle made for one browser, since its users run
   them all, and fetching one engine's tables at runtime would make the first `prepare()` asynchronous, so every browser
   downloads every engine's tables.
