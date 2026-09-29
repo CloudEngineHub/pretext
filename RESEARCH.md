@@ -978,8 +978,8 @@ lay out a chip wider than the line, though Chrome gives a line feed after such s
 only white space stays however far the line overflows, as Blink's return keeps the trailable items after the break it
 returns to, white space and the tags of spans that close among it (`RewindOverflow`, `line_breaker.cc:4332-4424`), which
 keeps such a span after any content; else the line ends at the break after the chip, or in Safari, before a line feed,
-returns to the break before the chip. Blink fits only the start edge of a padded span that starts with white space after text too, where rich inline takes the whole
-`extraWidth` in Safari and Firefox (ENGINE_FOLLOWUPS.md). An atomic item lays
+returns to the break before the chip. Blink fits only the start edge of a padded span that starts with white space after
+text too, where rich inline takes the whole `extraWidth` in Safari and Firefox (ENGINE_FOLLOWUPS.md). An atomic item lays
 its text out in normal white space, as a chip's `white-space: nowrap` box does: the rebuild's premise, the chip's max-content width with its
 preserved spaces, is 6.6px wider than all three browsers lay out the 12px chip ` @bob ` in 15px Helvetica Neue prose
 (2026-09-29).
