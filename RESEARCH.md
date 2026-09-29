@@ -1192,6 +1192,17 @@ costs Chrome 154 11% on rich stats, 5% on letter-spaced CJK `layout()` and 8-13%
 pre-wrap chunks, in both sessions; Firefox 156 moves 2% at most, and Safari 27 only on resizing Arabic to widths it has
 laid out before (13%, where the bench's control, a second copy of main, moved 5%).
 
+After content, the rich stepper doesn't walk an item whose first segment doesn't fit: the full walker there only ends
+the line before the item, as the stepper now does itself. `firstSegmentOverflows()` repeats the walker's fit for that
+segment, a copy a comment in the walker points to. That leaves 6 of the 439 walks in a stats pass over the bench's rich
+texts: Chrome 154's rich stats read 18% faster and Firefox 156's 23%, their rich walks and streams 11-13% (2026-09-29).
+Testing for a line that starts at an item's end, as after a hard break, only on the line's first item, the one item that
+can, instead of on every item it visits, made Chrome's rich stats 9% faster again, within noise in Firefox: that test's
+reads were what #364's removed check had skipped. Chrome's rich stats now read 18% faster than main before #340, where
+main at #372 read 7% slower. Against main, Safari 27's rich stats read 14% faster, and Chrome's mixed stats, whose code
+didn't change (the minified `layout.ts` bundle is the same), 2% slower in two of four runs, accepted as V8's placement
+of the changed bundle (#375).
+
 Continuing rich lines in the full walker (#369, 2026-09-27) moved rows whose code didn't change, accepted as each JIT's
 placement of the changed bundle (Part 1, Engineering): Chrome 154's letter-spaced CJK `layout()` and pre-wrap chunks
 read 1-6% slower, and within noise a day later with the same walker, and Safari 27 streamed the bench's mixed texts
@@ -1235,14 +1246,16 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
 - **A loop slows once a check in it has held**: a check in the counter's loop that handed unbroken-boundary lines to the
   full walker slowed counting all other text up to 1.6 times in Firefox and 1.3 in Chrome, though the check alone cost
   nothing (#350, 2026-09-26).
-- **A block that never runs**: since rich items continue their lines, Firefox 156 measures the bench's rich stats about
+- **A block that never runs**: since rich items continue their lines, Firefox 156 measured the bench's rich stats about
   6% slower, and its rich walk and stream about 2%. It isn't the full walker, as #369 supposed (sending items on
   fast-path handles back to the simple stepper read +0.2%): without the block at the top of the rich stepper's item loop
   that records the break before a continued item, whose body never runs on the bench, rich stats read 4.7% faster,
   faster than before #369 too. None of three plain restructurings took it back (the hang of the spaces before consumed
   items in a function of its own, or left out, and the line's latest break as one record), so
   it was accepted as a regression one JIT alone explains in live code (#370, 2026-09-28; Decisions Log, 2026-09-26, no
-  dead code for one JIT).
+  dead code for one JIT). Since the rich stepper stopped walking items whose first segment doesn't fit and tests for a
+  line that starts at an item's end only on its first item (The Walkers' Shapes, 2026-09-29), rich stats read 16% faster
+  than before #369, and without the block 5% faster still, at the rich row's floor.
 - **Inline caches**: once `layout()` has stepped such text, Chrome's `walkLineRanges()` of simple text, sharing the
   simple stepper, takes 2-4% longer than a second copy of main, by a mechanism not found. V8's caches turn polymorphic
   over the two handle kinds (`--log-ic`), but one shape for both didn't help Chrome and cost Firefox up to 14%; a
