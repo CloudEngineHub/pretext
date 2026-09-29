@@ -955,21 +955,30 @@ item's hanging width from the fit (`InlineContentBreaker`) and Gecko hangs each 
 `line_breaker.cc:2963-2971`, WebKit's pen position, Gecko's `CalcTabWidths`, `nsTextFrame.cpp:4298-4378`). No break
 comes before a hard break (UAX #14 LB6). A padded span that starts with one fits its padding there as each engine fits a
 span whose line ends as it opens: Chrome its start edge, as Blink adds that edge when the span opens and a forced break's
-close tags trail it; Safari its end edge too where the span ends at the break, as WebKit's content runs on past the box
-ends after a line break; Firefox both, as Gecko fits a frame's cloned end edge (`paddedOpeningFit`, `src/measurement.ts`).
-Where it doesn't fit, all three engines return the line to its latest break; without one, Chrome ends the line before the
-span, as its retry of an overflowing line breaks between any two graphemes, and Firefox and Safari before the last
-grapheme of the text before it, whose wrap opportunities lie inside it, and before that grapheme's span where the grapheme
-is all of one (`hardBreakItemRetreat`). WebKit's soft wrap index loop ends the content it places after a line break item
-(`InlineFormattingUtils.cpp:456-475`), so no break comes before a line feed that starts a box there either, after an
-atomic item too, and allows wrapping next to a white-space item (`:406-418`). A carriage return that ends one item and a
+close tags trail it, and no edge after preserved spaces that overflow or follow text in one span, as its return breaks
+that text before them and the line then trails the spaces, the open tag and the forced break; Safari its end edge too
+where the span holds only white space up to the break, as WebKit's content runs on past the box ends after a line break,
+with white space that hangs before the span left out; Firefox both, as Gecko fits a frame's cloned end edge
+(`paddedOpeningFit`, `src/measurement.ts`). Where it doesn't fit, all three engines return the line to its latest break;
+without one, Chrome ends the line before the span, as its retry of an overflowing line breaks between any two graphemes,
+and Firefox and Safari before the last grapheme of the text before it, a preserved space too, whose wrap opportunities
+lie inside it, and before that grapheme's span where the grapheme is all of one; Safari keeps the preserved spaces that
+fit of ones that overflow, as WebKit breaks the run that overflows where it fits (`hardBreakItemRetreat`). A break the
+walk of an item gives after its preserved spaces is the next item's, which the text the items join decides. WebKit's
+soft wrap index loop ends the content it places after a line break item (`InlineFormattingUtils.cpp:456-475`), so no
+break comes before a line feed that starts a box there either, after an atomic item too, and allows wrapping next to a
+white-space item (`:406-418`). A carriage return that ends one item and a
 line feed that starts the next make one break, as CRLF in one text does. Preserved spaces, tabs that hang and a hard
 break after an atomic item, without padding, stay on its line however far the line overflows: no break comes before
 them, Blink takes them as trailing items after the break after an atomic inline (`HandleTrailingSpaces`,
 `line_breaker.cc:2426-2516`) and Gecko lets an empty frame past the line's end (`CanPlaceFrame`), as all three browsers
 lay out a chip wider than the line, though Chrome gives a line feed after such spaces a line of its own
-(ENGINE_FOLLOWUPS.md). A padded span that starts with them stays where the engine fits its opening, else the line ends at
-the break after the chip, or in Safari, before a line feed, returns to the break before the chip. An atomic item lays
+(ENGINE_FOLLOWUPS.md). A padded span that starts with them stays where the engine fits its opening, and in Chrome one of
+only white space stays however far the line overflows, as Blink's return keeps the trailable items after the break it
+returns to, white space and the tags of spans that close among it (`RewindOverflow`, `line_breaker.cc:4332-4424`); else
+the line ends at the break after the chip, or in Safari, before a line feed, returns to the break before the chip. Blink
+fits only the start edge of a padded span that starts with white space after text too, where rich inline takes the whole
+`extraWidth` in Safari and Firefox (ENGINE_FOLLOWUPS.md). An atomic item lays
 its text out in normal white space, as a chip's `white-space: nowrap` box does: the rebuild's premise, the chip's max-content width with its
 preserved spaces, is 6.6px wider than all three browsers lay out the 12px chip ` @bob ` in 15px Helvetica Neue prose
 (2026-09-29).

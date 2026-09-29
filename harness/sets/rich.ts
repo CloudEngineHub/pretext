@@ -46,7 +46,11 @@
 //   fit (hardBreakItemRetreat in src/measurement.ts); and, cut on their own too, that span after a word whose last
 //   letter is a bold span of its own, which moves with it, a padded span of only a line feed, whose end edge Safari
 //   fits too, and a padded span that starts with a line feed or spaces after a chip, whose opening each engine fits
-//   its way (paddedOpeningFit in src/measurement.ts).
+//   its way (paddedOpeningFit in src/measurement.ts); and, cut on their own too, a padded span of only spaces after a
+//   chip, which Chrome keeps on the chip's line however far it overflows, one of spaces and a line feed, whose end edge
+//   Safari fits too, and a padded span that starts with a line feed or spaces after a word that ends with spaces,
+//   whose opening Chrome's line takes with no padding, and before whose line feed, where its padding doesn't fit,
+//   Safari keeps the spaces that fit and Firefox all but the last (hardBreakItemRetreat).
 import { TEXTS } from '../../src/test-data.ts'
 import type { CssFont, Paragraph, TextRun } from '../types.ts'
 import { codePoints, createRng, font, paragraph, span } from './build.ts'
@@ -211,6 +215,10 @@ export function richTemplates(): Template[] {
     ['line-feed-starts-padded-item', HELVETICA, ['Unbreakable', span('\n', CODE, { padding: 20 }), 'tail text']],
     ['padded-span-after-chip', HELVETICA, ['Ping ', span('@alice', CHIP, { atomic: true, padding: 11 }), span('\nnext line', CODE, { padding: 20 }), ' after']],
     ['padded-span-after-chip', HELVETICA, ['Ping ', span('@alice', CHIP, { atomic: true, padding: 11 }), span('  spaced code', CODE, { padding: 12 }), ' after']],
+    ['padded-span-after-chip', HELVETICA, ['Ping ', span('@alice', CHIP, { atomic: true, padding: 11 }), span('  ', CODE, { padding: 12 }), 'next words']],
+    ['padded-span-after-chip', HELVETICA, ['Ping ', span('@alice', CHIP, { atomic: true, padding: 11 }), span('  \n', CODE, { padding: 12 }), 'next words']],
+    ['line-feed-starts-padded-item', HELVETICA, ['Unbreakable   ', span('\nnext line', CODE, { padding: 20 }), ' after']],
+    ['spaces-at-padded-edges', HELVETICA, ['Unbreakable   ', span('  spaced code', CODE, { padding: 20 }), ' after']],
   ]
   for (let i = 0; i < preWrap.length; i++) {
     const [family, base, parts] = preWrap[i]!
