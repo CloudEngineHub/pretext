@@ -317,6 +317,9 @@ and its unit tests (`rebuild/src/engines/<engine>/`) against the engine's source
 - **Voice**: short, nuances kept, each document in its own tone (AGENTS.md) and `thoughts.md` in the maintainer's. A
   rewrite keeps technical meaning and opinions and loses pseudo-jargon, common words in uncommon senses, vague pronouns
   and slogans, but not words that carry meaning, such as "regression". Concrete cases over a general warning.
+- **A PR's story stays in the PR (2026-09-28).** Its full account (the rounds, the probes, every case it moved) goes in
+  its description; this file gets the durable fact: the claim, its number, build and date, its source and what would
+  reopen it. Six PRs in a row appended about 7,500 words here before this rule.
 - **What goes in**: point to numbers that go stale rather than copy them; give a fresh agent objective facts, not
   designs that fence it in. A cleanup removes only what's provably stale; docs another agent wrote are checked for
   accuracy and for fitting what was done. The changelog and doc-sync rules are the maintainer's own AGENTS.md lines,
