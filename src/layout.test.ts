@@ -1269,17 +1269,22 @@ describe('boundary-policy regressions', () => {
       // A rich item that ends in NEL breaks before the next item.
       const rich = prepareRichInline([{ text: 'ab\u0085', font: FONT }, { text: 'cd', font: FONT }])
       expect(measureRichInlineStats(rich, measureWidth('ab\u0085', FONT) + 0.5).lineCount).toBe(2)
+      // A rich paragraph's lines, with a space where a collapsed space falls between items.
+      const richLines = (parts: readonly string[], width: number, letterSpacing = 0): string[] => {
+        const prepared = prepareRichInline(parts.map(text => ({ text, font: FONT, letterSpacing })))
+        const texts: string[] = []
+        walkRichInlineLineRanges(prepared, width, range => {
+          texts.push(materializeRichInlineLineRange(prepared, range).fragments
+            .map(fragment => (fragment.gapItemIndex < 0 ? '' : ' ') + fragment.text).join('').trimEnd())
+        })
+        return texts
+      }
       // A rich item that starts with NEL keeps the word before it, as the joined text does.
       const parts = ['ab foo', '\u0085b'] as const
       const width = measureWidth('ab foo', FONT) + 0.5
-      const leading = prepareRichInline(parts.map(part => ({ text: part, font: FONT })))
-      const richLines: string[] = []
-      walkRichInlineLineRanges(leading, width, range => {
-        richLines.push(materializeRichInlineLineRange(leading, range).fragments.map(fragment => fragment.text).join('').trimEnd())
-      })
       const flatLines = lines(parts.join(''), width).map(line => line.text.trimEnd())
       expect(flatLines).toEqual(['ab', 'foo\u0085b'])
-      expect(richLines).toEqual(flatLines)
+      expect(richLines(parts, width)).toEqual(flatLines)
 
       // NEL takes no letter spacing at either sign, but the gap after the
       // grapheme before it stays.
@@ -1296,6 +1301,16 @@ describe('boundary-policy regressions', () => {
         // unspaced, while text on its complex path, such as Arabic, spaces it.
         expect(lines('\u6F22\u0085', 1000, { letterSpacing })[0]!.width).toBeCloseTo(measureWidth('\u6F22', FONT) + nel + letterSpacing)
         expect(lines('\u0628\u0085', 1000, { letterSpacing })[0]!.width).toBeCloseTo(measureWidth('\u0628', FONT) + nel + 2 * letterSpacing)
+        // After content, a rich item that starts with NEL keeps the NEL on the line where
+        // it fits with 0.5px to spare, counting a gap after each of `z`, `z` and the space
+        // and the NEL's own, as the joined text does: none before `cd`, one before a mark
+        // on Arabic.
+        for (const [text, gaps] of [['\u0085cd', 3], ['\u0085\u0651\u0628', 4]] as const) {
+          const nelWidth = measureWidth('zz \u0085', FONT) + gaps * letterSpacing + 0.5
+          const expected = ['zz \u0085', text.slice(1)]
+          expect(lines(`zz ${text}`, nelWidth, { letterSpacing }).map(line => line.text.trimEnd())).toEqual(expected)
+          expect(richLines(['zz ', text], nelWidth, letterSpacing)).toEqual(expected)
+        }
       }
       // A preserved space does not hang after a NEL that already overflows.
       expect(lines('a\u0085 b', nel - 0.5, { whiteSpace: 'pre-wrap', letterSpacing: 1 }).map(line => line.text)).toEqual(['a', '\u0085', ' ', 'b'])
@@ -3315,8 +3330,10 @@ describe('rich-inline invariants', () => {
     // after a break, and the joined text breaks inside a later segment of an
     // item. In the row after those the walk ends at the space before the first item's
     // Thai word, which doesn't fit, where the joined text breaks inside that word. In
-    // the four after it a soft hyphen starts an item after other text, and in the last
-    // an inner break ties with a pending break before the item.
+    // the four after it a soft hyphen starts an item after other text, in the one after
+    // those an inner break ties with a pending break before the item, and in the last the
+    // joined text breaks inside the second item's first segment, which doesn't fit whole
+    // after the first item, so the line takes that segment's first grapheme.
     const expectFlatLines = (parts: readonly string[], width: number) => {
       const prepared = prepareRichInline(parts.map(text => ({ text, font: FONT })))
       const richLines: string[] = []
@@ -3349,6 +3366,7 @@ describe('rich-inline invariants', () => {
       [['nmdo', '\u00ADau', 'o a'], 50],
       [['nmdo', '\u00ADau', 'o a'], 57.6],
       [['\u4E2D\u6587\u201C', '\uD83D\uDE0A\u201D\u4E2D\u6587'], 44],
+      [['\u0E2A\u0E27\u0E31\u0E2A', '\u0E2A\u0E27\u0E31\u0E2A'], 48],
     ] as const) expectFlatLines(parts, width)
     // An item that a line start consumes, holding only a soft hyphen, keeps the break
     // before it, where the next item continues its run: the line ends there, after the
