@@ -3239,6 +3239,28 @@ describe('rich-inline invariants', () => {
     })
   })
 
+  test('a rich line starts after the collapsible space its start removes, as the joined text\'s line does', () => {
+    // Under negative letter spacing a line whose last word just fits can end before the
+    // space after it (ENGINE_FOLLOWUPS.md), and the next line starts after that space, as
+    // the browsers remove collapsible spaces at a line's start (CSS Text 3 §4.1.2). Its
+    // first fragment starts there too, at −1 as for large headings and at the spacing
+    // apps give body text.
+    for (const letterSpacing of [-1, -0.2, -0.08]) {
+      // `zz ab` fits with the gap after its `b` from this width, for |letterSpacing| more.
+      const width = measureWidth('zz ab', FONT) + 5 * letterSpacing - letterSpacing / 2
+      for (const parts of [['zz ', 'ab cd'], ['zz ab cd']]) {
+        const prepared = prepareRichInline(parts.map(text => ({ text, font: FONT, letterSpacing })))
+        const lines: string[] = []
+        walkRichInlineLineRanges(prepared, width, range => {
+          lines.push(materializeRichInlineLineRange(prepared, range).fragments.map(fragment => fragment.text).join('|'))
+        })
+        const flat = layoutWithLines(prepareWithSegments(parts.join(''), FONT, { letterSpacing }), width, LINE_HEIGHT).lines
+        expect(flat.map(line => line.text.trimEnd())).toEqual(['zz ab', 'cd'])
+        expect(lines).toEqual([parts.length === 1 ? 'zz ab' : 'zz|ab', 'cd'])
+      }
+    }
+  })
+
   test('rich range materialization preserves styled atomic-item geometry', () => {
     const prepared = prepareRichInline([
       { text: 'Ship ', font: FONT },
