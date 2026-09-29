@@ -2816,7 +2816,7 @@ sample-f8fa718992cbb6bf error
 sample-fd68e1169d4616a4 error
 sample-ff4a29045b8ea4da error
 
-## Outside what Pretext claims: system-ui font lists (README); not looked into, since Safari's Canvas and DOM agree on system-ui itself
+## Outside what Pretext claims: system-ui font lists (README.md, Caveats); not looked into, since Safari's Canvas and DOM agree on system-ui itself
 sample-0c1ec78ea4cfbfeb breaks
 sample-1a18338f179a5fb2 breaks
 sample-207a75e33cbd70eb breaks

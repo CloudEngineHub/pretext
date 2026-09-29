@@ -1,11 +1,51 @@
 ## Pretext
 
-Use `README.md` as the public source of truth for API examples and user-facing limitations. See `DEVELOPMENT.md` for commands and packaging/release checks. Browser-accuracy claims rest on the harness (`harness/README.md`), its recordings and accepted lists, and speed claims on `bun harness bench`'s same-document ratios in PR descriptions. Use `TODO.md` for the current priorities. `ENGINE_FOLLOWUPS.md` holds deferred engine decisions, known gaps and harness debt; update it when an item lands or is dropped. `PLATFORM_BUGS.md` is the browser/OS bug ledger, `RESEARCH.md` keeps durable findings and rejected approaches, `FONT_DIAGNOSTICS.md` keeps contextual font measurements, and completed comparisons go in PR descriptions. `pages/demos/markdown-chat.md` teaches app developers the Markdown chat demo's patterns; update it when the chat changes. **Every time before you commit, ensure you've synced the docs**.
-Do not change the existing tone of the documents unless they're wrong.
-Before reversing a documented decision, read the Decisions Log at the end of `RESEARCH.md`; code comments that cite it mark where each one applies.
-Do `bun install` if you're in a fresh worktree.
-
 Changelog updates guideline: don't add dev-facing notes, only user-facing ones. Refer to closed PR numbers.
+
+### Where things are
+
+- `README.md`: the public API and user-facing limitations, with no per-browser accuracy or speed figures.
+- `RESEARCH.md`: the terms the docs share, then intent (Part 1), evidence and dead ends (Part 2) and the Decisions Log
+  (Part 3). Read the log before reversing a documented decision; code comments that cite it mark where each one applies.
+  A PR's full story goes in its description; `RESEARCH.md` gets the durable fact: the claim, its number, build and date,
+  its source, and what would reopen it.
+- `harness/README.md`: how cases pass and grow. Accuracy claims rest on its recordings and accepted lists; speed claims
+  and finished comparisons go in PR descriptions.
+- `ENGINE_FOLLOWUPS.md`: open gaps. `PLATFORM_BUGS.md`: browser and OS bugs, read before changing an engine-profile
+  workaround or a line-fit tolerance. `TODO.md`: priorities. `DEVELOPMENT.md`: the demo server, engine data, releases.
+  `pages/demos/markdown-chat.md`: the chat demo's patterns for app developers, updated with the chat.
+- engineering.md and ui.md, the maintainer's general rules for code and UI (`docs/` in the vibescript repository, to be
+  open-sourced as chenguini), hold here; a pointer such as (engineering.md, Caching) names a section there.
+- Keep a doc current in the change that makes it stale.
+
+A text goes through analysis (`src/analysis.ts`: white space, break opportunities from ports of each engine's scan in
+`src/line-breaks.ts` and `src/gecko-line-breaks.ts`, segments), measurement (`src/prepare.ts` over `src/measurement.ts`:
+Canvas widths cached per font and segment, and the corrections at line edges) and line walking (`src/line-break.ts`, for
+`src/layout.ts` and `src/rich-inline.ts`). Engine differences live in the engine profile (`getEngineProfile()`,
+`src/measurement.ts`) and its tables in `src/generated/`.
+
+### Intent
+
+The reasons are in `RESEARCH.md` Part 1, under the same headings. A fix inside these limits lands on the agent's
+judgement; one outside them needs the maintainer first.
+
+- **What Pretext Is For.** Layout in app code without DOM measurement, above all virtualized lists that prepare many
+  texts, so preparing new text matters as much as `layout()`. Heights are exact, never estimated.
+- **Limits.** `prepare()` and `layout()` read no DOM or style beyond the emoji-correction span, the `<html lang>` read
+  and, without `OffscreenCanvas`, a canvas element never attached. Widths come only from Canvas `measureText`. Every
+  browser on a modeled engine gets a layout. Stricter editorial whole-word handling stays in userland.
+- **The Correctness Stance.** Port each engine's rule; never go back to rules keyed on what a failing input looks like. A
+  premise no real font breaks may be taken for speed, with a named gap. CJK stays well supported.
+- **Tests And Losses.** A lost pass may be luck or a wrong oracle; a true loss is the maintainer's call. Cases grow by a
+  behaviour's shape, never by one pinned reproduction per bug.
+- **Engineering.** Complexity stays down, line count its usual proxy. The worst case is catered to but may regress
+  slightly for a real gain.
+- **Tables Against Canvas.** Engine and Unicode data go in tables pinned to the engine's build; font facts come from
+  Canvas at runtime.
+- **Merge Bars And Landing.** A change no worse on correctness, speed or simplicity that improves one merges; a trade
+  goes to the maintainer with numbers; a fix that doesn't make sense waits, even when validation passes.
+- **Docs.** Leave out what the code shows cheaply. Write for a reader who saw none of the sessions behind a change:
+  define terms where first used, state decisions as project rules, don't quote conversations.
 
 ### Fixing a mismatch
 
@@ -19,28 +59,44 @@ Changelog updates guideline: don't add dev-facing notes, only user-facing ones. 
 
 ### Implementation notes
 
-- The published package ships built ESM from `dist/`; `dist/` is publish-time output, not checked-in source. `package.json` maps `.` to `dist/layout.js` + `dist/layout.d.ts` and `./rich-inline` to `dist/rich-inline.js` + `dist/rich-inline.d.ts`, and also ships `src`; keep the package/export surface aligned with the emitted files.
-- Keep shipped library source imports runtime-honest with `.js` specifiers inside `.ts` files. That keeps plain `tsc` emit producing correct JS and `.d.ts` files without a declaration rewrite step.
-- Write library state as plain objects and functions, not classes: a class field anywhere in the bundle doubles Firefox's compile time for all of it (`RESEARCH.md`).
-- `prepare()` / `prepareWithSegments()` do horizontal-only work. `prepare()` should stay the opaque fast-path handle: segment arrays flow through `prepareWithSegments()`, and the fast handle should not pay for data that `layout()` does not consume. `prepare()` is internally split into a text-analysis phase (`analyzeText()` in `src/analysis.ts`) and a measurement phase (`measureAnalysis()` in `src/prepare.ts`, through which rich-inline prepares its items); keep that seam clear, and keep prepare-time diagnostics internal to benchmark tooling instead of growing a second public prepare surface.
-- The rich public surface is intentionally split between stats/range helpers (`walkLineRanges()`, `measureLineStats()`, `layoutNextLineRange()`) and text-materializing helpers (`layoutWithLines()`, `layoutNextLine()`, `materializeLineRange()`). Keep their break semantics aligned.
-- The internal segment model distinguishes several break kinds (`SegmentBreakKind` in `src/analysis.ts`; the analysis gives each segment's as a code in its flags byte, which a prepared handle's `segmentFlags` keeps, and `prepareWithSegments()` names them in `kinds`). Do not collapse those back into one boolean unless the model gets richer in a better way. There is no `glue` kind: no-break characters are text, and the scans decide their breaks.
-- `layout()` is the resize hot path: no DOM reads, no canvas calls, no string work, and avoid gratuitous allocations. Don't add DOM access, computed-style reads, or anything that forces style or layout to `prepare()` or `layout()`. The emoji-correction span, the `<html lang>` attribute read and the detached-canvas fallback when `OffscreenCanvas` is missing are the existing exceptions.
-- Keep a line walker's state in locals of the walking function, not in variables a nested function closes over, and keep its loop bounds integers: V8 boxes a captured number and JavaScriptCore types an infinite bound as a double, and each slowed the full walker markedly (`RESEARCH.md`, Keeping Work Bounded).
-- Measurement state is one record: its language, the context made under it, the generic families that language names, whether the context takes letter spacing, and a `Map<font, FontMeasurement>` of per-font records: the font Canvas is given, the segment metrics `Map<segment, metrics>`, the following-space metrics, the emoji correction and HanKerning's font data. The measuring helpers take a `FontMeasurement` and measure through its record's context, which `getFontMeasurement()` sets to the font. Segment metrics are created with every field, and a segment's fit is one record replaced whole, so their reads see one shape. The fonts are shared across texts and resettable via `clearCache()`, which also drops the word segmenter. Width is only one cached fact; grapheme widths and other segment-derived facts can be populated lazily.
-- Preparation replaces the measurement context and clears the segment metrics caches when its language changes: `document.documentElement.lang`, or the one `setLocale()` gave in its place. Chrome's OffscreenCanvas re-resolves a font under the page language only when the font string changes. Do not replace the context on every `clearCache()`: Chrome caches shaped text per canvas, so that moves unrelated widths. See `PLATFORM_BUGS.md`. On a page with no language, the Chromium profile reads `Intl`'s default locale once, which is Chrome's UI language: Blink lays out content without a language under it, so preparation takes it as its language, resolved once per prepare (`getPreparationLanguage()`): the Blink scan picks its line table from it and the measurement context takes it as its `lang` (`RESEARCH.md`). Otherwise a context with a `lang` takes preparation's language, which follows the page unless `setLocale()` gave one, as a worker needs.
-- Keep script-specific break-policy fixes, including `{ wordBreak: 'keep-all' }` policy, in preprocessing, not `layout()`. See `RESEARCH.md` for the rules and rejected approaches. Keep stricter editorial whole-word handling in userland instead of changing the library default.
-- Chrome's, Safari's and Firefox's break opportunities come from ports of Blink's and WebKit's scans in `src/line-breaks.ts` and Gecko's in `src/gecko-line-breaks.ts`, over their own tables in checked-in generated data, and grapheme clusters from Chrome's and Safari's ICU character rules in the same data (`src/graphemes.ts`), which Firefox shares with Chrome. Refresh that data manually with `bun run generate:engine-break-data` from the engine files in `scripts/engine-data/`, and Safari's generic families under a page language with `bun run generate:webkit-generic-families`; do not turn either into a normal build step. The WebKit port follows Safari 27 only, and Safari's families come from that table, never from a `<canvas>` element, whose context forces style updates. Pretext takes no paragraph direction and resolves bidi levels only inside Gecko's scan, to split text runs as Firefox does; see `RESEARCH.md` before adding them anywhere else.
-
-### Demos
-
-- In `pages/demos/`, the model owns every value Pretext measures or a layout width depends on: fonts, letter spacing, the text as painted (for example upper-cased), padding and borders inside a model width, and breakpoints. The painter writes them inline instead of restating them in CSS, and a border inside a model width is drawn as an inset box-shadow. A page that scrolls reserves classic scrollbar room with `html { scrollbar-gutter: stable }` and reads its width from `document.body.clientWidth`; an inner scroller reads its own `clientWidth` and gets `scrollbar-gutter: stable`. When a demo fix lands, check the sibling demos for the same bug.
+- Plain objects and functions, not classes; a line walker's state in its own locals, with integer loop bounds: a class
+  field doubles Firefox 156's compile time for the whole bundle, V8 boxes a captured number, and JavaScriptCore types an
+  infinite bound as a double (`RESEARCH.md`, Keeping Work Bounded).
+- `layout()` is the resize hot path: no Canvas calls, no string work, no gratuitous allocations. `prepare()` stays the
+  opaque fast handle, paying for nothing `layout()` doesn't read. The per-segment break kinds (`SegmentBreakKind`) aren't
+  merged back into one can-break flag.
+- Preparation makes a new Canvas context when its language changes, because Chrome's OffscreenCanvas picks fonts for a
+  new language only when the font string changes; not on `clearCache()`, because Chrome caches shaped text per canvas
+  (`PLATFORM_BUGS.md`).
+- Source imports keep `.js` specifiers in `.ts` files so plain `tsc` emits working JS; extensionless ones pass
+  `moduleResolution: "bundler"` and only `bun run package-smoke-test` catches them.
+- Engine data is refreshed by hand, never in a build step (`DEVELOPMENT.md`). `Intl.Segmenter` only splits words in the
+  Southeast Asian runs the scans send it.
 
 ### Validation
 
-- When you come back to the project, run `bun harness repin chrome`, `repin firefox` and `repin safari` first: the installed browsers have likely moved on, and each prints what the new build changes. With `--write` it takes the new build.
-- `bun test` should pass and `bun harness check` (`harness/README.md`) should be green in Chrome, Firefox and webkit-host on every iteration; run `bun harness gate` before landing a change to `src/` or `harness/`. A new failure goes on `harness/accepted/<browser>.txt` only under a written reason, and a case that passes again leaves the list in the same change.
-- Commit changed recordings and accepted and varying lists with the change that caused them. Record new cases with `bun harness record --only-new`; after a browser pin bump or an OS update, record every case again (`bun harness repin <browser> --write`), in a commit of its own.
-- Background harness jobs may run side by side, each in its own instance of a pinned browser or webkit-host, while free plus inactive memory stays above about 30%; installed Safari takes one job at a time, and `bun harness bench` runs alone in the foreground. Treat `--background` bench results and headless replays as hypotheses.
-- Keep benchmarks foreground. Before landing a change to `src/` other than `layout.test.ts`, or to `harness/bench/`, run `bun harness bench main` on every row and paste its table into the PR. A row that reads slower in every session needs a sentence on why the change is worth it, and so does growth over 5% in the `measureText` calls or submitted units that `bun harness equal main` prints.
-- Use named fonts for accuracy, and give standalone probe pages an explicit, non-empty `lang`. Re-test the macOS emoji and `system-ui` bugs in a headed browser on a Retina display; headless DPR 1 runs can mask them. Consult `PLATFORM_BUGS.md` before changing engine-profile workarounds or line-fit tolerances.
+- When you come back to the project, or after a browser or OS update, run `bun harness repin chrome`, `repin firefox`
+  and `repin safari` first; `--write` takes the new build, in a commit of its own (`harness/README.md`, Browsers and
+  pins).
+- Keep `bun test`, `bun run check` and `bun harness check` (Chrome, Firefox, webkit-host) green; run `bun harness gate`
+  before landing a change to `src/` or `harness/`. Record new cases with `bun harness record --only-new`, and commit
+  changed recordings and accepted or varying lists with the change that caused them.
+- Before landing a change to `src/` other than `layout.test.ts`, or to `harness/bench/`, paste `bun harness bench main`'s
+  table, every row, into the PR. A row slower in every session needs a sentence, as does growth over 5% in the
+  `measureText` calls or submitted units `bun harness equal main` prints.
+- Settle behaviour in the harness's pinned headed browsers, not headless ones; `--background` bench results are
+  hypotheses. Jobs may run side by side while free plus inactive memory stays above about 30%, installed Safari one at a
+  time; the bench runs alone, in the foreground, on a quiet machine.
+- Use named fonts and give probe pages an explicit, non-empty `lang`, or the OS's and browser's language settings leak
+  in. Re-test the macOS emoji and `system-ui` bugs headed on a Retina display: headless DPR 1 masks them.
+- Traps: a right line count can hide wrong breaks (`RESEARCH.md`, Reading Browser Output); WebKit's per-process caches
+  make a webkit-host result depend on earlier layouts (`harness/README.md`, Accepted and varying lists); a result
+  becomes the baseline only after a check by someone other than the tool or agent that made it (`RESEARCH.md`,
+  Evaluation Traps).
+
+### Demos
+
+Demos in `pages/demos/` follow ui.md. The model owns every value Pretext measures or a layout width depends on (fonts,
+the text as painted, padding, borders, breakpoints); the painter writes them inline, and a border inside a model width is
+an inset box-shadow. Demos never correct what Pretext reports. An inner scroller gets `scrollbar-gutter: stable`
+(`RESEARCH.md`, Scrolling And Scrollbars). After a demo fix, check the sibling demos.

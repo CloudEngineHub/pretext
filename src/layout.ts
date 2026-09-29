@@ -148,8 +148,8 @@ function getInternalPrepared(prepared: PreparedText): InternalPreparedText {
 // Layout prepared text at a given max width and caller-provided lineHeight.
 // Pure arithmetic on cached widths — no canvas calls, no DOM reads, no string
 // operations, and no per-line allocations. Call on every resize. Lines break
-// where the engine's page breaks them, under the CSS that README.md's Caveats
-// list.
+// where the engine's page breaks them, under the CSS the README lists
+// (README.md, Caveats).
 export function layout(prepared: PreparedText, maxWidth: number, lineHeight: number): LayoutResult {
   // The resize hot path counts the same lines as `layoutWithLines()` without
   // building line ranges or text.

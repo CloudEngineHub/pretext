@@ -3,8 +3,8 @@
 // - filed reports whose reporter measured the width with their own Canvas;
 // - a matrix of every UAX #14 line-break class between the scripts apps mix, under the CSS settings the library takes,
 //   each pair of values of two axes in at least one template;
-// - shapes ENGINE_FOLLOWUPS.md names, with their neighbours, each neighbour a family of its own, so the cover keeps a
-//   change of each;
+// - lines holding only soft hyphens (RESEARCH.md, Widths After A Line Break), with their neighbours, each neighbour a
+//   family of its own, so the cover keeps a change of each;
 // - chains of combining-mark runs longer than the part of the chain a run's context keeps, each shape a family of its own,
 //   so the cover keeps a change of each;
 // - a CJK closing mark at a line end before a line feed or a space;
@@ -82,7 +82,7 @@ function classSamples(): Array<{ lineBreak: string; codePoint: number }> {
 
 // Rows in which every pair of values of two axes appears at least once: greedy, each row starting from the first pair
 // still uncovered and filling the other axes with the value that covers the most uncovered pairs (rebuild/tests/families/
-// covering.ts).
+// covering.ts on branch rebuild-20260916).
 export function pairwiseRows(sizes: readonly number[]): number[][] {
   const n = sizes.length
   const uncovered: Uint8Array[][] = []

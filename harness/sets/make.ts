@@ -1,16 +1,18 @@
 // Makes the case files in harness/cases. Sets with a given width are written directly; the catalog, the engine facts and
 // the rich set are searched for the widths where each browser's lines change first (widths.ts), which takes the
-// browsers, under the browser lock like any browser job:
+// browsers:
 //
 //   bun harness/sets/make.ts write                           # sample and reports
 //   bun harness/sets/make.ts first <set> --browser=<b>        # catalog, facts or rich: round 0 in one browser
 //   bun harness/sets/make.ts select <set>                     # after round 0 in all three: which changes to keep
 //   bun harness/sets/make.ts bisect <set> --browser=<b>       # the kept changes' exact widths in one browser
 //   bun harness/sets/make.ts cut <set>                        # the cut cases, into harness/cases/<set>.ndjson, with
-//                                                             # the set's main/* cases, taken once, kept as they are
+//                                                             # the set's main/* cases, taken once, kept as they are;
+//                                                             # only the templates the saved search holds survive
+//                                                             # (harness/README.md, How cases grow)
 //   bun harness/sets/make.ts sizes                            # each case file's cases and units per browser
 //
-// then `bun harness record --cases=harness/cases/<set>.ndjson` records what `check` compares against.
+// then `bun harness record --only-new` records the new cases `check` compares against.
 import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { readCases } from '../store.ts'

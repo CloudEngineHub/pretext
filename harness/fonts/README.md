@@ -1,11 +1,3 @@
-Web fonts the harness serves to cases that list them in `fontFixtures`, with their licenses. The page loads them with
-`FontFace` before anything measures, as an app that serves web fonts does.
+The web fonts the harness serves to cases that name them in `fontFixtures`: Amiri, Noto Naskh Arabic, Noto Nastaliq Urdu and Shantell Sans, unchanged from the old test suite (`tests/wrapping`, removed on 2026-09-25), and Roboto and Inter, the real-usage sample's Latin web fonts, at the shares in `harness/sets/weights.json`. Each license sits beside its font: the SIL Open Font License 1.1, and Apache 2.0 for Roboto.
 
-- Amiri, Noto Naskh Arabic, Noto Nastaliq Urdu, Shantell Sans and ProbeShantell are taken unchanged from
-  main's old wrapping suite (`tests/wrapping/fonts`, since removed). `ProbeShantell` names the bold Shantell file.
-- Inter and Roboto are the two most requested Latin web fonts (Roboto on 10-10.7% of pages, Inter on 1.4-1.5%, HTTP
-  Archive Almanac 2025, Fonts). The real-usage sample draws them for Latin text. Inter is under the SIL Open Font
-  License 1.1, Roboto 2.137 under the Apache License 2.0, as their name tables say.
-
-Installed fonts (Arial, Helvetica Neue, PingFang, Hiragino and so on) stay installed named faces: loading copies of system
-font files as web fonts changed Safari's results in an earlier investigation.
+The environment key hashes each file with its family and weight, so changing one means recording every case again. Installed fonts such as Arial stay installed, since served copies changed Safari's results once ([RESEARCH.md](../../RESEARCH.md), Dead Ends).

@@ -10,9 +10,9 @@ export const BROWSERS: readonly BrowserKind[] = ['chrome', 'firefox', 'webkit-ho
 // - `cases`: the browser whose cases it takes as well as its own; webkit-host runs installed Safari's engine.
 // - `sample`: installed Safari, whose window has to stay uncovered while it records, is recorded on a seeded sample of
 //   this many cases, which a new sample replaces, so cases with no recording are expected there.
-// - `settleMs`: Firefox changes fonts under a page for about 12 s after it starts (PLATFORM_BUGS.md, the late family
-//   names): emoji beside Arial laid out differently when recorded 11 s after launch than at 12, 15 or 30 s. So every job's
-//   first document is held until this long after launch.
+// - `settleMs`: Firefox changes fonts under a page after it starts (harness/README.md, Browsers and pins): emoji beside
+//   Arial laid out differently when recorded 11 s after launch than at 12, 15 or 30 s. So every job's first document is
+//   held until this long after launch.
 // - `textEmojiLast`: Firefox's cases holding U+FE0E go in documents after every other and are never pinned (score.ts).
 // - `hyphenCopies`: Chrome reports a soft hyphen's box for the code point next to it too, which the recorder leaves out.
 // - `systemWebKit`: the system WebKit's build is part of the environment key.

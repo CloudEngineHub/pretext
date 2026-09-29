@@ -1,26 +1,38 @@
 # Current Priorities
 
-## 1. Engine Work
+One line per item, with where its detail lives. Work depth-first; a punted item stays here or in ENGINE_FOLLOWUPS.md with what would reopen it. An item leaves once the maintainer has decided it; they rarely read these lists, so raise an item that needs their decision with them directly.
 
-- Deferred engine decisions, known gaps and harness debt live in [ENGINE_FOLLOWUPS.md](ENGINE_FOLLOWUPS.md). Finish open landings depth-first before starting new discovery.
-- When changing `prepare()`, read the bench's new, seen and worst rows and the `measureText` calls and submitted units `bun harness equal main` prints. Use the lines and rich rows when changing streaming APIs.
-- Before changing Safari prefix-width behavior, run the bench's long breakable runs (`--rows=worst`, `long-breakable-runs`). Lower retained memory does not justify a meaningful `prepare()` regression.
-- Chinese is the most useful current CJK regression case. Until broader measurements show a rule that applies beyond those cases, treat strongly font- or shaping-sensitive differences in Chinese, Myanmar, and Urdu as limits of the current design.
-- Performance work for rich text and manual line layout belongs in the range and cursor APIs.
+## Now
 
-## 2. Regression Coverage
+- Check the README as an app developer's only guide: build a long chat list from it and `pages/demos/markdown-chat.md` alone, then compare the app's heights, resizing and scroll anchoring with the browser's.
 
-- Keep the real app text in the harness's sample as the main regression case. Add only real text patterns that the current corpus misses.
-- Add corpora only from clean source text. A font joins `harness/sets/weights.json` only with a source for its usage.
-- Prefer a new Southeast Asian source that broadens coverage over another wrapped legal or raw-source artifact.
+## End of project
 
-## Open Design Questions
+Held until the current work is done, and all before the first release.
 
-- Should server canvas become a supported measurement backend?
-- Is automatic hyphenation in scope beyond caller-provided soft hyphens?
-- Are more intrinsic or logical-width APIs needed beyond `measureNaturalWidth()` and fixed-width layout?
-- Is a slower diagnostic verification mode useful enough to support without changing `layout()`?
+- The API discussion, a review of the public API: today's API stays, and alternatives are additions (RESEARCH.md, Caching And API Design; the studies are in RESEARCH.md, Dead Ends, Caching, State And API Designs). On its list:
+  - layout that takes the text itself, with no handle for the app to keep, and gives the same answer every call, perhaps with an optional warm-up like `prepare()`;
+  - who owns and bounds the per-font width cache, which grows with each new segment until `clearCache()`;
+  - parked speed-ups: the width memo, where a handle remembers which widths gave its last lines (drag-resize frames 2.9-4.2× faster, new widths up to 26% slower in Chrome, 2026-09-26); the font given at `layout()` instead of `prepare()`; a Firefox cache of Thai word boundaries;
+  - an element's own language and `Content-Language` as inputs (ENGINE_FOLLOWUPS.md, Language and generic families);
+  - the emoji-width correction in a worker, where the DOM span it reads doesn't exist (#292, PR #346; PLATFORM_BUGS.md);
+  - a paragraph direction, and the device pixel ratio for Chrome's fit grid, the 1/64 device px Chrome fits lines on (RESEARCH.md, Measurement Model; decisions 3 and 4 of issue #321, a study of offline engine emulators);
+  - `getTextClusters()` once Chrome ships it, no help for Firefox;
+  - `extraWidth` on a rich item split across lines, which browsers pad only at its outer ends, and #201's fixed-width inline item;
+  - rich inline as one analysis of the paragraph cut at item boundaries, in place of each item's own analysis patched toward the joined text, which needs fragment cursors that don't index each item's own prepared text (RESEARCH.md, Rich Inline Boundaries, Continuing The Line; not prototyped);
+  - how a browser whose Canvas lacks what its profile needs degrades, still laying text out rather than showing nothing.
+- Then a release, not before.
+- License notices for the ported engine code and data.
+- File the collected browser bugs (ENGINE_FOLLOWUPS.md, External actions).
+- The open demo and showcase issues (#94, #99, #150, #151, #152, #167).
 
-## API Discussion
+## Open design questions
 
-- Rich-inline analyses each item on its own, then patches it toward the text the items join: `recordJoinedBreaks()`, `markUnbroken()`, `getWalkedHandle()`, the joined windows and the passes after the item loop in `src/rich-inline.ts`, `ItemLine` and the walker's item mode in `src/line-break.ts`, and a second handle per item with its caches kept twice, about 330 lines with comments. They exist because fragment cursors index `prepareWithSegments(item.text)`. Written from scratch, it would be one analysis of the paragraph cut at item boundaries, as the engines lay out one paragraph's text across its spans and the rebuild indexes a paragraph's content (`rebuild/src/content.ts` on branch `rebuild-20260916`). That needs a new cursor contract, and letter spacing and `extraWidth` per segment in the walker. Not prototyped.
+- Server-side measurement and other backends, such as React Native's: punted, not closed. Without `OffscreenCanvas`, Node and Bun need a Canvas supplied.
+- Rich inline in `pre-wrap` (#173): not blocked by the architecture (RESEARCH.md, Box Edges And Pre-wrap); the hard parts are spaces hanging across a style change, tab stops across fonts and empty lines (`rebuild/research/PREWRAP-RICH.md` on the per-engine rebuild's branch, `rebuild-20260916`).
+- Source offsets and carets for editing rich text (#90, #198); whether bidi selection and copy stay outside Pretext.
+- Changing text (#313): a handle per paragraph, as README advises (#362); incremental preparation isn't worth building yet (RESEARCH.md, Dead Ends, Caching, State And API Designs).
+- `system-ui` (#336): why the browsers differ, and what support would take.
+- Automatic hyphenation (`hyphens: auto`): out of scope today, a possible feature.
+- Intrinsic or logical-width APIs beyond `measureNaturalWidth()`.
+- A slower diagnostic mode that leaves `layout()` alone (March 2026's attempt: RESEARCH.md, Dead Ends, The Measurement Model).

@@ -14,7 +14,7 @@
 //      classes of what sits between, the class of the first visible character after it, and whether it sits at the edge
 //      of a span.
 // 3. `bisect`, in each browser: halves each kept change until its two widths are one layout unit apart: 1/128 px in
-//    Chrome at DPR 2, 1/64 px in WebKit, 1/60 px in Firefox (rebuild/tests/fit.ts).
+//    Chrome at DPR 2, 1/64 px in WebKit, 1/60 px in Firefox (rebuild/tests/fit.ts on branch rebuild-20260916).
 // 4. `cut`: each kept template's cases, at width 1 and 100000 in every browser and, in the browser that changes, around
 //    at most three exact changes inside its kept ones, each showing a line break the template hasn't shown yet, the
 //    widest first: 1/64 px either side of the width where the lines change (`edge`, where the fit is exact to
@@ -52,8 +52,9 @@ const WIDE = 100_000
 const GRID = [1, 2, 4, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512, 768, 1024]
 const MAX_ROUNDS = 24
 const CHANGES_PER_TEMPLATE = 3
-// How far either side of a change its edge cases sit: the README's exact fit. In Chrome a layout unit is 1/128 px, and
-// one unit either side of a change, half the cases failed before and after #340 alike.
+// How far either side of a change its edge cases sit, where the fit is exact to 1/64 px (harness/README.md, How cases
+// grow). In Chrome a layout unit is 1/128 px, and one unit either side of a change, half the cases failed before and
+// after #340 alike.
 const EDGE = 1 / 64
 const JOB_CASES = 20_000
 // Longer documents than `record`'s: page history only moves which widths get searched.

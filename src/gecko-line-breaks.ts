@@ -391,7 +391,7 @@ function setupClusterBoundaries(g: Glyphs, text: string, from: number, to: numbe
 // Whether text[i] ends a shaped word of a text run that ends at `end` (gfxFont.cpp:3778-3790): a
 // space or NBSP before no cluster extender (IsBoundarySpace, :3317-3330), or an invalid character.
 // splitAndInitTextRun() and the setup again of the words a level run cuts share it (RESEARCH.md,
-// Decisions Log).
+// Decisions Log; the numbers are under RESEARCH.md, Bidi Levels).
 function endsWord(text: string, i: number, end: number): boolean {
   const ch = text.charCodeAt(i)
   return ((ch === 0x20 || ch === 0xa0) && !(i + 1 < end && isClusterExtender(text.charCodeAt(i + 1)))) || isInvalidChar(ch)
