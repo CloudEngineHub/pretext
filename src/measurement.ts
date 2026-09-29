@@ -182,8 +182,8 @@ export type EngineProfile = {
   // line's latest break (HandleText, HandleForcedLineBreak, :1355-1372, 2856-2860), and the close
   // tags after a forced break trail it (:2912-2929): 'start'. The items a line takes after the
   // break it returns to stay on it where they are all trailable, white space with the tags of
-  // spans that open and close among it (RewindOverflow, :4332-4424), so after an atomic item
-  // Blink fits no edge of a span of only white space. Where the line ends with preserved spaces
+  // spans that open and close among it (RewindOverflow, :4332-4424), so after any content Blink
+  // fits no edge of a span of only white space. Where the line ends with preserved spaces
   // that overflow it, or that follow text in one item, which Blink's return breaks before them
   // (HandleOverflow, :4163-4185, at the run's start that ShapingLineBreaker::ShapeLine breaks at,
   // shaping_line_breaker.cc:490-495), the line trails them, taking the open tag and white space or

@@ -957,7 +957,7 @@ comes before a hard break (UAX #14 LB6). A padded span that starts with one fits
 span whose line ends as it opens: Chrome its start edge, as Blink adds that edge when the span opens and a forced break's
 close tags trail it, and no edge after preserved spaces that overflow or follow text in one span, as its return breaks
 that text before them and the line then trails the spaces, the open tag and the forced break (a run of tabs is an item
-of its own there, which rich inline doesn't model; ENGINE_FOLLOWUPS.md); Safari its end edge too
+of its own there, so a tab, and spaces after one, follow no text); Safari its end edge too
 where the span holds only white space up to the break, as WebKit's content runs on past the box ends after a line break,
 with white space that hangs before the span left out; Firefox both, as Gecko fits a frame's cloned end edge
 (`paddedOpeningFit`, `src/measurement.ts`). Where it doesn't fit, all three engines return the line to its latest break;
@@ -977,9 +977,8 @@ lay out a chip wider than the line, though Chrome gives a line feed after such s
 (ENGINE_FOLLOWUPS.md). A padded span that starts with them stays where the engine fits its opening, and in Chrome one of
 only white space stays however far the line overflows, as Blink's return keeps the trailable items after the break it
 returns to, white space and the tags of spans that close among it (`RewindOverflow`, `line_breaker.cc:4332-4424`), which
-keeps such a span after any content, where rich inline keeps it only after a chip (ENGINE_FOLLOWUPS.md); else
-the line ends at the break after the chip, or in Safari, before a line feed, returns to the break before the chip. Blink
-fits only the start edge of a padded span that starts with white space after text too, where rich inline takes the whole
+keeps such a span after any content; else the line ends at the break after the chip, or in Safari, before a line feed,
+returns to the break before the chip. Blink fits only the start edge of a padded span that starts with white space after text too, where rich inline takes the whole
 `extraWidth` in Safari and Firefox (ENGINE_FOLLOWUPS.md). An atomic item lays
 its text out in normal white space, as a chip's `white-space: nowrap` box does: the rebuild's premise, the chip's max-content width with its
 preserved spaces, is 6.6px wider than all three browsers lay out the 12px chip ` @bob ` in 15px Helvetica Neue prose

@@ -577,16 +577,16 @@ export function prepareRichInline(items: RichInlineItem[], options?: RichInlineO
     // that doesn't fit. Where the engine fits the item's start edge, the line keeps them where
     // that edge fits, after an atomic item and at a hard break that starts the item anywhere, and
     // in Blink at white space that starts it anywhere too, but Blink keeps an item of only white
-    // space after an atomic item however far it overflows (after any content, in Chrome, which
-    // this doesn't model; ENGINE_FOLLOWUPS.md), and WebKit fits the end edge too of an
-    // item whose opening is all of it; else the ordinary fit takes the item's whole extraWidth.
+    // space however far the line overflows, after any content, and WebKit fits the end edge too
+    // of an item whose opening is all of it; else the ordinary fit takes the item's whole
+    // extraWidth.
     const extraWidth = item.extraWidth ?? 0
     const opensWithWhiteSpace = firstKind === PRESERVED_SPACE || (firstKind === TAB && profile.hangTabs)
     let openingEdge = -1
     if (extraWidth <= 0) {
       if (preserve && afterAtomic && (opensWithWhiteSpace || firstKind === HARD_BREAK)) openingEdge = 0
     } else if (profile.paddedOpeningFit === 'start') {
-      if (opensWithWhiteSpace || firstKind === HARD_BREAK) openingEdge = afterAtomic && getWhiteSpaceEnd(segmentFlags) === segmentFlags.length ? 0 : extraWidth / 2
+      if (opensWithWhiteSpace || firstKind === HARD_BREAK) openingEdge = getWhiteSpaceEnd(segmentFlags) === segmentFlags.length ? 0 : extraWidth / 2
     } else if (profile.paddedOpeningFit === 'placed' && ((afterAtomic && opensWithWhiteSpace) || firstKind === HARD_BREAK)) {
       const whiteSpaceEnd = getWhiteSpaceEnd(segmentFlags)
       const onlyOpening = whiteSpaceEnd === segmentFlags.length ||
@@ -834,10 +834,10 @@ function fitsOpeningEdge(
   return lineWidth + edge <= fitLimit
 }
 
-// Whether the preserved spaces and tabs a line ends with before item `itemIndex` follow text in
-// one item on the line, from (startItemIndex, startSegmentIndex). Blink gives a run of tabs an
-// item of its own (inline_items_builder.cc:1098-1110), so there a tab follows no text; this
-// counts it as a space (ENGINE_FOLLOWUPS.md).
+// Whether the preserved spaces a line ends with before item `itemIndex` follow text in one item on
+// the line, from (startItemIndex, startSegmentIndex). Blink gives every run of preserved tabs a
+// control item of its own (inline_items_builder.cc:1098-1110), so a tab, and spaces after one,
+// follow no text.
 function spacesFollowText(flow: InternalPreparedRichInline, itemIndex: number, startItemIndex: number, startSegmentIndex: number): boolean {
   for (let k = itemIndex - 1; k >= startItemIndex; k--) {
     const item = flow.items[k]
@@ -846,8 +846,8 @@ function spacesFollowText(flow: InternalPreparedRichInline, itemIndex: number, s
     const { segmentFlags } = item.lineData
     const from = k === startItemIndex ? startSegmentIndex : 0
     let s = segmentFlags.length - 1
-    while (s >= from && ((segmentFlags[s]! & KIND_BITS) === PRESERVED_SPACE || (segmentFlags[s]! & KIND_BITS) === TAB)) s--
-    if (s >= from) return s < segmentFlags.length - 1
+    while (s >= from && (segmentFlags[s]! & KIND_BITS) === PRESERVED_SPACE) s--
+    if (s >= from) return s < segmentFlags.length - 1 && (segmentFlags[s]! & KIND_BITS) !== TAB
   }
   return false
 }

@@ -3833,6 +3833,12 @@ describe('rich-inline invariants', () => {
         const spaceItem = [{ text: 'foo', font: FONT }, { text: ' ', font: FONT }, { text: '\nbar', font: FONT, extraWidth: 40 }]
         expect(head(spaceItem, foo + space + 1)).toEqual(fit === 'start' ? ['foo| ', ''] : ['foo', ' |'])
         expect(head(spaceItem, foo + 0.5 * space)).toEqual(fit === 'start' ? ['foo| |'] : ['foo', ' |'])
+        // Blink gives every run of preserved tabs an item of its own (inline_items_builder.cc:1098-1110),
+        // so a tab follows no text: where the tab fits and the span's start edge doesn't, Chrome
+        // ends the line before the span, whose line feed and padding make a line of their own.
+        const stop = 8 * space
+        expect(foo).toBeLessThan(stop)
+        if (fit === 'start') expect(head([{ text: 'foo\t', font: FONT }, { text: '\nbar', font: FONT, extraWidth: 40 }], stop + 1)).toEqual(['foo\t', ''])
         // Chrome's line trails its spaces there, and takes the spaces that start a padded span with
         // no edge too; without spaces before the span, it fits the span's start edge. Safari and
         // Firefox fit both edges.
@@ -3919,6 +3925,10 @@ describe('rich-inline invariants', () => {
         expect(texts([{ text: 'Ping ', font: FONT }, alice, blank, { text: 'go', font: FONT }], line + 5)).toEqual(scan === 'blink' ? ['Ping |@alice|  ', 'go'] : ['Ping |@alice', '  |go'])
         expect(texts([{ text: 'Ping ', font: FONT }, alice, blank, { text: 'go', font: FONT }], line + 25)).toEqual(['Ping |@alice|  ', 'go'])
         expect(texts([alice, blank, { text: 'go', font: FONT }], measureWidth('@alice', FONT) + 10)).toEqual(scan === 'blink' ? ['@alice|  ', 'go'] : ['@alice', '  |go'])
+        // That return doesn't depend on the chip (RewindOverflow): Chrome keeps such a span after
+        // text too, and after spaces of their own after the chip.
+        expect(texts([{ text: 'foofoo', font: FONT }, blank, { text: 'go', font: FONT }], measureWidth('foofoo', FONT) + 5)).toEqual(scan === 'blink' ? ['foofoo|  ', 'go'] : ['foofoo', '  |go'])
+        if (scan === 'blink') expect(texts([{ text: 'Ping ', font: FONT }, alice, { text: '  ', font: FONT }, blank, { text: 'go', font: FONT }], line + 5)).toEqual(['Ping |@alice|  |  ', 'go'])
         expect(texts([{ text: 'Ping ', font: FONT }, alice, { text: '\t', font: FONT, extraWidth: 20 }, { text: 'go', font: FONT }], line + 5)).toEqual(scan === 'blink' ? ['Ping |@alice|\t', 'go'] : ['Ping |@alice', '\t|go'])
         // Safari fits both edges too of a span that ends at its line feed.
         const feedAfterSpaces = { text: '  \n', font: FONT, extraWidth: 20 }
