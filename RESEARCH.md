@@ -568,20 +568,11 @@ Gecko drops bidi controls (LRM, RLM, ALM, U+202A-U+202E, U+2066-U+2069) from its
 (`IsDiscardable`, `nsTextFrameUtils.cpp:32-49`), breaks lines in text-run offsets and maps a line end past what it
 dropped (`nsTextFrame.cpp:11161-11170`), so a line never ends before a control, starts with one after a wrap or breaks
 inside a word at one. Since #368 (2026-09-27) the Gecko profile's analysis does the same, with no segment kind of its
-own, so neither the walkers nor `layout()`'s count know of controls (Decisions Log, 2026-09-27). A run of soft hyphens
-and bidi controls holding a control joins the segment before it, text, white space or a ZWSP, up to its last control,
-and the break after the run stays where the scan puts it, so a line ending there hangs the space before the run. A soft
-hyphen before a control offers no break, as Firefox takes a hyphenation break only from the last character it drops
-before one it keeps (`nsTextFrame.cpp:4436-4442`). A run at a chunk start is text that starts the line and takes the
-text after it, since Firefox trims a line's leading white space only from the start of its content
-(`nsTextFrame.cpp:10935-10950`), and a chunk of only such characters joins the hard break before it, as Firefox lays no
-line out of them (`nsTextFrame.cpp:11421-11429`). The collapse reads through controls as Firefox's white-space run does
-(`TransformText`, `nsTextFrameUtils.cpp:319-345`): the white space on both sides of a control takes the room of one
-space, or of the segment break where it holds one (`TransformWhiteSpaces`, `:151-193`), and the white space that ends a
-text with controls among it goes (`getTrailingCollapsibleStart()`), after which the scan runs again on what's left. The
-profile's graphemes read past the dropped characters too (Grapheme Clusters From Engine Data). What this still gets
-wrong is in ENGINE_FOLLOWUPS.md, White space and controls; what it costs is under Keeping Work Bounded, Work Done Only
-Where A Rule Applies.
+own, so neither the walkers nor `layout()`'s count know of controls (Decisions Log, 2026-09-27): a run of soft hyphens
+and bidi controls holding a control joins the segment before it, and the white-space collapse and the graphemes
+(Grapheme Clusters From Engine Data) read past such characters. The rules that follow from Firefox's, each with its
+Gecko source, are in the comments of `src/analysis.ts`; what they still get wrong is in ENGINE_FOLLOWUPS.md, White space
+and controls, and what they cost under Keeping Work Bounded, Work Done Only Where A Rule Applies.
 
 Combining marks after zero-width glue or a control shape with the grapheme before them and what separates them, so a run
 is measured after that source, minus it; without the separators Canvas composes the marks with the grapheme or draws
@@ -609,22 +600,13 @@ line counts (Firefox 156.0, 2026-09-23).
 The 80px has no browser reason: it was the old suite's boundary for narrow widths. Remeasured in Firefox 156
 (2026-09-27, #367), a floor at 24px, below which the harness accepts made-up cases as narrower than real layouts
 (harness/README.md, What a case is and when it passes), costs as much as prefixes everywhere, since their extra calls
-sit in words 24-80px wide: 99 `measureText` calls per 1,000 UTF-16 units prepared, against 62 at 80px, and `bun harness
-bench main` read the `new` rows for Latin, Arabic and mixed messages and UI labels 28-68% slower in both of its sessions
-(the `new` CJK and Thai rows, `seen` and `worst` within noise). The two give the same lines from 24px up, so 80px's gap
-lies at 24-80px:
-- 281 Firefox cases fail there that pass with a 24px floor. 172 of them are in the harness's `old-gate` set (cases the
-  old suite's pre-landing check, its gate, lost to #340's engine ports at 24px and wider, whose input no other case
-  showed failing): Arabic words with vowel marks before brackets, quotes, controls or Latin.
-- 14 pass only at 80px: ten `a ★ーb` in 16px Arial at 25-29px, right by luck (summed standalone widths match the
-  paragraph's 26.65px for `★ー`, which Firefox's Canvas measures at 32px); three Amiri splits at 24.45px, 1/64px from
-  where the lines change; and one draw from the harness's real-usage sample, `TKT-84565` in a 31.25px table cell in 16px
-  Helvetica Neue, where prefixes give the hyphen starting the second line all 2.05px of its kerning with the `T` before
-  it, so `-845` fits and Firefox moves the `5` on.
-- No draw from that sample gains; 188 of its 11,901 draws (1.5% of their weight) are narrower than 80px. Below 24px a
-  24px floor fixes 40 cases and loses 36, prefixes everywhere 44 and 50.
-
-So the floor stays at 80px, a premise with that gap (Decisions Log, 2026-09-27).
+sit in words 24-80px wide: 99 `measureText` calls per 1,000 UTF-16 units prepared against 62, and the bench's `new`
+Latin, Arabic, mixed and UI-label rows 28-68% slower in both sessions. The two give the same lines from 24px up. At
+24-80px they pass 281 Firefox cases that fail with the floor, 172 of them Arabic words with vowel marks before brackets,
+quotes, controls or Latin in the harness's `old-gate` set, and fail 14: ten `a ★ーb` that 80px gets right by luck, three
+Amiri splits 1/64px from where the lines change, and the one draw of the real-usage sample that moves (`TKT-84565` in a
+31.25px table cell in 16px Helvetica Neue); no draw gains, and 1.5% of the sample's weight is narrower than 80px. So the
+floor stays at 80px, a premise with that gap (Decisions Log, 2026-09-27).
 
 A rule ending an overflowing segment's emergency split after its last fitting hyphen, which recovered breaks hidden when
 main merged segments before the engine scans, was dropped on 2026-09-16: a scan segment ends at every break, so a hyphen
@@ -654,11 +636,9 @@ in Chrome 153, Safari 27 and Firefox 156 on every code point in 14 contexts, the
 (`scripts/grapheme-check/`). Chrome's and Apple's tables differ only at Apple's 39 transcoding hints. Firefox 156's
 ICU4X data puts every code point in Chrome's 18 classes and ended clusters where ICU does on 3 million strings in a
 one-off run, so the Gecko profile takes Chrome's table; the generator's standing check covers about 211,000 strings.
-Firefox clusters its text run, which leaves out soft hyphens and bidi controls (`IsDiscardable`,
-`nsTextFrameUtils.cpp:32-49`), so since #368 the Gecko profile's table, `gecko/char`, reads Chrome's rules past them:
-one goes with the cluster before it, or at a segment's start with the one after it, and takes no letter spacing, and a
-mark after one joins the cluster before it, except where a bidi level run starts at the mark, which the Gecko scan
-marks as a cluster start and the analysis as a segment start.
+Firefox clusters its text run, which leaves out soft hyphens and bidi controls, so since #368 the Gecko profile's
+table, `gecko/char`, reads Chrome's rules past them, and such a character takes no letter spacing of its own
+(`src/graphemes.ts` and `src/analysis.ts` have the rule and where a bidi level run overrides it).
 
 The tables don't follow a browser to another Unicode version: Node 23's ICU 77.1 (Unicode 16) differs on 1,417 code
 points, 689 symbols Unicode 17 took out of Extended_Pictographic (the chess symbols, playing cards), which no longer
@@ -724,9 +704,8 @@ It removes a newline between wide characters and, on `ja` and `zh` pages, one ne
 between Japanese characters stays a space. It drops bidi controls from its text run as it drops soft hyphens, which the
 Gecko profile's analysis follows since #368 (Break Opportunities From Engine Data). It trims a line's leading white
 space only from where the line starts in a text frame, so a soft hyphen that starts a paragraph keeps the white space
-after it on the line (`GetTrimmableWhitespaceCount`, `nsTextFrame.cpp:967-996`; ENGINE_FOLLOWUPS.md, White space and
-controls; 2026-09-27). It also trims U+1680 at line edges (ENGINE_FOLLOWUPS.md) and breaks between a ZWSP and a
-following combining mark.
+after it on the line, and trims U+1680 at line edges (both in ENGINE_FOLLOWUPS.md, White space and controls), and it
+breaks between a ZWSP and a following combining mark.
 
 ### Kerning At Line Edges
 
@@ -789,9 +768,9 @@ same text in one text node disagree, rich inline follows the plain-text walkers.
 lays spans out as it lays out their text in one text node; where browsers don't, mostly at soft hyphens, bidi controls
 and separators beside white space at a span's edge, is in ENGINE_FOLLOWUPS.md, Rich-inline item edges.
 
-The rich-inline counts below from 2026-09-26 to 28 come from *probes*: rich-inline cases generated for one change,
-often from a fuzz's shapes and each beside the same text in one text node, recorded in Chrome, Firefox and webkit-host
-and not checked in. A count of cases fixed and lost is against the build before the change, named by its commit.
+The rich-inline counts below from 2026-09-26 to 28 are of *probes*: cases generated for one change, each beside the
+same text in one text node, recorded in Chrome, Firefox and webkit-host and not checked in, and counted against the
+build before the change. The PRs named have the full counts and attributions.
 
 #### Joined Text
 
@@ -813,166 +792,102 @@ Firefox never does (Firefox 155, 2026-09-14; old suite, `tests/wrapping`, remove
 
 #### Continuing The Line
 
-Since #369 (2026-09-27) an item's walk continues the line instead of starting one. Before, each item was walked as if it
-began a line and the walk then corrected four ways, to the latest joined break before a split word, to a joined break
-after the walk's end, to the text before a hyphen that overflowed, and to the item's last break where the continuing
-items' width to their first break didn't fit, which got some cases right only by luck. Now the full walker takes
-whether the line has content before the item, whether it can end before the item, at a break before it or an earlier
-one the rich stepper keeps across items, whether a return from an unfit soft hyphen can end it there, and the item's
-inner breaks: the joined breaks inside its segments, as graphemes it can end a line before, in a copy of the item's
-handle whose flags follow the joined text (`getWalkedHandle()`). A walk that can't take an item's start ends the line at
-the line's latest break, as the plain-text walker returns to its last break, or at the item's start where no break
-comes before the line's content; a hard break inside an item ends its line there. An item that starts a line on a
-fast-path handle still takes the simple stepper, which continuing a line would have slowed (Keeping Work Bounded, The
-Walkers' Shapes). The corrections and the walker's end limit, which existed only for them, are gone. On six seeds of a
-stand-in-Canvas fuzz of plain case texts split into same-font items (31,359 inputs per profile at ten widths), rich lines
-matched the plain-text walker's at 607 more widths in the Chromium profile and for unrecognized engines, 918 in the
-Gecko profile and 981 in the WebKit profile, and at every width they matched before but 13 in the Gecko profile, where
-each item's own white-space processing removes a newline the joined text keeps, and 117 in the WebKit profile, which
-Safari lays out as rich inline now does (webkit-host passed all 303 probe cases of those shapes, of which the
-corrections failed 39). On a probe of 4,858 rich cases at 1-90px it fixed 370 Chrome, 511 Firefox and 1,308 webkit-host
-cases and lost 11, 4 and 11: Chrome's 11 and 4 of webkit-host's fail as their text in one node does, Firefox's 4 start
-an Arabic item with a soft hyphen before a kasra, whose hyphen doesn't fit at the items' separate widths, and
-webkit-host's other 7 start an item with a soft hyphen and a space after a collapsed space (ENGINE_FOLLOWUPS.md,
-Rich-inline item edges).
+Since #369 (2026-09-27) an item's walk continues the line instead of starting one, as a browser lays out one paragraph's
+text across its spans. Before, each item was walked as if it began a line and then walked again to an earlier end in
+four cases (a split word, a joined break after the walk's end, an overflowing hyphen, a continuing run that didn't fit),
+which got some cases right only by luck. Now the full walker takes what the line holds before the item (whether it has
+content, its latest break, which the rich stepper keeps across items, and whether a return from an unfit soft hyphen can
+end the line there) and the joined text's breaks inside the item's segments, on a copy of the item's handle whose flags
+follow the joined text (`getWalkedHandle()`; `recordJoinedBreaks()` says which kind a ZWSP or soft hyphen takes there,
+as the text around it decides it: the kind of the joined segment that starts where the item's does fitted a hyphen
+Firefox doesn't draw in 14 probe cases). An item that starts a line on a fast-path handle still takes the simple stepper
+(Keeping Work Bounded, The Walkers' Shapes). On a stand-in fuzz of case texts split into same-font items, rich lines
+then matched the plain-text walker's at 607 to 981 more widths per profile, and lost only 117 in the WebKit profile,
+which Safari lays out as rich inline now does (webkit-host passes all 303 probe cases of those shapes), and 13 in the
+Gecko profile, where an item's own white-space processing removes a newline the joined text keeps; a 4,858-case probe
+fixed 370 Chrome, 511 Firefox and 1,308 webkit-host cases and lost 11, 4 and 11 (#369 attributes them).
 
-The text around a ZWSP or soft hyphen decides its kind, so in the copy it takes the kind of the last of the joined
-text's segments that start inside it: at an item's start the item's own analysis sees the start of a text, where
-Gecko's scan makes a soft hyphen before a mark zero-width glue, after an ideograph or emoji the joined scan makes one a
-zero-width break, and the item's own analysis joins two soft hyphens that Gecko's joined scan splits into a soft hyphen
-and a zero-width break, after which a line paints no hyphen. Taking the kind of the joined segment that starts where the item's does fitted a hyphen Firefox
-doesn't draw in 14 probe cases main passed (items `文文`, `\u00AD\u00ADحبا` at 37px). A fragment's hyphen follows the
-copy's kinds too, so it shows the hyphen its line's width counts, which `materializeLineRange()` over the item's own
-handle wouldn't (harness/README.md, What a case is and when it passes), but the rest of its text is the item's own
-(#373): built from the copy, a fragment showed a soft hyphen that ends an item at a text's start or after white space,
-which Gecko's scan of the joined text makes text before a bidi control, as it makes `\u00AD\u202B` in one text, where
-the item's own text leaves it out (items `\u00AD`, `\u202B-`; 44 Firefox cases of a 2026-09-28 probe, on which the
-line APIs disagreed). A zero-width break that only the joined text
-gives at an item's start holds no line of its own, while a ZWSP that starts an item keeps the line it holds at a text's
-start: taking every item start that continues a run as inside a chunk, where a line start consumes a ZWSP too, lost 76
-webkit-host, 3 Chrome and 2 Firefox probe cases. In the Gecko profile a joined window that starts after collapsible
-white space is analyzed after a space, which Gecko's scan reads as context, so it breaks after a bidi control such as
-U+202A that follows a space; where content comes before that space the window's start counts as following content, or
-a soft hyphen after the space took a hyphen the paragraph's text doesn't (29 Firefox probe cases, 25 of which main
-failed too).
+A ZWSP that starts an item keeps the line it holds at a text's start, and a zero-width break that only the joined text
+gives there holds none: taking every item start that continues a run as inside a chunk lost 76 webkit-host, 3 Chrome and
+2 Firefox probe cases. A fragment's text is its item's own, with the hyphen at its end taken from the copy
+(harness/README.md, What a case is and when it passes): built wholly from the copy, it showed a soft hyphen that Gecko's
+joined scan makes text before a bidi control (#373). In the Gecko profile a joined window that starts after collapsible
+white space is analyzed after a space, which Gecko's scan reads as context, so it breaks after a bidi control that
+follows the space, and after content where content comes before that space, without which a soft hyphen after the space
+took a hyphen the paragraph's text doesn't (29 Firefox probe cases).
 
-Blink transforms segment breaks in the text of the whole inline formatting context (`ShouldRemoveNewline`,
-`RemoveTrailingCollapsibleNewlineIfNeeded`, `inline_items_builder.cc`), so in the Chromium profile a collapsible run with
-a newline next to a ZWSP in the item before or after goes, as in one text (`transformsSegmentBreaksAcrossItems`). Gecko
-transforms each text frame's own text (`nsTextFrameUtils::TransformText`), so the Gecko profile keeps each item's own:
-taking the paragraph's there lost 30 Firefox cases of a 43,462-case probe and fixed 7.
+Only the Chromium profile removes a collapsible run with a newline next to a ZWSP in a neighbouring item, as Blink
+transforms segment breaks in the text of the whole inline formatting context and Gecko in each text frame's own
+(`transformsSegmentBreaksAcrossItems` cites both); taking the paragraph's transformation in the Gecko profile lost 30
+Firefox cases of a 43,462-case probe and fixed 7.
 
 What the design costs in structure (#370, 2026-09-28): rich inline analyses each item on its own, then patches it toward
-the text the items join, through `recordJoinedBreaks()`, `markUnbroken()`, `getWalkedHandle()`, the joined windows and
-the passes after the item loop in `src/rich-inline.ts`, `ItemLine` and the walker's item mode in `src/line-break.ts`,
-and a second handle per item with its caches kept twice, about 330 lines with comments. They exist because fragment
-cursors index `prepareWithSegments(item.text)`. Written from scratch, it would be one analysis of the paragraph cut at
-item boundaries, as the engines lay out one paragraph's text across its spans and the rebuild indexes a paragraph's
-content (`rebuild/src/content.ts` on branch `rebuild-20260916`), which needs a new cursor contract, and letter spacing
-and `extraWidth` per segment in the walker. It isn't prototyped, and is on the API discussion's list (TODO.md).
+the text the items join (`recordJoinedBreaks()`, `markUnbroken()`, `getWalkedHandle()`, the joined windows and the
+passes after the item loop in `src/rich-inline.ts`, `ItemLine` and the walker's item mode in `src/line-break.ts`, and a
+second handle per item with its caches kept twice, about 330 lines with comments), because fragment cursors index
+`prepareWithSegments(item.text)`. Written from scratch it would be one analysis of the paragraph cut at item boundaries,
+as the rebuild indexes a paragraph's content (`rebuild/src/content.ts` on branch `rebuild-20260916`), which needs a new
+cursor contract and letter spacing and `extraWidth` per segment in the walker. It isn't prototyped, and is on the API
+discussion's list (TODO.md).
 
 #### Items Of Soft Hyphens And White Space
 
 An item holding only soft hyphens and collapsible white space is no line content, since a line start consumes it, but
-since #369 it takes part in the paragraph's runs and breaks. After content it keeps the collapsed space before it, as
-the plain text keeps a space before a soft hyphen: ending the line before the item lost 288 Firefox cases of the
-43,462-case probe, where Firefox keeps the space and the soft hyphen on the line. Where a line ends after it, the
-browsers break at that space and move the soft hyphen to the next line, so the space hangs: items `see`, ` \u00AD`,
-`this word` in 16px Arial end their first line at 25.80px at 30-34.67px in all three. From 36px, where the hyphen
-fits, Chrome and Safari end the line at the soft hyphen and paint its hyphen after the space (35.57px), which rich
-inline leaves out, so the space stays in the width; hanging it there too lost 118 Chrome and 120 webkit-host line widths
-of a 32,830-case probe. Firefox discards the soft hyphen and hangs the space at the paragraph's end too, where Chrome and
-Safari lay the soft hyphen out after the space and give it a line of its own where it doesn't fit. Safari also keeps the
-soft hyphen, and the space before it, on a line that ends at white space after it (`see`, ` \u00AD `, `this word` at
-45px: 30.24px, and 25.80px in Chrome and Firefox): keeping the space there fixed 335 webkit-host line widths and lost
-136, and in the Chromium profile fixed 73 Chrome ones and lost 159. The profiles name these three behaviours
-(`spaceBeforeSoftHyphenHangs`).
+since #369 it takes part in the paragraph's runs and breaks as its text does in one text node. The rules, with each
+browser's example, are in the comments of `src/rich-inline.ts` and of the engine profile's `spaceBeforeSoftHyphenHangs`,
+and the harness's `rich/continued` families pin them; these results shaped them. After content the item keeps the
+collapsed space before it: ending the line before the item lost 288 Firefox cases of a 43,462-case probe. Where a line
+ends after it, the browsers break at that space and move the soft hyphen on, so the space hangs, but each engine keeps
+the soft hyphen on the line in other places, so the profiles name three behaviours: hanging the space also where Chrome
+and Safari end the line at the soft hyphen with its hyphen lost 118 Chrome and 120 webkit-host line widths of a
+32,830-case probe, and Safari's rule, keeping it before white space after the soft hyphen, fixed 73 Chrome widths and
+lost 159 in the Chromium profile.
 
-White space between such an item's soft hyphens, as in ` \u00AD \u00AD`, follows a soft hyphen rather than the space
-before the item, so Chrome and Safari give it room after content, as in one text node, and a line can end after it
-(items `ab`, ` \u00AD \u00AD`, `cd` at 40-43px: 2 lines). So an item that starts with such characters, as a soft
-hyphen and a space, is walked where the line has content before it, and where a line ends after it, only the item's own
-white space hangs in the WebKit profile, as WebKit keeps the first soft hyphen and the space before it on the line.
-Against c09d264b, on a probe of 28,435 cases, walking it fixed 265 Chrome and 288 webkit-host cases and lost 21 and 25,
-all but one failing as their text in one node does or where the browser lays the spans out otherwise (in 16 and 21 of
-them the browser keeps the white space after a soft hyphen where the next line starts; ENGINE_FOLLOWUPS.md, Line edges:
-U+3000, soft hyphens and closing marks). Letting an item that starts with a hard break end the line wherever it falls,
-as a hard break in one text does, lost 159 webkit-host cases of that probe, where Safari gives the separator a line of
-its own after white space that hangs.
+White space between such an item's soft hyphens follows a soft hyphen, not the space before the item, so Chrome and
+Safari give it room after content and the item is walked there (Gecko collapses it into the run before: Firefox's
+White-Space Run Across Items). Letting an item that starts with a hard break end the line wherever it falls, as a hard
+break in one text does, lost 159 webkit-host cases of a 28,435-case probe, as Safari gives the separator a line of its
+own after white space that hangs.
 
-A line ends before an item whose reserved width, its gap and `extraWidth`, doesn't fit, even one that reserves nothing
-after a line that already overflows, except an item a line start consumes: its soft hyphen follows the line's content,
-and the walk ends the line after it, as in one text (Firefox ends `see`, `\u00AD \u00AD`, `this word` at 1px after
-`e` and a hyphen). On a probe of 80,512 cases of 5,700 fuzz inputs that fixed 415 Firefox cases and lost none. Letting
-the walk end the line for every item that reserves nothing fixed 487 more Firefox cases and lost 245 more, and lost 11
-Chrome and 58 webkit-host ones.
+A line ends before an item whose reserved width doesn't fit, except an item a line start consumes, whose soft hyphen
+follows the line's content: that fixed 415 Firefox cases of an 80,512-case probe and lost none, where letting the walk
+end the line for every item that reserves nothing fixed 487 more Firefox cases but lost 245 more, and 11 Chrome and 58
+webkit-host ones.
 
-In the Gecko profile a soft hyphen after collapsible white space is a zero-width break, which Firefox drops, so it holds
-no line: a rich line start consumes it wherever it reaches it (`normalizeItemLineStart()`), where an item such as
-` \u00AD \u00ADx` had taken a line of its own, holding nothing visible, before a word that didn't fit. The line start
-tells such a break from a ZWSP that holds the line by the segment's first code unit, read only where it reaches a
-zero-width break: normalizing again from the next segment (0fef0023) consumed a ZWSP that holds a line, as for items
-` \u00AD \u00AD\u200B`, `textword`, which take an empty first line in Firefox at 20-60px, and taking an item's start as
-a text's start only at its first segment lost a ZWSP's line in all three browsers (`ab `, `\u00AD\u200Bxyzwxyz` at
-20px). Giving `normalizePreparedLineStart()`, which the plain walkers share, the chunk's start as a parameter read
-Firefox's `lines` mixed stream 2.2-2.4% slower; skipping the spaces and soft hyphens after the break too (fd8002ba)
-changed nothing measured and cost six lines.
+In the Gecko profile a soft hyphen after collapsible white space is a zero-width break, which Firefox drops, so a rich
+line start consumes it wherever it reaches it (`normalizeItemLineStart()`) and tells it from a ZWSP that holds the line
+by the segment's first code unit: normalizing again from the next segment, or taking an item's start as a text's start
+only at its first segment, lost a ZWSP's line, and giving `normalizePreparedLineStart()`, which the plain walkers share,
+the chunk's start as a parameter read Firefox's `lines` mixed stream 2.2-2.4% slower.
 
 #### Firefox's White-Space Run Across Items
 
-Firefox drops soft hyphens and bidi controls before it collapses white space, and collapses white space with such
-characters among it as one run, which it carries from one text frame to the next (`TransformText`,
-`nsTextFrameUtils.cpp:286-386`, with `INCOMING_WHITESPACE`). The Gecko profile follows that run across items
-(`collapsesSpaceAcrossSoftHyphens`; `whitespaceRunOpen` in `src/rich-inline.ts`): white space that starts an item
-collapses into a run the item before leaves open, so Firefox fits `see this` of items `see`, ` \u00AD`, ` this word`
-on a 55.15px line at 56-59px, where rich lines had counted a space from each item. White space and soft hyphens after an
-item's leading white space are part of that run, so such an item isn't walked in the Gecko profile. A soft hyphen or
-bidi control that starts an item ends the run, as `TransformText` ends it for one that follows no white space in its
-frame, and so does an atomic inline (`BuildTextRunsScanner::ScanFrame`). On the 80,512-case probe that fixed 6,220
-Firefox cases against 0fef0023 and lost 220, moving no Chrome or webkit-host case; walking every item that starts with a
-soft hyphen lost 421 Firefox cases of a 28,435-case probe and fixed 30. Firefox lays out 187 of the 220 otherwise as
-spans than as one node, and 112 hold white space, soft hyphens and white space again inside an item past its leading
-white space, which the analysis keeps a space of on each side of each soft hyphen (ENGINE_FOLLOWUPS.md, Rich-inline item
-edges).
-
-Firefox splits text frames where the bidi embedding level changes, and a text run doesn't go on across the split
-(`ContinueTextRunAcrossFrames`, `nsTextFrame.cpp:2023-2030`), so a dropped character after white space, at another
-level than that white space, ends the run: items `see \u200F`, ` this` take 2 lines in Firefox at 56-59px, as spans and
-as one node. U+061C ends it too, while U+202B and U+2067 take the level of the space before them. The profile carries
-the run past such characters at an item's end only where the paragraph's levels give them the white space's level,
-from the Gecko scan's port of Firefox's (`getGeckoParagraphLevels()`), made only for text with right-to-left
-characters, as Firefox resolves levels only there, and only once a run would go on past such characters
-(`getItemLevels()`, #371; Keeping Work Bounded, Work Done Only Where A Rule Applies). The analysis reads white space
-through bidi controls alone as one run whatever their levels, and leaves out the white space that ends a text with
-controls among it (Break Opportunities From Engine Data), so in the item `see \u200F` the space is the gap before the
-next item, whose white space collapses into it: rich lines fit one 55.15px line there, as the one node's do, where
-Firefox's two spaces don't, since a gap is one space in one item's font (ENGINE_FOLLOWUPS.md, Rich-inline item edges).
-The rule reads the item's segments where a soft hyphen keeps the white space before the characters the run goes past,
-or where that white space is the item's leading white space, and then reaches the controls among and after its trailing
-white space, which collapse into the run at any level, as Firefox carries the run into the next text run
-(`FlushFrames`, `nsTextFrame.cpp:1800-1804`): items `see \u200F\u00AD`, ` this more` at 60px take a 59.60px first line,
-two spaces wide, in Firefox and in rich lines. On a probe of 59,415 cases of 3,349 fuzz inputs the level rule, with an
-atomic item's leading white space collapsing into an open run (Atomic Items' Own White Space), fixed 183 Firefox cases
-against fd8002ba and lost 90, moving no Chrome or webkit-host case. Since #372 (2026-09-28) an item of only white space and bidi controls between words, as ` \u200E ` in items `see`,
-` \u200E `, `this word`, takes one space, as in Firefox, where #369 gave a space on each side of the control: on 7,133
-rich cases recorded in Firefox, of such items and of random ones where the two builds differ on the stand-in Canvas,
-that fixed 287 and lost 14 (ENGINE_FOLLOWUPS.md, Rich-inline item edges).
+Firefox drops soft hyphens and bidi controls before it collapses white space, collapses white space with such characters
+among it as one run, and carries the run from one text frame to the next (`TransformText`,
+`nsTextFrameUtils.cpp:286-386`, with `INCOMING_WHITESPACE`); one of those characters that follows no white space in its
+frame ends the run, and so does an atomic inline (`BuildTextRunsScanner::ScanFrame`). Bidi resolution splits text frames
+where the embedding level changes, and a text run doesn't go on across the split (`ContinueTextRunAcrossFrames`,
+`nsTextFrame.cpp:2023-2030`), so a dropped character at another level than the white space before it ends the run too.
+Since #369 the Gecko profile follows that run across items (`collapsesSpaceAcrossSoftHyphens`; `whitespaceRunOpen` in
+`src/rich-inline.ts`, whose comments have the rules and Firefox's widths), with levels from the Gecko scan's port of
+Firefox's, made only for text with right-to-left characters and only once a run would go on past such characters
+(`getItemLevels()`, #371; Keeping Work Bounded, Work Done Only Where A Rule Applies). White space and soft hyphens after
+an item's leading white space are part of that run, so the Gecko profile doesn't walk an item of soft hyphens and white
+space as Chrome and Safari do: walking it there too lost 421 Firefox cases of a 28,435-case probe and fixed 30. The run
+fixed 6,220 Firefox cases of an 80,512-case probe and lost 220, most of which Firefox lays out otherwise as spans than
+as one node, and moved no Chrome or webkit-host case; since #372 (2026-09-28) an item of only white space and bidi
+controls between words takes one space, as in Firefox. What it still gets wrong, such as two spaces around a control at
+another level, which one gap in one item's font can't hold, is in ENGINE_FOLLOWUPS.md, Rich-inline item edges.
 
 #### Atomic Items' Own White Space
 
-Since #369 an atomic item's own leading or trailing white space makes no gap. Every engine lays an inline-block's text
+Since #369 an atomic item's own leading or trailing white space makes no gap: every engine lays an inline-block's text
 out as a paragraph of its own, whose lines drop white space at their edges, and places the box in the outer line as one
-object: Blink as one U+FFFC (`AppendAtomicInline`), dropping its paragraph's leading spaces and, in `ExitBlock`, its
-trailing ones (`inline_items_builder.cc:869-871, 1622-1629`); WebKit as one atomic inline box, whose lines collapse
-leading white space (`Line::appendText`, `InlineLine.cpp:348-373`) and remove trailing (`InlineLineBuilder.cpp:646`);
-Gecko by ending the text run at the box (`BuildTextRunsScanner::ScanFrame`), whose lines skip leading white space
-(`nsTextFrame.cpp:10935-10944`) and trim trailing (`nsBlockFrame.cpp:5844`). Items `see`, atomic ` chip`, `this` in 16px
-Arial at 60px take a 55.15px first line in all three browsers, where the gap made it 59.60px. On three probes that fixed
-1,845 Chrome, 818 Firefox and 1,884 webkit-host cases and lost 76, 81 and 101, and 241 of the 258 losses hold a soft
-hyphen or bidi control beside the atomic item's white space, where the gap had made up for white space Pretext gets
-wrong there; in the rich set it fixed 12 Chrome and 12 webkit-host cases and lost 5 webkit-host ones within 1/64px of
-where Safari's lines change. The box's own leading white space also collapses into an open Firefox run, as Firefox's
-first line of items `see \u00AD`, atomic ` chip`, ` this word` at 60px is `see ` and `chip`, 59.60px.
+object (Blink's, WebKit's and Gecko's sources are cited at the rule in `prepareRichInline()`). Items `see`, atomic
+` chip`, `this` in 16px Arial at 60px take a 55.15px first line in all three browsers, where the gap made it 59.60px.
+On three probes that fixed 1,845 Chrome, 818 Firefox and 1,884 webkit-host cases and lost 76, 81 and 101, 241 of the
+258 losses holding a soft hyphen or bidi control beside the atomic item's white space, where the gap had made up for
+white space Pretext gets wrong there. In Firefox the box's leading white space also collapses into an open run.
 
 #### Items, Spaces And Fits
 
@@ -995,13 +910,12 @@ item (items `T` and `po\u00add` gave `T` / `pod`, where `Tpo\u00add` gives `Tpo-
 at the width less the hyphen, then rewinds earlier items at the full width; subtracting the hyphen left sub-1e-6px
 backward ranges, so the item was walked again to the soft hyphen, cutting the flows in a seeded search that take more
 lines as the width grows from 43-60 to 7-14 per profile (#327, 2026-09-15; ENGINE_FOLLOWUPS.md). Since #369 the walk
-that continues the line decides whether the text before the hyphen fits; where the item continues a run from an earlier
-one, the line's latest break before that run counts too, and a break after an item that ends with a soft hyphen fits
-with that hyphen, which the plain text paints there. A run whose first break is a soft hyphen whose hyphen doesn't fit
-moves to the next line in every profile: WebKit keeps an overflowing hyphen in one text, but Safari 27 moves the whole
-run across spans (`the `, `inter`, `na\u00ADtion\u00ADal` at 84px in 16px Arial, #323's cases), so the WebKit profile
-returns from such a hyphen only to a break before a run that continues from an earlier item. Fit with the width you
-report, or text laid out at its widest line wraps differently (#308, 2026-09-15).
+that continues the line decides whether the text before the hyphen fits, and which earlier breaks a return may take is
+at the rich stepper's return in `src/rich-inline.ts`. A run that continues across items moves to the next line whole in
+every profile where its first break is a soft hyphen whose hyphen doesn't fit: Safari 27 moves it too, though WebKit
+keeps an overflowing hyphen in one text (`the `, `inter`, `na\u00ADtion\u00ADal` at 84px in 16px Arial, #323's cases),
+so the WebKit profile returns from an unfit hyphen only to a break before such a run. Fit with the width you report, or
+text laid out at its widest line wraps differently (#308, 2026-09-15).
 
 #### Box Edges And Pre-wrap
 
@@ -1170,13 +1084,10 @@ Gecko profile's right-to-left analysis before #365. They matter where a level ru
 156.0.1 breaks `aa בבבב🏻` at 60px in 16px Arial before the skin-tone modifier, where the profile without levels breaks
 after `aa`, and 22 pinned cases need them, all Balinese and Batak vowel killers after Arabic or Hebrew. Since #365
 (2026-09-27) levels resolve only there (`levelsMayMatter()` holds the argument): in 262 of the harness's 10,733 texts
-holding a UTF-16 code unit Firefox's test for right-to-left text flags (the Hebrew to Arabic blocks U+0590-U+08FF,
-right-to-left marks and controls, right-to-left presentation forms and surrogates), no corpus or chat text among them,
-at about 150-200ns a unit in Firefox 156. Over 63 million strings (seeded mixed-direction ones; Unicode's BidiTest and
-BidiCharacterTest sequences with cluster extenders, such as combining marks, and line feeds put in; every string of up
-to 4 or 5 code units over alphabets holding one code unit per bidi role; corpus windows) the guarded scan equaled
-resolving everywhere, and the unit tests fail without each rule the argument uses. This is the method to use for any
-port claimed exact: a written argument, a fuzz against the unguarded path, and a unit test per rule.
+holding a code unit Firefox's `HasRTLChars` flags, no corpus or chat text among them, at about 150-200ns a unit in
+Firefox 156. Over 63 million strings (#365 lists the kinds) the guarded scan equaled resolving everywhere, and the unit
+tests fail without each rule the argument uses. This is the method to use for any port claimed exact: a written
+argument, a fuzz against the unguarded path, and a unit test per rule.
 
 Rejected: resolving wherever a cluster holds several code points, exact with a shorter argument, but vowel marks and
 emoji make that 37% of Arabic paragraphs and 57% of the chat's right-to-left texts, saving 5-15%; and setting the whole
@@ -1223,31 +1134,27 @@ under system fallback, twice with a named font for the script.
 
 A rule only rare text needs costs other text nothing only where preparation finds that text through a test it already
 runs (Firefox 156.0.1, bench sessions of 2026-09-27 and 28, unless noted):
-- **Firefox's bidi controls** (#368; Break Opportunities From Engine Data): testing each unit of every Gecko text for a
-  soft hyphen or control, and scanning each run of them, made Firefox prepare the `seen` messages 4-6% slower and long
-  breakable runs and pre-wrap chunks 9-17%. So the analysis looks only where the Gecko scan's white-space step noted,
-  as it dropped one, that it dropped a control, as Firefox's `IsDiscardable` notes a soft hyphen (`HasShy`,
-  `nsTextFrameUtils.cpp:32-41`). Testing the text for a control before the scan instead, so the scan runs once where
-  the collapse through controls drops white space, costs a pass over every text (#372): a regular-expression test read
-  one or two of Firefox's `seen` rows 1.1-3.4% slower in both sessions of each of four runs, and a loop over the text
-  four rows 1.0-3.6%. Skipping 8-bit text, which holds no control, saves little, since a curly quote or a dash makes
-  English 16-bit (71% of the Latin `seen` row's text, nearly all of the mixed row's), and the controls `worst` row,
-  whose second scan the test saves, read 1.1% slower, not faster.
+- **Firefox's bidi controls** (#368, #372; Break Opportunities From Engine Data): testing every Gecko text's units for a
+  soft hyphen or control made Firefox prepare the `seen` messages 4-6% slower and long breakable runs and pre-wrap
+  chunks 9-17%, so the analysis looks only where the Gecko scan's white-space step noted, as it dropped one, that it
+  dropped a control, as Firefox's `IsDiscardable` notes a soft hyphen (`HasShy`, `nsTextFrameUtils.cpp:32-41`). Testing
+  the text for a control before the scan instead, so the scan runs once, costs a pass over every text: a regular
+  expression or a loop read one to four `seen` rows 1.0-3.6% slower in both sessions of every run, skipping 8-bit text
+  saved little, since a curly quote or a dash makes English 16-bit, and the controls `worst` row, whose second scan the
+  test saves, read no faster.
 - **Graphemes past dropped characters**: the Gecko profile's grapheme table tests only code points in the rules'
   Control category for what the text run drops; testing every code point made Firefox prepare CJK and Arabic 2-3%
   slower (#368).
 - **Fresh-line geometry**, the widths a line that starts inside a segment holding an invisible character takes in
-  desktop Chrome and Firefox (`src/entry-geometry.ts`), is observed only for segments of up to 96 graphemes. Since
-  #368 a segment ending in a long run of controls is a few clusters, not one per control, so it passes that bound, and
-  observing again at every prepare, where nothing had been found, made Firefox prepare the invisible tails 6% slower:
-  an empty observation is kept now, as a found one was.
-- **The paragraph's bidi levels for rich items** (#371; Rich Inline Boundaries, Firefox's White-Space Run Across
-  Items) are made only the first time an item's white-space run goes on past a character Firefox drops, which none of
-  the bench's messages do. Made for every paragraph in the Gecko profile, they made `prepareRichInline()` of Latin and
-  Arabic messages 8% and 25% slower than main, and made only where an item holds a soft hyphen or a bidi control, 5% and
-  3%, while on first need they read within 2%. These are from Bun's JavaScriptCore on the stand-in Canvas with warm
-  caches (medians of 5 or 6 processes, where a second copy of main read within 2%), hypotheses until a browser shows
-  them.
+  desktop Chrome and Firefox (`src/entry-geometry.ts`), is observed only for segments of up to 96 graphemes, and an
+  empty observation is kept as a found one is: since #368 a segment ending in a long run of controls passes that bound,
+  and observing again at every prepare made Firefox prepare the invisible tails 6% slower.
+- **The paragraph's bidi levels for rich items** (#371; Rich Inline Boundaries, Firefox's White-Space Run Across Items)
+  are made only the first time an item's white-space run goes on past a character Firefox drops, which none of the
+  bench's messages do. Made for every Gecko paragraph they made `prepareRichInline()` of Latin and Arabic messages 8%
+  and 25% slower than main, and made only where an item holds a soft hyphen or bidi control 5% and 3%, where on first
+  need they read within 2% (Bun's JavaScriptCore on the stand-in Canvas, warm caches, medians of 5 or 6 processes;
+  hypotheses until a browser shows them).
 
 #### The Walkers' Shapes
 
@@ -1268,8 +1175,7 @@ time (the PRs hold the per-row tables):
   that end at one (before NEL, a C0 or C1 control, or U+2028 or U+2029 where they don't end a line): the same lines, but
   where a line's space overflows the walkers' sums differ in the last bits (99 of 96,470 offline Gecko-profile line
   checks; #350, 2026-09-26). A space before a bidi control was such a boundary in Firefox until #368 gave the control to
-  the space's segment (Break Opportunities From Engine Data): of the 46 texts of the old benchmark page's control row
-  that had such a boundary in the Gecko profile, 14 had it only there and no longer do.
+  the space's segment (Break Opportunities From Engine Data).
 - **The simple stepper continuing a rich-inline line**: the plain line APIs' stats, walks and streams of mixed text at
   1.39-1.64 in Safari, 1.10-1.13 in Chrome and 1.06-1.07 in Firefox, so items on fast-path handles continue their lines
   in the full walker (#369, 2026-09-27).
@@ -1280,29 +1186,24 @@ costs Chrome 154 11% on rich stats, 5% on letter-spaced CJK `layout()` and 8-13%
 pre-wrap chunks, in both sessions; Firefox 156 moves 2% at most, and Safari 27 only on resizing Arabic to widths it has
 laid out before (13%, where the bench's control, a second copy of main, moved 5%).
 
-Continuing rich lines in the full walker (#369, 2026-09-27) moved rows whose code didn't change, and those moves were
-accepted as each JIT's placement of the changed bundle (Part 1, Engineering). Chrome 154 read letter-spaced CJK
-`layout()` 5-6% slower, and pre-wrap chunks' `layout()` and `walkLineRanges()` 1-6% slower, in both sessions, though
-plain text never runs the item's code: without the block that leaves an item's latest break at a line's end they read
-as main, but that block in a function of its own, or cut to its three stores, read as slow, and a day later the same
-walker read them within noise. Safari 27 streamed the bench's mixed texts (`layoutNextLineRange()`) 24-31% slower,
-though 133 of its 134 texts take the unchanged simple stepper: in Safari's own JavaScriptCore, the system `jsc` shell of
-its build (22625.1.29.11.27), the extra time sat in `stepPreparedSimpleLineGeometry()`, whose optimized (FTL) machine
-code differed between the builds only in one structure ID loaded in two instructions instead of one, and the same stream
-run after the other line operations, as the bench's document runs them, read 7-12% faster than main in all 8 processes.
-Safari's rich walk moved the same way, and #369's last commits read it 21.0% faster than main. Firefox's rich stats are under
-JavaScript Engines.
+Continuing rich lines in the full walker (#369, 2026-09-27) moved rows whose code didn't change, accepted as each JIT's
+placement of the changed bundle (Part 1, Engineering): Chrome 154's letter-spaced CJK `layout()` and pre-wrap chunks
+read 1-6% slower, and within noise a day later with the same walker, and Safari 27 streamed the bench's mixed texts
+24-31% slower, though 133 of its 134 texts take the unchanged simple stepper. In Safari's own JavaScriptCore, the
+system `jsc` shell of its build (22625.1.29.11.27), that stepper's optimized (FTL) machine code differed between the
+builds only in one structure ID loaded in two instructions instead of one, and the same stream run after the other line
+operations, as the bench's document runs them, read 7-12% faster than main. Firefox's rich stats are under JavaScript
+Engines.
 
 Data shapes: a `Uint8Array` of flags per text made one-word `prepareWithSegments()` a third slower in Node 23's V8 and
 rich-inline preparation 12% slower in Chrome 154, so the analysis builds a plain array; slicing segment texts where
 measurement reads them, not once in the analysis, made Firefox 156 prepare rich items 11-19% slower (#360, 2026-09-26).
 `Array.from({ length }, fn)` cost Chrome 154 5.7% preparing CJK it had measured before, so per-segment arrays that
-start at zero (HanKerning's trims, the soft-hyphen contexts, the U+3000 hangs) are pushed in a loop (`zeros()`), while
-lists of records or null keep `Array.from`: once one helper pushed nulls too, Node 23's V8 gave its zeros generic
-elements, storing each trim as a boxed double (#370, 2026-09-28). Overflow trims read in
-`countPreparedLines()`'s loop cost Firefox 156 13-26% counting long breakable runs, so `layout()` counts a handle with
-overflow trims through the simple stepper, and its line APIs keep the simple walk, without which Chrome 154's line APIs
-ran 62-108% slower on CJK messages (#366, 2026-09-27). `measureAnalysis()` keeps its helpers as closures: hoisted, they
+start at zero are pushed in a loop (`zeros()`), while lists of records or null keep `Array.from`: one helper pushing
+both made Node 23's V8 store each zero as a boxed double (#366, #370). Overflow trims read in `countPreparedLines()`'s
+loop cost Firefox 156 13-26% counting long breakable runs, so `layout()` counts a handle with overflow trims through
+the simple stepper, and its line APIs keep the simple walk, without which Chrome 154's line APIs ran 62-108% slower on
+CJK messages (#366, 2026-09-27). `measureAnalysis()` keeps its helpers as closures: hoisted, they
 measured the same in offline replays of all four profiles the replay runs (Blink, WebKit, Gecko and an unrecognized
 engine's) but took 16 more lines, and a hoist lands only if it removes lines and the bench shows a gain, so they weren't
 timed (2026-09-26). AGENTS.md's locals rule is for line walkers.
@@ -1327,16 +1228,12 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
 - **A loop slows once a check in it has held**: a check in the counter's loop that handed unbroken-boundary lines to the
   full walker slowed counting all other text up to 1.6 times in Firefox and 1.3 in Chrome, though the check alone cost
   nothing (#350, 2026-09-26).
-- **A block that never runs**: since rich items continue their lines, Firefox 156 measures the bench's rich stats 5.9%
-  slower (+5.9, +4.0 and +7.1% in three sessions against e73081fc, #369's base, where the second copy of it read +2.9,
-  −1.3 and +3.2%), and its rich walk and stream about 2%. It isn't the full walker, as #369 reported: items on
-  fast-path handles sent back to the simple stepper gave the same lines within 10⁻⁶ offline and read +0.2%. Without the
-  block at the top of the rich stepper's item loop that records the break before a continued item, whose body never
-  runs on the bench, rich stats read 4.7% faster and walk and stream 6.1 and 6.8%, faster than before #369 too. No plain
-  structure took it back (the hang of the spaces before consumed items in a function of its own, 2.0% faster; without
-  that hang at all, 2.4%; the line's latest break as one record of seven fields, 3.0% slower; all within noise), so it was
-  accepted as a regression one JIT alone explains in live code (#370, 2026-09-28; Decisions Log, 2026-09-26, no dead code
-  for one JIT).
+- **A block that never runs**: since rich items continue their lines, Firefox 156 measures the bench's rich stats about
+  6% slower, and its rich walk and stream about 2%. It isn't the full walker, as #369 supposed: without the block at the
+  top of the rich stepper's item loop that records the break before a continued item, whose body never runs on the
+  bench, rich stats read 4.7% faster, faster than before #369 too. None of three plain restructurings took it back, so
+  it was accepted as a regression one JIT alone explains in live code (#370, 2026-09-28; Decisions Log, 2026-09-26, no
+  dead code for one JIT).
 - **Inline caches**: once `layout()` has stepped such text, Chrome's `walkLineRanges()` of simple text, sharing the
   simple stepper, takes 2-4% longer than a second copy of main, by a mechanism not found. V8's caches turn polymorphic
   over the two handle kinds (`--log-ic`), but one shape for both didn't help Chrome and cost Firefox up to 14%; a
@@ -1365,11 +1262,11 @@ Han, or between em dashes with no letter around: Blink gives the run the script 
 start the script after it (`script_run_iterator.cc:503-516`; ENGINE_FOLLOWUPS.md). (Chrome 153 and 154, 2026-09-18 to
 09-27.)
 
-Rejected (2026-09-27): keying the caches by another string, so Canvas gets each slice as it was built. It changes only
-runs of 13 units or more cut from such text and moved none of 41,788 Chrome predictions; of 18 fonts probed, only Amiri
-and Noto Naskh Arabic measure the storages differently (17 of 504 font and run pairs). There it fixed every such run
-after Arabic, Han or an em dash and broke every one after Latin in text also holding an emoji or `ā`, since storage
-follows a slice's length and source while the page follows the text before the run. It also costs a string per lookup,
+Rejected (2026-09-27, #367): keying the caches by another string, so Canvas gets each slice as it was built. It moved
+none of 41,788 Chrome predictions, since it changes only runs of 13 units or more cut from such text, and of 18 fonts
+probed only Amiri and Noto Naskh Arabic measure the storages differently; there it fixed every such run after Arabic,
+Han or an em dash and broke every one after Latin in text also holding an emoji or `ā`, since storage follows a slice's
+length and source while the page follows the text before the run. It also costs a string per lookup,
 and a canvas answers the same characters in either storage as it shaped them first (Engine Facts, Chrome). In the
 rebuild, a text-keyed lookup before each Canvas call moved 254 of 380 predictions in a set built to catch it (Chrome
 153, September 2026).
@@ -1761,11 +1658,9 @@ Mostly on main as it was then, measured with the old suite in installed browsers
   128 and 115, since Chrome returns to other breaks before an item too. Both reopen with those rules
   (ENGINE_FOLLOWUPS.md, Rich-inline item edges).
 - **Firefox's bidi controls as zero-width glue the walkers look past** (branch `gecko-bidi-control-gaps`, 5bc0b58a,
-  2026-09-27; Firefox 156.0.1), superseded by #368's analysis (Break Opportunities From Engine Data): it fixed 39 of the
-  43 harness cases #368 fixes, in 23 fewer lines, but it counted text ending in controls with the stepper, which made
-  Firefox's `layout()` of the bench's invisible tails 12-13% slower, and its test for such glue in the shared walkers
-  made some of Chrome's and Firefox's worst-case rows, which never hold any, 5-11% slower (Decisions Log, 2026-09-27).
-  It would reopen only with a glue test the shared walkers pay nothing for.
+  2026-09-27; Firefox 156.0.1), superseded by #368's analysis (Break Opportunities From Engine Data): fewer lines, but
+  slower `layout()` in Firefox and slower shared walkers in Chrome and Firefox (Decisions Log, 2026-09-27, has the
+  numbers). It would reopen only with a glue test the shared walkers pay nothing for.
 - **A `glue` kind for no-break runs** (not zero-width glue, which stays) was a label, and a wrong one (Decisions Log,
   2026-09-24).
 
