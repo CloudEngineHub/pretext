@@ -577,7 +577,8 @@ export function prepareRichInline(items: RichInlineItem[], options?: RichInlineO
     // that doesn't fit. Where the engine fits the item's start edge, the line keeps them where
     // that edge fits, after an atomic item and at a hard break that starts the item anywhere, and
     // in Blink at white space that starts it anywhere too, but Blink keeps an item of only white
-    // space after an atomic item however far it overflows, and WebKit fits the end edge too of an
+    // space after an atomic item however far it overflows (after any content, in Chrome, which
+    // this doesn't model; ENGINE_FOLLOWUPS.md), and WebKit fits the end edge too of an
     // item whose opening is all of it; else the ordinary fit takes the item's whole extraWidth.
     const extraWidth = item.extraWidth ?? 0
     const opensWithWhiteSpace = firstKind === PRESERVED_SPACE || (firstKind === TAB && profile.hangTabs)
@@ -834,7 +835,9 @@ function fitsOpeningEdge(
 }
 
 // Whether the preserved spaces and tabs a line ends with before item `itemIndex` follow text in
-// one item on the line, from (startItemIndex, startSegmentIndex).
+// one item on the line, from (startItemIndex, startSegmentIndex). Blink gives a run of tabs an
+// item of its own (inline_items_builder.cc:1098-1110), so there a tab follows no text; this
+// counts it as a space (ENGINE_FOLLOWUPS.md).
 function spacesFollowText(flow: InternalPreparedRichInline, itemIndex: number, startItemIndex: number, startSegmentIndex: number): boolean {
   for (let k = itemIndex - 1; k >= startItemIndex; k--) {
     const item = flow.items[k]
