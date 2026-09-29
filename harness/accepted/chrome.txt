@@ -2045,11 +2045,13 @@ oracle-7b318fbe27255616 count
 oracle-f1121833e4ed5ed7 count
 rich-40018982415644fb count
 rich-449749f2687176be breaks
+rich-4e7797d2c399aac5 breaks
 rich-5d9782cd7b729d95 count
 rich-845b4dcf20f5098f count
 rich-85e4aa2bcd3972d7 count
 rich-88284e86caadfd99 count
 rich-92a3f55de690d221 breaks
+rich-94e63267840040ac breaks
 rich-9644a14cf7757871 breaks
 rich-9b6ad49d976868b9 count
 rich-a4c0d3d9594731bf count
@@ -4190,6 +4192,14 @@ catalog-f53994e90ec770c6 breaks
 catalog-fb32f02cf62ac21c count
 catalog-fc671dced2359f75 count
 catalog-fcaddf2e30bed338 count
+
+## White space and soft hyphens before a ZWSP where a line starts, at 24 px and wider: Chrome keeps the space after the first soft hyphen visible there, as it doesn't consume a soft hyphen at a line start, where the library consumes both, as it does in one text; main passed these only because its first fragment started before the space its line start consumed (ENGINE_FOLLOWUPS.md)
+rich-11a3923c1b2e930a breaks
+rich-1e4eb256d9bee7b8 breaks
+rich-5b60c65e1f4531a1 breaks
+rich-62e4228d958cf44e breaks
+rich-8058c8ea44ac27f5 breaks
+rich-c84427ff3e354b1e breaks
 
 ## Within 1/64 px of where the browser's lines change, at 24 px and wider: the library's fit lands on the other side there, while the whole-pixel widths inside both layouts pass
 catalog-0264013048297716 breaks
