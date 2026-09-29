@@ -1331,6 +1331,16 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   dead code for one JIT). Since the rich stepper stopped walking items whose first segment doesn't fit and tests for a
   line that starts at an item's end only on its first item (The Walkers' Shapes, 2026-09-29), rich stats read 16% faster
   than before #369, and without the block 5% faster still, at the rich row's floor.
+- **State a loop keeps for its rare paths**: with pre-wrap (#381), Chrome 154 reads the bench's rich stats of normal
+  white space 8-9% slower than main, doing the same work: each stats pass visits 4,246 items, fits 2,781 whole and walks
+  13 in both. The one pre-wrap check that ran on every item, whether the line keeps a padded item's opening, now runs
+  only where the line can't take the item's padding and before a walk, 52 times a pass, which read within noise of
+  running it on every item. With every pre-wrap statement that runs on normal text left out as well (the hang
+  bookkeeping, the retreat check before continued items, and the hang at the line's start and end), rich stats still
+  read 7-11% slower; with main's stepper in the branch, within noise; and with the line's start, which only the rare
+  pre-wrap paths read, made a constant, 4-5% slower. Main with those three values kept alive read 2% slower, so it's how
+  V8 allocates the bigger loop's state, not work: accepted as a regression one JIT alone explains in live code (#381,
+  2026-09-29).
 - **Inline caches**: once `layout()` has stepped such text, Chrome's `walkLineRanges()` of simple text, sharing the
   simple stepper, takes 2-4% longer than a second copy of main, by a mechanism not found. V8's caches turn polymorphic
   over the two handle kinds (`--log-ic`), but one shape for both didn't help Chrome and cost Firefox up to 14%; a

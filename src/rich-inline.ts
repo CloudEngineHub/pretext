@@ -812,13 +812,15 @@ function getWhiteSpaceEnd(segmentFlags: Uint8Array): number {
 }
 
 // Whether a line `lineWidth` wide, which ends with `hangWidth` of preserved spaces and tabs that
-// hang, fits the edge of item `itemIndex` that the engine fits where the line takes the item's
-// opening (openingEdge, paddedOpeningFit). WebKit leaves the white space that hangs out of the fit
+// hang, keeps the opening of item `itemIndex`, as it fits the edges the engine fits there
+// (openingEdge, paddedOpeningFit). WebKit leaves the white space that hangs out of the fit
 // (hangingContentWidth). Blink's line trails after that white space, taking the opening with no
 // edge where the content before it fits, once the white space overflows or where it follows
 // text in one item, which Blink's return breaks before it; after spaces that start at an item's
-// start, where no break comes before them (UAX #14 LB7), the start edge fits with them.
-function fitsOpeningEdge(
+// start, where no break comes before them (UAX #14 LB7), the start edge fits with them. The
+// stepper asks only where the line can't take the item's padding, and before a walk, so text
+// without such openings pays nothing for them on every item.
+function fitsOpening(
   flow: InternalPreparedRichInline,
   itemIndex: number,
   lineWidth: number,
@@ -829,6 +831,7 @@ function fitsOpeningEdge(
   startSegmentIndex: number,
 ): boolean {
   const edge = flow.items[itemIndex]!.openingEdge
+  if (edge <= 0) return edge === 0
   if (fit === 'placed') return lineWidth - hangWidth + edge <= fitLimit
   if (hangWidth > 0 && (lineWidth > fitLimit || spacesFollowText(flow, itemIndex, startItemIndex, startSegmentIndex))) return lineWidth - hangWidth <= fitLimit
   return lineWidth + edge <= fitLimit
@@ -960,9 +963,6 @@ function stepRichInlineLine(
   for (; itemIndex < flow.items.length; itemIndex++, cursor.segmentIndex = 0, cursor.graphemeIndex = 0) {
     const item = flow.items[itemIndex]
     if (item === undefined) continue
-    // The line keeps an item's opening where it fits the edges the engine fits there (openingEdge).
-    const fitsOpening = item.openingEdge === 0 || (item.openingEdge > 0 &&
-      fitsOpeningEdge(flow, itemIndex, lineWidth, lineHangWidth, safeWidth + lineFitEpsilon, paddedOpeningFit, startItemIndex, startSegmentIndex))
 
     // The line can end before a continued item that follows a break, as the run the next
     // item continues can move to the next line, and, where it has no break yet, before one that
@@ -1031,7 +1031,8 @@ function stepRichInlineLine(
     // (InlineContentBreaker, hangingContentWidth), though WebKit leaves out only the last
     // white-space item's (ENGINE_FOLLOWUPS.md).
     const reservedWidth = gapBefore + item.extraWidth
-    if (hasContent && !fitsOpening && reservedWidth > remainingWidth + lineFitEpsilon && (item.establishesLine || reservedWidth > 0)) {
+    if (hasContent && reservedWidth > remainingWidth + lineFitEpsilon && (item.establishesLine || reservedWidth > 0) &&
+      !fitsOpening(flow, itemIndex, lineWidth, lineHangWidth, safeWidth + lineFitEpsilon, paddedOpeningFit, startItemIndex, startSegmentIndex)) {
       const firstKind = item.lineData.segmentFlags[0]! & KIND_BITS
       let keepsHardBreak = firstKind === HARD_BREAK && !item.breakBefore && reservedWidth <= 0
       if (firstKind === HARD_BREAK && !item.breakBefore && !keepsHardBreak && breakItemIndex < 0 && hardBreakItemRetreat !== 'item') {
@@ -1122,9 +1123,11 @@ function stepRichInlineLine(
     itemLine.breakSegmentIndex = -1
     itemLine.breakGraphemeIndex = 0
     itemLine.hangWidth = lineHangWidth
-    // An opening the line fits (fitsOpening) goes on however far the line overflows: its white
+    // An opening the line keeps (fitsOpening) goes on however far the line overflows: its white
     // space hangs and its hard break ends the line.
-    const availableWidth = !hasContent ? Math.max(1, remainingWidth - reservedWidth) : fitsOpening ? Math.max(0, remainingWidth - reservedWidth) : remainingWidth - reservedWidth
+    const availableWidth = !hasContent ? Math.max(1, remainingWidth - reservedWidth)
+      : fitsOpening(flow, itemIndex, lineWidth, lineHangWidth, safeWidth + lineFitEpsilon, paddedOpeningFit, startItemIndex, startSegmentIndex)
+        ? Math.max(0, remainingWidth - reservedWidth) : remainingWidth - reservedWidth
     const lineWidthForItem = stepPreparedLineGeometryFromStart(item.lineData, lineEnd, availableWidth, itemLine)
     if (lineWidthForItem === null) {
       collectItemRest(fragments, itemIndex, item, cursor, 0, -1, 0)
