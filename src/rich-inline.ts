@@ -10,6 +10,7 @@ import {
   RETURNABLE,
   SOFT_HYPHEN,
   SPACE,
+  SPACED,
   TEXT,
   UNBROKEN,
   ZERO_WIDTH_BREAK,
@@ -662,6 +663,20 @@ function fitsBreakBefore(item: PreparedRichInlineItem, lineWidth: number, fitLim
   return lineWidth + (item.hyphenBefore > 0 ? item.hyphenBefore : getHyphenRoom(item, unfitHyphenRetreat)) <= fitLimit
 }
 
+// Whether the full walker, continuing a line with content from the item's start, ends the
+// line before the item at its first segment (walkPreparedComplexLines): text or a control
+// that a break comes before, with no break inside it, whose advance with the letter spacing
+// after it, less its line-end trim, overflows `fitLimit`.
+function firstSegmentOverflows(item: PreparedRichInlineItem, fitLimit: number): boolean {
+  const { lineData, innerBreaks } = item
+  const flags = lineData.segmentFlags[0]!
+  const kind = flags & KIND_BITS
+  if ((kind !== TEXT && kind !== CONTROL) || (flags & UNBROKEN) !== 0 || (innerBreaks !== null && innerBreaks[0] !== null)) return false
+  const w = lineData.widths[0]!
+  const fitAdvance = w === 0 && kind !== CONTROL ? 0 : w + ((flags & SPACED) !== 0 ? lineData.letterSpacing : 0)
+  return fitAdvance - (lineData.lineEndTrims === null ? 0 : lineData.lineEndTrims[0]!) > fitLimit
+}
+
 // The line state a walked item takes and leaves, one for every walk.
 const itemLine: ItemLine = { continues: false, breakBefore: false, fitsBreakBefore: false, innerBreaks: null, breakSegmentIndex: -1, breakGraphemeIndex: 0, breakWidth: 0 }
 
@@ -774,7 +789,13 @@ function stepRichInlineLine(
     // item where it can't take the item's start and the line has a break there or
     // earlier. A return from an unfit soft hyphen ends the line at the break before the
     // item where that line fits, with room for the hyphen in Blink's retry, or with the
-    // hyphen where the break follows one.
+    // hyphen where the break follows one. A walk after content that can't take the
+    // item's first segment ends the line before the item (firstSegmentOverflows), so that
+    // line ends here without one.
+    if (hasContent && firstSegmentOverflows(item, remainingWidth - reservedWidth + lineFitEpsilon)) {
+      returnsToBreak = !item.breakBefore
+      break
+    }
     lineEnd.segmentIndex = cursor.segmentIndex
     lineEnd.graphemeIndex = cursor.graphemeIndex
     // A line start consumes the rest of the item, such as a soft hyphen, and a line

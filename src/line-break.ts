@@ -629,7 +629,8 @@ function walkPreparedComplexLines(
               }
             }
           } else {
-            // A run of preserved spaces and tabs fits where the text before it fits.
+            // A run of preserved spaces and tabs fits where the text before it fits. Rich
+            // inline's firstSegmentOverflows() repeats this fit for an item's first segment.
             const newFitW = hangs ? hangStartWidth : lineW + fitAdvance
             if (newFitW - endTrim > fitLimit) {
               // A break segment hangs with the gap before it, after the content before
