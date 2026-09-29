@@ -4,7 +4,7 @@
 
 ### Added
 
-- `prepareRichInline()` takes an options argument, `{ wordBreak: 'keep-all' }`, for CSS `word-break: keep-all` on the paragraph, as `prepare()` does, so Korean and CJK messages with mentions, bold runs or code spans break where the browser breaks them under keep-all.
+- `prepareRichInline()` takes an options argument, `{ wordBreak: 'keep-all' }`, for CSS `word-break: keep-all` on the paragraph, as `prepare()` does, so Korean, Chinese and Japanese messages with mentions, bold runs or code spans break where the browser breaks them under keep-all (#379).
 - Rich-inline fragments now have `gapItemIndex`, the index of the item whose collapsed space `gapBefore` measures, or -1 when no space precedes the fragment on its line. A painter can draw that space inside the element of the item whose font measured it, and can tell a zero-width space apart from no space (#310).
 
 ### Changed
