@@ -1,17 +1,5 @@
 ## A padded rich pre-wrap span that starts on the line it ends inside, at a line feed or after spaces that hang, at 24 px and wider: Safari fits that line without the span's end edge, the library with it, as Firefox does (ENGINE_FOLLOWUPS.md)
-rich-0ffe4f2949ecf038 count
-rich-2abeb9ff099cd450 count
-rich-2bdd2c0fb87f6f33 count
-rich-3da09ecc79ec88a7 count
-rich-64050b9e463dfd5f count
-rich-b17471b8eba3bc43 count
-rich-b97fac339d828189 count
-rich-f539f9aacc2951ab count
 rich-f7c605f19ec5d469 breaks
-
-## A padded rich span that starts with U+2028 after a word, in white-space: normal, at 80 px and wider: Safari fits the line that ends at the separator with the span's start edge only, the library with its whole extraWidth, as Firefox does, so it breaks before the word's last letter where Safari keeps the line (ENGINE_FOLLOWUPS.md)
-rich-802ab61d3ac8387d count
-rich-a21ce9b6e60ce0f5 count
 
 ## A soft hyphen after a space, before white space in the next span or its own, or white space and a soft hyphen that start the paragraph before a ZWSP, at 24 px and wider: Safari keeps the space after the soft hyphen visible where a line starts, as it doesn't consume a soft hyphen at a line start, where the library consumes both (main and 0fef0023 too; ENGINE_FOLLOWUPS.md)
 rich-0de3e74d8bc2e919 count
@@ -1738,6 +1726,8 @@ facts-f7c254312e6c517b count
 facts-f8b095bc5316218f breaks
 facts-fbb22836f590bd81 count
 facts-ff7192e8ae470ce9 count
+rich-087ca85de8d9fd11 count
+rich-19e2f40c4c67d03a count
 rich-40018982415644fb count
 rich-9d0c04c18c44fb34 count
 rich-f6d6190bf525ffc7 count
@@ -2672,6 +2662,7 @@ rich-02422502faa37ede count
 rich-029e71d595e94f0c count
 rich-0a3fec9a06a04eef count
 rich-0cabfc789f6a4358 count
+rich-11c49eccf08f18c8 count
 rich-166322a1778d474c count
 rich-1bb83fe38e3bd589 breaks
 rich-1ca516a84dfe3ab4 count
@@ -2681,6 +2672,7 @@ rich-26c6030b9304ccd7 count
 rich-26f8627a88fc9819 count
 rich-2967857136330955 count
 rich-2c00457bd7ad6bcf count
+rich-2d09e453d98924b9 count
 rich-3055350027afea05 count
 rich-31ddf4b29ff31fe7 count
 rich-34075de5f2f50824 count
@@ -2713,6 +2705,7 @@ rich-af536739c810f600 count
 rich-b0ae95da15d4fb3f count
 rich-be0a029c0b919953 count
 rich-c604ab44311a3b58 count
+rich-c7cfa88d8a212348 count
 rich-d2cbcec88b98434b count
 rich-e0fdbed3aed33077 count
 rich-e4d9d26e42f80135 count
@@ -3422,6 +3415,7 @@ rich-959f1246e7e53cbc breaks
 rich-a18990f1807991ae count
 rich-af9c075b6be04eb4 count
 rich-bc57871ad5d7c3b8 count
+rich-ccb58ddb3d0e9564 count
 rich-eb1ed7501d82135e count
 rich-ed740eb70dd73211 count
 rich-ede83d9027decdf0 breaks

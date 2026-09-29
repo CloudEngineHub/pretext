@@ -43,7 +43,10 @@
 //   prose, whose stops count from the line's start; and chips beside preserved spaces and holding their own; then, cut on
 //   their own too, a chip before a line feed and one before spaces, which stay on its line however far it overflows,
 //   and a padded span that starts with a line feed after a word, whose line breaks the word where the padding doesn't
-//   fit (hardBreakItemRetreat in src/measurement.ts).
+//   fit (hardBreakItemRetreat in src/measurement.ts); and, cut on their own too, that span after a word whose last
+//   letter is a bold span of its own, which moves with it, a padded span of only a line feed, whose end edge Safari
+//   fits too, and a padded span that starts with a line feed or spaces after a chip, whose opening each engine fits
+//   its way (paddedOpeningFit in src/measurement.ts).
 import { TEXTS } from '../../src/test-data.ts'
 import type { CssFont, Paragraph, TextRun } from '../types.ts'
 import { codePoints, createRng, font, paragraph, span } from './build.ts'
@@ -204,6 +207,10 @@ export function richTemplates(): Template[] {
     ['chips-beside-spaces', HELVETICA, ['Thanks  ', span('@alice', CHIP, { atomic: true, padding: 11 }), '  for the review', span(' @bob ', CHIP, { atomic: true, padding: 11 }), ' too']],
     ['chip-before-line-feed', HELVETICA, ['Ping ', span('@alice', CHIP, { atomic: true, padding: 11 }), '\n', span('@bob', CHIP, { atomic: true, padding: 11 }), '  please look at this']],
     ['line-feed-starts-padded-item', HELVETICA, ['Unbreakable', span('\nnext line', CODE, { padding: 20 }), ' after']],
+    ['line-feed-starts-padded-item', HELVETICA, ['Unbreakabl', span('e', BOLD(HELVETICA)), span('\nnext line', CODE, { padding: 20 }), ' after']],
+    ['line-feed-starts-padded-item', HELVETICA, ['Unbreakable', span('\n', CODE, { padding: 20 }), 'tail text']],
+    ['padded-span-after-chip', HELVETICA, ['Ping ', span('@alice', CHIP, { atomic: true, padding: 11 }), span('\nnext line', CODE, { padding: 20 }), ' after']],
+    ['padded-span-after-chip', HELVETICA, ['Ping ', span('@alice', CHIP, { atomic: true, padding: 11 }), span('  spaced code', CODE, { padding: 12 }), ' after']],
   ]
   for (let i = 0; i < preWrap.length; i++) {
     const [family, base, parts] = preWrap[i]!

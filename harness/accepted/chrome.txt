@@ -7,12 +7,9 @@ report-953b7e9cd05588ed breaks
 report-b980d5159851daba breaks
 
 ## A padded rich pre-wrap span whose line ends inside it, at a line feed or after spaces that hang, at 24 px and wider: Chrome fits that line without the span's end edge, the library with it, as Firefox does (ENGINE_FOLLOWUPS.md)
-rich-04612f36870bf78f count
-rich-3da09ecc79ec88a7 count
 rich-75dcc33f88f9804f count
 rich-93acc3287b5f7069 count
 rich-9b04cbd2a170ff51 count
-rich-a5dc6d0eab15393d count
 rich-b5f1210c58e4b4de count
 rich-e1d52d1f9746b7a1 count
 
@@ -3232,6 +3229,7 @@ rich-0a3fec9a06a04eef count
 rich-0a8313779639e9ef count
 rich-0cabfc789f6a4358 count
 rich-0fd068ce5f126fef count
+rich-11c49eccf08f18c8 count
 rich-166322a1778d474c count
 rich-1e0d5476b00642c8 count
 rich-1e310e1aa5f44bd6 count
@@ -3240,9 +3238,11 @@ rich-26c6030b9304ccd7 count
 rich-26f8627a88fc9819 count
 rich-2967857136330955 count
 rich-2adbdb43e67fa87c count
+rich-2d09e453d98924b9 count
 rich-3055350027afea05 count
 rich-31ddf4b29ff31fe7 count
 rich-34075de5f2f50824 count
+rich-3d6b0dd007f16ed1 count
 rich-3f6c610251935b3f count
 rich-3f7623a4b4dd94eb count
 rich-406ee1104d5987ce count
@@ -3269,6 +3269,7 @@ rich-a5ad960782eb9128 count
 rich-ab169565a9c0a88b count
 rich-af536739c810f600 count
 rich-c604ab44311a3b58 count
+rich-c7cfa88d8a212348 count
 rich-d2cbcec88b98434b count
 rich-e4d9d26e42f80135 count
 rich-ea6501c78957947f count

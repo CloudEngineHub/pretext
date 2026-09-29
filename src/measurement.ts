@@ -152,7 +152,9 @@ export type EngineProfile = {
   // collects a word across text frames until a space and breaks it in one pass, so every
   // break fact near a boundary comes from the text the items join. WebKit finds breaks
   // inside each inline box from that box's own text, and decides a boundary between boxes
-  // from the previous box's last two characters (TextUtil.cpp:374-396).
+  // from the previous box's last two characters (TextUtil.cpp:374-396). Its soft wrap index
+  // loop ends the content it places after a line break item, so no break comes before one
+  // at any boundary, after an atomic item too (nextWrapOpportunity, InlineFormattingUtils.cpp:469-475).
   breaksFromItemText: boolean
   // Where a rich line that has no break to return to ends when an item that starts with a
   // hard break, with none before it, doesn't fit its padding. Blink's retry of an overflowing
@@ -161,10 +163,30 @@ export type EngineProfile = {
   // last character of text that no text run follows in the content that doesn't fit
   // (InlineContentBreaker.cpp:611-627), and Gecko's wrap opportunities come before each
   // cluster inside a text frame, none at its end (gfxTextRun.cpp:1046-1101), so the line
-  // ends before the last grapheme of the text before the item, and keeps the item where
-  // that grapheme starts it ('last-grapheme'): `Unbreakable`, then a span with 20px of
-  // padding that starts with a line feed, in 15px Helvetica Neue at 93px.
+  // ends before the last grapheme of the text before the item, before that grapheme's item
+  // where it is all of that item, and keeps the item where that grapheme starts the line
+  // ('last-grapheme'): `Unbreakable`, then a span with 20px of padding that starts with a
+  // line feed, in 15px Helvetica Neue at 93px; `Unbreakabl`, a bold `e` and that span at
+  // 86-106px, which moves the `e`.
   hardBreakItemRetreat: 'item' | 'last-grapheme'
+  // Which edges of a padded item a line fits where the line takes the item's opening and no
+  // more of it: a hard break that starts the item, or white space that starts it after an
+  // atomic item (prepareRichInline). Blink adds a span's start edge to the line when it opens
+  // (HandleOpenTag, line_breaker.cc:3957-3976), and only a test-only flag narrows the line for
+  // its cloned end edge (BoxDecorationBreakCloneLineBreaking, :454-461); the text or forced
+  // break after it finds the line overflowing and returns to the line's latest break (HandleText,
+  // HandleForcedLineBreak, :1355-1372, 2856-2860), and the close tags after a forced break trail
+  // it (:2912-2929): 'start'. WebKit fits a box that opens in the content it places without its
+  // cloned end edge (placedClonedDecorationWidth, InlineLineBuilder.cpp:1501-1523), but that
+  // content runs on past the inline box ends after a line break (nextWrapOpportunity,
+  // InlineFormattingUtils.cpp:469-475), so it fits the end edge too of an item that ends there
+  // ('placed'). Gecko fits a frame's whole width, its cloned end edge too, and lets only an empty
+  // frame past the line's end (CanPlaceFrame, nsLineLayout.cpp:1217-1270): 'both'. In 15px
+  // Helvetica Neue, `Unbreakable` and a span with 20px padding that starts with a line feed keep
+  // the line feed from 107px in Chrome and Safari, from 127px in Firefox; `Ping `, the chip
+  // `@alice` and a span with 12px padding that starts with two spaces keep them on the chip's
+  // line from 71px in Chrome and Safari and from 83px in Firefox.
+  paddedOpeningFit: 'start' | 'placed' | 'both'
   // Blink transforms segment breaks in the text of the whole inline formatting context
   // (ShouldRemoveNewline and RemoveTrailingCollapsibleNewlineIfNeeded, inline_items_builder.cc).
   // Gecko transforms each text frame's own text (nsTextFrameUtils::TransformText), as
@@ -417,6 +439,7 @@ export function getEngineProfile(): EngineProfile {
     collapsesSpaceAcrossSoftHyphens: engine === 'gecko',
     breaksFromItemText: engine === 'webkit',
     hardBreakItemRetreat: engine === 'blink' ? 'item' : 'last-grapheme',
+    paddedOpeningFit: engine === 'blink' ? 'start' : engine === 'webkit' ? 'placed' : 'both',
     transformsSegmentBreaksAcrossItems: engine === 'blink',
   }
   cachedEngineProfile = profile

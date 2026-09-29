@@ -3742,6 +3742,7 @@ describe('rich-inline invariants', () => {
       { width: round(bar + 15), fragments: [[1, '1.0', '2.0', 'bar', round(bar + 15)]] },
     ])
     expect(lines([{ text: 'foo', font: FONT }, { text: '\nbar', font: FONT }], 1).map(line => line.fragments.map(f => f[3]).join('|'))).toEqual(['f', 'o', 'o|', 'b', 'a', 'r'])
+    expect(lines([{ text: 'foofo', font: FONT }, { text: 'o', font: FONT }, { text: '\nbar', font: FONT, extraWidth: 15 }], foofoo + 5).map(line => line.fragments.map(f => f[3]).join('|'))).toEqual(['foofo|o', '', 'bar'])
     // WebKit and Gecko end that line before the last grapheme of the text before the span, and
     // keep the span on a line that grapheme starts.
     const profile = getEngineProfile()
@@ -3757,8 +3758,40 @@ describe('rich-inline invariants', () => {
       expect(lines([{ text: 'foo', font: FONT }, { text: '\nbar', font: FONT, extraWidth: 15 }], 1).map(line => line.fragments.map(f => f[3]).join('|'))).toEqual(['f', 'o', 'o|', 'b', 'a', 'r'])
       const o = measureWidth('o', FONT)
       expect(lines([{ text: 'foo', font: FONT }, { text: '\nbar', font: FONT, extraWidth: 15 }], o + 1).map(line => line.fragments.map(f => f[3]).join('|'))).toEqual(['f', 'o', 'o|', 'b', 'a', 'r'])
+      // Where that grapheme is an item of its own, the line ends before the item, with the
+      // white space before it hanging, unless the item starts the line.
+      expect(lines([{ text: 'foofo', font: FONT }, { text: 'o', font: FONT }, { text: '\nbar', font: FONT, extraWidth: 15 }], foofoo + 5)).toEqual([
+        { width: round(foofo), fragments: [[0, '0.0', '1.0', 'foofo', round(foofo)]] },
+        { width: round(o + 15), fragments: [[1, '0.0', '1.0', 'o', round(o)], [2, '0.0', '1.0', '', 15]] },
+        { width: round(bar + 15), fragments: [[2, '1.0', '2.0', 'bar', round(bar + 15)]] },
+      ])
+      const close = measureWidth(')', FONT)
+      expect(lines([{ text: 'foo ', font: FONT }, { text: ')', font: FONT }, { text: '\nbar', font: FONT, extraWidth: 15 }], measureWidth('foo )', FONT) + 5)).toEqual([
+        { width: round(foo), fragments: [[0, '0.0', '2.0', 'foo ', round(foo)]] },
+        { width: round(close + 15), fragments: [[1, '0.0', '1.0', ')', round(close)], [2, '0.0', '1.0', '', 15]] },
+        { width: round(bar + 15), fragments: [[2, '1.0', '2.0', 'bar', round(bar + 15)]] },
+      ])
+      expect(lines([{ text: 'fo', font: FONT }, { text: 'o', font: FONT }, { text: '\nbar', font: FONT, extraWidth: 15 }], o + 1).map(line => line.fragments.map(f => f[3]).join('|'))).toEqual(['f', 'o', 'o|', 'b', 'a', 'r'])
+      // A line with a break returns to it.
+      expect(lines([{ text: 'foo foofo', font: FONT }, { text: 'o', font: FONT }, { text: '\nbar', font: FONT, extraWidth: 15 }], measureWidth('foo foofoo', FONT) + 5).map(line => line.fragments.map(f => f[3]).join('|'))).toEqual(['foo ', 'foofo|o|', 'bar'])
+      // The grapheme takes its letter spacing with it.
+      const spaced = (text: string) => measureRichInlineStats(prepareRichInline([{ text, font: FONT, letterSpacing: 2 }], { whiteSpace: 'pre-wrap' }), 1000).maxLineWidth
+      expect(lines([{ text: 'foofoo', font: FONT, letterSpacing: 2 }, { text: '\nbar', font: FONT, extraWidth: 15 }], spaced('foofoo') + 5)[0]!.width).toBe(round(spaced('foofo')))
     } finally {
       profile.hardBreakItemRetreat = previous
+    }
+    // Chrome and Safari fit such a span's start edge only, and Safari its end edge too where
+    // the span ends at its line feed; Firefox fits both.
+    const previousFit = profile.paddedOpeningFit
+    try {
+      for (const fit of ['start', 'placed', 'both'] as const) {
+        profile.paddedOpeningFit = fit
+        const texts = (items: Parameters<typeof prepareRichInline>[0]) => lines(items, foofoo + 10).map(line => line.fragments.map(f => f[3]).join('|'))
+        expect(texts([{ text: 'foofoo', font: FONT }, { text: '\nbar', font: FONT, extraWidth: 15 }])).toEqual(fit === 'both' ? ['foofoo', '', 'bar'] : ['foofoo|', 'bar'])
+        expect(texts([{ text: 'foofoo', font: FONT }, { text: '\n', font: FONT, extraWidth: 15 }, { text: 'bar', font: FONT }])).toEqual(fit === 'start' ? ['foofoo|', 'bar'] : ['foofoo', '', 'bar'])
+      }
+    } finally {
+      profile.paddedOpeningFit = previousFit
     }
     // A blank line is the next item's line feed, and the line feed that ends the paragraph makes
     // no line: its item gives the last line an empty fragment.
@@ -3769,7 +3802,7 @@ describe('rich-inline invariants', () => {
     ])
   })
 
-  test('rich pre-wrap white space and a line feed after an atomic item stay on its line, however far it overflows', () => {
+  test('rich pre-wrap white space and a line feed after an atomic item stay on its line, however far it overflows, and with padding where the engine fits it', () => {
     const texts = (items: Parameters<typeof prepareRichInline>[0], width: number) => {
       const prepared = prepareRichInline(items, { whiteSpace: 'pre-wrap' })
       const out: string[] = []
@@ -3782,18 +3815,40 @@ describe('rich-inline invariants', () => {
     const bob = { text: '@bob', font: FONT, break: 'never', extraWidth: 20 } as const
     const width = measureWidth('@bob', FONT) + 10
     const profile = getEngineProfile()
-    const previous = { lineBreakScan: profile.lineBreakScan, breaksFromItemText: profile.breaksFromItemText, hangTabs: profile.hangTabs }
+    const previous = {
+      lineBreakScan: profile.lineBreakScan, breaksFromItemText: profile.breaksFromItemText, hangTabs: profile.hangTabs,
+      hardBreakItemRetreat: profile.hardBreakItemRetreat, paddedOpeningFit: profile.paddedOpeningFit,
+    }
     try {
       for (const scan of ['blink', 'webkit', 'gecko'] as const) {
         profile.lineBreakScan = scan
         profile.breaksFromItemText = scan === 'webkit'
         profile.hangTabs = scan !== 'gecko'
+        profile.hardBreakItemRetreat = scan === 'blink' ? 'item' : 'last-grapheme'
+        profile.paddedOpeningFit = scan === 'blink' ? 'start' : scan === 'webkit' ? 'placed' : 'both'
         clearCache()
         // No break comes before them (UAX #14 LB6, LB7), and the break after a chip takes them
         // onto its line, as Blink takes trailing items.
         expect(texts([{ text: 'Ping ', font: FONT }, alice, { text: '\n', font: FONT }, bob, { text: '  go', font: FONT }], width)).toEqual(['Ping ', '@alice|', '@bob|  ', 'go'])
         // A tab hangs too where tabs hang; Firefox breaks before one that doesn't fit.
         expect(texts([bob, { text: '\tgo', font: FONT }], width)[0]).toBe(scan === 'gecko' ? '@bob' : '@bob|\t')
+        // A padded span that starts with a line feed or spaces stays on the chip's line where the
+        // line fits the span's start edge in Chrome and Safari, and all of its padding in Firefox.
+        // Otherwise the line ends after the chip, but in Safari before a line feed, which the chip's
+        // content goes on to: the line returns to the break before the chip, or keeps the line
+        // feed where the chip starts it.
+        const line = measureWidth('Ping @alice', FONT) + 20
+        const feed = { text: '\nbar', font: FONT, extraWidth: 20 }
+        const spaces = { text: '  go', font: FONT, extraWidth: 20 }
+        expect(texts([{ text: 'Ping ', font: FONT }, alice, feed], line + 5)).toEqual(scan === 'webkit' ? ['Ping ', '@alice|', 'bar'] : ['Ping |@alice', '', 'bar'])
+        expect(texts([{ text: 'Ping ', font: FONT }, alice, feed], line + 15)).toEqual(scan === 'gecko' ? ['Ping |@alice', '', 'bar'] : ['Ping |@alice|', 'bar'])
+        expect(texts([{ text: 'Ping ', font: FONT }, alice, feed], line + 25)).toEqual(['Ping |@alice|', 'bar'])
+        expect(texts([alice, feed], measureWidth('@alice', FONT) + 25)).toEqual(scan === 'webkit' ? ['@alice|', 'bar'] : ['@alice', '', 'bar'])
+        // A chip is one whole: the line never ends inside it.
+        const team = { text: '@web team', font: FONT, break: 'never', extraWidth: 20 } as const
+        expect(texts([team, feed], measureWidth('@web team', FONT) + 25)).toEqual(scan === 'webkit' ? ['@web team|', 'bar'] : ['@web team', '', 'bar'])
+        expect(texts([{ text: 'Ping ', font: FONT }, alice, spaces], line + 5)).toEqual(['Ping |@alice', '  go'])
+        expect(texts([{ text: 'Ping ', font: FONT }, alice, spaces], line + 15)).toEqual(scan === 'gecko' ? ['Ping |@alice', '  go'] : ['Ping |@alice|  ', 'go'])
       }
     } finally {
       Object.assign(profile, previous)
