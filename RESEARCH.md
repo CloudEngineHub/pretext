@@ -1196,6 +1196,10 @@ After content, the rich stepper doesn't walk an item whose first segment doesn't
 the line before the item, as the stepper now does itself. `firstSegmentOverflows()` repeats the walker's fit for that
 segment, a copy a comment in the walker points to. That leaves 6 of the 439 walks in a stats pass over the bench's rich
 texts: Chrome 154's rich stats read 18% faster and Firefox 156's 23%, their rich walks and streams 11-13% (2026-09-29).
+Testing for a line that starts at an item's end, as after a hard break, only on the line's first item, the one item that
+can, instead of on every item it visits, made Chrome's rich stats 9% faster again, within noise in Firefox: that test's
+reads were what #364's removed check had skipped. Chrome's rich stats now read 18% faster than main before #340, where
+main at #372 read 7% slower.
 
 Continuing rich lines in the full walker (#369, 2026-09-27) moved rows whose code didn't change, accepted as each JIT's
 placement of the changed bundle (Part 1, Engineering): Chrome 154's letter-spaced CJK `layout()` and pre-wrap chunks
@@ -1247,8 +1251,9 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   faster than before #369 too. None of three plain restructurings took it back (the hang of the spaces before consumed
   items in a function of its own, or left out, and the line's latest break as one record), so
   it was accepted as a regression one JIT alone explains in live code (#370, 2026-09-28; Decisions Log, 2026-09-26, no
-  dead code for one JIT). Since the rich stepper stopped walking items whose first segment doesn't fit (The Walkers'
-  Shapes, 2026-09-29), rich stats read faster than before #369.
+  dead code for one JIT). Since the rich stepper stopped walking items whose first segment doesn't fit and tests for a
+  line that starts at an item's end only on its first item (The Walkers' Shapes, 2026-09-29), rich stats read 16% faster
+  than before #369, and without the block 5% faster still, at the rich row's floor.
 - **Inline caches**: once `layout()` has stepped such text, Chrome's `walkLineRanges()` of simple text, sharing the
   simple stepper, takes 2-4% longer than a second copy of main, by a mechanism not found. V8's caches turn polymorphic
   over the two handle kinds (`--log-ic`), but one shape for both didn't help Chrome and cost Firefox up to 14%; a

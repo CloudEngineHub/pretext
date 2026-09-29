@@ -712,11 +712,16 @@ function stepRichInlineLine(
   // Where the walk of an item ends its part of the line (below), one for every walk.
   const lineEnd: LayoutCursor = { segmentIndex: 0, graphemeIndex: 0 }
 
+  // A line that starts at an item's end, as after a hard break that ends it, starts at the next item.
+  const firstItem = flow.items[itemIndex]
+  if (firstItem !== undefined && cursor.segmentIndex === firstItem.prepared.segments.length && cursor.graphemeIndex === 0) {
+    itemIndex++
+    cursor.segmentIndex = 0
+  }
   // Every `continue` moves on to the start of the next item.
   for (; itemIndex < flow.items.length; itemIndex++, cursor.segmentIndex = 0, cursor.graphemeIndex = 0) {
     const item = flow.items[itemIndex]
     if (item === undefined) continue
-    if (cursor.segmentIndex === item.prepared.segments.length && cursor.graphemeIndex === 0) continue
 
     // The line can end before a continued item that follows a break, as the run the next
     // item continues can move to the next line.
