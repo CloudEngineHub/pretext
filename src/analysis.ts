@@ -324,11 +324,10 @@ function segmentAtLineBreaks(normalized: string, spaceSources: Uint16Array | nul
   let markRun = false
   // Where the last run of what the text run drops, handled at its start, ends.
   let droppedEnd = -1
+  // The last segment's kind, -1 before the first unit, which starts one.
+  let lastKind = -1
   for (let i = 0; i < normalized.length; i++) {
     const code = normalized.charCodeAt(i)
-    const last = flags.length - 1
-    // The first unit has no segment before it to join, so it starts one.
-    const lastKind = last < 0 ? -1 : flags[last]! & KIND_BITS
     if (dropsBidiControl && i < droppedEnd) continue
     if (dropsBidiControl && isDiscardable(code, false) && (i === 0 || !isDiscardable(normalized.charCodeAt(i - 1), false))) {
       // The run of what the text run drops from here, and where its last bidi control ends.
@@ -336,18 +335,19 @@ function segmentAtLineBreaks(normalized: string, spaceSources: Uint16Array | nul
       let controlEnd = -1
       for (; j < normalized.length && isDiscardable(normalized.charCodeAt(j), false); j++) if (isBidiControl(normalized.charCodeAt(j))) controlEnd = j + 1
       if (controlEnd > 0) {
-        const chunkStart = last < 0 || lastKind === HARD_BREAK
+        const chunkStart = lastKind < 0 || lastKind === HARD_BREAK
         if (chunkStart) {
           const endsChunk = j === normalized.length || classifySegmentUnit(normalized, breaks, j, normalized.charCodeAt(j), whiteSpace, scan, afterContent) === HARD_BREAK
           if (!endsChunk) breaks[j] = breaks[j]! & ~(BREAK | SOFT_HYPHEN_BREAK)
           droppedEnd = j
-          if (endsChunk && last >= 0) continue
+          if (endsChunk && lastKind >= 0) continue
         } else {
           droppedEnd = controlEnd
         }
         if (chunkStart || lastAlone || markRun) {
           starts.push(i)
           flags.push(TEXT | oneCluster)
+          lastKind = TEXT
           lastAlone = false
           markRun = false
         }
@@ -363,13 +363,14 @@ function segmentAtLineBreaks(normalized: string, spaceSources: Uint16Array | nul
       unbroken && !alone && !lastAlone && !(markRun && !combiningMarkRe.test(normalized[i]!)) &&
       !levelRunExtender && kind === lastKind && gathersKind(kind)
     ) {
-      if ((breaks[i]! & CLUSTER_START) !== 0) flags[last] = flags[last]! & ~ONE_CLUSTER
+      if ((breaks[i]! & CLUSTER_START) !== 0) flags[flags.length - 1] = flags[flags.length - 1]! & ~ONE_CLUSTER
       continue
     }
     markRun = unbroken && kind === TEXT && combiningMarkRe.test(normalized[i]!) &&
       (lastAlone || lastKind === ZERO_WIDTH_BREAK || lastKind === SOFT_HYPHEN || lastKind === CONTROL)
     starts.push(i)
     flags.push(kind | oneCluster)
+    lastKind = kind
     lastAlone = alone
   }
   // A line ends only where the scan breaks, so the walkers learn where it doesn't:
