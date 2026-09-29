@@ -1199,7 +1199,9 @@ texts: Chrome 154's rich stats read 18% faster and Firefox 156's 23%, their rich
 Testing for a line that starts at an item's end, as after a hard break, only on the line's first item, the one item that
 can, instead of on every item it visits, made Chrome's rich stats 9% faster again, within noise in Firefox: that test's
 reads were what #364's removed check had skipped. Chrome's rich stats now read 18% faster than main before #340, where
-main at #372 read 7% slower.
+main at #372 read 7% slower. Against main, Safari 27's rich stats read 14% faster, and Chrome's mixed stats, whose code
+didn't change (the minified `layout.ts` bundle is the same), 2% slower in two of four runs, accepted as V8's placement
+of the changed bundle (#375).
 
 Continuing rich lines in the full walker (#369, 2026-09-27) moved rows whose code didn't change, accepted as each JIT's
 placement of the changed bundle (Part 1, Engineering): Chrome 154's letter-spaced CJK `layout()` and pre-wrap chunks

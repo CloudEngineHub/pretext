@@ -8,6 +8,7 @@
 
 ### Changed
 
+- `measureRichInlineStats()` is about 25% faster in Chrome and Firefox and 14% in Safari, and `walkRichInlineLineRanges()` and `layoutNextRichInlineLineRange()` 13-16% faster in Chrome and Firefox, on chat messages with inline code, since a line that can't take the start of the next item now ends before it without laying that item out (#375).
 - A rich-inline atomic item's (`break: 'never'`) own leading or trailing white space no longer gives a gap before or after it, as browsers trim that white space inside the item's box: where only that white space stood, `gapBefore` is now 0 and `gapItemIndex` -1, where they measured a space in the atomic item's font and named that item (#369).
 - In Firefox, `prepare()` is faster on text with right-to-left characters, about 16% on Arabic text it hasn't measured before and 29% on text it has, since Pretext now works out right-to-left runs, which Firefox's line breaking depends on, only in text where they can change a break (#365).
 - `prepare()` is faster on text it hasn't measured before, up to about twice as fast in Chrome and Safari and three to four times with letter spacing, and letter-spaced text it has measured before is about eight times faster there, since Pretext now finds grapheme clusters with the character rules each browser ships instead of `Intl.Segmenter`. `Intl.Segmenter` is now needed only for text in Thai, Lao, Khmer, Myanmar and the other Southeast Asian scripts written without spaces. Bundles that import Pretext grow by about 4 KB gzipped (5.5 KB minified) (#344).
