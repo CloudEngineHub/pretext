@@ -120,7 +120,7 @@ walkRichInlineLineRanges(prepared, 320, range => {
 })
 ```
 
-Pass a flat list of text items. For `word-break: keep-all` on the paragraph, pass `{ wordBreak: 'keep-all' }` as the second argument; it applies to every item. Only `white-space: normal` is supported. This is not a general CSS inline formatting engine.
+Pass a flat list of text items. For `white-space: pre-wrap` or `word-break: keep-all` on the paragraph, pass `{ whiteSpace: 'pre-wrap' }` or `{ wordBreak: 'keep-all' }` as the second argument; it applies to every item. In `pre-wrap` each item keeps its spaces, tabs and newlines: spaces at a line's end hang past it whichever items hold them, tab stops count from the line's start, and a newline in any item ends its line. Paint each line with `white-space: pre`: a line painted alone in `pre-wrap` is its paragraph's last line, where spaces at its end hang only if they don't fit and a padded item's end after them can wrap. This is not a general CSS inline formatting engine.
 
 ### API Glossary
 
@@ -168,7 +168,7 @@ type LayoutCursor = {
 
 Helper for rich-text inline flow:
 ```ts
-prepareRichInline(items: RichInlineItem[], options?: { wordBreak?: 'normal' | 'keep-all' }): PreparedRichInline // prepares the items for layout and collapses spaces between them. `wordBreak` is the paragraph's, as in `prepare()`
+prepareRichInline(items: RichInlineItem[], options?: { whiteSpace?: 'normal' | 'pre-wrap', wordBreak?: 'normal' | 'keep-all' }): PreparedRichInline // prepares the items for layout and, in `white-space: normal`, collapses spaces between them. `whiteSpace` and `wordBreak` are the paragraph's, as in `prepare()`
 layoutNextRichInlineLineRange(prepared: PreparedRichInline, maxWidth: number, start?: RichInlineCursor): RichInlineLineRange | null // stream one line of rich-text inline flow at a time without building fragment text strings
 walkRichInlineLineRanges(prepared: PreparedRichInline, maxWidth: number, onLine: (line: RichInlineLineRange) => void): number // non-materializing line walker for rich-text inline flow shrinkwrap/stats work
 materializeRichInlineLineRange(prepared: PreparedRichInline, line: RichInlineLineRange): RichInlineLine // turns one previously computed rich-inline line range back into full fragment text
@@ -230,6 +230,7 @@ Notes:
 - `layout()` with an empty string returns `{ lineCount: 0, height: 0 }`. Browsers still size an empty block to one `line-height`, so clamp with `Math.max(1, lineCount) * lineHeight` if you need that behavior.
 - Pretext doesn't give bidi levels or a visual order. If you're drawing mixed bidi text, like English and Arabic, render each paragraph as one DOM element with its direction set, and the browser orders every line. If you draw lines separately, such as with Canvas `fillText()`, each line is ordered as its own paragraph, so numbers or punctuation next to a line break, or bidi controls that span lines (invisible direction characters such as U+202A-U+202E or U+2066-U+2069), can come out in a different order.
 - A rich-inline fragment's `gapBefore` is a space in the font and letter spacing of item `gapItemIndex`: the fragment's own item, the previous fragment's item, or an item holding only whitespace, which gets no fragment. An atomic item's own leading and trailing white space makes no gap, as browsers trim it inside the item's box. Draw the space inside that item's element so it paints at that width.
+- In `pre-wrap`, rich-inline fragments have no gaps: a fragment's `text` keeps its spaces, and its `occupiedWidth`, like the line's `width`, leaves out what hangs at the line's end. An atomic item's own spaces collapse, as in a chip's `white-space: nowrap` box, so its cursors index its text prepared without `whiteSpace`. A tab counts eight spaces of its own item's font, as Safari does; Chrome and Firefox count the paragraph's, so a tab inside an item in another font, such as inline code in prose, can land on another stop there.
 - Segment widths are browser-canvas widths for line breaking, not enough to position individual characters in Arabic or mixed bidi text.
 
 ## Caveats

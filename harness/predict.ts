@@ -1,7 +1,7 @@
 // The library used the way an app uses it, in the page: one Canvas font string per run style, maxWidth = the case's
 // width, and the prepare options main documents. A case an app would write with inline elements (spans among other runs,
 // several styles, a chip or padding) goes through rich-inline, one item per run: a chip is `break: 'never'`, padding is
-// `extraWidth`, and the paragraph's word-break is prepareRichInline()'s option. Line cursors index the library's
+// `extraWidth`, and the paragraph's white-space and word-break are prepareRichInline()'s options. Line cursors index the library's
 // segments, which are the source after white-space normalization, so the adapter aligns them with the source and returns
 // UTF-16 source offsets. `run.ts --lib` bundles another build in place of src/.
 //
@@ -56,7 +56,6 @@ export function unsupported(c: Case): string | null {
     if (run.lang !== null && run.lang !== p.lang) reasons.push('a span lang differs from the paragraph\'s')
     if (run.text.includes('\t') && p.whiteSpace === 'pre-wrap' && p.tabSize !== 8) reasons.push(`tab-size ${p.tabSize}`)
   }
-  if (isRich(p.runs) && p.whiteSpace !== 'normal') reasons.push('rich-inline takes white-space: normal only')
   return reasons.length === 0 ? null : [...new Set(reasons)].join('; ')
 }
 
@@ -289,9 +288,21 @@ export function prepareOptions(c: Case): PrepareOptions {
   return options
 }
 
-// A rich case's options: the paragraph's word-break.
+// A rich case's options: the paragraph's white-space and word-break.
 export function richOptions(c: Case): RichInlineOptions {
-  return c.paragraph.wordBreak === 'keep-all' ? { wordBreak: 'keep-all' } : {}
+  const options: RichInlineOptions = {}
+  if (c.paragraph.whiteSpace === 'pre-wrap') options.whiteSpace = 'pre-wrap'
+  if (c.paragraph.wordBreak === 'keep-all') options.wordBreak = 'keep-all'
+  return options
+}
+
+// The options of the handle a rich item's fragment cursors index: the paragraph's, with the item's letter spacing, and
+// an atomic item's in normal white space (src/rich-inline.ts).
+export function itemOptions(item: RichInlineItem, options: RichInlineOptions): PrepareOptions {
+  const own: PrepareOptions = { ...options }
+  if (item.break === 'never') delete own.whiteSpace
+  if (item.letterSpacing !== undefined) own.letterSpacing = item.letterSpacing
+  return own
 }
 
 // A rich case's items, one per run.
@@ -348,11 +359,11 @@ export function predict(c: Case): Prediction {
       const walked: RichInlineLineRange[] = []
       const walkedCount = walkRichInlineLineRanges(prepared, p.width, line => { if (walked.push(line) > steps) throw new Error(`walkRichInlineLineRanges gives more than ${steps} lines`) })
       // Fragment cursors index prepareWithSegments(item.text) of the item's font and letter spacing and the paragraph's
-      // word-break, prepared here uncounted, as an app needs none of them. So each fragment's text is
+      // white-space (an atomic item's normal) and word-break, prepared here uncounted, as an app needs none of them. So each fragment's text is
       // materializeLineRange's over those cursors, but for the hyphen of a soft hyphen it ends at, which the text the items
       // join decides; the text builder both share is src/layout.test.ts's to check.
       counting = null
-      const handles = items.map(item => prepareWithSegments(item.text, item.font, item.letterSpacing === undefined ? options : { ...options, letterSpacing: item.letterSpacing }))
+      const handles = items.map(item => prepareWithSegments(item.text, item.font, itemOptions(item, options)))
       counting = 'lines'
       const offsets = handles.map(handle => cursorOffsets(handle.segments))
       disagreement = richDisagreement(LIBRARY, prepared, walked, walkedCount, p.width, steps, i => offsets[i])
@@ -375,7 +386,7 @@ export function predict(c: Case): Prediction {
         base += items[i]!.text.length
       }
       const fragment = (f: RichInlineFragmentRange): { start: number; end: number } => {
-        const map = maps[f.itemIndex] ??= sourceRanges(runs[f.itemIndex]!.text, handles[f.itemIndex]!, 'normal')
+        const map = maps[f.itemIndex] ??= sourceRanges(runs[f.itemIndex]!.text, handles[f.itemIndex]!, items[f.itemIndex]!.break === 'never' ? 'normal' : whiteSpace)
         const range = map(f.start, f.end)
         return { start: bases[f.itemIndex]! + range.start, end: bases[f.itemIndex]! + range.end }
       }

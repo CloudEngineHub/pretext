@@ -134,8 +134,8 @@ export function libraryFaults(predictions: ReadonlyMap<string, Prediction>): Fau
 // macOS.
 export const SYSTEM_UI_FONT = /^\s*(system-ui|-apple-system|BlinkMacSystemFont|ui-sans-serif)\b/
 
-// Whether a case is outside what the library claims: a style the adapter can't express (break-all, rich-inline in
-// pre-wrap) or a system-ui font list. The headline prints its share, and the share right without it.
+// Whether a case is outside what the library claims: a style the adapter can't express (break-all) or a system-ui font
+// list. The headline prints its share, and the share right without it.
 export function outsideClaims(c: Case, prediction: Prediction): boolean {
   return 'unsupported' in prediction || SYSTEM_UI_FONT.test(c.paragraph.font.family)
 }

@@ -254,7 +254,7 @@ export async function check(browser: BrowserKind, cases: Case[], o: Options, io:
   const head = headline(draws)
   const inClaims = headline(drawsInClaims)
   if (head !== null) out.push(`  real-usage sample: ${(100 * head.share).toFixed(2)}% of real paragraphs right, 95% interval ${(100 * head.low).toFixed(2)}-${(100 * head.high).toFixed(2)}% (${draws.length} draws, ${percent(standInWeight, sampleWeight)} of their weight stand-ins; macOS rendering only)`)
-  if (inClaims !== null && outsideWeight > 0) out.push(`    ${percent(outsideWeight, sampleWeight)} of the weight is outside what Pretext claims (break-all, rich-inline in pre-wrap, system-ui); ${(100 * inClaims.share).toFixed(2)}% right without it, 95% interval ${(100 * inClaims.low).toFixed(2)}-${(100 * inClaims.high).toFixed(2)}%`)
+  if (inClaims !== null && outsideWeight > 0) out.push(`    ${percent(outsideWeight, sampleWeight)} of the weight is outside what Pretext claims (break-all, system-ui); ${(100 * inClaims.share).toFixed(2)}% right without it, 95% interval ${(100 * inClaims.low).toFixed(2)}-${(100 * inClaims.high).toFixed(2)}%`)
   for (const [set, list] of [...behaviours].sort((x, y) => (x[0] < y[0] ? -1 : 1))) {
     let modelled = 0
     let exact = 0

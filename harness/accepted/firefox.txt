@@ -22,6 +22,15 @@ rich-2d085f35ed051005 breaks
 rich-50652eb4b3208acb count
 rich-9e0c6d33ecb015ae breaks
 
+## A tab inside a rich pre-wrap span whose font isn't the paragraph's, at 24 px and wider: Firefox counts its tab stops in the paragraph's font, the library in the span's own, as Safari does (ENGINE_FOLLOWUPS.md)
+rich-1556eb846893cc6c count
+rich-23ff07f10afafc48 breaks
+rich-79acbd2d1a421012 breaks
+rich-a8f82afd142a4fc9 breaks
+rich-bf66fbd64988de97 breaks
+rich-d91958dcd0c9e964 breaks
+rich-fb40dedd1c6e8356 breaks
+
 ## Arabic and Hebrew beside brackets, controls, U+FFFC or rich-item edges, at 24 px and wider: Firefox breaks there where the library doesn't
 catalog-0bbc041b22a8eb25 count
 catalog-17b324c3ade315fe breaks
@@ -1692,6 +1701,7 @@ catalog-21e67faa719ddc02 count
 catalog-2202b052895e25f8 count
 catalog-22182b10236d3279 count
 catalog-22ae90c1b4b677db count
+catalog-23bb9045e56f445f count
 catalog-244a970ec0136780 count
 catalog-24c9249b0fa4976e count
 catalog-24cac941d5953c8b breaks
@@ -1699,6 +1709,7 @@ catalog-259e0d1b043b0ff5 count
 catalog-25a0027f5ae9a662 count
 catalog-2657a736b710ab01 count
 catalog-2713a8c44681915b count
+catalog-27e504c68f658358 count
 catalog-2804ccbb422aafa7 count
 catalog-2835c7e0990e7ca8 count
 catalog-28df88de6706ed99 count
@@ -1985,6 +1996,7 @@ catalog-c4df6ac50042c060 count
 catalog-c5f5eebc3f9f8fb7 count
 catalog-c64878fbdc6d959f count
 catalog-c767fb958d4a8d5d breaks
+catalog-c7af26e454a5aa9c count
 catalog-c7b9e540ea095bfe count
 catalog-c8db7d58dcfa70b5 count
 catalog-c940ecd01130b637 count
@@ -2115,6 +2127,8 @@ facts-cc939d224ccd4816 count
 facts-d5a3d937459712e1 count
 facts-fc69084749bc97f4 count
 rich-029e71d595e94f0c breaks
+rich-0fd068ce5f126fef count
+rich-26c6030b9304ccd7 count
 rich-34075de5f2f50824 count
 rich-3f6c610251935b3f count
 rich-56f1ab0f866f4262 count
@@ -2123,6 +2137,7 @@ rich-8d3626fe8bbced7a count
 rich-9b4af34068e55c9a breaks
 rich-9caad05a8d6ec08d count
 rich-a560650dfbeafe72 count
+rich-ab169565a9c0a88b count
 rich-af536739c810f600 count
 rich-c604ab44311a3b58 breaks
 rich-d2cbcec88b98434b breaks
@@ -2138,87 +2153,6 @@ rich-923ed46b1218112f count
 rich-bd576120f4886917 breaks
 rich-cddada5822923d6c breaks
 rich-d3a491934a08c763 breaks
-
-## Outside what Pretext claims: rich-inline in pre-wrap, which rich-inline doesn't take, so the adapter can't express it
-catalog-0567679cb1aa4171 error
-catalog-0e2f776b121082c7 error
-catalog-112ced5e43094ea2 error
-catalog-121f8616a9a16d87 error
-catalog-23bb9045e56f445f error
-catalog-27e504c68f658358 error
-catalog-27ee5de22204b24e error
-catalog-41f185331bd1afb7 error
-catalog-5651d7181ce13a12 error
-catalog-573c2e25eb627f3b error
-catalog-5ba7826e4a3a844f error
-catalog-5dc53a4b8108ffa7 error
-catalog-6488d27ca968ca89 error
-catalog-65ee4702b6227dc5 error
-catalog-6d939a94a6185c1d error
-catalog-6e9199a406030c53 error
-catalog-717c1f77f7998fad error
-catalog-7e59c8e215aae282 error
-catalog-8d1b9fa46b10012c error
-catalog-8e51a4a6946a8882 error
-catalog-90906ceeff9395de error
-catalog-a4a982d8b219f641 error
-catalog-ab1aa6fc7bb4a6bd error
-catalog-bf857a94dfeeb2f8 error
-catalog-c7af26e454a5aa9c error
-catalog-c9747aedf16a51b1 error
-catalog-c9d1b168224d3917 error
-catalog-d30819e8af33834a error
-catalog-d34e8f2b5761fa04 error
-catalog-dd667eb24fdc5e6a error
-catalog-f2de627b210d10f6 error
-catalog-f8fe72d166baf8ec error
-catalog-fd710f51aa47728f error
-catalog-fe6094ff47dd8044 error
-sample-039b9aad134b8722 error
-sample-09d5544e5a0cda51 error
-sample-0c175911d88de6e5 error
-sample-180cdf8c3edb7f3e error
-sample-181d80b67a6573c0 error
-sample-18f5ceb06a390279 error
-sample-1fcf45fef7d05e86 error
-sample-22b1642b1b3a72b1 error
-sample-32d887db8aa00844 error
-sample-3d3244b009c7a64a error
-sample-3f994ba2565ac5af error
-sample-5aaa1483596b597c error
-sample-5c7a25f0fd1e9d7c error
-sample-61a7e02002ca943d error
-sample-7951b3c73d4c2185 error
-sample-7a3d9ad1e9bc0775 error
-sample-802106e2cc35b632 error
-sample-81fc3dc86e0c2b48 error
-sample-89bc7022499a71cd error
-sample-8f4641475026e1cc error
-sample-8fe50c1948bd2fd9 error
-sample-96ede1fd141b2127 error
-sample-9a08f95f0e36316c error
-sample-9dddf6b3835158e3 error
-sample-a75c90b27e7c3a78 error
-sample-aae699f821c5c166 error
-sample-afb553dfc3337942 error
-sample-b0de378c1e17cb36 error
-sample-bc7192c4528f9753 error
-sample-bdbb56f1d153c5db error
-sample-be3e58184db4e6f8 error
-sample-be7cc75d0f573295 error
-sample-c2d90b8c20ea1f02 error
-sample-c4e8386aa10f4930 error
-sample-c802253f4ebc12c0 error
-sample-ca83b1bc5303ee8d error
-sample-ceb030753658de21 error
-sample-d3543a8e252bd42d error
-sample-d7a751f7465340e0 error
-sample-d7d2df475272c15c error
-sample-e9cb3069db32a09c error
-sample-efd4bb257e89f634 error
-sample-f8fa718992cbb6bf error
-sample-fd68e1169d4616a4 error
-sample-ff4a29045b8ea4da error
 
 ## Outside what Pretext claims: system-ui font lists (README.md, Caveats); Firefox's Canvas measures them without the optical sizing its DOM applies (Mozilla #2020917)
 sample-0010c7bd919f706a breaks
@@ -2626,6 +2560,7 @@ sample-e8b61d568490ff7e breaks
 sample-e8d92bc41e9d11b8 breaks
 sample-e8eaf42d4c957a80 count
 sample-e95bc7da719b3d98 breaks
+sample-e9cb3069db32a09c breaks
 sample-ea09b96a9c694455 count
 sample-ea1e66f7ac53aebe breaks
 sample-ea807c50d03901f0 breaks

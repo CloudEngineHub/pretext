@@ -869,8 +869,16 @@ export function getWebKitLineBreaks(
 // factory on that box with the previous box's last two characters as prior context.
 // hyphens: manual, so a trailing soft hyphen doesn't block the break. Keep-all reads no
 // prior context (TU:403-407, BP.h:288-300): the box starts at a break only where it
-// starts with a breakable space or ZWSP.
+// starts with a breakable space or ZWSP. The soft wrap index loop skips a soft line break
+// item (IFU:456-510), a preserved line feed or a line or paragraph separator
+// (IIB:954-962), so no break comes before one, and wrapping is allowed next to a
+// white-space item (IFU:406-418), which a box's preserved spaces and tabs make
+// (IIB:963-992).
 export function getWebKitBreakBetweenItems(previous: string, next: string, keepAll: boolean, language: string | null): boolean {
+  const last = previous.charCodeAt(previous.length - 1)
+  const first = next.charCodeAt(0)
+  if (first === LF || first === LINE_SEPARATOR || first === PARAGRAPH_SEPARATOR) return false
+  if (last === SPACE || last === TAB || first === SPACE || first === TAB) return true
   if (keepAll) return nextBreakableSpace(next, 0, false) === 0
   const pairs = webkitPairs ??= unpackTable(webkitLinePairsPacked)
   const f = createFactory(next, getWebKitLineRules(language))

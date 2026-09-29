@@ -1,3 +1,11 @@
+## A padded rich pre-wrap span that starts on the line it ends inside, at a line feed or after spaces that hang, at 24 px and wider: Safari fits that line without the span's end edge, the library with it, as Firefox does (ENGINE_FOLLOWUPS.md)
+rich-2abeb9ff099cd450 count
+rich-2bdd2c0fb87f6f33 count
+rich-64050b9e463dfd5f count
+rich-b17471b8eba3bc43 count
+rich-f539f9aacc2951ab count
+rich-f7c605f19ec5d469 breaks
+
 ## A soft hyphen after a space, before white space in the next span or its own, or white space and a soft hyphen that start the paragraph before a ZWSP, at 24 px and wider: Safari keeps the space after the soft hyphen visible where a line starts, as it doesn't consume a soft hyphen at a line start, where the library consumes both (main and 0fef0023 too; ENGINE_FOLLOWUPS.md)
 rich-0de3e74d8bc2e919 count
 rich-1a6f9dd50d85f9f7 count
@@ -429,6 +437,7 @@ catalog-1af1d7c1b2007c8c count
 catalog-1b1c57a20a480b86 count
 catalog-1b5574d3c32c000c count
 catalog-1ba3cceeac7da5ab count
+catalog-1bacd08ab9f27966 count
 catalog-1bc8e681d0569923 count
 catalog-1c55da0ed2798d92 count
 catalog-1c8d9e32f894d43f count
@@ -1100,6 +1109,7 @@ catalog-97c6f33394368020 breaks
 catalog-97d0a87c28ca1bd8 count
 catalog-9810db627d996dd7 count
 catalog-982ebf9f0398f5e0 count
+catalog-9840e966a9b79e9c count
 catalog-9869f782dba81d82 count
 catalog-98a14651d231bf04 count
 catalog-98b59d40f7da2203 count
@@ -2655,9 +2665,12 @@ rich-02422502faa37ede count
 rich-029e71d595e94f0c count
 rich-0a3fec9a06a04eef count
 rich-0cabfc789f6a4358 count
+rich-0fd068ce5f126fef count
 rich-166322a1778d474c count
 rich-1bb83fe38e3bd589 breaks
 rich-1e0d5476b00642c8 count
+rich-1e310e1aa5f44bd6 count
+rich-26c6030b9304ccd7 count
 rich-26f8627a88fc9819 count
 rich-2967857136330955 count
 rich-2c00457bd7ad6bcf count
@@ -2687,6 +2700,7 @@ rich-9caad05a8d6ec08d count
 rich-a09d53bd7aff382c count
 rich-a560650dfbeafe72 count
 rich-a89fcbe1a2cdab74 count
+rich-ab169565a9c0a88b count
 rich-af536739c810f600 count
 rich-b0ae95da15d4fb3f count
 rich-be0a029c0b919953 count
@@ -2706,90 +2720,6 @@ rich-fb77b1bfbe1c8a96 count
 
 ## Other shapes (U+FFFC, U+058A, hyphens before curly quotes, kerning before a space, rich-item boundaries), at 24 px and wider: WebKit breaks there where the library doesn't
 old-gate-c3afe2d7b44933ef count
-
-## Outside what Pretext claims: rich-inline in pre-wrap, which rich-inline doesn't take, so the adapter can't express it
-catalog-0567679cb1aa4171 error
-catalog-070526720b734140 error
-catalog-0e2f776b121082c7 error
-catalog-1bacd08ab9f27966 error
-catalog-23bb9045e56f445f error
-catalog-27e504c68f658358 error
-catalog-2897f91bc96e5022 error
-catalog-28ccc46537a26b74 error
-catalog-300fe6eb30187b89 error
-catalog-3e4464e55f89e66a error
-catalog-41f185331bd1afb7 error
-catalog-625ae8d53c2f3d36 error
-catalog-65ee4702b6227dc5 error
-catalog-6750f1fd52a48415 error
-catalog-6e9199a406030c53 error
-catalog-7648b8432588cad8 error
-catalog-9840e966a9b79e9c error
-catalog-9c7e41ff7dad27e4 error
-catalog-a20814848d056618 error
-catalog-ab1aa6fc7bb4a6bd error
-catalog-b79a51c6a578d092 error
-catalog-bf857a94dfeeb2f8 error
-catalog-c560859cbefb6df2 error
-catalog-c7af26e454a5aa9c error
-catalog-d30819e8af33834a error
-catalog-d34e8f2b5761fa04 error
-catalog-dbb64c6b162eec85 error
-catalog-e0908aebab5396b3 error
-catalog-e23d7818fdd2de30 error
-catalog-e2f31105468f79fc error
-catalog-e5ac0f3df374a63a error
-catalog-e88e56e0dae4d583 error
-catalog-f0abffd7f44a1800 error
-catalog-f8fe72d166baf8ec error
-catalog-f906d5420f72393c error
-catalog-f98db63cb8e2c3ab error
-catalog-fde4405c90bb0d51 error
-sample-039b9aad134b8722 error
-sample-09d5544e5a0cda51 error
-sample-0c175911d88de6e5 error
-sample-180cdf8c3edb7f3e error
-sample-181d80b67a6573c0 error
-sample-18f5ceb06a390279 error
-sample-1fcf45fef7d05e86 error
-sample-22b1642b1b3a72b1 error
-sample-32d887db8aa00844 error
-sample-3d3244b009c7a64a error
-sample-3f994ba2565ac5af error
-sample-5aaa1483596b597c error
-sample-5c7a25f0fd1e9d7c error
-sample-61a7e02002ca943d error
-sample-7951b3c73d4c2185 error
-sample-7a3d9ad1e9bc0775 error
-sample-802106e2cc35b632 error
-sample-81fc3dc86e0c2b48 error
-sample-89bc7022499a71cd error
-sample-8f4641475026e1cc error
-sample-8fe50c1948bd2fd9 error
-sample-96ede1fd141b2127 error
-sample-9a08f95f0e36316c error
-sample-9dddf6b3835158e3 error
-sample-a75c90b27e7c3a78 error
-sample-aae699f821c5c166 error
-sample-afb553dfc3337942 error
-sample-b0de378c1e17cb36 error
-sample-bc7192c4528f9753 error
-sample-bdbb56f1d153c5db error
-sample-be3e58184db4e6f8 error
-sample-be7cc75d0f573295 error
-sample-c2d90b8c20ea1f02 error
-sample-c4e8386aa10f4930 error
-sample-c802253f4ebc12c0 error
-sample-ca83b1bc5303ee8d error
-sample-ceb030753658de21 error
-sample-d3543a8e252bd42d error
-sample-d7a751f7465340e0 error
-sample-d7d2df475272c15c error
-sample-e9cb3069db32a09c error
-sample-efd4bb257e89f634 error
-sample-f8fa718992cbb6bf error
-sample-fd68e1169d4616a4 error
-sample-ff4a29045b8ea4da error
 
 ## Outside what Pretext claims: system-ui font lists (README.md, Caveats); not looked into, since Safari's Canvas and DOM agree on system-ui itself
 sample-0c1ec78ea4cfbfeb breaks
@@ -3471,12 +3401,15 @@ rich-00ac89cc94adae79 count
 rich-2f31cd584bb0bc2a breaks
 rich-3d8e2776e799fa8d breaks
 rich-44f99658369c9c4b count
+rich-52e8537229d5619b breaks
 rich-53467a771139e6e2 breaks
 rich-7cf3c1de0434ea87 breaks
+rich-7d84d7d05d6b7468 count
 rich-8e8d8b704a454e20 breaks
 rich-959f1246e7e53cbc breaks
 rich-a18990f1807991ae count
 rich-af9c075b6be04eb4 count
+rich-bc57871ad5d7c3b8 count
 rich-eb1ed7501d82135e count
 rich-ed740eb70dd73211 count
 rich-ede83d9027decdf0 breaks

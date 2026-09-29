@@ -942,7 +942,27 @@ edges, one run in Safari 27 whose share Canvas gives only at its ends (`TextShap
 `InlineLineBuilder.cpp:780-1028`). The architecture doesn't block rich `pre-wrap`: run on rich `pre-wrap` text, the
 per-engine rebuild (`rebuild/` on branch `rebuild-20260916`, a from-scratch port of each engine's line breaking, kept as
 the plain-text correctness reference; "the rebuild" below) got 99.3-100% of 1,334 cases' line counts right per browser
-(2026-09-18; `rebuild/research/PREWRAP-RICH.md` on that branch; TODO.md).
+(2026-09-18; `rebuild/research/PREWRAP-RICH.md` on that branch).
+
+Rich inline takes `pre-wrap` (#173), on its premise that spans lay out as their text in one text node (Joined Text): each
+item's analysis and the joined text's take it, and since nothing collapses, a window runs from one atomic item to the
+next. A run of preserved spaces that ends a line hangs across items: an item's walk starts inside the run the line ends
+with (`ItemLine`), so its spaces fit where the content before the run fits, and the rich line hangs the run where it
+ends, all of it where the line wraps and before a hard break or at the paragraph's end only what doesn't fit, as Blink
+walks back over item results (`ComputeTrailingSpaceWidth`, `line_info.cc:289-415`), WebKit exempts each white-space
+item's hanging width from the fit (`InlineContentBreaker`) and Gecko hangs each frame's trailing white space
+(`nsTextFrame.cpp:11214-11229`). Tab stops count from the line's start, never an item's (Blink's
+`line_breaker.cc:2963-2971`, WebKit's pen position, Gecko's `CalcTabWidths`, `nsTextFrame.cpp:4298-4378`). No break
+comes before a hard break (UAX #14 LB6), so a line keeps a padded span that starts with one where it has no break to
+return to; where it has one and the padding doesn't fit, all three engines return there. WebKit's soft wrap index loop
+skips soft line break items (`InlineFormattingUtils.cpp:456-510`), so no break comes before a line feed that starts a box
+there either, and allows wrapping next to a white-space item (`:406-418`). A carriage return that ends one item and a
+line feed that starts the next make one break, as CRLF in one text does. An atomic item lays its text out in normal
+white space, as a chip's `white-space: nowrap` box does: the rebuild's premise, the chip's max-content width with its
+preserved spaces, is 6.6px wider than all three browsers lay out the 12px chip ` @bob ` in 15px Helvetica Neue prose
+(2026-09-29).
+Of 500 real-usage pre-wrap paragraphs split into same-font spans, each one that fails fails in one node too; what's left
+is at padded span edges and tab stops across fonts (ENGINE_FOLLOWUPS.md, Rich-inline item edges).
 
 #### Painting Lines
 

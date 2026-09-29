@@ -32,7 +32,13 @@
 // - keep-all paragraphs, cut on their own: a Korean chat message with a mention chip, a bold run inside a word and a
 //   code span a particle follows, beside the same message without keep-all; a mention chip inside a Korean word; and
 //   Japanese whose bold run ends with a full stop, after which WebKit's check at an item boundary finds no break where
-//   one text node breaks (getWebKitBreakBetweenItems in src/line-breaks.ts).
+//   one text node breaks (getWebKitBreakBetweenItems in src/line-breaks.ts);
+// - pre-wrap paragraphs, cut on their own: preserved spaces at an item's end and start and over three fonts, which hang
+//   across the style change, and before a padded span's end and after its start; line feeds at an item's end and start,
+//   a blank line across items and a carriage return that ends an item before a line feed that starts the next; a line
+//   feed inside a padded span and one that starts a padded span; spaces before a line feed in the next item and at the
+//   paragraph's end; tabs after a wider bold span and split across items, and after and inside padded code spans in
+//   prose, whose stops count from the line's start; and chips beside preserved spaces and holding their own.
 import { TEXTS } from '../../src/test-data.ts'
 import type { CssFont, Paragraph, TextRun } from '../types.ts'
 import { codePoints, createRng, font, paragraph, span } from './build.ts'
@@ -52,9 +58,9 @@ const JAPANESE = font('"Hiragino Sans"', 16)
 
 type Part = string | TextRun
 
-function template(family: string, origin: string, base: CssFont, parts: readonly Part[], lang = 'en', wordBreak: Paragraph['wordBreak'] = 'normal'): Template {
+function template(family: string, origin: string, base: CssFont, parts: readonly Part[], lang = 'en', wordBreak: Paragraph['wordBreak'] = 'normal', whiteSpace: Paragraph['whiteSpace'] = 'normal'): Template {
   const direction = lang === 'ar' || lang === 'he' ? 'rtl' : 'ltr'
-  return { family: `rich/${family}`, origin, pageLang: lang, widths: [], grid: true, paragraph: paragraph({ font: base, lang, direction, wordBreak }, parts) }
+  return { family: `rich/${family}`, origin, pageLang: lang, widths: [], grid: true, paragraph: paragraph({ font: base, lang, direction, wordBreak, whiteSpace }, parts) }
 }
 
 // A span in the base font: an inline element whose style doesn't change, as main's same-font items are.
@@ -180,6 +186,20 @@ export function richTemplates(): Template[] {
   for (let i = 0; i < keepAll.length; i++) {
     const [family, base, parts, lang, wordBreak] = keepAll[i]!
     out.push(template(`keep-all/${family}`, `word-break: ${wordBreak} on the paragraph, as a chat message sets it (src/layout.test.ts, rich-inline invariants)`, base, parts, lang, wordBreak))
+  }
+  const preWrap: ReadonlyArray<readonly [string, CssFont, readonly Part[]]> = [
+    ['spaces-across-items', ARIAL, ['Ship it   ', span('today', BOLD(ARIAL)), ' and', span('  ', { ...ARIAL, size: 12 }), span('   then', { ...ARIAL, size: 22 }), ' more words after that']],
+    ['spaces-at-padded-edges', HELVETICA, ['Run ', span('bun test   ', CODE, { padding: 7 }), 'before', span('   you push', CODE, { padding: 7 }), ' it now']],
+    ['line-feeds-across-items', ARIAL, ['\nFirst line\n', span('second', BOLD(ARIAL)), ' line of', span('\nthird\r', BOLD(ARIAL)), '\n\nfifth line ends\n']],
+    ['line-feeds-in-padded-items', HELVETICA, ['See ', span('let a = 1\nlet b', CODE, { padding: 7 }), ' and some words', span('\nnext line', CODE, { padding: 20 }), ' after it']],
+    ['spaces-before-line-feed', ARIAL, ['Some words here   ', span('\nnext line', BOLD(ARIAL)), ' ends here', span('      ', BOLD(ARIAL))]],
+    ['tabs-across-items', ARIAL, [span('Name', BOLD({ ...ARIAL, size: 20 })), '\tvalue\t', span('\tcol two', BOLD(ARIAL)), '\tmore text here']],
+    ['tabs-in-padded-code', HELVETICA, [span('key', CODE, { padding: 7 }), '\tvalue with ', span('if (a)\treturn b', CODE, { padding: 7 }), ' in the code']],
+    ['chips-beside-spaces', HELVETICA, ['Thanks  ', span('@alice', CHIP, { atomic: true, padding: 11 }), '  for the review', span(' @bob ', CHIP, { atomic: true, padding: 11 }), ' too']],
+  ]
+  for (let i = 0; i < preWrap.length; i++) {
+    const [family, base, parts] = preWrap[i]!
+    out.push(template(`pre-wrap/${family}`, 'white-space: pre-wrap on the paragraph, as an editor sets it (#173; src/layout.test.ts, rich-inline invariants)', base, parts, 'en', 'normal', 'pre-wrap'))
   }
   return out
 }
