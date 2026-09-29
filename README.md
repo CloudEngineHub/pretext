@@ -120,7 +120,7 @@ walkRichInlineLineRanges(prepared, 320, range => {
 })
 ```
 
-Pass a flat list of text items. For `white-space: pre-wrap` or `word-break: keep-all` on the paragraph, pass `{ whiteSpace: 'pre-wrap' }` or `{ wordBreak: 'keep-all' }` as the second argument; it applies to every item. In `pre-wrap` each item keeps its spaces, tabs and newlines: spaces at a line's end hang past it whichever items hold them, tab stops count from the line's start, and a newline in any item ends its line. Paint each line with `white-space: pre`: a line painted alone in `pre-wrap` is its paragraph's last line, where spaces at its end hang only if they don't fit and a padded item's end after them can wrap. This is not a general CSS inline formatting engine.
+Pass a flat list of text items. For `white-space: pre-wrap` or `word-break: keep-all` on the paragraph, pass `{ whiteSpace: 'pre-wrap' }` or `{ wordBreak: 'keep-all' }` as the second argument; it applies to every item. In `pre-wrap` every item but an atomic one keeps its spaces, tabs and newlines: spaces at a line's end hang past it whichever items hold them, tab stops count from the line's start, and a newline ends its line. Paint each line with `white-space: pre`: a line painted alone in `pre-wrap` is its paragraph's last line, where spaces at its end hang only if they don't fit and a padded item's end after them can wrap. This is not a general CSS inline formatting engine.
 
 ### API Glossary
 

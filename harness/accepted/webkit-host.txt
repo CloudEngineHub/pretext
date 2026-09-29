@@ -1,10 +1,17 @@
 ## A padded rich pre-wrap span that starts on the line it ends inside, at a line feed or after spaces that hang, at 24 px and wider: Safari fits that line without the span's end edge, the library with it, as Firefox does (ENGINE_FOLLOWUPS.md)
+rich-0ffe4f2949ecf038 count
 rich-2abeb9ff099cd450 count
 rich-2bdd2c0fb87f6f33 count
+rich-3da09ecc79ec88a7 count
 rich-64050b9e463dfd5f count
 rich-b17471b8eba3bc43 count
+rich-b97fac339d828189 count
 rich-f539f9aacc2951ab count
 rich-f7c605f19ec5d469 breaks
+
+## A padded rich span that starts with U+2028 after a word, in white-space: normal, at 80 px and wider: Safari fits the line that ends at the separator with the span's start edge only, the library with its whole extraWidth, as Firefox does, so it breaks before the word's last letter where Safari keeps the line (ENGINE_FOLLOWUPS.md)
+rich-802ab61d3ac8387d count
+rich-a21ce9b6e60ce0f5 count
 
 ## A soft hyphen after a space, before white space in the next span or its own, or white space and a soft hyphen that start the paragraph before a ZWSP, at 24 px and wider: Safari keeps the space after the soft hyphen visible where a line starts, as it doesn't consume a soft hyphen at a line start, where the library consumes both (main and 0fef0023 too; ENGINE_FOLLOWUPS.md)
 rich-0de3e74d8bc2e919 count
@@ -2665,9 +2672,9 @@ rich-02422502faa37ede count
 rich-029e71d595e94f0c count
 rich-0a3fec9a06a04eef count
 rich-0cabfc789f6a4358 count
-rich-0fd068ce5f126fef count
 rich-166322a1778d474c count
 rich-1bb83fe38e3bd589 breaks
+rich-1ca516a84dfe3ab4 count
 rich-1e0d5476b00642c8 count
 rich-1e310e1aa5f44bd6 count
 rich-26c6030b9304ccd7 count
@@ -2675,6 +2682,7 @@ rich-26f8627a88fc9819 count
 rich-2967857136330955 count
 rich-2c00457bd7ad6bcf count
 rich-3055350027afea05 count
+rich-31ddf4b29ff31fe7 count
 rich-34075de5f2f50824 count
 rich-388b66a049fe9fbd count
 rich-3f6c610251935b3f count
@@ -3333,6 +3341,10 @@ catalog-cd7e553f4ec623e1 breaks
 catalog-df6cf145606d5dd1 breaks
 catalog-f23b6b5403fab1b9 breaks
 catalog-fc6411b924955fb5 breaks
+
+## Spaces that start the span after a padded rich pre-wrap span split between graphemes, at 24-80 px: Safari pads the padded span's last piece with its end edge only and hangs the spaces there, where the library charges the whole extraWidth on every piece, so that piece overflows the line and the spaces start the next one (ENGINE_FOLLOWUPS.md, Rich-inline item edges)
+rich-92a7a7f041f19957 breaks
+rich-c505cf25d0a9046f breaks
 
 ## Tabs beside other spaces, brackets or other scripts, at 24 px and wider: WebKit's tab stops and breaks around tabs differ from the library's
 catalog-2d9e2dd6d5a82fb1 breaks

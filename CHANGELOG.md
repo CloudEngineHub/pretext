@@ -4,7 +4,7 @@
 
 ### Added
 
-- `prepareRichInline()` takes `{ whiteSpace: 'pre-wrap' }`, for CSS `white-space: pre-wrap` on the paragraph, as `prepare()` does: each item keeps its spaces, tabs and newlines, spaces at a line's end hang past it across a change of style, tab stops count from the line's start, and a newline in any item ends its line, so an editor's paragraph split into styled runs takes the lines the browser gives it (#173).
+- `prepareRichInline()` takes `{ whiteSpace: 'pre-wrap' }`, for CSS `white-space: pre-wrap` on the paragraph, as `prepare()` does: every item but an atomic one keeps its spaces, tabs and newlines, spaces at a line's end hang past it across a change of style, tab stops count from the line's start, and a newline ends its line, so an editor's paragraph split into styled runs takes the lines the browser gives it (#173).
 - `prepareRichInline()` takes an options argument, `{ wordBreak: 'keep-all' }`, for CSS `word-break: keep-all` on the paragraph, as `prepare()` does, so Korean, Chinese and Japanese messages with mentions, bold runs or code spans break where the browser breaks them under keep-all (#379).
 - Rich-inline fragments now have `gapItemIndex`, the index of the item whose collapsed space `gapBefore` measures, or -1 when no space precedes the fragment on its line. A painter can draw that space inside the element of the item whose font measured it, and can tell a zero-width space apart from no space (#310).
 

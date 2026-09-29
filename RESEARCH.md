@@ -953,11 +953,16 @@ walks back over item results (`ComputeTrailingSpaceWidth`, `line_info.cc:289-415
 item's hanging width from the fit (`InlineContentBreaker`) and Gecko hangs each frame's trailing white space
 (`nsTextFrame.cpp:11214-11229`). Tab stops count from the line's start, never an item's (Blink's
 `line_breaker.cc:2963-2971`, WebKit's pen position, Gecko's `CalcTabWidths`, `nsTextFrame.cpp:4298-4378`). No break
-comes before a hard break (UAX #14 LB6), so a line keeps a padded span that starts with one where it has no break to
-return to; where it has one and the padding doesn't fit, all three engines return there. WebKit's soft wrap index loop
+comes before a hard break (UAX #14 LB6). Where a padded span that starts with one doesn't fit its padding, all three
+engines return the line to its latest break; without one, Chrome ends the line before the span, as its retry of an
+overflowing line breaks between any two graphemes, and Firefox and Safari before the last grapheme of the text before it,
+whose wrap opportunities lie inside it (`hardBreakItemRetreat`, `src/measurement.ts`). WebKit's soft wrap index loop
 skips soft line break items (`InlineFormattingUtils.cpp:456-510`), so no break comes before a line feed that starts a box
 there either, and allows wrapping next to a white-space item (`:406-418`). A carriage return that ends one item and a
-line feed that starts the next make one break, as CRLF in one text does. An atomic item lays its text out in normal
+line feed that starts the next make one break, as CRLF in one text does. Preserved spaces, tabs that hang and a hard
+break after an atomic item stay on its line however far the line overflows: no break comes before them, and Blink takes
+them as trailing items after the break after an atomic inline (`HandleTrailingSpaces`, `line_breaker.cc:2426-2516`), as
+all three browsers lay out a chip wider than the line. An atomic item lays its text out in normal
 white space, as a chip's `white-space: nowrap` box does: the rebuild's premise, the chip's max-content width with its
 preserved spaces, is 6.6px wider than all three browsers lay out the 12px chip ` @bob ` in 15px Helvetica Neue prose
 (2026-09-29).

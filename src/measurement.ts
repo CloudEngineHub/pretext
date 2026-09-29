@@ -154,6 +154,17 @@ export type EngineProfile = {
   // inside each inline box from that box's own text, and decides a boundary between boxes
   // from the previous box's last two characters (TextUtil.cpp:374-396).
   breaksFromItemText: boolean
+  // Where a rich line that has no break to return to ends when an item that starts with a
+  // hard break, with none before it, doesn't fit its padding. Blink's retry of an overflowing
+  // line breaks between any two graphemes (kBreakCharacter, line_breaker.cc:4258-4264,
+  // 4620-4622), so the line ends before the item ('item'). WebKit gives the next line the
+  // last character of text that no text run follows in the content that doesn't fit
+  // (InlineContentBreaker.cpp:611-627), and Gecko's wrap opportunities come before each
+  // cluster inside a text frame, none at its end (gfxTextRun.cpp:1046-1101), so the line
+  // ends before the last grapheme of the text before the item, and keeps the item where
+  // that grapheme starts it ('last-grapheme'): `Unbreakable`, then a span with 20px of
+  // padding that starts with a line feed, in 15px Helvetica Neue at 93px.
+  hardBreakItemRetreat: 'item' | 'last-grapheme'
   // Blink transforms segment breaks in the text of the whole inline formatting context
   // (ShouldRemoveNewline and RemoveTrailingCollapsibleNewlineIfNeeded, inline_items_builder.cc).
   // Gecko transforms each text frame's own text (nsTextFrameUtils::TransformText), as
@@ -405,6 +416,7 @@ export function getEngineProfile(): EngineProfile {
     spaceBeforeSoftHyphenHangs: engine === 'gecko' ? 'line-end' : engine === 'webkit' ? 'own-break' : 'break',
     collapsesSpaceAcrossSoftHyphens: engine === 'gecko',
     breaksFromItemText: engine === 'webkit',
+    hardBreakItemRetreat: engine === 'blink' ? 'item' : 'last-grapheme',
     transformsSegmentBreaksAcrossItems: engine === 'blink',
   }
   cachedEngineProfile = profile

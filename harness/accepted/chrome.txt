@@ -7,12 +7,17 @@ report-953b7e9cd05588ed breaks
 report-b980d5159851daba breaks
 
 ## A padded rich pre-wrap span whose line ends inside it, at a line feed or after spaces that hang, at 24 px and wider: Chrome fits that line without the span's end edge, the library with it, as Firefox does (ENGINE_FOLLOWUPS.md)
+rich-04612f36870bf78f count
+rich-3da09ecc79ec88a7 count
 rich-75dcc33f88f9804f count
 rich-93acc3287b5f7069 count
 rich-9b04cbd2a170ff51 count
 rich-a5dc6d0eab15393d count
 rich-b5f1210c58e4b4de count
 rich-e1d52d1f9746b7a1 count
+
+## A padded rich span that starts with U+2028 after a word, in white-space: normal, at 80 px and wider: Chrome fits the line that ends inside the span, after the word that follows the separator, without the span's end edge, the library with it, as Firefox does (619e8ead too; ENGINE_FOLLOWUPS.md)
+rich-ec4dcfc6130015dc breaks
 
 ## A soft hyphen after a space, before white space in the next span or its own, or white space and a soft hyphen that start the paragraph before a ZWSP, at 24 px and wider: Chrome keeps the space after the soft hyphen visible where a line starts, as it doesn't consume a soft hyphen at a line start, where the library consumes both (main and 0fef0023 too; ENGINE_FOLLOWUPS.md)
 rich-0de3e74d8bc2e919 count
@@ -3236,6 +3241,7 @@ rich-26f8627a88fc9819 count
 rich-2967857136330955 count
 rich-2adbdb43e67fa87c count
 rich-3055350027afea05 count
+rich-31ddf4b29ff31fe7 count
 rich-34075de5f2f50824 count
 rich-3f6c610251935b3f count
 rich-3f7623a4b4dd94eb count
@@ -3245,6 +3251,7 @@ rich-49d40a0beea8f837 count
 rich-4ab385df7ef60d77 count
 rich-4fb2c56ec3a40ccb count
 rich-5591e87036a36b35 count
+rich-5727b8e7e3526aec count
 rich-5a97ab786f3e057e count
 rich-61a0d94181d91eec count
 rich-62a3fc75836c636c count

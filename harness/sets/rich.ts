@@ -28,7 +28,9 @@
 //   character the run goes past against the white space before them, with a newline as a space; and, cut on their own
 //   too, a soft hyphen that ends an item before a bidi control that starts the next, at the paragraph's start, after a
 //   space in the item or a collapsed one before it, which Firefox's scan of the joined text takes as text, and after
-//   other text;
+//   other text; and, cut on its own too, a padded span that starts with a line separator after a word, before which
+//   WebKit's check at an item boundary gives no break (getWebKitBreakBetweenItems in src/line-breaks.ts), so a line
+//   that can't fit its padding breaks the word (hardBreakItemRetreat in src/measurement.ts);
 // - keep-all paragraphs, cut on their own: a Korean chat message with a mention chip, a bold run inside a word and a
 //   code span a particle follows, beside the same message without keep-all; a mention chip inside a Korean word; and
 //   Japanese whose bold run ends with a full stop, after which WebKit's check at an item boundary finds no break where
@@ -38,7 +40,10 @@
 //   a blank line across items and a carriage return that ends an item before a line feed that starts the next; a line
 //   feed inside a padded span and one that starts a padded span; spaces before a line feed in the next item and at the
 //   paragraph's end; tabs after a wider bold span and split across items, and after and inside padded code spans in
-//   prose, whose stops count from the line's start; and chips beside preserved spaces and holding their own.
+//   prose, whose stops count from the line's start; and chips beside preserved spaces and holding their own; then, cut on
+//   their own too, a chip before a line feed and one before spaces, which stay on its line however far it overflows,
+//   and a padded span that starts with a line feed after a word, whose line breaks the word where the padding doesn't
+//   fit (hardBreakItemRetreat in src/measurement.ts).
 import { TEXTS } from '../../src/test-data.ts'
 import type { CssFont, Paragraph, TextRun } from '../types.ts'
 import { codePoints, createRng, font, paragraph, span } from './build.ts'
@@ -172,6 +177,7 @@ export function richTemplates(): Template[] {
     ['bidi-level-of-a-newline', ['\u{202D}\u{AD}', '\u{628}\u{628}\n\u{61C}\u{AD}', span(' \u{AD}more', ARIAL, { atomic: true })], 'ar'],
     ['soft-hyphen-before-bidi-control', ['\u{AD}', '\u{202B}more words']], ['soft-hyphen-before-bidi-control', ['see \u{AD}', '\u{2066}this word']],
     ['soft-hyphen-before-bidi-control', ['word ', '\u{AD}', '\u{200F}more text']], ['soft-hyphen-before-bidi-control', ['see', '\u{AD}', '\u{2066}this word']],
+    ['separator-starts-padded-item', ['Unbreakable', span('\u{2028}next line', CODE, { padding: 20 }), ' after']],
   ]
   for (let i = 0; i < continued.length; i++) {
     const [family, parts, lang] = continued[i]!
@@ -196,6 +202,8 @@ export function richTemplates(): Template[] {
     ['tabs-across-items', ARIAL, [span('Name', BOLD({ ...ARIAL, size: 20 })), '\tvalue\t', span('\tcol two', BOLD(ARIAL)), '\tmore text here']],
     ['tabs-in-padded-code', HELVETICA, [span('key', CODE, { padding: 7 }), '\tvalue with ', span('if (a)\treturn b', CODE, { padding: 7 }), ' in the code']],
     ['chips-beside-spaces', HELVETICA, ['Thanks  ', span('@alice', CHIP, { atomic: true, padding: 11 }), '  for the review', span(' @bob ', CHIP, { atomic: true, padding: 11 }), ' too']],
+    ['chip-before-line-feed', HELVETICA, ['Ping ', span('@alice', CHIP, { atomic: true, padding: 11 }), '\n', span('@bob', CHIP, { atomic: true, padding: 11 }), '  please look at this']],
+    ['line-feed-starts-padded-item', HELVETICA, ['Unbreakable', span('\nnext line', CODE, { padding: 20 }), ' after']],
   ]
   for (let i = 0; i < preWrap.length; i++) {
     const [family, base, parts] = preWrap[i]!

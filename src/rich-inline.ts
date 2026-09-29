@@ -148,6 +148,9 @@ type PreparedRichInlineItem = {
   // Where the item starts with a line feed after a carriage return that ends the item
   // before, which make one hard break, as CRLF in one text does (normalizeWhitespacePreWrap).
   lineFeedAfterReturn: boolean
+  // Where the item starts with white space or a hard break that trails the atomic item
+  // before it, which stays on that item's line however far the line overflows.
+  trailsAtomic: boolean
   // The item's own handle, which its fragments' cursors follow.
   prepared: PreparedSegments
   // What the line walkers take: `prepared`, or its copy for the full walker
@@ -556,6 +559,15 @@ export function prepareRichInline(items: RichInlineItem[], options?: RichInlineO
 
     const lineFeedAfterReturn = preserve && itemBreak !== 'never' && previousBreak === 'normal' &&
       text.charCodeAt(0) === 0x0A && previousText.charCodeAt(previousText.length - 1) === 0x0D
+    // Preserved spaces, tabs that hang and a hard break after an atomic item trail it: no break
+    // comes before them (UAX #14 LB6, LB7, LB21), and Blink, which breaks after an atomic inline,
+    // takes them onto its line as trailing items however far it overflows (HandleTrailingSpaces,
+    // line_breaker.cc:2426-2516; open tags trail too, 1045-1103). All three browsers keep a line
+    // feed, and two spaces, on the line of a chip wider than the line. Firefox, which doesn't hang
+    // tabs, breaks before a tab that doesn't fit (ENGINE_FOLLOWUPS.md).
+    const firstKind = segmentFlags[0]! & KIND_BITS
+    const trailsAtomic = preserve && previousBreak === 'never' && itemBreak !== 'never' &&
+      (firstKind === PRESERVED_SPACE || firstKind === HARD_BREAK || (firstKind === TAB && profile.hangTabs))
     // A tab's advance depends on where it lands on the line, and the preserved spaces of an
     // item that holds nothing else go on the run of them the line ends with, so a line walks
     // such an item.
@@ -573,6 +585,7 @@ export function prepareRichInline(items: RichInlineItem[], options?: RichInlineO
       naturalWidth: wholeWidth ?? (walksConsumed ? measureAfterContent(prepared) : 0),
       hangWidth: wholeLine === null ? 0 : wholeLine.hangWidth,
       lineFeedAfterReturn,
+      trailsAtomic,
       prepared,
       lineData: prepared,
     } satisfies PreparedRichInlineItem
@@ -580,7 +593,7 @@ export function prepareRichInline(items: RichInlineItem[], options?: RichInlineO
 
     if (previousItem === null || whitespaceBefore || preparedItem.break === 'never' || previousItem.break === 'never') {
       finishJoinedText()
-      preparedItem.breakBefore = whitespaceBefore || previousItem !== null
+      preparedItem.breakBefore = whitespaceBefore || (previousItem !== null && !trailsAtomic)
     }
     if (preparedItem.break === 'never') {
       finishJoinedText()
@@ -736,6 +749,21 @@ function firstSegmentOverflows(item: PreparedRichInlineItem, fitLimit: number): 
   return fitAdvance - (lineData.lineEndTrims === null ? 0 : lineData.lineEndTrims[0]!) > fitLimit
 }
 
+// Where WebKit and Gecko end a line before the last grapheme of the text an item ends with, which
+// the line holds from (startSegmentIndex, startGraphemeIndex) to the item's end
+// (hardBreakItemRetreat): that grapheme's start, in `at`, and the width it takes with the letter
+// spacing after it, or null where the item doesn't end with text or that grapheme starts the line.
+function getLastGraphemeRetreat(item: PreparedRichInlineItem, startSegmentIndex: number, startGraphemeIndex: number, at: LayoutCursor): number | null {
+  const { breakableFitAdvances, letterSpacing, segmentFlags, widths } = item.lineData
+  const s = segmentFlags.length - 1
+  if ((segmentFlags[s]! & KIND_BITS) !== TEXT) return null
+  const advances = breakableFitAdvances[s] ?? null
+  at.segmentIndex = s
+  at.graphemeIndex = advances === null ? 0 : advances.length - 1
+  if (s < startSegmentIndex || (s === startSegmentIndex && at.graphemeIndex <= startGraphemeIndex)) return null
+  return (advances === null ? widths[s]! : advances[at.graphemeIndex]!) + ((segmentFlags[s]! & SPACED) !== 0 ? letterSpacing : 0)
+}
+
 // The line state a walked item takes and leaves, one for every walk.
 const itemLine: ItemLine = createItemLine(false)
 
@@ -760,7 +788,7 @@ function stepRichInlineLine(
   fragments: RichInlineFragmentRange[] | null,
 ): number | null {
   const safeWidth = Math.max(1, maxWidth)
-  const { hangTabs, lineFitEpsilon, spaceBeforeSoftHyphenHangs, unfitHyphenRetreat } = getEngineProfile()
+  const { hangTabs, hardBreakItemRetreat, lineFitEpsilon, spaceBeforeSoftHyphenHangs, unfitHyphenRetreat } = getEngineProfile()
   let hasContent = false
   let lineWidth = 0
   let remainingWidth = safeWidth
@@ -796,10 +824,16 @@ function stepRichInlineLine(
     itemIndex++
     cursor.segmentIndex = 0
   }
+  // Where the line starts, which a return to the last grapheme of its text can't pass.
+  const startItemIndex = itemIndex
+  const startSegmentIndex = cursor.segmentIndex
+  const startGraphemeIndex = cursor.graphemeIndex
   // Every `continue` moves on to the start of the next item.
   for (; itemIndex < flow.items.length; itemIndex++, cursor.segmentIndex = 0, cursor.graphemeIndex = 0) {
     const item = flow.items[itemIndex]
     if (item === undefined) continue
+    // An item that trails an atomic item follows it on the line where the line has content.
+    const trailsAtomic = hasContent && item.trailsAtomic
 
     // The line can end before a continued item that follows a break, as the run the next
     // item continues can move to the next line.
@@ -856,15 +890,39 @@ function stepRichInlineLine(
     // 1px after `e` and the first soft hyphen's hyphen. No break comes right before a hard
     // break (UAX #14 LB6), so where none comes before the item either, as after collapsed
     // white space, a line keeps an item that starts with one where it reserves nothing for
-    // it or has no break to return to, and returns to its latest break where the item's
-    // padding doesn't fit, as the three engines do. Preserved spaces or tabs that hang go
-    // on the run the line ends with, so the reserved width of an item that starts with them
-    // fits where the line's content before that run fits, as WebKit fits a box's edge
-    // (InlineContentBreaker, hangingContentWidth).
+    // it. Where the item's padding doesn't fit, the line returns to its latest break, as the
+    // three engines do, else it ends before the item in Blink and before the last grapheme
+    // of the text before it in WebKit and Gecko, which keep the item on a line that grapheme
+    // starts (hardBreakItemRetreat). Preserved spaces or tabs that hang go on the run the
+    // line ends with, so the reserved width of an item that starts with them fits where the
+    // line's content before that run fits, as WebKit fits a box's edge
+    // (InlineContentBreaker, hangingContentWidth). White space and a hard break that trail
+    // an atomic item stay (prepareRichInline).
     const reservedWidth = gapBefore + item.extraWidth
-    if (hasContent && reservedWidth > remainingWidth + lineFitEpsilon && (item.establishesLine || reservedWidth > 0)) {
+    if (hasContent && !trailsAtomic && reservedWidth > remainingWidth + lineFitEpsilon && (item.establishesLine || reservedWidth > 0)) {
       const firstKind = item.lineData.segmentFlags[0]! & KIND_BITS
-      const keepsHardBreak = firstKind === HARD_BREAK && !item.breakBefore && (reservedWidth <= 0 || breakItemIndex < 0)
+      let keepsHardBreak = firstKind === HARD_BREAK && !item.breakBefore && reservedWidth <= 0
+      if (firstKind === HARD_BREAK && !item.breakBefore && !keepsHardBreak && breakItemIndex < 0 && hardBreakItemRetreat === 'last-grapheme') {
+        // The line's text ends with the item before, which the line takes to its end.
+        let contentItemIndex = itemIndex - 1
+        while (flow.items[contentItemIndex] === undefined) contentItemIndex--
+        const contentItem = flow.items[contentItemIndex]!
+        const fromLineStart = contentItemIndex === startItemIndex
+        const retreat = contentItem.establishesLine
+          ? getLastGraphemeRetreat(contentItem, fromLineStart ? startSegmentIndex : 0, fromLineStart ? startGraphemeIndex : 0, lineEnd)
+          : null
+        if (retreat === null) {
+          keepsHardBreak = true
+        } else {
+          breakItemIndex = contentItemIndex
+          breakSegmentIndex = lineEnd.segmentIndex
+          breakGraphemeIndex = lineEnd.graphemeIndex
+          breakLineWidth = lineWidth - retreat
+          breakHangWidth = 0
+          breakFragmentCount = fragments === null ? 0 : fragments.length
+          breakOccupiedWidth = fragments === null ? 0 : fragments[breakFragmentCount - 1]!.occupiedWidth - retreat
+        }
+      }
       const hangs = (firstKind === PRESERVED_SPACE || (firstKind === TAB && hangTabs)) && reservedWidth <= remainingWidth + lineHangWidth + lineFitEpsilon
       if (!keepsHardBreak && !hangs) {
         returnsToBreak = !item.breakBefore
@@ -925,7 +983,8 @@ function stepRichInlineLine(
     itemLine.breakSegmentIndex = -1
     itemLine.breakGraphemeIndex = 0
     itemLine.hangWidth = lineHangWidth
-    const availableWidth = hasContent ? remainingWidth - reservedWidth : Math.max(1, remainingWidth - reservedWidth)
+    // White space that trails an atomic item hangs however far the line overflows.
+    const availableWidth = !hasContent ? Math.max(1, remainingWidth - reservedWidth) : trailsAtomic ? Math.max(0, remainingWidth - reservedWidth) : remainingWidth - reservedWidth
     const lineWidthForItem = stepPreparedLineGeometryFromStart(item.lineData, lineEnd, availableWidth, itemLine)
     if (lineWidthForItem === null) {
       collectItemRest(fragments, itemIndex, item, cursor, 0, -1, 0)
