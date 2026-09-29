@@ -1191,8 +1191,8 @@ stepper that change no result, a redundant `unfitHyphenRetreat` test and the pee
 loop, cost Chrome 154 11% on rich stats, 5% on letter-spaced CJK `layout()` and 8-13% on preparing long breakable runs
 and pre-wrap chunks, in both sessions; Firefox 156 moved 2% at most, and Safari 27 only on resizing Arabic to widths it
 had laid out before (13%, where the bench's control, a second copy of main, moved 5%). All of it was taken as placement
-then. Counting the work each piece skips, with each put back as #364 removed it and no prediction moving (Chrome 154 and
-Node 23's V8, all three back in one bench, 2026-09-29), sorts them:
+then. Counting the work each piece skips, with each put back as #364 removed it and no Chrome prediction moving (Chrome
+154 and Node 23's V8, all three back in one bench, 2026-09-29), sorts them:
 - **Skipped work**: the stepper's line-start test spared the read of an item's segment count on almost every item it
   visits, which #375 took back with that test on the line's first item only (below). Its early return spares the setup
   of the one call per paragraph that finds nothing left, 147 of a stats pass's 946 calls and about 0.5% of its time;
@@ -1200,12 +1200,14 @@ Node 23's V8, all three back in one bench, 2026-09-29), sorts them:
 - **Placement**: the `unfitHyphenRetreat` test is never reached on the rows that slowed, whose texts have no soft-hyphen
   contexts, and with it back Chrome laid out letter-spaced CJK 1.6% faster, within noise. The peel spares one compare
   per unit and one regular expression test per text, yet with it back Chrome prepared pre-wrap chunks 11.6% faster and
-  long breakable runs 6.1%. Carrying the last segment's kind in a local, as the loop carries `lastAlone`, spares more
-  per unit than the peel and took back only 4.1% and 3.4%. Chrome's profiles of pre-wrap chunks put the loop at 11.3ns
-  a unit on main, 8.3 with the peel and 11.0 with the local, a gap of about ten compares, and in those of long
-  breakable runs the loop's helpers carry samples of their own on main and with the local but almost none with the
-  peel, so V8 likely inlines the peeled loop differently. The local is plain and removes real work, but needs its own
-  PR and the full bench.
+  long breakable runs 6.1%. Put back as #364 removed it, the peel skips #368's handling of a text that starts with
+  characters Firefox drops, a bidi control among them, and moves 9 of Firefox's 43,572 predictions; put back today, it
+  would also have to send its first unit through that handling, which is more code than #364 removed. Carrying the last
+  segment's kind in a local, as the loop carries `lastAlone`, spares more per unit than the peel and took back only 4.1%
+  and 3.4%. Chrome's profiles of pre-wrap chunks put the loop at 11.3ns a unit on main, 8.3 with the peel and 11.0 with
+  the local, a gap of about ten compares, and in those of long breakable runs the loop's helpers carry samples of their
+  own on main and with the local but almost none with the peel, so V8 likely inlines the peeled loop differently. The
+  local is plain and removes real work, but needs its own PR and the full bench.
 
 The stepper's skip of a step that doesn't advance is live code since #369, which ends a line there after content.
 
