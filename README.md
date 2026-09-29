@@ -120,7 +120,7 @@ walkRichInlineLineRanges(prepared, 320, range => {
 })
 ```
 
-Pass a flat list of text items. Only `white-space: normal` and `word-break: normal` are supported. This is not a general CSS inline formatting engine.
+Pass a flat list of text items. For `word-break: keep-all` on the paragraph, pass `{ wordBreak: 'keep-all' }` as the second argument; it applies to every item. Only `white-space: normal` is supported. This is not a general CSS inline formatting engine.
 
 ### API Glossary
 
@@ -168,7 +168,7 @@ type LayoutCursor = {
 
 Helper for rich-text inline flow:
 ```ts
-prepareRichInline(items: RichInlineItem[]): PreparedRichInline // prepares the items for layout and collapses spaces between them
+prepareRichInline(items: RichInlineItem[], options?: { wordBreak?: 'normal' | 'keep-all' }): PreparedRichInline // prepares the items for layout and collapses spaces between them. `wordBreak` is the paragraph's, as in `prepare()`
 layoutNextRichInlineLineRange(prepared: PreparedRichInline, maxWidth: number, start?: RichInlineCursor): RichInlineLineRange | null // stream one line of rich-text inline flow at a time without building fragment text strings
 walkRichInlineLineRanges(prepared: PreparedRichInline, maxWidth: number, onLine: (line: RichInlineLineRange) => void): number // non-materializing line walker for rich-text inline flow shrinkwrap/stats work
 materializeRichInlineLineRange(prepared: PreparedRichInline, line: RichInlineLineRange): RichInlineLine // turns one previously computed rich-inline line range back into full fragment text

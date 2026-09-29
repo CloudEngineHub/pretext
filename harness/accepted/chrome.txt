@@ -469,6 +469,13 @@ rich-5e88c18e1e4c5903 breaks
 rich-f9d29965bd729819 breaks
 rich-fb89fcbe2ec753dd count
 
+## Japanese in 16 px Hiragino Sans under keep-all, as spans and in one node alike, at 24 px and wider: Chrome lays the line out up to 1.6 px narrower than the Canvas widths add up to, so it fits one more character
+rich-1753feec3b2a030a count
+rich-1bc5940e590f28ef breaks
+rich-3326e4c2765ca2ec count
+rich-ce78e7cd89087f29 count
+rich-f75de9201b697ee0 count
+
 ## Letter-spacing across scripts (Thai, Arabic, Khmer, CJK, digits and hyphens) and in rich runs, at 24 px and wider: Chrome spaces or breaks these where the library doesn't
 catalog-05a6b33d99f603bc breaks
 catalog-05db1b5e37935278 count
@@ -757,6 +764,7 @@ catalog-1a12a465336e12ea breaks
 catalog-1a552feca4a64077 breaks
 catalog-1ab49daee6076fd4 count
 catalog-1ae18185b0ba4d8c breaks
+catalog-1ae50aa351f996b1 count
 catalog-1b0c978fa016cd50 count
 catalog-1b0d17c7e5162184 count
 catalog-1b17e3c8e1057545 count
@@ -1250,6 +1258,7 @@ catalog-7c5dd2da22282352 count
 catalog-7ccc1d5c499befb7 count
 catalog-7d08faa8f3323a10 count
 catalog-7d215c45e9f378e6 count
+catalog-7d36fd17a0084f29 count
 catalog-7d417be7303cf379 count
 catalog-7d6cf2af189ec8a3 count
 catalog-7e2a7fcd2a8690c3 breaks
@@ -3250,39 +3259,22 @@ rich-5f514e046c5041f3 breaks
 rich-bd576120f4886917 breaks
 rich-dc51749039b55b72 count
 
-## Outside what Pretext claims: rich-inline in pre-wrap or keep-all, which rich-inline doesn't take, so the adapter can't express it
-catalog-03f15b3908c4f564 error
+## Outside what Pretext claims: rich-inline in pre-wrap, which rich-inline doesn't take, so the adapter can't express it
 catalog-0567679cb1aa4171 error
-catalog-079bce5d2e2e7cb9 error
 catalog-0e2f776b121082c7 error
-catalog-0f013e4b8faba235 error
-catalog-1ae50aa351f996b1 error
-catalog-1f25847f1cb3c4df error
 catalog-23bb9045e56f445f error
 catalog-27e504c68f658358 error
-catalog-371b1078a3eaace3 error
 catalog-372200d7d172a6db error
-catalog-3f8321225f945988 error
 catalog-41f185331bd1afb7 error
-catalog-4d242b28e8038a22 error
-catalog-4f6bc04427563a36 error
 catalog-5116294d6b9c9b61 error
-catalog-563ea8711f412f78 error
-catalog-610c29cf2f89adc9 error
 catalog-625ae8d53c2f3d36 error
 catalog-65ee4702b6227dc5 error
-catalog-692f36dee6380108 error
 catalog-697ebcd8952dfad8 error
 catalog-6c66e91b302fa77e error
-catalog-6d92a2630250dd69 error
 catalog-6e9199a406030c53 error
-catalog-7d36fd17a0084f29 error
 catalog-8346e5d5483dcc89 error
 catalog-88fc114464eeef15 error
 catalog-90144990be1c356d error
-catalog-90b2b904b23523b5 error
-catalog-98b944e22853d2b2 error
-catalog-a024ed3748b0d908 error
 catalog-a20814848d056618 error
 catalog-ab1aa6fc7bb4a6bd error
 catalog-b1c9af22ed6cc7ef error
@@ -3294,8 +3286,6 @@ catalog-c7af26e454a5aa9c error
 catalog-d30819e8af33834a error
 catalog-d34e8f2b5761fa04 error
 catalog-d406a2d6120c7414 error
-catalog-da877b589885d91d error
-catalog-dccbb702fff47f5e error
 catalog-e0908aebab5396b3 error
 catalog-e1b96a15bfd741ca error
 catalog-e2f31105468f79fc error
@@ -3303,9 +3293,7 @@ catalog-e5ac0f3df374a63a error
 catalog-f5f80c724cecfadd error
 catalog-f8eab2f9b7fa5a3f error
 catalog-f8fe72d166baf8ec error
-catalog-f92f1c52ba578422 error
 catalog-fde4405c90bb0d51 error
-sample-02ebe552c4f48b33 error
 sample-039b9aad134b8722 error
 sample-09d5544e5a0cda51 error
 sample-0c175911d88de6e5 error
@@ -3315,7 +3303,6 @@ sample-18f5ceb06a390279 error
 sample-1fcf45fef7d05e86 error
 sample-22b1642b1b3a72b1 error
 sample-32d887db8aa00844 error
-sample-33d3c01e03f0b3f5 error
 sample-3d3244b009c7a64a error
 sample-3f994ba2565ac5af error
 sample-5aaa1483596b597c error
@@ -3340,7 +3327,6 @@ sample-bdbb56f1d153c5db error
 sample-be3e58184db4e6f8 error
 sample-be7cc75d0f573295 error
 sample-c2d90b8c20ea1f02 error
-sample-c3f416495e758bea error
 sample-c4e8386aa10f4930 error
 sample-c802253f4ebc12c0 error
 sample-ca83b1bc5303ee8d error
@@ -3348,7 +3334,6 @@ sample-ceb030753658de21 error
 sample-d3543a8e252bd42d error
 sample-d7a751f7465340e0 error
 sample-d7d2df475272c15c error
-sample-e3589b4c90463ae4 error
 sample-e9cb3069db32a09c error
 sample-efd4bb257e89f634 error
 sample-f8fa718992cbb6bf error
@@ -4352,6 +4337,7 @@ facts-edd23560d2da1d6f count
 facts-ee6c9de0a47bba8c count
 facts-f2fdc78825bafd73 count
 rich-062275947464fe0e breaks
+rich-0a31a9051300c943 breaks
 rich-0c790f2e5b2ec0d5 count
 rich-0e015af07ae06042 count
 rich-0f3f6df9b86811ce breaks
@@ -4368,6 +4354,7 @@ rich-40d8c544d11cdad9 breaks
 rich-451456e41e3a34f2 breaks
 rich-4c2404aa7b364681 count
 rich-53f18740a63eb988 count
+rich-59341801f385d169 breaks
 rich-5db99b6d6871d894 breaks
 rich-5eb046964ad9149e count
 rich-60e34554e1163990 count
@@ -4381,11 +4368,14 @@ rich-7a654514bc533904 count
 rich-7b48f25b8637f74f count
 rich-7e7de2b10d20602a count
 rich-81ad265e7a862f8b breaks
+rich-8ddf54286514054f count
+rich-8ed652d14e3b4274 breaks
 rich-948c0852cf7cf9db breaks
 rich-952345d30a2b1283 breaks
 rich-978ea438e6225ad6 breaks
 rich-9b5f90519a3fea98 count
 rich-9e578acbc4c12c93 breaks
+rich-9f9af886ab4d378a breaks
 rich-a67e742d80ef07bf breaks
 rich-a97baab699f3127f count
 rich-ab55f4f4d6c4f2f3 count
@@ -4396,6 +4386,7 @@ rich-b26e5d31e4c4eeeb breaks
 rich-b4edfbc0cf70e393 count
 rich-b7c7827e7c167f77 count
 rich-b8c87e7db282fd10 breaks
+rich-bd1fc55ead229b45 count
 rich-c6e2a288d27ae94f count
 rich-cbac5bd3ee7789ee count
 rich-cfc28a37b5ecbeb6 breaks

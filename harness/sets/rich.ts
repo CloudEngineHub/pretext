@@ -30,9 +30,13 @@
 //   space in the item or a collapsed one before it, which Firefox's scan of the joined text takes as text, and after
 //   other text;
 // - cut on their own too, a line that ends at a space inside an item under negative letter spacing, whose next line the
-//   browsers start after the space, beside a break at the collapsed space between items.
+//   browsers start after the space, beside a break at the collapsed space between items;
+// - keep-all paragraphs, cut on their own: a Korean chat message with a mention chip, a bold run inside a word and a
+//   code span a particle follows, beside the same message without keep-all; a mention chip inside a Korean word; and
+//   Japanese whose bold run ends with a full stop, after which WebKit's check at an item boundary finds no break where
+//   one text node breaks (getWebKitBreakBetweenItems in src/line-breaks.ts).
 import { TEXTS } from '../../src/test-data.ts'
-import type { CssFont, TextRun } from '../types.ts'
+import type { CssFont, Paragraph, TextRun } from '../types.ts'
 import { codePoints, createRng, font, paragraph, span } from './build.ts'
 import type { Template } from './widths.ts'
 
@@ -44,12 +48,15 @@ const BOLD = (f: CssFont): CssFont => ({ ...f, weight: 700 })
 const ITALIC = (f: CssFont): CssFont => ({ ...f, style: 'italic' })
 const CODE = font('"SF Mono", ui-monospace, Menlo, Monaco, monospace', 12, 600)
 const CHIP = font('"Helvetica Neue", Helvetica, Arial, sans-serif', 12, 700)
+const KOREAN = font('"Apple SD Gothic Neo", "Malgun Gothic", sans-serif', 15)
+const KOREAN_CHIP = font('"Apple SD Gothic Neo", "Malgun Gothic", sans-serif', 12)
+const JAPANESE = font('"Hiragino Sans"', 16)
 
 type Part = string | TextRun
 
-function template(family: string, origin: string, base: CssFont, parts: readonly Part[], lang = 'en'): Template {
+function template(family: string, origin: string, base: CssFont, parts: readonly Part[], lang = 'en', wordBreak: Paragraph['wordBreak'] = 'normal'): Template {
   const direction = lang === 'ar' || lang === 'he' ? 'rtl' : 'ltr'
-  return { family: `rich/${family}`, origin, pageLang: lang, widths: [], grid: true, paragraph: paragraph({ font: base, lang, direction }, parts) }
+  return { family: `rich/${family}`, origin, pageLang: lang, widths: [], grid: true, paragraph: paragraph({ font: base, lang, direction, wordBreak }, parts) }
 }
 
 // A span in the base font: an inline element whose style doesn't change, as main's same-font items are.
@@ -174,6 +181,16 @@ export function richTemplates(): Template[] {
   for (let i = 0; i < tight.length; i++) {
     const [f, letterSpacing, parts] = tight[i]!
     out.push(template('negative-letter-spacing', 'a line that ends at a space inside an item under negative letter spacing (src/layout.test.ts)', f, parts.map(part => span(part, f, { letterSpacing }))))
+  }
+  const message: Part[] = ['민수 씨, ', span('@지훈', BOLD(KOREAN_CHIP), { atomic: true, padding: 11 }), ' 오늘 ', span('회의', BOLD(KOREAN)), '는 세 시에 시작합니다. 자료는 ', span('notes.md', CODE, { padding: 7 }), '에 있어요']
+  const keepAll: ReadonlyArray<readonly [string, CssFont, readonly Part[], string, Paragraph['wordBreak']]> = [
+    ['chat', KOREAN, message, 'ko', 'keep-all'], ['chat', KOREAN, message, 'ko', 'normal'],
+    ['chip-in-word', KOREAN, ['안녕하세요', span('@민수', BOLD(KOREAN_CHIP), { atomic: true, padding: 11 }), '님, 반가워요'], 'ko', 'keep-all'],
+    ['stop-ends-item', JAPANESE, ['日本語の', span('テキストです。', BOLD(JAPANESE)), span('次の文', ITALIC(JAPANESE)), 'は続きます'], 'ja', 'keep-all'],
+  ]
+  for (let i = 0; i < keepAll.length; i++) {
+    const [family, base, parts, lang, wordBreak] = keepAll[i]!
+    out.push(template(`keep-all/${family}`, `word-break: ${wordBreak} on the paragraph, as a chat message sets it (src/layout.test.ts, rich-inline invariants)`, base, parts, lang, wordBreak))
   }
   return out
 }

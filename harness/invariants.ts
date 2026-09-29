@@ -34,8 +34,8 @@ import './watchdog.ts'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import type { LayoutCursor, LayoutLine, LayoutLineRange, PrepareOptions, PreparedText, PreparedTextWithSegments } from '../src/layout.ts'
-import type { PreparedRichInline, RichInlineCursor, RichInlineItem, RichInlineLineRange } from '../src/rich-inline.ts'
-import { canvasFont, cursorOffsets, isRich, plainDisagreement, prepareOptions, richDisagreement, richItems, unsupported } from './predict.ts'
+import type { PreparedRichInline, RichInlineCursor, RichInlineItem, RichInlineLineRange, RichInlineOptions } from '../src/rich-inline.ts'
+import { canvasFont, cursorOffsets, isRich, plainDisagreement, prepareOptions, richDisagreement, richItems, richOptions, unsupported } from './predict.ts'
 import { createRng } from './sets/build.ts'
 import type { Case } from './types.ts'
 
@@ -218,15 +218,15 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
     }
   }
 
-  const rich = (label: string, items: RichInlineItem[], width: number): void => {
+  const rich = (label: string, items: RichInlineItem[], width: number, options: RichInlineOptions = {}): void => {
     const at = `${label} at ${width}`
     // Everything prepared first, so what follows asks Canvas nothing: the paragraph, each item alone (whose own
     // prepared text the fragments' cursors index), the paragraph after an empty item, and without extraWidth.
-    const prepared = api.prepareRichInline(items)
-    const handles = items.map(item => api.prepareWithSegments(item.text, item.font, item.letterSpacing === undefined ? {} : { letterSpacing: item.letterSpacing }))
-    const shiftedPrepared = api.prepareRichInline([{ text: '', font: items[0]!.font }, ...items])
+    const prepared = api.prepareRichInline(items, options)
+    const handles = items.map(item => api.prepareWithSegments(item.text, item.font, item.letterSpacing === undefined ? options : { ...options, letterSpacing: item.letterSpacing }))
+    const shiftedPrepared = api.prepareRichInline([{ text: '', font: items[0]!.font }, ...items], options)
     const extra = items.some(item => (item.extraWidth ?? 0) !== 0)
-    const withoutExtra = extra ? api.prepareRichInline(items.map(({ extraWidth: _, ...rest }) => rest)) : null
+    const withoutExtra = extra ? api.prepareRichInline(items.map(({ extraWidth: _, ...rest }) => rest), options) : null
     const steps = items.reduce((sum, item) => sum + item.text.length, 0) + 1
     const walk = (p: PreparedRichInline, w: number): RichInlineLineRange[] => {
       const lines: RichInlineLineRange[] = []
@@ -346,7 +346,7 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
     const p = c.paragraph
     if (isRich(p.runs)) {
       const items = richItems(p.runs)
-      for (const width of [p.width, Math.max(1, p.width / 2), p.width * 1.5, 1, Infinity]) rich(c.id, items, width)
+      for (const width of [p.width, Math.max(1, p.width / 2), p.width * 1.5, 1, Infinity]) rich(c.id, items, width, richOptions(c))
     } else {
       plainInput(c.id, p.runs.map(run => run.text).join(''), canvasFont(p.runs[0]!.font), prepareOptions(c), p.width, p.lineHeight)
     }

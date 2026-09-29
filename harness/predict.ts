@@ -1,8 +1,9 @@
 // The library used the way an app uses it, in the page: one Canvas font string per run style, maxWidth = the case's
 // width, and the prepare options main documents. A case an app would write with inline elements (spans among other runs,
 // several styles, a chip or padding) goes through rich-inline, one item per run: a chip is `break: 'never'`, padding is
-// `extraWidth`. Line cursors index the library's segments, which are the source after white-space normalization, so the adapter
-// aligns them with the source and returns UTF-16 source offsets. `run.ts --lib` bundles another build in place of src/.
+// `extraWidth`, and the paragraph's word-break is prepareRichInline()'s option. Line cursors index the library's
+// segments, which are the source after white-space normalization, so the adapter aligns them with the source and returns
+// UTF-16 source offsets. `run.ts --lib` bundles another build in place of src/.
 //
 // The prediction is walkLineRanges' lines (walkRichInlineLineRanges' for a rich case). Every other line API runs on the
 // same case too, and the first way one disagrees with the walk is kept: layout() on prepare()'s handle (the resize path,
@@ -22,7 +23,7 @@ import {
 } from '../src/layout.ts'
 import {
   layoutNextRichInlineLineRange, materializeRichInlineLineRange, measureRichInlineStats, prepareRichInline, walkRichInlineLineRanges,
-  type RichInlineCursor, type RichInlineFragmentRange, type RichInlineItem, type RichInlineLineRange,
+  type RichInlineCursor, type RichInlineFragmentRange, type RichInlineItem, type RichInlineLineRange, type RichInlineOptions,
 } from '../src/rich-inline.ts'
 import { findGraphemeEnds } from '../src/graphemes.ts'
 import { getEngineProfile } from '../src/measurement.ts'
@@ -55,7 +56,7 @@ export function unsupported(c: Case): string | null {
     if (run.lang !== null && run.lang !== p.lang) reasons.push('a span lang differs from the paragraph\'s')
     if (run.text.includes('\t') && p.whiteSpace === 'pre-wrap' && p.tabSize !== 8) reasons.push(`tab-size ${p.tabSize}`)
   }
-  if (isRich(p.runs) && (p.whiteSpace !== 'normal' || p.wordBreak !== 'normal')) reasons.push('rich-inline takes white-space: normal and word-break: normal only')
+  if (isRich(p.runs) && p.whiteSpace !== 'normal') reasons.push('rich-inline takes white-space: normal only')
   return reasons.length === 0 ? null : [...new Set(reasons)].join('; ')
 }
 
@@ -288,6 +289,11 @@ export function prepareOptions(c: Case): PrepareOptions {
   return options
 }
 
+// A rich case's options: the paragraph's word-break.
+export function richOptions(c: Case): RichInlineOptions {
+  return c.paragraph.wordBreak === 'keep-all' ? { wordBreak: 'keep-all' } : {}
+}
+
 // A rich case's items, one per run.
 export function richItems(runs: readonly TextRun[]): RichInlineItem[] {
   const items: RichInlineItem[] = []
@@ -335,17 +341,18 @@ export function predict(c: Case): Prediction {
       for (let i = 0; i < walked.length; i++) lines.push({ ...range(walked[i]!.start, walked[i]!.end), width: walked[i]!.width })
     } else {
       const items = richItems(runs)
+      const options = richOptions(c)
       counting = 'prepare'
-      const prepared = prepareRichInline(items)
+      const prepared = prepareRichInline(items, options)
       counting = 'lines'
       const walked: RichInlineLineRange[] = []
       const walkedCount = walkRichInlineLineRanges(prepared, p.width, line => { if (walked.push(line) > steps) throw new Error(`walkRichInlineLineRanges gives more than ${steps} lines`) })
-      // Fragment cursors index prepareWithSegments(item.text) of the item's font and letter spacing, prepared here
-      // uncounted, as an app needs none of them. So each fragment's text is materializeLineRange's over those cursors, but
-      // for the hyphen of a soft hyphen it ends at, which the text the items join decides; the text builder both share is
-      // src/layout.test.ts's to check.
+      // Fragment cursors index prepareWithSegments(item.text) of the item's font and letter spacing and the paragraph's
+      // word-break, prepared here uncounted, as an app needs none of them. So each fragment's text is
+      // materializeLineRange's over those cursors, but for the hyphen of a soft hyphen it ends at, which the text the items
+      // join decides; the text builder both share is src/layout.test.ts's to check.
       counting = null
-      const handles = items.map(item => prepareWithSegments(item.text, item.font, item.letterSpacing === undefined ? {} : { letterSpacing: item.letterSpacing }))
+      const handles = items.map(item => prepareWithSegments(item.text, item.font, item.letterSpacing === undefined ? options : { ...options, letterSpacing: item.letterSpacing }))
       counting = 'lines'
       const offsets = handles.map(handle => cursorOffsets(handle.segments))
       disagreement = richDisagreement(LIBRARY, prepared, walked, walkedCount, p.width, steps, i => offsets[i])

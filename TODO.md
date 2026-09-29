@@ -31,6 +31,7 @@ Held until the current work is done, and all before the first release.
 - Server-side measurement and other backends, such as React Native's: punted, not closed. Without `OffscreenCanvas`, Node and Bun need a Canvas supplied.
 - Rich inline in `pre-wrap` (#173): not blocked by the architecture (RESEARCH.md, Box Edges And Pre-wrap); the hard parts are spaces hanging across a style change, tab stops across fonts and empty lines (`rebuild/research/PREWRAP-RICH.md` on the per-engine rebuild's branch, `rebuild-20260916`).
 - Source offsets and carets for editing rich text (#90, #198); whether bidi selection and copy stay outside Pretext.
+- A `word-break` per rich item: `prepareRichInline()` takes one for the paragraph, as a chat message sets it, where browsers take each item boundary's rule from the styles of the spans beside it, WebKit from the next span's (RESEARCH.md, Rich Inline Boundaries, Joined Text).
 - Changing text (#313): a handle per paragraph, as README advises (#362); incremental preparation isn't worth building yet (RESEARCH.md, Dead Ends, Caching, State And API Designs).
 - `system-ui` (#336): why the browsers differ, and what support would take.
 - Automatic hyphenation (`hyphens: auto`): out of scope today, a possible feature.
