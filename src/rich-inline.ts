@@ -1,4 +1,4 @@
-import type { LayoutCursor } from './layout.js'
+import type { LayoutCursor, WordBreakMode } from './layout.js'
 import {
   analyzeText,
   CONTROL,
@@ -39,7 +39,7 @@ import { measureAnalysis } from './prepare.js'
 // - per-item extra horizontal chrome such as padding/borders
 // - break opportunities across item boundaries as the engine finds them: from the
 //   text the items join in Blink and Gecko, and in WebKit from each item's own text
-//   and the previous item's last two characters
+//   and the previous item's last two characters, under the paragraph's word-break
 // - runs that continue across items without a break, which wrap together
 
 declare const preparedRichInlineBrand: unique symbol
@@ -50,6 +50,12 @@ export type RichInlineItem = {
   letterSpacing?: number // Extra horizontal spacing between graphemes, in CSS px
   break?: 'normal' | 'never' // `never` keeps the item atomic, like a pill or mention chip
   extraWidth?: number // Caller-owned horizontal chrome, e.g. padding + border width
+}
+
+// How the paragraph the items make wraps, one setting for all of them, as CSS on the
+// element that holds the spans sets it.
+export type RichInlineOptions = {
+  wordBreak?: WordBreakMode // `keep-all`: CSS `word-break: keep-all`, as prepare() takes it
 }
 
 export type PreparedRichInline = {
@@ -326,7 +332,8 @@ function getWalkedHandle(prepared: PreparedSegments, flags: Uint8Array): Prepare
   return { ...prepared, segmentFlags: flags, simpleLineWalkFastPath: false }
 }
 
-export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
+export function prepareRichInline(items: RichInlineItem[], options?: RichInlineOptions): PreparedRichInline {
+  const wordBreak = options?.wordBreak ?? 'normal'
   const preparedItems = Array.from<PreparedRichInlineItem | undefined>({ length: items.length })
   // One language read for every item, the joined analysis and the boundary spaces.
   const profile = getEngineProfile()
@@ -372,7 +379,12 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
   }
   let previousItem: PreparedRichInlineItem | null = null
   // Collapsible spaces always break and atomic items always allow a break on
-  // both sides. Only the text between them joins across item boundaries.
+  // both sides, under keep-all too: Blink breaks after an atomic inline and before one
+  // (CanBreakAfterAtomicInline and CanBreakAfter, line_breaker.cc:1168-1263 in
+  // core/layout/inline), WebKit finds a soft wrap opportunity on either side of one
+  // (InlineFormattingUtils.cpp:445-449), and Gecko records a break after one and breaks
+  // before one that doesn't fit (nsLineLayout.cpp:1057-1068, 1339-1340). Only the text
+  // between them joins across item boundaries.
   const joinedPortions: JoinedPortion[] = []
   // Whether the window starts after collapsible white space, and after content, which a
   // soft hyphen at its start follows in the paragraph.
@@ -402,7 +414,7 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
         for (let i = 1; i < joinedPortions.length; i++) {
           const portion = joinedPortions[i]!
           const end = i + 1 < joinedPortions.length ? joinedPortions[i + 1]!.start : joinedText.length
-          portion.item.breakBefore = getWebKitBreakBetweenItems(boundaryContexts[joinedPortions[i - 1]!.itemIndex]!, joinedText.slice(portion.start, end), language)
+          portion.item.breakBefore = getWebKitBreakBetweenItems(boundaryContexts[joinedPortions[i - 1]!.itemIndex]!, joinedText.slice(portion.start, end), wordBreak === 'keep-all', language)
         }
       } else {
         // Browsers find ordinary break opportunities in the text their inline items
@@ -410,7 +422,7 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
         // prepare()'s, after the collapsible space before the window, which Gecko's scan
         // reads in the source, as it reads an item's leading space, and Blink's normalized
         // text drops, and after the content before it (RESEARCH.md, Rich Inline Boundaries).
-        const joined = analyzeText(joinedAfterSpace && profile.lineBreakScan === 'gecko' ? ' ' + joinedText : joinedText, profile, 'normal', 'normal', language, joinedAfterContent)
+        const joined = analyzeText(joinedAfterSpace && profile.lineBreakScan === 'gecko' ? ' ' + joinedText : joinedText, profile, 'normal', wordBreak, language, joinedAfterContent)
         for (let i = 0, j = 0; i < joinedPortions.length; i++) {
           const portion = joinedPortions[i]!
           while (j < joined.starts.length && joined.starts[j]! < portion.start) j++
@@ -465,10 +477,10 @@ export function prepareRichInline(items: RichInlineItem[]): PreparedRichInline {
     // yields the same segments while analysis keeps the source before them:
     // a leading SPACE or TAB is break context inside the item's text node.
     // Fragment cursors then index the same segments and graphemes as
-    // prepareWithSegments(item.text). An atomic item, which is only laid out whole,
-    // is prepared without emergency breaks.
+    // prepareWithSegments(item.text) under the same word-break. An atomic item, which
+    // is only laid out whole, is prepared without emergency breaks.
     const itemBreak = item.break ?? 'normal'
-    const analysis = analyzeText(item.text, profile, 'normal', 'normal', language)
+    const analysis = analyzeText(item.text, profile, 'normal', wordBreak, language)
     const prepared = measureAnalysis(analysis, item.font, true, letterSpacing, profile, language, itemBreak !== 'never') as PreparedSegments
     const { segmentFlags } = prepared
     // A collapsible space before a hard break goes with the line's end (CSS Text 3

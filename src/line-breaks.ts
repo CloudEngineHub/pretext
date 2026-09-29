@@ -867,8 +867,11 @@ export function getWebKitLineBreaks(
 
 // TU:374-396: whether a line may start where the next inline box starts, from a fresh
 // factory on that box with the previous box's last two characters as prior context.
-// hyphens: manual, so a trailing soft hyphen doesn't block the break.
-export function getWebKitBreakBetweenItems(previous: string, next: string, language: string | null): boolean {
+// hyphens: manual, so a trailing soft hyphen doesn't block the break. Keep-all reads no
+// prior context (TU:403-407, BP.h:288-300): the box starts at a break only where it
+// starts with a breakable space or ZWSP.
+export function getWebKitBreakBetweenItems(previous: string, next: string, keepAll: boolean, language: string | null): boolean {
+  if (keepAll) return nextBreakableSpace(next, 0, false) === 0
   const pairs = webkitPairs ??= unpackTable(webkitLinePairsPacked)
   const f = createFactory(next, getWebKitLineRules(language))
   const n = previous.length

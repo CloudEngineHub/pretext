@@ -1569,9 +1569,15 @@ describe('engine break scans', () => {
         .toEqual({ text, language, keepAll, breaks: [...expected] })
     }
     // Between inline boxes, the previous box's last two characters are prior context.
-    expect(getWebKitBreakBetweenItems('丙!', 'a', 'en')).toBe(false)
-    expect(getWebKitBreakBetweenItems('ex-', 'ample', 'en')).toBe(true)
-    expect(getWebKitBreakBetweenItems('a', '-1', 'en')).toBe(false)
+    expect(getWebKitBreakBetweenItems('丙!', 'a', false, 'en')).toBe(false)
+    expect(getWebKitBreakBetweenItems('ex-', 'ample', false, 'en')).toBe(true)
+    expect(getWebKitBreakBetweenItems('a', '-1', false, 'en')).toBe(false)
+    // Keep-all reads none: a box starts at a break only where it starts with a ZWSP, so
+    // not after punctuation that ends the box before, where one 16-bit text breaks.
+    expect(getWebKitBreakBetweenItems('ex-', 'ample', true, 'en')).toBe(false)
+    expect(getWebKitBreakBetweenItems('中。', '文字', true, 'zh')).toBe(false)
+    expect(positions(getWebKitLineBreaks('中。文字', false, true, 'zh'), 4)).toEqual([2])
+    expect(getWebKitBreakBetweenItems('ab', '\u200Bcd', true, 'en')).toBe(true)
     // A separator that starts an item forces a break after it, marked FORCED_BREAK (4);
     // one inside a text item doesn't.
     expect(Array.from(getWebKitLineBreaks('ab\u2028cd', false, false, 'en'))).toEqual([0, 0, 0, 4, 0, 0])
@@ -3511,6 +3517,68 @@ describe('rich-inline invariants', () => {
     expect(richLines(['漢', '。字'], measureWidth('漢。', FONT) - 0.1)).toEqual(['漢', '。', '字'])
     expect(richLines(['漢', '字。字'], measureWidth('字。', FONT) + 0.1)).toEqual(['漢', '字。', '字'])
     expect(richLines(['漢', '字。字'], measureWidth('字', FONT) + 0.1)).toEqual(['漢', '字', '。', '字'])
+  })
+
+  test('rich items under keep-all break where their text in one node does, and WebKit reads each item boundary alone', () => {
+    type Items = Parameters<typeof prepareRichInline>[0]
+    // Each line's text, with a space for a gap.
+    const richLines = (items: Items, width: number, wordBreak: 'normal' | 'keep-all' = 'keep-all') => {
+      const prepared = prepareRichInline(items, { wordBreak })
+      const lines: string[] = []
+      walkRichInlineLineRanges(prepared, width, range => {
+        lines.push(materializeRichInlineLineRange(prepared, range).fragments.map(fragment => (fragment.gapItemIndex < 0 ? '' : ' ') + fragment.text).join('').trimEnd())
+      })
+      expect(measureRichInlineStats(prepared, width).lineCount).toBe(lines.length)
+      return lines
+    }
+    const flatLines = (items: Items, width: number, wordBreak: 'normal' | 'keep-all' = 'keep-all') =>
+      layoutWithLines(prepareWithSegments(items.map(item => item.text).join(''), FONT, { wordBreak }), width, LINE_HEIGHT).lines.map(line => line.text.trimEnd())
+    // The fake Canvas measures bold as regular, so same-size runs lay out as one node would.
+    const BOLD = '700 16px Test Sans'
+    const wide = measureWidth('\u4E2D', FONT)
+    // A Korean chat message with a bold run inside a word, and Chinese split inside a word.
+    const korean: Items = [{ text: '\uBBFC\uC218 \uC528, \uC624\uB298 ', font: FONT }, { text: '\uD68C\uC758', font: BOLD }, { text: '\uB294 \uC138\uC2DC\uC5D0 \uC2DC\uC791\uD569\uB2C8\uB2E4', font: FONT }]
+    const chinese: Items = [{ text: '\u4E2D\u6587\u5B57', font: FONT }, { text: '\u4F53\u6392\u7248', font: BOLD }, { text: '\u6D4B\u8BD5\u6587\u672C', font: FONT }]
+    // A run that ends an item with a full stop, after which one text node breaks.
+    const stop: Items = [{ text: '\u65E5\u672C\u8A9E\u306E', font: FONT }, { text: '\u30C6\u30AD\u30B9\u30C8\u3067\u3059\u3002', font: BOLD }, { text: '\u6B21\u306E\u6587\u3067\u3059', font: FONT }]
+    // A mention chip inside Korean words.
+    const chip: Items = [{ text: '\uC548\uB155', font: FONT }, { text: '@\uBBFC\uC218', font: '700 12px Test Sans', break: 'never', extraWidth: 24 }, { text: '\uB2D8 \uBC18\uAC00\uC6CC\uC694', font: FONT }]
+    const chipWidth = measureWidth('@\uBBFC\uC218', '700 12px Test Sans') + 24
+    const profile = getEngineProfile()
+    const previous = { lineBreakScan: profile.lineBreakScan, breaksFromItemText: profile.breaksFromItemText }
+    try {
+      for (const scan of ['blink', 'webkit', 'gecko'] as const) {
+        profile.lineBreakScan = scan
+        profile.breaksFromItemText = scan === 'webkit'
+        clearCache()
+        // Keep-all breaks the Korean only at its spaces and the Chinese nowhere, and the
+        // items across their edges as one node, at every width a syllable fits. Without it,
+        // Korean breaks between syllables.
+        for (let width = wide; width <= 26 * wide; width += wide / 4) {
+          for (const items of [korean, chinese]) expect({ scan, width, lines: richLines(items, width) }).toEqual({ scan, width, lines: flatLines(items, width) })
+          if (scan !== 'webkit') expect({ scan, width, lines: richLines(stop, width) }).toEqual({ scan, width, lines: flatLines(stop, width) })
+        }
+        expect(richLines(korean, 5 * wide + 0.1)).toEqual(['\uBBFC\uC218 \uC528,', '\uC624\uB298', '\uD68C\uC758\uB294', '\uC138\uC2DC\uC5D0', '\uC2DC\uC791\uD569\uB2C8\uB2E4'])
+        expect(richLines(korean, 5 * wide + 0.1, 'normal')).toEqual(flatLines(korean, 5 * wide + 0.1, 'normal'))
+        expect(richLines(korean, 5 * wide + 0.1, 'normal')).not.toEqual(richLines(korean, 5 * wide + 0.1))
+        // Keep-all breaks after the full stop in one text in all three engines, but WebKit's
+        // check at an item boundary reads only the next item's text (getWebKitBreakBetweenItems),
+        // so there the run goes on into the next item, and a line that can't take it all
+        // breaks it between graphemes.
+        const width = 12 * wide + 0.1
+        expect(flatLines(stop, width)).toEqual(['\u65E5\u672C\u8A9E\u306E\u30C6\u30AD\u30B9\u30C8\u3067\u3059\u3002', '\u6B21\u306E\u6587\u3067\u3059'])
+        expect(richLines(stop, width)).toEqual(scan === 'webkit'
+          ? ['\u65E5\u672C\u8A9E\u306E\u30C6\u30AD\u30B9\u30C8\u3067\u3059\u3002\u6B21', '\u306E\u6587\u3067\u3059']
+          : flatLines(stop, width))
+        // An atomic item still breaks on both sides under keep-all, and the words around
+        // it stay whole where they fit.
+        expect(richLines(chip, 2 * wide + chipWidth - 0.1)).toEqual(['\uC548\uB155', '@\uBBFC\uC218\uB2D8', '\uBC18\uAC00\uC6CC\uC694'])
+        expect(richLines(chip, chipWidth + wide - 0.1)).toEqual(['\uC548\uB155', '@\uBBFC\uC218', '\uB2D8', '\uBC18\uAC00\uC6CC\uC694'])
+      }
+    } finally {
+      Object.assign(profile, previous)
+      clearCache()
+    }
   })
 
   test('split CJK rich inline items stay inside the line width', () => {

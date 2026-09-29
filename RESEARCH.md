@@ -792,6 +792,18 @@ split from its consonant and browsers shape with it (16px Myanmar Sangam MN: `�
 joined; ENGINE_FOLLOWUPS.md), and breaking at every item boundary had matched those counts only by breaking where
 Firefox never does (Firefox 155, 2026-09-14; old suite, `tests/wrapping`, removed 2026-09-25).
 
+Under keep-all, which `prepareRichInline()` takes for the whole paragraph (`{ wordBreak }`), each item's analysis and
+the joined text's take it, so Blink's and Gecko's keep-all scans decide the breaks across items as in one text. WebKit's
+check at a box boundary reads no prior context under keep-all (`TextUtil::findNextBreakablePosition`,
+`TextUtil.cpp:403-407`; `BreakablePositions::next`, `BreakablePositions.h:288-300`): a box starts at a break only where
+it starts with a breakable space or ZWSP. So where punctuation ends a box, after which Safari's keep-all breaks inside
+one 16-bit text, it doesn't break at the boundary: in 16px Hiragino Sans, spans `日本語の`, `テキストです。`, `次の文`,
+`は続きます` at 198px give `日本語のテキストです。次` / `の文は続きます` in Safari, their text in one node `日本語のテキストです。` /
+`次の文は続きます`, which Chrome and Firefox give for the spans too (webkit-host, Chrome 154, Firefox 156.0.1,
+2026-09-29). An atomic item breaks on both sides under keep-all too, in all three engines (`src/rich-inline.ts` cites
+them). One setting per paragraph is how a chat message sets it; a setting per item is an open question (TODO.md), since
+each engine reads a boundary's rule from the spans beside it, WebKit from the next one's style.
+
 #### Continuing The Line
 
 Since #369 (2026-09-27) an item's walk continues the line instead of starting one, as a browser lays out one paragraph's
