@@ -1,6 +1,5 @@
 ## Pretext
 
-**Every time before you commit, ensure you've synced the docs**.
 Changelog updates guideline: don't add dev-facing notes, only user-facing ones. Refer to closed PR numbers.
 
 ### Where things are
@@ -17,6 +16,7 @@ Changelog updates guideline: don't add dev-facing notes, only user-facing ones. 
   `pages/demos/markdown-chat.md`: the chat demo's patterns for app developers, updated with the chat.
 - engineering.md and ui.md, the maintainer's general rules for code and UI (`docs/` in the vibescript repository, to be
   open-sourced as chenguini), hold here; a pointer such as (engineering.md, Caching) names a section there.
+- Keep a doc current in the change that makes it stale.
 
 A text goes through analysis (`src/analysis.ts`: white space, break opportunities from ports of each engine's scan in
 `src/line-breaks.ts` and `src/gecko-line-breaks.ts`, segments), measurement (`src/prepare.ts` over `src/measurement.ts`:

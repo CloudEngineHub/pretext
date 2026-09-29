@@ -322,8 +322,8 @@ and its unit tests (`rebuild/src/engines/<engine>/`) against the engine's source
   reopen it. Six PRs in a row appended about 7,500 words here before this rule.
 - **What goes in**: point to numbers that go stale rather than copy them; give a fresh agent objective facts, not
   designs that fence it in. A cleanup removes only what's provably stale; docs another agent wrote are checked for
-  accuracy and for fitting what was done. The changelog and doc-sync rules are the maintainer's own AGENTS.md lines,
-  kept word for word.
+  accuracy and for fitting what was done. The changelog rule is the maintainer's own AGENTS.md line, kept word for
+  word.
 - **Decisions**: when the maintainer decides an item, record it (Part 1 or the Decisions Log) and take it off TODO.md or
   ENGINE_FOLLOWUPS.md, which they rarely read. Work depth-first, and track each deferred item in one of those two files
   with what would reopen it. A quote from any source names it and is checked against it; text the maintainer forwarded
