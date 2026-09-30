@@ -978,7 +978,7 @@ an empty frame past the line's end (`CanPlaceFrame`), as all three browsers lay 
 Chrome gives a line feed after such spaces a line of its own, and moves a span that starts with white space and goes on
 past it whole, where rich inline takes an item as the paragraph's own text (ENGINE_FOLLOWUPS.md). But Gecko breaks only
 after a run of spaces and tabs (`nsLineBreaker.cpp:323`, `:586`) and doesn't hang a tab, so Firefox moves such white
-space that runs into a tab to the next line with the tab, whatever items it spans. Before #TBD a line took only the
+space that runs into a tab to the next line with the tab, whatever items it spans. Before #386 a line took only the
 first item's white space there: of 10,991 probe inputs in 77 shapes at 20-200px, 2,173 Chrome, 1,095 Firefox and 2,223
 webkit-host inputs pass since that change that failed before, and 72 Chrome and 43 Firefox ones that passed by luck fail
 (Chrome 154, Firefox 156.0.1, webkit-host, 2026-09-30; the shapes are in ENGINE_FOLLOWUPS.md). A way to tell a span from
