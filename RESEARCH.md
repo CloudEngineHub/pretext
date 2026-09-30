@@ -970,19 +970,27 @@ soft wrap index loop ends the content it places after a line break item (`Inline
 break comes before a line feed that starts a box there either, after an atomic item too, and allows wrapping next to a
 white-space item (`:406-418`). A carriage return that ends one item and a
 line feed that starts the next make one break, as CRLF in one text does. Preserved spaces, tabs that hang and a hard
-break after an atomic item, without padding, stay on its line however far the line overflows: no break comes before
-them, Blink takes them as trailing items after the break after an atomic inline (`HandleTrailingSpaces`,
-`line_breaker.cc:2426-2516`) and Gecko lets an empty frame past the line's end (`CanPlaceFrame`), as all three browsers
-lay out a chip wider than the line, though Chrome gives a line feed after such spaces a line of its own
-(ENGINE_FOLLOWUPS.md). A padded span that starts with them stays where the engine fits its opening, and in Chrome one of
-only white space stays however far the line overflows, as Blink's return keeps the trailable items after the break it
-returns to, white space and the tags of spans that close among it (`RewindOverflow`, `line_breaker.cc:4332-4424`), which
-keeps such a span after any content; else the line ends at the break after the chip, or in Safari, before a line feed,
-returns to the break before the chip. Blink fits only the start edge of a padded span that starts with white space after
-text too, where rich inline takes the whole `extraWidth` in Safari and Firefox (ENGINE_FOLLOWUPS.md). An atomic item lays
-its text out in normal white space, as a chip's `white-space: nowrap` box does: the rebuild's premise, the chip's max-content width with its
-preserved spaces, is 6.6px wider than all three browsers lay out the 12px chip ` @bob ` in 15px Helvetica Neue prose
-(2026-09-29).
+break after an atomic item, without padding, stay on its line however far the line overflows, and so do they after items
+of only such white space after it, whatever items it spans: no break comes before them, Blink takes them as trailing
+items after the break after an atomic inline (`HandleTrailingSpaces`, `line_breaker.cc:2426-2534`), trailing on into the
+next item, WebKit keeps each white-space item as content that hangs (`InlineContentBreaker.cpp:181-182`) and Gecko lets
+an empty frame past the line's end (`CanPlaceFrame`), as all three browsers lay out a chip wider than the line, though
+Chrome gives a line feed after such spaces a line of its own, and moves a span that starts with white space and goes on
+past it whole, where rich inline takes an item as the paragraph's own text (ENGINE_FOLLOWUPS.md). But Gecko breaks only
+after a run of spaces and tabs (`nsLineBreaker.cpp:323`, `:586`) and doesn't hang a tab, so Firefox moves such white
+space that runs into a tab to the next line with the tab, whatever items it spans. Before #386 a line took only the
+first item's white space there: of 10,991 probe inputs in 77 shapes at 20-200px, 2,173 Chrome, 1,095 Firefox and 2,223
+webkit-host inputs pass since that change that failed before, and 72 Chrome and 43 Firefox ones that passed by luck fail
+(Chrome 154, Firefox 156.0.1, webkit-host, 2026-09-30; the shapes are in ENGINE_FOLLOWUPS.md). A way to tell a span from
+the paragraph's own text would reopen the Chrome ones. A padded span that starts with such white space or a hard break
+after a chip stays where the engine fits its opening, and in Chrome one of only white space stays however far the line
+overflows, as Blink's return keeps the trailable items after the break it returns to, white space and the tags of spans
+that close among it (`RewindOverflow`, `line_breaker.cc:4332-4424`), which keeps such a span after any content; else the
+line ends at the break after the chip, or in Safari, before a line feed, returns to the break before the chip. Blink
+fits only the start edge of a padded span that starts with white space after text too, where rich inline takes the whole
+`extraWidth` in Safari and Firefox (ENGINE_FOLLOWUPS.md). An atomic item lays its text out in normal white space, as a
+chip's `white-space: nowrap` box does: the rebuild's premise, the chip's max-content width with its preserved spaces, is
+6.6px wider than all three browsers lay out the 12px chip ` @bob ` in 15px Helvetica Neue prose (2026-09-29).
 Of 500 real-usage pre-wrap paragraphs split into same-font spans, each one that fails fails in one node too; what's left
 is at padded span edges and tab stops across fonts (ENGINE_FOLLOWUPS.md, Rich-inline item edges).
 

@@ -52,7 +52,10 @@
 //   chip, which Chrome keeps on the chip's line however far it overflows, one of spaces and a line feed, whose end edge
 //   Safari fits too, and a padded span that starts with a line feed or spaces after a word that ends with spaces,
 //   whose opening Chrome's line takes with no padding, and before whose line feed, where its padding doesn't fit,
-//   Safari keeps the spaces that fit and Firefox all but the last (hardBreakItemRetreat).
+//   Safari keeps the spaces that fit and Firefox all but the last (hardBreakItemRetreat); and, cut on their own too, a
+//   chip before preserved spaces split across spans, which all stay on its line however far it overflows, before text
+//   and before the paragraph's own text that starts with more of them, and before a tab, which Firefox doesn't hang and
+//   moves to the next line with them.
 import { TEXTS } from '../../src/test-data.ts'
 import type { CssFont, Paragraph, TextRun } from '../types.ts'
 import { codePoints, createRng, font, paragraph, span } from './build.ts'
@@ -230,6 +233,9 @@ export function richTemplates(): Template[] {
     ['padded-span-after-chip', HELVETICA, ['Ping ', span('@alice', CHIP, { atomic: true, padding: 11 }), span('  \n', CODE, { padding: 12 }), 'next words']],
     ['line-feed-starts-padded-item', HELVETICA, ['Unbreakable   ', span('\nnext line', CODE, { padding: 20 }), ' after']],
     ['spaces-at-padded-edges', HELVETICA, ['Unbreakable   ', span('  spaced code', CODE, { padding: 20 }), ' after']],
+    ['chip-before-split-spaces', HELVETICA, ['Ping ', span('@alice', CHIP, { atomic: true, padding: 11 }), ' ', span('  ', BOLD(HELVETICA)), 'next words']],
+    ['chip-before-split-spaces', HELVETICA, [span('@alice', CHIP, { atomic: true, padding: 11 }), span(' ', BOLD(HELVETICA)), '  next words']],
+    ['chip-before-split-spaces', HELVETICA, ['Ping ', span('@alice', CHIP, { atomic: true, padding: 11 }), ' ', span('  \t', BOLD(HELVETICA)), 'next words']],
   ]
   for (let i = 0; i < preWrap.length; i++) {
     const [family, base, parts] = preWrap[i]!

@@ -3940,8 +3940,29 @@ describe('rich-inline invariants', () => {
         // No break comes before them (UAX #14 LB6, LB7), and the break after a chip takes them
         // onto its line, as Blink takes trailing items.
         expect(texts([{ text: 'Ping ', font: FONT }, alice, { text: '\n', font: FONT }, bob, { text: '  go', font: FONT }], width)).toEqual(['Ping ', '@alice|', '@bob|  ', 'go'])
-        // A tab hangs too where tabs hang; Firefox breaks before one that doesn't fit.
+        // A tab hangs too where tabs hang.
         expect(texts([bob, { text: '\tgo', font: FONT }], width)[0]).toBe(scan === 'gecko' ? '@bob' : '@bob|\t')
+        // So does white space after items of only such white space after the chip, whatever items
+        // it spans and whatever their fonts: Blink trails on into the next item and its return keeps
+        // every item that starts with trailable spaces, and WebKit hangs each white-space item.
+        const space = (text: string, font = FONT) => ({ text, font })
+        expect(texts([bob, space(' '), space('  ', `700 ${FONT}`), space('go')], width)).toEqual(['@bob| |  ', 'go'])
+        expect(texts([bob, space(' '), space(' '), space(' '), space('go')], width)).toEqual(['@bob| | | ', 'go'])
+        expect(texts([bob, space(' '), space('  go')], width)).toEqual(['@bob| |  ', 'go'])
+        expect(texts([bob, space(' '), space('\ngo')], width)).toEqual(['@bob| |', 'go'])
+        // Firefox breaks only after a run of spaces and tabs and hangs no tab, so it moves white
+        // space that runs into a tab to the next line with the tab, whatever items it spans.
+        expect(texts([bob, space('  \tgo')], width)).toEqual(scan === 'gecko' ? ['@bob', '  \t', 'go'] : ['@bob|  \t', 'go'])
+        expect(texts([bob, space(' '), space('\tgo')], width)).toEqual(scan === 'gecko' ? ['@bob', ' |\t', 'go'] : ['@bob| |\t', 'go'])
+        expect(texts([bob, space(' '), space('  \t'), space('go')], width)).toEqual(scan === 'gecko' ? ['@bob', ' |  \t', 'go'] : ['@bob| |  \t', 'go'])
+        expect(texts([bob, space(' '), space('  '), space('\tgo')], width)).toEqual(scan === 'gecko' ? ['@bob', ' |  |\t', 'go'] : ['@bob| |  |\t', 'go'])
+        // Spaces before text stay, where a tab follows the text too.
+        expect(texts([bob, space(' '), space('  go\tx')], width)).toEqual(['@bob| |  ', 'go\t', 'x'])
+        // A tab that doesn't hang ends that white space in Firefox: the tab takes the next line,
+        // and the spaces after it the one after where the tab overflows it. Text ends it everywhere.
+        expect(texts([bob, space('\t'), space('  go')], width)).toEqual(scan === 'gecko' ? ['@bob', '\t|  ', 'go'] : ['@bob|\t|  ', 'go'])
+        expect(texts([bob, space('\t'), space('  go')], 8 * measureWidth(' ', FONT) - 1)).toEqual(scan === 'gecko' ? ['@bob', '\t', '  go'] : ['@bob|\t|  ', 'go'])
+        expect(texts([bob, space(' x'), space('  go')], width)).toEqual(['@bob| ', 'x|  go'])
         // A padded span that starts with a line feed or spaces stays on the chip's line where the
         // line fits the span's start edge in Chrome and Safari, and all of its padding in Firefox.
         // Otherwise the line ends after the chip, but in Safari before a line feed, which the chip's
