@@ -28,13 +28,31 @@
 //   character the run goes past against the white space before them, with a newline as a space; and, cut on their own
 //   too, a soft hyphen that ends an item before a bidi control that starts the next, at the paragraph's start, after a
 //   space in the item or a collapsed one before it, which Firefox's scan of the joined text takes as text, and after
-//   other text;
+//   other text; and, cut on its own too, a padded span that starts with a line separator after a word, before which
+//   WebKit's check at an item boundary gives no break (getWebKitBreakBetweenItems in src/line-breaks.ts), so a line
+//   that can't fit its padding breaks the word (hardBreakItemRetreat in src/measurement.ts);
 // - cut on their own too, a line that ends at a space inside an item under negative letter spacing, whose next line the
 //   browsers start after the space, beside a break at the collapsed space between items;
 // - keep-all paragraphs, cut on their own: a Korean chat message with a mention chip, a bold run inside a word and a
 //   code span a particle follows, beside the same message without keep-all; a mention chip inside a Korean word; and
 //   Japanese whose bold run ends with a full stop, after which WebKit's check at an item boundary finds no break where
-//   one text node breaks (getWebKitBreakBetweenItems in src/line-breaks.ts).
+//   one text node breaks (getWebKitBreakBetweenItems in src/line-breaks.ts);
+// - pre-wrap paragraphs, cut on their own: preserved spaces at an item's end and start and over three fonts, which hang
+//   across the style change, and before a padded span's end and after its start; line feeds at an item's end and start,
+//   a blank line across items and a carriage return that ends an item before a line feed that starts the next; a line
+//   feed inside a padded span and one that starts a padded span; spaces before a line feed in the next item and at the
+//   paragraph's end; tabs after a wider bold span and split across items, and after and inside padded code spans in
+//   prose, whose stops count from the line's start; and chips beside preserved spaces and holding their own; then, cut on
+//   their own too, a chip before a line feed and one before spaces, which stay on its line however far it overflows,
+//   and a padded span that starts with a line feed after a word, whose line breaks the word where the padding doesn't
+//   fit (hardBreakItemRetreat in src/measurement.ts); and, cut on their own too, that span after a word whose last
+//   letter is a bold span of its own, which moves with it, a padded span of only a line feed, whose end edge Safari
+//   fits too, and a padded span that starts with a line feed or spaces after a chip, whose opening each engine fits
+//   its way (paddedOpeningFit in src/measurement.ts); and, cut on their own too, a padded span of only spaces after a
+//   chip, which Chrome keeps on the chip's line however far it overflows, one of spaces and a line feed, whose end edge
+//   Safari fits too, and a padded span that starts with a line feed or spaces after a word that ends with spaces,
+//   whose opening Chrome's line takes with no padding, and before whose line feed, where its padding doesn't fit,
+//   Safari keeps the spaces that fit and Firefox all but the last (hardBreakItemRetreat).
 import { TEXTS } from '../../src/test-data.ts'
 import type { CssFont, Paragraph, TextRun } from '../types.ts'
 import { codePoints, createRng, font, paragraph, span } from './build.ts'
@@ -54,9 +72,9 @@ const JAPANESE = font('"Hiragino Sans"', 16)
 
 type Part = string | TextRun
 
-function template(family: string, origin: string, base: CssFont, parts: readonly Part[], lang = 'en', wordBreak: Paragraph['wordBreak'] = 'normal'): Template {
+function template(family: string, origin: string, base: CssFont, parts: readonly Part[], lang = 'en', wordBreak: Paragraph['wordBreak'] = 'normal', whiteSpace: Paragraph['whiteSpace'] = 'normal'): Template {
   const direction = lang === 'ar' || lang === 'he' ? 'rtl' : 'ltr'
-  return { family: `rich/${family}`, origin, pageLang: lang, widths: [], grid: true, paragraph: paragraph({ font: base, lang, direction, wordBreak }, parts) }
+  return { family: `rich/${family}`, origin, pageLang: lang, widths: [], grid: true, paragraph: paragraph({ font: base, lang, direction, wordBreak, whiteSpace }, parts) }
 }
 
 // A span in the base font: an inline element whose style doesn't change, as main's same-font items are.
@@ -168,6 +186,7 @@ export function richTemplates(): Template[] {
     ['bidi-level-of-a-newline', ['\u{202D}\u{AD}', '\u{628}\u{628}\n\u{61C}\u{AD}', span(' \u{AD}more', ARIAL, { atomic: true })], 'ar'],
     ['soft-hyphen-before-bidi-control', ['\u{AD}', '\u{202B}more words']], ['soft-hyphen-before-bidi-control', ['see \u{AD}', '\u{2066}this word']],
     ['soft-hyphen-before-bidi-control', ['word ', '\u{AD}', '\u{200F}more text']], ['soft-hyphen-before-bidi-control', ['see', '\u{AD}', '\u{2066}this word']],
+    ['separator-starts-padded-item', ['Unbreakable', span('\u{2028}next line', CODE, { padding: 20 }), ' after']],
   ]
   for (let i = 0; i < continued.length; i++) {
     const [family, parts, lang] = continued[i]!
@@ -191,6 +210,30 @@ export function richTemplates(): Template[] {
   for (let i = 0; i < keepAll.length; i++) {
     const [family, base, parts, lang, wordBreak] = keepAll[i]!
     out.push(template(`keep-all/${family}`, `word-break: ${wordBreak} on the paragraph, as a chat message sets it (src/layout.test.ts, rich-inline invariants)`, base, parts, lang, wordBreak))
+  }
+  const preWrap: ReadonlyArray<readonly [string, CssFont, readonly Part[]]> = [
+    ['spaces-across-items', ARIAL, ['Ship it   ', span('today', BOLD(ARIAL)), ' and', span('  ', { ...ARIAL, size: 12 }), span('   then', { ...ARIAL, size: 22 }), ' more words after that']],
+    ['spaces-at-padded-edges', HELVETICA, ['Run ', span('bun test   ', CODE, { padding: 7 }), 'before', span('   you push', CODE, { padding: 7 }), ' it now']],
+    ['line-feeds-across-items', ARIAL, ['\nFirst line\n', span('second', BOLD(ARIAL)), ' line of', span('\nthird\r', BOLD(ARIAL)), '\n\nfifth line ends\n']],
+    ['line-feeds-in-padded-items', HELVETICA, ['See ', span('let a = 1\nlet b', CODE, { padding: 7 }), ' and some words', span('\nnext line', CODE, { padding: 20 }), ' after it']],
+    ['spaces-before-line-feed', ARIAL, ['Some words here   ', span('\nnext line', BOLD(ARIAL)), ' ends here', span('      ', BOLD(ARIAL))]],
+    ['tabs-across-items', ARIAL, [span('Name', BOLD({ ...ARIAL, size: 20 })), '\tvalue\t', span('\tcol two', BOLD(ARIAL)), '\tmore text here']],
+    ['tabs-in-padded-code', HELVETICA, [span('key', CODE, { padding: 7 }), '\tvalue with ', span('if (a)\treturn b', CODE, { padding: 7 }), ' in the code']],
+    ['chips-beside-spaces', HELVETICA, ['Thanks  ', span('@alice', CHIP, { atomic: true, padding: 11 }), '  for the review', span(' @bob ', CHIP, { atomic: true, padding: 11 }), ' too']],
+    ['chip-before-line-feed', HELVETICA, ['Ping ', span('@alice', CHIP, { atomic: true, padding: 11 }), '\n', span('@bob', CHIP, { atomic: true, padding: 11 }), '  please look at this']],
+    ['line-feed-starts-padded-item', HELVETICA, ['Unbreakable', span('\nnext line', CODE, { padding: 20 }), ' after']],
+    ['line-feed-starts-padded-item', HELVETICA, ['Unbreakabl', span('e', BOLD(HELVETICA)), span('\nnext line', CODE, { padding: 20 }), ' after']],
+    ['line-feed-starts-padded-item', HELVETICA, ['Unbreakable', span('\n', CODE, { padding: 20 }), 'tail text']],
+    ['padded-span-after-chip', HELVETICA, ['Ping ', span('@alice', CHIP, { atomic: true, padding: 11 }), span('\nnext line', CODE, { padding: 20 }), ' after']],
+    ['padded-span-after-chip', HELVETICA, ['Ping ', span('@alice', CHIP, { atomic: true, padding: 11 }), span('  spaced code', CODE, { padding: 12 }), ' after']],
+    ['padded-span-after-chip', HELVETICA, ['Ping ', span('@alice', CHIP, { atomic: true, padding: 11 }), span('  ', CODE, { padding: 12 }), 'next words']],
+    ['padded-span-after-chip', HELVETICA, ['Ping ', span('@alice', CHIP, { atomic: true, padding: 11 }), span('  \n', CODE, { padding: 12 }), 'next words']],
+    ['line-feed-starts-padded-item', HELVETICA, ['Unbreakable   ', span('\nnext line', CODE, { padding: 20 }), ' after']],
+    ['spaces-at-padded-edges', HELVETICA, ['Unbreakable   ', span('  spaced code', CODE, { padding: 20 }), ' after']],
+  ]
+  for (let i = 0; i < preWrap.length; i++) {
+    const [family, base, parts] = preWrap[i]!
+    out.push(template(`pre-wrap/${family}`, 'white-space: pre-wrap on the paragraph, as an editor sets it (#173; src/layout.test.ts, rich-inline invariants)', base, parts, 'en', 'normal', 'pre-wrap'))
   }
   return out
 }

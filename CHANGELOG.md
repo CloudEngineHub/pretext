@@ -4,6 +4,7 @@
 
 ### Added
 
+- `prepareRichInline()` takes `{ whiteSpace: 'pre-wrap' }`, for CSS `white-space: pre-wrap` on the paragraph, as `prepare()` does: every item but an atomic one keeps its spaces, tabs and newlines, spaces at a line's end hang past it across a change of style, tab stops count from the line's start, and a newline ends its line, so an editor's paragraph split into styled runs takes the lines the browser gives it (#381).
 - `prepareRichInline()` takes an options argument, `{ wordBreak: 'keep-all' }`, for CSS `word-break: keep-all` on the paragraph, as `prepare()` does, so Korean, Chinese and Japanese messages with mentions, bold runs or code spans break where the browser breaks them under keep-all (#379).
 - Rich-inline fragments now have `gapItemIndex`, the index of the item whose collapsed space `gapBefore` measures, or -1 when no space precedes the fragment on its line. A painter can draw that space inside the element of the item whose font measured it, and can tell a zero-width space apart from no space (#310).
 
@@ -29,6 +30,7 @@
 
 ### Fixed
 
+- In Safari, a rich-inline item that starts with a line or paragraph separator, U+2028 or U+2029, no longer takes a line of its own after a chip wider than the line, or where the item's padding doesn't fit after the text before it, since Safari gives no break before the separator; such a paragraph no longer comes out a line taller than Safari lays it out (#381).
 - Under negative letter spacing, a rich-inline line that starts inside an item no longer starts its first fragment's text with a space. Where the last word of the line before just fit, as happens at the letter spacing apps give body text, such as −0.08px, the next line's first fragment started at the space after that word: text such as ` cd`, which Canvas `fillText()` or `white-space: pre` painted one space to the right. It now starts after the space, as the browsers start that line and as `layoutWithLines()` does. At any letter spacing, a rich line's first fragment now starts after the spaces and soft hyphens a line start skips, where its `start` cursor used to sit before them (#380).
 - In Firefox, a rich-inline fragment's text no longer holds the soft hyphen (U+00AD) that ends its item where that soft hyphen starts the paragraph or follows white space and the next item starts with a bidi control such as LRI; it now leaves the soft hyphen out, as a fragment's text does elsewhere (#373).
 - In Firefox, rich-inline items no longer give two spaces where Firefox collapses white space and invisible direction marks such as LRM into one run: an item holding only white space and such marks between words, and white space around a mark after a soft hyphen at an item's end, now take the room of one space (#372).

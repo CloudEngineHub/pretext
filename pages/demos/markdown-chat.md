@@ -27,7 +27,7 @@ Chrome 153, Apple M5 Max, device pixel ratio 2, a 1280×900 frame with an 860 px
 
 - paragraphs, headings and list items with `prepareRichInline()`, one item per run of same-styled text;
 - code fences, tables and block HTML with `prepareWithSegments(text, font, { whiteSpace: 'pre-wrap' })`;
-- a hard break starts a new block, since rich inline text supports only `white-space: normal`.
+- a hard break starts a new block, since rich inline text in `white-space: normal` has no line break item.
 
 **Heights from line counts; lines only for rows on screen.** `layoutConversation()` asks each block only for a line count, through `measureRichInlineStats()` or `layout()`; `layoutMessage()` walks a message's lines only when its row is built or the chat width changes. Both wrap at `getBlockLineWidth()` and size blocks with `getBlockHeight()`, so painted lines match counted heights. Before [#286](https://github.com/chenglou/pretext/pull/286) the chat built every message's lines on each width change, allocating 11-14 MB, and its layout work per resize took 14-17 ms, measured in Node. Skip it when building every message's lines per width fits your frame.
 

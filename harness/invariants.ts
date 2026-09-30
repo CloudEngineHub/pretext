@@ -18,7 +18,7 @@
 // - a visitor that edits the range it's given doesn't change the lines after it;
 // - rich lines: a gap is the SPACE advance of the item whose white space made it, sign included; an empty item keeps
 //   the other items' indices; a `break: 'never'` item stays whole; each fragment counts its item's extraWidth once;
-//   a line is as wide as its fragments' gaps and widths together, or 0 if they add up to less;
+//   a line is as wide as its fragments' gaps and widths together, or 0 if they add up to less; pre-wrap makes no gaps;
 // - held handles, and their structuredClone() copies, lay out as before after the same texts are prepared with letter
 //   spacing 1, after clearCache() and after setLocale(), and prepares with filled caches equal cold ones, at the held
 //   texts' letter spacing and at 1;
@@ -35,7 +35,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import type { LayoutCursor, LayoutLine, LayoutLineRange, PrepareOptions, PreparedText, PreparedTextWithSegments } from '../src/layout.ts'
 import type { PreparedRichInline, RichInlineCursor, RichInlineItem, RichInlineLineRange, RichInlineOptions } from '../src/rich-inline.ts'
-import { canvasFont, cursorOffsets, isRich, plainDisagreement, prepareOptions, richDisagreement, richItems, richOptions, unsupported } from './predict.ts'
+import { canvasFont, cursorOffsets, isRich, itemOptions, plainDisagreement, prepareOptions, richDisagreement, richItems, richOptions, unsupported } from './predict.ts'
 import { createRng } from './sets/build.ts'
 import type { Case } from './types.ts'
 
@@ -223,7 +223,7 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
     // Everything prepared first, so what follows asks Canvas nothing: the paragraph, each item alone (whose own
     // prepared text the fragments' cursors index), the paragraph after an empty item, and without extraWidth.
     const prepared = api.prepareRichInline(items, options)
-    const handles = items.map(item => api.prepareWithSegments(item.text, item.font, item.letterSpacing === undefined ? options : { ...options, letterSpacing: item.letterSpacing }))
+    const handles = items.map(item => api.prepareWithSegments(item.text, item.font, itemOptions(item, options)))
     const shiftedPrepared = api.prepareRichInline([{ text: '', font: items[0]!.font }, ...items], options)
     const extra = items.some(item => (item.extraWidth ?? 0) !== 0)
     const withoutExtra = extra ? api.prepareRichInline(items.map(({ extraWidth: _, ...rest }) => rest), options) : null
@@ -267,7 +267,9 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
           occupied += f.gapBefore + f.occupiedWidth
           spans[f.itemIndex]!.push([offsets[f.itemIndex]!(f.start), offsets[f.itemIndex]!(f.end)])
           // A gap is the SPACE of the item whose white space made it, or none where Gecko's run of
-          // white space took that white space in (whitespaceRunOpen in src/rich-inline.ts).
+          // white space took that white space in (whitespaceRunOpen in src/rich-inline.ts). Nothing
+          // collapses in pre-wrap.
+          if (options.whiteSpace === 'pre-wrap' && (f.gapBefore !== 0 || f.gapItemIndex !== -1)) fail('rich lines', at, `line ${i} has a gap of ${f.gapBefore} before item ${f.itemIndex} in pre-wrap`)
           if (f.gapItemIndex >= 0) {
             const gapItem = items[f.gapItemIndex]!
             const space = standInWidth(' ', gapItem.font, gapItem.letterSpacing ?? 0)
@@ -282,7 +284,7 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
         if (Math.abs(lines[i]!.width - Math.max(0, occupied)) > 1e-6) fail('rich lines', at, `line ${i} is ${lines[i]!.width} wide; its fragments' gaps and widths add up to ${occupied}`)
       }
       for (let k = 0; k < items.length; k++) {
-        const coverage = covers(handles[k]!.segments.join(''), spans[k]!, 'normal')
+        const coverage = covers(handles[k]!.segments.join(''), spans[k]!, items[k]!.break === 'never' ? 'normal' : options.whiteSpace ?? 'normal')
         if (coverage !== null) fail('coverage', `${at}, item ${k}`, coverage)
         if (items[k]!.break === 'never' && handles[k]!.segments.length > 0 && whole[k] !== 1) fail('rich lines', at, `atomic item ${k} is in ${whole[k]} fragments`)
       }
@@ -301,8 +303,9 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
         fragments: line.fragments.map(f => ({ ...f, itemIndex: f.itemIndex + 1, gapItemIndex: f.gapItemIndex < 0 ? f.gapItemIndex : f.gapItemIndex + 1 })),
       }))
       if (!same(shifted, expected)) fail('rich lines', at, `an empty first item gives ${JSON.stringify(shifted[0])} for line 0, not ${JSON.stringify(expected[0])}`)
-      // On one line, each fragment is its text's width plus its item's extraWidth, once.
-      if (withoutExtra !== null) {
+      // On one line, each fragment is its text's width plus its item's extraWidth, once, but where a pre-wrap tab's
+      // stop, which counts from the line's start, moves with the extraWidth before it.
+      if (withoutExtra !== null && !(options.whiteSpace === 'pre-wrap' && items.some(item => item.text.includes('\t')))) {
         const withExtra = walk(prepared, Infinity)
         const without = walk(withoutExtra, Infinity)
         const a = withExtra.flatMap(line => line.fragments)
@@ -362,6 +365,12 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
   const pill: RichInlineItem = { text: 'ABCD', font: FONT, break: 'never', extraWidth: 18 }
   rich('fixed a pill alone', [pill], 1)
   rich('fixed a pill between letters', [{ text: 'A', font: FONT }, pill, { text: 'B', font: FONT }], 50)
+  // Pre-wrap spaces, tabs and newlines at item edges, in padded items and a chip, and a CRLF split across items.
+  const preWrap: RichInlineItem[] = [
+    { text: 'ab  ', font: FONT }, { text: '  cd\t', font: '12px Test', extraWidth: 6 }, { text: '\tef', font: FONT }, { text: '\n', font: FONT },
+    { text: ' g h ', font: FONT, break: 'never', extraWidth: 10 }, { text: 'ij\r', font: FONT }, { text: '\n\nkl   ', font: FONT, extraWidth: 4 },
+  ]
+  for (const width of [1, 17, 30, 45, 70, Infinity]) rich('fixed pre-wrap white space at item edges', preWrap, width, { whiteSpace: 'pre-wrap' })
 
   // ---- Held handles ----
   const recheck = (after: string): void => {

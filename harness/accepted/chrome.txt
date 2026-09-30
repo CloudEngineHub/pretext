@@ -6,6 +6,16 @@ report-23cd6052bc54f415 breaks
 report-953b7e9cd05588ed breaks
 report-b980d5159851daba breaks
 
+## A padded rich pre-wrap span whose line ends inside it, at a line feed or after spaces that hang, at 24 px and wider: Chrome fits that line without the span's end edge, the library with it, as Firefox does (ENGINE_FOLLOWUPS.md)
+rich-75dcc33f88f9804f count
+rich-9b04cbd2a170ff51 count
+
+## A padded rich pre-wrap span whose text breaks across lines, at 24 px and wider: Chrome pads only the first piece's start and the last piece's end, where the library charges the whole extraWidth on every piece, so a piece overflows and breaks again (ENGINE_FOLLOWUPS.md, Rich-inline item edges)
+rich-68e863d10ee4ce7e count
+
+## A padded rich span that starts with U+2028 after a word, in white-space: normal, at 80 px and wider: Chrome fits the line that ends inside the span, after the word that follows the separator, without the span's end edge, the library with it, as Firefox does (619e8ead too; ENGINE_FOLLOWUPS.md)
+rich-ec4dcfc6130015dc breaks
+
 ## A soft hyphen after a space, before white space in the next span or its own, or white space and a soft hyphen that start the paragraph before a ZWSP, at 24 px and wider: Chrome keeps the space after the soft hyphen visible where a line starts, as it doesn't consume a soft hyphen at a line start, where the library consumes both (main and 0fef0023 too; ENGINE_FOLLOWUPS.md)
 rich-0de3e74d8bc2e919 count
 rich-1d58246788b59c86 count
@@ -47,6 +57,15 @@ rich-cab7a1cf42268d8d breaks
 
 ## A span of a soft hyphen between spaces after a word, at 24 px and wider: Chrome keeps the space after the soft hyphen visible at the start of the next line, as it doesn't consume a soft hyphen at a line start, where the library consumes both, as it does in one text (main and c09d264b too; ENGINE_FOLLOWUPS.md)
 rich-ed1f76e1c1bff59b count
+
+## A tab inside a rich pre-wrap span whose font isn't the paragraph's, at 24 px and wider: Chrome counts its tab stops in the paragraph's font, the library in the span's own, as Safari does (ENGINE_FOLLOWUPS.md)
+rich-23ff07f10afafc48 breaks
+rich-27025cdc4c1536bf count
+rich-47a6c2ebe737ad8d count
+rich-4a3e3dad61cf6b82 breaks
+rich-7f90cee66af55112 breaks
+rich-ab7c458af6c93dbc count
+rich-d1948dbaa742e085 count
 
 ## Arabic and Hebrew beside brackets, controls, U+FFFC or rich-item edges, at 24 px and wider: Chrome breaks there where the library doesn't
 catalog-01ed9a531b7a32b4 count
@@ -1534,6 +1553,7 @@ catalog-b01be3e0f5c2d0f4 count
 catalog-b03ed0b53a5078c7 count
 catalog-b08bd7fe511c5a3f count
 catalog-b17ece5a56547afc count
+catalog-b1c9af22ed6cc7ef count
 catalog-b22a96ac755e9cf4 breaks
 catalog-b2b580aa4b047996 count
 catalog-b30815f61b9cb9d8 breaks
@@ -1738,6 +1758,7 @@ catalog-e0db4952aeba6a1c count
 catalog-e0f60da9297d04d5 breaks
 catalog-e17b8ff868ed2488 count
 catalog-e1a0d96fb970be25 count
+catalog-e1b96a15bfd741ca count
 catalog-e1bf64cb7e3e67ac count
 catalog-e1eda21d818b2c92 count
 catalog-e1fdb5e09574fc3d count
@@ -2176,6 +2197,7 @@ catalog-22ff97fd5b10e487 count
 catalog-23060ad95885018a count
 catalog-23463164b227c5e0 count
 catalog-2375bc988e75f00e count
+catalog-23bb9045e56f445f count
 catalog-23d0c7b598e67d4a count
 catalog-23fba1ca338fdc12 count
 catalog-244a970ec0136780 count
@@ -2191,6 +2213,7 @@ catalog-2714a80ad4a46e3e count
 catalog-2744327bf96d5887 count
 catalog-275a3b3d94895f76 count
 catalog-27aaee146dc95b4d count
+catalog-27e504c68f658358 count
 catalog-27f74152e0039e23 count
 catalog-2804ccbb422aafa7 count
 catalog-282e7fb62b9e46b0 count
@@ -2475,6 +2498,7 @@ catalog-644a8bec5e556755 count
 catalog-645340fde8e9bd03 count
 catalog-64c5a76e39d5a529 count
 catalog-651bbab97bf4c1c1 count
+catalog-65ee4702b6227dc5 count
 catalog-667862e49a9a59b3 count
 catalog-667efb5fc3158d4d count
 catalog-6685c0bb7bd7fbbc count
@@ -2882,6 +2906,7 @@ catalog-c6d22745ee322a36 count
 catalog-c6e4193a6bb3af64 count
 catalog-c767fb958d4a8d5d count
 catalog-c780e2e69d8cbb44 count
+catalog-c7af26e454a5aa9c count
 catalog-c7b9e540ea095bfe count
 catalog-c7baba4bef3dc899 count
 catalog-c8a77beee8111b1b count
@@ -3088,6 +3113,7 @@ catalog-f7d911ea77485e57 count
 catalog-f855a5a8f32a0fcb count
 catalog-f888d894013eb4cf count
 catalog-f8fe620fae6ca578 count
+catalog-f8fe72d166baf8ec count
 catalog-f906afcdcfa5fe5b count
 catalog-f9444789eac138da count
 catalog-f94609884269e3d1 count
@@ -3204,13 +3230,22 @@ rich-029e71d595e94f0c count
 rich-0a3fec9a06a04eef count
 rich-0a8313779639e9ef count
 rich-0cabfc789f6a4358 count
+rich-0fd068ce5f126fef count
+rich-11c49eccf08f18c8 count
 rich-166322a1778d474c count
 rich-1e0d5476b00642c8 count
+rich-1e310e1aa5f44bd6 count
 rich-235e25578c8411f6 count
+rich-26c6030b9304ccd7 count
 rich-26f8627a88fc9819 count
 rich-2967857136330955 count
+rich-2adbdb43e67fa87c count
+rich-2ba96631579775f7 count
+rich-2d09e453d98924b9 count
 rich-3055350027afea05 count
+rich-31ddf4b29ff31fe7 count
 rich-34075de5f2f50824 count
+rich-3d6b0dd007f16ed1 count
 rich-3f6c610251935b3f count
 rich-3f7623a4b4dd94eb count
 rich-406ee1104d5987ce count
@@ -3219,19 +3254,28 @@ rich-49d40a0beea8f837 count
 rich-4ab385df7ef60d77 count
 rich-4fb2c56ec3a40ccb count
 rich-5591e87036a36b35 count
+rich-5727b8e7e3526aec count
+rich-5a97ab786f3e057e count
 rich-61a0d94181d91eec count
 rich-62a3fc75836c636c count
 rich-668d6722303f2370 count
 rich-7207dfa4e9dfe793 count
 rich-807cbc79ec3f2948 count
+rich-81926e46654c3d06 count
 rich-857a18338463351b count
 rich-8acb5b79e29743bd count
+rich-8f112ed49e735213 count
 rich-91260660c787313b count
 rich-9caad05a8d6ec08d count
 rich-a09d53bd7aff382c count
 rich-a560650dfbeafe72 count
+rich-a5ad960782eb9128 count
+rich-ab169565a9c0a88b count
 rich-af536739c810f600 count
+rich-c4a883b30ad5ddaf count
 rich-c604ab44311a3b58 count
+rich-c7cfa88d8a212348 count
+rich-cd0ee47c06b6cf6d count
 rich-d2cbcec88b98434b count
 rich-e4d9d26e42f80135 count
 rich-ea6501c78957947f count
@@ -3258,87 +3302,6 @@ rich-1bde08cab6d2f582 breaks
 rich-5f514e046c5041f3 breaks
 rich-bd576120f4886917 breaks
 rich-dc51749039b55b72 count
-
-## Outside what Pretext claims: rich-inline in pre-wrap, which rich-inline doesn't take, so the adapter can't express it
-catalog-0567679cb1aa4171 error
-catalog-0e2f776b121082c7 error
-catalog-23bb9045e56f445f error
-catalog-27e504c68f658358 error
-catalog-372200d7d172a6db error
-catalog-41f185331bd1afb7 error
-catalog-5116294d6b9c9b61 error
-catalog-625ae8d53c2f3d36 error
-catalog-65ee4702b6227dc5 error
-catalog-697ebcd8952dfad8 error
-catalog-6c66e91b302fa77e error
-catalog-6e9199a406030c53 error
-catalog-8346e5d5483dcc89 error
-catalog-88fc114464eeef15 error
-catalog-90144990be1c356d error
-catalog-a20814848d056618 error
-catalog-ab1aa6fc7bb4a6bd error
-catalog-b1c9af22ed6cc7ef error
-catalog-b63568dacd6b1561 error
-catalog-ba405e5ba46be76c error
-catalog-bf857a94dfeeb2f8 error
-catalog-c03ba4ed5b1ea61c error
-catalog-c7af26e454a5aa9c error
-catalog-d30819e8af33834a error
-catalog-d34e8f2b5761fa04 error
-catalog-d406a2d6120c7414 error
-catalog-e0908aebab5396b3 error
-catalog-e1b96a15bfd741ca error
-catalog-e2f31105468f79fc error
-catalog-e5ac0f3df374a63a error
-catalog-f5f80c724cecfadd error
-catalog-f8eab2f9b7fa5a3f error
-catalog-f8fe72d166baf8ec error
-catalog-fde4405c90bb0d51 error
-sample-039b9aad134b8722 error
-sample-09d5544e5a0cda51 error
-sample-0c175911d88de6e5 error
-sample-180cdf8c3edb7f3e error
-sample-181d80b67a6573c0 error
-sample-18f5ceb06a390279 error
-sample-1fcf45fef7d05e86 error
-sample-22b1642b1b3a72b1 error
-sample-32d887db8aa00844 error
-sample-3d3244b009c7a64a error
-sample-3f994ba2565ac5af error
-sample-5aaa1483596b597c error
-sample-5c7a25f0fd1e9d7c error
-sample-61a7e02002ca943d error
-sample-7951b3c73d4c2185 error
-sample-7a3d9ad1e9bc0775 error
-sample-802106e2cc35b632 error
-sample-81fc3dc86e0c2b48 error
-sample-89bc7022499a71cd error
-sample-8f4641475026e1cc error
-sample-8fe50c1948bd2fd9 error
-sample-96ede1fd141b2127 error
-sample-9a08f95f0e36316c error
-sample-9dddf6b3835158e3 error
-sample-a75c90b27e7c3a78 error
-sample-aae699f821c5c166 error
-sample-afb553dfc3337942 error
-sample-b0de378c1e17cb36 error
-sample-bc7192c4528f9753 error
-sample-bdbb56f1d153c5db error
-sample-be3e58184db4e6f8 error
-sample-be7cc75d0f573295 error
-sample-c2d90b8c20ea1f02 error
-sample-c4e8386aa10f4930 error
-sample-c802253f4ebc12c0 error
-sample-ca83b1bc5303ee8d error
-sample-ceb030753658de21 error
-sample-d3543a8e252bd42d error
-sample-d7a751f7465340e0 error
-sample-d7d2df475272c15c error
-sample-e9cb3069db32a09c error
-sample-efd4bb257e89f634 error
-sample-f8fa718992cbb6bf error
-sample-fd68e1169d4616a4 error
-sample-ff4a29045b8ea4da error
 
 ## Outside what Pretext claims: system-ui font lists (README.md, Caveats); Chrome's Canvas and DOM pick different SF Pro variants (Chromium #489579956)
 sample-0c1ec78ea4cfbfeb breaks
@@ -4345,6 +4308,7 @@ rich-11e9e541971b00c0 breaks
 rich-13e88b0f7f64929a count
 rich-1b5deb3eb7ef9fcb breaks
 rich-1c219c2151cf59e1 breaks
+rich-20401df9af7ee8b6 breaks
 rich-23a305294dd9312a breaks
 rich-240b61def50ac826 breaks
 rich-3bfba651f17af34a breaks
@@ -4366,6 +4330,7 @@ rich-72c3aa6db713156f count
 rich-7363a3987aa7f181 count
 rich-7a654514bc533904 count
 rich-7b48f25b8637f74f count
+rich-7d84d7d05d6b7468 count
 rich-7e7de2b10d20602a count
 rich-81ad265e7a862f8b breaks
 rich-8ddf54286514054f count

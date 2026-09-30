@@ -942,7 +942,49 @@ edges, one run in Safari 27 whose share Canvas gives only at its ends (`TextShap
 `InlineLineBuilder.cpp:780-1028`). The architecture doesn't block rich `pre-wrap`: run on rich `pre-wrap` text, the
 per-engine rebuild (`rebuild/` on branch `rebuild-20260916`, a from-scratch port of each engine's line breaking, kept as
 the plain-text correctness reference; "the rebuild" below) got 99.3-100% of 1,334 cases' line counts right per browser
-(2026-09-18; `rebuild/research/PREWRAP-RICH.md` on that branch; TODO.md).
+(2026-09-18; `rebuild/research/PREWRAP-RICH.md` on that branch).
+
+Rich inline takes `pre-wrap` (#173), on its premise that spans lay out as their text in one text node (Joined Text): each
+item's analysis and the joined text's take it, and since nothing collapses, a window runs from one atomic item to the
+next. A run of preserved spaces that ends a line hangs across items: an item's walk starts inside the run the line ends
+with (`ItemLine`), so its spaces fit where the content before the run fits, and the rich line hangs the run where it
+ends, all of it where the line wraps and before a hard break or at the paragraph's end only what doesn't fit, as Blink
+walks back over item results (`ComputeTrailingSpaceWidth`, `line_info.cc:289-415`), WebKit exempts each white-space
+item's hanging width from the fit (`InlineContentBreaker`) and Gecko hangs each frame's trailing white space
+(`nsTextFrame.cpp:11214-11229`). Tab stops count from the line's start, never an item's (Blink's
+`line_breaker.cc:2963-2971`, WebKit's pen position, Gecko's `CalcTabWidths`, `nsTextFrame.cpp:4298-4378`). No break
+comes before a hard break (UAX #14 LB6). A padded span that starts with one fits its padding there as each engine fits a
+span whose line ends as it opens: Chrome its start edge, as Blink adds that edge when the span opens and a forced break's
+close tags trail it, and no edge after preserved spaces that overflow or follow text in one span, as its return breaks
+that text before them and the line then trails the spaces, the open tag and the forced break (a run of tabs is an item
+of its own there, so a tab, and spaces after one, follow no text); Safari its end edge too
+where the span holds only white space up to the break, as WebKit's content runs on past the box ends after a line break,
+with white space that hangs before the span left out; Firefox both, as Gecko fits a frame's cloned end edge
+(`paddedOpeningFit`, `src/measurement.ts`). Where it doesn't fit, all three engines return the line to its latest break;
+without one, Chrome ends the line before the span, as its retry of an overflowing line breaks between any two graphemes,
+and Firefox and Safari before the last grapheme of the text before it, a preserved space too, whose wrap opportunities
+lie inside it, and before that grapheme's span where the grapheme is all of one; Safari keeps the preserved spaces that
+fit of ones that overflow, as WebKit breaks the run that overflows where it fits (`hardBreakItemRetreat`). A break the
+walk of an item gives after its preserved spaces is the next item's, which the text the items join decides. WebKit's
+soft wrap index loop ends the content it places after a line break item (`InlineFormattingUtils.cpp:456-475`), so no
+break comes before a line feed that starts a box there either, after an atomic item too, and allows wrapping next to a
+white-space item (`:406-418`). A carriage return that ends one item and a
+line feed that starts the next make one break, as CRLF in one text does. Preserved spaces, tabs that hang and a hard
+break after an atomic item, without padding, stay on its line however far the line overflows: no break comes before
+them, Blink takes them as trailing items after the break after an atomic inline (`HandleTrailingSpaces`,
+`line_breaker.cc:2426-2516`) and Gecko lets an empty frame past the line's end (`CanPlaceFrame`), as all three browsers
+lay out a chip wider than the line, though Chrome gives a line feed after such spaces a line of its own
+(ENGINE_FOLLOWUPS.md). A padded span that starts with them stays where the engine fits its opening, and in Chrome one of
+only white space stays however far the line overflows, as Blink's return keeps the trailable items after the break it
+returns to, white space and the tags of spans that close among it (`RewindOverflow`, `line_breaker.cc:4332-4424`), which
+keeps such a span after any content; else the line ends at the break after the chip, or in Safari, before a line feed,
+returns to the break before the chip. Blink fits only the start edge of a padded span that starts with white space after
+text too, where rich inline takes the whole `extraWidth` in Safari and Firefox (ENGINE_FOLLOWUPS.md). An atomic item lays
+its text out in normal white space, as a chip's `white-space: nowrap` box does: the rebuild's premise, the chip's max-content width with its
+preserved spaces, is 6.6px wider than all three browsers lay out the 12px chip ` @bob ` in 15px Helvetica Neue prose
+(2026-09-29).
+Of 500 real-usage pre-wrap paragraphs split into same-font spans, each one that fails fails in one node too; what's left
+is at padded span edges and tab stops across fonts (ENGINE_FOLLOWUPS.md, Rich-inline item edges).
 
 #### Painting Lines
 
@@ -1301,6 +1343,16 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   dead code for one JIT). Since the rich stepper stopped walking items whose first segment doesn't fit and tests for a
   line that starts at an item's end only on its first item (The Walkers' Shapes, 2026-09-29), rich stats read 16% faster
   than before #369, and without the block 5% faster still, at the rich row's floor.
+- **State a loop keeps for its rare paths**: with pre-wrap (#381), Chrome 154 and Firefox 156 read the bench's rich
+  stats, walks and streams of normal white space 5-9% slower than main, doing the same work: each stats pass visits
+  4,246 items, fits 2,781 whole and walks 13 in both, in every profile. With main's stepper in the branch, both read
+  within noise. The one pre-wrap check that ran on every item, whether the line keeps a padded item's opening, now runs
+  only where the line can't take the item's padding and before a walk, 52 times a pass, which Chrome read within noise
+  of running it on every item. In Chrome, with every pre-wrap statement that runs on normal text left out as well (the
+  hang bookkeeping, the retreat check before continued items, and the hang at the line's start and end), rich stats
+  still read 7-11% slower, and with the line's start, which only the rare pre-wrap paths read, made a constant, 4-5%;
+  main with those three values kept alive read 2% slower. So it's how the JITs allocate the bigger loop's state, not
+  work, and it was accepted as a regression JIT placement alone explains in live code (#381, 2026-09-29).
 - **Inline caches**: once `layout()` has stepped such text, Chrome's `walkLineRanges()` of simple text, sharing the
   simple stepper, takes 2-4% longer than a second copy of main, by a mechanism not found. V8's caches turn polymorphic
   over the two handle kinds (`--log-ic`), but one shape for both didn't help Chrome and cost Firefox up to 14%; a
