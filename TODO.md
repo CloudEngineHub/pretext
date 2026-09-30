@@ -18,7 +18,8 @@ Held until the current work is done, and all before the first release.
   - the emoji-width correction in a worker, where the DOM span it reads doesn't exist (#292, PR #346; PLATFORM_BUGS.md);
   - a paragraph direction, and the device pixel ratio for Chrome's fit grid, the 1/64 device px Chrome fits lines on (RESEARCH.md, Measurement Model; decisions 3 and 4 of issue #321, a study of offline engine emulators);
   - `getTextClusters()` once Chrome ships it, no help for Firefox;
-  - `extraWidth` on a rich item split across lines, which browsers pad only at its outer ends, and #201's fixed-width inline item;
+  - `extraWidth` on a rich item split across lines: today every piece is charged all of it, as CSS `box-decoration-break: clone` pads, where browsers default to `slice`, which pads only the outer ends; perhaps CSS's names at the release, `paddingInline: [start, end]` with `boxDecorationBreak`, so neither meaning is silent (#382);
+  - #201's fixed-width inline item, `{ width }`, for images and custom emoji: one piece, so the padding choice above doesn't touch it;
   - rich inline as one analysis of the paragraph cut at item boundaries, in place of each item's own analysis patched toward the joined text, which needs fragment cursors that don't index each item's own prepared text (RESEARCH.md, Rich Inline Boundaries, Continuing The Line; not prototyped);
   - how a browser whose Canvas lacks what its profile needs degrades, still laying text out rather than showing nothing.
 - Then a release, not before.
