@@ -84,6 +84,11 @@ export function span(text: string, runFont: CssFont, options: RunOptions = {}): 
   return { text, node: 'span', font: runFont, letterSpacing: options.letterSpacing ?? 0, wordSpacing: 0, lang: null, ...(options.atomic === true ? { atomic: true } : {}), ...(options.padding === undefined ? {} : { padding: options.padding }) }
 }
 
+// A box of this width and height (TextRun). No text draws it, so its font, which nothing reads, is the paragraph's.
+export function box(width: number, height: number, paragraphFont: CssFont): TextRun {
+  return { text: '￼', node: 'span', font: paragraphFont, letterSpacing: 0, wordSpacing: 0, lang: null, box: { width, height } }
+}
+
 export type ParagraphSpec = {
   font: CssFont
   lang: string

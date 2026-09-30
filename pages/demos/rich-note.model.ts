@@ -3,6 +3,7 @@ import {
   prepareRichInline,
   walkRichInlineLineRanges,
   type PreparedRichInline,
+  type RichInlineBox,
   type RichInlineItem,
 } from '../../src/rich-inline.ts'
 
@@ -12,11 +13,20 @@ import {
 
 export type TextStyleName = 'body' | 'link' | 'code'
 export type ChipTone = 'mention' | 'status' | 'priority' | 'time' | 'count'
+export type EmojiName = 'party' | 'sparkles'
 
 export type RichInlineSpec =
   | { kind: 'text'; text: string; style: Exclude<TextStyleName, 'link'> }
   | { kind: 'text'; text: string; style: 'link'; href: string }
   | { kind: 'chip'; label: string; tone: ChipTone }
+  // A custom emoji, as tall as the line, and an image, which can be taller: boxes, which Pretext
+  // lays out by their width alone.
+  | { kind: 'emoji'; name: EmojiName }
+  | { kind: 'image'; label: string; width: number; height: number }
+
+// A box as the note keeps it: Pretext reads only its width, the note's line heights its height, both
+// of its element's margin box, and the painter its accessible name.
+type NoteBox = RichInlineBox & { height: number; label: string }
 
 type TextStyleModel = {
   className: string
@@ -28,21 +38,34 @@ export type PreparedRichInlineNote = {
   classNames: string[]
   direction: 'ltr' | 'rtl'
   flow: PreparedRichInline
-  fonts: string[]
   hrefs: Array<string | null>
+  items: Array<RichInlineItem | NoteBox>
 }
 
-export type RichLineFragment = {
-  className: string
-  font: string
-  gapItemIndex: number // the item whose collapsed space precedes it on its line, or -1
-  href: string | null
-  itemIndex: number
-  text: string
-}
+export type RichLineFragment =
+  | {
+    kind: 'text'
+    className: string
+    font: string
+    gapItemIndex: number // the item whose collapsed space precedes it on its line, or -1
+    href: string | null
+    itemIndex: number
+    text: string
+  }
+  | {
+    kind: 'box'
+    className: string
+    gapItemIndex: number
+    height: number
+    itemIndex: number
+    label: string
+    width: number
+  }
 
 export type RichLine = {
   fragments: RichLineFragment[]
+  height: number // LINE_HEIGHT, or the tallest box on the line where that is taller
+  top: number
 }
 
 export type RichNoteLayout = {
@@ -60,8 +83,10 @@ export const BODY_FONT = '500 17px "Helvetica Neue", Helvetica, Arial, sans-seri
 export const CODE_FONT = '600 14px "SF Mono", ui-monospace, Menlo, Monaco, monospace'
 export const CHIP_FONT = '700 12px "Helvetica Neue", Helvetica, Arial, sans-serif'
 
+// Every line's CSS line-height. A box aligned to the line's top (vertical-align: top) makes its line
+// as tall as the box where the box is taller, and moves nothing else on the line, so a line is as
+// tall as LINE_HEIGHT and its tallest box.
 export const LINE_HEIGHT = 34
-export const LAST_LINE_BLOCK_HEIGHT = 24
 // The card's side padding, which the page paints from here. The card's ring is
 // an inset shadow, so the padding is all the width the card adds to the body.
 export const NOTE_PADDING_X = 20
@@ -78,6 +103,10 @@ export const PAGE_MARGIN = 28
 // chip's ring is an inset shadow, so the padding is all the width it adds.
 export const CODE_PADDING_X = 7
 export const CHIP_PADDING_X = 11
+// A custom emoji paints EMOJI_SIZE square, centred in a box EMOJI_BOX_WIDTH wide and as tall as the
+// line, so it never makes a line taller.
+export const EMOJI_SIZE = 24
+const EMOJI_BOX_WIDTH = 28
 // A note takes the direction of its first strong character, the way HTML
 // dir=auto reads text. Scripts stand in for bidi classes: letters of these
 // right-to-left scripts, RLM and ALM count as right-to-left, and any other
@@ -112,6 +141,13 @@ export const CHIP_CLASS_NAMES = {
   time: 'frag chip chip--time',
 } satisfies Record<ChipTone, string>
 
+export const EMOJI_CLASS_NAMES = {
+  party: 'box emoji emoji--party',
+  sparkles: 'box emoji emoji--sparkles',
+} satisfies Record<EmojiName, string>
+
+const IMAGE_CLASS_NAME = 'box image'
+
 export const DEFAULT_RICH_NOTE_SPECS: RichInlineSpec[] = [
   { kind: 'text', text: 'Ship ', style: 'body' },
   { kind: 'chip', label: '@maya', tone: 'mention' },
@@ -119,7 +155,9 @@ export const DEFAULT_RICH_NOTE_SPECS: RichInlineSpec[] = [
   { kind: 'text', text: 'rich-note', style: 'code' },
   { kind: 'text', text: ' card once ', style: 'body' },
   { kind: 'text', text: 'pre-wrap', style: 'code' },
-  { kind: 'text', text: ' lands. Status ', style: 'body' },
+  { kind: 'text', text: ' lands ', style: 'body' },
+  { kind: 'emoji', name: 'party' },
+  { kind: 'text', text: '. Status ', style: 'body' },
   { kind: 'chip', label: 'blocked', tone: 'status' },
   { kind: 'text', text: ' by ', style: 'body' },
   { kind: 'text', text: 'vertical text', style: 'link', href: 'https://x.com/_chenglou' },
@@ -127,7 +165,9 @@ export const DEFAULT_RICH_NOTE_SPECS: RichInlineSpec[] = [
   { kind: 'chip', label: 'جاهز', tone: 'status' },
   { kind: 'text', text: ' for ', style: 'body' },
   { kind: 'text', text: 'Cmd+K', style: 'code' },
-  { kind: 'text', text: ' docs; the review bundle now includes 中文 labels, عربي fallback, and one more launch pass 🚀 for ', style: 'body' },
+  { kind: 'text', text: ' docs; the review bundle now includes 中文 labels, عربي fallback, the new empty state ', style: 'body' },
+  { kind: 'image', label: 'Empty state mock', width: 88, height: 56 },
+  { kind: 'text', text: ' and one more launch pass 🚀 for ', style: 'body' },
   { kind: 'chip', label: 'Fri 2:30 PM', tone: 'time' },
   { kind: 'text', text: '. Keep ', style: 'body' },
   { kind: 'text', text: 'layoutNextLine()', style: 'code' },
@@ -137,74 +177,88 @@ export const DEFAULT_RICH_NOTE_SPECS: RichInlineSpec[] = [
   { kind: 'chip', label: '3 reviewers', tone: 'count' },
   { kind: 'text', text: ', and route feedback to ', style: 'body' },
   { kind: 'text', text: 'design sync', style: 'link', href: 'https://x.com/_chenglou' },
+  { kind: 'emoji', name: 'sparkles' },
   { kind: 'text', text: '.', style: 'body' },
 ]
 
 export function prepareRichInlineNote(
   specs: RichInlineSpec[] = DEFAULT_RICH_NOTE_SPECS,
 ): PreparedRichInlineNote {
-  const classNames = specs.map(spec =>
-    spec.kind === 'chip'
-      ? CHIP_CLASS_NAMES[spec.tone]
-      : TEXT_STYLES[spec.style].className,
-  )
-  const hrefs = specs.map(spec =>
-    spec.kind === 'text' && spec.style === 'link' ? spec.href : null,
-  )
-
-  const items: RichInlineItem[] = specs.map(spec => {
-    if (spec.kind === 'chip') {
-      return {
-        text: spec.label,
-        font: CHIP_FONT,
-        break: 'never' as const,
-        extraWidth: CHIP_PADDING_X * 2,
+  const classNames: string[] = []
+  const hrefs: Array<string | null> = []
+  const items: Array<RichInlineItem | NoteBox> = []
+  for (let index = 0; index < specs.length; index++) {
+    const spec = specs[index]!
+    switch (spec.kind) {
+      case 'text': {
+        const style = TEXT_STYLES[spec.style]
+        classNames.push(style.className)
+        hrefs.push(spec.style === 'link' ? spec.href : null)
+        items.push({ text: spec.text, font: style.font, extraWidth: style.extraWidth })
+        break
       }
+      case 'chip':
+        classNames.push(CHIP_CLASS_NAMES[spec.tone])
+        hrefs.push(null)
+        items.push({ text: spec.label, font: CHIP_FONT, break: 'never', extraWidth: CHIP_PADDING_X * 2 })
+        break
+      case 'emoji':
+        classNames.push(EMOJI_CLASS_NAMES[spec.name])
+        hrefs.push(null)
+        items.push({ width: EMOJI_BOX_WIDTH, height: LINE_HEIGHT, label: `:${spec.name}:` })
+        break
+      case 'image':
+        classNames.push(IMAGE_CLASS_NAME)
+        hrefs.push(null)
+        items.push({ width: spec.width, height: spec.height, label: spec.label })
+        break
     }
+  }
 
-    const style = TEXT_STYLES[spec.style]
-    return {
-      text: spec.text,
-      font: style.font,
-      extraWidth: style.extraWidth,
-    }
-  })
-
-  // The painter reads each item's font from the items Pretext measured.
+  // The painter reads each item's font, and each box's size, from the items Pretext laid out.
   return {
     classNames,
     direction: resolveDirection(items),
     flow: prepareRichInline(items),
-    fonts: items.map(item => item.font),
     hrefs,
+    items,
   }
 }
 
-function resolveDirection(items: readonly RichInlineItem[]): 'ltr' | 'rtl' {
+function resolveDirection(items: ReadonlyArray<RichInlineItem | NoteBox>): 'ltr' | 'rtl' {
   for (let index = 0; index < items.length; index++) {
-    const strong = STRONG_CHARACTER.exec(items[index]!.text)
+    const text = items[index]!.text
+    if (text === undefined) continue
+    const strong = STRONG_CHARACTER.exec(text)
     if (strong !== null) return RIGHT_TO_LEFT_CHARACTER.test(strong[0]) ? 'rtl' : 'ltr'
   }
   return 'ltr'
 }
 
+// Each line with its top and height: LINE_HEIGHT, or its tallest box where that is taller.
 export function layoutRichInlineItems(
   prepared: PreparedRichInlineNote,
   maxWidth: number,
 ): RichLine[] {
   const lines: RichLine[] = []
+  let top = 0
   walkRichInlineLineRanges(prepared.flow, maxWidth, range => {
     const line = materializeRichInlineLineRange(prepared.flow, range)
-    lines.push({
-      fragments: line.fragments.map(fragment => ({
-        className: prepared.classNames[fragment.itemIndex]!,
-        font: prepared.fonts[fragment.itemIndex]!,
-        gapItemIndex: fragment.gapItemIndex,
-        href: prepared.hrefs[fragment.itemIndex] ?? null,
-        itemIndex: fragment.itemIndex,
-        text: fragment.text,
-      })),
-    })
+    const fragments: RichLineFragment[] = []
+    let height = LINE_HEIGHT
+    for (let index = 0; index < line.fragments.length; index++) {
+      const fragment = line.fragments[index]!
+      const item = prepared.items[fragment.itemIndex]!
+      const className = prepared.classNames[fragment.itemIndex]!
+      if (item.text === undefined) {
+        if (item.height > height) height = item.height
+        fragments.push({ kind: 'box', className, gapItemIndex: fragment.gapItemIndex, height: item.height, itemIndex: fragment.itemIndex, label: item.label, width: item.width })
+      } else {
+        fragments.push({ kind: 'text', className, font: item.font, gapItemIndex: fragment.gapItemIndex, href: prepared.hrefs[fragment.itemIndex] ?? null, itemIndex: fragment.itemIndex, text: fragment.text })
+      }
+    }
+    lines.push({ fragments, height, top })
+    top += height
   })
   return lines
 }
@@ -236,15 +290,14 @@ export function layoutRichNote(
   notePaddingX: number,
 ): RichNoteLayout {
   const lines = layoutRichInlineItems(prepared, bodyWidth)
-  const lineCount = lines.length
+  const last = lines[lines.length - 1]
 
   return {
     bodyWidth,
     direction: prepared.direction,
-    lineCount,
+    lineCount: lines.length,
     lines,
-    noteBodyHeight:
-      lineCount === 0 ? LAST_LINE_BLOCK_HEIGHT : (lineCount - 1) * LINE_HEIGHT + LAST_LINE_BLOCK_HEIGHT,
+    noteBodyHeight: last === undefined ? LINE_HEIGHT : last.top + last.height,
     noteWidth: bodyWidth + notePaddingX * 2,
   }
 }

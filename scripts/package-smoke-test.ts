@@ -97,9 +97,10 @@ async function smokeTypeScript(tarballPath: string): Promise<void> {
     path.join(projectDir, 'index.ts'),
     [
       "import { layout, prepare } from '@chenglou/pretext'",
-      "import { measureRichInlineStats, prepareRichInline } from '@chenglou/pretext/rich-inline'",
+      "import { measureRichInlineStats, prepareRichInline, type RichInlineBox } from '@chenglou/pretext/rich-inline'",
       "const prepared = prepare('hello', '16px Inter')",
-      "measureRichInlineStats(prepareRichInline([{ text: 'hi', font: '16px Inter', break: 'never' }]), 100).lineCount satisfies number",
+      "const box: RichInlineBox = { width: 20 }",
+      "measureRichInlineStats(prepareRichInline([{ text: 'hi', font: '16px Inter', break: 'never' }, box]), 100).lineCount satisfies number",
       "const keepAllPrepared = prepare('안녕하세요 세계', '16px Inter', { wordBreak: 'keep-all' })",
       'const result = layout(prepared, 100, 20)',
       'const keepAllResult = layout(keepAllPrepared, 100, 20)',

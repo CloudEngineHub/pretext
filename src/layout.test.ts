@@ -1,6 +1,7 @@
 import '../harness/watchdog.ts'
 import { beforeAll, beforeEach, describe, expect, test } from 'bun:test'
 import type { AnalysisProfile } from './analysis.ts'
+import type { RichInlineBox, RichInlineItem } from './rich-inline.ts'
 
 // Keep the permanent suite small and durable. These tests exercise the shipped
 // prepare/layout exports with a deterministic fake canvas backend. For narrow
@@ -3644,7 +3645,7 @@ describe('rich-inline invariants', () => {
   })
 
   test('rich items in pre-wrap lay out as their text in one pre-wrap node, in each engine', () => {
-    type Items = Parameters<typeof prepareRichInline>[0]
+    type Items = RichInlineItem[]
     const preWrap = { whiteSpace: 'pre-wrap' } as const
     // Each line's text and width, and that its fragments add up to it.
     const richLines = (items: Items, width: number) => {
@@ -4000,6 +4001,131 @@ describe('rich-inline invariants', () => {
       Object.assign(profile, previous)
       clearCache()
     }
+  })
+
+  test('a box lays out as the atomic NBSP it replaces, whose extraWidth made up the rest of its width, in each engine', async () => {
+    // Each engine's whole profile, from a copy of the module under its user agent.
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
+    const engines: Array<ReturnType<MeasurementModule['getEngineProfile']>> = []
+    try {
+      for (const userAgent of [
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Safari/605.1.15',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:156.0) Gecko/20100101 Firefox/156.0',
+      ]) {
+        Object.defineProperty(globalThis, 'navigator', { value: { userAgent }, configurable: true, writable: true })
+        engines.push((await import(`./measurement.ts?box-${engines.length}`) as MeasurementModule).getEngineProfile())
+      }
+    } finally {
+      if (descriptor === undefined) Reflect.deleteProperty(globalThis, 'navigator')
+      else Object.defineProperty(globalThis, 'navigator', descriptor)
+    }
+    const nbsp = measureWidth(' ', FONT)
+    const standIn = (items: Array<RichInlineItem | RichInlineBox>): RichInlineItem[] =>
+      items.map(item => item.text === undefined ? { text: ' ', font: FONT, break: 'never', extraWidth: item.width - nbsp } : item)
+    const round = (value: number) => Math.round(value * 1e6) / 1e6
+    // Each line's fragments, a box's text, which is empty, as its stand-in's, and the paragraph's stats.
+    const laidOut = (items: Array<RichInlineItem | RichInlineBox>, width: number, options: Parameters<typeof prepareRichInline>[1]) => {
+      const prepared = prepareRichInline(items, options)
+      const lines: unknown[] = []
+      walkRichInlineLineRanges(prepared, width, range => {
+        const fragments = materializeRichInlineLineRange(prepared, range).fragments
+        for (const f of fragments) {
+          if (items[f.itemIndex]!.text === undefined) {
+            expect(f.text).toBe('')
+            f.text = '\u00A0'
+          }
+          f.gapBefore = round(f.gapBefore)
+          f.occupiedWidth = round(f.occupiedWidth)
+        }
+        lines.push({ fragments, width: round(range.width), end: range.end })
+      })
+      const stats = measureRichInlineStats(prepared, width)
+      return { lines, stats: [stats.lineCount, round(stats.maxLineWidth)] }
+    }
+    const BOLD = '700 16px Test Sans'
+    const text = (value: string, font = FONT): RichInlineItem => ({ text: value, font })
+    const rows: Array<Array<RichInlineItem | RichInlineBox>> = [
+      // Between words, with a space on either side, and none; beside punctuation and a soft hyphen.
+      [text('Ship '), { width: 20 }, text(' today, and'), { width: 44 }, text(', then more words')],
+      [text('ab'), { width: 22 }, text('cd ef'), { width: 0 }, text('gh')],
+      [text('see ('), { width: 16 }, text(') now'), text('word­'), { width: 18 }, text('­more text')],
+      // Between ideographs and inside a Korean word, which keep-all doesn't break.
+      [text('日本'), { width: 16 }, text('語のテキスト'), text('안녕하세요'), { width: 20 }, text('님, 반가워요')],
+      // White space after a box, which pre-wrap keeps on its line, a tab, line feeds, and a box last.
+      [text('Ping  '), { width: 30 }, text('  '), text('\tgo', BOLD), text('\n'), { width: 12 }, text('   end   '), { width: 60 }],
+      [text('first\n'), { width: 24 }, text('\nsecond'), { width: 24 }, { width: 24 }, text(' ')],
+    ]
+    const profile = getEngineProfile()
+    const previous = { ...profile }
+    try {
+      for (let e = 0; e < engines.length; e++) {
+        Object.assign(profile, engines[e]!)
+        clearCache()
+        for (const options of [{}, { whiteSpace: 'pre-wrap' }, { wordBreak: 'keep-all' }] as const) {
+          for (const items of rows) {
+            for (let width = 1; width <= 300; width += 3.7) {
+              expect({ engine: profile.lineBreakScan, options, width, ...laidOut(items, width, options) })
+                .toEqual({ engine: profile.lineBreakScan, options, width, ...laidOut(standIn(items), width, options) })
+            }
+          }
+        }
+        // Firefox places a box of width 0 where it falls, even after a space that doesn't fit, where
+        // Chrome and Safari move it to the next line (paddedOpeningFit 'both', Gecko's CanPlaceFrame).
+        const prepared = prepareRichInline([text('ab '), { width: 0 }, text('cd')])
+        const fragments: number[] = []
+        walkRichInlineLineRanges(prepared, measureWidth('ab', FONT) + 1, range => { fragments.push(range.fragments.length) })
+        expect({ engine: profile.lineBreakScan, fragments }).toEqual({ engine: profile.lineBreakScan, fragments: e === 2 ? [2, 1] : [1, 2] })
+      }
+    } finally {
+      Object.assign(profile, previous)
+      clearCache()
+    }
+  })
+
+  test('a box is one fragment of its width, with no text, whether alone, first, last, beside another or wider than the line', () => {
+    const lines = (items: Array<RichInlineItem | RichInlineBox>, width: number, options?: Parameters<typeof prepareRichInline>[1]) => {
+      const prepared = prepareRichInline(items, options)
+      const out: string[][] = []
+      walkRichInlineLineRanges(prepared, width, range => {
+        out.push(materializeRichInlineLineRange(prepared, range).fragments.map(f => `${f.itemIndex}:${f.text}:${Math.round(f.occupiedWidth * 100) / 100}`))
+      })
+      expect(measureRichInlineStats(prepared, width).lineCount).toBe(out.length)
+      return out
+    }
+    const ab = measureWidth('ab', FONT)
+    // Alone, and beside another, with no gap between them; each wider than the line on a line of its own.
+    expect(lines([{ width: 30 }], 100)).toEqual([['0::30']])
+    expect(lines([{ width: 30 }, { width: 30 }, { width: 30 }], 70)).toEqual([['0::30', '1::30'], ['2::30']])
+    expect(lines([{ width: 30 }, { width: 30 }], 20)).toEqual([['0::30'], ['1::30']])
+    // First and last, and wider than the line between words, where it overflows its own line.
+    expect(lines([{ width: 10 }, { text: 'ab cd', font: FONT }, { width: 10 }], 1e5)).toEqual([['0::10', '1:ab cd:' + Math.round(measureWidth('ab cd', FONT) * 100) / 100, '2::10']])
+    expect(lines([{ text: 'ab ', font: FONT }, { width: 50 }, { text: ' cd', font: FONT }], 30).map(line => line.length)).toEqual([1, 1, 1])
+    // A line breaks at a box of width 0 inside a word, as at an <img> of width 0, and an empty text item
+    // makes no fragment.
+    expect(lines([{ text: 'ab', font: FONT }, { width: 0 }, { text: 'cd', font: FONT }], ab + 5)).toEqual([[`0:ab:${ab}`, '1::0'], [`2:cd:${ab}`]])
+    expect(lines([{ text: 'ab', font: FONT }, { text: '', font: FONT }, { text: 'cd', font: FONT }], 1e5)[0]!.map(f => f.split(':')[0])).toEqual(['0', '2'])
+    // Spaces on its two sides don't collapse into one: the box takes the gap before it, from the item
+    // that held the space, and the text after it its own.
+    const prepared = prepareRichInline([{ text: 'ab ', font: FONT }, { width: 20 }, { text: ' cd', font: FONT }])
+    const line = layoutNextRichInlineLineRange(prepared, 1e5)!
+    const space = measureWidth(' ', FONT)
+    expect(line.fragments.map(f => [f.itemIndex, f.gapItemIndex, f.gapBefore, f.occupiedWidth, f.start, f.end])).toEqual([
+      [0, -1, 0, ab, { segmentIndex: 0, graphemeIndex: 0 }, { segmentIndex: 1, graphemeIndex: 0 }],
+      [1, 0, space, 20, { segmentIndex: 0, graphemeIndex: 0 }, { segmentIndex: 1, graphemeIndex: 0 }],
+      [2, 2, space, ab, { segmentIndex: 0, graphemeIndex: 0 }, { segmentIndex: 1, graphemeIndex: 0 }],
+    ])
+    expect(line.width).toBeCloseTo(2 * ab + 2 * space + 20, 9)
+    // A line that ends after a box ends at the next item, and one that starts at a box starts at it.
+    const wrapped = prepareRichInline([{ text: 'ab', font: FONT }, { width: 20 }, { width: 20 }])
+    const first = layoutNextRichInlineLineRange(wrapped, ab + 25)!
+    expect(first.end).toEqual({ itemIndex: 2, segmentIndex: 0, graphemeIndex: 0 })
+    expect(layoutNextRichInlineLineRange(wrapped, ab + 25, first.end)!.fragments.map(f => f.itemIndex)).toEqual([2])
+    // In pre-wrap, spaces after a box wider than the line stay on its line and hang, as after a chip.
+    expect(lines([{ width: 50 }, { text: ' ', font: FONT }, { text: '  next', font: FONT }], 40, { whiteSpace: 'pre-wrap' })).toEqual([['0::50', '1: :0', '2:  :0'], [`2:next:${Math.round(measureWidth('next', FONT) * 100) / 100}`]])
+    // A width that isn't finite, or is negative, throws, naming the item.
+    for (const width of [Number.NaN, Infinity, -Infinity, -10]) expect(() => prepareRichInline([{ text: 'ab', font: FONT }, { width }])).toThrow(RangeError)
+    expect(() => prepareRichInline([{ text: 'ab', font: FONT }, { width: -10 }])).toThrow('Item 1 has no text')
   })
 
   test('split CJK rich inline items stay inside the line width', () => {

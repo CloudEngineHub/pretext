@@ -1,7 +1,8 @@
 // The library used the way an app uses it, in the page: one Canvas font string per run style, maxWidth = the case's
 // width, and the prepare options main documents. A case an app would write with inline elements (spans among other runs,
-// several styles, a chip or padding) goes through rich-inline, one item per run: a chip is `break: 'never'`, padding is
-// `extraWidth`, and the paragraph's white-space and word-break are prepareRichInline()'s options. Line cursors index the library's
+// several styles, a chip, padding or a box) goes through rich-inline, one item per run: a chip is `break: 'never'`, padding
+// is `extraWidth`, a box a RichInlineBox of its width, and the paragraph's white-space and word-break are
+// prepareRichInline()'s options. Line cursors index the library's
 // segments, which are the source after white-space normalization, so the adapter aligns them with the source and returns
 // UTF-16 source offsets. `run.ts --lib` bundles another build in place of src/.
 //
@@ -23,7 +24,7 @@ import {
 } from '../src/layout.ts'
 import {
   layoutNextRichInlineLineRange, materializeRichInlineLineRange, measureRichInlineStats, prepareRichInline, walkRichInlineLineRanges,
-  type RichInlineCursor, type RichInlineFragmentRange, type RichInlineItem, type RichInlineLineRange, type RichInlineOptions,
+  type RichInlineBox, type RichInlineCursor, type RichInlineFragmentRange, type RichInlineItem, type RichInlineLineRange, type RichInlineOptions,
 } from '../src/rich-inline.ts'
 import { findGraphemeEnds } from '../src/graphemes.ts'
 import { getEngineProfile } from '../src/measurement.ts'
@@ -37,7 +38,7 @@ function sameStyle(a: TextRun, b: TextRun): boolean {
 export function isRich(runs: readonly TextRun[]): boolean {
   for (let i = 0; i < runs.length; i++) {
     const run = runs[i]!
-    if ((runs.length > 1 && run.node === 'span') || !sameStyle(run, runs[0]!) || run.atomic === true || run.padding !== undefined) return true
+    if ((runs.length > 1 && run.node === 'span') || !sameStyle(run, runs[0]!) || run.atomic === true || run.padding !== undefined || run.box !== undefined) return true
   }
   return false
 }
@@ -65,6 +66,9 @@ export function canvasFont(font: CssFont): string {
 }
 
 const COLLAPSIBLE = /^[ \t\n\r\f]$/
+
+// The segments a box's fragment cursors index: one empty segment (src/rich-inline.ts).
+export const BOX_SEGMENTS: readonly string[] = ['']
 
 // For each UTF-16 unit of the library's segment stream, the source range it stands for. Normalization only rewrites or
 // removes white space (normal: a run of SPACE, TAB, LF, CR and FF becomes one SPACE, a leading and a trailing one go,
@@ -306,10 +310,14 @@ export function itemOptions(item: RichInlineItem, options: RichInlineOptions): P
 }
 
 // A rich case's items, one per run.
-export function richItems(runs: readonly TextRun[]): RichInlineItem[] {
-  const items: RichInlineItem[] = []
+export function richItems(runs: readonly TextRun[]): Array<RichInlineItem | RichInlineBox> {
+  const items: Array<RichInlineItem | RichInlineBox> = []
   for (let i = 0; i < runs.length; i++) {
     const run = runs[i]!
+    if (run.box !== undefined) {
+      items.push({ width: run.box.width })
+      continue
+    }
     items.push({
       text: run.text, font: canvasFont(run.font), ...(run.letterSpacing === 0 ? {} : { letterSpacing: run.letterSpacing }),
       ...(run.atomic === true ? { break: 'never' as const } : {}), ...(run.padding === undefined ? {} : { extraWidth: 2 * run.padding }),
@@ -361,17 +369,23 @@ export function predict(c: Case): Prediction {
       // Fragment cursors index prepareWithSegments(item.text) of the item's font and letter spacing and the paragraph's
       // white-space (an atomic item's normal) and word-break, prepared here uncounted, as an app needs none of them. So each fragment's text is
       // materializeLineRange's over those cursors, but for the hyphen of a soft hyphen it ends at, which the text the items
-      // join decides; the text builder both share is src/layout.test.ts's to check.
+      // join decides; the text builder both share is src/layout.test.ts's to check. A box's fragment spans one empty
+      // segment and has no text.
       counting = null
-      const handles = items.map(item => prepareWithSegments(item.text, item.font, itemOptions(item, options)))
+      const handles = items.map(item => item.text === undefined ? null : prepareWithSegments(item.text, item.font, itemOptions(item, options)))
       counting = 'lines'
-      const offsets = handles.map(handle => cursorOffsets(handle.segments))
+      const offsets = handles.map(handle => cursorOffsets(handle === null ? BOX_SEGMENTS : handle.segments))
       disagreement = richDisagreement(LIBRARY, prepared, walked, walkedCount, p.width, steps, i => offsets[i])
       counting = null
       for (let i = 0; i < walked.length && disagreement === null; i++) {
         const fragments = materializeRichInlineLineRange(prepared, walked[i]!).fragments
         for (let k = 0; k < fragments.length; k++) {
           const f = fragments[k]!
+          if (items[f.itemIndex]!.text === undefined) {
+            if (f.text !== '') disagreement ??= `materializeRichInlineLineRange line ${i} fragment ${k}, a box, is ${JSON.stringify(f.text)}`
+            textHash = hashText(textHash, f.text)
+            continue
+          }
           const handle = handles[f.itemIndex]!
           const text = materializeLineRange(handle, { start: f.start, end: f.end, width: 0 }).text
           const afterSoftHyphen = f.end.graphemeIndex === 0 && f.end.segmentIndex > 0 && handle.segments[f.end.segmentIndex - 1]?.charCodeAt(0) === 0x00AD
@@ -381,12 +395,15 @@ export function predict(c: Case): Prediction {
       }
       const maps: Array<ReturnType<typeof sourceRanges> | undefined> = []
       const bases: number[] = []
-      for (let i = 0, base = 0; i < items.length; i++) {
+      for (let i = 0, base = 0; i < runs.length; i++) {
         bases.push(base)
-        base += items[i]!.text.length
+        base += runs[i]!.text.length
       }
       const fragment = (f: RichInlineFragmentRange): { start: number; end: number } => {
-        const map = maps[f.itemIndex] ??= sourceRanges(runs[f.itemIndex]!.text, handles[f.itemIndex]!, items[f.itemIndex]!.break === 'never' ? 'normal' : whiteSpace)
+        const item = items[f.itemIndex]!
+        // A box's fragment is its U+FFFC.
+        if (item.text === undefined) return { start: bases[f.itemIndex]!, end: bases[f.itemIndex]! + 1 }
+        const map = maps[f.itemIndex] ??= sourceRanges(runs[f.itemIndex]!.text, handles[f.itemIndex]!, item.break === 'never' ? 'normal' : whiteSpace)
         const range = map(f.start, f.end)
         return { start: bases[f.itemIndex]! + range.start, end: bases[f.itemIndex]! + range.end }
       }

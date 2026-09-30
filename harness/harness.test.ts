@@ -10,6 +10,7 @@ import { icuEntries, rustByteStrings } from './break-data.ts'
 import { check, drift, equal, gate, parseArgs, record, type Io, type Options } from './cli.ts'
 import { groupLines, recordedLines, scanLineEnds, searchLineEnds, type RectsAt } from './observe.ts'
 import { bundle, documents, LIB, type Job } from './run.ts'
+import { box } from './sets/build.ts'
 import {
   accept, attribute, buildChange, checkBlocks, freshRecordings, gateBlocks, gateSample, headline, judge, libraryFaults, pinning, predictionChange, reverseOrder, score, SEED,
   type Outcome, type Verdict,
@@ -227,6 +228,22 @@ describe('the stored recordings', () => {
     expect(caseProblem(c)).toBeNull()
     c.paragraph.runs[0]!.font = { ...font, size: 12 }
     expect(caseProblem(c)).toContain('bare text run')
+  })
+
+  test('a box is a span of one U+FFFC with a width and a height, and nothing else: its line would go unscored, or the adapter predict a text item', () => {
+    const font = { family: 'Arial', size: 16, weight: 400, style: 'normal' as const }
+    const c: Case = {
+      id: 'box', family: 'test', origin: 'harness.test.ts', pageLang: 'en',
+      paragraph: {
+        runs: [{ text: 'hi', node: 'text', font, letterSpacing: 0, wordSpacing: 0, lang: null }, box(20, 40, font)], font, letterSpacing: 0, wordSpacing: 0, width: 100,
+        lineHeight: 20, whiteSpace: 'normal', wordBreak: 'normal', overflowWrap: 'break-word', lineBreak: 'auto', tabSize: 8, direction: 'ltr', lang: 'en',
+      },
+    }
+    expect(caseProblem(c)).toBeNull()
+    for (const run of [{ ...box(20, 40, font), text: '' }, { ...box(20, 40, font), node: 'text' as const }, { ...box(20, 40, font), atomic: true as const }, box(Number.NaN, 40, font)]) {
+      c.paragraph.runs[1] = run
+      expect(caseProblem(c)).toContain('a box must be')
+    }
   })
 
   test('a stale environment key refuses to score: a browser update would read as library regressions or fixes', () => {

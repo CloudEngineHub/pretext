@@ -206,6 +206,8 @@ export function caseProblem(c: Parsed<Case>): string | null {
       || run.letterSpacing !== p.letterSpacing || run.wordSpacing !== p.wordSpacing || run.lang !== null)) return `run ${i}: a bare text run must carry the paragraph's font and spacing, and no lang`
     if (run.atomic !== undefined && run.atomic !== true) return `run ${i}: atomic must be true or absent`
     if (run.padding !== undefined && !(run.padding > 0)) return `run ${i}: padding must be positive or absent`
+    if (run.box !== undefined && (run.node !== 'span' || run.text !== '￼' || run.atomic !== undefined || run.padding !== undefined
+      || !(run.box.width >= 0) || !(run.box.height >= 0))) return `run ${i}: a box must be a span of U+FFFC, neither atomic nor padded, with a width and a height`
   }
   if (c.sample !== undefined && (typeof c.sample.group !== 'string' || !(c.sample.weight > 0) || (c.sample.standIn !== undefined && c.sample.standIn !== true))) return 'sample needs a group, a positive weight and standIn true or absent'
   if (c.behaviour !== undefined && (typeof c.behaviour !== 'string' || c.behaviour === '')) return 'behaviour must be a non-empty string'
