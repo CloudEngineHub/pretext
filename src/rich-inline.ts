@@ -411,6 +411,11 @@ export function prepareRichInline(items: RichInlineItem[], options?: RichInlineO
   // follow a carriage return in.
   let previousText = ''
   let previousBreak: PreparedRichInlineItem['break'] | null = null
+  // Where the next item follows an atomic item with only items of preserved spaces and tabs that
+  // hang between them, padded or not, the first item after the atomic item; else -1. A line keeps
+  // such white space after the break after the atomic item, padded where the engine fits its
+  // opening (openingEdge).
+  let whiteSpaceStart = -1
   // Collapsible spaces always break and atomic items always allow a break on
   // both sides, under keep-all too: Blink breaks after an atomic inline and before one
   // (CanBreakAfterAtomicInline and CanBreakAfter, line_breaker.cc:1168-1263 in
@@ -572,23 +577,36 @@ export function prepareRichInline(items: RichInlineItem[], options?: RichInlineO
     // The line keeps the white space or hard break that starts an item, where it takes no more of
     // the item, as the engine fits the item's padding there (paddedOpeningFit). Without padding,
     // preserved spaces, tabs that hang and a hard break after an atomic item stay on its line
-    // however far it overflows, as no break comes before them in the text (UAX #14 LB6, LB7):
-    // Blink takes them as trailing items after the break after an atomic inline
-    // (HandleTrailingSpaces, line_breaker.cc:2426-2516), and Gecko lets an empty frame past the
-    // line's end (CanPlaceFrame). All three browsers keep a line feed, and two spaces, on the line
-    // of a chip wider than the line (Chrome, though, gives a line feed after such spaces a line of
-    // its own; ENGINE_FOLLOWUPS.md), and Firefox, which doesn't hang tabs, breaks before a tab
-    // that doesn't fit. Where the engine fits the item's start edge, the line keeps them where
-    // that edge fits, after an atomic item and at a hard break that starts the item anywhere, and
-    // in Blink at white space that starts it anywhere too, but Blink keeps an item of only white
-    // space however far the line overflows, after any content, and WebKit fits the end edge too
-    // of an item whose opening is all of it; else the ordinary fit takes the item's whole
-    // extraWidth.
+    // however far it overflows, as no break comes before them in the text (UAX #14 LB6, LB7), and
+    // so do they after items of only such white space after it, whatever items it spans: Blink
+    // takes them as trailing items after the break after an atomic inline (HandleTrailingSpaces,
+    // line_breaker.cc:2426-2534), trailing on into the next item where an item's spaces reach its
+    // end (:2518-2533), and its return to that break keeps each item after it that starts with
+    // trailable spaces (RewindOverflow, :4355-4370), though not a span that goes on past them,
+    // whose open tag it doesn't trail (:4383-4394, :4414-4420), where rich inline takes an item as
+    // the paragraph's own text (ENGINE_FOLLOWUPS.md); WebKit gives a soft wrap opportunity after
+    // each white-space item (isAtSoftWrapOpportunity, InlineFormattingUtils.cpp:408-413) and keeps
+    // each as content that hangs (InlineContentBreaker.cpp:181-182); and Gecko lets an empty frame
+    // past the line's end (CanPlaceFrame). All three browsers keep a line feed, and two spaces, on
+    // the line of a chip wider than the line (Chrome, though, gives a line feed after such spaces a
+    // line of its own; ENGINE_FOLLOWUPS.md). But Gecko breaks only after a run of spaces and tabs
+    // (nsLineBreaker.cpp:323, :586) and doesn't hang a tab, so where that white space runs into a
+    // tab, whatever items it spans, the run doesn't fit: Firefox moves all of it to the next line
+    // with the tab, and the line keeps none of it (runsIntoTab). Where the engine fits the item's
+    // start edge, the line keeps them where that edge fits, after an atomic item and at a hard
+    // break that starts the item anywhere, and in Blink at white space that starts it anywhere too,
+    // but Blink keeps an item of only white space however far the line overflows, after any
+    // content, and WebKit fits the end edge too of an item whose opening is all of it; else the
+    // ordinary fit takes the item's whole extraWidth.
     const extraWidth = item.extraWidth ?? 0
     const opensWithWhiteSpace = firstKind === PRESERVED_SPACE || (firstKind === TAB && profile.hangTabs)
+    let openingSpaceEnd = 0
+    while (openingSpaceEnd < segmentFlags.length && (segmentFlags[openingSpaceEnd]! & KIND_BITS) === PRESERVED_SPACE) openingSpaceEnd++
+    const runsIntoTab = !profile.hangTabs && openingSpaceEnd < segmentFlags.length && (segmentFlags[openingSpaceEnd]! & KIND_BITS) === TAB
+    if (runsIntoTab && whiteSpaceStart >= 0) for (let k = whiteSpaceStart; k < index; k++) if (preparedItems[k] !== undefined) preparedItems[k]!.openingEdge = -1
     let openingEdge = -1
     if (extraWidth <= 0) {
-      if (preserve && afterAtomic && (opensWithWhiteSpace || firstKind === HARD_BREAK)) openingEdge = 0
+      if (preserve && whiteSpaceStart >= 0 && !runsIntoTab && (opensWithWhiteSpace || firstKind === HARD_BREAK)) openingEdge = 0
     } else if (profile.paddedOpeningFit === 'start') {
       if (opensWithWhiteSpace || firstKind === HARD_BREAK) openingEdge = getWhiteSpaceEnd(segmentFlags) === segmentFlags.length ? 0 : extraWidth / 2
     } else if (profile.paddedOpeningFit === 'placed' && ((afterAtomic && opensWithWhiteSpace) || firstKind === HARD_BREAK)) {
@@ -657,6 +675,8 @@ export function prepareRichInline(items: RichInlineItem[], options?: RichInlineO
     previousItem = preparedItem
     previousText = item.text
     previousBreak = itemBreak
+    whiteSpaceStart = itemBreak === 'never' ? index + 1
+      : whiteSpaceStart >= 0 && !runsIntoTab && getWhiteSpaceEnd(segmentFlags) === segmentFlags.length ? whiteSpaceStart : -1
     // Nothing collapses under pre-wrap, so no run of white space goes on past the item.
     if (preserve) continue
 
