@@ -2868,6 +2868,46 @@ describe('rich-inline invariants', () => {
     expect(measureRichInlineStats(prepared, measureWidth('A', FONT)).lineCount).toBe(1)
   })
 
+  test('a paragraph of one item lays out as that item with an empty item after it', () => {
+    // One item alone takes the text walkers (onlyItem in rich-inline.ts) unless it's atomic
+    // or has extraWidth; with any item after it, even an empty one, the rich stepper walks
+    // it. Only the cursor after the last line counts the empty item. The stream takes one
+    // more line than the walk, so a stream that doesn't end fails.
+    const walk = (prepared: ReturnType<typeof prepareRichInline>, maxWidth: number, items: number) => {
+      const lines: unknown[] = []
+      const count = walkRichInlineLineRanges(prepared, maxWidth, range => {
+        const line = materializeRichInlineLineRange(prepared, range)
+        lines.push({ ...line, end: line.end.itemIndex === items ? { ...line.end, itemIndex: 1 } : line.end })
+      })
+      const stream: unknown[] = []
+      for (let cursor = { itemIndex: 0, segmentIndex: 0, graphemeIndex: 0 }; stream.length <= lines.length;) {
+        const range = layoutNextRichInlineLineRange(prepared, maxWidth, cursor)
+        if (range === null) break
+        stream.push({ ...range, end: range.end.itemIndex === items ? { ...range.end, itemIndex: 1 } : range.end })
+        cursor = range.end
+      }
+      return { count, lines, stream, stats: measureRichInlineStats(prepared, maxWidth) }
+    }
+    const texts = ['alpha beta gamma delta', 'A B', 'supercalifragilistic word', '​ab cd', 'ab­cd ef', ' lead trail ', '­ab cd', 'ab cd ef', ' ​', '­']
+    const widths = [-1, 0.5, 1, 8, 12, 20, 37.5, 60, 1000, Infinity]
+    for (const text of texts) {
+      for (const letterSpacing of [0, -6, -12, 2]) {
+        for (const style of [{}, { break: 'never' as const }, { extraWidth: 3 }]) {
+          const one = prepareRichInline([{ text, font: FONT, letterSpacing, ...style }])
+          const two = prepareRichInline([{ text, font: FONT, letterSpacing, ...style }, { text: '', font: FONT }])
+          const whole = measureRichInlineStats(two, Infinity).maxLineWidth
+          for (const maxWidth of [...widths, whole - 0.004]) expect({ text, letterSpacing, style, maxWidth, ...walk(one, maxWidth, 1) }).toEqual({ text, letterSpacing, style, maxWidth, ...walk(two, maxWidth, 2) })
+        }
+      }
+    }
+    // At -6px, `A B` fits whole at 8px, where the text walkers break at the space after
+    // `A`: the item's whole fit (stepRichInlineLine) takes it, as Blink takes a text item
+    // whole where its width fits.
+    const whole = prepareRichInline([{ text: 'A B', font: FONT, letterSpacing: -6 }])
+    expect(measureRichInlineStats(whole, 8).lineCount).toBe(1)
+    expect(measureLineStats(prepareWithSegments('A B', FONT, { letterSpacing: -6 }), 8).lineCount).toBe(2)
+  })
+
   test('a following negative-advance rich item cannot undo forced overflow', () => {
     const prepared = prepareRichInline([
       { text: 'A', font: FONT },
