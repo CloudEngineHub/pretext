@@ -40,7 +40,7 @@ import { measureAnalysis } from './prepare.js'
 // work that rich inline demos kept reimplementing in userland:
 // - collapsed boundary whitespace across item boundaries, and under pre-wrap preserved
 //   spaces that hang across them, tab stops counted from the line's start, and hard breaks
-// - atomic inline boxes like pills
+// - atomic inline boxes like pills, and boxes the app sizes and paints, such as images
 // - per-item extra horizontal chrome such as padding/borders
 // - break opportunities across item boundaries as the engine finds them: from the
 //   text the items join in Blink and Gecko, and in WebKit from each item's own text
@@ -55,6 +55,15 @@ export type RichInlineItem = {
   letterSpacing?: number // Extra horizontal spacing between graphemes, in CSS px
   break?: 'normal' | 'never' // `never` keeps the item atomic, like a pill or mention chip
   extraWidth?: number // Caller-owned horizontal chrome, e.g. padding + border width
+  width?: never // A RichInlineBox's
+}
+
+// An object inside a line that the app sizes and paints, such as an image, a custom emoji, a formula
+// or a badge: an atomic inline with no text, as an <img> or an empty inline-block is, which a line
+// can break before and after. An item without text is one.
+export type RichInlineBox = {
+  width: number // The room it takes on the line, in CSS px, at least 0 and final: its element's margin box
+  text?: never
 }
 
 // How the paragraph the items make wraps, one setting for all of them, as CSS on the
@@ -69,13 +78,13 @@ export type PreparedRichInline = {
 }
 
 export type RichInlineCursor = {
-  itemIndex: number // Index into the original RichInlineItem array
+  itemIndex: number // Index into the items prepareRichInline() took
   segmentIndex: number
   graphemeIndex: number
 }
 
 export type RichInlineFragment = {
-  itemIndex: number // Index into the original RichInlineItem array
+  itemIndex: number // Index into the items prepareRichInline() took
   text: string // Text slice for this fragment
   gapBefore: number // Collapsed inter-item gap paid before this fragment on this line
   gapItemIndex: number // Item whose collapsed whitespace made gapBefore, or -1 when no gap precedes this fragment on this line
@@ -85,7 +94,7 @@ export type RichInlineFragment = {
 }
 
 export type RichInlineFragmentRange = {
-  itemIndex: number // Index into the original RichInlineItem array
+  itemIndex: number // Index into the items prepareRichInline() took
   gapBefore: number // Collapsed inter-item gap paid before this fragment on this line
   gapItemIndex: number // Item whose collapsed whitespace made gapBefore, or -1 when no gap precedes this fragment on this line
   occupiedWidth: number // Text width plus the item's extraWidth contribution
@@ -208,21 +217,23 @@ function isDiscardedBreak(data: PreparedSegments, segmentIndex: number): boolean
   return (data.segmentFlags[segmentIndex]! & KIND_BITS) === ZERO_WIDTH_BREAK && data.segments[segmentIndex]!.charCodeAt(0) === 0x00AD
 }
 
-// Each item's text after the segment break transformation. Where the engine transforms segment
-// breaks in the text of the whole paragraph, in which an atomic inline is U+FFFC (EngineProfile), a
-// collapsible run with a newline next to a ZWSP in another item goes too. Where an item holds a
-// newline, the paragraph's text is transformed once, and each item that isn't atomic takes its
-// part of the result, which can only remove more than the item's own text does, at its ends.
-function getItemTexts(items: RichInlineItem[], profile: EngineProfile, language: string | null): string[] {
+// Each item's text after the segment break transformation, and a box's, which is empty. Where the
+// engine transforms segment breaks in the text of the whole paragraph, in which an atomic inline is
+// U+FFFC (EngineProfile), a collapsible run with a newline next to a ZWSP in another item goes too.
+// Where an item holds a newline, the paragraph's text is transformed once, and each item that isn't
+// atomic takes its part of the result, which can only remove more than the item's own text does, at
+// its ends.
+function getItemTexts(items: Array<RichInlineItem | RichInlineBox>, profile: EngineProfile, language: string | null): string[] {
   const texts: string[] = []
-  if (!profile.transformsSegmentBreaksAcrossItems || !items.some(item => item.text.includes('\n'))) {
-    for (let index = 0; index < items.length; index++) texts.push(removeSkippableSegmentBreaks(items[index]!.text, profile, language))
+  if (!profile.transformsSegmentBreaksAcrossItems || !items.some(item => item.text?.includes('\n') === true)) {
+    for (let index = 0; index < items.length; index++) texts.push(removeSkippableSegmentBreaks(items[index]!.text ?? '', profile, language))
     return texts
   }
   let source = ''
   const sourceEnds: number[] = []
   for (let index = 0; index < items.length; index++) {
-    source += items[index]!.break === 'never' ? '\uFFFC' : items[index]!.text
+    const item = items[index]!
+    source += item.text === undefined || item.break === 'never' ? '\uFFFC' : item.text
     sourceEnds.push(source.length)
   }
   const removed: number[] = []
@@ -230,7 +241,8 @@ function getItemTexts(items: RichInlineItem[], profile: EngineProfile, language:
   for (let index = 0, r = 0, transformedStart = 0; index < items.length; index++) {
     while (r < removed.length && removed[r]! < sourceEnds[index]!) r++
     const transformedEnd = sourceEnds[index]! - r
-    texts.push(items[index]!.break === 'never' ? removeSkippableSegmentBreaks(items[index]!.text, profile, language) : transformed.slice(transformedStart, transformedEnd))
+    const item = items[index]!
+    texts.push(item.text === undefined ? '' : item.break === 'never' ? removeSkippableSegmentBreaks(item.text, profile, language) : transformed.slice(transformedStart, transformedEnd))
     transformedStart = transformedEnd
   }
   return texts
@@ -239,11 +251,12 @@ function getItemTexts(items: RichInlineItem[], profile: EngineProfile, language:
 // The bidi levels Firefox resolves over the paragraph the items make (getGeckoParagraphLevels), each
 // item's text (getItemTexts) and an atomic one as U+FFFC (nsBidiPresUtils.cpp:1385-1396), or null
 // where it resolves none. `starts` takes each item's offset in that text.
-function getItemLevels(items: RichInlineItem[], texts: string[], starts: number[]): Uint8Array | null {
+function getItemLevels(items: Array<RichInlineItem | RichInlineBox>, texts: string[], starts: number[]): Uint8Array | null {
   let source = ''
   for (let index = 0; index < items.length; index++) {
     starts.push(source.length)
-    source += items[index]!.break === 'never' ? '\uFFFC' : texts[index]!
+    const item = items[index]!
+    source += item.text === undefined || item.break === 'never' ? '\uFFFC' : texts[index]!
   }
   return getGeckoParagraphLevels(source)
 }
@@ -355,7 +368,16 @@ function getWalkedHandle(prepared: PreparedSegments, flags: Uint8Array): Prepare
   return { ...prepared, segmentFlags: flags, simpleLineWalkFastPath: false }
 }
 
-export function prepareRichInline(items: RichInlineItem[], options?: RichInlineOptions): PreparedRichInline {
+// A box's handle, which every box shares, as nothing writes to a handle: one empty segment, which its
+// fragment spans, so that a line starting at the box doesn't take that start for its end
+// (stepRichInlineLine).
+const BOX_HANDLE: PreparedSegments = {
+  segments: [''], widths: [0], segmentFlags: Uint8Array.of(TEXT), simpleLineWalkFastPath: false, simpleLineCountFastPath: false,
+  breakableFitAdvances: [null], entryGeometry: null, lineStartProhibitions: null, lineStartExtras: null, lineEndTrims: null,
+  overflowLineEndTrims: null, letterSpacing: 0, discretionaryHyphenWidth: 0, discretionaryHyphenContexts: null, tabStopAdvance: 0,
+}
+
+export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, options?: RichInlineOptions): PreparedRichInline {
   const whiteSpace = options?.whiteSpace ?? 'normal'
   const wordBreak = options?.wordBreak ?? 'normal'
   // Under pre-wrap nothing collapses: an item's spaces, tabs and newlines are its content,
@@ -365,7 +387,7 @@ export function prepareRichInline(items: RichInlineItem[], options?: RichInlineO
   // One language read for every item, the joined analysis and the boundary spaces.
   const profile = getEngineProfile()
   const language = getPreparationLanguage(profile)
-  const texts = preserve ? items.map(item => item.text) : getItemTexts(items, profile, language)
+  const texts = preserve ? items.map(item => item.text ?? '') : getItemTexts(items, profile, language)
   // Only preserved spaces hang at an item's end.
   const wholeLine = preserve ? createItemLine(false) : null
   // A collapsed SPACE can have zero or negative advance. Its existence and
@@ -476,6 +498,28 @@ export function prepareRichInline(items: RichInlineItem[], options?: RichInlineO
 
   for (let index = 0; index < items.length; index++) {
     const item = items[index]!
+    if (item.text === undefined) {
+      // A box: an atomic item with no text, and so no white space of its own, which takes the gap
+      // before it, breaks on both sides and keeps white space after it on its line as an atomic item
+      // does (below), whose updates at the item's end this repeats; the test that a box lays out as the
+      // atomic NBSP it replaces keeps the two alike (src/layout.test.ts). All its width is extraWidth,
+      // which a line never hangs (hangTrailingFragments). A width that isn't finite would give lines of
+      // width NaN or Infinity, and Chrome breaks lines around a negative one otherwise than a negative
+      // extraWidth does (RESEARCH.md, Objects Inside A Line), so Pretext refuses both.
+      if (!Number.isFinite(item.width) || item.width < 0) throw new RangeError(`Item ${index} has no text, so it's a box, whose width must be a finite number of CSS px, at least 0, not ${item.width}`)
+      finishJoinedText()
+      const box: PreparedRichInlineItem = {
+        break: 'never', breakBefore: pendingGapWidth !== null || previousItem !== null, continued: false, walked: false,
+        establishesLine: true, extraWidth: item.width, gapBefore: pendingGapWidth ?? 0, gapItemIndex: pendingGapWidth === null ? -1 : pendingGapItemIndex,
+        hyphenBefore: 0, innerBreaks: null, naturalWidth: 0, hangWidth: 0, lineFeedAfterReturn: false, openingEdge: -1, prepared: BOX_HANDLE, lineData: BOX_HANDLE,
+      }
+      preparedItems[index] = previousItem = box
+      previousBreak = 'never'
+      whiteSpaceStart = index + 1
+      pendingGapWidth = null
+      whitespaceRunOpen = false
+      continue
+    }
     const letterSpacing = readLetterSpacing(item.letterSpacing)
     const text = texts[index]!
     let start = 0
@@ -1037,7 +1081,9 @@ function stepRichInlineLine(
 
       const occupiedWidth = item.naturalWidth + item.extraWidth
       const totalWidth = gapBefore + occupiedWidth
-      if (hasContent && totalWidth > remainingWidth + lineFitEpsilon) break
+      // Gecko places an empty frame wherever it falls (CanPlaceFrame, which 'both' ports), where
+      // Blink and WebKit move an atomic item of width 0 to the next line as any other.
+      if (hasContent && totalWidth > remainingWidth + lineFitEpsilon && !(paddedOpeningFit === 'both' && occupiedWidth === 0)) break
 
       collectItemRest(fragments, itemIndex, item, EMPTY_LAYOUT_CURSOR, gapBefore, gapItemIndex, occupiedWidth)
       hasContent = true

@@ -16,9 +16,10 @@
 // - stepping leaves its start cursor as it was, the ranges a stream gives stay as they were, JSON copies of cursors and
 //   ranges resume the same, and a materialized line passed back as a range gives the same line;
 // - a visitor that edits the range it's given doesn't change the lines after it;
-// - rich lines: a gap is the SPACE advance of the item whose white space made it, sign included; an empty item keeps
-//   the other items' indices; a `break: 'never'` item stays whole; each fragment counts its item's extraWidth once;
-//   a line is as wide as its fragments' gaps and widths together, or 0 if they add up to less; pre-wrap makes no gaps;
+// - rich lines: a gap is the SPACE advance of the item whose white space made it, sign included, and never a box's; an
+//   empty item keeps the other items' indices; a `break: 'never'` item and a box stay whole; each fragment counts its
+//   item's extraWidth once; a line is as wide as its fragments' gaps and widths together, or 0 if they add up to less;
+//   pre-wrap makes no gaps;
 // - held handles, and their structuredClone() copies, lay out as before after the same texts are prepared with letter
 //   spacing 1, after clearCache() and after setLocale(), and prepares with filled caches equal cold ones, at the held
 //   texts' letter spacing and at 1;
@@ -34,8 +35,8 @@ import './watchdog.ts'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import type { LayoutCursor, LayoutLine, LayoutLineRange, PrepareOptions, PreparedText, PreparedTextWithSegments } from '../src/layout.ts'
-import type { PreparedRichInline, RichInlineCursor, RichInlineItem, RichInlineLineRange, RichInlineOptions } from '../src/rich-inline.ts'
-import { canvasFont, cursorOffsets, isRich, itemOptions, plainDisagreement, prepareOptions, richDisagreement, richItems, richOptions, unsupported } from './predict.ts'
+import type { PreparedRichInline, RichInlineBox, RichInlineCursor, RichInlineItem, RichInlineLineRange, RichInlineOptions } from '../src/rich-inline.ts'
+import { BOX_SEGMENTS, canvasFont, cursorOffsets, isRich, itemOptions, plainDisagreement, prepareOptions, richDisagreement, richItems, richOptions, unsupported } from './predict.ts'
 import { createRng } from './sets/build.ts'
 import type { Case } from './types.ts'
 
@@ -218,16 +219,20 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
     }
   }
 
-  const rich = (label: string, items: RichInlineItem[], width: number, options: RichInlineOptions = {}): void => {
+  const rich = (label: string, items: Array<RichInlineItem | RichInlineBox>, width: number, options: RichInlineOptions = {}): void => {
     const at = `${label} at ${width}`
     // Everything prepared first, so what follows asks Canvas nothing: the paragraph, each item alone (whose own
-    // prepared text the fragments' cursors index), the paragraph after an empty item, and without extraWidth.
+    // prepared text the fragments' cursors index; a box's fragment spans one empty segment), the paragraph after an
+    // empty item, and without extraWidth.
     const prepared = api.prepareRichInline(items, options)
-    const handles = items.map(item => api.prepareWithSegments(item.text, item.font, itemOptions(item, options)))
-    const shiftedPrepared = api.prepareRichInline([{ text: '', font: items[0]!.font }, ...items], options)
-    const extra = items.some(item => (item.extraWidth ?? 0) !== 0)
-    const withoutExtra = extra ? api.prepareRichInline(items.map(({ extraWidth: _, ...rest }) => rest), options) : null
-    const steps = items.reduce((sum, item) => sum + item.text.length, 0) + 1
+    const segmentsOf = items.map(item => item.text === undefined ? BOX_SEGMENTS : api.prepareWithSegments(item.text, item.font, itemOptions(item, options)).segments)
+    const atomic = items.map(item => item.text === undefined || item.break === 'never')
+    const shiftedPrepared = api.prepareRichInline([{ text: '', font: '16px Test' }, ...items], options)
+    const extraOf = (item: RichInlineItem | RichInlineBox): number => item.text === undefined ? 0 : item.extraWidth ?? 0
+    const extra = items.some(item => extraOf(item) !== 0)
+    const withoutExtra = extra ? api.prepareRichInline(items.map(item => item.text === undefined ? item : { ...item, extraWidth: 0 }), options) : null
+    let steps = 1
+    for (let i = 0; i < items.length; i++) steps += items[i]!.text?.length ?? 1
     const walk = (p: PreparedRichInline, w: number): RichInlineLineRange[] => {
       const lines: RichInlineLineRange[] = []
       api.walkRichInlineLineRanges(p, w, line => { if (lines.push(line) > steps) throw new Error(`walkRichInlineLineRanges gives more than ${steps} lines`) })
@@ -237,7 +242,7 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
     try {
       const walked: RichInlineLineRange[] = []
       const count = api.walkRichInlineLineRanges(prepared, width, line => { if (walked.push(line) > steps) throw new Error(`walkRichInlineLineRanges gives more than ${steps} lines`) })
-      const offsets = handles.map(handle => cursorOffsets(handle.segments))
+      const offsets = segmentsOf.map(segments => cursorOffsets(segments))
       const disagreement = richDisagreement(api, prepared, walked, count, width, steps, i => offsets[i])
       if (disagreement !== null) return fail('agreement', at, disagreement)
       const lines: RichInlineLineRange[] = []
@@ -272,11 +277,15 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
           if (options.whiteSpace === 'pre-wrap' && (f.gapBefore !== 0 || f.gapItemIndex !== -1)) fail('rich lines', at, `line ${i} has a gap of ${f.gapBefore} before item ${f.itemIndex} in pre-wrap`)
           if (f.gapItemIndex >= 0) {
             const gapItem = items[f.gapItemIndex]!
-            const space = standInWidth(' ', gapItem.font, gapItem.letterSpacing ?? 0)
-            if (Math.abs(f.gapBefore - space) > 1e-6 && !(profile === 'gecko' && f.gapBefore === 0)) fail('rich lines', at, `line ${i}'s gap before item ${f.itemIndex} is ${f.gapBefore}; item ${f.gapItemIndex}'s SPACE is ${space}`)
+            if (gapItem.text === undefined) {
+              fail('rich lines', at, `line ${i}'s gap before item ${f.itemIndex} is box ${f.gapItemIndex}'s, which holds no white space`)
+            } else {
+              const space = standInWidth(' ', gapItem.font, gapItem.letterSpacing ?? 0)
+              if (Math.abs(f.gapBefore - space) > 1e-6 && !(profile === 'gecko' && f.gapBefore === 0)) fail('rich lines', at, `line ${i}'s gap before item ${f.itemIndex} is ${f.gapBefore}; item ${f.gapItemIndex}'s SPACE is ${space}`)
+            }
           }
-          const segments = handles[f.itemIndex]!.segments.length
-          if (items[f.itemIndex]!.break === 'never' && segments > 0) {
+          const segments = segmentsOf[f.itemIndex]!.length
+          if (atomic[f.itemIndex]! && segments > 0) {
             whole[f.itemIndex]!++
             if (!same(f.start, START) || !same(f.end, { segmentIndex: segments, graphemeIndex: 0 })) fail('rich lines', at, `atomic item ${f.itemIndex} is split at ${JSON.stringify(f.start)}-${JSON.stringify(f.end)}`)
           }
@@ -284,9 +293,9 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
         if (Math.abs(lines[i]!.width - Math.max(0, occupied)) > 1e-6) fail('rich lines', at, `line ${i} is ${lines[i]!.width} wide; its fragments' gaps and widths add up to ${occupied}`)
       }
       for (let k = 0; k < items.length; k++) {
-        const coverage = covers(handles[k]!.segments.join(''), spans[k]!, items[k]!.break === 'never' ? 'normal' : options.whiteSpace ?? 'normal')
+        const coverage = covers(segmentsOf[k]!.join(''), spans[k]!, atomic[k]! ? 'normal' : options.whiteSpace ?? 'normal')
         if (coverage !== null) fail('coverage', `${at}, item ${k}`, coverage)
-        if (items[k]!.break === 'never' && handles[k]!.segments.length > 0 && whole[k] !== 1) fail('rich lines', at, `atomic item ${k} is in ${whole[k]} fragments`)
+        if (atomic[k]! && segmentsOf[k]!.length > 0 && whole[k] !== 1) fail('rich lines', at, `atomic item ${k} is in ${whole[k]} fragments`)
       }
       const visited: RichInlineLineRange[] = []
       api.walkRichInlineLineRanges(prepared, width, range => {
@@ -305,13 +314,13 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
       if (!same(shifted, expected)) fail('rich lines', at, `an empty first item gives ${JSON.stringify(shifted[0])} for line 0, not ${JSON.stringify(expected[0])}`)
       // On one line, each fragment is its text's width plus its item's extraWidth, once, but where a pre-wrap tab's
       // stop, which counts from the line's start, moves with the extraWidth before it.
-      if (withoutExtra !== null && !(options.whiteSpace === 'pre-wrap' && items.some(item => item.text.includes('\t')))) {
+      if (withoutExtra !== null && !(options.whiteSpace === 'pre-wrap' && items.some(item => item.text?.includes('\t') === true))) {
         const withExtra = walk(prepared, Infinity)
         const without = walk(withoutExtra, Infinity)
         const a = withExtra.flatMap(line => line.fragments)
         const b = without.flatMap(line => line.fragments)
         for (let k = 0; k < Math.max(a.length, b.length); k++) {
-          const extraWidth = items[a[k]?.itemIndex ?? 0]!.extraWidth ?? 0
+          const extraWidth = extraOf(items[a[k]?.itemIndex ?? 0]!)
           if (a[k] === undefined || b[k] === undefined || Math.abs(a[k]!.occupiedWidth - extraWidth - b[k]!.occupiedWidth) > 1e-6) {
             fail('rich lines', label, `fragment ${k} occupies ${a[k]?.occupiedWidth} with extraWidth ${extraWidth}, ${b[k]?.occupiedWidth} without`)
             break
@@ -365,6 +374,12 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
   const pill: RichInlineItem = { text: 'ABCD', font: FONT, break: 'never', extraWidth: 18 }
   rich('fixed a pill alone', [pill], 1)
   rich('fixed a pill between letters', [{ text: 'A', font: FONT }, pill, { text: 'B', font: FONT }], 50)
+  // Boxes alone, beside text with and without spaces, of width 0 and wider than the line.
+  const boxes: Array<RichInlineItem | RichInlineBox> = [{ width: 20 }, { text: 'AB ', font: FONT }, { width: 0 }, { width: 40 }, { text: ' CD', font: FONT }, { width: 12 }]
+  for (const width of [1, 17, 30, 45, Infinity]) {
+    rich('fixed boxes', boxes, width)
+    rich('fixed boxes in pre-wrap', boxes, width, { whiteSpace: 'pre-wrap' })
+  }
   // Pre-wrap spaces, tabs and newlines at item edges, in padded items and a chip, and a CRLF split across items.
   const preWrap: RichInlineItem[] = [
     { text: 'ab  ', font: FONT }, { text: '  cd\t', font: '12px Test', extraWidth: 6 }, { text: '\tef', font: FONT }, { text: '\n', font: FONT },

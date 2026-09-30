@@ -5,12 +5,14 @@ import {
   CHIP_PADDING_X,
   CODE_PADDING_X,
   DEFAULT_RICH_NOTE_SPECS,
+  EMOJI_SIZE,
   prepareRichInlineNote,
   layoutRichNote,
   LINE_HEIGHT,
   NARROW_VIEWPORT_QUERY,
   resolveRichNoteBodyWidth,
   type PreparedRichInlineNote,
+  type RichLineFragment,
   type RichNoteLayout,
 } from './rich-note.model.ts'
 
@@ -42,6 +44,7 @@ let scheduledRaf: number | null = null
 
 domCache.root.style.setProperty('--code-padding-x', `${CODE_PADDING_X}px`)
 domCache.root.style.setProperty('--chip-padding-x', `${CHIP_PADDING_X}px`)
+domCache.root.style.setProperty('--emoji-size', `${EMOJI_SIZE}px`)
 
 domCache.widthSlider.addEventListener('input', () => {
   st.events.sliderValue = Number.parseInt(domCache.widthSlider.value, 10)
@@ -85,17 +88,19 @@ function renderBody(note: PreparedRichInlineNote, layout: RichNoteLayout): void 
   for (let lineIndex = 0; lineIndex < layout.lines.length; lineIndex++) {
     const line = layout.lines[lineIndex]!
     // Each Pretext line is one line box, so the browser orders its bidi runs.
-    // The body font sets the baseline.
+    // The body font and LINE_HEIGHT set the baseline and the line's height,
+    // which a box taller than the line raises to its own (line.height).
     const row = document.createElement('div')
     row.className = 'line-row'
     row.dir = layout.direction
     row.style.setProperty('--font', BODY_FONT)
-    row.style.top = `${lineIndex * LINE_HEIGHT}px`
+    row.style.lineHeight = `${LINE_HEIGHT}px`
+    row.style.top = `${line.top}px`
 
     let previousElement: HTMLElement | null = null
     for (let fragmentIndex = 0; fragmentIndex < line.fragments.length; fragmentIndex++) {
       const part = line.fragments[fragmentIndex]!
-      const element = renderPart(part.className, part.font, part.href, part.text)
+      const element = renderFragment(part)
       // A collapsed space paints inside the element of the item whose font
       // measured it: this fragment's, the previous fragment's, or, for an item
       // holding only whitespace, an element of its own.
@@ -105,7 +110,9 @@ function renderBody(note: PreparedRichInlineNote, layout: RichNoteLayout): void 
       } else if (gapItemIndex >= 0 && gapItemIndex === line.fragments[fragmentIndex - 1]?.itemIndex) {
         previousElement!.append(' ')
       } else if (gapItemIndex >= 0) {
-        row.appendChild(renderPart(note.classNames[gapItemIndex]!, note.fonts[gapItemIndex]!, note.hrefs[gapItemIndex] ?? null, ' '))
+        const item = note.items[gapItemIndex]!
+        if (item.text === undefined) throw new Error('A box holds no white space to paint')
+        row.appendChild(renderPart(note.classNames[gapItemIndex]!, item.font, note.hrefs[gapItemIndex] ?? null, ' '))
       }
       row.appendChild(element)
       previousElement = element
@@ -115,6 +122,26 @@ function renderBody(note: PreparedRichInlineNote, layout: RichNoteLayout): void 
   }
 
   domCache.noteBody.appendChild(fragment)
+}
+
+function renderFragment(part: RichLineFragment): HTMLElement {
+  switch (part.kind) {
+    case 'text':
+      return renderPart(part.className, part.font, part.href, part.text)
+    case 'box': {
+      const element = document.createElement('span')
+      element.className = part.className
+      element.setAttribute('role', 'img')
+      element.setAttribute('aria-label', part.label)
+      // The box's element is its margin box, as wide as Pretext laid it out and
+      // as tall as the line heights count it. Aligned to the line's top, it
+      // raises its line to its height where it is taller and moves nothing else.
+      element.style.width = `${part.width}px`
+      element.style.height = `${part.height}px`
+      element.style.verticalAlign = 'top'
+      return element
+    }
+  }
 }
 
 function renderPart(className: string, font: string, href: string | null, text: string): HTMLElement {

@@ -43,6 +43,9 @@ export type TextRun = {
   // on each side, repeated on every line the span reaches (rich-inline's `extraWidth` is twice it).
   atomic?: true
   padding?: number
+  // A span only: a box, rich-inline's RichInlineBox, drawn as an empty inline-block of this width and height with
+  // `vertical-align: top`, whose text is one U+FFFC, which stands for it in the paragraph's source offsets.
+  box?: { width: number; height: number }
 }
 
 export type Paragraph = {

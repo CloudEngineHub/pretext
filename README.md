@@ -103,7 +103,7 @@ See the `/demos/dynamic-layout` demo for a richer example.
 
 For hyphenation, insert soft hyphens before calling `prepare()` or `prepareWithSegments()`. They stay invisible unless the line breaks there, in which case it ends with `-`. For mixed-language or user-generated app text, prefer conservative, locale-aware insertion over aggressive pattern hyphenation.
 
-To lay out text with mixed fonts, code spans, mentions, or chips, use `@chenglou/pretext/rich-inline`:
+To lay out text with mixed fonts, code spans, mentions, chips or images, use `@chenglou/pretext/rich-inline`:
 
 ```ts
 import { materializeRichInlineLineRange, prepareRichInline, walkRichInlineLineRanges } from '@chenglou/pretext/rich-inline'
@@ -111,7 +111,8 @@ import { materializeRichInlineLineRange, prepareRichInline, walkRichInlineLineRa
 const prepared = prepareRichInline([
   { text: 'Ship ', font: '500 17px Inter' },
   { text: '@maya', font: '700 12px Inter', break: 'never', extraWidth: 22 },
-  { text: "'s rich-note", font: '500 17px Inter' },
+  { text: "'s rich-note ", font: '500 17px Inter' },
+  { width: 20 }, // a custom emoji
 ])
 
 walkRichInlineLineRanges(prepared, 320, range => {
@@ -120,7 +121,9 @@ walkRichInlineLineRanges(prepared, 320, range => {
 })
 ```
 
-Pass a flat list of text items. For `white-space: pre-wrap` or `word-break: keep-all` on the paragraph, pass `{ whiteSpace: 'pre-wrap' }` or `{ wordBreak: 'keep-all' }` as the second argument; it applies to every item. In `pre-wrap` every item but an atomic one keeps its spaces, tabs and newlines: spaces at a line's end hang past it whichever items hold them, tab stops count from the line's start, and a newline ends its line. Paint each line with `white-space: pre`: a line painted alone in `pre-wrap` is its paragraph's last line, where spaces at its end hang only if they don't fit and a padded item's end after them can wrap. This is not a general CSS inline formatting engine.
+Pass a flat list of items. For an image, a custom emoji, a formula or a badge inside a line, pass a box, `{ width }`: its element's margin box, padding and border included, in whole or quarter pixels, since browsers round other widths to their layout unit. A line can break on either side of a box, as at an `<img>`, and its fragment has no text; a box is an item with no `text`. For a size not known yet, prepare with a placeholder and again when it arrives; for an image capped at `max-width: 100%`, pass `min(its width, the paragraph's width)` and prepare again when that changes. Heights are yours: give each box `vertical-align: top`, and each line is as tall as the paragraph's line height or its tallest box, whichever is taller.
+
+For `white-space: pre-wrap` or `word-break: keep-all` on the paragraph, pass `{ whiteSpace: 'pre-wrap' }` or `{ wordBreak: 'keep-all' }` as the second argument; it applies to every item. In `pre-wrap` every item but an atomic one keeps its spaces, tabs and newlines: spaces at a line's end hang past it whichever items hold them, tab stops count from the line's start, and a newline ends its line. Paint each line with `white-space: pre`: a line painted alone in `pre-wrap` is its paragraph's last line, where spaces at its end hang only if they don't fit and a padded item's end after them can wrap. This is not a general CSS inline formatting engine.
 
 ### API Glossary
 
@@ -168,7 +171,7 @@ type LayoutCursor = {
 
 Helper for rich-text inline flow:
 ```ts
-prepareRichInline(items: RichInlineItem[], options?: { whiteSpace?: 'normal' | 'pre-wrap', wordBreak?: 'normal' | 'keep-all' }): PreparedRichInline // prepares the items for layout and, in `white-space: normal`, collapses spaces between them. `whiteSpace` and `wordBreak` are the paragraph's, as in `prepare()`
+prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, options?: { whiteSpace?: 'normal' | 'pre-wrap', wordBreak?: 'normal' | 'keep-all' }): PreparedRichInline // prepares the items for layout and, in `white-space: normal`, collapses spaces between them. `whiteSpace` and `wordBreak` are the paragraph's, as in `prepare()`
 layoutNextRichInlineLineRange(prepared: PreparedRichInline, maxWidth: number, start?: RichInlineCursor): RichInlineLineRange | null // stream one line of rich-text inline flow at a time without building fragment text strings
 walkRichInlineLineRanges(prepared: PreparedRichInline, maxWidth: number, onLine: (line: RichInlineLineRange) => void): number // non-materializing line walker for rich-text inline flow shrinkwrap/stats work
 materializeRichInlineLineRange(prepared: PreparedRichInline, line: RichInlineLineRange): RichInlineLine // turns one previously computed rich-inline line range back into full fragment text
@@ -180,17 +183,20 @@ type RichInlineItem = {
   break?: 'normal' | 'never' // `never` keeps the item atomic (aka on one line), like a chip
   extraWidth?: number // extra width around the text, e.g. padding and borders
 }
+type RichInlineBox = {
+  width: number // the room an object inside the line takes, e.g. an image, in CSS px: its element's margin box. Finite and at least 0
+}
 type RichInlineCursor = {
-  itemIndex: number // Which source RichInlineItem this cursor is currently in
+  itemIndex: number // Which source item this cursor is currently in
   segmentIndex: number // Segment index within that item's prepared text
   graphemeIndex: number // Grapheme index within that segment; `0` at segment boundaries
 }
 type RichInlineFragment = {
-  itemIndex: number // index back into the original RichInlineItem array
+  itemIndex: number // index back into the items prepareRichInline() took
   text: string // Text slice for this fragment
   gapBefore: number // collapsed space before this fragment, in pixels; 0 when there's none, and negative under letter spacing more negative than the space is wide
   gapItemIndex: number // index of the item whose collapsed space gapBefore measures, or -1 when no space precedes this fragment on this line
-  occupiedWidth: number // text width plus extraWidth
+  occupiedWidth: number // text width plus extraWidth, or a box's width
   start: LayoutCursor // Start cursor within the item's prepared text
   end: LayoutCursor // End cursor within the item's prepared text
 }
@@ -200,10 +206,10 @@ type RichInlineLine = {
   end: RichInlineCursor // Exclusive end cursor for continuing the next line
 }
 type RichInlineFragmentRange = {
-  itemIndex: number // index back into the original RichInlineItem array
+  itemIndex: number // index back into the items prepareRichInline() took
   gapBefore: number // collapsed space before this fragment, in pixels; 0 when there's none, and negative under letter spacing more negative than the space is wide
   gapItemIndex: number // index of the item whose collapsed space gapBefore measures, or -1 when no space precedes this fragment on this line
-  occupiedWidth: number // text width plus extraWidth
+  occupiedWidth: number // text width plus extraWidth, or a box's width
   start: LayoutCursor // Start cursor within the item's prepared text
   end: LayoutCursor // End cursor within the item's prepared text
 }
@@ -229,8 +235,9 @@ Notes:
 - Browsers let the spaces at a line's end run past it without counting toward its width, which CSS calls hanging. A line's `width` leaves out what hangs: all of it where the line wraps, and in `pre-wrap`, before a newline or at the end of the text, only the part that doesn't fit in `maxWidth`. Chrome and Safari hang tabs the same way; Firefox counts them in the width. `measureNaturalWidth()` still counts spaces before a newline, like CSS max-content.
 - `layout()` with an empty string returns `{ lineCount: 0, height: 0 }`. Browsers still size an empty block to one `line-height`, so clamp with `Math.max(1, lineCount) * lineHeight` if you need that behavior.
 - Pretext doesn't give bidi levels or a visual order. If you're drawing mixed bidi text, like English and Arabic, render each paragraph as one DOM element with its direction set, and the browser orders every line. If you draw lines separately, such as with Canvas `fillText()`, each line is ordered as its own paragraph, so numbers or punctuation next to a line break, or bidi controls that span lines (invisible direction characters such as U+202A-U+202E or U+2066-U+2069), can come out in a different order.
-- A rich-inline fragment's `gapBefore` is a space in the font and letter spacing of item `gapItemIndex`: the fragment's own item, the previous fragment's item, or an item holding only whitespace, which gets no fragment. An atomic item's own leading and trailing white space makes no gap, as browsers trim it inside the item's box. Draw the space inside that item's element so it paints at that width.
-- In `pre-wrap`, rich-inline fragments have no gaps: a fragment's `text` keeps its spaces, and its `occupiedWidth`, like the line's `width`, leaves out what hangs at the line's end. An atomic item's own spaces collapse, as in a chip's `white-space: nowrap` box, so its cursors index its text prepared without `whiteSpace`. A tab counts eight spaces of its own item's font, as Safari does; Chrome and Firefox count the paragraph's, so a tab inside an item in another font, such as inline code in prose, can land on another stop there.
+- A rich-inline fragment's `gapBefore` is a space in the font and letter spacing of item `gapItemIndex`: the fragment's own item, the previous fragment's item, or an item holding only whitespace, which gets no fragment. An atomic item's own leading and trailing white space makes no gap, as browsers trim it inside the item's inline-block. Draw the space inside that item's element so it paints at that width.
+- In `pre-wrap`, rich-inline fragments have no gaps: a fragment's `text` keeps its spaces, and its `occupiedWidth`, like the line's `width`, leaves out what hangs at the line's end. An atomic item's own spaces collapse, as in a chip's `white-space: nowrap` inline-block, so its cursors index its text prepared without `whiteSpace`. A tab counts eight spaces of its own item's font, as Safari does; Chrome and Firefox count the paragraph's, so a tab inside an item in another font, such as inline code in prose, can land on another stop there.
+- A rich-inline line is as tall as the paragraph's line height while its text keeps the paragraph font's size, ascent and descent. Text in another size, or in a face whose ascent and descent differ (Helvetica Neue's bold on macOS), makes a line taller, with or without boxes; `line-height: 1` on each fragment's element keeps it inside the line, as the rich-note demo does.
 - Segment widths are browser-canvas widths for line breaking, not enough to position individual characters in Arabic or mixed bidi text.
 
 ## Caveats

@@ -904,7 +904,63 @@ object (Blink's, WebKit's and Gecko's sources are cited at the rule in `prepareR
 ` chip`, `this` in 16px Arial at 60px take a 55.15px first line in all three browsers, where the gap made it 59.60px.
 On three probes that fixed 1,845 Chrome, 818 Firefox and 1,884 webkit-host cases and lost 76, 81 and 101, 241 of the
 258 losses holding a soft hyphen or bidi control beside the atomic item's white space, where the gap had made up for
-white space Pretext gets wrong there. In Firefox the box's leading white space also collapses into an open run.
+white space Pretext gets wrong there. In Firefox an atomic item's leading white space also collapses into an open run.
+
+#### Objects Inside A Line
+
+A box (`RichInlineBox`, `{ width }`, #387, 2026-09-30) is an object the app sizes and paints inside a line: an image, a
+custom emoji, a formula, a badge. It is a type of its own, not a text item with empty text: `prepareRichInline()` drops
+an empty item entirely, with no fragment and no width, which apps rely on to hide runs (canvas-word does) and the
+invariants check, and the empty-text spelling floated in #201 needs a `font` and a `break` that mean nothing and an
+`extraWidth` that may become padding (TODO.md). Inside, a box is an atomic item with no text and all its width
+`extraWidth`, which no line hangs: U+FFFC in the paragraph's text, as Blink and Gecko take an atomic inline there
+(`src/rich-inline.ts` cites them), with a break on both sides and preserved white space after it kept on its line as
+after a chip, so it needs no rule of its own. Apps stood in for one with an atomic NBSP whose `extraWidth` made up the
+rest of the object's width (#201), which lays out as the box does in every engine's profile (`src/layout.test.ts`; a
+stand-in Canvas fuzz of 220,000 layouts found no difference, 2026-09-30). A box of width 0 is a box, with a break on
+both sides, as an empty inline-block of width 0 is; Firefox places one wherever it falls, even on a line that already
+overflows (`CanPlaceFrame`, `nsLineLayout.cpp:1264-1269`), as the Gecko profile does for any atomic item of width 0
+(`paddedOpeningFit`, whose `'both'` ports that function), where Chrome and Safari move it to the next line. A negative width is refused, as one that isn't finite is. An
+inline-block of width 0 with a negative right margin lays out as a negative `extraWidth` does in Firefox 156.0.1 and
+webkit-host, but Chrome 154.0.8037.57 ends a line at a space that overflows before it and starts the next line with the
+box, where the negative width would bring the line back within its width, and fits a word after it that rich inline
+moves to the next line (`one two`, a -15px box, `three four five` in 16px Arial, `one two three` at 77.5px): 51 of 884
+layouts of four shapes at 10-120px differ in Chrome and none in the others (2026-09-30). No app was found that needs
+one; the negative values apps pass are `extraWidth`s relative to a stand-in character. That reopens if one does.
+
+Heights stay the app's (Limits), and with `vertical-align: top` or `bottom` on every box a line is as tall as the
+paragraph's line-height or its tallest box, whichever is taller, to within one layout unit: about 13,000 lines with
+boxes per browser in Arial, Helvetica Neue, Georgia, PingFang SC and the Shantell Sans web font, emoji and CJK fallback
+included, at 13-20px and several line heights, in Chrome 154.0.8037.57, Firefox 156.0.1 and webkit-host (the system
+WebKit 22625.1.29.11.27 that Safari 27.0 runs), macOS 27.0 (26A428) at DPR 2, 2026-09-30, in standards mode; installed
+Safari and quirks mode weren't measured. A line of boxes alone keeps the strut, the block is its lines' heights added
+up, and with `top` a line's text sits where it sits on a line without boxes, which is why the README advises it. The
+rule needs every font on the line to have the paragraph font's ascent minus descent: Helvetica Neue's Bold, Semibold and
+Medium faces, and its Italic in Chrome and WebKit, make a line taller by up to 0.5px in Chrome, 0.26px in Firefox and
+0.20px in WebKit, with or without boxes, and text in another size by up to 2px, out of scope already; the line is then
+`max(its text's height, tallest box)`, which Canvas can't give. An element whose line height keeps that text inside the
+strut avoids it: the rich-note demo's fragments, `line-height: 1` in 500 17px and 700 12px Helvetica Neue and 600 14px
+SF Mono, with CJK, Arabic and emoji fallback, in a 34px line, matched the demo's line heights exactly at 99 widths in
+the three browsers (2026-09-30), in those fonts only. `baseline`, `middle`, `text-top` and `text-bottom` have no rule an
+app can compute from Canvas, off by up to 7px, 2.3px and 5px: baseline needs each engine's rounding of ascent and
+descent, which Canvas's `fontBoundingBox` values miss by up to 0.70px in Chrome, 0.27px in Firefox and 0.42px in WebKit,
+and middle the x-height.
+
+A box's width is fixed when it's prepared, as every width is, and Pretext adds it up as given, where browsers round an
+element's width to their layout unit first: Chrome down to 1/64 of a device pixel, WebKit down to 1/64px and Firefox to
+the nearest 1/60px, so at DPR 2 a 19.2px box is 19.1953, 19.1875 and 19.2px wide and a 10.01px one 10.0078, 10.0 and
+10.0167px (Chrome 154.0.8037.57, Firefox 156.0.1, webkit-host, 2026-09-30). A line within about a unit per box of its
+edge can then break otherwise: `ok `, eight 19.2px boxes and ` end` in 16px Arial fit on one line 0.03px under Pretext's
+width in Chrome and 0.06px under in webkit-host, and eight 10.01px boxes wrap at Pretext's width in Firefox. Whole and
+quarter pixels are on every browser's grid at the usual pixel ratios, which the README advises (ENGINE_FOLLOWUPS.md,
+Rich-inline item edges). Widths passed at each layout call instead, which would follow an object capped at its
+container's width (`max-width: 100%`, as documint caps its images and remux styles its inline math) without a new
+prepare, weren't taken (2026-09-30): passing `min(width, container)` and preparing again when that changes is exact (no
+difference from the browser in 365 layouts per browser of a box before a word joiner, a ZWSP or words, in normal white
+space and pre-wrap), where passing the natural width and capping only the paint takes a line more where a word joiner or
+ZWSP follows the box (52 and 7 of the 73 widths), and layout-time widths need a parallel array keyed by item index and
+new parameters on three functions. That reopens if apps lay out many objects whose widths follow the container, where
+preparing again on each resize costs them.
 
 #### Items, Spaces And Fits
 
@@ -1335,6 +1391,12 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   walker, about 1ns as a local), and JavaScriptCore types an infinite default loop bound as a double (Bun walked
   letter-spaced and pre-wrap text 30-65% slower). Fixing both halved letter-spaced CJK `layout()` in all three browsers
   (#340, 2026-09-24).
+- **A 25th field on the engine profile**: one more boolean on `getEngineProfile()`'s object, at any position and
+  read by nothing, made Chrome 154's plain line APIs 11-18% slower (mixed stats, walk and stream) and two worst-case
+  `layout()` rows 3-7%, with identical work, in two bench sessions of each of three builds; Node 23's V8 keeps the
+  object's properties fast either way (2026-09-30). So the Gecko profile's rule for an atomic item of width 0 reads
+  `paddedOpeningFit`, whose `'both'` already ports the function it comes from (`CanPlaceFrame`), and a new profile
+  field is benched before it lands.
 - **Class fields in Firefox**: any class field seems to make Firefox 156 compile the whole bundle up front, 4.5-4.8ms on
   a fresh page against 1.9-2.2ms with plain objects, or with the fields emptied or set in constructors; V8 and
   JavaScriptCore didn't care (#340, 2026-09-23).
@@ -2339,3 +2401,8 @@ decisions for the maintainer.
   Chrome's and Firefox's worst-case rows 5-11% (Dead Ends, Invisible Characters, Controls And Soft Hyphens). The
   analysis also fixes the other four, `a`, LRI, U+0301, PDI, `b` at 1px, whose mark Firefox keeps with the `a`, and makes
   the white space on both sides of a control take the room of one space, about 22 of its 68 runtime lines.
+- **2026-09-30: an object inside a line is a box, `{ width }`, a type of its own** (#387). Apps stood in for one with an
+  atomic NBSP whose `extraWidth` made up the rest of its width (#201), where an empty text item stays what it is, dropped
+  with no fragment. A box's width is final, fixed when it's prepared and at least 0, and heights stay the app's, with the
+  README's `vertical-align: top` rule (Rich Inline Boundaries, Objects Inside A Line, has the evidence and what reopens
+  negative widths and widths given at layout).
