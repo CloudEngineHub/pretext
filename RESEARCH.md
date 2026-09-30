@@ -908,7 +908,7 @@ white space Pretext gets wrong there. In Firefox an atomic item's leading white 
 
 #### Objects Inside A Line
 
-A box (`RichInlineBox`, `{ width }`, #TBD, 2026-09-30) is an object the app sizes and paints inside a line: an image, a
+A box (`RichInlineBox`, `{ width }`, #387, 2026-09-30) is an object the app sizes and paints inside a line: an image, a
 custom emoji, a formula, a badge. It is a type of its own, not a text item with empty text: `prepareRichInline()` drops
 an empty item entirely, with no fragment and no width, which apps rely on to hide runs (canvas-word does) and the
 invariants check, and the empty-text spelling floated in #201 needs a `font` and a `break` that mean nothing and an
@@ -2401,7 +2401,7 @@ decisions for the maintainer.
   Chrome's and Firefox's worst-case rows 5-11% (Dead Ends, Invisible Characters, Controls And Soft Hyphens). The
   analysis also fixes the other four, `a`, LRI, U+0301, PDI, `b` at 1px, whose mark Firefox keeps with the `a`, and makes
   the white space on both sides of a control take the room of one space, about 22 of its 68 runtime lines.
-- **2026-09-30: an object inside a line is a box, `{ width }`, a type of its own** (#TBD). Apps stood in for one with an
+- **2026-09-30: an object inside a line is a box, `{ width }`, a type of its own** (#387). Apps stood in for one with an
   atomic NBSP whose `extraWidth` made up the rest of its width (#201), where an empty text item stays what it is, dropped
   with no fragment. A box's width is final, fixed when it's prepared and at least 0, and heights stay the app's, with the
   README's `vertical-align: top` rule (Rich Inline Boundaries, Objects Inside A Line, has the evidence and what reopens
