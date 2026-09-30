@@ -29,6 +29,7 @@ import {
   isDiscretionaryLineEnd,
   normalizePreparedLineStart,
   stepPreparedLineGeometryFromStart,
+  walkPreparedLinesRaw,
   type ItemLine,
 } from './line-break.js'
 import { getEngineProfile, getFontMeasurement, getPreparationLanguage, getSegmentMetrics, readLetterSpacing, type EngineProfile } from './measurement.js'
@@ -111,6 +112,9 @@ export type RichInlineStats = {
 
 type InternalPreparedRichInline = PreparedRichInline & {
   items: Array<PreparedRichInlineItem | undefined>
+  // The paragraph's item where it is the only one and lays out as its text alone
+  // (prepareRichInline()), which the line functions walk with the text walkers; else null.
+  onlyItem: PreparedRichInlineItem | null
 }
 
 type PreparedRichInlineItem = {
@@ -724,8 +728,19 @@ export function prepareRichInline(items: RichInlineItem[], options?: RichInlineO
     item.walked ||= breaks
   }
 
+  // An item alone has no joined text, gap or continued run, and stepRichInlineLine() lays
+  // it out as the text walkers lay out its handle, but for its whole fit at its start:
+  // where it has no extraWidth, isn't atomic and isn't walked, which leaves out hard breaks,
+  // and where its lines start as a text's do, with no source a line start consumes at its
+  // start (normalizeItemLineStart()). A paragraph of one styled run is the most common one.
+  const only = items.length === 1 ? preparedItems[0] : undefined
+  const onlyStart: LayoutCursor = { segmentIndex: 0, graphemeIndex: 0 }
+  const onlyItem = only !== undefined && only.break === 'normal' && only.extraWidth === 0 && !only.walked &&
+    normalizeItemLineStart(only.prepared, onlyStart) && onlyStart.segmentIndex === 0 ? only : null
+
   return {
     items: preparedItems,
+    onlyItem,
   } as InternalPreparedRichInline
 }
 
@@ -1257,12 +1272,60 @@ function stepRichInlineLine(
   return lineWidth
 }
 
+// A line of the paragraph's only item (onlyItem) as stepRichInlineLine() gives it, from
+// the text walkers' line: one fragment, and the cursor after the item where the line
+// ends with it.
+function createOnlyItemLine(
+  item: PreparedRichInlineItem,
+  width: number,
+  startSegmentIndex: number,
+  startGraphemeIndex: number,
+  endSegmentIndex: number,
+  endGraphemeIndex: number,
+): RichInlineLineRange {
+  const ended = endSegmentIndex === item.prepared.segments.length
+  return {
+    fragments: [{
+      itemIndex: 0,
+      gapBefore: 0,
+      gapItemIndex: -1,
+      occupiedWidth: width,
+      start: { segmentIndex: startSegmentIndex, graphemeIndex: startGraphemeIndex },
+      end: { segmentIndex: endSegmentIndex, graphemeIndex: endGraphemeIndex },
+    }],
+    width: Math.max(0, width),
+    end: { itemIndex: ended ? 1 : 0, segmentIndex: ended ? 0 : endSegmentIndex, graphemeIndex: endGraphemeIndex },
+  }
+}
+
+// Whether a line from the only item's start takes all of it, as stepRichInlineLine()
+// takes an item that fits whole: Blink takes a text item whole where its shaped width
+// fits (ShapingLineBreaker::ShapeLine, shaping_line_breaker.cc:281-297, Chromium 153),
+// even where negative advances bring the width back under the line's after a break
+// that overflows, where the text walkers end the line. WebKit fits each run between
+// breaks in turn (TextOnlySimpleLineBuilder.cpp:318, InlineLineBuilder.cpp:1585), and
+// ends the line there (ENGINE_FOLLOWUPS.md).
+function onlyItemFits(item: PreparedRichInlineItem, safeWidth: number): boolean {
+  return item.naturalWidth <= safeWidth + getEngineProfile().lineFitEpsilon
+}
+
 export function layoutNextRichInlineLineRange(
   prepared: PreparedRichInline,
   maxWidth: number,
   start: RichInlineCursor = RICH_INLINE_START_CURSOR,
 ): RichInlineLineRange | null {
   const flow = getInternalPreparedRichInline(prepared)
+  const only = flow.onlyItem
+  if (only !== null && start.itemIndex === 0) {
+    const safeWidth = Math.max(1, maxWidth)
+    if (isLineStartCursor(start) && onlyItemFits(only, safeWidth)) return createOnlyItemLine(only, only.naturalWidth, 0, 0, only.prepared.segments.length, 0)
+    const lineEnd = { segmentIndex: start.segmentIndex, graphemeIndex: start.graphemeIndex }
+    if (!normalizePreparedLineStart(only.prepared, lineEnd)) return null
+    const startSegmentIndex = lineEnd.segmentIndex
+    const startGraphemeIndex = lineEnd.graphemeIndex
+    const width = stepPreparedLineGeometryFromStart(only.prepared, lineEnd, safeWidth)
+    return width === null ? null : createOnlyItemLine(only, width, startSegmentIndex, startGraphemeIndex, lineEnd.segmentIndex, lineEnd.graphemeIndex)
+  }
   const end: RichInlineCursor = {
     itemIndex: start.itemIndex,
     segmentIndex: start.segmentIndex,
@@ -1332,6 +1395,17 @@ export function walkRichInlineLineRanges(
   maxWidth: number,
   onLine: (line: RichInlineLineRange) => void,
 ): number {
+  const only = getInternalPreparedRichInline(prepared).onlyItem
+  if (only !== null) {
+    const safeWidth = Math.max(1, maxWidth)
+    if (onlyItemFits(only, safeWidth)) {
+      onLine(createOnlyItemLine(only, only.naturalWidth, 0, 0, only.prepared.segments.length, 0))
+      return 1
+    }
+    return walkPreparedLinesRaw(only.prepared, safeWidth, (width, startSegmentIndex, startGraphemeIndex, endSegmentIndex, endGraphemeIndex) => {
+      onLine(createOnlyItemLine(only, width, startSegmentIndex, startGraphemeIndex, endSegmentIndex, endGraphemeIndex))
+    })
+  }
   let lineCount = 0
   const cursor = { ...RICH_INLINE_START_CURSOR }
 
@@ -1351,6 +1425,14 @@ export function measureRichInlineStats(
   maxWidth: number,
 ): RichInlineStats {
   const flow = getInternalPreparedRichInline(prepared)
+  const only = flow.onlyItem
+  if (only !== null) {
+    const safeWidth = Math.max(1, maxWidth)
+    if (onlyItemFits(only, safeWidth)) return { lineCount: 1, maxLineWidth: Math.max(0, only.naturalWidth) }
+    const stats = { lineCount: 0, maxLineWidth: 0 }
+    walkPreparedLinesRaw(only.prepared, safeWidth, undefined, stats)
+    return stats
+  }
   let lineCount = 0
   let maxLineWidth = 0
   const cursor: RichInlineCursor = {

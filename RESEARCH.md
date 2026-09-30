@@ -1278,6 +1278,18 @@ main at #372 read 7% slower. Against main, Safari 27's rich stats read 14% faste
 didn't change (the minified `layout.ts` bundle is the same), 2% slower in two of four runs, accepted as V8's placement
 of the changed bundle (#375).
 
+A paragraph of one rich item takes the text walkers where the rich stepper would lay it out as they lay out its handle:
+no `extraWidth`, not atomic, no hard break, and nothing a line start consumes at its start (`onlyItem`, chosen once in
+`prepareRichInline()`). Its line functions take the item's whole fit, which the text walkers lack
+(ENGINE_FOLLOWUPS.md, Negative letter spacing and hanging spaces), then walk its handle as `measureLineStats()`,
+`walkLineRanges()` and `layoutNextLineRange()` do. Through the rich stepper, such a paragraph counted its lines at about
+2.5 times `measureLineStats()`'s cost in Chrome 154, and 15,256 of the Markdown chat's 17,688 prose blocks over its
+10,000 messages are one item. The chat's height pass, `layoutConversation()`, reads 25-26% faster in Chrome 154, 23-24%
+in Firefox 156.0.1 and 17-22% in Safari 27 (2026-09-29). The results are the rich stepper's field by field, on the
+stand-in Canvas over 6,267 inputs at 13 widths in all four profiles, and in Chrome, Firefox and webkit-host with every
+plain case in white-space: normal predicted as one item. The bench's rich rows, whose paragraphs have an item per word,
+read within noise.
+
 Continuing rich lines in the full walker (#369, 2026-09-27) moved rows whose code didn't change, accepted as each JIT's
 placement of the changed bundle (Part 1, Engineering): Chrome 154's letter-spaced CJK `layout()` and pre-wrap chunks
 read 1-6% slower, and within noise a day later with the same walker, and Safari 27 streamed the bench's mixed texts
@@ -2175,6 +2187,10 @@ widths: both measure Pretext, not a browser.
 - **Focus.** Using the Mac during a timed run failed all six Safari attempts; light concurrent work, or the bench window
   opening on another screen, moved Safari's `prepare()` 1-2 ms of 11. An app's embedded Chromium pane isn't installed
   Chrome, and its numbers count for nothing.
+- **Allocation order.** Timed on data each library prepared in turn, whichever library prepared last read 20-28%
+  slower in Chrome 154 over the Markdown chat's 10,000 messages, the control copy of base too; preparing the libraries'
+  messages interleaved, a message at a time, put the control within 4% (2026-09-29). The bench prepares each
+  operation's handles in a shuffled order, so its control copy shows where that order moves a row.
 - **Headless Chrome isn't installed Chrome.** With `deviceScaleFactor: 2` it most likely lays out at zoom 1 while
   reporting DPR 2, as its measurements show, and headless Chrome 153 crashed or hung on one input installed Chrome
   handled (reported privately; Part 1, Merge Bars And Landing).
