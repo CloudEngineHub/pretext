@@ -9,6 +9,8 @@
 //                            preparing, and each set's measureText calls and submitted units here and there;
 //                            --offline: whether their src/ give the same results on a stand-in Canvas (offline-equal.ts)
 //   bench <base> [--sessions=2] [--rows=new,...] [--background]   <base>'s src/ timed against --lib's (bench/run.ts)
+//   trace <base> <document> [operation]   what Node's V8 compiles differently in <base>'s src/ and --lib's on one of
+//                            the bench's documents, offline (bench/trace.ts)
 //   repin <chrome|firefox|safari> [--write]   after a browser update: pin the installed Chrome or Firefox, record every
 //                            case into a scratch copy of the recordings, and print what changed and whether the browser's
 //                            break data is still scripts/engine-data's; --write replaces the recordings and the pin
@@ -26,6 +28,7 @@ import {
 } from './score.ts'
 import { bench, ROWS } from './bench/run.ts'
 import { srcOf } from './bench/lib.ts'
+import { trace } from './bench/trace.ts'
 import { breakDataReport } from './break-data.ts'
 import { appPath, pinInstalled, PINNED, pins, writePin } from './browsers.ts'
 import { LIB, runJob, type Job, type JobResult, type Mode } from './run.ts'
@@ -551,6 +554,11 @@ async function main(): Promise<number> {
       await bench(positional[1], flags.get('lib') ?? LIB, chosen, Number(flags.get('sessions') ?? 2), flags.get('rows')?.split(',') ?? ROWS, background)
       return 0
     }
+    case 'trace': {
+      if (positional[1] === undefined || positional[2] === undefined) throw new Error('trace needs a base (a git ref or a src/ directory) and one of the bench\'s documents, such as "lines mixed"')
+      console.log(await trace(positional[1], flags.get('lib') ?? LIB, positional[2], positional[3]))
+      return 0
+    }
     case 'repin': {
       // Chrome and Firefox get a pinned copy of the installed app; Safari can't be pinned, so its engine (webkit-host,
       // and installed Safari's sample) is recorded as the system has it.
@@ -572,7 +580,7 @@ async function main(): Promise<number> {
       return 0
     }
     default:
-      console.error('Usage: bun harness record|check|gate|equal <ref>|bench <base>|repin <browser>|explain <id>|explain --text=... [--browser=...] [--cases=...] [--lib=...]')
+      console.error('Usage: bun harness record|check|gate|equal <ref>|bench <base>|trace <base> <document>|repin <browser>|explain <id>|explain --text=... [--browser=...] [--cases=...] [--lib=...]')
       return 2
   }
 }

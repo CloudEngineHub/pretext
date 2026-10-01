@@ -227,6 +227,16 @@ mixed, Latin and CJK messages, each family in a document of its own.
   `bun harness bench 6d1d2106`, with Chrome in three runs (`--browser=chrome` and `--rows=new,fresh,rich`,
   `seen,resize,lines`, `worst`), since a run of every row of that build went past the 6 GB bound on the bench's Chrome
   twice (2026-09-26). The first line of the output names both builds and their commits.
+- **V8's own traces**, before a slowdown with the same counted work is written down as one JIT's code placement:
+  `bun harness trace <base> "<document>" [operation]` (`"lines mixed" stats`, `"worst controls"`, `"rich latin"`) runs
+  the bench's bundles of both builds, names kept, on that document under Node, over a stand-in Canvas, and prints what
+  differs between them in `--print-bytecode` (each function's bytecode length), `--trace-turbo-inlining` (what TurboFan
+  inlined into what, and what it refused) and `--trace-opt --trace-deopt` (which tier compiled each function, and what
+  was deoptimized and why), with `--predictable` so two runs of one build print the same. With one more field on the
+  engine profile it shows `getEngineProfile()` going from 454 to 463 bytes of bytecode, past the 460 TurboFan inlines
+  (`max_inlined_bytecode_size`), and no longer inlined into the simple line walk's step (Node 23.10, V8 12.9,
+  2026-09-30). Node's V8 isn't Chrome's, so a difference is a lead to time in the bench; finding none doesn't clear
+  Chrome, and says nothing of Firefox or Safari.
 - **WebKit's width cache** samples one Canvas call in 21 after a run of misses, so a prepare that submits n strings
   speeds up only after 21 / gcd(n, 21) repeats: compare submitted text and cold first prepares.
 
