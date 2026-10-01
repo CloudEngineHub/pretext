@@ -2226,6 +2226,17 @@ describe('prepare invariants', () => {
     expect(profileOf(`${system} Safari/537.36`)).toEqual(profileOf(`${system} Chrome/153.0.0.0 Safari/537.36`))
   })
 
+  test('the library has no regex lookbehind, which Safari before 16.4 fails to parse', async () => {
+    // JavaScriptCore checks every regex literal when it parses a module, so one lookbehind
+    // stops the whole library from loading there, whichever engine's path it is on, and no
+    // browser the harness runs would show it.
+    const directory = new URL('.', import.meta.url).pathname
+    for (const file of new Bun.Glob('**/*.ts').scanSync(directory)) {
+      if (file === 'layout.test.ts' || file === 'test-data.ts') continue
+      expect({ file, lookbehind: /\(\?<[=!]/.test(await Bun.file(directory + file).text()) }).toEqual({ file, lookbehind: false })
+    }
+  })
+
   test('Chromium breaks after closing brackets before CJK text, not after a closing quote before Hangul', () => {
     // Fullwidth closing brackets are UAX #14 CL, and Chromium breaks between CL and ID.
     for (const close of ['\u300D', '\u300F', '\u3011', '\u300B', '\u3009', '\u3015', '\uFF09']) {

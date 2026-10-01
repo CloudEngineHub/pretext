@@ -135,16 +135,20 @@ export function removeSkippableSegmentBreaks(text: string, profile: AnalysisProf
 // nsTextFrameUtils.cpp:151-193), and a last space before a combining sequence tail as the tail's
 // base (TransformText, nsTextFrameUtils.cpp:319-345). So the run's other white space goes, and so
 // does white space before only bidi controls at the end, which the line end trims.
-const whiteSpaceThroughBidiControlsRe = /(?<![ \t\n\r\f])[ \t\n\r\f]+(?:[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]+[ \t\n\r\f]*)+/g
+// The match takes the character before the run with it, so that a search never starts inside a
+// run and a long run without a control is read once. A lookbehind would do that too, but Safari
+// before 16.4 can't parse one, and fails to load the module.
+const whiteSpaceThroughBidiControlsRe = /(^|[^ \t\n\r\f])([ \t\n\r\f]+(?:[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]+[ \t\n\r\f]*)+)/g
 function collapseWhiteSpaceThroughBidiControls(text: string): string {
-  return text.replace(whiteSpaceThroughBidiControlsRe, (run: string, at: number) => {
-    if (at + run.length === text.length) return run.replace(collapsibleWhitespaceRunRe, '')
+  return text.replace(whiteSpaceThroughBidiControlsRe, (match: string, before: string, run: string, matchAt: number) => {
+    const at = matchAt + before.length
+    if (matchAt + match.length === text.length) return before + run.replace(collapsibleWhitespaceRunRe, '')
     let last = run.length - 1
     while (!isCollapsibleSpaceCode(run.charCodeAt(last))) last--
     const base = last > 0 && run.charCodeAt(last) === 0x20 && isSpaceCombiningSequenceTail(text, at + last + 1)
     const kept = Math.max(run.indexOf('\n'), 0)
     const end = base ? last : run.length
-    return run.slice(0, kept).replace(collapsibleWhitespaceRunRe, '') + run[kept] + run.slice(kept + 1, end).replace(collapsibleWhitespaceRunRe, '') + (base ? run.slice(last) : '')
+    return before + run.slice(0, kept).replace(collapsibleWhitespaceRunRe, '') + run[kept] + run.slice(kept + 1, end).replace(collapsibleWhitespaceRunRe, '') + (base ? run.slice(last) : '')
   })
 }
 
