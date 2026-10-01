@@ -13,7 +13,8 @@
 //   bench <base> [--sessions=3] [--rows=new,...] [--background]   <base>'s src/ timed against --lib's (bench/run.ts)
 //   repin <chrome|firefox|safari> [--write]   after a browser update: pin the installed Chrome or Firefox, record every
 //                            case into a scratch copy of the recordings, and print what changed and whether the browser's
-//                            break data is still scripts/engine-data's; --write replaces the recordings and the pin
+//                            break data is still scripts/engine-data's; --write replaces the recordings and the pin.
+//                            safari records webkit-host and installed Safari's sample, and prints whether they agree
 //   explain <id>             one case's recorded lines against the predicted ones, character by character
 //   explain --text=<text> [--width=320] [--font="16px Arial"] [--lang=en] [--white-space=pre-wrap] [--word-break=keep-all]
 //           [--letter-spacing=<px>]  the same for a paragraph with no recording, or for the one case of a --cases file:
@@ -444,6 +445,24 @@ export async function drift(browser: BrowserKind, cases: Case[], o: Options, wri
   io.log(out.join('\n'))
 }
 
+// What `repin safari` prints once both are recorded into `root`: on how many of the cases both pin webkit-host, which
+// every other command runs in installed Safari's place, lays out the lines Safari does.
+export function hostAgreement(root: string): string {
+  const host = readRecordings(recordingsPath(root, 'webkit-host'))?.recordings ?? new Map<string, Recording>()
+  const safari = readRecordings(recordingsPath(root, 'safari'))?.recordings ?? new Map<string, Recording>()
+  const differ: string[] = []
+  let shared = 0
+  let widths = 0
+  for (const [id, recording] of safari) {
+    const other = host.get(id)
+    if (other === undefined) continue
+    shared++
+    if (lineEnds(other) !== lineEnds(recording)) differ.push(id)
+    else if (recordingText(other) !== recordingText(recording)) widths++
+  }
+  return `webkit-host against installed Safari: ${shared - differ.length} of the ${shared} cases both pin have the same lines${differ.length > 0 ? `; otherwise: ${shown(differ)}` : ''}${widths > 0 ? `; ${widths} more differ only in line widths or height` : ''}`
+}
+
 // ---- equal and explain ----
 
 // Whether <ref>'s build, its src/ with the adapter beside it (run.ts), predicts what this tree's does on every case: the
@@ -613,9 +632,13 @@ async function main(): Promise<number> {
       if (target !== 'chrome' && target !== 'firefox' && target !== 'safari') throw new Error('repin takes chrome, firefox or safari')
       if (target !== 'safari') pins[target] = pinInstalled(target)
       const kinds = BROWSERS.filter(browser => BROWSER[browser].cases === target)
-      for (let i = 0; i < kinds.length; i++) await drift(kinds[i]!, cases, o, flags.has('write'), io, join(import.meta.dir, '../.artifacts/harness-repin'))
+      const scratch = join(import.meta.dir, '../.artifacts/harness-repin')
+      for (let i = 0; i < kinds.length; i++) await drift(kinds[i]!, cases, o, flags.has('write'), io, scratch)
       console.log(breakDataReport(target, appPath(target)))
-      if (target === 'safari') return 0
+      if (target === 'safari') {
+        console.log(hostAgreement(scratch))
+        return 0
+      }
       const bumped = pins[target] !== PINNED[target]
       if (bumped && flags.has('write')) writePin(target, pins[target])
       console.log(`${target}: ${pins[target]}${!bumped ? ', already the pin' : flags.has('write') ? ', now the pin in harness/pins.json' : '; --write makes it the pin'}`)

@@ -225,7 +225,8 @@ and whether the browser's break data still matches `scripts/engine-data/`.
 
 webkit-host lays text out as Safari 27.0 does: the same line geometry on 25,180 cases in both orders (2026-09-17) and on
 installed Safari's 2,000-case sample except page history (2026-09-24); a Safari or macOS update voids that until
-`repin safari`, which records both, shows they agree again. Installed Safari stalls when hidden (WebKit suspends a
+`repin safari`, which records both and prints on how many of the cases both pin their lines agree, shows they agree
+again. Installed Safari stalls when hidden (WebKit suspends a
 hidden page past a CPU limit averaged over 8 minutes), so keep its window uncovered during a job.
 
 Firefox changes fonts after it starts (see also `PLATFORM_BUGS.md`, the late family names): emoji beside Arial laid out

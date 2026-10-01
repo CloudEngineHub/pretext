@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { srcOf } from './bench/lib.ts'
 import { fontsKey, keyOf, kill, type Environment, type Launched } from './browsers.ts'
 import { icuEntries, rustByteStrings } from './break-data.ts'
-import { check, drift, equal, gate, parseArgs, record, type Invariants, type Io, type Options } from './cli.ts'
+import { check, drift, equal, gate, hostAgreement, parseArgs, record, type Invariants, type Io, type Options } from './cli.ts'
 import { groupLines, recordedLines, scanLineEnds, searchLineEnds, type RectsAt } from './observe.ts'
 import { bundle, documents, LIB, type Job } from './run.ts'
 import { box } from './sets/build.ts'
@@ -691,6 +691,15 @@ describe('the commands, with a stand-in browser', () => {
     const again = browser(root, () => right, layout, 'new build')
     await drift('chrome', list, options, false, again, scratch)
     expect(again.printed()).toContain('chrome drift against harness/recordings (same environment): 0 cases laid out otherwise, 0 new page history, 0 newly recorded, 0 no longer recorded')
+  })
+
+  test('repin safari says on how many of the cases both pin webkit-host has installed Safari\'s lines: after a Safari or macOS update, recordings of a stand-in that no longer lays out as Safari does would score the library', () => {
+    const root = folder('host-agreement', {})
+    if ('error' in laidOut) throw new Error('unreachable')
+    const wider: Recording = { lines: laidOut.lines.map(line => ({ ...line, width: line.width + 1 })), height: laidOut.height }
+    writeRecordings(recordingsPath(root, 'webkit-host'), { env: 'host', recordings: new Map([['same', laidOut], ['moved', laidOut], ['wider', laidOut], ['host-only', laidOut]]) })
+    writeRecordings(recordingsPath(root, 'safari'), { env: 'safari', recordings: new Map([['same', laidOut], ['moved', other], ['wider', wider], ['sample-only', laidOut]]) })
+    expect(hostAgreement(root)).toBe('webkit-host against installed Safari: 2 of the 3 cases both pin have the same lines; otherwise: moved; 1 more differ only in line widths or height')
   })
 
   test('equal counts a moved line, other line text, another disagreement and another Canvas call after preparing as a difference, and lists a case that varies between runs apart: a change to src/ or the adapter would show nothing, or main against itself differ', async () => {
