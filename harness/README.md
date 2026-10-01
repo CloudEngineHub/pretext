@@ -184,17 +184,38 @@ mixed, Latin and CJK messages, each family in a document of its own.
 
 - **A control copy.** Each document runs base, the candidate and a second copy of base, shuffled each round, since only
   same-document ratios survive drift between sessions (`RESEARCH.md`, Evaluation Traps, has the numbers behind this and
-  the next two).
+  the bullets below).
 - **Focus and a quiet machine.** Background windows' timers are slowed, so Chrome and Safari need a visible, focused
   window throughout. Using the machine spoils the sessions it overlaps, and only those; a loaded machine spoils them
   all.
-- **Two sessions** (`--sessions=2`) do unless they disagree on a verdict that matters; the default of 3 calibrates the
-  floors. A row reads slower or faster only when it does so in every session.
+- **Sessions and the confirming one.** Two sessions by default. A row reads slower or faster only when it does so in
+  every session, and the floors are fitted to three, so each browser then times the documents of such rows in a third,
+  which must agree; a verdict from fewer prints "(unconfirmed)". Of HEAD against itself, the calibration's 141 entries
+  give 423 pairs of sessions: a pair alone calls a change in 11 of them, the three sessions together in none, which is
+  what the floors were fitted to. Other runs of one build against itself do worse: main against main on the `new` rows
+  (2026-09-28) read Chrome's Thai row slower in all three sessions, 1 of 18 entries, and in the other saved runs of
+  three sessions the control, base's own code, sat beyond the floor on one side in all three in 27 of 1,016 entries. The
+  third session costs reach: a change of 5% is caught on every `seen` row and about 8 in 10 `lines` and `worst` rows,
+  but on under 1 in 10 `new`, `rich` and `resize` rows, whose floors are 5-6%, where two sessions alone caught 15-21%;
+  those rows catch 45-69% of the 10% changes and 94% or more of the 25% ones. `--sessions=1` is a hypothesis and gets no
+  confirming session; three or more need none.
+- **Two speeds.** A copy of the library can keep one speed for a whole document and another in the next, so the control
+  can sit beyond the floor for a session with three quarters of its rounds on one side: Chrome 154's rich stats ran at
+  2.3 or 2.6 µs per 1,000 units copy by copy (2026-09-30). That session's band is then the distance between two copies
+  of base. A row left without a verdict that had such a session reads "two speeds", with base's and the control's costs
+  in the session that held them furthest apart: the run saw no change on it smaller than that distance, whatever its
+  floor. A fifth of the rows without a verdict read so in the saved runs, and four in five of Safari's `lines` rows,
+  whose copies sit further apart than the 1% floor the three browsers share. Time such a row again alone with more
+  sessions (`--rows`, `--sessions`) when the change touches what the row times, or when the candidate's value sits
+  beyond the floor on one side in every session, and read each session's values. A verdict stands as the band gives it,
+  two speeds or not (`RESEARCH.md`, Evaluation Traps, has what stricter rules cost).
 - **Floors**, the noise threshold under which a row's ratio isn't called a change (1-6% by row, `FLOORS` in
   `bench/report.ts`, with the builds and machine they came from), are the largest deviation held in one direction in all
   three sessions of a calibration of HEAD against itself; calibrate again, with `bun harness bench HEAD --sessions=3`,
-  after a pin bump, on another machine or when rows are added. The Latin and CJK `lines` rows came after the
-  calibration and take the floor the mixed ones gave. Floors from the worst single reading would be too wide, since one
+  after a pin bump, on another machine or when rows are added, and replace `bench/calibration.json`, the calibration's
+  readings, with the run's `readings.json`: `bench.test.ts` then fails on an entry whose floor those three sessions
+  break. An entry the calibration didn't time in the browser takes its row's floor and prints "(uncalibrated)", as the
+  Latin and CJK `lines` entries do until the next one. Floors from the worst single reading would be too wide, since one
   copy can run slow for a whole document (in one session Firefox 156.0.1's base copy took about twice as long as the
   other two on kept CJK handles, 2026-09-26), and would have hidden a real 20-25% slowdown. These floors flag all four
   slowdowns known between main before #340 (6d1d2106) and 217c84b8, a commit of #340: pre-wrap layout and walk at 1.05
@@ -205,7 +226,8 @@ mixed, Latin and CJK messages, each family in a document of its own.
 
 A session of every row took 75 s in Chrome, 92 s in Firefox and 79 s in Safari (the medians of 95-98 sessions each,
 2026-09-26 to 30; a document that loses focus waits a minute and starts again) before the Latin and CJK `lines` rows,
-which add six operations of about 2 s each. Nothing timed is checked in.
+which add six operations of about 2 s each: about ten minutes for the default run, before its confirming sessions.
+Nothing timed is checked in but the calibration's readings.
 
 ## Browsers and pins
 

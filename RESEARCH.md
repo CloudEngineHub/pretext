@@ -1340,7 +1340,8 @@ can, instead of on every item it visits, made Chrome's rich stats 9% faster agai
 reads were what #364's removed check had skipped. Chrome's rich stats now read 18% faster than main before #340, where
 main at #372 read 7% slower. Against main, Safari 27's rich stats read 14% faster, and Chrome's mixed stats, whose code
 didn't change (the minified `layout.ts` bundle is the same), 2% slower in two of four runs, accepted as V8's placement
-of the changed bundle (#375).
+of the changed bundle (#375). Since #381 a copy of the library runs Chrome's rich stats at one of two speeds 11% apart
+(Evaluation Traps, Timing), and the figure against main before #340 hasn't been timed since.
 
 A paragraph of one rich item takes the text walkers where the rich stepper would lay it out as they lay out its handle:
 no `extraWidth`, not atomic, no hard break, and nothing a line start consumes at its start (`onlyItem`, chosen once in
@@ -1422,7 +1423,9 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   hang bookkeeping, the retreat check before continued items, and the hang at the line's start and end), rich stats
   still read 7-11% slower, and with the line's start, which only the rare pre-wrap paths read, made a constant, 4-5%;
   main with those three values kept alive read 2% slower. So it's how the JITs allocate the bigger loop's state, not
-  work, and it was accepted as a regression JIT placement alone explains in live code (#381, 2026-09-29).
+  work, and it was accepted as a regression JIT placement alone explains in live code (#381, 2026-09-29). Chrome's 5-9%
+  on rich stats is the faster of two speeds a copy of that build takes, 11% apart (Evaluation Traps, Timing), so these
+  figures, two sessions each, hold both a variant's cost and the speed its copy took.
 - **Inline caches**: once `layout()` has stepped such text, Chrome's `walkLineRanges()` of simple text, sharing the
   simple stepper, takes 2-4% longer than a second copy of main, by a mechanism not found. V8's caches turn polymorphic
   over the two handle kinds (`--log-ic`), but one shape for both didn't help Chrome and cost Firefox up to 14%; a
@@ -2261,6 +2264,33 @@ widths: both measure Pretext, not a browser.
   slower in Chrome 154 over the Markdown chat's 10,000 messages, the control copy of base too; preparing the libraries'
   messages interleaved, a message at a time, put the control within 4% (2026-09-29). The bench prepares each
   operation's handles in a shuffled order, so its control copy shows where that order moves a row.
+- **Two sessions agree by chance.** Of HEAD against itself (the calibration of the bench's floors at 7204cab2,
+  2026-09-26, three sessions a browser; `harness/bench/calibration.json`, checked by `bench.test.ts`), the 141 entries
+  give 423 pairs of sessions, and a pair alone calls a change in 11 of them, 4 on `new` rows; the three sessions
+  together call none, which is what the floors were fitted to. So after two sessions the bench times the rows that read
+  slower or faster in a third. A build still reads slower than itself outside that run: main against main on the `new`
+  rows (`bench main --lib=main --rows=new --sessions=3`, Chrome 154, 2026-09-28) read the Thai row +11.4%, +13.4% and
+  +6.5% with the control at -7.5%, -4.3% and -0.9%, slower in all three sessions, 1 of 18 entries; and in the 73 other
+  saved runs of three sessions or more in one browser (2026-09-26 to 30), the control, judged as a candidate against the
+  floor alone, held a change through its first three sessions in 27 of 1,016 entries (2.7%), 7 of 32 on Safari's `lines`
+  row. What three sessions cost against two, with a change multiplied into the candidate's times of the calibration and
+  each of its three identical copies in each role: +5% is caught on 7-9% of `new`, `rich` and `resize` rows, not 15-21%,
+  and +10% on 45-69%, not 57-77%; `seen`, `lines` and `worst` rows lose 6 points or fewer at both sizes. Reopen with a
+  calibration that gives each browser its floors.
+- **A copy keeps a speed for a document.** On 2026-09-30, with #381 in main, each copy of the library in a Chrome 154
+  document ran `measureRichInlineStats()` over the bench's rich text at 2.24-2.35 or 2.48-2.64 µs per 1,000 units, 9
+  copies of 18 each, every copy steady over its 12 rounds, so the control read 11-12% from base in 5 of those 6
+  sessions. Over the 902 saved sessions of 2026-09-26 to 30, the control sat beyond its row's floor with three quarters
+  of its rounds on one side in 55% of the readings of Safari's `lines` row, 30% of its `resize` and 25% of its `rich`
+  rows, 18% of Firefox's and 13% of Chrome's `lines` rows, and 1-2% of any browser's `new` rows, whose spread is between
+  batches of text. The bench marks a row left without a verdict that had such a session "two speeds" and moves no
+  verdict (`harness/README.md`, Bench). Two stricter rules cost verdicts in the 381 saved runs of two sessions or more
+  and took back no false one in either run of a build against itself: holding the candidate past the control too by the
+  floor in such a session took 43 of 1,526, among them Chrome's pre-wrap layout at 1.05 of main before #340, one of the
+  four slowdowns the floors are checked against; giving such a row no verdict took 173, and 6 of that run's 67. On a
+  simulated row whose copies each run 12% slow in half their documents, three sessions call identical code 1.3% of the
+  time by the band alone and 0.3% with the first rule. Reopen if a re-time takes back a verdict on a row with two
+  speeds.
 - **Headless Chrome isn't installed Chrome.** With `deviceScaleFactor: 2` it most likely lays out at zoom 1 while
   reporting DPR 2, as its measurements show, and headless Chrome 153 crashed or hung on one input installed Chrome
   handled (reported privately; Part 1, Merge Bars And Landing).
