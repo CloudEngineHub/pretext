@@ -644,7 +644,13 @@ ICU4X data puts every code point in Chrome's 18 classes and ended clusters where
 one-off run, so the Gecko profile takes Chrome's table; the generator's standing check covers about 211,000 strings.
 Firefox clusters its text run, which leaves out soft hyphens and bidi controls, so since #368 the Gecko profile's
 table, `gecko/char`, reads Chrome's rules past them, and such a character takes no letter spacing of its own
-(`src/graphemes.ts` and `src/analysis.ts` have the rule and where a bidi level run overrides it).
+(`src/graphemes.ts` and `src/analysis.ts` have the rule and where a bidi level run overrides it). A cursor's
+`graphemeIndex` counts the profile's clusters, so in the Gecko profile it is one less than `Intl.Segmenter`'s count of
+the segment's graphemes for each soft hyphen or bidi control before the cursor (`\u2068Bartholomew\u2069 joined` at 40px
+ends its first line at grapheme 4, after `\u2068Bart`; 2026-09-30). `materializeLineRange()` from the segment's start
+to a cursor inside it gives the text before the cursor in every profile. Counting those characters would take a
+cluster of no width that no line may end before, the zero-width glue #368 rejected (Decisions Log, 2026-09-27); it
+reopens with a public way from cursors to source offsets (#90).
 
 The tables don't follow a browser to another Unicode version: Node 23's ICU 77.1 (Unicode 16) differs on 1,417 code
 points, 689 symbols Unicode 17 took out of Extended_Pictographic (the chess symbols, playing cards), which no longer
