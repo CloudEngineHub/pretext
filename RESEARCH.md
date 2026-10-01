@@ -538,8 +538,11 @@ The tables are ICU's compiled state machines, whose states a small rule change r
 a fresh Firefox page 5.2 ms evaluating the bundle, against 1.2 ms before #340, so each is stored as byte ranges of an
 earlier table plus literal bytes and a browser unpacks only its own, 0.4-0.6 ms a page, for 133 KB minified and 64 KB
 gzipped. Keeping Chrome's root table whole and copying the other line tables from it at runtime instead gave 238 KB and
-57 KB and took 3.6 ms in Firefox (2026-09-24). The tables stay as they are, and one bundle serves every engine
-(Decisions Log, 2026-09-26).
+57 KB and took 3.6 ms in Firefox (2026-09-24). The generator's packer looks for the longest copy from any earlier
+position and matches lazily, which took the layout entry from 56.2 to 53.6 KB gzipped with the same unpacker and the
+same unpacked bytes (#TBD, 2026-09-30); the parse with the fewest bytes would save 0.5 KB more and take the generator
+from 2 s to 10 or more, so it wasn't taken. The tables stay as they are, and one bundle serves every engine (Decisions
+Log, 2026-09-26).
 
 In Line_Break=SA runs (Thai, Lao, Khmer, Myanmar, and in the Blink and WebKit scans also Tai Le, New Tai Lue, Tai Tham,
 Tai Viet and Ahom), `Intl.Segmenter` words stand in for the engines' dictionaries. Chrome 153's equal those of
