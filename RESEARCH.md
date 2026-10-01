@@ -1391,12 +1391,21 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   walker, about 1ns as a local), and JavaScriptCore types an infinite default loop bound as a double (Bun walked
   letter-spaced and pre-wrap text 30-65% slower). Fixing both halved letter-spaced CJK `layout()` in all three browsers
   (#340, 2026-09-24).
-- **A 25th field on the engine profile**: one more boolean on `getEngineProfile()`'s object, at any position and
-  read by nothing, made Chrome 154's plain line APIs 11-18% slower (mixed stats, walk and stream) and two worst-case
-  `layout()` rows 3-7%, with identical work, in two bench sessions of each of three builds; Node 23's V8 keeps the
-  object's properties fast either way (2026-09-30). So the Gecko profile's rule for an atomic item of width 0 reads
-  `paddedOpeningFit`, whose `'both'` already ports the function it comes from (`CanPlaceFrame`), and a new profile
-  field is benched before it lands.
+- **The same budget on `getEngineProfile()`**, which the line walkers call for every line: 1,000 times in a stats pass
+  over the bench's 134 mixed messages. While it built the profile itself it took 454 bytes with the profile's 23 fields,
+  6 under the limit, and 463 with a 24th, a boolean at any position and read by nothing. With that one, Chrome 154's
+  plain line APIs ran 11-18% slower (mixed stats, walk and stream) and two worst-case `layout()` rows 3-7%, in two bench
+  sessions of each of three builds. The bytes did it, not the field. Chrome 154.0.8037.57's V8, traced headless
+  (`--js-flags="--trace-turbo-inlining --trace-maglev-inlining"`), inlines the 454-byte function into
+  `countPreparedLines()` and the simple and rich steppers and refuses the 463-byte one ("exceeds bytecode limit"), as
+  Node 23's V8 12.9 does. There, on a stand-in Canvas, the 463-byte build read 11-18% slower on mixed stats, walk and
+  stream and 7-21% on four `layout()` rows (medians of 10 sessions), a 462-byte one with no new field 7-18%, a 24th
+  field of a constant value, which adds no bytecode, as main, and the 463-byte one as main with
+  `--max-inlined-bytecode-size=470`. So the accessor is a function apart from `buildEngineProfile()`, 21 bytes whatever
+  the profile holds, which both of V8's optimizing tiers inline in Chrome 154, into the full walker too (Maglev takes no
+  function over 100 bytes, and TurboFan left the 454 bytes a call there). Node's times are a lead only: what the split
+  does to Chrome's is the bench's to say (#TBD, 2026-09-30). No other function inlined while preparing and laying out
+  the bench's mixed and rich texts takes over 374 bytes (`getMarkContext()`, above).
 - **Class fields in Firefox**: any class field seems to make Firefox 156 compile the whole bundle up front, 4.5-4.8ms on
   a fresh page against 1.9-2.2ms with plain objects, or with the fields emptied or set in constructors; V8 and
   JavaScriptCore didn't care (#340, 2026-09-23).

@@ -425,16 +425,25 @@ export function getLayoutEngine(userAgent: string): LayoutEngine | null {
   return userAgent.includes('AppleWebKit/') ? 'webkit' : null
 }
 
+// Apart from buildEngineProfile(), so that what the line walkers call for every line stays a read
+// of the cached profile, however much the profile holds. V8 inlines a function only while its
+// bytecode takes at most 460 bytes (max_inlined_bytecode_size), minified or not. With the builder
+// inside, this took 454 bytes with 23 fields and 463 with a 24th, which Chrome 154's V8 no longer
+// inlined into the line counter and the simple and rich steppers, and its plain line APIs ran
+// 11-18% slower. Apart, it takes 21 (Node 23, V8 12.9). Check with node --print-bytecode and
+// --trace-turbo-inlining (RESEARCH.md, JavaScript Engines).
 export function getEngineProfile(): EngineProfile {
-  if (cachedEngineProfile !== null) return cachedEngineProfile
+  return cachedEngineProfile ??= buildEngineProfile()
+}
 
+function buildEngineProfile(): EngineProfile {
   const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent
   // Engines Pretext doesn't recognize take Blink's profile (RESEARCH.md, Decisions Log).
   const engine = getLayoutEngine(ua) ?? 'blink'
   // Fresh-entry observations are verified only for desktop Blink and Gecko.
   const isDesktop = /Windows NT|Macintosh|X11/.test(ua) && !/Android|Mobile|iPhone|iPad|iPod/.test(ua)
 
-  const profile: EngineProfile = {
+  return {
     entryFitBasis: isDesktop && engine === 'blink' ? 'fresh' : isDesktop && engine === 'gecko' ? 'original' : 'disabled',
     lineBreakScan: engine,
     graphemeTable: engine === 'webkit' ? 'apple/char' : engine === 'gecko' ? 'gecko/char' : 'chromium/char',
@@ -459,8 +468,6 @@ export function getEngineProfile(): EngineProfile {
     paddedOpeningFit: engine === 'blink' ? 'start' : engine === 'webkit' ? 'placed' : 'both',
     transformsSegmentBreaksAcrossItems: engine === 'blink',
   }
-  cachedEngineProfile = profile
-  return profile
 }
 
 export function parseFontSize(font: string): number {
