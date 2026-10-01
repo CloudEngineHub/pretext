@@ -397,6 +397,8 @@ export function measureAnalysis(
 
   // Made for the first word whose kerning with the space before it asks for the space's run.
   let scriptRuns: ScriptRuns | null = null
+  // What the word before a space adds to that space, the next segment (SpaceKerning.space).
+  let spaceShare = 0
 
   const widths: number[] = []
   // An engine's scan makes one prepared segment per analysis segment, whose flags the
@@ -498,7 +500,10 @@ export function measureAnalysis(
           const beforeSpace = mi + 1 < segmentCount && isSpaceKind(flags[mi + 1]! & KIND_BITS)
           if ((afterSpace || beforeSpace) && (oneDirection ??= !rightToLeftLetterRe.test(normalized) && !explicitBidiControlRe.test(normalized))) {
             const kerning = textMetrics.spaceKerning ?? getSpaceKerning(text, textMetrics, fontMeasurement, spaceWidth)
-            if (beforeSpace) followingSpaceKerning = kerning.after
+            if (beforeSpace) {
+              followingSpaceKerning = kerning.after
+              spaceShare = kerning.space
+            }
             // The space hangs where a line ends at it, and what it took with it.
             if (afterSpace && kerning.before !== 0 && !spacesStartLine(mi - 1) && spaceSharesScriptRun(normalized, starts[mi]!, starts[mi]! + text.length, scriptRuns ??= { read: 0, scripts: ANY_SCRIPT, bracket: 0 })) {
               widths[mi - 1] = widths[mi - 1]! + kerning.before
@@ -535,7 +540,8 @@ export function measureAnalysis(
       case SPACE:
       case PRESERVED_SPACE:
       case ZERO_WIDTH_BREAK:
-        width = getTextWidth(text, fontMeasurement, emojiCorrection)
+        width = getTextWidth(text, fontMeasurement, emojiCorrection) + spaceShare
+        spaceShare = 0
         if (hasLetterSpacing) spacingGraphemeCount = countRenderedSpacingGraphemes(text, kind, engineProfile.graphemeTable)
         break
       case TAB:
