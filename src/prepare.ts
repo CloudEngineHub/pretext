@@ -280,6 +280,16 @@ export function measureAnalysis(
     return normalized.slice(baseStart, starts[markChainStart]) + normalized.slice(starts[markChainKept], start)
   }
 
+  // Blink makes preserved spaces that start the text or follow a forced break an item of their
+  // own, with a break opportunity after it that it shapes nothing across
+  // (InsertBreakOpportunityAfterLeadingPreservedSpaces, inline_items_builder.cc:988-1034;
+  // InlineNode::ShapeText, inline_node.cc:1639-1643), so they don't kern with the word after
+  // them.
+  function spacesStartLine(analysisIndex: number): boolean {
+    return (flags[analysisIndex]! & KIND_BITS) === PRESERVED_SPACE &&
+      (analysisIndex === 0 || (flags[analysisIndex - 1]! & KIND_BITS) === HARD_BREAK)
+  }
+
   const widths: number[] = []
   // An engine's scan makes one prepared segment per analysis segment, whose flags the
   // walkers, layout()'s count and rich-inline layout read where the scan gives no break.
@@ -382,7 +392,7 @@ export function measureAnalysis(
             const kerning = textMetrics.spaceKerning ?? getSpaceKerning(text, textMetrics, fontMeasurement, spaceWidth)
             if (beforeSpace) followingSpaceKerning = kerning.after
             // The space hangs where a line ends at it, and what it took with it.
-            if (afterSpace && kerning.before !== 0 && spaceSharesScriptRun(normalized, starts[mi]!)) {
+            if (afterSpace && kerning.before !== 0 && !spacesStartLine(mi - 1) && spaceSharesScriptRun(normalized, starts[mi]!)) {
               widths[mi - 1] = widths[mi - 1]! + kerning.before
             }
           }
