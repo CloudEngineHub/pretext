@@ -79,7 +79,7 @@ layouts" (the narrowest real-usage draw is 25 px).
 |---|---|---|
 | `sample.ndjson` | The real-usage sample | `make.ts write` |
 | `reports.ndjson` | Filed reports with the text, font and width as filed (`sets/exact.ts`) | `make.ts write` |
-| `catalog.ndjson` | Families of templates, from the engines' rules, the UAX #14 classes between the scripts apps mix, the shapes `ENGINE_FOLLOWUPS.md` names and bidi controls where Firefox's line breaking looks past them, plus adversarial `main/*` cases taken from the old test suite | the width search |
+| `catalog.ndjson` | Families of templates, from the engines' rules, the UAX #14 classes between the scripts apps mix, the shapes `ENGINE_FOLLOWUPS.md` names, bidi controls where Firefox's line breaking looks past them and CJK marks Chrome halts next to other punctuation, plus adversarial `main/*` cases taken from the old test suite | the width search |
 | `facts.ndjson` | The engine facts `src/layout.test.ts` checks on plain text, in a browser | the width search |
 | `rich.ndjson` | Rich-inline paragraphs: styled runs, span edges, chips, padded code spans, boxes (an empty inline-block of a width and a height, top-aligned), the shapes whose lines changed when items began to continue the line (#369), keep-all and pre-wrap paragraphs, plus `main/*` cases | the width search |
 | `census.ndjson`, `books.ndjson`, `smoke.ndjson` | Real paragraphs of `corpora/` at several widths, and whole books, from the per-engine rebuild | taken once |

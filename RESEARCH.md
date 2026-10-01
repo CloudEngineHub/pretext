@@ -913,13 +913,14 @@ discussion's list (TODO.md).
 An item holding only soft hyphens and collapsible white space is no line content, since a line start consumes it, but
 since #369 it takes part in the paragraph's runs and breaks as its text does in one text node. The rules, with each
 browser's example, are in the comments of `src/rich-inline.ts` and of the engine profile's `spaceBeforeSoftHyphenHangs`,
-and the harness's `rich/continued` families pin them; these results shaped them. After content the item keeps the
-collapsed space before it: ending the line before the item lost 288 Firefox cases of a 43,462-case probe, as Firefox
-keeps the space and the soft hyphen on the line. Where a line
-ends after it, the browsers break at that space and move the soft hyphen on, so the space hangs, but each engine keeps
-the soft hyphen on the line in other places, so the profiles name three behaviours: hanging the space also where Chrome
-and Safari end the line at the soft hyphen with its hyphen lost 118 Chrome and 120 webkit-host line widths of a
-32,830-case probe, and Safari's rule, keeping it before white space after the soft hyphen, fixed 335 webkit-host
+and the harness's `rich/continued` families pin the lines; which engine takes which `spaceBeforeSoftHyphenHangs` value
+moves only line widths, which the harness doesn't judge, so `src/layout.test.ts` pins it with each engine's whole
+profile. These results shaped them. After content the item keeps the collapsed space before it: ending the line before
+the item lost 288 Firefox cases of a 43,462-case probe, as Firefox keeps the space and the soft hyphen on the line.
+Where a line ends after it, the browsers break at that space and move the soft hyphen on, so the space hangs, but each
+engine keeps the soft hyphen on the line in other places, so the profiles name three behaviours: hanging the space also
+where Chrome and Safari end the line at the soft hyphen with its hyphen lost 118 Chrome and 120 webkit-host line widths
+of a 32,830-case probe, and Safari's rule, keeping it before white space after the soft hyphen, fixed 335 webkit-host
 widths and lost 136 in the WebKit profile, and fixed 73 Chrome widths and lost 159 in the Chromium profile.
 
 White space between such an item's soft hyphens follows a soft hyphen, not the space before the item, so Chrome and
