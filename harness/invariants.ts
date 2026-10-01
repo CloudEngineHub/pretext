@@ -4,7 +4,9 @@
 //   bun harness/invariants.ts --profile=blink|webkit|gecko|unknown [--lib=<src dir>] [--draws=500] [--rich=100]
 //
 // Each process gives the library a stand-in Canvas: at 16 px a character is 8 px, a space 4, a mark or a format character
-// 0, plus the letter spacing per grapheme. The Blink and Gecko processes run under a desktop user agent with a string
+// 0, plus the letter spacing per grapheme. U+2028 measures as the space, whose glyph Chrome draws it with, and kerns 0,
+// 0.5 or 1 px with the character on either side of it, so the Chromium profile's kerning with spaces (getSpaceKerning in
+// src/measurement.ts) is taken here. The Blink and Gecko processes run under a desktop user agent with a string
 // `letterSpacing` on the context, as Chrome's and Firefox's have, so preparation takes the paths those browsers take.
 // The inputs are seeded draws from harness/cases (a failure names its case, at its width, half and 1.5 times it, 1 and
 // Infinity) and a few fixed ones. The checks:
@@ -54,7 +56,13 @@ const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 export function standInWidth(text: string, font: string, letterSpacing: number): number {
   const size = Number(/(\d+(?:\.\d+)?)px/.exec(font)?.[1] ?? 16) / 16
   let width = 0
-  for (const ch of text) width += /[\p{M}\p{Cf}]/u.test(ch) ? 0 : ch === ' ' ? 4 : 8
+  let previous = -1
+  for (const ch of text) {
+    const code = ch.codePointAt(0)!
+    width += /[\p{M}\p{Cf}]/u.test(ch) ? 0 : code === 0x20 || code === 0x2028 ? 4 : 8
+    if (previous >= 0 && (code === 0x2028) !== (previous === 0x2028)) width -= (code === 0x2028 ? previous : code) % 3 / 2
+    previous = code
+  }
   let count = 0
   if (letterSpacing !== 0) for (const _ of graphemes.segment(text)) count++
   return width * size + count * letterSpacing
