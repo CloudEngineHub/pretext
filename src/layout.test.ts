@@ -4189,6 +4189,7 @@ describe('rich-inline invariants', () => {
           [[text('ab '), zero, text(' cd')], {}, [[0, 1], [2]]],
           [[text('ab '), zero, text('\u200Bcd')], {}, [[0, 1], [2]]],
           [[text('ab '), zero, text('\u00AD')], {}, [[0, 1, 2]]],
+          [[text('ab '), zero, text('\u00AD'), text(' ')], {}, [[0, 1, 2]]],
           [[text('ab '), zero, text('\u00AD'), text(' cd')], {}, [[0, 1, 2], [3]]],
           [[chip, zero, text(' cd')], {}, [[0, 1], [2]]],
           [[chip, zero, text('\ncd')], preWrap, [[0, 1, 2], [2]]],
@@ -4197,12 +4198,14 @@ describe('rich-inline invariants', () => {
           // box moves down.
           [[text('ab '), zero, padded(' cd')], {}, [[0], [1], [2]]],
           [[text('ab '), zero, padded('\u200Bcd')], {}, [[0], [1, 2]]],
-          // So is white space in a node of its own after it, with soft hyphens or without.
+          // So is white space in a node of its own after it, with soft hyphens or without, and
+          // the white space that ends the paragraph after soft hyphens in their node.
           [[text('ab '), zero, text(' '), text('cd')], {}, [[0], [1], [3]]],
           [[text('ab '), zero, text(' '), zero], {}, [[0], [1, 3]]],
           [[text('ab '), zero, text(' '), { width: 5 }], {}, [[0], [1, 3]]],
           [[text('ab '), zero, text(' \u00AD'), text('cd')], {}, [[0], [1, 2], [3]]],
           [[text('ab '), zero, text(' \u00AD')], {}, [[0], [1, 2]]],
+          [[text('ab '), zero, text('\u00AD ')], {}, [[0], [1, 2]]],
           // White space before it after content already past the line's end breaks the line itself.
           [[chip, text(' '), zero], {}, [[0], [2]]],
           [[chip, text(' '), zero], preWrap, [[0, 1], [2]]],

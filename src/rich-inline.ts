@@ -124,6 +124,10 @@ type InternalPreparedRichInline = PreparedRichInline & {
   // The paragraph's item where it is the only one and lays out as its text alone
   // (prepareRichInline()), which the line functions walk with the text walkers; else null.
   onlyItem: PreparedRichInlineItem | null
+  // The item whose collapsible white space ends the paragraph after other text of its own, or
+  // -1: after soft hyphens alone it is all the width the item's frame has in Gecko
+  // (getKeptEmptyEnd).
+  endSpaceItemIndex: number
 }
 
 type PreparedRichInlineItem = {
@@ -805,6 +809,7 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
   return {
     items: preparedItems,
     onlyItem,
+    endSpaceItemIndex: pendingGapWidth !== null && preparedItems[pendingGapItemIndex] !== undefined ? pendingGapItemIndex : -1,
   } as InternalPreparedRichInline
 }
 
@@ -980,9 +985,11 @@ function retreatsBefore(flow: InternalPreparedRichInline, itemIndex: number): bo
 // whatever the text starts with. White space in a node of its own, before an atomic item or other
 // text, has no break inside, so its frame is whole and keeps its width (gapItemIndex names the
 // node), as is a node of white space and soft hyphens, which Gecko discards before it collapses the
-// space. An item of soft hyphens alone takes no room and is passed over, and so is white space that
-// ends the paragraph, which gets no frame as a text node of the paragraph's own
-// (nsCSSFrameConstructor.cpp:5278-5286), though it gets one in a span (ENGINE_FOLLOWUPS.md).
+// space. An item of soft hyphens alone takes no room and is passed over, unless the paragraph ends
+// with white space of its own after them, the frame's width (endSpaceItemIndex). White space that
+// ends the paragraph in a node of its own is passed over too: it gets no frame as a text node of the
+// paragraph's own (nsCSSFrameConstructor.cpp:5278-5286, which takes a node of white space alone),
+// though it gets one in a span (ENGINE_FOLLOWUPS.md).
 function getKeptEmptyEnd(flow: InternalPreparedRichInline, itemIndex: number): number {
   for (let k = itemIndex + 1; k < flow.items.length; k++) {
     const next = flow.items[k]
@@ -998,7 +1005,7 @@ function getKeptEmptyEnd(flow: InternalPreparedRichInline, itemIndex: number): n
     const kind = next.lineData.segmentFlags[0]! & KIND_BITS
     return kind === ZERO_WIDTH_BREAK || kind === HARD_BREAK || kind === PRESERVED_SPACE ? k : -1
   }
-  return flow.items.length
+  return flow.endSpaceItemIndex > itemIndex ? -1 : flow.items.length
 }
 
 // Whether the text before the empty atomic item `itemIndex` ends in white space, and how much of
