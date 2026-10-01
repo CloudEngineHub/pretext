@@ -6,7 +6,7 @@ Measured on macOS at a device pixel ratio of 2 unless an entry says otherwise; W
 
 **Rechecking.** Both Bugzillas answer `curl` on their REST API (`curl -s 'https://bugzilla.mozilla.org/rest/bug/2075174?include_fields=status,resolution,last_change_time'`, same path on `bugs.webkit.org`); issues.chromium.org renders in script, so read it in a signed-in browser.
 
-**Filing.** Search the tracker first; where a report covers the case, comment there with the repro, as on WebKit #285993. Write plainly, without AI tone or jargon, with a small standalone repro page when the bug deserves one. An agent may draft the report and fill in the form; the maintainer submits it. Unfiled candidates are filed together at the end of the project. A crash or hang found while probing goes in as a restricted security report and stays out of public issues, branches and this file until triaged.
+**Filing.** Search the tracker first; where a report covers the case, comment there with the repro, as on WebKit #285993. Write plainly, without AI tone or jargon, with a small standalone repro page when the bug deserves one. An agent may draft the report and fill in the form; the maintainer submits it. Unfiled candidates are filed together at the end of the project. A crash or hang found while probing goes in as a restricted security report and stays out of public issues, branches and this file until triaged. The one so far, a Chrome hang reported on 2026-09-19, isn't described here; its page was on the per-engine rebuild's public branch for a day before the report, came off the branch's tip, and stays in that branch's history (`RESEARCH.md`, "Merge Bars And Landing").
 
 ## Open bugs
 

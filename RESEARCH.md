@@ -357,7 +357,11 @@ and its unit tests (`rebuild/src/engines/<engine>/`) against the engine's source
   feature too hard for now is parked in an issue with the findings and what support would take; a stale public issue
   gets a new comment and a one-line status at the top.
 - **Browser bugs** are recorded and filed as PLATFORM_BUGS.md says. A crash or hang found while probing stays out of
-  public issues, branches and docs until triaged; one such Chrome hang went in as a restricted security report.
+  public issues, branches and docs until triaged. The rule came a day late for the one case so far: a Chrome hang went
+  in as a restricted security report on 2026-09-19, after its page had been pushed with the rebuild's branch on
+  2026-09-18. The page came off that branch's tip, and public history still holds it, a cost the maintainer was told
+  of and accepted that day; main never held it. Whether a ref cut from the rebuild before then still holds the page
+  at its own tip is an open check (TODO.md).
 - **License notices** for the ported engine code and data are deferred until the end of the project (TODO.md, End of
   project).
 
@@ -527,7 +531,8 @@ move later results, so each standalone repro page for a browser bug (PLATFORM_BU
 and profile and finishes from promises, not timers, which a hidden window stalls; a page whose bug is a call that never
 returns first sets its title to `STEP ...`, so a driver records a hang after 30 s. Chrome's `Range.getClientRects()` can
 hang forever on one narrow constructed case, reported to Chromium with restricted access, so jobs drawing generated
-cases need a stall limit and a way to skip, and the trigger stays unpublished (Part 1, Merge Bars And Landing). Read
+cases need a stall limit and a way to skip; main's docs leave the trigger out, though the rebuild's public history
+holds its page (Part 1, Merge Bars And Landing). Read
 engine source at the revision the browser ships. Setting `font` after `line-height` resets the line height. Nothing
 independent checks Safari's line placement: webkit-host reads the same rects, where Chrome's and Firefox's were also
 checked against the emulation study.
