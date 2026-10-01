@@ -138,7 +138,9 @@ AGENTS.md's Validation says when to run `repin`, `check`, `gate` and `bench`. `g
 (a paragraph mustn't wrap differently because of what was prepared before it), 1,000 cases recorded again (the
 recordings must still describe the browser), and each new failure recorded and predicted alone, to attribute it. The
 1,000 are drawn by the commit under test, so one commit always draws the same and successive changes cover every
-recording; the gate prints the seed, and `--seed` draws with another. A drawn case whose lines differ from its
+recording; the gate prints the seed, and `--seed` draws with another. It also runs the offline invariants
+(`invariants.ts`, which `bun test` runs on 600 seeded draws) over every case in the browser's engine profile, beside
+the browser's jobs. A drawn case whose lines differ from its
 recording is recorded once more in a browser process of its own: laid out as recorded there, it's page history, and
 the gate lists it; laid out otherwise there too, it blocks, since either the recording is stale or it holds page
 history both of `record`'s orders shared. `bun harness record --cases=<a file of those cases>` then lists it as page

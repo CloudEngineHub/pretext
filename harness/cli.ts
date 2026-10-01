@@ -2,7 +2,8 @@
 //   record [--only-new]      record the browser's layout of every case (or the new ones), sorted and in reverse, in fresh short documents;
 //                            --sample=N --seed=S records N of them, drawn from every set
 //   check [--accept=<why>]   predict every pinned case in the browser and score it against the recordings
-//   gate [--sample=N]        check, plus a prediction in reverse order, N cases recorded again, and attribution
+//   gate [--sample=N]        check, plus a prediction in reverse order, N cases recorded again, attribution, and the
+//                            offline invariants (invariants.ts) over every case in the browser's engine profile
 // record and gate draw with --seed=S: 20260924 by default for record, and for gate the commit under test's hash, which
 // gate prints as the seed that draws the same cases again.
 //   equal <ref>              whether this tree's build (src/ and the adapter) and <ref>'s predict the same lines, widths
@@ -70,9 +71,15 @@ export function parseArgs(args: readonly string[]): Args {
   return { command, positional, browsers, cases: flags.get('cases') ?? null, options, flags }
 }
 
-// Where a command reads and writes the harness's files, how it runs a job in a browser, and where it prints. The tests
-// give it a folder of their own and a stand-in browser.
-export type Io = { root: string; run: <T extends Recording | Prediction>(job: Job) => Promise<JobResult<T>>; log: (text: string) => void }
+// What invariants.ts prints for one engine profile: the cases it ran, each check's failures counted, and the first 40.
+export type Invariants = { cases: number; failures: string[]; counts: Record<string, number>; ms: number }
+
+// Where a command reads and writes the harness's files, how it runs a job in a browser and the offline invariants over
+// every case in an engine profile, and where it prints. The tests give it a folder of their own and stand-ins.
+export type Io = {
+  root: string; run: <T extends Recording | Prediction>(job: Job) => Promise<JobResult<T>>; invariants: (profile: string, lib: string) => Promise<Invariants>
+  log: (text: string) => void
+}
 
 // The cases, and each case's set: the name of its case file.
 function loadCases(files: readonly string[]): { cases: Case[]; sets: Map<string, string> } {
@@ -297,6 +304,9 @@ export async function check(browser: BrowserKind, cases: Case[], o: Options, io:
 export async function gate(browser: BrowserKind, cases: Case[], o: Options, io: Io): Promise<boolean> {
   const job = <T extends Recording | Prediction>(mode: Mode, list: Case[], documentSize: number): Promise<Map<string, T>> =>
     io.run<T>({ browser, mode, cases: list, documentSize, lib: o.lib }).then(result => result.results)
+  // The offline invariants run beside the browser's jobs, which mostly wait on the browser.
+  const profiles = BROWSER[browser].profiles
+  const offline = Promise.all(profiles.map(profile => io.invariants(profile, o.lib)))
   const scored = await check(browser, cases, o, io)
   const ids = scored.pinned.map(c => c.id)
   const out: string[] = []
@@ -358,8 +368,21 @@ export async function gate(browser: BrowserKind, cases: Case[], o: Options, io: 
       out.push(`    ${verdict}  ${describe(c, scored.outcomes.get(c.id)!)}`)
     }
   }
+  // What an app relies on in the line APIs that no recording shows, over every case and not a seeded draw of them.
+  const invariants = await offline
+  let failing = false
+  for (let i = 0; i < profiles.length; i++) {
+    const { cases: ran, counts, failures, ms } = invariants[i]!
+    const failed = Object.entries(counts).map(([name, n]) => `${name} ${n}`).join(', ')
+    if (failed === '') {
+      out.push(`  offline invariants, ${profiles[i]} profile: none fails over ${ran} cases, in ${(ms / 1000).toFixed(0)} s`)
+      continue
+    }
+    failing = true
+    out.push(`  BLOCKS: offline invariants fail in the ${profiles[i]} profile, over ${ran} cases: ${failed}`, ...failures.slice(0, 10).map(line => `    ${line}`))
+  }
   io.log(`${browser} gate:\n${out.join('\n')}`)
-  return scored.blocked || blocks.length > 0
+  return scored.blocked || blocks.length > 0 || failing
 }
 
 // ---- repin ----
@@ -456,6 +479,15 @@ export async function equal(browser: BrowserKind, cases: Case[], setOf: Map<stri
   return differ.length > 0
 }
 
+// The gate's offline invariants: harness/invariants.ts over every case in one engine profile, which takes about 16 s
+// and up to 0.67 GB, killed after 5 minutes.
+async function everyCaseInvariants(profile: string, lib: string): Promise<Invariants> {
+  const child = Bun.spawn([process.execPath, join(import.meta.dir, 'invariants.ts'), `--profile=${profile}`, `--lib=${lib}`, '--draws=all', '--rich=all'], { stdout: 'pipe', stderr: 'inherit', timeout: 300_000, killSignal: 'SIGKILL' })
+  const [out, code] = await Promise.all([new Response(child.stdout).text(), child.exited])
+  if (code !== 0) throw new Error(`The offline invariants in the ${profile} profile exited ${code}`)
+  return JSON.parse(out) as Invariants
+}
+
 // equal --offline: harness/offline-equal.ts once for each of invariants.ts's engine profiles, side by side, each killed
 // after 60 s. It compares src/ only, as this tree's harness drives both builds.
 async function offlineEqual(ref: string, lib: string, io: Io): Promise<boolean> {
@@ -540,7 +572,7 @@ async function main(): Promise<number> {
   const { command, positional, browsers, cases: file, options: o, flags } = parseArgs(process.argv.slice(2))
   const dir = join(import.meta.dir, 'cases')
   const { cases, sets } = loadCases(file !== null ? [file] : readdirSync(dir).filter(name => name.endsWith('.ndjson')).sort().map(name => join(dir, name)))
-  const io: Io = { root: import.meta.dir, run: runJob, log: text => console.log(text) }
+  const io: Io = { root: import.meta.dir, run: runJob, invariants: everyCaseInvariants, log: text => console.log(text) }
   switch (command) {
     case 'record':
       await Promise.all(browsers.map(b => record(b, cases, o, io)))

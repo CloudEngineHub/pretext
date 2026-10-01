@@ -4,7 +4,7 @@
 import { afterAll, describe, expect, test } from 'bun:test'
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { PROFILES, type Profile } from './invariants.ts'
+import { drawCases, PROFILES, type Profile } from './invariants.ts'
 
 type Result = { profile: string; cases: number; failures: string[]; counts: Record<string, number> }
 
@@ -128,6 +128,22 @@ describe('the line APIs offline, in every engine profile', () => {
       expect(result.failures).toEqual([])
     }, 30_000)
   }
+})
+
+describe('the gate\'s run over every case', () => {
+  test('a count of all takes each case the library can express, in the files\' order: a fault on a case no seeded draw holds would land', () => {
+    const dir = join(libs, 'cases')
+    mkdirSync(dir, { recursive: true })
+    const line = (id: string, wordBreak = 'normal'): string => JSON.stringify({
+      id, paragraph: { whiteSpace: 'normal', wordBreak, overflowWrap: 'break-word', lineBreak: 'auto', runs: [{ text: id, node: 'text', wordSpacing: 0, lang: null }] },
+    })
+    writeFileSync(join(dir, 'b.ndjson'), `${line('b1')}\n${line('b2', 'break-all')}\n${line('b3')}\n`)
+    writeFileSync(join(dir, 'a.ndjson'), `${line('a1')}\n${line('a2')}`)
+    writeFileSync(join(dir, 'rich.ndjson'), `${line('r1')}\n`)
+    // break-all is a style the adapter can't express.
+    expect(drawCases(dir, 'seed', Infinity, Infinity).map(c => c.id)).toEqual(['a1', 'a2', 'b1', 'b3', 'r1'])
+    expect(drawCases(dir, 'seed', 2, 1).map(c => c.id).sort()).toHaveLength(3)
+  })
 })
 
 describe('equal --offline', () => {

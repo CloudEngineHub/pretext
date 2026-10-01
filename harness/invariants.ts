@@ -1,18 +1,20 @@
 // What an app relies on in the line APIs that no recording shows, checked offline. `bun test harness` runs it in one
 // process per engine profile, since the library reads the profile from the user agent once per process:
 //
-//   bun harness/invariants.ts --profile=blink|webkit|gecko|unknown [--lib=<src dir>] [--draws=500] [--rich=100]
+//   bun harness/invariants.ts --profile=blink|webkit|gecko|unknown [--lib=<src dir>] [--draws=500|all] [--rich=100|all]
 //
 // Each process gives the library a stand-in Canvas: at 16 px a character is 8 px, a space 4, a mark or a format character
 // 0, plus the letter spacing per grapheme. The Blink and Gecko processes run under a desktop user agent with a string
 // `letterSpacing` on the context, as Chrome's and Firefox's have, so preparation takes the paths those browsers take.
 // The inputs are seeded draws from harness/cases (a failure names its case, at its width, half and 1.5 times it, 1 and
-// Infinity) and a few fixed ones. The checks:
+// Infinity) and a few fixed ones; `bun harness gate` runs its browser's profile over every case (`all`), about 16 s a
+// profile: in 500 draws, five WebKit-profile cases that failed the coverage check had about a 4% chance to be drawn.
+// The checks:
 // - every line API agrees with walkLineRanges (predict.ts's check), and layoutWithLines and layoutNextLine give equal
 //   line objects, so a field one of them forgets shows;
 // - lines cover the source forward without overlap, at a fixed width and at one that changes per line, and between lines
-//   leave only collapsed spaces, a soft hyphen or ZWSP that doesn't break, a pre-wrap line feed, or in Firefox a bidi
-//   control;
+//   leave only collapsed spaces, a soft hyphen or ZWSP that doesn't break, a pre-wrap line feed, in Safari a U+2028 or
+//   U+2029, or in Firefox a bidi control;
 // - stepping leaves its start cursor as it was, the ranges a stream gives stay as they were, JSON copies of cursors and
 //   ranges resume the same, and a materialized line passed back as a range gives the same line;
 // - a visitor that edits the range it's given doesn't change the lines after it;
@@ -81,8 +83,13 @@ function installStandIn(profile: Profile): void {
 }
 
 // Seeded draws: `plain` cases from every set but the rich one and `rich` from it, parsing only the lines drawn, and
-// leaving out what the library can't express and texts over 4,000 units, which the growth check covers.
+// leaving out what the library can't express and texts over 4,000 units, which the growth check covers. A count of
+// Infinity takes every case, in the files' order, one at a time: all of them parsed at once hold 250 MB.
 export function drawCases(dir: string, seed: string, plain: number, rich: number): Case[] {
+  return [...drawnCases(dir, seed, plain, rich)]
+}
+
+function* drawnCases(dir: string, seed: string, plain: number, rich: number): Generator<Case> {
   const files = readdirSync(dir).filter(name => name.endsWith('.ndjson')).sort()
   // Each line as its file's bytes and where the line starts; the line ends at the next newline.
   const pools: [Array<[Buffer, number]>, Array<[Buffer, number]>] = [[], []]
@@ -95,13 +102,13 @@ export function drawCases(dir: string, seed: string, plain: number, rich: number
     }
   }
   const rng = createRng(seed)
-  const out: Case[] = []
   const wanted = [plain, rich]
   for (let k = 0; k < 2; k++) {
     const pool = pools[k]!
+    const every = wanted[k] === Infinity
     const taken = new Set<number>()
-    for (let tries = 0, got = 0; got < wanted[k]! && tries < 20 * wanted[k]!; tries++) {
-      const at = rng.int(pool.length)
+    for (let tries = 0, got = 0; got < wanted[k]! && tries < (every ? pool.length : 20 * wanted[k]!); tries++) {
+      const at = every ? tries : rng.int(pool.length)
       if (taken.has(at)) continue
       taken.add(at)
       const [bytes, start] = pool[at]!
@@ -110,11 +117,10 @@ export function drawCases(dir: string, seed: string, plain: number, rich: number
       let units = 0
       for (let i = 0; i < c.paragraph.runs.length; i++) units += c.paragraph.runs[i]!.text.length
       if (unsupported(c) !== null || units > 4000) continue
-      out.push(c)
+      yield c
       got++
     }
   }
-  return out
 }
 
 type Failures = { list: string[]; counts: Record<string, number> }
@@ -131,10 +137,13 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
   const json = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 
   // Lines that cover `stream` forward without overlap, leaving between them only what may go unpainted there: in
-  // Firefox bidi controls too, which it leaves out of its text runs.
-  const gecko = profile === 'gecko'
-  const unpaintedNormal = gecko ? /^[ \u00AD\u200B\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]*$/ : /^[ \u00AD\u200B]*$/
-  const unpaintedPreWrap = gecko ? /^[\n\u00AD\u200B\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]*$/ : /^[\n\u00AD\u200B]*$/
+  // Firefox bidi controls too, which it leaves out of its text runs, and in Safari U+2028 and U+2029, which force a
+  // break in every white-space mode there (src/line-breaks.ts), so a line that wraps at the space before one ends
+  // before it, as a pre-wrap line does before its line feed.
+  const breaks = profile === 'webkit' ? '\u2028\u2029' : ''
+  const controls = profile === 'gecko' ? '\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069' : ''
+  const unpaintedNormal = new RegExp(`^[ \u00AD\u200B${breaks}${controls}]*$`)
+  const unpaintedPreWrap = new RegExp(`^[\n\u00AD\u200B${breaks}${controls}]*$`)
   const covers = (stream: string, spans: ReadonlyArray<[number, number]>, whiteSpace: 'normal' | 'pre-wrap', from = 0): string | null => {
     const unpainted = whiteSpace === 'normal' ? unpaintedNormal : unpaintedPreWrap
     let end = from
@@ -335,7 +344,7 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
   }
 
   // ---- The drawn cases, and the fixed inputs ----
-  const cases = drawCases(draws.dir, draws.seed, draws.plain, draws.rich)
+  let cases = 0
   type Held = { label: string; text: string; font: string; options: PrepareOptions; widths: number[]; handle: PreparedTextWithSegments; copy: PreparedTextWithSegments; fast: PreparedText; laidOut: string }
   // Held handles: the first drawn cases' and the fixed inputs'.
   const HELD = 120
@@ -353,9 +362,15 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
     const h = { label, text, font, options, widths: [width, 1], handle, copy: structuredClone(handle), fast }
     held.push({ ...h, laidOut: layOut(h) })
   }
-  for (let i = 0; i < cases.length; i++) {
-    const c = cases[i]!
+  for (const c of drawnCases(draws.dir, draws.seed, draws.plain, draws.rich)) {
     const p = c.paragraph
+    // Each thousand cases a timer runs, since the watchdog kills a process that runs none for 30 s and every case takes
+    // longer on a loaded machine, and the caches empty: with every case's widths kept, the process held 0.8 GB of the
+    // watchdog's 1 GB, and holds up to 0.67 GB without.
+    if (++cases % 1000 === 0) {
+      await Bun.sleep(0)
+      api.clearCache()
+    }
     if (isRich(p.runs)) {
       const items = richItems(p.runs)
       for (const width of [p.width, Math.max(1, p.width / 2), p.width * 1.5, 1, Infinity]) rich(c.id, items, width, richOptions(c))
@@ -478,7 +493,7 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
       }
     }
   }
-  return { cases: cases.length, failures }
+  return { cases, failures }
 }
 
 if (import.meta.main) {
@@ -486,8 +501,9 @@ if (import.meta.main) {
   const profile = (flag('profile') ?? 'blink') as Profile
   if (!(profile in PROFILES)) throw new Error(`--profile must be one of ${Object.keys(PROFILES).join(', ')}`)
   const start = performance.now()
+  const count = (name: string, most: number): number => (flag(name) === 'all' ? Infinity : Number(flag(name) ?? most))
   const result = await runInvariants(profile, resolve(flag('lib') ?? join(import.meta.dir, '../src')), {
-    dir: join(import.meta.dir, 'cases'), seed: flag('seed') ?? 'invariants', plain: Number(flag('draws') ?? 500), rich: Number(flag('rich') ?? 100),
+    dir: join(import.meta.dir, 'cases'), seed: flag('seed') ?? 'invariants', plain: count('draws', 500), rich: count('rich', 100),
   })
   console.log(JSON.stringify({ profile, cases: result.cases, failures: result.failures.list, counts: result.failures.counts, ms: Math.round(performance.now() - start) }))
 }

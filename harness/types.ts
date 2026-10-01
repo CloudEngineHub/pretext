@@ -18,14 +18,16 @@ export const BROWSERS: readonly BrowserKind[] = ['chrome', 'firefox', 'webkit-ho
 // - `systemWebKit`: the system WebKit's build is part of the environment key.
 // - `background`: a background harness job may run it, and check, gate and the others run these by default.
 // - `foreground`: the bench times it in the foreground, in these by default.
+// - `profiles`: the engine profiles its gate runs the offline invariants in (invariants.ts): the one the library takes
+//   in it, and with Chrome the one an engine the library doesn't recognize gets.
 export const BROWSER: Record<BrowserKind, {
   cases: BrowserKind; sample: number | null; settleMs: number; textEmojiLast: boolean; hyphenCopies: boolean; systemWebKit: boolean
-  background: boolean; foreground: boolean
+  background: boolean; foreground: boolean; profiles: ReadonlyArray<'blink' | 'webkit' | 'gecko' | 'unknown'>
 }> = {
-  chrome: { cases: 'chrome', sample: null, settleMs: 0, textEmojiLast: false, hyphenCopies: true, systemWebKit: false, background: true, foreground: true },
-  firefox: { cases: 'firefox', sample: null, settleMs: 15_000, textEmojiLast: true, hyphenCopies: false, systemWebKit: false, background: true, foreground: true },
-  'webkit-host': { cases: 'safari', sample: null, settleMs: 0, textEmojiLast: false, hyphenCopies: false, systemWebKit: true, background: true, foreground: false },
-  safari: { cases: 'safari', sample: 2000, settleMs: 0, textEmojiLast: false, hyphenCopies: false, systemWebKit: true, background: false, foreground: true },
+  chrome: { cases: 'chrome', sample: null, settleMs: 0, textEmojiLast: false, hyphenCopies: true, systemWebKit: false, background: true, foreground: true, profiles: ['blink', 'unknown'] },
+  firefox: { cases: 'firefox', sample: null, settleMs: 15_000, textEmojiLast: true, hyphenCopies: false, systemWebKit: false, background: true, foreground: true, profiles: ['gecko'] },
+  'webkit-host': { cases: 'safari', sample: null, settleMs: 0, textEmojiLast: false, hyphenCopies: false, systemWebKit: true, background: true, foreground: false, profiles: ['webkit'] },
+  safari: { cases: 'safari', sample: 2000, settleMs: 0, textEmojiLast: false, hyphenCopies: false, systemWebKit: true, background: false, foreground: true, profiles: ['webkit'] },
 }
 
 export type CssFont = { family: string; size: number; weight: number; style: 'normal' | 'italic' }

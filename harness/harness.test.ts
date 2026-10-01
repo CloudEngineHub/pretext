@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { srcOf } from './bench/lib.ts'
 import { fontsKey, keyOf, kill, type Environment, type Launched } from './browsers.ts'
 import { icuEntries, rustByteStrings } from './break-data.ts'
-import { check, drift, equal, gate, parseArgs, record, type Io, type Options } from './cli.ts'
+import { check, drift, equal, gate, parseArgs, record, type Invariants, type Io, type Options } from './cli.ts'
 import { groupLines, recordedLines, scanLineEnds, searchLineEnds, type RectsAt } from './observe.ts'
 import { bundle, documents, LIB, type Job } from './run.ts'
 import { box } from './sets/build.ts'
@@ -532,15 +532,17 @@ describe('the commands, with a stand-in browser', () => {
     return root
   }
 
-  // The browser records `layout(c, job)` for each case of a job, and the page predicts `prediction(c, job)`.
-  function browser(root: string, prediction: (c: Case, job: Job) => Prediction, layout = (_c: Case, _job: Job): Recording => laidOut, env = 'test'): Io & { printed: () => string } {
+  // The browser records `layout(c, job)` for each case of a job, and the page predicts `prediction(c, job)`. The offline
+  // invariants count `failing` under the coverage check.
+  function browser(root: string, prediction: (c: Case, job: Job) => Prediction, layout = (_c: Case, _job: Job): Recording => laidOut, env = 'test', failing: string[] = []): Io & { printed: () => string } {
     const printed: string[] = []
+    const invariants = (): Promise<Invariants> => Promise.resolve({ cases: 3, failures: failing, counts: failing.length === 0 ? {} : { coverage: failing.length }, ms: 0 })
     const run = <T extends Recording | Prediction>(job: Job): Promise<{ env: string; results: Map<string, T>; ms: number }> => {
       const results = new Map<string, T>()
       for (let i = 0; i < job.cases.length; i++) results.set(job.cases[i]!.id, (job.mode === 'record' ? layout(job.cases[i]!, job) : prediction(job.cases[i]!, job)) as T)
       return Promise.resolve({ env, results, ms: 0 })
     }
-    return { root, run, log: text => printed.push(text), printed: () => printed.join('\n') }
+    return { root, run, invariants, log: text => printed.push(text), printed: () => printed.join('\n') }
   }
 
   test('check blocks on a failure off the accepted list, --accept takes it, and a prediction that varies between runs is never judged or accepted: a regression would pass, or an accepted flip block the next run', async () => {
@@ -575,6 +577,16 @@ describe('the commands, with a stand-in browser', () => {
     const io = browser(folder('gate-check', { pass: laidOut, fail: laidOut }), c => (c.id === 'pass' ? right : wrong))
     expect(await gate('chrome', cases(['pass', 'fail']), options, io)).toBe(true)
     expect(io.printed()).toContain('true loss  fail')
+  })
+
+  test('the gate blocks when an offline invariant fails on any case, in either engine profile Chrome stands for: a line API fault on a case no seeded draw holds would land', async () => {
+    const list = cases(['pass'])
+    const green = browser(folder('gate-invariants', { pass: laidOut }), () => right)
+    expect(await gate('chrome', list, options, green)).toBe(false)
+    for (const profile of ['blink', 'unknown']) expect(green.printed()).toContain(`  offline invariants, ${profile} profile: none fails over 3 cases`)
+    const io = browser(folder('gate-invariants', { pass: laidOut }), () => right, undefined, undefined, ['case-1 at 16: line 2 leaves "  " unpainted'])
+    expect(await gate('chrome', list, options, io)).toBe(true)
+    expect(io.printed()).toContain('  BLOCKS: offline invariants fail in the blink profile, over 3 cases: coverage 1\n    case-1 at 16: line 2 leaves "  " unpainted')
   })
 
   test('the gate blocks on breaks and line APIs that move in reverse order and on recordings that no longer hold, and moves page history it finds off the pinned and accepted cases: a message would wrap differently after other messages, or the next check block', async () => {
