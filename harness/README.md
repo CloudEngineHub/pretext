@@ -49,8 +49,10 @@ layouts" (the narrowest real-usage draw is 25 px).
 ### Two kinds of set
 
 - **The real-usage sample** answers how often a user sees a wrong line. Its draws follow how often apps lay out each
-  surface (chat bubbles, AI replies, cards, documents, UI labels, editorial pages), script, style and width, each share
-  in `sets/weights.json` naming its source or what its guess leans on. The headline, which `check` prints first, is the
+  surface (chat bubbles, AI replies, cards, documents, UI labels, editorial pages), script, style and width, by the
+  shares in `sets/weights.json`. A share names a source or says it is a guess, and most are guesses, many with nothing
+  written that they lean on (`bun harness/sets/make.ts sizes` counts them); a share that names a source may still be a
+  judgement made from it. The headline, which `check` prints first, is the
   weighted share of draws that pass, with a 95% interval. Rare groups get at least 300 draws, weighted back, so one with
   no failure is under 1% wrong at 95% confidence. The headline also prints the share without cases outside what Pretext
   claims: styles the adapter can't express (`break-all`) or a `system-ui` font list (README,
@@ -69,6 +71,11 @@ layouts" (the narrowest real-usage draw is 25 px).
 | `oracles.ndjson` | The mode oracles (pre-wrap, keep-all, symbols, letter spacing, soft hyphens) the old test suite ran | taken once |
 | `followups.ndjson` | Two fuzz strings `ENGINE_FOLLOWUPS.md` names | taken once |
 | `old-gate.ndjson` | Cases the old test suite's pre-landing check (its gate) lost to #340's engine ports at 24 px and wider, whose input no other case showed failing | taken once |
+
+A browser takes the cases every browser shares and the ones its own width search made, which a case's `browsers`
+names, so the files' total is no browser's count: each takes 43,000-44,000 of some 70,000 cases (2026-09-30;
+`bun harness/sets/make.ts sizes` prints each file's count per browser and the totals). A case another browser's search
+made is neither recorded nor predicted there.
 
 A contributor adds to the catalog, facts or rich set through a template (How cases grow); the sets taken once can't be
 made again, since their generators are gone. The old test suite is `tests/wrapping`, which the harness replaced (#341)
@@ -146,6 +153,12 @@ line against the browser.
 main passes since #340, whose break rules port the engines' own, not what main before #340 passed by accident. A listed
 case that passes again or is gone blocks until `check --accept` takes it off, so a fix gets recorded. A lost pass isn't
 a regression until it's attributed: a true loss, two errors that cancelled, or a bad test or recording.
+
+A reason isn't always a cause. The reasons #340's failures were accepted under name a shape of input and say that the
+browser breaks there otherwise ("Arabic and Hebrew beside brackets, controls, U+FFFC or rich-item edges, at 24 px and
+wider: Chrome breaks there where the library doesn't"), not the engine's rule: 966 of Chrome's 4,289 entries, 666 of
+Firefox's 3,413 and 278 of webkit-host's 3,358 (2026-09-30). Those entries are untraced, not explained. A new reason
+names the browser's rule, or says that it isn't traced.
 
 `varying/<browser>.txt` lists predictions that move with the browser's state, between runs (`runs`, never judged) or
 with what was predicted before (`order`, judged in their own order). A lone prediction can't tell the library's caches
