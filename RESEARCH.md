@@ -159,8 +159,10 @@ is written out in `rebuild/README.md`, "Lines drawn" (1f380af7). In short:
   where one does, the premise is bounded by zoomed size (Part 2, Measurement Model), a font property Canvas can check or
   the text the engine's source shows it failing on, never by a font's name, and the exact recipe runs there.
 
-The rebuild scores itself on case sets of its own and never runs main's harness cases, so compare a rule by reading it
-and its unit tests (`rebuild/src/engines/<engine>/`) against the engine's source.
+The rebuild scores itself on case sets of its own and has no checked-in way to run main's harness cases: it predicted
+them once, before it closed, through a patch that wasn't committed, against main at 48980bb (`rebuild/README.md` has
+the table: main right and the rebuild not on 25, 26 and 8 pinned cases in Chrome, Firefox and webkit-host). So compare
+a rule by reading it and its unit tests (`rebuild/src/engines/<engine>/`) against the engine's source.
 
 ### Tests And Losses
 
@@ -592,10 +594,11 @@ for all four of Safari's. The tables stay as they are, and one bundle serves eve
 In Line_Break=SA runs (Thai, Lao, Khmer, Myanmar, and in the Blink and WebKit scans also Tai Le, New Tai Lue, Tai Tham,
 Tai Viet and Ahom), `Intl.Segmenter` words stand in for the engines' dictionaries. Chrome 153's equal those of
 `Intl.v8BreakIterator`, which runs the ICU of Chrome's layout, on 273 corpus paragraphs, though the Blink scan misses 69
-Khmer positions; JavaScriptCore's differ from libicucore's line iterator at 27 of 282,337 positions, all where a range
-starts with a combining mark; Firefox 155's matched Gecko's models on all 54,588 breaks once breaks inside clusters are
-dropped, as Gecko drops them. Offline replays can't cover these runs: Bun has no `v8BreakIterator`, and its words differ
-from Firefox's on some Thai.
+Khmer positions; JavaScriptCore's, as the rebuild's WebKit port reads them, differ from libicucore's line iterator at 27
+of 282,337 positions, all where a range starts with a combining mark, and main's WebKit scan was never checked against
+it (ENGINE_FOLLOWUPS.md, Language and generic families); Firefox 155's matched Gecko's models on all 54,588 breaks once
+breaks inside clusters are dropped, as Gecko drops them. Offline replays can't cover these runs: Bun has no
+`v8BreakIterator`, and its words differ from Firefox's on some Thai.
 
 The scans read the whole text, since merging punctuation, URLs or numbers into units first erased context later passes
 couldn't recover; the Gecko scan dropped merges Firefox contradicts, such as keeping `|` with the letter after it in
@@ -819,9 +822,13 @@ paragraph's joined text. Measuring alone is a premise whose gap is out of scope 
 between sibling spans is left for later (Part 1, The Per-Engine Rebuild And What Counts As Done): Chrome and Firefox
 kern across same-font spans, so Arial `community` + `,` fits about 1px earlier than its two widths, and Safari doesn't
 (2026-09-12). Where Pretext's plain-text walkers, given the joined text as one string, and the browser's lines for the
-same text in one text node disagree, rich inline follows the plain-text walkers. It takes the premise that a browser
-lays spans out as it lays out their text in one text node; where browsers don't, mostly at soft hyphens, bidi controls
-and separators beside white space at a span's edge, is in ENGINE_FOLLOWUPS.md, Rich-inline item edges.
+same text in one text node disagree, rich inline follows the plain-text walkers, but for a few places where it follows
+the browser and the walkers don't yet: in the Gecko profile a rich line hangs the space before a soft hyphen Firefox
+drops and its start consumes that soft hyphen, and in every profile an item whose whole width fits goes on its line
+(ENGINE_FOLLOWUPS.md, White space and controls, and Negative letter spacing and hanging spaces). It takes the premise
+that a browser lays spans out as it lays out their text in one text node; where browsers don't, mostly at soft
+hyphens, bidi controls and separators beside white space at a span's edge, is in ENGINE_FOLLOWUPS.md, Rich-inline item
+edges.
 
 The rich-inline counts below from 2026-09-26 to 28 are of *probes*: cases generated for one change, each beside the
 same text in one text node, recorded in Chrome, Firefox and webkit-host and not checked in, and counted against the
@@ -1019,7 +1026,8 @@ preparing again on each resize costs them.
 
 - Zero-width items keep their source identity: dropping them lost standalone ZWSPs, and compressing the item array broke
   cursor and fragment indices. Both analyses stay, each item's own and the joined text's: their segments differ in 457
-  of 3,000 random rich-inline flows, and the joined pass is about 1% of preparation (2026-09-16).
+  of 3,000 random rich-inline flows, and the joined pass was about 1% of preparation on 2026-09-16, before #369 to #371
+  gave it joined windows, a second handle per item and Firefox's levels; it hasn't been timed since.
 - Measure a collapsed space itself: `measureText('A A') - measureText('AA')` includes A–A kerning.
 - An item's reserved width, the collapsed space before it plus its `extraWidth`, is checked before the whole item's fit,
   and rejects the item only when it's above the remaining width plus the fit epsilon (`lineFitEpsilon`): checking the
@@ -1302,7 +1310,8 @@ killed as hung (Chrome 153, September 2026).
 Count the text submitted to Canvas, not calls: measuring every prefix or suffix is quadratic even at one ask per
 position. So prefix fits stop at 96 graphemes and take pairs beyond, which bounds the amplification, not the shaper's
 own cost, and a context query charges its overlapping source too. Main at the time spent 46ms analyzing and 70ms
-measuring of Chrome 153's 115ms on the corpora (`corpora/`), but 46ms and 305ms of Safari 26.5.2's 350ms (2026-09-15):
+measuring of Chrome 153's 115ms on the corpora (`corpora/`), but 46ms and 305ms of Safari 26.5.2's 350ms (2026-09-15,
+before #340's scans and #344's grapheme tables made analysis faster; the split hasn't been measured since):
 Safari gains must come from measuring less. Korean, Thai, Khmer, Burmese and Hindi cost Chrome about 4 times English
 under system fallback, twice with a named font for the script.
 
@@ -1450,9 +1459,10 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   object's properties fast either way (2026-09-30). So the Gecko profile's rule for an atomic item of width 0 reads
   `paddedOpeningFit`, whose `'both'` already ports the function it comes from (`CanPlaceFrame`), and a new profile
   field is benched before it lands.
-- **Class fields in Firefox**: any class field seems to make Firefox 156 compile the whole bundle up front, 4.5-4.8ms on
-  a fresh page against 1.9-2.2ms with plain objects, or with the fields emptied or set in constructors; V8 and
-  JavaScriptCore didn't care (#340, 2026-09-23).
+- **Class fields in Firefox**: with any class field in the bundle, Firefox 156 took 4.5-4.8ms to evaluate it on a fresh
+  page, against 1.9-2.2ms with plain objects, or with the fields emptied or set in constructors, seemingly because it
+  then compiles the whole bundle up front (the doubling is measured, the cause a guess); V8 and JavaScriptCore didn't
+  care (#340, 2026-09-23).
 - **A loop slows once a check in it has held**: a check in the counter's loop that handed unbroken-boundary lines to the
   full walker slowed counting all other text up to 1.6 times in Firefox and 1.3 in Chrome, though the check alone cost
   nothing (#350, 2026-09-26).
@@ -1892,7 +1902,8 @@ Mostly on main as it was then, measured with the old suite in installed browsers
 - **Soft-hyphen returns**: returning from a soft hyphen to an earlier break works only when isolated widths show the
   overflow and the break returned to is truly the latest. Returning past breaks with no segment kind lost 142 Chrome
   rows, both rules for a soft hyphen with no fitting opportunity hundreds (the #323 entries on `harness/accepted/`'s
-  lists), Firefox's (4e6d4dd5) 15 per direction. They reopen with contextual widths during preparation.
+  lists), Firefox's (4e6d4dd5, branch `archive/gecko-soft-hyphen-return`) 15 per direction. They reopen with contextual
+  widths during preparation.
 - **Other returns from an unfit hyphen in rich inline** (tried for #369, 2026-09-27, Chrome 154): returning only to a
   break a pixel before its item's end, else to the break before the item, as Blink's `HandleOverflow` breaks earlier
   text items again at their width less one pixel, fixed 35 probe cases that main and the branch failed and lost 12 they
@@ -2019,13 +2030,14 @@ below 256 px, Canvas totals are exact (Engine Facts, Chrome).
 - **Tables shrunk by computation**: remapping onto base classes fails for Chrome's Chinese table (`〜` and `゠` need a
   class the base lacks), and runtime state machines mean porting ICU's rule compiler, where today's tables need no
   upkeep between refreshes. Reopens with the table-size question.
-- **Dictionaries or ICU4X's LSTM model** for Thai, Lao, Khmer and Burmese (2026-09-25): hundreds of KB each, and slower
-  in JavaScript than in Firefox. Reopens for runtimes without `Intl.Segmenter`.
+- **Dictionaries or ICU4X's LSTM model** for Thai, Lao, Khmer and Burmese (2026-09-25; weighed, not built): hundreds of
+  KB each, and a JavaScript copy of Firefox's model is expected to run slower than Firefox's own, which wasn't
+  measured. Reopens for runtimes without `Intl.Segmenter`.
 - **`Intl.v8BreakIterator` for Chrome's breaks** (the emulation study, 2026-09-16 to 09-20) drops `-u-lb-*` keywords,
   lacks Blink's fast table, space rule and CSS handling, is gone from Node and Deno, and saves nothing while Safari
   needs the tables. Reopens if `Intl.Segmenter` gains a standard line granularity (Stage 1 since 2021).
-- **Safari's libicucore tables shipped whole** (26c3e231, 2026-09-16): 75 fewer runtime lines for about 30 KB more
-  gzipped; overtaken by packing each table against an earlier one.
+- **Safari's libicucore tables shipped whole** (26c3e231, branch `archive/safari-line-tables-whole`, 2026-09-16): 75
+  fewer runtime lines for about 30 KB more gzipped; overtaken by packing each table against an earlier one.
 - **One bidi resolver with per-engine switches** (in the rebuild): ICU isn't structured like UAX #9 (brackets pair while
   explicit levels are computed; weak and neutral rules resume after isolates), so nine or more switches, redone at every
   ICU roll (Bidi Levels). Reopens only if Blink and WebKit stop running ICU's resolver.
@@ -2034,7 +2046,7 @@ below 256 px, Canvas totals are exact (Engine Facts, Chrome).
 
 #### Caching, State And API Designs
 
-Studied 2026-09-13 to 09-26, mostly in Bun on a stand-in Canvas with the results checked in Chrome, against the cost
+Studied 2026-09-13 to 09-30, mostly in Bun on a stand-in Canvas with the results checked in Chrome, against the cost
 model below; most are parked for the API discussion (TODO.md), not refuted.
 
 - **Handle-free layout over a size-limited global table** (2026-09-26): the chat lays out all 18,613 blocks per width
@@ -2077,6 +2089,34 @@ model below; most are parked for the API discussion (TODO.md), not refuted.
   repeats in 0.14 µs, while stored answers go stale after a late web font in every engine and Chrome's lookup changes
   string storage (Keeping Work Bounded, String Storage); Chrome's next gain has to come from fewer questions. Reopens
   for a stateful API with an invalidation contract, in Gecko and WebKit only (`rebuild/research/PERF-CONTEXT-STORE.md`).
+- **Plain text as a rich paragraph of one item**, so that `prepare()`, `layout()` and the line APIs become rich inline
+  (2026-09-29, main at dc75b5bc rewired so, Chrome 154, two bench sessions): `layout()` took 1.4-2.0 times as long
+  (43-60% more at widths seen before, 61-95% at new ones), `walkLineRanges()` 3.0 times, `measureLineStats()` and
+  `layoutNextLineRange()` 2.5 times, and preparing text seen before 5-10% more, to delete about 285 of 5,461 code
+  lines; callers would also lose `segments`, `kinds` and the small opaque handle. It is the rejected one walker for all
+  text again (Decisions Log, 2026-09-24). What it found on the way landed as #383: a one-item paragraph counted its
+  lines at 2.5 times plain text's cost, and now takes the text walkers.
+- **One handle type, every `prepare()` keeping its segment strings** (the same study): time moved 0.5-2.2%, but each
+  handle held 1.5-2.1 times the heap (a 144-unit Latin message 1.6 to 2.8 kB in V8, a label 0.9 to 1.3 kB), the per-row
+  memory a virtualized list keeps, against `prepare()` paying for nothing `layout()` doesn't read; and a `layout()` that
+  also takes rich handles brings rich inline into every plain bundle (55.1 to 59.9 kB gzipped). Reopens as the deep
+  form, rich inline as one analysis of the paragraph cut at item boundaries, of which a plain handle is the case with no
+  boundary (TODO.md; not prototyped).
+- **Objects inside a line, handed to the app** (2026-09-30, weighed for #387 beside the box; stand-in Canvas only; the
+  box's other rejected forms are under Rich Inline Boundaries, Objects Inside A Line):
+  - *A hand-off between text runs.* The app keeps its objects out of Pretext and runs the line loop, Pretext stepping
+    each text run between two objects with the line's state handed from one run to the next. A prototype (108 code
+    lines in `src/rich-inline.ts`, kept on no branch) gave main's lines on 66,000 fuzzed paragraphs in every profile:
+    every engine allows a break on both sides of an inline-block, so only the line's width crosses an object, three
+    values in the WebKit profile. But the app still passes each object's width into the step, since the gap, the hang
+    and the fit depend on the text beside it, so it gains the loop and decides nothing at the edge; and a paragraph
+    with k objects takes k+1 handles, a step that can ask the app to redo the run before (the WebKit profile's return
+    to the break before an object), and no stats in one call, all worse for virtualized lists. Reopens for text glued
+    to an object, such as `$x$,` kept with its comma, which no width expresses and which needs the rich stepper's
+    pending break.
+  - *The app splits the paragraph at its objects and lays each run out with today's API.* A run laid out alone doesn't
+    know what its line already holds: `xy `, a 24px object and ` abc def` at 60px are `xy`, the object / `abc def` as
+    one paragraph and `xy`, the object, `ab` / `c def` split, a word broken and the gaps beside the object lost.
 - **Other API ideas**: every in-word position measured in `prepare()` (about 2.4× Blink's cold calls; maybe an idle-time
   call); no handle (prepare is about 10× a warm break pass); reused rich items (about 3 a paragraph); a JSON guard on
   handles (Decisions Log, 2026-09-24, has what a JSON copy does today); a public diagnostics prepare.
@@ -2106,9 +2146,10 @@ model below; most are parked for the API discussion (TODO.md), not refuted.
   prepared texts held 76-79% of retained heap, and three exact cuts (lazy preferred breaks, no grapheme counts without
   letter spacing, arrays trimmed to length) took 27-28% off with identical heights and Canvas calls. Preferred breaks
   have since left main. Reopens if memory at 100k matters; measure today's handles first.
-- **One analysis for rich inline**: the joined pass is about 1% of prepare and carries the per-item cursors (Rich Inline
-  Boundaries), and Safari's extra calls are prefix fits WebKit needs. The reverse, one analysis of the paragraph cut at
-  item boundaries, is on the API discussion's list (Rich Inline Boundaries, Continuing The Line; TODO.md).
+- **One analysis for rich inline**: the joined pass was about 1% of prepare (2026-09-16, before #369 to #371 added to
+  it; not timed since) and carries the per-item cursors (Rich Inline Boundaries), and Safari's extra calls are prefix
+  fits WebKit needs. The reverse, one analysis of the paragraph cut at item boundaries, is on the API discussion's list
+  (Rich Inline Boundaries, Continuing The Line; TODO.md).
 - **The chat's scale** (2026-09-14 to 09-16, stand-in Canvas, before #338, #340 and #344; remeasure before relying on
   it): 46-100 µs to prepare a message the first time, 0.4-0.7 µs to lay it out, 43-59 ms median to resize 100,000, so 10
   ms fits about 13,000-15,000. A pixel position needs every height above it at the current width, so a thumb over
@@ -2254,8 +2295,9 @@ widths: both measure Pretext, not a browser.
   details, never runs the plain one: a planted fit change on plain paragraphs passed offline replay, which is blind to
   alignment too, on 134,130 Chrome cases, and passed the browser runs that usually follow it. A test that restates the
   rule or reimplements the algorithm checks nothing (in March 2026 `bun test` ran a simplified copy of it), `skipIf` on
-  files outside the repo passes silently, `bun test` runs only the Blink profile (Bun's user agent names no browser, so
-  the profile for unrecognized engines applies), and walkers written apart drift unless a test makes them agree.
+  files outside the repo passes silently, `bun test` runs the Blink profile wherever a test doesn't set a user agent
+  itself (Bun's names no browser, so the profile for unrecognized engines applies; the profile matrices of
+  `src/layout.test.ts` set Safari's and Firefox's), and walkers written apart drift unless a test makes them agree.
 - **Planted defects found harness false greens**: a negative or null width hid an omitted glyph, six jobs missing the
   same rects agreed with each other and were certified, and a run missing expected cases, even an empty one, passed. So
   geometry and the set of cases a run observed are validated before scoring, net gains never offset a loss, and
