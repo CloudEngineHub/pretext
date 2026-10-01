@@ -925,7 +925,7 @@ than the line, moves to the next line in Chrome and Safari, as any atomic item d
 (`CanPlaceFrame`, `nsLineLayout.cpp:1264-1269`) without counting the break after it as one that fits (`:1260`,
 `:1506-1513`), so a frame with a width that comes next, text, a span with padding or white space in a text node of its
 own, sends the line back to its last break that fit, and the empty frame starts the next line with it; it stays where
-the line ends without that (`keepsEmptyAtomic()` in `src/rich-inline.ts` has the cases). `ab `, a 0px box and `cd` in
+the line ends without that (`getKeptEmptyEnd()` in `src/rich-inline.ts` has the cases). `ab `, a 0px box and `cd` in
 16px Arial at 20.25px are `ab` and then the box with `cd`, and with ` cd` the box stays after `ab`. Under pre-wrap the
 space hangs, and Gecko ends its text frame at the line's end whatever follows the frame (`nsTextFrame.cpp:11216-11229`),
 so the box is inside the line and stays, as does a second box, a space or a node of a soft hyphen after it: in the Gecko

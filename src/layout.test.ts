@@ -4079,7 +4079,7 @@ describe('rich-inline invariants', () => {
         // item wider than the line. Chrome and Safari move it to the next line as any other.
         // Firefox places it there (paddedOpeningFit 'both', Gecko's CanPlaceFrame) and keeps it,
         // unless a frame with a width comes next, which sends the line back to its last break that
-        // fit, before the box (keepsEmptyAtomic). Each row matches Firefox 156.0.1 (2026-10-01):
+        // fit, before the box (getKeptEmptyEnd). Each row matches Firefox 156.0.1 (2026-10-01):
         // the items, the options, each line's items in Firefox, and whether the line is narrower
         // than `a` (else `ab` and a pixel wide).
         const zero = { width: 0 }
@@ -4096,12 +4096,15 @@ describe('rich-inline invariants', () => {
           [[chip, zero, text('\tcd')], preWrap, [[0], [1, 2], [2]]],
           // The paragraph's end, white space that ends it in a text node of the paragraph's own, an
           // atomic item with a width, or text that starts with a space of its own node, a ZWSP, a
-          // line feed or preserved spaces: the box stays.
+          // line feed or preserved spaces: the box stays. An item of a soft hyphen alone between
+          // takes no room.
           [[text('ab '), zero], {}, [[0, 1]]],
           [[text('ab '), zero, text(' ')], {}, [[0, 1]]],
           [[text('ab '), zero, { text: 'cd', font: FONT, break: 'never' }], {}, [[0, 1], [2]]],
           [[text('ab '), zero, text(' cd')], {}, [[0, 1], [2]]],
           [[text('ab '), zero, text('\u200Bcd')], {}, [[0, 1], [2]]],
+          [[text('ab '), zero, text('\u00AD')], {}, [[0, 1, 2]]],
+          [[text('ab '), zero, text('\u00AD'), text(' cd')], {}, [[0, 1, 2], [3]]],
           [[chip, zero, text(' cd')], {}, [[0, 1], [2]]],
           [[chip, zero, text('\ncd')], preWrap, [[0, 1, 2], [2]]],
           [[chip, zero, text('  cd')], preWrap, [[0, 1, 2], [2]]],
@@ -4147,6 +4150,19 @@ describe('rich-inline invariants', () => {
           const shown = { engine: profile.lineBreakScan, items, options }
           if (e === 2) expect({ ...shown, lines }).toEqual({ ...shown, lines: gecko })
           else expect({ ...shown, firstLineHasBox: lines[0]!.includes(items.indexOf(zero)) }).toEqual({ ...shown, firstLineHasBox: false })
+        }
+        // Firefox's line keeps a run of such boxes after one look at what follows the run. Looking
+        // again from every box made a line of N of them N²/2 steps (RESEARCH.md, Keeping Work
+        // Bounded), so the walk may read each box's prepared item only a few times.
+        if (e === 2) {
+          const run = 2000
+          const prepared = prepareRichInline([text('ab '), ...Array.from({ length: run }, () => zero)])
+          const { items } = prepared as unknown as { items: object[] }
+          let reads = 0
+          for (let i = 1; i < items.length; i++) items[i] = new Proxy(items[i]!, { get: (item, key): unknown => { reads++; return Reflect.get(item, key) } })
+          expect(measureRichInlineStats(prepared, measureWidth('ab', FONT) + 1).lineCount).toBe(1)
+          expect(reads).toBeGreaterThan(run)
+          expect(reads).toBeLessThan(40 * run)
         }
         // Firefox's text frame leaves out the preserved spaces that overflow the line and keeps
         // those that fit, so the box after them is at the line's end, or right after the spaces,
