@@ -1749,7 +1749,9 @@ repin` shows what), and a fact read in source needs reading again.
   fonts at 30-400px, 1,272 probe inputs recorded fresh) failed at 367 widths in Firefox 156.0.1 and 39 in Chrome
   154.0.8037.57, which skips a stop under half a space away, and at none in webkit-host, and runs of a tab, spaces and
   a tab (seven texts such as `ab`, tab, space, tab, space, `cd` in 16px Arial and 13px Menlo at 24-300px, 980 inputs)
-  at 301 in Firefox; with it none fails in any (2026-09-30 and 10-01). (Firefox 156.0 source, 2026-09-16 and 09-27.)
+  at 301 in Firefox; with it none of those fails. One of the 980 fails in Chrome before and after, on no tab rule: tab,
+  space, tab, `indented with mixed white space` in 16px Arial at 24px, where Chrome keeps `whi`, 24.008px wide, on a
+  line; none of them fails in webkit-host (2026-09-30 and 10-01). (Firefox 156.0 source, 2026-09-16 and 09-27.)
 
 Elsewhere: a context used before Firefox reads its late family names keeps the fallback (PLATFORM_BUGS.md, the late
 family names), and the joined Arabic study is under Content Language And Fonts, Widths That Depend On Context.
