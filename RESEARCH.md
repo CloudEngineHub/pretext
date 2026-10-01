@@ -1294,6 +1294,16 @@ runs (Firefox 156.0.1, bench sessions of 2026-09-27 and 28, unless noted):
   and 25% slower than main, and made only where an item holds a soft hyphen or bidi control 5% and 3%, where on first
   need they read within 2% (Bun's JavaScriptCore on the stand-in Canvas, warm caches, medians of 5 or 6 processes;
   hypotheses until a browser shows them).
+- **The cursive rule's pretest** (#TBD): a letter-spaced text is asked once, by a regular expression of the cursive
+  scripts' properties, whether it holds a character of a cursive run, and only then takes the script tests per
+  grapheme. In Node 23's V8 that expression takes 6-19 ns per UTF-16 unit of CJK text, about ten times a class of
+  plain ranges: a warm letter-spaced prepare of 1,140 units of Japanese read 201 µs with it and 180 µs with a class of
+  the blocks that hold those scripts in its place, and Latin text and Bun's JavaScriptCore read no difference (the
+  stand-in Canvas on a loaded machine, best of 40 rounds, 2026-10-01; hypotheses until a browser shows them). The
+  block class wasn't kept: it is a second answer to the same question, there for one engine's regular expressions
+  (Part 1, Engineering, JIT tuning), and it missed the punctuation Arabic shares outside those blocks, so `abc`,
+  U+204F, `def` took 7 gaps where Chrome 154 gives 6. Reopens if the bench's letter-spaced CJK prepare row shows the
+  test.
 
 #### The Walkers' Shapes
 
