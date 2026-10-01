@@ -392,7 +392,7 @@ export function measureAnalysis(
             const kerning = textMetrics.spaceKerning ?? getSpaceKerning(text, textMetrics, fontMeasurement, spaceWidth)
             if (beforeSpace) followingSpaceKerning = kerning.after
             // The space hangs where a line ends at it, and what it took with it.
-            if (afterSpace && kerning.before !== 0 && !spacesStartLine(mi - 1) && spaceSharesScriptRun(normalized, starts[mi]!)) {
+            if (afterSpace && kerning.before !== 0 && !spacesStartLine(mi - 1) && spaceSharesScriptRun(normalized, starts[mi]!, starts[mi]! + text.length)) {
               widths[mi - 1] = widths[mi - 1]! + kerning.before
             }
           }

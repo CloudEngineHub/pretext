@@ -420,9 +420,10 @@ function addMetrics(cache: Map<string, SegmentMetrics>, seg: string, text: strin
 }
 
 const noSpaceKerning: SpaceKerning = { after: 0, before: 0 }
-// A format character, which HarfBuzz's lookups skip when they match a pair
-// (skipping_iterator_t::may_skip, hb-ot-layout-gsubgpos.hh).
-const formatCharacterRe = /\p{Cf}/u
+// A default ignorable, which HarfBuzz's lookups pass over when they match a pair
+// (skipping_iterator_t::match, hb-ot-layout-gsubgpos.hh; hb_unicode_funcs_t::is_default_ignorable,
+// hb-unicode.hh, which leaves out the Hangul fillers).
+const defaultIgnorableRe = /\p{Default_Ignorable_Code_Point}/u
 // A code unit that is no cluster of its own: a combining mark, or half of a surrogate pair.
 const clusterPartRe = /[\p{M}\p{Cs}]/u
 // Half of a surrogate pair counts with Common: nearly every character past the BMP that text
@@ -439,13 +440,15 @@ function getKerningScript(character: string): number {
   return match === null ? 4 : match[1] !== undefined ? 1 : match[2] !== undefined ? 2 : match[3] !== undefined ? 3 : 0
 }
 
-// Whether the space before text[at] kerns with the character there. Blink shapes each script
+// Whether the space before the segment text[at..end) kerns with the character it is asked about
+// there, the segment's first past default ignorables (getSpaceKerning). Blink shapes each script
 // run in a call of its own (HarfBuzzShaper::Shape, harfbuzz_shaper.cc:1063-1104), and a space,
 // like every Common character, joins the run of the text before it (ScriptRunIterator::MergeSets,
 // script_run_iterator.cc:490-510), so it kerns with a word after it only where that word goes on
 // in the same script. Each search back ends at the nearest character with a script, which every
 // word that asks starts with, so a text's searches together read it once.
-export function spaceSharesScriptRun(text: string, at: number): boolean {
+export function spaceSharesScriptRun(text: string, at: number, end: number): boolean {
+  while (at + 1 < end && defaultIgnorableRe.test(text[at]!)) at++
   const script = getKerningScript(text[at]!)
   if (script === 0) return true
   for (let i = at - 1; i >= 0; i--) {
@@ -487,7 +490,7 @@ function getCharacterSpaceKerning(character: string, measurement: FontMeasuremen
 //
 // Premises, each with its gap (RESEARCH.md, Kerning At Line Edges):
 // - The kerning is that of the segment's last character with the space after it, and of the
-//   space with its first character, past format characters. So it costs two Canvas calls per
+//   space with its first character, past default ignorables. So it costs two Canvas calls per
 //   distinct edge character in a font, not per word. A lookup that reads further into the word
 //   isn't seen, and a character that is part of a longer cluster takes none.
 // - All of it sits on the first glyph of the pair, as GPOS pair positioning puts it. The legacy
@@ -497,8 +500,8 @@ function getCharacterSpaceKerning(character: string, measurement: FontMeasuremen
 export function getSpaceKerning(seg: string, metrics: SegmentMetrics, measurement: FontMeasurement, spaceWidth: number): SpaceKerning {
   let first = 0
   let last = seg.length - 1
-  while (first < last && formatCharacterRe.test(seg[first]!)) first++
-  while (last > first && formatCharacterRe.test(seg[last]!)) last--
+  while (first < last && defaultIgnorableRe.test(seg[first]!)) first++
+  while (last > first && defaultIgnorableRe.test(seg[last]!)) last--
   const before = getCharacterSpaceKerning(seg[first]!, measurement, spaceWidth, false)
   const after = getCharacterSpaceKerning(seg[last]!, measurement, spaceWidth, true)
   return metrics.spaceKerning = after === 0 && before === 0 ? noSpaceKerning : { after, before }
