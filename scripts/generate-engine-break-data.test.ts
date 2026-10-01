@@ -3,7 +3,7 @@
 import '../harness/watchdog.ts'
 import { expect, test } from 'bun:test'
 import type { ClassMap, RuleTable } from '../src/generated/engine-break-data.ts'
-import { getBreakRules, getClass, unpackClasses } from '../src/line-breaks.ts'
+import { getBreakRules, getClass, unpackClasses, unpackClassRuns } from '../src/line-breaks.ts'
 import { engineClassMaps, engineRuleTables } from './generate-engine-break-data.ts'
 
 test('every code point has its engine\'s class in every class map', () => {
@@ -30,4 +30,11 @@ test('every rule table has its engine\'s sizes and state rows', () => {
     for (let i = 0; i < compiled.rows.length; i++) if (rules.rows[i] !== compiled.rows[i]) differing.push(i)
     expect({ table: tables[t], differing }).toEqual({ table: tables[t], differing: [] })
   }
+})
+
+test('a run list that doesn\'t end at U+10FFFF throws, an empty one included', () => {
+  const remap = new Uint8Array(1)
+  expect(() => unpackClassRuns(new Int32Array(0), remap, 1)).toThrow()
+  expect(() => unpackClassRuns(Int32Array.of(0x10fffe, 0), remap, 1)).toThrow()
+  expect(getClass(unpackClassRuns(Int32Array.of(0x10ffff, 0), remap, 1), 0x10ffff)).toBe(0)
 })

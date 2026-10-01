@@ -128,6 +128,9 @@ export function unpackVarints(base64: string): Int32Array {
 // block share one block.
 export type ClassTable = { readonly index: Uint16Array, readonly values: Uint8Array }
 
+// For c in U+0000..U+10FFFF, which is every code point a scan decodes from UTF-16: `index` has no
+// entry above that, where the engines' tries give their error value (unicode/ucptrie.h:615-620;
+// getLineBreakClass in src/gecko-line-breaks.ts gives ICU4X's itself).
 export function getClass(table: ClassTable, c: number): number {
   return table.values[(table.index[c >> 8]! << 8) | (c & 0xff)]!
 }
@@ -135,7 +138,8 @@ export function getClass(table: ClassTable, c: number): number {
 // The maps ship as one list of runs over U+0000..U+10FFFF, each run a length - 1 and a joint class:
 // the joint classes are the classes all the maps together tell apart, so code points that the
 // engines class alike are stored once. `remap` has one map's class for each joint class, and
-// `blocks` is how many blocks its table takes.
+// `blocks` is how many blocks its table takes. Throws for a list that doesn't end at U+10FFFF, an
+// empty one included.
 export function unpackClassRuns(runs: Int32Array, remap: Uint8Array, blocks: number): ClassTable {
   const index = new Uint16Array(0x1100)
   const values = new Uint8Array(blocks << 8)
@@ -145,7 +149,7 @@ export function unpackClassRuns(runs: Int32Array, remap: Uint8Array, blocks: num
   let c = 0
   let end = 0
   let value = -1
-  for (let r = 0; ; r += 2) {
+  for (let r = 0; r <= runs.length; r += 2) {
     // Runs of joint classes that are one class in this map make one run, [c, end), written once
     // the next run's class differs or no run is left.
     const following = r < runs.length ? remap[runs[r + 1]!]! : -1
@@ -168,11 +172,11 @@ export function unpackClassRuns(runs: Int32Array, remap: Uint8Array, blocks: num
           c = stop
         }
       }
-      if (following < 0) break
       value = following
     }
-    end += runs[r]! + 1
+    if (r < runs.length) end += runs[r]! + 1
   }
+  if (end !== 0x110000) throw new Error('The class runs don\'t cover U+0000..U+10FFFF')
   return { index, values }
 }
 
