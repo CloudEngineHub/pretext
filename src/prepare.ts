@@ -36,6 +36,7 @@ import {
   getSpaceKerning,
   getTextWidth,
   measureWithLetterSpacing,
+  noSpaceKerning,
   textMayContainEmoji,
   type SegmentFit,
   type SegmentMetrics,
@@ -104,6 +105,8 @@ const trailingFormatCharacterRe = /(?![\u200E\u200F\u061C])\p{Cf}$/u
 // Letters in the right-to-left blocks have bidi class R or AL, as do RLM and
 // ALM. Every other letter except modifier letters has class L, as does LRM.
 const rightToLeftLetterRe = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF\u200F\u{10800}-\u{10FFF}\u{1E800}-\u{1EFFF}]/u
+// Either of the two: a right-to-left letter or an explicit bidi control.
+const mixedDirectionRe = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF\u200F\u{10800}-\u{10FFF}\u{1E800}-\u{1EFFF}\u202A-\u202E\u2066-\u2069]/u
 // The last letter or direction mark before format characters other than a soft
 // hyphen, and the first letter, direction mark or ASCII digit after the space,
 // past spaces and format characters.
@@ -120,12 +123,10 @@ const LATIN_SCRIPT = 1
 const OTHER_SCRIPT = 8
 const ANY_SCRIPT = 15
 // Blink reads a character's Script_Extensions (ICUScriptData::GetScripts,
-// script_run_iterator.cc:120-216). An Inherited character, or a Common one without extensions,
-// joins any run. A Common one with extensions is in those scripts only, so an ideographic full
-// stop ends a Latin run, and a middle dot, which Latin and Greek share, ends neither. (With one
-// extension it still joins any run in Blink; here it is in that script, which is Han for
-// nearly all of them.) Half of a surrogate pair counts with Common: nearly every character
-// past the BMP that text holds beside a space is an emoji.
+// script_run_iterator.cc:120-216): an Inherited character, or a Common one without extensions,
+// joins any run, and a Common one with extensions is in those scripts only. Half of a surrogate
+// pair counts with Common, and a Common character with one extension, which joins any run in
+// Blink, is in that script here (ENGINE_FOLLOWUPS.md, Kerning with spaces).
 const anyScriptRe = /[\p{sc=Zinh}\p{scx=Zyyy}\p{Cs}]/u
 const latinScriptRe = /\p{scx=Latn}/u
 const cyrillicScriptRe = /\p{scx=Cyrl}/u
@@ -146,9 +147,7 @@ function getKerningScripts(character: string): number {
 
 // How far a text's script runs were read, the scripts the run there can be in, and the script
 // of the run the last opening bracket is in: 0 before a bracket, -1 while its run goes on
-// (readScriptRuns). The functions that read it stay apart from measureAnalysis: as its closures
-// they made preparation up to 1.3 times slower where many words kern with the space before
-// them (Node 23's V8, stand-in Canvas, 2026-10-01).
+// (readScriptRuns).
 type ScriptRuns = { read: number, scripts: number, bracket: number }
 
 // Whether the space before the text segment text[at..end) is in the script run of the character
@@ -156,15 +155,12 @@ type ScriptRuns = { read: number, scripts: number, bracket: number }
 // shapes each script run in a call of its own (HarfBuzzShaper::Shape,
 // harfbuzz_shaper.cc:1063-1104), and a Common character such as a space joins the run of the
 // text before it (ScriptRunIterator::MergeSets, script_run_iterator.cc:490-510), so a space
-// kerns with a word after it only where that word goes on in the same script. The search back
-// ends at the nearest character with a script, which every word that asks starts with, so a
-// text's searches together read it once. A closing bracket takes its opening bracket's script
-// instead, and a character of several scripts the one its run has left it, which only reading
-// the runs from the text's start gives.
+// kerns with the word after it only where that word goes on in the same script. The search back
+// ends at the nearest character with one script. A closing bracket, or a character of several
+// scripts, takes its script from the runs before it, which readScriptRuns reads.
 function spaceSharesScriptRun(text: string, at: number, end: number, runs: ScriptRuns): boolean {
   let scripts = getKerningScripts(text[at]!)
-  // The default ignorables text holds are Common or Inherited; one with a script of its own,
-  // as U+061C, counts as the word's first letter.
+  // A default ignorable with a script of its own, as U+061C, counts as the word's first letter.
   while (scripts === ANY_SCRIPT && at + 1 < end && hasProperty(text.charCodeAt(at), DEFAULT_IGNORABLE)) scripts = getKerningScripts(text[++at]!)
   if (scripts === ANY_SCRIPT) return true
   for (let i = at - 1; i >= 0; i--) {
@@ -175,7 +171,6 @@ function spaceSharesScriptRun(text: string, at: number, end: number, runs: Scrip
     } else if ((before & (before - 1)) === 0) {
       return (before & scripts) !== 0
     }
-    // A closing bracket, or a character of several scripts.
     return (readScriptRuns(text, at, runs) & scripts) !== 0
   }
   return true
@@ -185,11 +180,10 @@ function spaceSharesScriptRun(text: string, at: number, end: number, runs: Scrip
 // ScriptRunIterator::Consume reads it (script_run_iterator.cc:325-429): a run keeps the scripts
 // all its characters share and ends before a character that shares none (MergeSets, :490-565).
 // A closing bracket takes the script of the run its opening bracket is in, once that run has
-// ended (CloseBracket, :443-489, and FixupStack, :574-595). Any opening bracket pairs with any
-// closing one here: Blink pairs them by Bidi_Paired_Bracket, on a stack that keeps a matched
-// opening bracket, so with one kind of bracket it too matches the last one opened. A Common
-// opening bracket that is East Asian wide, fullwidth or halfwidth is in the Han scripts
-// (FixScriptsByEastAsianWidth, :83-110); past U+2329 those start at U+FE17.
+// ended (CloseBracket, :443-489, and FixupStack, :574-595); any opening bracket pairs with any
+// closing one here, and only the last one opened is remembered. A Common opening bracket that
+// is East Asian wide is in the Han scripts (FixScriptsByEastAsianWidth, :83-110); past U+2329
+// those start at U+FE17.
 function readScriptRuns(text: string, to: number, runs: ScriptRuns): number {
   for (; runs.read < to; runs.read++) {
     const character = text[runs.read]!
@@ -323,15 +317,6 @@ export function measureAnalysis(
       !spaceParagraphHasExplicitBidiControls(spaceStart)
   }
 
-  // Blink shapes text items together only where their resolved direction is the same
-  // (ShouldBreakShapingBeforeText, inline_node.cc:472-490, over the items SegmentBidiRuns
-  // splits by level, :1333), and HarfBuzz shapes a right-to-left item in visual order, where
-  // Canvas shows a pair only left to right. Which spaces share a level with the word beside
-  // them depends on the paragraph's direction, which preparation cannot see, so text that
-  // holds a right-to-left letter or an explicit bidi control takes no kerning with spaces. A
-  // text is scanned once, at its first word beside a space, before Canvas is asked.
-  let oneDirection: boolean | null = null
-
   // The source a run of combining marks shapes after when only zero-width glue,
   // controls or other such runs, with no break, separate the run from the grapheme
   // before it: that grapheme and what separates them. Without the separators, Canvas
@@ -388,18 +373,14 @@ export function measureAnalysis(
     return normalized.slice(baseStart, starts[markChainStart]) + normalized.slice(starts[markChainKept], start)
   }
 
-  // Blink makes preserved spaces that start the text or follow a forced break an item of their
-  // own, with a break opportunity after it that it shapes nothing across
-  // (InsertBreakOpportunityAfterLeadingPreservedSpaces, inline_items_builder.cc:988-1034;
-  // InlineNode::ShapeText, inline_node.cc:1639-1643), so they don't kern with the word after
-  // them.
-  function spacesStartLine(analysisIndex: number): boolean {
-    return (flags[analysisIndex]! & KIND_BITS) === PRESERVED_SPACE &&
-      (analysisIndex === 0 || (flags[analysisIndex - 1]! & KIND_BITS) === HARD_BREAK)
-  }
-
-  // Made for the first word whose kerning with the space before it asks for the space's run.
-  let scriptRuns: ScriptRuns | null = null
+  // Whether the text's words take Blink's kerning with the spaces beside them
+  // (EngineProfile.kernsSpacesInScriptRun). Blink shapes text items together only where their
+  // resolved direction is the same (ShouldBreakShapingBeforeText, inline_node.cc:472-490), and
+  // which spaces share a level with a word depends on the paragraph's direction, which
+  // preparation can't see, so text that holds a right-to-left letter or an explicit bidi
+  // control takes none (RESEARCH.md, Kerning At Line Edges).
+  const kernsSpaces = engineProfile.kernsSpacesInScriptRun && normalized.includes(' ') && !mixedDirectionRe.test(normalized)
+  const scriptRuns: ScriptRuns = { read: 0, scripts: ANY_SCRIPT, bracket: 0 }
   // What the word before a space adds to that space, the next segment (SpaceKerning.space).
   let spaceShare = 0
 
@@ -498,17 +479,23 @@ export function measureAnalysis(
         previousJoinableMetrics = textMetrics
         if (hasLetterSpacing) spacingGraphemeCount = countRenderedSpacingGraphemes(text, kind, engineProfile.graphemeTable)
         let followingSpaceKerning = followingSpaceTail === null || measuredWithSpace ? 0 : getTailKerning(text + followingSpaceTail)
-        if (engineProfile.kernsSpacesInScriptRun) {
+        if (kernsSpaces && textMetrics.spaceKerning !== noSpaceKerning) {
           const afterSpace = mi > 0 && isSpaceKind(flags[mi - 1]! & KIND_BITS)
           const beforeSpace = mi + 1 < segmentCount && isSpaceKind(flags[mi + 1]! & KIND_BITS)
-          if ((afterSpace || beforeSpace) && (oneDirection ??= !rightToLeftLetterRe.test(normalized) && !explicitBidiControlRe.test(normalized))) {
+          if (afterSpace || beforeSpace) {
             const kerning = textMetrics.spaceKerning ?? getSpaceKerning(text, textMetrics, fontMeasurement, spaceWidth)
             if (beforeSpace) {
               followingSpaceKerning = kerning.after
               spaceShare = kerning.space
             }
-            // The space hangs where a line ends at it, and what it took with it.
-            if (afterSpace && kerning.before !== 0 && !spacesStartLine(mi - 1) && spaceSharesScriptRun(normalized, starts[mi]!, starts[mi]! + text.length, scriptRuns ??= { read: 0, scripts: ANY_SCRIPT, bracket: 0 })) {
+            // The space takes its kerning with this word, and takes it along where it hangs at a
+            // line's end. Preserved spaces that start the text or follow a forced break are a
+            // Blink item of their own, which it shapes nothing across
+            // (InsertBreakOpportunityAfterLeadingPreservedSpaces, inline_items_builder.cc:988-1034;
+            // InlineNode::ShapeText, inline_node.cc:1639-1643), so they take none.
+            if (afterSpace && kerning.before !== 0 &&
+              !((flags[mi - 1]! & KIND_BITS) === PRESERVED_SPACE && (mi === 1 || (flags[mi - 2]! & KIND_BITS) === HARD_BREAK)) &&
+              spaceSharesScriptRun(normalized, starts[mi]!, starts[mi]! + text.length, scriptRuns)) {
               widths[mi - 1] = widths[mi - 1]! + kerning.before
             }
           }
