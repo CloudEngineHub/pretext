@@ -241,10 +241,15 @@ pinned, and a macOS update moves all three browsers (system fonts, Core Text, IC
 with the new build into a scratch copy of the recordings and prints the cases laid out otherwise, the new page history,
 and whether the browser's break data still matches `scripts/engine-data/`.
 
-webkit-host lays text out as Safari 27.0 does: the same line geometry on 25,180 cases in both orders (2026-09-17) and on
-installed Safari's 2,000-case sample except page history (2026-09-24); a Safari or macOS update voids that until
-`repin safari`, which records both, shows they agree again. Installed Safari stalls when hidden (WebKit suspends a
-hidden page past a CPU limit averaged over 8 minutes), so keep its window uncovered during a job.
+webkit-host lays text out as Safari 27.0 does: the same line geometry on 25,180 cases in both orders (2026-09-17, in
+the per-engine rebuild's harness) and on installed Safari's 2,000-case sample here, where the 1,990 cases pinned in both
+recordings are identical, widths included, and the other 5 are page history in webkit-host (2026-09-24). That
+compares the browsers' layouts only. Pretext's predictions aren't scored in installed Safari: it has no accepted list,
+so `check --browser=safari` would report webkit-host's accepted failures as new, and its sample holds none of the cases
+added since it was drawn. A Safari or macOS update voids the comparison, and no command makes it again: `repin safari`
+records both browsers and prints each one's drift against its own earlier recordings, never one against the other, so
+compare the two scratch recordings by hand, over the cases pinned in both. Installed Safari stalls when hidden (WebKit
+suspends a hidden page past a CPU limit averaged over 8 minutes), so keep its window uncovered during a job.
 
 Firefox changes fonts after it starts (see also `PLATFORM_BUGS.md`, the late family names): emoji beside Arial laid out
 otherwise when recorded 11 s after launch than at 12, 15 or 30 s (91 cases, 2026-09-24), so each Firefox job holds its
