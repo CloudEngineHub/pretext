@@ -2447,8 +2447,9 @@ describe('prepare invariants', () => {
     // Every field getEngineProfile() gives Chrome, Safari and Firefox, as [field, Blink's,
     // WebKit's, Gecko's]. The tests that set a field by hand check what its value does; this one
     // checks which engine takes which, so that a value moved to another engine fails here and
-    // not only in that browser's cases. EngineProfile (src/measurement.ts) has each field's
-    // rule and its source in the engine.
+    // not only in that browser's cases. It restates the table, so it shows that a value moved,
+    // never that one is right for its engine: that rests on the browser's cases and on each
+    // field's rule and source in EngineProfile (src/measurement.ts).
     type Profile = ReturnType<MeasurementModule['getEngineProfile']>
     const fields: Array<{ [K in keyof Profile]: [K, Profile[K], Profile[K], Profile[K]] }[keyof Profile]> = [
       ['entryFitBasis', 'fresh', 'disabled', 'original'],
@@ -2485,8 +2486,10 @@ describe('prepare invariants', () => {
       [CHROME_USER_AGENT, profileOf(1)],
       [SAFARI_USER_AGENT, profileOf(2)],
       [FIREFOX_USER_AGENT, profileOf(3)],
-      // Entry fits are verified only on desktop, so Chrome and Firefox on a phone take none; an
-      // app's web view on an iPhone names no browser and is WebKit.
+      // Entry fits are verified only on desktop, Windows and Linux too, so Chrome and Firefox on
+      // a phone take none; an app's web view on an iPhone names no browser and is WebKit.
+      ['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', profileOf(1)],
+      ['Mozilla/5.0 (X11; Linux x86_64; rv:156.0) Gecko/20100101 Firefox/156.0', profileOf(3)],
       ['Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Mobile Safari/537.36', profileOf(1, 'disabled')],
       ['Mozilla/5.0 (Android 14; Mobile; rv:156.0) Gecko/156.0 Firefox/156.0', profileOf(3, 'disabled')],
       ['Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148', profileOf(2)],
@@ -2951,14 +2954,16 @@ describe('rich-inline invariants', () => {
       }
     }
     for (const text of texts) expectSame(text, undefined, [0, -6, -12, 2])
-    // A width under 1px lays out as 1px, where two words of a 0.5px font fit a line each.
+    // A width under 1px lays out as 1px, where two words of a 0.5px font fit a line each, and
+    // in the rich stepper, where two items of a 0.25px font fit one line.
     expectSame('ab cd', undefined, [0], '0.5px Test Sans')
+    expect(measureRichInlineStats(prepareRichInline([{ text: 'ab ', font: '0.25px Test Sans' }, { text: 'cd', font: '0.25px Test Sans' }]), 0.5).lineCount).toBe(1)
     // An item the rich stepper walks itself never takes the text walkers: one holding a hard
     // break or a tab, as every line feed and tab of a pre-wrap paragraph is, and U+2028 in
     // the WebKit profile. Nor does one whose start a line start consumes past its first
     // segment, as the Gecko profile's does where it starts with white space and soft hyphens.
-    // Pre-wrap text that ends in spaces is left out: the two report its last line's width
-    // otherwise (ENGINE_FOLLOWUPS.md, Rich-inline item edges).
+    // Pre-wrap text that ends in spaces after other text is left out: the two report its last
+    // line's width otherwise (ENGINE_FOLLOWUPS.md, Rich-inline item edges).
     const engines = [await engineProfileUnder(CHROME_USER_AGENT), await engineProfileUnder(SAFARI_USER_AGENT), await engineProfileUnder(FIREFOX_USER_AGENT)]
     const profile = getEngineProfile()
     const previous = { ...profile }
@@ -3691,8 +3696,9 @@ describe('rich-inline invariants', () => {
     const chip: Items = [{ text: '\uC548\uB155', font: FONT }, { text: '@\uBBFC\uC218', font: '700 12px Test Sans', break: 'never', extraWidth: 24 }, { text: '\uB2D8 \uBC18\uAC00\uC6CC\uC694', font: FONT }]
     const chipWidth = measureWidth('@\uBBFC\uC218', '700 12px Test Sans') + 24
     // The Korean message as an editor holds it, with two spaces after the comma, a line feed
-    // after the second word and two more spaces inside the last item.
-    const preserved: Items = [{ text: '\uBBFC\uC218 \uC528,  \uC624\uB298\n', font: FONT }, { text: '\uD68C\uC758', font: BOLD }, { text: '\uB294 \uC138\uC2DC\uC5D0  \uC2DC\uC791\uD569\uB2C8\uB2E4', font: FONT }]
+    // after the bold word's particle and two more spaces inside the last item. The bold word
+    // ends inside its line's text, so only keep-all keeps the particle after it.
+    const preserved: Items = [{ text: '\uBBFC\uC218 \uC528,  \uC624\uB298 ', font: FONT }, { text: '\uD68C\uC758', font: BOLD }, { text: '\uB294\n\uC138\uC2DC\uC5D0  \uC2DC\uC791\uD569\uB2C8\uB2E4', font: FONT }]
     const profile = getEngineProfile()
     const previous = { lineBreakScan: profile.lineBreakScan, breaksFromItemText: profile.breaksFromItemText }
     try {
@@ -4987,33 +4993,42 @@ describe('layout invariants', () => {
   test("Blink's HanKerning trims an opening mark after a closing one and a line-end closing mark", () => {
     const measureText = Object.getOwnPropertyDescriptor(TestCanvasRenderingContext2D.prototype, 'measureText')!
     // A font with halt: inside one string, 「 after a closing or opening mark and a closing
-    // mark before another, or before ：, ・ or U+3000, lose half an em, as Canvas shapes them. 、。，．：；
-    // are marks that draw in the left half of their em next to Han text and centered alone, as
-    // locl can place them. Canvas shapes `(`, `)`, `·`, `；` and curly quotes as words of their
-    // own, so it halts nothing next to them. Curly quotes are narrow, but in the font named Wide
-    // Quotes, where each is an em wide, an opening one drawn in its right half and a closing one
-    // in its left.
+    // mark before another, or before ・ or U+3000, lose half an em, as Canvas shapes them. 、。，．：
+    // are closing marks that draw in the left half of their em next to Han text and centered
+    // alone, as locl can place them, and ； draws in the left half. Canvas shapes `(`, `)`, `·`,
+    // `；` and curly quotes as words of their own, so it halts nothing between them and those
+    // marks, but the first of two ；. The font named Wide Dots draws 、。，． and ； across their em,
+    // marks of no type that nothing halts and that halt nothing. Curly quotes are narrow, but in
+    // the font named Wide Quotes, where each is an em wide, an opening one drawn in its right
+    // half and a closing one in its left, and the second of two opening ones and the first of two
+    // closing ones are halted; in the one named Wide Opening Quotes only the opening ones are
+    // wide, and none is halted.
     Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', {
       ...measureText,
       value(this: TestCanvasRenderingContext2D, text: string) {
         canvasMeasurementCount++
         const em = parseFontSize(this.font)
-        const pairs = (text.match(/(?<=[」』）】〉》「、。，．])「|[」』）】〉》、。，．](?=[」』）】〉》、。，．：・\u3000])/g) ?? []).length
-        const wideQuotes = this.font.includes('Wide Quotes')
+        const wideQuotes = this.font.includes('Wide Quotes') ? '“‘”’' : this.font.includes('Wide Opening Quotes') ? '“‘' : ''
+        const wideDots = this.font.includes('Wide Dots')
+        const closing = wideDots ? '」』）】〉》：' : '」』）】〉》、。，．：'
+        let pairs = (text.match(new RegExp(`(?<=[${closing}「])「|[${closing}](?=[${closing}・\u3000])`, 'g')) ?? []).length
+        if (!wideDots) pairs += (text.match(/；(?=；)/g) ?? []).length
+        if (wideQuotes.length === 4) pairs += (text.match(/(?<=[“‘])[“‘]|[”’](?=[”’])/g) ?? []).length
         // Ink bounds over the characters, each at its advance.
         const han = /\p{sc=Han}/u.test(text)
         let x = 0
         let left = Infinity
         let right = -Infinity
         for (const ch of text) {
-          const quote = wideQuotes ? '“‘”’'.indexOf(ch) : -1
+          const quote = wideQuotes.indexOf(ch)
           const w = quote < 0 ? measureWidth(ch, this.font) : em
-          const dot = /^[、。，．：；]$/.test(ch)
-          left = Math.min(left, x + (quote >= 0 ? (quote < 2 ? 0.6 : 0.1) * em : dot ? (han ? 0.1 : 0.3) * em : 0))
-          right = Math.max(right, x + (quote >= 0 ? (quote < 2 ? 0.9 : 0.4) * em : dot ? (han ? 0.4 : 0.7) * em : w))
+          const dot = '、。，．：；'.includes(ch)
+          const leftHalf = ch === '；' || han
+          left = Math.min(left, x + (quote >= 0 ? (quote < 2 ? 0.6 : 0.1) * em : dot ? (leftHalf ? 0.1 : 0.3) * em : 0))
+          right = Math.max(right, x + (quote >= 0 ? (quote < 2 ? 0.9 : 0.4) * em : dot && wideDots && ch !== '：' ? 0.9 * em : dot ? (leftHalf ? 0.4 : 0.7) * em : w))
           x += w
         }
-        const width = (wideQuotes ? x : measureWidth(text, this.font)) - pairs * em / 2
+        const width = (wideQuotes === '' ? measureWidth(text, this.font) : x) - pairs * em / 2
         return { width, actualBoundingBoxLeft: -left, actualBoundingBoxRight: right }
       },
     })
@@ -5106,31 +5121,57 @@ describe('layout invariants', () => {
       }
       // Every character HanKerning types by itself, before Ps and Pe (getStaticCharType in
       // src/han-kerning.ts), as [the character, whether 「 after it is halted, whether 」 before it
-      // is]: in Chrome 154.0.8037.57 (2026-09-30), 16px PingFang SC under zh and 16px Hiragino
-      // Sans under ja both draw `中X「中` and `中」X中` 8px narrower than `中X中中` and `中中X中` where
-      // the pair halts. An opening quote in a narrow glyph halts only the mark after it and a
-      // closing one only the mark before it; a dot, a colon, a semicolon and a middle halt both.
-      const typed: [string, boolean, boolean][] = [
-        ['\u2018', true, false], ['\u201C', true, false], ['\u2019', false, true], ['\u201D', false, true],
-        ['\u3001', true, true], ['\u3002', true, true], ['\uFF0C', true, true], ['\uFF0E', true, true],
-        ['\uFF1A', true, true], ['\uFF1B', true, true],
-        ['\u00B7', true, true], ['\u2027', true, true], ['\u3000', true, true], ['\u30FB', true, true],
+      // is, whether it is halted itself before a closing mark]: in Chrome 154.0.8037.57, 16px
+      // PingFang SC under zh draws `中X「中`, `中」X中` and `中X」中` 8px narrower than `中X中中` and
+      // `中中X中` where the pair halts, and `中X”中` 8px narrower than `中X中”中` less its `中` where
+      // `中X」中` is (2026-10-01). An opening quote in a narrow glyph halts only the mark after it
+      // and a closing one only the mark before it; a dot, a colon, a semicolon and a middle halt
+      // both, and only a middle is never halted itself. The closing mark after it here is the one
+      // Canvas shapes as another word, `”` after a CJK symbol and `」` after the rest, so that
+      // the type the library gives the character decides the halt.
+      const typed: [string, boolean, boolean, boolean][] = [
+        ['\u2018', true, false, false], ['\u201C', true, false, false], ['\u2019', false, true, false], ['\u201D', false, true, false],
+        ['\u3001', true, true, true], ['\u3002', true, true, true], ['\uFF0C', true, true, true], ['\uFF0E', true, true, true],
+        ['\uFF1A', true, true, true], ['\uFF1B', true, true, true],
+        ['\u00B7', true, true, false], ['\u2027', true, true, false], ['\u3000', true, true, false], ['\u30FB', true, true, false],
       ]
-      for (let t = 0; t < typed.length; t++) {
-        const [mark, haltsAfter, haltsBefore] = typed[t]!
-        const pairs: [string, boolean][] = [[`中${mark}「中`, haltsAfter], [`中」${mark}中`, haltsBefore]]
-        for (let p = 0; p < pairs.length; p++) {
-          const [text, halts] = pairs[p]!
-          expect({ text, width: measureNaturalWidth(prepareWithSegments(text, font)) }).toEqual({ text, width: measureWidth(text, font) - (halts ? 8 : 0) })
+      // Blink types the four dots together, and the colon and the semicolon each alone, from their
+      // glyphs' ink in the font (HanKerning::FontData, han_kerning.cc:504-509): 16px Hiragino Sans
+      // under ja halts the same pairs in Chrome, but its colon and semicolon, drawn centered, are
+      // never halted themselves. The Wide Dots font, which no browser was asked about, gives the
+      // dots and the semicolon no type and so no pair, which tells the colon's type from theirs
+      // and theirs from the middles'.
+      const typedFonts = [font, '16px Halt Wide Dots Sans']
+      for (let f = 0; f < typedFonts.length; f++) {
+        for (let t = 0; t < typed.length; t++) {
+          const [mark, haltsAfter, haltsBefore, halted] = typed[t]!
+          const typeless = f === 1 && '、。，．；'.includes(mark)
+          const closer = '‘“’”·‧；'.includes(mark) ? '」' : '”'
+          const pairs: [string, boolean][] = [[`中${mark}「中`, haltsAfter], [`中」${mark}中`, haltsBefore], [`中${mark}${closer}中`, halted]]
+          for (let p = 0; p < pairs.length; p++) {
+            const [text, halts] = pairs[p]!
+            expect({ font: typedFonts[f]!, text, width: measureNaturalWidth(prepareWithSegments(text, typedFonts[f]!)) }).toEqual({ font: typedFonts[f]!, text, width: measureWidth(text, font) - (halts && !typeless ? 8 : 0) })
+          }
         }
       }
-      // Fullwidth curly quotes type as opening and closing marks (HanKerning::GetCharType,
-      // han_kerning.cc:142-168), so 「 is halted after an opening mark and 」 before a closing one:
-      // 16px Hiragino Sans GB under zh, whose quotes are an em wide, draws `中“「中` and `中」”中` at
-      // 56px in Chrome 154.0.8037.57, 8px narrower than `中“中中` (2026-09-30).
-      for (const text of ['中“「中', '中‘「中', '中」”中', '中」’中']) {
+      // Curly quotes an em wide type as opening and closing marks, and narrow ones as narrow marks
+      // (HanKerning::GetCharType, han_kerning.cc:142-168). Only a fullwidth opening quote is halted
+      // after `」` and only a fullwidth closing one halts `「` after it: 16px Hiragino Sans GB under
+      // zh, whose quotes are an em wide, draws `中」“中`, `中」‘中`, `中”「中` and `中’「中` at 56px in
+      // Chrome 154.0.8037.57, 8px narrower than `中中“中`, and PingFang SC, whose quotes are narrow,
+      // draws each as wide as its characters (2026-10-01). The other four pairs halt under either
+      // type, and are the only ones here of an opening mark after an opening one and a closing
+      // mark before a closing one that Canvas shapes as two words.
+      for (const text of ['中」“中', '中」‘中', '中”「中', '中’「中', '中“「中', '中‘「中', '中」”中', '中」’中']) {
         expect({ text, width: measureNaturalWidth(prepareWithSegments(text, '16px Halt Wide Quotes Sans')) }).toEqual({ text, width: 56 })
       }
+      for (const text of ['中」“中', '中」‘中', '中”「中', '中’「中']) {
+        expect({ text, width: measureNaturalWidth(prepareWithSegments(text, font)) }).toEqual({ text, width: measureWidth(text, font) })
+      }
+      // Quotes are fullwidth only where the opening ones draw in the right half of an em and the
+      // closing ones in the left (han_kerning.cc:525-534), so wide opening quotes alone leave a
+      // closing quote narrow, and `「` after it as it is.
+      expect(measureNaturalWidth(prepareWithSegments('中’「中', '16px Halt Wide Opening Quotes Sans'))).toBe(measureWidth('中’「中', font))
       // A line that ends with a halted mark paints it halted, where what follows it takes no room:
       // a space, which fits with letter spacing where the mark and the gap after it don't, and
       // a preserved space that fits at the end of the text.
