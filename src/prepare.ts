@@ -66,26 +66,38 @@ function addInternalLetterSpacing(width: number, graphemeCount: number, letterSp
 // webkit-host lay 59 strings out so (2026-10-01).
 const cursiveScriptRe = /[\p{Script=Arabic}\p{Script=Syriac}\p{Script=Nko}\p{Script=Mandaic}\p{Script=Mongolian}\p{Script=Phags_Pa}\p{Script=Hanifi_Rohingya}]/uy
 // What starts or goes on with a cursive run in Blink: the letters; the Common characters
-// whose scripts include Arabic, such as U+060C and U+0640, since Arabic has the lowest
-// code of a character's scripts (ICUScriptData::GetScripts, :118-215); and Mongolian's
-// comma, full stop and four dots, whose scripts are Mongolian and Phags-pa. Gap: a
-// character goes on with the run before it where that run's script is one of its own, so
-// Blink spaces U+060C after Thaana, and doesn't space the CJK punctuation Mongolian
-// shares after Mongolian, or U+202F outside Latin (ENGINE_FOLLOWUPS.md, Letter spacing).
-const cursiveRunRe = /[\p{scx=Arabic}\p{Script=Syriac}\p{Script=Nko}\p{Script=Mandaic}\p{Script=Mongolian}\p{Script=Phags_Pa}\p{Script=Hanifi_Rohingya}\u1802\u1803\u1805]/uy
+// and marks whose scripts include Arabic, such as U+060C, U+0640 and the vowel signs,
+// since a shared character's run starts with the lowest code of its scripts, Latin aside
+// for a Common one (ICUScriptData::GetScripts, :118-215), and Arabic's is the lowest;
+// Mongolian's comma, full stop and four dots, whose scripts are Mongolian and Phags-pa;
+// and U+1DFA, a mark whose one script is Syriac. Gap: Blink starts such a run with all the
+// character's scripts, which the next character that has a script narrows, and goes on
+// with the run before it where that run's script is one of them (MergeSets, :491-565). So
+// next to Thaana it spaces U+060C, and next to Mongolian it doesn't space the CJK
+// punctuation Mongolian shares, nor U+202F outside Latin (ENGINE_FOLLOWUPS.md, Letter
+// spacing).
+const cursiveRunRe = /[\p{scx=Arabic}\p{Script=Syriac}\u1DFA\p{Script=Nko}\p{Script=Mandaic}\p{Script=Mongolian}\p{Script=Phags_Pa}\p{Script=Hanifi_Rohingya}\u1802\u1803\u1805]/uy
 const mayBeCursiveRe = new RegExp(cursiveRunRe.source, 'u')
-// Characters of no script, which Blink leaves in the run before them: Common ones that no
-// script lists, and marks, which inherit.
+// Characters that stay in the run before them in Blink: Common ones that no script lists,
+// and marks, which inherit. Gap: so does a Common character that one script lists, such as
+// the circled ideographs, which here ends a cursive run (ENGINE_FOLLOWUPS.md, Letter
+// spacing).
 const scriptNeutralRe = /[\p{scx=Common}\p{Script=Inherited}]/uy
+// A Common character right before a mark that has script extensions, as the Arabic vowel
+// signs do, doesn't stay: it takes the mark's scripts (FetchNextCharacter,
+// script_run_iterator.cc:624-635), so a digit or a dotted circle that carries a fatha
+// starts an Arabic run. A match ends where the mark starts; the mark is the first group.
+const markedCommonSource = '\\p{scx=Common}(?=((?=\\p{Script=Inherited})\\P{scx=Inherited}))'
+const markedCommonRe = new RegExp(markedCommonSource, 'uy')
 // The opening brackets of no script that Blink makes Han, those whose East Asian Width is
 // wide, fullwidth or halfwidth (FixScriptsByEastAsianWidth, script_run_iterator.cc:83-110).
 // Regular expressions have no property for that width, so these are listed: of Unicode
 // 17's 64 opening brackets, the eight of that width whose script extensions are Common
 // alone. U+3008-U+301A and U+FF62, of that width too, list their scripts.
 const wideOpeningBrackets = '\u2329\uFE59\uFE5B\uFE5D\uFF08\uFF3B\uFF5B\uFF5F'
-// What gives a text's first run its script: a character that has one, or a wide opening
-// bracket.
-const firstScriptRe = new RegExp(`[^\\p{scx=Common}\\p{Script=Inherited}]|[${wideOpeningBrackets}]`, 'u')
+// What gives a text's first run its script: a character that has one, a wide opening
+// bracket, or the mark a Common character takes its scripts from.
+const firstScriptRe = new RegExp(`[^\\p{scx=Common}\\p{Script=Inherited}]|[${wideOpeningBrackets}]|${markedCommonSource}`, 'u')
 
 // Blink's script run as preparation follows it through a text's segments, in order:
 // whether it is cursive, and each bracket it has open, as its opening character and then
@@ -96,7 +108,7 @@ type ScriptRun = { cursive: boolean; openBrackets: number[] }
 // the characters of no script before it.
 function startScriptRun(text: string): ScriptRun {
   const first = firstScriptRe.exec(text)
-  return { cursive: first !== null && mayBeCursiveRe.test(first[0]), openBrackets: [] }
+  return { cursive: first !== null && mayBeCursiveRe.test(first[1] ?? first[0]), openBrackets: [] }
 }
 
 // Takes the code point c at text[i] into the run. A closing bracket goes back to its
@@ -116,8 +128,12 @@ function enterScriptRun(run: ScriptRun, text: string, i: number, c: number): voi
     openBrackets.length = opened + 2
     return
   }
-  scriptNeutralRe.lastIndex = cursiveRunRe.lastIndex = i
-  if (!scriptNeutralRe.test(text)) run.cursive = cursiveRunRe.test(text)
+  markedCommonRe.lastIndex = scriptNeutralRe.lastIndex = i
+  const marked = markedCommonRe.test(text)
+  if (marked || !scriptNeutralRe.test(text)) {
+    cursiveRunRe.lastIndex = marked ? markedCommonRe.lastIndex : i
+    run.cursive = cursiveRunRe.test(text)
+  }
   if (bracket === undefined || (bracket & 1) === 0) return
   if (wideOpeningBrackets.includes(text.charAt(i))) run.cursive = false
   if (openBrackets.length === 64) openBrackets.splice(0, 2)
