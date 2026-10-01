@@ -1105,6 +1105,9 @@ describe('boundary-policy regressions', () => {
       expect(segments('ab\r\u200E\rcd')).toEqual(['ab\u200E', 'cd'])
       expect(segments('ab \u200E\r\ncd')).toEqual(['ab', ' \u200E ', 'cd'])
       expect(segments('ab\r\n\u00AD cd')).toEqual(['ab', ' ', '\u00AD', 'cd'])
+      // Nor is it the white space of a run that goes on into a text's trailing white space: the
+      // space after the soft hyphen is a run of its own.
+      expect(segments('ab\r\u00AD ')).toEqual(['ab', '\u00AD'])
       expect(prepareWithSegments('ab\rcd', FONT, { whiteSpace: 'pre-wrap' }).segments).toEqual(['ab', '\n', 'cd'])
       // Controls, and soft hyphens before them, take no letter spacing.
       expect(prepareWithSegments('a\u200Eb', FONT, { letterSpacing: 2 }).widths).toEqual([measureWidth('ab', FONT) + 2])
@@ -3347,8 +3350,10 @@ describe('rich-inline invariants', () => {
         // in 16px Arial, with both spaces after the chip (2026-09-30). The row tells the item's
         // text from a placeholder for it, not U+FFFC from another neutral.
         expect(gaps(['ab ', { text: '\u05D0\u05D1', break: 'never' }, ' \u200F\u00AD', ' this more'])).toEqual([0, r(space), r(space), r(space)])
-        // A soft hyphen after no white space opens no run, and text after one closes it.
+        // A soft hyphen after no white space opens no run, and text after one closes it. A CR or
+        // FF is no white space of Gecko's run, which takes no room there (analyzeText).
         expect(walk(['see\u00AD', ' this word'], Infinity)).toEqual([[r(see + space + words), [[0, 0, r(see)], [1, r(space), r(words)]]]])
+        if (collapses) expect(walk(['see\r\u00AD ', 'this word'], Infinity)).toEqual([[r(see + space + words), [[0, 0, r(see)], [1, r(space), r(words)]]]])
         expect(walk(['see \u00AD', 'x', ' this word'], Infinity)).toEqual([[r(see + space + x + space + words), [[0, 0, r(see + space)], [1, 0, r(x)], [2, r(space), r(words)]]]])
         // An atomic item's own white space makes no gap, and the run ends there.
         expect(walk(['see \u00AD', { text: ' chip', break: 'never' }, ' this word'], Infinity)).toEqual([[r(see + space + chip + space + words), [[0, 0, r(see + space)], [1, 0, r(chip)], [2, r(space), r(words)]]]])

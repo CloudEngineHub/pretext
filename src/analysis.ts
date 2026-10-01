@@ -1,4 +1,4 @@
-import { getGeckoLineBreaks, isClusterExtender, isDiscardable, isEastAsianSegmentBreak, isJapaneseOrChinese, isSpaceCombiningSequenceTail } from './gecko-line-breaks.js'
+import { getGeckoLineBreaks, isClusterExtender, isDiscardable, isEastAsianSegmentBreak, isJapaneseOrChinese, isSpaceCombiningSequenceTail, isSpaceOrTabOrSegmentBreak } from './gecko-line-breaks.js'
 import { isBidiControl, type GraphemeTable } from './graphemes.js'
 import { BREAK, CLUSTER_START, FORCED_BREAK, SOFT_HYPHEN_BREAK, getBlinkLineBreaks, getWebKitLineBreaks } from './line-breaks.js'
 
@@ -427,18 +427,17 @@ export function analyzeText(
         // A run that goes on into that trailing white space and keeps its one white space there, as
         // a segment break after a soft hyphen, keeps its first white space instead: the text before
         // the trailing white space holds the run's space, as rich inline takes an item's to
-        // (whitespaceRunOpen in src/rich-inline.ts), a CR or FF there too, which rich inline reads
-        // as an item's white space.
+        // (whitespaceRunOpen in src/rich-inline.ts).
         let runSpace = -1
         if (leftOut !== null && trailing < source.length) {
           for (let i = trailing - 1; i >= 0; i--) {
             const code = source.charCodeAt(i)
-            if (!isCollapsibleSpaceCode(code) && !isDiscardable(code, false)) break
-            if (isCollapsibleSpaceCode(code) && leftOut[i] !== 1) {
+            if (!isSpaceOrTabOrSegmentBreak(code) && !isDiscardable(code, false)) break
+            if (isSpaceOrTabOrSegmentBreak(code) && leftOut[i] !== 1) {
               runSpace = -1
               break
             }
-            if (isCollapsibleSpaceCode(code)) runSpace = i
+            if (isSpaceOrTabOrSegmentBreak(code)) runSpace = i
           }
         }
         // Only the units from the first one that leaves move.

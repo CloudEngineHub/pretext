@@ -116,7 +116,8 @@ export function isDiscardable(ch: number, is8bit: boolean): boolean {
   return ch === CH_SHY || (!is8bit && isBidiControl(ch))
 }
 const isSpaceOrTab = (ch: number) => ch === 0x20 || ch === 0x09
-const isSpaceOrTabOrSegmentBreak = (ch: number) => ch === 0x20 || ch === 0x09 || ch === 0x0a
+// IsSpaceOrTabOrSegmentBreak, nsTextFrameUtils.cpp:51-57: a white-space run's white space, which a CR or FF isn't.
+export const isSpaceOrTabOrSegmentBreak = (ch: number) => ch === 0x20 || ch === 0x09 || ch === 0x0a
 
 // IsSpaceCombiningSequenceTail(const char16_t*, int32_t), nsTextFrameUtils.cpp:24-30, on code units.
 export function isSpaceCombiningSequenceTail(text: string, from: number): boolean {
