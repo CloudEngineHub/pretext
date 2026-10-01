@@ -35,6 +35,17 @@ builds widths are compared exactly: to `equal <ref>` a line width that differs a
 `measureText` after preparing. A rich fragment's text is `materializeLineRange()`'s over its cursors in its item's own
 prepared text, but for the hyphen of a soft hyphen it ends at, which the text the items join decides.
 
+A predicted line's range runs over the source, so white space the library leaves out inside a text is in the line of the
+unit before it (`alignStream`, `predict.ts`), as white space that ends a line is in its line: Firefox gives such a
+space, or a CR, a box at the end of a line it doesn't trim, where it is the line's last visible character. A text's
+leading and trailing white space is in no line's range. That rule came with #TBD, whose fix it also scores, so it was
+replayed apart from its author, each recorded case predicted with and without it (2026-10-01; Chrome 154.0.8037.57,
+Firefox 156.0.1, webkit-host): no verdict moves in webkit-host, none in Chrome but that of the case listed as varying
+between runs, and 4 in Firefox, `a`, two CRs or FFs, `b` at 7.9px under -1px letter spacing, where Firefox's first line
+ends at the second CR and the prediction's at `a`. Of 124,283 probe cases recorded in Firefox, 496 move. Every move is
+from `breaks` to a pass, between two predictions with the same line starts and widths, whose line ends differ only by
+white space.
+
 A recording counts only under the environment that made it, the key in its file's first line: browser build, OS build,
 OS languages, page languages, device pixel ratio and a hash of the served fonts. `check` refuses to score under any
 other ("Record again before scoring"), so a browser or OS update never reads as a regression. A case laid out

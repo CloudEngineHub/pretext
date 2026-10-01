@@ -204,9 +204,10 @@ function transformText(input: string, is8bit: boolean, preserveWhiteSpace: boole
         // no other one either (gfxFont::SplitAndInitTextRun, gfxFont.cpp:3620-3627 and :3874-3892;
         // layout.css.control-characters.visible, StaticPrefList.yaml:10926-10929). Every Canvas
         // measures it as a space (Firefox's: CanvasRenderingContext2D.cpp:4634-4637), so a layout
-        // of the source leaves it out. Left in as a control of no advance, as the profile keeps the
-        // other controls Firefox hides, it takes lines Firefox doesn't give it and slows the
-        // layout of text with CRLF (RESEARCH.md, Dead Ends).
+        // of the source leaves it out. Kept as a control of no advance, as the profile keeps the
+        // other controls Firefox hides (hidesControlCharacters), it is text at a line's edges,
+        // where Firefox trims it, and takes text with CRLF off the simple line walk (RESEARCH.md,
+        // Dead Ends).
         if (ch === 0x0d || ch === 0x0c) (leftOut ??= new Uint8Array(len))[i] = 1
         orig[n++] = i
         inWhitespace = false
