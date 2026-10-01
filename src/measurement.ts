@@ -492,7 +492,7 @@ function splitsSpaceKerning(code: number, kerning: number, measurement: FontMeas
 // - A line that ends at the space after a word keeps the word's share of their kerning, as
 //   Blink keeps it for start-aligned text without a decoration (DontReshapeEndIfAtSpace,
 //   line_breaker.cc:1655-1659). Otherwise Blink shapes the line's end again without the space,
-//   and the line's last word is narrower here than there by that share.
+//   and where the kerning tightens the two, the line's last word is narrower here than there.
 // - A space's kerning with the word after it goes on the space: a line that breaks between the
 //   two is shaped again without it (shaping_line_breaker.cc:307-324).
 export function getSpaceKerning(seg: string, metrics: SegmentMetrics, measurement: FontMeasurement, spaceWidth: number): SpaceKerning {
