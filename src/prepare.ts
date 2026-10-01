@@ -64,7 +64,7 @@ function addInternalLetterSpacing(width: number, graphemeCount: number, letterSp
 // of no script after it, the ones that start the text, and the punctuation its script shares
 // (script_run_iterator.cc), so of an Arabic word, a space and `123.` only the space is
 // spaced. WebKit spaces every glyph with an advance. Chrome 154, Firefox 156 and
-// webkit-host lay 63 strings out so (2026-10-01). The profile's unspacedCursive names the
+// webkit-host lay 64 strings out so (2026-10-01). The profile's unspacedCursive names the
 // engine's rule, and the scripts and script extensions are the JavaScript engine's
 // (RESEARCH.md, Tables Against Canvas).
 const cursiveScriptRe = /[\p{Script=Arabic}\p{Script=Syriac}\p{Script=Nko}\p{Script=Mandaic}\p{Script=Mongolian}\p{Script=Phags_Pa}\p{Script=Hanifi_Rohingya}]/uy
@@ -96,11 +96,12 @@ const markedCommonRe = new RegExp(markedCommonSource, 'uy')
 // wide, fullwidth or halfwidth (FixScriptsByEastAsianWidth, script_run_iterator.cc:83-110).
 // Regular expressions have no property for that width, so these are listed: of Unicode
 // 17's 64 opening brackets, the eight of that width whose script extensions are Common
-// alone. U+3008-U+301A and U+FF62, of that width too, list their scripts.
+// alone. U+3008-U+301A and U+FF62, of that width too, list their scripts. A bracket
+// under such a mark has the mark's scripts by then, so it isn't made Han.
 const wideOpeningBrackets = '\u2329\uFE59\uFE5B\uFE5D\uFF08\uFF3B\uFF5B\uFF5F'
-// What gives a text's first run its script: a character that has one, a wide opening
-// bracket, or the mark a Common character takes its scripts from.
-const firstScriptRe = new RegExp(`[^\\p{scx=Common}\\p{Script=Inherited}]|[${wideOpeningBrackets}]|${markedCommonSource}`, 'u')
+// What gives a text's first run its script: a character that has one, the mark a Common
+// character takes its scripts from, or a wide opening bracket.
+const firstScriptRe = new RegExp(`[^\\p{scx=Common}\\p{Script=Inherited}]|${markedCommonSource}|[${wideOpeningBrackets}]`, 'u')
 
 // Blink's script run as preparation follows it through a text's segments, in order:
 // whether it is cursive, and each bracket it has open, as its opening character and then
@@ -138,7 +139,7 @@ function enterScriptRun(run: ScriptRun, text: string, i: number, c: number): voi
     run.cursive = cursiveRunRe.test(text)
   }
   if (bracket === undefined || (bracket & 1) === 0) return
-  if (wideOpeningBrackets.includes(text.charAt(i))) run.cursive = false
+  if (!marked && wideOpeningBrackets.includes(text.charAt(i))) run.cursive = false
   if (openBrackets.length === 64) openBrackets.splice(0, 2)
   openBrackets.push(bracket >> 1, run.cursive ? 1 : 0)
 }

@@ -1674,12 +1674,13 @@ repin` shows what), and a fact read in source needs reading again.
   runtime flag `IgnoreLetterSpacingInCursiveScripts`, which Chrome's release notes list from Chrome 137 (stable
   2025-05-27) and the Chromium 152 and 153 trees have as stable; before it Chrome spaced every letter. These docs
   said 149 until #TBD, with no source. The Blink profile follows a reduced port of that iterator (#TBD,
-  `src/prepare.ts`): in Chrome 154 it gives 63 probe strings Chrome's gaps, and the real-usage sample's 8 failing
+  `src/prepare.ts`): in Chrome 154 it gives 64 probe strings Chrome's gaps, and the real-usage sample's 8 failing
   Arabic and Urdu paragraphs under letter spacing pass (2026-09-30 and 10-01). A Common character right before a
   mark that has script extensions takes the mark's scripts (`FetchNextCharacter`, `:624-635`), whose lowest code
   leads: `1` under the Arabic vowel sign U+064B starts an Arabic run among Latin letters, and under U+0303, which
   Latin, Syriac and three more scripts share, it leaves an Arabic run and stays in a Syriac one; the port follows
-  all but the last. A character several scripts share starts a run that holds them all, the lowest code leading,
+  all but the last. A wide opening bracket under such a mark has the mark's scripts before its width is asked, so it
+  isn't made Han (`Fetch` runs before `OpenBracket`, `:334-338`, `:431-441`). A character several scripts share starts a run that holds them all, the lowest code leading,
   Latin aside for a Common character, which the next character with a script narrows, and it stays in a run of any of
   them (`GetScripts`, `MergeSets`, `script_run_iterator.cc:118-215`, `:491-565`); a Common character that only one
   script lists stays in whatever run it is in. The port gives a shared character its leading script wherever it
