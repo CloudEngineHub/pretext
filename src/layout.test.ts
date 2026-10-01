@@ -2251,10 +2251,11 @@ describe('prepare invariants', () => {
     expect(profileOf(`${system} Safari/537.36`)).toEqual(profileOf(`${system} Chrome/153.0.0.0 Safari/537.36`))
   })
 
-  test('the library has no regex lookbehind, which Safari before 16.4 fails to parse', async () => {
-    // JavaScriptCore checks every regex literal when it parses a module, so one lookbehind
-    // stops the whole library from loading there, whichever engine's path it is on, and no
-    // browser the harness runs would show it.
+  test('the library has no regex lookbehind, which a JavaScriptCore without it refuses to load', async () => {
+    // JavaScriptCore checks every regex literal when it parses a module, so where it can't
+    // parse a lookbehind, one stops the whole library from loading, whichever engine's path
+    // it is on: Safari before 16.4, by its release notes (RESEARCH.md, Engine Facts, Safari).
+    // No browser the harness runs would show it.
     const directory = new URL('.', import.meta.url).pathname
     for (const file of new Bun.Glob('**/*.ts').scanSync(directory)) {
       if (file === 'layout.test.ts' || file === 'test-data.ts') continue

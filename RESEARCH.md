@@ -1729,6 +1729,15 @@ repin` shows what), and a fact read in source needs reading again.
   `tests/wrapping`, removed 2026-09-25 in favour of the harness). Making a segmenter costs about 7.8 µs, segmenting a
   short range 1.9 µs, so the scans keep one; its `containing()` bug is WebKit #324036 (PLATFORM_BUGS.md). (webkit-host,
   Safari 26.5.2 and 27.0, 2026-09-15 to 09-20.)
+- **Regex literals are checked when the code is parsed.** JavaScriptCore checks each regex literal's syntax as it
+  parses the code holding it (`parsePrimaryExpression`, `Parser.cpp:5284-5302`, WebKit 7625.1.29), so a literal it
+  can't parse stops the whole module from loading, whichever engine's path the literal is on. The regex that collapses
+  white space through bidi controls for the Gecko profile (#368) began with a lookbehind until #TBD. In the
+  JavaScriptCore of Bun 0.2.0 (built 2022-10-13), which has no lookbehind, a bundle of `src/layout.ts` with that regex
+  fails to load with `SyntaxError: Invalid regular expression: invalid group specifier name`, and the bundle without it
+  loads and lays text out; Bun 0.4.0's (2022-12-23) parses a lookbehind. Safari parses one from 16.4, by its release
+  notes: no Safari before 16.4 was run, and loading the library in one would confirm the version. `src/` holds no
+  lookbehind now, which a unit test checks, since no browser the harness runs would show one. (2026-10-01.)
 - **Kept contexts and loaded fonts.** A kept context misses a `FontFace` already loaded when it joins an empty
   `document.fonts` (PLATFORM_BUGS.md): the font cache keys without the font set while it's empty
   (`FontCascadeCache.cpp:104-115`), and the set tells observers before inserting (`CSSFontFaceSet.cpp:203-209`).

@@ -136,8 +136,9 @@ export function removeSkippableSegmentBreaks(text: string, profile: AnalysisProf
 // base (TransformText, nsTextFrameUtils.cpp:319-345). So the run's other white space goes, and so
 // does white space before only bidi controls at the end, which the line end trims.
 // The match takes the character before the run with it, so that a search never starts inside a
-// run and a long run without a control is read once. A lookbehind would do that too, but Safari
-// before 16.4 can't parse one, and fails to load the module.
+// run and a long run without a control is read once. A lookbehind would do that too, but a
+// JavaScriptCore without lookbehind refuses to load a module for one such literal: Safari before
+// 16.4, by its release notes (RESEARCH.md, Engine Facts, Safari).
 const whiteSpaceThroughBidiControlsRe = /(^|[^ \t\n\r\f])([ \t\n\r\f]+(?:[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]+[ \t\n\r\f]*)+)/g
 function collapseWhiteSpaceThroughBidiControls(text: string): string {
   return text.replace(whiteSpaceThroughBidiControlsRe, (match: string, before: string, run: string, matchAt: number) => {
