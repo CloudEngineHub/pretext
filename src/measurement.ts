@@ -541,47 +541,30 @@ function getEmojiGlyphs(text: string, measurement: FontMeasurement): number {
 // the characters that join or modify them (ZWJ, skin tones, tags, U+20E3) and the
 // variation selectors. A grapheme of emojiGraphemeRe holds one.
 const emojiStretchRe = /[\p{Emoji}\p{Extended_Pictographic}\p{Emoji_Component}\uFE0E]+/gu
-// Each character with the variation selector after it, which picks its font.
-const selectedCharacterRe = /.[\uFE0E\uFE0F]?/gsu
 
 // The glyphs of the emoji font in a text: what the correction is subtracted for, once
 // each. Font fallback decides which font draws an emoji character, and Canvas shows what
-// it decided, at one cached Canvas call per distinct grapheme of a font. For a character
+// it decided, at one cached Canvas call per distinct stretch of a font. For a character
 // with no selector, the named font's own glyph comes before the emoji font's
 // (CheckCandidate, gfxTextRun.cpp:3350-3359; FontFallbackIterator::Next,
 // font_fallback_iterator.cc:166-178), and U+FE0E asks for a text font
 // (gfxTextRun.cpp:3270-3273; SymbolsIterator::Consume, symbols_iterator.cc:67-71). So a
-// grapheme with a glyph of another font measures as the page draws it: Menlo's own
+// stretch with a glyph of another font measures as the page draws it: Menlo's own
 // U+26A1, Inter's U+2B1C, Hiragino Sans's U+26AA, or U+231A before U+FE0E. A pictograph
 // whose presentation is text by default takes the correction with no U+FE0F where only
 // the emoji font has it, as U+1F336 in Arial. Two or more glyphs are a sequence the
 // emoji font has no glyph for, drawn as its parts.
 //
-// A grapheme can mix fonts. Firefox matches a font character by character, a character
-// that extends a cluster taking the font before it only where that font has it
-// (gfxFontGroup::FindFontForChar, gfxTextRun.cpp:3178-3194), and each font shapes its own
-// characters together. So each stretch of emoji characters is asked apart from the rest
-// of its grapheme: a ZWJ sequence, a skin-toned emoji or a flag before a combining mark
-// of another script is still one glyph. A stretch that isn't all emoji glyphs is asked
-// character by character, each with its variation selector, and only its characters of
-// emojiGraphemeRe: a skin tone or a regional indicator, whose presentation is emoji, a
-// pictograph, or an emoji character before U+FE0F. ZWJ, tags, a selector and U+20E3
-// aren't asked alone: they continue the cluster of the character before them
-// (hb_set_unicode_props, hb-ot-shape.cc:468-542), where Chrome draws them in that
-// character's font or as its missing glyph, and alone they measure as neither. Alone,
-// U+20E3 is the emoji font's glyph in Zapfino.
+// Each stretch of emoji characters is asked whole, and apart from the rest of its
+// grapheme, since each font shapes its own characters together: an emoji, a sequence or
+// a flag before a combining mark of another script is still one glyph. A stretch that
+// two fonts draw takes no correction, as a text font's pictograph joined by a ZWJ to an
+// emoji in Firefox, and a stretch asked apart can be another font's than inside its
+// grapheme, as a skin tone after a letter in Chrome.
 //
-// Asking a skin tone alone is Firefox's outcome, and Chrome's gap. Chrome keeps the tone
-// in the cluster of a letter, a digit or a mark before it and sends a cluster to the next
-// font whole when one of its glyphs is missing (HarfBuzzShaper::ExtractShapeResults,
-// harfbuzz_shaper.cc:586-655), so there the tone is the named font's missing glyph. The
-// grapheme's own width bounds the count, no more emoji glyphs than emoji widths fit in
-// it, which catches that only while the grapheme's other glyphs are narrower than an
-// emoji.
-//
-// The gaps are in ENGINE_FOLLOWUPS.md, Emoji correction: another font's glyph exactly
-// as wide as an emoji takes the correction, as does Firefox's box for a missing glyph at
-// 13px, and an emoji font whose advances vary would take none.
+// Those and the other gaps are in ENGINE_FOLLOWUPS.md, Emoji correction: another font's
+// glyph exactly as wide as an emoji takes the correction, as does Firefox's box for a
+// missing glyph at 13px, and an emoji font whose advances vary would take none.
 function countEmojiGlyphs(text: string, measurement: FontMeasurement): number {
   const ends = new Int32Array(text.length)
   const graphemeCount = findGraphemeEnds(getEngineProfile().graphemeTable, text, 0, text.length, ends)
@@ -590,19 +573,7 @@ function countEmojiGlyphs(text: string, measurement: FontMeasurement): number {
     const grapheme = text.slice(start, ends[i])
     if (!emojiGraphemeRe.test(grapheme)) continue
     const stretches = grapheme.match(emojiStretchRe)!
-    let glyphs = 0
-    for (let s = 0; s < stretches.length; s++) {
-      const together = getEmojiGlyphs(stretches[s]!, measurement)
-      glyphs += together
-      if (together > 0) continue
-      const characters = stretches[s]!.match(selectedCharacterRe)!
-      for (let c = 0; c < characters.length; c++) {
-        if (emojiGraphemeRe.test(characters[c]!)) glyphs += getEmojiGlyphs(characters[c]!, measurement)
-      }
-    }
-    if (glyphs === 0) continue
-    const width = getSegmentMetrics(grapheme, measurement).width
-    count += Math.min(glyphs, Math.floor(width * (1 + CANVAS_WIDTH_ROUNDING) / measurement.emojiWidth))
+    for (let s = 0; s < stretches.length; s++) count += getEmojiGlyphs(stretches[s]!, measurement)
   }
   return count
 }

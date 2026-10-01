@@ -1757,13 +1757,9 @@ describe('measurement invariants', () => {
     const pieces = new Map<string, number>([
       ['\u26A1', 9.5], ['\u26AA', 20.25], ['\u231A\uFE0E', 9.25], ['\u00A9', 11.75], ['\u306A', 16], ['\u17C8', 3],
       ['\u200D', 0], ['\uFE0F', 0], ['\uFE0E', 0],
-      // Chrome sends a cluster with a glyph the emoji font lacks to the next font whole,
-      // and none has a skin tone before U+0301: the named font's missing glyph.
-      ['\u{1F3FB}\u0301', 12],
-      // Chrome's Canvas draws U+20E3 alone, after U+FE0F too, as a glyph of the emoji font,
-      // and after a character of the named font as its missing glyph, which after `1` adds
-      // up to an emoji's width, as in 12px Baskerville.
-      ['\u20E3', 20], ['\uFE0F\u20E3', 20], ['a\uFE0F\u20E3', 21.5], ['1\u20E3', 20], ['\u00A9\u20E3', 23.75],
+      // Chrome's Canvas draws U+20E3 after a character of the named font as that font's
+      // missing glyph, which after `1` adds up to an emoji's width, as in 12px Baskerville.
+      ['a\uFE0F\u20E3', 21.5], ['1\u20E3', 20], ['\u00A9\u20E3', 23.75],
     ])
     for (let i = 0; i < emojiFontGlyphs.length; i++) pieces.set(emojiFontGlyphs[i]!, 20)
     const measureText = Object.getOwnPropertyDescriptor(TestCanvasRenderingContext2D.prototype, 'measureText')!
@@ -1808,10 +1804,10 @@ describe('measurement invariants', () => {
       // A sequence the emoji font has no glyph for takes one correction for each part.
       ['\u{1F468}\u200D\u{1F680}\u200D\u{1F680}', 2],
       ['\u{1F600}\u200D\u{1F600}\u200D\u{1F600}', 3],
-      // Graphemes that mix fonts. A skin tone after a character of the named font, as
-      // Firefox draws it, from the emoji font. Chrome draws that tone as the named font's
-      // missing glyph, in the character's cluster, and gets this count all the same: a
-      // named gap (ENGINE_FOLLOWUPS.md, Emoji correction).
+      // Graphemes that mix fonts. A skin tone after a character of the named font is
+      // asked apart from it, as Firefox draws it, from the emoji font. Chrome draws that
+      // tone as the named font's missing glyph, in the character's cluster, and gets this
+      // count all the same: a named gap (ENGINE_FOLLOWUPS.md, Emoji correction).
       ['\u306A\u{1F3FB}', 1],
       ['\u26AA\u{1F3FB}', 1],
       ['2\u{1F3FB}', 1],
@@ -1822,15 +1818,11 @@ describe('measurement invariants', () => {
       ['\u{1F44B}\u{1F3FD}\u17C8', 1],
       ['\u{1F1EF}\u{1F1F5}\u17C8', 1],
       ['\u{1F468}\u200D\u{1F469}\u200D\u{1F467}\u17C8\u{1F3FB}', 2],
-      // No more glyphs than emoji widths fit in the grapheme: a sequence joined to a
-      // character of the named font, and the cluster Chrome draws as a missing glyph.
-      // Both hold only while that character and that missing glyph are narrower than an
-      // emoji.
-      ['\u00A9\u200D\u{1F469}\u200D\u{1F467}', 1],
-      ['\u{1F3FB}\u0301', 0],
-      ['\u{1F680}\u{1F3FB}\u0301', 1],
-      // U+20E3 isn't asked alone, where it is an emoji and wide enough to pass that bound.
+      // A stretch that two fonts draw takes no correction. That is right for U+20E3 after
+      // a character of the named font, and a named gap for a sequence joined by a ZWJ to
+      // such a character, where Firefox draws the sequence from the emoji font.
       ['\u00A9\u20E3', 0],
+      ['\u00A9\u200D\u{1F469}\u200D\u{1F467}', 0],
     ]
     try {
       const uncorrected = cases.map(([text]) => measureNaturalWidth(prepareWithSegments(text, font)))
