@@ -3290,9 +3290,10 @@ describe('rich-inline invariants', () => {
         expect(gaps(['(q) \u00AD\u200F\u00AD', ' this more'])).toEqual([0, r(space)])
         expect(gaps(['(q) \u00AD\u202B\u00AD', ' this more'])).toEqual([0, r(second)])
         expect(gaps(['ab', '\u0628\u0628\n\u061C\u00AD', ' \u00ADmore'])).toEqual([0, 0, r(second)])
-        // An atomic item's Hebrew letters aren't in the paragraph, which holds U+FFFC for it, so
-        // the space after it stays left-to-right and U+200F ends the run: Firefox 156.0.1 draws
-        // these items 114.63px wide in 16px Arial, with both spaces after the chip (2026-09-30).
+        // An atomic item's Hebrew letters aren't in the paragraph, so the space after it stays
+        // left-to-right and U+200F ends the run: Firefox 156.0.1 draws these items 114.63px wide
+        // in 16px Arial, with both spaces after the chip (2026-09-30). The row tells the item's
+        // text from a placeholder for it, not U+FFFC from another neutral.
         expect(gaps(['ab ', { text: '\u05D0\u05D1', break: 'never' }, ' \u200F\u00AD', ' this more'])).toEqual([0, r(space), r(space), r(space)])
         // A soft hyphen after no white space opens no run, and text after one closes it.
         expect(walk(['see\u00AD', ' this word'], Infinity)).toEqual([[r(see + space + words), [[0, 0, r(see)], [1, r(space), r(words)]]]])
@@ -4997,22 +4998,24 @@ describe('layout invariants', () => {
     // are closing marks that draw in the left half of their em next to Han text and centered
     // alone, as locl can place them, and ； draws in the left half. Canvas shapes `(`, `)`, `·`,
     // `；` and curly quotes as words of their own, so it halts nothing between them and those
-    // marks, but the first of two ；. The font named Wide Dots draws 、。，． and ； across their em,
-    // marks of no type that nothing halts and that halt nothing. Curly quotes are narrow, but in
-    // the font named Wide Quotes, where each is an em wide, an opening one drawn in its right
-    // half and a closing one in its left, and the second of two opening ones and the first of two
-    // closing ones are halted; in the one named Wide Opening Quotes only the opening ones are
-    // wide, and none is halted.
+    // marks, but the first of two ；. A font named Wide Dots draws 、。，． and ； across their em,
+    // marks of no type that nothing halts and that halt nothing; one named Wide Colons draws ：
+    // and ； so, and one named Wide Full Stop only ．, which leaves the four dots without a type,
+    // as Blink types them only together. Curly quotes are narrow, but in the font named Wide
+    // Quotes, where each is an em wide, an opening one drawn in its right half and a closing one
+    // in its left, and the second of two opening ones and the first of two closing ones are
+    // halted; where only the opening ones, the closing ones or the double ones are wide, none is.
     Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', {
       ...measureText,
       value(this: TestCanvasRenderingContext2D, text: string) {
         canvasMeasurementCount++
         const em = parseFontSize(this.font)
-        const wideQuotes = this.font.includes('Wide Quotes') ? '“‘”’' : this.font.includes('Wide Opening Quotes') ? '“‘' : ''
-        const wideDots = this.font.includes('Wide Dots')
-        const closing = wideDots ? '」』）】〉》：' : '」』）】〉》、。，．：'
+        const named = (names: [string, string][]): string => names.find(([name]) => this.font.includes(name))?.[1] ?? ''
+        const wideQuotes = named([['Wide Quotes', '“‘”’'], ['Wide Opening Quotes', '“‘'], ['Wide Closing Quotes', '”’'], ['Wide Double Quotes', '“”']])
+        const wide = named([['Wide Dots', '、。，．；'], ['Wide Colons', '：；'], ['Wide Full Stop', '．']])
+        const closing = '」』）】〉》' + (/[、。，．]/.test(wide) ? '' : '、。，．') + (wide.includes('：') ? '' : '：')
         let pairs = (text.match(new RegExp(`(?<=[${closing}「])「|[${closing}](?=[${closing}・\u3000])`, 'g')) ?? []).length
-        if (!wideDots) pairs += (text.match(/；(?=；)/g) ?? []).length
+        if (!wide.includes('；')) pairs += (text.match(/；(?=；)/g) ?? []).length
         if (wideQuotes.length === 4) pairs += (text.match(/(?<=[“‘])[“‘]|[”’](?=[”’])/g) ?? []).length
         // Ink bounds over the characters, each at its advance.
         const han = /\p{sc=Han}/u.test(text)
@@ -5020,12 +5023,13 @@ describe('layout invariants', () => {
         let left = Infinity
         let right = -Infinity
         for (const ch of text) {
-          const quote = wideQuotes.indexOf(ch)
-          const w = quote < 0 ? measureWidth(ch, this.font) : em
+          const quote = wideQuotes.includes(ch)
+          const opens = ch === '“' || ch === '‘'
+          const w = quote ? em : measureWidth(ch, this.font)
           const dot = '、。，．：；'.includes(ch)
           const leftHalf = ch === '；' || han
-          left = Math.min(left, x + (quote >= 0 ? (quote < 2 ? 0.6 : 0.1) * em : dot ? (leftHalf ? 0.1 : 0.3) * em : 0))
-          right = Math.max(right, x + (quote >= 0 ? (quote < 2 ? 0.9 : 0.4) * em : dot && wideDots && ch !== '：' ? 0.9 * em : dot ? (leftHalf ? 0.4 : 0.7) * em : w))
+          left = Math.min(left, x + (quote ? (opens ? 0.6 : 0.1) * em : dot ? (leftHalf ? 0.1 : 0.3) * em : 0))
+          right = Math.max(right, x + (quote ? (opens ? 0.9 : 0.4) * em : dot && wide.includes(ch) ? 0.9 * em : dot ? (leftHalf ? 0.4 : 0.7) * em : w))
           x += w
         }
         const width = (wideQuotes === '' ? measureWidth(text, this.font) : x) - pairs * em / 2
@@ -5138,19 +5142,20 @@ describe('layout invariants', () => {
       // Blink types the four dots together, and the colon and the semicolon each alone, from their
       // glyphs' ink in the font (HanKerning::FontData, han_kerning.cc:504-509): 16px Hiragino Sans
       // under ja halts the same pairs in Chrome, but its colon and semicolon, drawn centered, are
-      // never halted themselves. The Wide Dots font, which no browser was asked about, gives the
-      // dots and the semicolon no type and so no pair, which tells the colon's type from theirs
-      // and theirs from the middles'.
-      const typedFonts = [font, '16px Halt Wide Dots Sans']
+      // never halted themselves. Three fonts no browser was asked about each give some of them no
+      // type and so no pair, as [the font, its marks of no type]: between them a dot, the colon,
+      // the semicolon and a middle each pair otherwise than the other three, and the dots lose
+      // their type where one of them is drawn otherwise than the rest.
+      const typedFonts: [string, string][] = [[font, ''], ['16px Halt Wide Dots Sans', '、。，．；'], ['16px Halt Wide Colons Sans', '：；'], ['16px Halt Wide Full Stop Sans', '、。，．']]
       for (let f = 0; f < typedFonts.length; f++) {
+        const [typedFont, typeless] = typedFonts[f]!
         for (let t = 0; t < typed.length; t++) {
           const [mark, haltsAfter, haltsBefore, halted] = typed[t]!
-          const typeless = f === 1 && '、。，．；'.includes(mark)
           const closer = '‘“’”·‧；'.includes(mark) ? '」' : '”'
           const pairs: [string, boolean][] = [[`中${mark}「中`, haltsAfter], [`中」${mark}中`, haltsBefore], [`中${mark}${closer}中`, halted]]
           for (let p = 0; p < pairs.length; p++) {
             const [text, halts] = pairs[p]!
-            expect({ font: typedFonts[f]!, text, width: measureNaturalWidth(prepareWithSegments(text, typedFonts[f]!)) }).toEqual({ font: typedFonts[f]!, text, width: measureWidth(text, font) - (halts && !typeless ? 8 : 0) })
+            expect({ font: typedFont, text, width: measureNaturalWidth(prepareWithSegments(text, typedFont)) }).toEqual({ font: typedFont, text, width: measureWidth(text, font) - (halts && !typeless.includes(mark) ? 8 : 0) })
           }
         }
       }
@@ -5168,10 +5173,21 @@ describe('layout invariants', () => {
       for (const text of ['中」“中', '中」‘中', '中”「中', '中’「中']) {
         expect({ text, width: measureNaturalWidth(prepareWithSegments(text, font)) }).toEqual({ text, width: measureWidth(text, font) })
       }
-      // Quotes are fullwidth only where the opening ones draw in the right half of an em and the
-      // closing ones in the left (han_kerning.cc:525-534), so wide opening quotes alone leave a
-      // closing quote narrow, and `「` after it as it is.
-      expect(measureNaturalWidth(prepareWithSegments('中’「中', '16px Halt Wide Opening Quotes Sans'))).toBe(measureWidth('中’「中', font))
+      // A fullwidth closing quote is halted before the middles Canvas shapes as another word,
+      // U+30FB and U+3000, so there the type the library gives those decides the halt: Hiragino
+      // Sans GB draws both at 56px in Chrome 154.0.8037.57, and `中”中中` at 64 (2026-10-01).
+      for (const text of ['中”・中', '中”\u3000中']) {
+        expect({ text, width: measureNaturalWidth(prepareWithSegments(text, '16px Halt Wide Quotes Sans')) }).toEqual({ text, width: 56 })
+      }
+      // Quotes are fullwidth only where both opening ones draw in the right half of an em and
+      // both closing ones in the left (han_kerning.cc:525-534), so in a font whose opening quotes
+      // alone, closing quotes alone or double quotes alone are an em wide a closing quote stays a
+      // narrow mark, and `「` after it as it is. No browser was asked about such a font.
+      const partlyWide: [string, number][] = [['Opening', 54.4], ['Closing', 64], ['Double', 64]]
+      for (let q = 0; q < partlyWide.length; q++) {
+        const [quotes, width] = partlyWide[q]!
+        expect({ quotes, width: measureNaturalWidth(prepareWithSegments('中”「中', `16px Halt Wide ${quotes} Quotes Sans`)) }).toEqual({ quotes, width })
+      }
       // A line that ends with a halted mark paints it halted, where what follows it takes no room:
       // a space, which fits with letter spacing where the mark and the gap after it don't, and
       // a preserved space that fits at the end of the text.
