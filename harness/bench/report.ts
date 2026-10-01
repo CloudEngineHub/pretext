@@ -9,7 +9,8 @@ import type { DocResult, Sample } from './page.ts'
 // from base that the candidate or the control held in one direction in all three sessions, rounded up to a whole
 // percent. Calibrated 2026-09-26 at 7204cab2, `bun harness bench HEAD --sessions=3` in the foreground, in Chrome 154.0.8037.57,
 // Firefox 156.0.1 and Safari 27.0 (22625.1.29.11.27), on an M5 Max (Mac17,7) under macOS 27.0 (26A428), on AC power, at
-// device pixel ratio 2. Uncalibrated rows take none.
+// device pixel ratio 2. The lines row's Latin and CJK entries came later and take the floor its mixed entries gave.
+// Uncalibrated rows take none.
 export const FLOORS: Record<string, number> = { new: 0.06, rich: 0.05, seen: 0.01, resize: 0.05, lines: 0.01, worst: 0.02 }
 
 export type SessionResults = { browser: string; session: number; seed: string; docs: Array<{ row: string; family: string; id: string }>; results: Record<string, DocResult> }

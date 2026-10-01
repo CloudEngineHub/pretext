@@ -2,7 +2,7 @@
 import { describe, expect, test } from 'bun:test'
 import { verdict } from './report.ts'
 import { documents } from './run.ts'
-import { familyText, MESSAGE_FAMILIES, units } from './texts.ts'
+import { familyText, MESSAGE_FAMILIES, STYLE, units } from './texts.ts'
 
 describe('the verdict', () => {
   test('a row is slower or faster only outside the band in every session: one noisy session would call a change', () => {
@@ -37,6 +37,22 @@ describe('the texts', () => {
           expect(found).toBeGreaterThanOrEqual(at)
           at = found + m.length
         }
+      }
+    }
+  })
+
+  test('the line functions run on Latin and CJK messages of their own: one script\'s slower line walk would hide among the mixed ones', () => {
+    const lines = documents(['lines'], 'bench-test', false)
+    expect(lines.map(d => `${d.family} ${d.ops.map(op => op.op).join(' ')}`)).toEqual(['mixed stats walk stream lines', 'latin stats walk stream', 'cjk stats walk stream'])
+    for (const d of lines) {
+      const family = d.family as 'mixed' | 'latin' | 'cjk'
+      expect({ font: d.font, lang: d.lang }).toEqual(STYLE[family])
+      for (const op of d.ops) {
+        expect(op.textUnits).toBeGreaterThanOrEqual(20_000)
+        const texts = op.texts as string[]
+        expect(units(texts)).toBe(op.textUnits!)
+        // The mixed messages may end with an emoji their text doesn't hold.
+        if (family !== 'mixed') for (const message of texts) expect(familyText(family)).toContain(message)
       }
     }
   })

@@ -83,8 +83,14 @@ export function documents(rows: readonly string[], seed: string, focus: boolean)
     ])
   }
   if (want('lines')) {
-    const texts = reader('mixed').batch(20_000)!
-    doc('lines', 'mixed', 'en', STYLE.mixed.font, {}, ['stats', 'walk', 'stream', 'lines'].map(op => ({ op, texts, textUnits: units(texts), handles: 'segments' as const, widths: [180, 240, 320] })))
+    // Latin and CJK messages of their own too: the mixed ones hold little of any one script, so a line walk that slowed
+    // on one script's handles would leave their rows within noise, as one on CJK handles would have in #366
+    // (RESEARCH.md, The Walkers' Shapes).
+    for (const family of ['mixed', 'latin', 'cjk'] as const) {
+      const texts = reader(family).batch(20_000)!
+      const ops = family === 'mixed' ? ['stats', 'walk', 'stream', 'lines'] : ['stats', 'walk', 'stream']
+      doc('lines', family, STYLE[family].lang, STYLE[family].font, {}, ops.map(op => ({ op, texts, textUnits: units(texts), handles: 'segments' as const, widths: [180, 240, 320] })))
+    }
   }
   if (want('worst')) {
     for (const shape of shapes()) {

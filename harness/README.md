@@ -179,7 +179,8 @@ harness/invariants.test.ts`) and the bench's floors.
 Speed claims rest on `bun harness bench`'s same-document ratios. Its rows (`new`, `rich`, `seen`, `resize`, `lines`,
 `worst`) follow what an app does; never rank `prepare()` against `layout()`, as one is paid once and the other on every
 resize. The `new` rows time text no library or browser has laid out: Firefox and Safari keep shaped text per font,
-shared by every canvas and the DOM, so a fresh canvas doesn't make text new.
+shared by every canvas and the DOM, so a fresh canvas doesn't make text new. The `lines` row times the line functions on
+mixed, Latin and CJK messages, each family in a document of its own.
 
 - **A control copy.** Each document runs base, the candidate and a second copy of base, shuffled each round, since only
   same-document ratios survive drift between sessions (`RESEARCH.md`, Evaluation Traps, has the numbers behind this and
@@ -192,15 +193,19 @@ shared by every canvas and the DOM, so a fresh canvas doesn't make text new.
 - **Floors**, the noise threshold under which a row's ratio isn't called a change (1-6% by row, `FLOORS` in
   `bench/report.ts`, with the builds and machine they came from), are the largest deviation held in one direction in all
   three sessions of a calibration of HEAD against itself; calibrate again, with `bun harness bench HEAD --sessions=3`,
-  after a pin bump or on another machine. Floors from the worst single reading would be too wide, since one copy can run
-  slow for a whole document (in one session Firefox 156.0.1's base copy took about twice as long as the other two on
-  kept CJK handles, 2026-09-26), and would have hidden a real 20-25% slowdown. These floors flag all four slowdowns
-  known between main before #340 (6d1d2106) and 217c84b8, a commit of #340: pre-wrap layout and walk at 1.05 of base's
-  time in Chrome and 1.18-1.25 in Firefox, and letter-spaced CJK and control layouts at 1.12 and 1.20 in Safari.
+  after a pin bump, on another machine or when rows are added. The Latin and CJK `lines` rows came after the
+  calibration and take the floor the mixed ones gave. Floors from the worst single reading would be too wide, since one
+  copy can run slow for a whole document (in one session Firefox 156.0.1's base copy took about twice as long as the
+  other two on kept CJK handles, 2026-09-26), and would have hidden a real 20-25% slowdown. These floors flag all four
+  slowdowns known between main before #340 (6d1d2106) and 217c84b8, a commit of #340: pre-wrap layout and walk at 1.05
+  of base's time in Chrome and 1.18-1.25 in Firefox, and letter-spaced CJK and control layouts at 1.12 and 1.20 in
+  Safari.
 - **WebKit's width cache** samples one Canvas call in 21 after a run of misses, so a prepare that submits n strings
   speeds up only after 21 / gcd(n, 21) repeats: compare submitted text and cold first prepares.
 
-A full bench took about 27 minutes (2026-09-26). Nothing timed is checked in.
+A session of every row took 75 s in Chrome, 92 s in Firefox and 79 s in Safari (the medians of 95-98 sessions each,
+2026-09-26 to 30; a document that loses focus waits a minute and starts again) before the Latin and CJK `lines` rows,
+which add six operations of about 2 s each. Nothing timed is checked in.
 
 ## Browsers and pins
 
@@ -241,6 +246,7 @@ emoji modifier split from its base across rich items; a rich paragraph of one it
 text, so `src/layout.test.ts` checks its line functions against the rich stepper; which line holds a box of width 0,
 which has no rectangle, but through the text around it; Chrome's UI language, and so its `zh` table for pages without a
 `lang`; rendering other than macOS's, though Android and Windows are 65% of page views (`weights.json`); text chat users
-wrote (the sample's chat draws are stand-ins); or the demos' painted layout. No planted defect guards the watchdog's
-kill, the bench's shuffle and its separate compiles (each copy of the library compiled in a module of its own),
-Firefox's start-up hold, the page passing the browser's name to the recorder, or the cap on a job's browser.
+wrote (the sample's chat draws are stand-ins); or the demos' painted layout. The bench times the line functions on no
+Arabic or Thai messages but the mixed ones'. No planted defect guards the watchdog's kill, the bench's shuffle and its
+separate compiles (each copy of the library compiled in a module of its own), Firefox's start-up hold, the page passing
+the browser's name to the recorder, or the cap on a job's browser.
