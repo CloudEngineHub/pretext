@@ -437,6 +437,15 @@ function isCanvasWord(code: number): boolean {
     (code >= 0x3400 && code <= 0x9fff) || (code >= 0xf900 && code <= 0xfaff)
 }
 
+// Premise: no font kerns a Hangul syllable with the space, so those aren't asked either. Korean
+// words start and end with one of hundreds of syllables, and asking about each made 2.3 times
+// the Canvas calls for Korean text. None of the 11,172 kerns with it in the 14 Korean families
+// of macOS 27 (Chrome 154) or in Noto Sans CJK (HarfBuzz 14); in a font where one does, its
+// lines stay as wide as its words measured apart (2026-10-01).
+function isHangulSyllable(code: number): boolean {
+  return code >= 0xac00 && code <= 0xd7a3
+}
+
 // A character's kerning with a space glyph after it, or before it, asked of Canvas when a
 // segment first has the character at that edge.
 function getCharacterSpaceKerning(character: string, measurement: FontMeasurement, spaceWidth: number, after: boolean): number {
@@ -444,7 +453,8 @@ function getCharacterSpaceKerning(character: string, measurement: FontMeasuremen
   if (kerning === undefined) {
     // Where U+2028 doesn't measure as the space, as in another engine's Canvas, nothing pairs
     // with it.
-    kerning = clusterPartRe.test(character) || isCanvasWord(character.charCodeAt(0)) || getSegmentMetrics('\u2028', measurement).width !== spaceWidth
+    const code = character.charCodeAt(0)
+    kerning = clusterPartRe.test(character) || isCanvasWord(code) || isHangulSyllable(code) || getSegmentMetrics('\u2028', measurement).width !== spaceWidth
       ? noSpaceKerning : { after: NaN, before: NaN }
     measurement.characterSpaceKerning.set(character, kerning)
   }

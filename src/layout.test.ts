@@ -5436,7 +5436,7 @@ test('the Chromium profile takes the kerning between a word and the spaces besid
     prepare('AA TT', '16px Glyph Two')
     const glyphAsked = measured.filter(text => text.includes('\\u2028')).length - asked.length
     measured.length = 0
-    prepare('\\u6F22 \\u3042 \\u30A2 \\u6F22', '16px Words')
+    prepare('\\u6F22 \\u3042 \\u30A2 \\uD55C\\uAD6D \\u6F22', '16px Words')
     prepare('\\u05D0 AA TT', '16px Mixed')
     console.log(JSON.stringify({ widths, lines, rich, asked, glyphAsked, unasked: measured.filter(text => text.includes('\\u2028')),
       cut: measured.filter(text => text.length > 1 && text.includes(' ')) }))
@@ -5507,8 +5507,8 @@ test('the Chromium profile takes the kerning between a word and the spaces besid
   // the letter. No string holds a U+0020 beside other text.
   expect(asked).toEqual(['A\u2028', 'T\u2028', '\u2028', '\u2028A', '\u2028T'])
   expect(glyphAsked).toBe(1)
-  // Canvas shapes an ideograph or a kana as a word of its own, and text that mixes directions
-  // takes no kerning, so neither asks.
+  // Canvas shapes an ideograph or a kana as a word of its own, no font kerns a Hangul syllable
+  // with the space, and text that mixes directions takes no kerning, so none of them asks.
   expect(unasked).toEqual([])
   expect(cut).toEqual([])
 })
