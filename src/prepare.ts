@@ -117,16 +117,22 @@ function isSpaceKind(kind: number): boolean {
   return kind === SPACE || kind === PRESERVED_SPACE
 }
 
-// The scripts a character can be in as far as kerning with a space goes, as bits: Latin,
-// Cyrillic, Greek and one bit for every other script. A character of any script has them all.
-const LATIN_SCRIPT = 1
-const OTHER_SCRIPT = 8
+// The scripts a character can be in as far as kerning with a space goes, as bits: Cyrillic,
+// Greek and Latin, and one bit for a character in none of the three. A character of any script
+// has them all. The three are in the order Blink puts a Common character's extensions in, by
+// ICU script code with Latin last (GetScripts, script_run_iterator.cc:191-198), so the lowest
+// bit a run has left is the script Blink resolves it to.
+const OTHER_SCRIPT = 1
+const CYRILLIC_SCRIPT = 2
+const GREEK_SCRIPT = 4
+const LATIN_SCRIPT = 8
 const ANY_SCRIPT = 15
 // Blink reads a character's Script_Extensions (ICUScriptData::GetScripts,
 // script_run_iterator.cc:120-216): an Inherited character, or a Common one without extensions,
-// joins any run, and a Common one with extensions is in those scripts only. Half of a surrogate
-// pair counts with Common, and a Common character with one extension, which joins any run in
-// Blink, is in that script here (ENGINE_FOLLOWUPS.md, Kerning with spaces).
+// joins any run, and a Common one with extensions is in those scripts only. Not as in Blink
+// (ENGINE_FOLLOWUPS.md, Kerning with spaces): half of a surrogate pair counts with Common, a
+// Common character with one extension is in that script, and one in Cyrillic, Greek or Latin
+// counts in none of its other scripts.
 const anyScriptRe = /[\p{sc=Zinh}\p{scx=Zyyy}\p{Cs}]/u
 const latinScriptRe = /\p{scx=Latn}/u
 const cyrillicScriptRe = /\p{scx=Cyrl}/u
@@ -140,9 +146,12 @@ function getKerningScripts(character: string): number {
   // ASCII letters are Latin and the rest of ASCII is Common.
   const code = character.charCodeAt(0)
   if (code < 0x80) return (code | 0x20) >= 0x61 && (code | 0x20) <= 0x7a ? LATIN_SCRIPT : ANY_SCRIPT
-  if (anyScriptRe.test(character)) return ANY_SCRIPT
-  return (latinScriptRe.test(character) ? LATIN_SCRIPT : 0) | (cyrillicScriptRe.test(character) ? 2 : 0) |
-    (greekScriptRe.test(character) ? 4 : 0) || OTHER_SCRIPT
+  // A Common opening bracket that is East Asian wide, fullwidth or halfwidth is in the Han
+  // scripts (FixScriptsByEastAsianWidth, :83-110, which OpenBracket calls, :431-441): the
+  // opening brackets from U+FE17 up.
+  if (anyScriptRe.test(character)) return code >= 0xfe17 && openingBracketRe.test(character) ? OTHER_SCRIPT : ANY_SCRIPT
+  return (latinScriptRe.test(character) ? LATIN_SCRIPT : 0) | (cyrillicScriptRe.test(character) ? CYRILLIC_SCRIPT : 0) |
+    (greekScriptRe.test(character) ? GREEK_SCRIPT : 0) || OTHER_SCRIPT
 }
 
 // How far a text's script runs were read, the scripts the run there can be in, and the script
@@ -181,24 +190,19 @@ function spaceSharesScriptRun(text: string, at: number, end: number, runs: Scrip
 // all its characters share and ends before a character that shares none (MergeSets, :490-565).
 // A closing bracket takes the script of the run its opening bracket is in, once that run has
 // ended (CloseBracket, :443-489, and FixupStack, :574-595); any opening bracket pairs with any
-// closing one here, and only the last one opened is remembered. A Common opening bracket that
-// is East Asian wide is in the Han scripts (FixScriptsByEastAsianWidth, :83-110); past U+2329
-// those start at U+FE17.
+// closing one here, and only the last one opened is remembered.
 function readScriptRuns(text: string, to: number, runs: ScriptRuns): number {
   for (; runs.read < to; runs.read++) {
     const character = text[runs.read]!
     let scripts = getKerningScripts(character)
     // Brackets are Common or, with extensions, East Asian.
     const opens = (scripts & OTHER_SCRIPT) !== 0 && openingBracketRe.test(character)
-    if (opens) {
-      if (character.charCodeAt(0) >= 0xfe17) scripts = OTHER_SCRIPT
-    } else if (runs.bracket > 0 && (scripts & OTHER_SCRIPT) !== 0 && closingBracketRe.test(character)) {
-      scripts = runs.bracket
-    }
+    if (!opens && runs.bracket > 0 && (scripts & OTHER_SCRIPT) !== 0 && closingBracketRe.test(character)) scripts = runs.bracket
     if ((runs.scripts & scripts) !== 0) {
       runs.scripts &= scripts
     } else {
-      // The run that ends takes the first of the scripts it has left, Latin before the others.
+      // The run that ends resolves to the first of the scripts it has left
+      // (ResolveCurrentScript, :639-642).
       if (runs.bracket === -1) runs.bracket = runs.scripts & -runs.scripts
       runs.scripts = scripts
     }

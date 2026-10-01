@@ -5593,7 +5593,7 @@ test('the Chromium profile takes the kerning between a word and the spaces besid
       ['(12) TT', '16px Test', {}], ['\\u05D0 AA TT AA \\u05D1', '16px Test', {}], ['\\u202AAA TT', '16px Test', {}],
       ['AA T\\u0301T', '16px Test', {}],
       ['TT\\u3002 TT', '16px Test', {}], ['TT \\u00B7 TT', '16px Test', {}], ['\\u03B1\\u03B1 \\u00B7 TT', '16px Test', {}],
-      ['TT \\uFF08TT\\uFF09 TT', '16px Test', {}],
+      ['TT \\uFF08TT\\uFF09 TT', '16px Test', {}], ['TT \\uFF08 TT', '16px Test', {}], ['(\\u00B7 \\u0436\\u0436) TT', '16px Test', {}],
       ['AA TT', '16px Halves', {}], ['AA  TT', '16px Halves', { whiteSpace: 'pre-wrap' }],
       ['xW y', '16px Halves Wide', {}], ['y Wx', '16px Halves Wide', {}], ['AA TT', '16px Halves Wide', {}],
     ]) widths.push(prepareWithSegments(text, font, options).widths)
@@ -5664,8 +5664,13 @@ test('the Chromium profile takes the kerning between a word and the spaces besid
     [16, 4, 8, 2, 16],
     [16, 4, 8, 4, 16],
     // A fullwidth opening bracket is in the Han scripts, a run of its own, which its closing
-    // bracket takes.
+    // bracket takes, and which the space after it is in.
     [16, 4, 32, 4, 16],
+    [16, 4, 8, 4, 16],
+    // A bracket opened in a run that ends with several scripts left takes the first of them, and
+    // Latin is the last: after a middle dot, which Latin and Greek share, the run is Greek, so
+    // the space after the closing bracket doesn't kern with a Latin word.
+    [16, 4, 24, 4, 16],
     // The kern table puts half of a word's kerning with the space on the space.
     [19.5, 1.5, 16],
     [19.5, 5.5, 16],
