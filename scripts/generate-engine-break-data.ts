@@ -42,7 +42,13 @@
 // - properties.json: icu_properties 2.1.2's compiled data (Unicode 17), the crate Firefox
 //   vendors, as [first, last, value] ranges over every code point: Bidi_Class and
 //   East_Asian_Width in ICU4C numbering (CodePointMapData::get32(cp).to_icu4c_value()).
-//   Dumped by a small Rust program that depends on that crate alone.
+//   Dumped by a small Rust program that depends on that crate alone. Gecko asks its ICU4C for
+//   East_Asian_Width, not this crate (u_getIntPropertyValue, intl/components/src/
+//   UnicodeProperties.h:75-100), so the map takes a premise: both hold one Unicode version's
+//   values. Firefox 156.0's do, on every code point (ICU 78.3's propsVectors, intl/icu/source/
+//   common/uchar_props_data.h, bits 12-14 of the first column, uprops.h:159-160; compared on
+//   2026-10-01). Nothing compares a later Firefox's: `bun harness repin firefox` looks for the
+//   Bidi_Class bytes only.
 // - bidi_pairs_table.rs: servo/unicode-bidi ca612daf's bracket table,
 //   src/char_data/tables.rs:519-535.
 // - property_enum_bidi_class_v1.rs.data: third_party/rust/icu_properties_data/data/ in
@@ -164,8 +170,8 @@ function parsePairTable(source: string, marker: string): Uint8Array {
   return bytes
 }
 
-// An entry cut from an ICU data package starts with a DataHeader (unicode/udata.h:116-153),
-// which rbbidata.cpp:49-62 checks and skips.
+// An entry cut from an ICU data package starts with a DataHeader (ucmndata.h:36-46: its size, two
+// magic bytes and a UDataInfo, unicode/udata.h:116-153), which rbbidata.cpp:49-62 checks and skips.
 function withoutDataHeader(bytes: Uint8Array): Uint8Array {
   const headerSize = bytes[0]! | (bytes[1]! << 8)
   if (bytes[2] !== 0xda || bytes[3] !== 0x27 || headerSize < 20 || bytes[8] !== 0 || bytes[9] !== 0 ||
@@ -241,7 +247,7 @@ function parseBreakRules(bytes: Uint8Array): CompiledRules {
   const indexLength = view.getUint16(trie + 6, true)
   const trieDataLength = ((options & 0xf000) << 4) | view.getUint16(trie + 8, true) // ucptrie.cpp:74-75
   const trieHighStart = view.getUint16(trie + 14, true) << 9 // UCPTRIE_SHIFT_2, ucptrie.cpp:80
-  const trieIndex = readValues(Uint16Array, bytes, trie + 16, indexLength) // ucptrie.cpp:117-119
+  const trieIndex = readValues(Uint16Array, bytes, trie + 16, indexLength) // ucptrie.cpp:110-113
   const dataStart = trie + 16 + indexLength * 2
   const trieData = valueWidth === 0
     ? readValues(Uint16Array, bytes, dataStart, trieDataLength)
@@ -254,8 +260,9 @@ function parseBreakRules(bytes: Uint8Array): CompiledRules {
 }
 
 // A trie's data index past its fast range and below its high start: ucptrie_internalSmallIndex
-// (ucptrie.cpp:161-185) and ICU4X's internal_small_index (icu_collections 2.1.1
-// cptrie.rs:433-500), with SHIFT_1 14, SHIFT_2 9, SHIFT_3 4 and 5-bit masks.
+// (ucptrie.cpp:161-185) and ICU4X's internal_small_index (cptrie.rs:444-502, in icu_collections
+// 2.1.1's src/codepointtrie/ as Firefox 156.0 vendors it), with SHIFT_1 14, SHIFT_2 9, SHIFT_3 4
+// and 5-bit masks.
 function getTrieDataIndex(index: Uint16Array, firstLevelStart: number, c: number): number {
   let i3Block = index[index[(c >> 14) + firstLevelStart]! + ((c >> 9) & 0x1f)]!
   let i3 = (c >> 4) & 0x1f
@@ -280,11 +287,11 @@ function getCategory(rules: CompiledRules, c: number): number {
   return rules.trieData[getTrieDataIndex(index, 1020, c)]!
 }
 
-// ICU4X's CodePointTrie::get32 for TrieType::Small with u8 values (cptrie.rs:648-656), for a
+// ICU4X's CodePointTrie::get32 for TrieType::Small with u8 values (cptrie.rs:668-676), for a
 // code point up to U+10FFFF: Firefox's line data. SMALL_INDEX_LENGTH is 64.
 function getSmallTrieValue(index: Uint16Array, data: Uint8Array, highStart: number, c: number): number {
-  if (c <= 0xfff) return data[index[c >> 6]! + (c & 0x3f)]! // get32_assuming_fast_index, :568-600
-  if (c >= highStart) return data[data.length - 2]! // small_index, :503-509
+  if (c <= 0xfff) return data[index[c >> 6]! + (c & 0x3f)]! // get32_assuming_fast_index, :579-592
+  if (c >= highStart) return data[data.length - 2]! // small_index, :514-520
   return data[getTrieDataIndex(index, 64, c)]!
 }
 
