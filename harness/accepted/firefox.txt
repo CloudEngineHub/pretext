@@ -9,6 +9,9 @@ rich-426a9dc0f93dbfdb breaks
 ## A newline, soft hyphen and newline that start a span, at 24 px and wider: Firefox collapses them into one space, as it collapses white space across the characters it discards, where the library keeps a space on each side of the soft hyphen, as it does in one text (ENGINE_FOLLOWUPS.md)
 rich-90126064978ae3b0 breaks
 
+## A soft hyphen in 16 px Inter, whose U+2010 is 1.6 px narrower than its "-", at 73 px: Firefox paints U+2010 where the primary font has it, so its hyphen fits where the "-" the library measures doesn't (main too; ENGINE_FOLLOWUPS.md, Line edges)
+facts-243cfa9e3609fd41 count
+
 ## A soft hyphen whose hyphen doesn't fit, where rich items split its word, at 24 px and wider: Firefox breaks the word between letters, the library at the soft hyphen, as it does for the text in one node (ENGINE_FOLLOWUPS.md)
 rich-4635ddffedd43c84 breaks
 rich-8736e842495c21ea count
@@ -30,6 +33,10 @@ rich-a8f82afd142a4fc9 breaks
 rich-bf66fbd64988de97 breaks
 rich-d91958dcd0c9e964 breaks
 rich-fb40dedd1c6e8356 breaks
+
+## A word whose first syllable doesn't fit with its hyphen ("trans", "i", "t" and "lantic" between soft hyphens in 16 px Arial), at 39-41 px: Firefox breaks the word between letters, the library at a soft hyphen whose hyphen overflows, as in #323's cases (main too; RESEARCH.md, Dead Ends, Invisible Characters, Controls And Soft Hyphens)
+facts-5f171106bebb3c50 breaks
+facts-fd3b41e1c87fb019 breaks
 
 ## Arabic and Hebrew beside brackets, controls, U+FFFC or rich-item edges, at 24 px and wider: Firefox breaks there where the library doesn't
 catalog-0bbc041b22a8eb25 count

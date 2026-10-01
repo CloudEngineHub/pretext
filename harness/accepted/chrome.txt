@@ -34,6 +34,9 @@ rich-c71a21ddc6fa35ca breaks
 rich-d7ac0a6af37a56bf count
 rich-dc1f44c993d80708 breaks
 
+## A soft hyphen in 16 px Inter, whose U+2010 is 1.6 px narrower than its "-", at 73 px: Chrome paints U+2010 where the primary font has it, so its hyphen fits where the "-" the library measures doesn't (main too; ENGINE_FOLLOWUPS.md, Line edges)
+facts-a24d86e312733838 count
+
 ## A soft hyphen that ends a word before a space, or follows a space before a word, whose hyphen doesn't fit, at 24 px and wider: Chrome breaks the word before it between letters, as for the text in one node, where the library ends the line at the space or after the soft hyphen (main and fd8002ba too; ENGINE_FOLLOWUPS.md)
 rich-678c2f661ad5b57b count
 rich-848257104aba6eb8 count
@@ -66,6 +69,10 @@ rich-4a3e3dad61cf6b82 breaks
 rich-7f90cee66af55112 breaks
 rich-ab7c458af6c93dbc count
 rich-d1948dbaa742e085 count
+
+## A word whose first syllable doesn't fit with its hyphen ("trans", "i", "t" and "lantic" between soft hyphens in 16 px Arial), at 39-41 px: Chrome breaks the word between letters, the library at a soft hyphen whose hyphen overflows, as in #323's cases (main too; RESEARCH.md, Dead Ends, Invisible Characters, Controls And Soft Hyphens)
+facts-1cf21b0ce4551627 breaks
+facts-5f171106bebb3c50 breaks
 
 ## Arabic and Hebrew beside brackets, controls, U+FFFC or rich-item edges, at 24 px and wider: Chrome breaks there where the library doesn't
 catalog-01ed9a531b7a32b4 count
@@ -1932,6 +1939,7 @@ facts-157604473b495628 count
 facts-160dd589a58b5910 count
 facts-1ea1b28ea2d577e6 count
 facts-22d5f3bb615ed150 count
+facts-2466e49d22b539c0 count
 facts-251fd9e43385454b count
 facts-26c73d64fd8234e5 count
 facts-284ef93147c3b33f breaks
@@ -1960,6 +1968,7 @@ facts-56c706b53d2c0717 count
 facts-56e5ccb8b18be1d3 count
 facts-5951e51a97fe93c4 count
 facts-5a92dcda3a2e240d count
+facts-5ad2ca5d51cd4b23 breaks
 facts-5fb06c507d1460d0 count
 facts-604cc0176fb1a993 count
 facts-606f9c1b450015b3 count
@@ -1981,6 +1990,7 @@ facts-7dedb53730ee948c count
 facts-7e94694baede319a count
 facts-7fda710ef2fb144b count
 facts-803ccc31d713baf3 count
+facts-804fbc276574bdfd count
 facts-8a7cf78ec728fb1f count
 facts-8df017adac178600 count
 facts-8fb5b2ef47136afe count
@@ -3148,6 +3158,7 @@ catalog-fe6028d1180363db count
 catalog-fea9ee402e4e8f62 count
 catalog-ff47daf5a0938642 count
 catalog-ffa9651fd6cd2369 count
+facts-010cd794346e04fc count
 facts-0ddf325bd8abfccc count
 facts-0ed74272b2fa2c74 count
 facts-1564387085f2ca33 count
@@ -3170,12 +3181,14 @@ facts-46e103bf142a6b39 count
 facts-4824eaef1a6a9cda count
 facts-4859e8de92154112 count
 facts-4bd70c5097dd6770 count
+facts-55baf946aff1af58 count
 facts-57cd75abe3cabcaf count
 facts-59d5120a908a1400 count
 facts-64a2b8368fd1bf39 count
 facts-66523fa8da148ed6 count
 facts-6a07afc638d6fe5c breaks
 facts-6bd9acbfe41475f2 count
+facts-6d6ab8922de21ded count
 facts-6d724e4cf4b8f113 count
 facts-6f5dcfc72b0c443c count
 facts-71952042d8554cf0 count
