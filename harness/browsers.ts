@@ -136,8 +136,9 @@ export type Session = { close: () => Promise<void> }
 export type Launched = { pid?: number; roots: (rows: readonly Row[]) => Row[] | string; known: Row[]; stop: () => Promise<void>; cleanup: () => void; moved?: boolean }
 type Row = { pid: number; ppid: number; command: string }
 
-// One `ps` table. A read took over 10 s once, under a load average above 200, so it gets three tries.
-function processes(): Row[] {
+// One `ps` table. A read took over 10 s once, under a load average above 200, so it gets three tries, or one from the
+// poller, which reads again a second later.
+function processes(tries = 3): Row[] {
   const out: Row[] = []
   let table = ''
   for (let attempt = 1; ; attempt++) {
@@ -145,7 +146,7 @@ function processes(): Row[] {
       table = execFileSync('ps', ['-axo', 'pid=,ppid=,command='], { encoding: 'utf8', maxBuffer: 64 << 20, timeout: 10_000 })
       break
     } catch (error) {
-      if (attempt === 3) throw error
+      if (attempt >= tries) throw error
     }
   }
   const lines = table.split('\n')
@@ -233,34 +234,36 @@ export function kill(launched: Launched, table: () => Row[] = processes): void {
   launched.cleanup()
 }
 
-// The processes are found again from `ps` each second, and whenever the browser says they moved. A read that fails
-// keeps the last table's processes, whose footprint the bound still covers, and the next second reads again.
+// Each tick checks the bound first, on the processes the last table held, since the read that may follow holds the
+// process for as long as `ps` takes. The processes are found again from `ps` each second, and whenever the browser says
+// they moved. A read that fails keeps the last table's processes, and the next second reads again.
 function watch(browser: BrowserKind, launched: Launched, fail: (error: Error) => void, boundMb: number): Session {
   let ticks = 0
   const timer = setInterval(() => {
-    if (ticks++ % 10 === 0 || launched.moved === true) {
-      launched.moved = false
-      let rows: Row[] | null = null
-      try {
-        rows = processes()
-      } catch {
-        // Slower than three tries allow.
-      }
-      const roots = rows === null ? null : launched.roots(rows)
-      if (typeof roots === 'string') {
-        clearInterval(timer)
-        fail(new Error(`${browser} ${roots} before its job ended`))
-        return
-      }
-      if (rows !== null && roots !== null) launched.known = descendants(rows, roots)
-    }
     const tree = launched.known
     let kb = 0
     for (let i = 0; i < tree.length; i++) kb += footprintKb(tree[i]!.pid)
-    if (kb <= boundMb * 1024) return
-    clearInterval(timer)
-    kill(launched)
-    fail(new Error(`${browser}: its ${tree.length} processes held ${Math.round(kb / 1024)} MB, past the harness's ${boundMb} MB bound, so the job killed them`))
+    if (kb > boundMb * 1024) {
+      clearInterval(timer)
+      kill(launched)
+      fail(new Error(`${browser}: its ${tree.length} processes held ${Math.round(kb / 1024)} MB, past the harness's ${boundMb} MB bound, so the job killed them`))
+      return
+    }
+    if (ticks++ % 10 !== 0 && launched.moved !== true) return
+    launched.moved = false
+    let rows: Row[]
+    try {
+      rows = processes(1)
+    } catch {
+      return
+    }
+    const roots = launched.roots(rows)
+    if (typeof roots === 'string') {
+      clearInterval(timer)
+      fail(new Error(`${browser} ${roots} before its job ended`))
+      return
+    }
+    launched.known = descendants(rows, roots)
   }, 100)
   return {
     close() {
