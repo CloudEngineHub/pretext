@@ -377,10 +377,10 @@ function countSteppedLines(prepared: PreparedLineBreakData, maxWidth: number): n
 // ends at a selected discretionary hyphen that doesn't fit. A return needs an
 // overflow that isolated widths can show and a target that really is the latest
 // opportunity. The soft hyphens on the line may measure narrower joined than apart by
-// less than the overflow, and nothing after the target may be text after text, which
-// can hold an opportunity that segment kinds don't mark. The target can be a segment
-// start that follows a break outside the prepared text, such as a rich-inline item
-// boundary.
+// less than the overflow, and nothing after the target may be text that the scan breaks
+// before after other text, an opportunity that segment kinds don't mark. The target can
+// be a segment start that follows a break outside the prepared text, such as a
+// rich-inline item boundary.
 function returnsFromUnfitHyphen(
   prepared: PreparedLineBreakData,
   lineStartSegmentIndex: number,
@@ -396,9 +396,9 @@ function returnsFromUnfitHyphen(
   let narrowing = 0
   if (discretionaryHyphenContexts !== null) for (let i = lineStartSegmentIndex; i <= softHyphenIndex; i++) narrowing += discretionaryHyphenContexts[i]!
   if (narrowing >= overflow) return false
-  for (let i = targetSegmentIndex; i < softHyphenIndex; i++) {
-    if (breaksAfterKind(segmentFlags[i]! & KIND_BITS)) continue
-    if (i > targetSegmentIndex && !breaksAfterKind(segmentFlags[i - 1]! & KIND_BITS)) return false
+  for (let i = targetSegmentIndex + 1; i < softHyphenIndex; i++) {
+    const flags = segmentFlags[i]!
+    if (!breaksAfterKind(flags & KIND_BITS) && (flags & UNBROKEN) === 0 && !breaksAfterKind(segmentFlags[i - 1]! & KIND_BITS)) return false
   }
   return true
 }

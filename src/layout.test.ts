@@ -1902,6 +1902,12 @@ describe('prepare invariants', () => {
         .toEqual(['x ab-cd-', 'efgh'])
       expect(layoutWithLines(prepareWithSegments('x 10\u201320\u00ADabcd', FONT), 58, LINE_HEIGHT).lines.map(line => line.text))
         .toEqual(['x 10\u201320-', 'abcd'])
+      // Text the scan doesn't break before, as after a control character, holds no
+      // opportunity, so the line returns past it.
+      const unbroken = 'ab cd\u0001ef\u00ADgh'
+      expect(prepareWithSegments(unbroken, FONT).segments).toEqual(['ab', ' ', 'cd', '\u0001', 'ef', '\u00AD', 'gh'])
+      expect(layoutWithLines(prepareWithSegments(unbroken, FONT), measureWidth('ab cd\u0001ef', FONT) + 0.1, LINE_HEIGHT).lines.map(line => line.text))
+        .toEqual(['ab ', 'cd\u0001efgh'])
 
       // A handle without soft-hyphen contexts keeps the overflowing hyphen.
       const withoutContexts = { ...prepareWithSegments(text, FONT), discretionaryHyphenContexts: null }
@@ -1978,6 +1984,8 @@ describe('prepare invariants', () => {
       expect(lineTexts(text, measure('the internation') + 0.1)).toEqual(['the interna-', 'tional'])
       // A break between two text segments ends the line as well.
       expect(lineTexts('x ab-cd\u00ADefgh', measure('x ab-cd') + 0.1)).toEqual(['x ab-', 'cdefgh'])
+      // Text the scan doesn't break before doesn't, and the line returns past it.
+      expect(lineTexts('ab cd\u0001ef\u00ADgh', measure('ab cd\u0001ef') + 0.1)).toEqual(['ab ', 'cd\u0001efgh'])
 
       // No break on the line fits its hyphen: `trans-` overflows, and so does `transi-`.
       // WebKit's return stops at the line's first break, where Gecko's finds none and the
