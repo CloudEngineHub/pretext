@@ -48,9 +48,7 @@ old-gate-739b18e51c1d20d3 breaks
 old-gate-a363ab6ddf329f2c breaks
 old-gate-b91bd6ffeef40383 breaks
 old-gate-c81cecb0b25d0d2f breaks
-old-gate-cebb2654acc6127d count
 old-gate-ebb5103acaf48aac breaks
-old-gate-eec6735d3ce10b5a breaks
 
 ## CJK beside Latin, closing punctuation, small kana or U+FFFC, and CJK under keep-all or a changed page language, at 24 px and wider: WebKit breaks there where the library doesn't
 catalog-0c476a515f026614 count
@@ -118,12 +116,10 @@ facts-cb726fe075c99028 count
 facts-d586e19a99606fb9 count
 facts-f4c241559e8fd0ae count
 old-gate-431f934b64337fc7 breaks
-old-gate-5807fa59410c4a83 breaks
 old-gate-5af2d5845d9a0c9d breaks
 old-gate-a4b0c2cd8b374d30 breaks
 old-gate-c55afebd1de7d4ff breaks
 old-gate-c7fff6370e1470f6 breaks
-old-gate-dd9785b9f09ad6a5 breaks
 rich-5d3ce06ac22e1dca count
 rich-fb89fcbe2ec753dd count
 
@@ -154,7 +150,6 @@ catalog-e2e532ee5e2beb22 count
 catalog-ef19e32843315050 count
 catalog-f59601a89eac943f count
 old-gate-0f4ab6085302b5fe breaks
-old-gate-101f07ad5f22eefc breaks
 old-gate-9d8bd60154392027 breaks
 rich-1a9f6a3ab613d5c9 count
 rich-2afd69aa3e8077b5 breaks
@@ -261,7 +256,6 @@ old-gate-ed333a573cae856d count
 old-gate-f72f0863bf4961db count
 
 ## Lost against main before #340 (6d1d210): VT between Latin letters before brackets and Arabic; WebKit breaks after the VT, the library a letter later
-old-gate-0389719e61d4cfa7 count
 old-gate-04d3119da5a3931e count
 old-gate-398911ce17952484 count
 old-gate-64311d82d42ef913 count
@@ -836,13 +830,11 @@ catalog-655fde1ab654de22 count
 catalog-6591e12d9c9d5e51 count
 catalog-65d83e06a7f3f79b count
 catalog-65eb88113d2ffd7d count
-catalog-660906c3cfddd90b breaks
 catalog-661ca6ec18b5a347 count
 catalog-663353749889efe2 count
 catalog-66350471b851209d count
 catalog-665e2224a9efc686 count
 catalog-6667d4fee8f02050 count
-catalog-66a389cadd3f56a3 count
 catalog-672e663c355887e0 count
 catalog-673ee31a81f7175a count
 catalog-6787f0edadf0aecf count
@@ -1098,7 +1090,6 @@ catalog-942ee7026105e76a breaks
 catalog-94554da905bd30a3 count
 catalog-947accb556ca11e2 breaks
 catalog-9526d1607f8cb9b6 count
-catalog-952ba48b82d8f7ee count
 catalog-953920cf53ad0fb1 count
 catalog-955d89955c381fce breaks
 catalog-9575ca8e09007420 breaks
@@ -1674,7 +1665,6 @@ catalog-fd642b92e9f2a319 count
 catalog-fd8751c118d7d5e8 count
 catalog-fdd0eebf4864ea10 count
 catalog-fde1d70ed3acbcbd count
-catalog-fe115a1323926c1a count
 catalog-fe22afda44820a77 breaks
 catalog-fe342562293d95cb count
 catalog-fec6433146d130e5 count
@@ -1839,7 +1829,6 @@ catalog-18e43ef43fbd6626 count
 catalog-18eb4248e9064bfa count
 catalog-190a361ef5480dc0 count
 catalog-194ec9bdc9132093 count
-catalog-19d9493a37dfcea5 count
 catalog-1a4d680406b0af70 count
 catalog-1a519fd037382bc0 count
 catalog-1a57842ed7cd6c22 count
@@ -2145,7 +2134,6 @@ catalog-74e2d9065b48e37f count
 catalog-752b72da8bead624 count
 catalog-75375001cc584860 count
 catalog-7565e33e94ebb693 count
-catalog-75a6c5896637efff count
 catalog-75b9372ae1bc5875 count
 catalog-764b2b2246109ffb count
 catalog-76ba497af0c2c00c count
@@ -3297,11 +3285,6 @@ facts-ed271f1b72434581 count
 facts-f4ed7850936e9108 count
 facts-f84fc6c6d229bb98 count
 facts-ff8f4819ed6eede6 count
-old-gate-355e3c83a438ecb5 breaks
-old-gate-91674bab36f09a1b count
-old-gate-a129c4825e4eb270 breaks
-old-gate-cf06ac6bcbc630bb breaks
-old-gate-d938fc2ff2e06063 count
 
 ## Real usage: Hebrew with a prefix before a Latin word (ל-Microsoft); WebKit breaks after the hyphen, the library doesn't (main before #340 too)
 sample-1562f53a72883442 breaks
