@@ -161,7 +161,10 @@ alone, and a webkit-host win or loss counts only if it holds alone or in fresh d
 with page history, `recordings/<browser>.history.txt`, are kept across every recording under one environment, and
 `repin` carries them to a new build, since two orders miss history both share: one recording's two orders found 11 of
 webkit-host's 87 (2026-09-24), and without the carried list 33 cases would have blocked when Firefox went to 156.0.1
-(2026-09-25).
+(2026-09-25). `record`'s second order is its first reversed, so every case is laid out once before and once after each
+other one: WebKit lays a right-to-left paragraph out with the items of a left-to-right one of the same text laid out
+before it, and when the second order was a shuffle, which keeps half of all pairs in order, one pass in reverse found
+27 webkit-host cases pinned to the order both had shared (2026-09-30).
 
 ## Proving "no change"
 

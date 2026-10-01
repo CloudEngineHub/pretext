@@ -300,6 +300,8 @@ describe('the stored recordings', () => {
     const both = new Map([['orders', same], ['stored', same]])
     expect(splitHistory(['orders', 'stored'], both, new Map([['orders', wider], ['stored', same]]), recordings, history, prior)).toBe(0)
     expect([[...recordings.keys()], [...history.keys()]]).toEqual([['orders', 'stored'], []])
+    // The stored recording stays, so recording again changes no file.
+    expect(recordings.get('stored')).toBe(wider)
     expect(freshRecordings(['stored'], prior.recordings, [both])).toEqual({ stale: [], history: [] })
     expect(attribute(wider, same, predicted(TEXT, [0, 10, 21, 31]), [predicted(TEXT, [0, 10, 21, 31]), predicted(TEXT, [0, 10, 21, 31])])).toBe('true loss')
   })
@@ -620,10 +622,19 @@ describe('the commands, with a stand-in browser', () => {
       return c.id === 'moved' || (c.id === 'orders' && jobs.indexOf(job) === 1) ? other : laidOut
     }
     await record('chrome', cases(['orders', 'kept', 'moved']), options, browser(root, () => right, layout))
-    // Sorted, then shuffled, so each case sits among other cases in the second.
-    expect(jobs.map(job => job.cases.map(c => c.id).join(' '))).toEqual(['kept moved orders', 'kept orders moved'])
+    // Sorted, then in reverse, so each case comes before every other once.
+    expect(jobs.map(job => job.cases.map(c => c.id).join(' '))).toEqual(['kept moved orders', 'orders moved kept'])
     expect([...readRecordings(recordingsPath(root, 'chrome'))!.recordings.keys()]).toEqual(['kept'])
     expect([...readHistory(historyPath(root, 'chrome'))!.cases.keys()]).toEqual(['moved', 'orders'])
+  })
+
+  test('record lays every case out once before and once after each other case: a paragraph that lays out otherwise after one particular case, as a right-to-left one does in WebKit after its left-to-right twin, would be pinned to whichever order both passes shared', async () => {
+    // "rtl" is laid out otherwise once "ltr" was laid out in the same process, whatever lies between them.
+    const ids = ['a', 'b', 'ltr', 'c', 'd', 'e', 'rtl', 'f']
+    const root = folder('record-pairs', {})
+    const layout = (c: Case, job: Job): Recording => (c.id === 'rtl' && job.cases.indexOf(c) > job.cases.findIndex(x => x.id === 'ltr') ? other : laidOut)
+    await record('chrome', cases(ids), options, browser(root, () => right, layout))
+    expect([...readHistory(historyPath(root, 'chrome'))!.cases.keys()]).toEqual(['rtl'])
   })
 
   test('record --only-new records only the cases with no recording, and refuses to add them to recordings of another environment: a browser update would read as library regressions or fixes', async () => {

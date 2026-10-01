@@ -253,7 +253,8 @@ export type Stored = { recordings: ReadonlyMap<string, Recording>; history: Read
 // against, or already page history in, the stored recordings of the same environment (`prior`): two orders miss some of
 // what depends on the cases before it. A case whose line widths alone move stays pinned, since the pass rule never
 // reads them: decided on widths too, 51 of webkit-host's 202 page-history cases and 77 of Firefox's 106 went unscored
-// with the same lines in both recordings (2026-09-30). Returns how many differ from the stored recordings.
+// with the same lines in both recordings (2026-09-30), and it keeps the stored recording, so recording again changes
+// no file. Returns how many differ from the stored recordings.
 export function splitHistory(ids: readonly string[], a: ReadonlyMap<string, Recording>, b: ReadonlyMap<string, Recording>, recordings: Map<string, Recording>, history: Map<string, [Recording, Recording]>, prior: Stored | null = null): number {
   let moved = 0
   for (let i = 0; i < ids.length; i++) {
@@ -269,7 +270,7 @@ export function splitHistory(ids: readonly string[], a: ReadonlyMap<string, Reco
     else if (stored !== undefined && lineEnds(stored) !== lineEnds(first)) {
       history.set(id, [stored, first])
       moved++
-    } else recordings.set(id, first)
+    } else recordings.set(id, stored ?? first)
   }
   return moved
 }

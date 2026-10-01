@@ -315,7 +315,7 @@ export function gateBlocks(order: { moved: readonly string[] }, reverse: Readonl
   return out
 }
 
-// record's default seed, fixed so that a recording's second order doesn't depend on the clock.
+// record's default seed for --sample, fixed so that the cases it draws don't depend on the clock.
 export const SEED = 20260924
 
 // The gate's default seed, the commit under test: the first 48 bits of its hash. Under one fixed seed every gate

@@ -1,5 +1,5 @@
 // bun harness <command> [--browser=chrome|firefox|webkit-host|safari|all] [--cases=<file.ndjson>]
-//   record [--only-new]      record the browser's layout of every case (or the new ones), sorted and shuffled, in fresh short documents;
+//   record [--only-new]      record the browser's layout of every case (or the new ones), sorted and in reverse, in fresh short documents;
 //                            --sample=N --seed=S records N of them, drawn from every set
 //   check [--accept=<why>]   predict every pinned case in the browser and score it against the recordings
 //   gate [--sample=N]        check, plus a prediction in reverse order, N cases recorded again, and attribution
@@ -123,10 +123,15 @@ export async function record(browser: BrowserKind, cases: Case[], o: Options, io
   let sorted = list.slice().sort((a, b) => (a.id < b.id ? -1 : 1))
   // A seeded sample of every set, for a browser recorded on one.
   if (o.sample !== null) sorted = shuffled(sorted, o.seed).slice(0, o.sample).sort((a, b) => (a.id < b.id ? -1 : 1))
-  // One browser instance at a time per browser. The second order is shuffled, so each case sits among other cases in
-  // other documents, as in the gate's fresh recording.
+  // One browser instance at a time per browser. The second order is the first reversed, so of any two cases each is
+  // laid out before the other once, and a case that lays out otherwise after one particular case shows. A shuffled
+  // second order kept half of all pairs in their first order: WebKit lays a right-to-left paragraph out with the
+  // items of a left-to-right one of the same text and line-breaking styles laid out before it in the process (its
+  // TextBreakingPositionCache keys a text's items by the text, those styles and the origin, TextBreakingPositionCache.h:49,
+  // and InlineItemsBuilder.cpp:858-862 takes them unread), and one pass in reverse found 27 webkit-host cases two
+  // such orders had pinned (2026-09-30).
   const a = await io.run<Recording>({ browser, mode: 'record', cases: sorted, documentSize: RECORD_DOCUMENT, lib: o.lib })
-  const b = await io.run<Recording>({ browser, mode: 'record', cases: shuffled(sorted, o.seed + 1), documentSize: RECORD_DOCUMENT, lib: o.lib })
+  const b = await io.run<Recording>({ browser, mode: 'record', cases: sorted.slice().reverse(), documentSize: RECORD_DOCUMENT, lib: o.lib })
   if (a.env !== b.env) throw new Error(`The environment changed between the two recordings: ${a.env} | ${b.env}`)
   // Recording some cases (--only-new, --cases, --sample) keeps the other recordings, which must share the environment.
   // A browser recorded on a sample keeps nothing but the new one.
@@ -140,7 +145,7 @@ export async function record(browser: BrowserKind, cases: Case[], o: Options, io
   mkdirSync(join(io.root, 'recordings'), { recursive: true })
   writeRecordings(recordingsPath(io.root, browser), { env: a.env, recordings })
   writeHistory(historyPath(io.root, browser), { env: a.env, cases: history })
-  io.log(`${browser}: recorded ${sorted.length} cases in sorted and shuffled (seed ${o.seed + 1}) order, ${((a.ms + b.ms) / 2000).toFixed(0)} s each; ${history.size} with page history; ${a.env}`)
+  io.log(`${browser}: recorded ${sorted.length} cases in sorted and in reverse order, ${((a.ms + b.ms) / 2000).toFixed(0)} s each; ${history.size} with page history; ${a.env}`)
   if (sameEnv) io.log(`${browser}: ${moved} cases whose lines start or end elsewhere than in the stored recordings of this environment, now page history`)
   // What the browser changed since the last recording, by family and width band.
   if (old !== null && !sameEnv) {
