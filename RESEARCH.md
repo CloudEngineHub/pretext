@@ -1577,8 +1577,12 @@ repin` shows what), and a fact read in source needs reading again.
   (`font_features.cc:54-86`). The run is the shaping run's script, so digits, brackets and punctuation after Arabic, or
   before it at the start of the text, take none either, and a closing bracket goes back to its opening bracket's run
   (`script_run_iterator.cc`): of an Arabic word, a space and `123.`, only the space is spaced. The Blink profile
-  follows a reduced port of that iterator (#TBD, `src/prepare.ts`): in Chrome 154 it gives 51 probe strings Chrome's
-  gaps, and the real-usage sample's 8 failing Arabic and Urdu paragraphs under letter spacing pass (2026-09-30). A tab
+  follows a reduced port of that iterator (#TBD, `src/prepare.ts`): in Chrome 154 it gives 57 probe strings Chrome's
+  gaps, and the real-usage sample's 8 failing Arabic and Urdu paragraphs under letter spacing pass (2026-09-30 and
+  10-01). A character several scripts share stays in a run of any of them and else starts a run of the one with the
+  lowest code, Latin aside (`GetScripts`, `MergeSets`, `script_run_iterator.cc:118-215`, `:491-563`), which the port
+  leaves out: U+202F, which Latin, Mongolian and Phags-pa share, takes no gap alone, after Arabic or between Han
+  characters, and one among Latin letters (Chrome 154, 2026-10-01; ENGINE_FOLLOWUPS.md, Letter spacing). A tab
   stop is eight Canvas spaces plus letter and word spacing (`font.cc:303-317`), rounded up to 1/128 px at DPR 2
   (`simple_font_data.cc:225-240`), and a tab skips a stop under half a space away (`font.cc:333-337`). Recordings agree:
   a tab-only line in 16px Arial is 27.563px at −1px letter spacing and 35.563px at 0 (harness recordings at commit

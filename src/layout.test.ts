@@ -5556,8 +5556,9 @@ test('letter spacing leaves out cursive scripts as Chrome and Firefox do', () =>
   // The engine profile is computed once per process, so each engine runs in a child
   // process. Each row: what the string shows, the string, and the letter-spacing gaps
   // Chrome 154, Firefox 156 and webkit-host gave it in 16px Arial, read from the page's
-  // widths at 4px and 8px (2026-09-30). Every code point is 8px here, so the profile's
-  // gaps are its widths at those spacings, less each other, over 4.
+  // widths at 4px and 8px (2026-09-30; the last six rows at 0 and 10px, 2026-10-01). Every
+  // code point is 8px here, so the profile's gaps are its widths at 4px and 8px, less each
+  // other, over 4.
   const strings: Array<[string, string, number, number, number]> = [
     ['latin', 'abc', 3, 3, 3],
     ['hebrew', '\u05D0\u05D1\u05D2', 3, 3, 3],
@@ -5610,6 +5611,12 @@ test('letter spacing leaves out cursive scripts as Chrome and Firefox do', () =>
     ['leading punct', '.\u0628\u064A\u062A', 0, 1, 4],
     ['latin digits arabic', 'abc 123 \u0628\u064A\u062A', 8, 8, 11],
     ['arabic colon digits', '\u0628\u064A\u062A: 123', 1, 5, 8],
+    ['mongolian comma in latin', 'abc\u1802def', 6, 7, 7],
+    ['mongolian comma in arabic', '\u0628\u064A\u062A\u1802\u0628\u064A\u062A', 0, 1, 7],
+    ['reversed semicolon in latin', 'abc\u204Fdef', 6, 7, 7],
+    ['ideographic space in arabic', '\u0645\u0631\u062D\u0628\u0627\u3000\u0628\u0643\u0645', 0, 1, 9],
+    ['second closing bracket, latin inside', '\u0628\u064A\u062A (abc) def) ghi', 12, 15, 18],
+    ['second closing bracket, arabic inside', 'abc (\u0628\u064A\u062A) \u0628\u064A\u062A) \u0628\u064A\u062A', 9, 9, 18],
   ]
   const layoutUrl = new URL('./layout.ts', import.meta.url).href
   const richInlineUrl = new URL('./rich-inline.ts', import.meta.url).href

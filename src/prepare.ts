@@ -63,13 +63,16 @@ function addInternalLetterSpacing(width: number, graphemeCount: number, letterSp
 // the ones that start the text, and the punctuation its script shares
 // (script_run_iterator.cc), so of an Arabic word, a space and `123.` only the space is
 // spaced. WebKit spaces every glyph with an advance. Chrome 154, Firefox 156 and
-// webkit-host lay 51 strings out so (2026-09-30).
+// webkit-host lay 57 strings out so (2026-10-01).
 const cursiveScriptRe = /[\p{Script=Arabic}\p{Script=Syriac}\p{Script=Nko}\p{Script=Mandaic}\p{Script=Mongolian}\p{Script=Phags_Pa}\p{Script=Hanifi_Rohingya}]/uy
-// What starts or goes on with a cursive run in Blink: the letters, and the Common
-// characters whose scripts include Arabic, such as U+060C and U+0640, since Arabic has
-// the lowest code of a character's scripts (ICUScriptData::GetScripts, :118-215). Gap:
-// those characters after a script that shares them, such as Thaana, go on with its run.
-const cursiveRunRe = /[\p{scx=Arabic}\p{Script=Syriac}\p{Script=Nko}\p{Script=Mandaic}\p{Script=Mongolian}\p{Script=Phags_Pa}\p{Script=Hanifi_Rohingya}]/uy
+// What starts or goes on with a cursive run in Blink: the letters; the Common characters
+// whose scripts include Arabic, such as U+060C and U+0640, since Arabic has the lowest
+// code of a character's scripts (ICUScriptData::GetScripts, :118-215); and Mongolian's
+// comma, full stop and four dots, whose scripts are Mongolian and Phags-pa. Gap: a
+// character goes on with the run before it where that run's script is one of its own, so
+// Blink spaces U+060C after Thaana, and doesn't space the CJK punctuation Mongolian
+// shares after Mongolian, or U+202F outside Latin (ENGINE_FOLLOWUPS.md, Letter spacing).
+const cursiveRunRe = /[\p{scx=Arabic}\p{Script=Syriac}\p{Script=Nko}\p{Script=Mandaic}\p{Script=Mongolian}\p{Script=Phags_Pa}\p{Script=Hanifi_Rohingya}\u1802\u1803\u1805]/uy
 const mayBeCursiveRe = new RegExp(cursiveRunRe.source, 'u')
 // Characters of no script, which Blink leaves in the run before them: Common ones that no
 // script lists, and marks, which inherit.
@@ -88,10 +91,11 @@ function startScriptRun(text: string): ScriptRun {
 }
 
 // Takes the code point c at text[i] into the run. A closing bracket goes back to its
-// opening bracket's run, among the last 32 opened (OpenBracket and CloseBracket,
-// script_run_iterator.cc:431-481), and a wide or fullwidth opening bracket starts a Han
-// run (FixScriptsByEastAsianWidth, :83-110). The pairs are Unicode 15's, as the Gecko
-// profile's bidi levels read them.
+// opening bracket's run, among the last 32 opened, and closes the ones opened since; its
+// own stays open, so a second closing bracket goes back to that run too (OpenBracket and
+// CloseBracket, script_run_iterator.cc:431-481). A wide or fullwidth opening bracket
+// starts a Han run (FixScriptsByEastAsianWidth, :83-110). The pairs are Unicode 15's, as
+// the Gecko profile's bidi levels read them.
 function enterScriptRun(run: ScriptRun, text: string, i: number, c: number): void {
   const { openBrackets } = run
   const bracket = getBidiBrackets().get(c)
@@ -99,7 +103,7 @@ function enterScriptRun(run: ScriptRun, text: string, i: number, c: number): voi
   const opened = bracket !== undefined && (bracket & 1) === 0 ? openBrackets.lastIndexOf(bracket >> 1) : -1
   if (opened >= 0) {
     run.cursive = openBrackets[opened + 1] === 1
-    openBrackets.length = opened
+    openBrackets.length = opened + 2
     return
   }
   scriptNeutralRe.lastIndex = cursiveRunRe.lastIndex = i
