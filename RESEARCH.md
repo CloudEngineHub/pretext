@@ -1733,8 +1733,12 @@ repin` shows what), and a fact read in source needs reading again.
   2026-09-19.)
 - **Tabs.** A stop falls every `tab-size` (the text frame's) × (the block's space advance in app units plus its letter
   and word spacing) (`ComputeTabWidthAppUnits`, `nsTextFrame.cpp:3875-3906`); WebKit takes both from the span, Blink the
-  span's `tab-size` with the block's font. The next stop is at least half the first font's `0` away (`AdvanceToNextTab`,
-  :4298-4304; `GetMinTabAdvanceAppUnits`, :1931-1937). A tab's position counts advances only at cluster starts, plus
+  span's `tab-size` with the block's font. The next stop is at least half a `0` away, the `0` of the first font of the
+  tab's own text run, not the block's (`AdvanceToNextTab`, :4298-4304; `MinTabAdvance`, :3539-3544;
+  `GetMinTabAdvanceAppUnits`, :1931-1937), where Blink's half space is the block's font's (`FontForTab`,
+  `inline_node.cc:2137-2143`): before a span of a tab and `b`, half the span's `0` gives Firefox 156.0.1's stop for 192
+  of 192 prefixes with each of six spans, and half the block's misses 5 with a bold span in 16px Georgia and 15 with a
+  24px one (2026-10-01). A tab's position counts advances only at cluster starts, plus
   each character's spacing (`CalcTabWidths`, :4306-4378). Recordings agree (harness recordings at commit b1fd05fc,
   Firefox 156.0.1): a tab-only line is 8 × (space + letter spacing) unless the tab is the text's last character, as in
   16px Arial at −1, 0 and 1px: 27.6, 35.6 and 43.6px. All of it is in whole app units, so a tab exactly the minimum from
