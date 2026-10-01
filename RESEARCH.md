@@ -247,10 +247,9 @@ a rule by reading it and its unit tests (`rebuild/src/engines/<engine>/`) agains
   don't tell which uses are common (2026-09-26). Don't overfit to today's uses.
 - **The engine work changed no public export**, from #340 to #375. Rich inline has since gained an options argument
   (`wordBreak`, #379; `whiteSpace`, #381, which an editor in #173 was laying out itself) and boxes (`RichInlineBox`,
-  #387, in place of the stand-in characters of #201), and the main entry point exports `SegmentBreakKind`, the type
-  README already gave `prepareWithSegments()`'s `kinds` (#TBD). The API discussion, a review of the whole public API at
-  the end of the project and before any release, has issue #321's `direction` option and `devicePixelRatio` in
-  `layout()` on its list (TODO.md). One bundle serves every engine (Decisions Log, 2026-09-26).
+  #387, in place of the stand-in characters of #201). The API discussion, a review of the whole public API at the end
+  of the project and before any release, has issue #321's `direction` option and `devicePixelRatio` in `layout()` on
+  its list (TODO.md). One bundle serves every engine (Decisions Log, 2026-09-26).
 - **No public API that serves no known user (2026-09-29).** A new option or export needs an app or a person who needs
   it. One without is described in an issue, kept simple, with whoever has the use asked there, as #382 asks about
   padding on an item split across lines.
