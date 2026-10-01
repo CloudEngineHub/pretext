@@ -4246,6 +4246,9 @@ describe('rich-inline invariants', () => {
           [[text('a\u00AD'), zero, text('b')], {}, [[0], [1], [2]], true],
           [[text('a'), text('\u00AD'), zero, text('b')], {}, [[0, 1], [2], [3]], true],
           [[chip, text('\u00AD'), zero, text('cd')], {}, [[0, 1], [2, 3]]],
+          // The soft hyphen is read from the text too, not from its hyphen's width, which letter
+          // spacing takes below nothing.
+          [[chip, { text: '\u00AD', font: FONT, letterSpacing: -6 }, zero, text('cd')], {}, [[0, 1], [2, 3]]],
           // Preserved spaces that hang end their frame at the line's end, so the box is inside the
           // line, and so is what follows it without a width: a second box, a space, which hangs too,
           // and a box after an item of a soft hyphen.

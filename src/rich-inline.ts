@@ -1188,9 +1188,10 @@ function stepRichInlineLine(
       // white space, and its last frame ends past the line's end without that frame's own spaces,
       // the line breaks after the white space (getFrameEndSpace), so the item starts the next line.
       // Else the line has a break before the item after white space, after an atomic item
-      // (nsLineLayout.cpp:1057-1069) and after a soft hyphen that ends the text before it
-      // (nsTextFrame.cpp:11432-11439), and may go back to it (getKeptEmptyEnd); other text leaves
-      // no break at its end, so the line's first break is the one after the item, which stays.
+      // (nsLineLayout.cpp:1057-1069) and after a soft hyphen that ends the frame before it, whatever
+      // the hyphen's width (HasSoftHyphenBefore, nsTextFrame.cpp:11432-11439), and may go back to it
+      // (getKeptEmptyEnd); other text leaves no break at its end, so the line's first break is the
+      // one after the item, which stays.
       if (hasContent && totalWidth > remainingWidth + lineFitEpsilon) {
         if (!emptyAtomicAlwaysFits || occupiedWidth !== 0) break
         const contentWidth = lineWidth - lineHangWidth
@@ -1198,9 +1199,11 @@ function stepRichInlineLine(
         if (contentWidth + gapBefore > fitLimit) {
           let before = itemIndex - 1
           while (flow.items[before] === undefined) before--
+          const frame = flow.items[before]!
+          const frameFlags = frame.prepared.segmentFlags
           const frameEndSpace = getFrameEndSpace(flow, itemIndex, before)
           if (frameEndSpace >= 0 && contentWidth - frameEndSpace > fitLimit) break
-          const breakBefore = frameEndSpace >= 0 || item.hyphenBefore > 0 || flow.items[before]!.break === 'never'
+          const breakBefore = frameEndSpace >= 0 || frame.break === 'never' || (frameFlags[frameFlags.length - 1]! & KIND_BITS) === SOFT_HYPHEN
           if (breakBefore && itemIndex >= keptEmptyEnd) {
             keptEmptyEnd = getKeptEmptyEnd(flow, itemIndex)
             if (keptEmptyEnd < 0) break
