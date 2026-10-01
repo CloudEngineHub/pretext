@@ -426,6 +426,7 @@ const noSpaceKerning: SpaceKerning = { after: 0, before: 0 }
 export const defaultIgnorableRe = /\p{Default_Ignorable_Code_Point}/u
 // A code unit that is no cluster of its own: a combining mark, or half of a surrogate pair.
 const clusterPartRe = /[\p{M}\p{Cs}]/u
+const combiningMarkRe = /\p{M}/u
 
 // A character's kerning with a space glyph after it, or before it, asked of Canvas when a
 // segment first has the character at that edge.
@@ -461,7 +462,9 @@ function getCharacterSpaceKerning(character: string, measurement: FontMeasuremen
 // - The kerning is that of the segment's last character with the space after it, and of the
 //   space with its first character, past default ignorables. So it costs two Canvas calls per
 //   distinct edge character in a font, not per word. A lookup that reads further into the word
-//   isn't seen, and a character that is part of a longer cluster takes none.
+//   isn't seen. A character that is part of a longer cluster takes none: a combining mark, half
+//   of a surrogate pair, and a first character with a combining mark after it, which the font
+//   may draw as one glyph that kerns otherwise than the bare letter (`A`, U+0301 as `Á`).
 // - All of it sits on the first glyph of the pair, as GPOS pair positioning puts it. The legacy
 //   `kern` table puts half on each glyph, so a line that ends at the space keeps only half in
 //   Chrome, which a width doesn't show.
@@ -472,7 +475,7 @@ export function getSpaceKerning(seg: string, metrics: SegmentMetrics, measuremen
   let last = seg.length - 1
   while (first < last && defaultIgnorableRe.test(seg[first]!)) first++
   while (last > first && defaultIgnorableRe.test(seg[last]!)) last--
-  const before = getCharacterSpaceKerning(seg[first]!, measurement, spaceWidth, false)
+  const before = first < last && combiningMarkRe.test(seg[first + 1]!) ? 0 : getCharacterSpaceKerning(seg[first]!, measurement, spaceWidth, false)
   const after = getCharacterSpaceKerning(seg[last]!, measurement, spaceWidth, true)
   return metrics.spaceKerning = after === 0 && before === 0 ? noSpaceKerning : { after, before }
 }
