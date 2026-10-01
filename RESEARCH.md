@@ -835,7 +835,7 @@ The cost is Canvas calls while a font is new, for each distinct first and last c
 cards prepared alone in a new font, 15px Arial, makes 1.51 times main's `measureText` calls (97,271 to 147,169 in all;
 the median card 1.53 times, from 1.23 to 1.75) and 1.39 times its submitted units. The first 10 prepared in order make
 24% more calls (287 to 355), the first 100 9% more and all of them 1.4% more (11,810 to 11,981). The harness's sample,
-11,901 paragraphs in 272 fonts, makes 18% more calls (232,954 to 275,073) and 10% more units. A font that doesn't kern
+11,901 paragraphs in 272 fonts, makes 18% more calls (232,950 to 275,069) and 10% more units. A font that doesn't kern
 the space pays the same calls, less one, for no change. Alone in a new font, Gatsby paragraphs make 1.37 times the
 calls, Hindi ones 1.21 and Thai ones 1.14; Chinese, Japanese and Korean ones stay within 2% in order and 6% alone,
 since ideographs, kana and Hangul syllables aren't asked about. Korean's figure rests on a premise (below): asked about,
@@ -861,11 +861,11 @@ vocabulary. The premises and their gaps:
   scripts: in `16px Didot, "Times New Roman"` Chrome lays `ไทย, ไทย` out without the 0.88px the comma kerns with a space
   after Latin, and in 16px Chalkboard SE one Cyrillic line of 405 came out 0.63px narrower than painted.
 - **Where the kerning sits.** GPOS pair positioning puts a pair's kerning on its first glyph. HarfBuzz puts one from the
-  legacy `kern` table, or an AAT `kerx` one, half on each glyph's advance (`hb_kern_machine_t::kern`,
-  `hb-kern.hh:100-107`): Chrome's first-word share was 1.00 in Arial, Avenir Next, Gill Sans, Roboto and PT Sans and
-  0.50 in Helvetica, Times New Roman, Trebuchet MS, Didot, Palatino and Hoefler Text. A line that ends at a space, which
-  hangs, keeps only the word's share, so in the second kind of font the profile puts half of a word's kerning with the
-  space after it on that space. One Canvas call per font tells the two apart: under `fontKerning = 'normal'` Canvas
+  legacy `kern` table, or from a pair subtable of an AAT `kerx` one, half on each glyph's advance
+  (`hb_kern_machine_t::kern`, `hb-kern.hh:100-107`): Chrome's first-word share was 1.00 in Arial, Avenir Next, Gill
+  Sans, Roboto and PT Sans and 0.50 in Helvetica, Times New Roman, Trebuchet MS, Didot, Palatino and Hoefler Text. A
+  line that ends at a space, which hangs, keeps only the word's share (the next premise), so in the second kind of font
+  the profile puts half of a word's kerning with the space after it on that space. One Canvas call per font tells the two apart: under `fontKerning = 'normal'` Canvas
   shapes a string whole, its U+0020 included, only where the font's GPOS covers the space glyph
   (`font_fallback_list.cc:264-277`, `harfbuzz_face.cc:341-385`), so a font in which that shows none of a kerning that
   U+2028 shows has it from `kern` (`splitsSpaceKerning()`). A space's kerning with the word after it goes on the space
@@ -873,6 +873,34 @@ vocabulary. The premises and their gaps:
   the word, it fit up to 0.80px sooner than in Chrome in 63 of the 650 fits above, Didot's cards came out a line short
   11 times in 41,888, and the box above made Chrome wrap again in 45 of 8,178 layouts. A font whose GPOS covers the
   space while its pairs sit in `kern` would be read as the first kind; none of the 26 was.
+- **A line that ends at a space keeps the word's kerning with that space.** That is Blink's default: where a break
+  follows a space it doesn't shape the line's end again (`DontReshapeEndIfAtSpace`, `line_breaker.cc:1655-1659`;
+  `shaping_line_breaker.cc:484-488`). Where the line needs an accurate end position it does, up to the end of the word,
+  and the word loses the kerning: under `text-align` center, end or justify, or right in left-to-right text
+  (`ComputeNeedsAccurateEndPosition`, `line_info.cc:127-150`), and where the element that directly holds the line's last
+  text has a text decoration or a background (`NeedsAccurateEndPosition`, `line_breaker.cc:255-268`). A line then fits
+  where its last word fits both ways, with the kerning, at the break Blink finds in the run shaped whole, and without
+  it, shaped again: Avenir Next's `f` moves 0.36px away from a space after it, and a line that ends in `of` needs that
+  room in every mode. Pretext reads no style and takes the default. So in the other modes a line's last word is narrower
+  in the profile than in Chrome by its share of a kerning that tightens, and a line can keep a word that Chrome wraps.
+  Over the masonry cards at 22 widths in 15px, 41,888 layouts for each font and mode, the wrong line counts on main,
+  with the profile, and with a build that leaves on the word only a kerning that widens it and puts one that tightens
+  on the space:
+
+  | | Arial | Times New Roman | Gill Sans | Avenir Next |
+  |---|---|---|---|---|
+  | start-aligned, no decoration | 70 / 2 / 2 | 71 / 2 / 3 | 550 / 2 / 43 | 150 / 0 / 16 |
+  | each of six other modes | 70 / 2 / 2 | 70 / 3 / 2 | 509 / 43 / 2 | 136 / 16 / 0 |
+
+  The six are centered, right-aligned, justified, underlined, a background on a span around the text and a background
+  on the block that holds it. Each gave the same counts, and a span without a background gave the first row's (pinned
+  Chrome 154.0.8037.57, 2026-10-01). In those modes the profile's wrong counts are a line too few, 41 of Gill Sans's 43,
+  all 16 of Avenir Next's and 1 of Times New Roman's 3, where main's are a line too many but for 26 in Avenir Next. A
+  box sized to the profile's widest line, rounded up, makes Chrome wrap again there in 433 of 37,786 multi-line layouts
+  in Gill Sans, 231 of 38,844 in Avenir Next, 3 in Times New Roman and 2 in Arial; main's box does in 376 in Avenir
+  Next and in none in the other three. The other build's wrong counts are all a line too many, and its box makes
+  Chrome wrap again in no layout of either row. Which of the two the profile takes, or whether the caller says which
+  kind of text it has, is an open decision (ENGINE_FOLLOWUPS.md, Kerning with spaces).
 - **A space is in the script run of the text before it**, as a Common character is, and Blink shapes each run apart, so
   a space after Cyrillic doesn't kern with a Latin word after it. Without this the profile lost a Bulgarian paragraph
   holding `на Android` (`sample-44c6920027f6c34e`), and eight more lines of the sample came out narrower than painted.
@@ -884,10 +912,13 @@ vocabulary. The premises and their gaps:
   narrow no-break space. A closing bracket takes the script of the run its opening bracket is in (`CloseBracket`,
   `:443-489`), so the space after `на [Yandex]` is in a Cyrillic run and doesn't kern with a Latin `Y`, and the space
   after `a (б)` kerns with `T`; an opening bracket that is East Asian wide is in the Han scripts
-  (`FixScriptsByEastAsianWidth`, `:83-110`), so neither does the space after `on （Yandex）`. Where a search for the
-  space's run meets a closing bracket or a character of several scripts, the profile reads the runs from the text's
-  start as Blink does (`readScriptRuns()` in `src/prepare.ts`). Scripts other than Latin, Cyrillic and Greek count as
-  one, half of a surrogate pair as Common, and any opening bracket as the pair of any closing one (ENGINE_FOLLOWUPS.md).
+  (`FixScriptsByEastAsianWidth`, `:83-110`), so neither does the space after `on （Yandex）` or the one in `x （ Tom`.
+  Where a search for the space's run meets a closing bracket or a character of several scripts, the profile reads the
+  runs from the text's start as Blink does (`readScriptRuns()` in `src/prepare.ts`). A run that ends with several
+  scripts left gives its opening bracket the first of them, and Blink orders a Common character's extensions by ICU
+  script code with Latin last (`GetScripts`, `:191-198`): after `(· ж)` the space doesn't kern with a Latin word.
+  Scripts other than Latin, Cyrillic and Greek count as one, half of a surrogate pair as Common, and any opening bracket
+  as the pair of any closing one (ENGINE_FOLLOWUPS.md has what each gets wrong).
 - **A space kerns with a word only inside one item.** Blink shapes nothing across a control item or a change of
   direction. Preserved spaces that start the text or follow a forced break are an item of their own with a break
   opportunity after it (`inline_items_builder.cc:988-1034`), so under pre-wrap they don't kern with the word after them,
