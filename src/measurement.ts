@@ -88,23 +88,25 @@ export type EngineProfile = {
   // and rebuildLineForTrailingSoftHyphen, InlineLineBuilder.cpp:1860-1887, for lines
   // with inline boxes): 'full-width-or-first', the latest opportunity that fits at
   // the full width, else the line's first, which is the soft hyphen the walker
-  // reaches before any opportunity on the line has fit. WebKit fits what it
-  // measures, which the same value stands for: each text item on its own
-  // (TextUtil::width, TextUtil.cpp:62-100), where an item ends at its soft hyphen,
-  // so no text measures narrower joined across one; and the hyphen it paints, U+2010
-  // where the primary font, the first listed family that gives a font, has a glyph
-  // for it, else `-` (hyphenString, StyleComputedStyle.cpp:419-431;
-  // TextUtil::hyphenWidth, TextUtil.cpp:621-624). Canvas draws U+2010 in a later
-  // family or a system font where the primary font lacks it, so the profile asks
-  // which family draws it (getHyphenText). Blink and Gecko choose their hyphen the
-  // same way (ComputedStyle::HyphenString, shaped in hyphen_result.cc:12-16, and
-  // MakeHyphenTextRun, gfxTextRun.cpp:2458-2473); their profiles measure `-`, a
-  // named gap (ENGINE_FOLLOWUPS.md, Line edges). The two measuring rules have no
-  // field of their own, since one more field on the profile slowed Chrome's line
-  // APIs (RESEARCH.md, JavaScript Engines). In 16px Arial at 76-80px Safari 27 lays
-  // out `the interna\u00ADtion\u00ADal` as `the` / `interna-` / `tional`, and at
-  // 40px `trans\u00ADi\u00ADt\u00ADlantic` starts with `trans-`, 40.9px wide.
+  // reaches before any opportunity on the line has fit. That return fits each text
+  // item as WebKit measures it, on its own (TextUtil::width, TextUtil.cpp:62-100),
+  // and an item ends at its soft hyphen, so under it no text counts as narrower
+  // joined across one, as it does for Blink and Gecko (getJoinedNarrowing in
+  // prepare.ts). In 16px Arial at 76-80px Safari 27 lays out
+  // `the interna\u00ADtion\u00ADal` as `the` / `interna-` / `tional`, and at 40px
+  // `trans\u00ADi\u00ADt\u00ADlantic` starts with `trans-`, 40.9px wide.
   unfitHyphenRetreat: 'reduced-width' | 'full-width' | 'full-width-or-first'
+  // A chosen soft hyphen paints U+2010 where a font has a glyph for it, else `-`.
+  // WebKit and Blink ask the primary font alone (hyphenString,
+  // StyleComputedStyle.cpp:419-431, measured by TextUtil::hyphenWidth,
+  // TextUtil.cpp:621-624; ComputedStyle::HyphenString, shaped in
+  // hyphen_result.cc:12-16), where Canvas draws U+2010 in a later family or a
+  // system font, so the profile asks which family draws it (getHyphenText). Gecko
+  // asks the first listed font that has it, else its default font, and shapes
+  // U+2010 as any other text (MakeHyphenTextRun over GetFirstValidFont(U+2010),
+  // gfxTextRun.cpp:2458-2473 and 2277-2360), which is what Canvas measures. The
+  // premise there is that the default font has one, as macOS's, Helvetica, does.
+  hyphenFromPrimaryFont: boolean
   // WebKit moves a tab to the following stop when less than half a space would
   // remain before the next one (FontCascade::tabWidth).
   skipNarrowTabStops: boolean
@@ -361,19 +363,23 @@ function getCanvasFont(font: string, families: readonly string[]): string {
   })
 }
 
-// The string a chosen soft hyphen paints in the font, as WebKit takes it from the primary
-// font (unfitHyphenRetreat): U+2010 where that font draws it, else `-`. Where
-// both measure the same in the font, either does. Else Canvas tells which family draws a
-// character from two lists: all three engines draw each character with the first listed
-// font that has its glyph (WebKit's glyphDataForVariant, FontCascadeFonts.cpp:426-439), so
-// a family draws it where `family, monospace` and `family, serif` measure it alike and the
-// two generic families alone don't. WebKit's primary font is the first listed family's
-// that gives a font, whether or not it has a glyph for a space (primaryFont,
-// FontCascadeFonts.h:225-254). Canvas can't tell a family that gives no font from one that
-// lacks the character, so the premise is that the primary font draws a space, and it is the
-// first family's that does; a first family whose font has no space, an icon font, is skipped
-// where WebKit takes it. `-` where the generic families measure alike, which tells nothing,
-// or the font string has no size in px.
+// The string a chosen soft hyphen paints in the font where the engine takes it from the
+// primary font (hyphenFromPrimaryFont): U+2010 where that font has a glyph for it, else `-`.
+// Where both measure the same in the font, either does. Else Canvas tells which family draws
+// a character from two lists: the engines draw each character with the first listed font
+// that has its glyph (WebKit's glyphDataForVariant, FontCascadeFonts.cpp:426-439), so a family
+// draws it where `family, monospace` and `family, serif` measure it alike and the two generic
+// families alone don't. The primary font is the first listed family's that gives a font,
+// whether or not it has a glyph for a space (WebKit's primaryFont, FontCascadeFonts.h:225-254;
+// Blink's DeterminePrimarySimpleFontDataCore, font_fallback_list.cc:88-143). Canvas can't tell
+// a family that gives no font from one that lacks the character, so the premise is that the
+// primary font draws a space, and it is taken as the first family's that does. `-` where the
+// generic families measure alike, which tells nothing, or the font string has no size in px.
+// What the premise gets wrong (ENGINE_FOLLOWUPS.md, Line edges): a first family whose font
+// has no space, an icon font, is skipped where the engines take it; a family split into faces
+// by unicode-range is asked whole, where the engines ask only the face that holds the space;
+// and where no listed family gives a font the answer is `-`, where the engines ask their
+// last-resort font.
 export function getHyphenText(measurement: FontMeasurement): string {
   if (measurement.hyphenText !== null) return measurement.hyphenText
   const font = measurement.canvasFont
@@ -529,6 +535,7 @@ function buildEngineProfile(): EngineProfile {
     letterSpaceDiscretionaryHyphen: engine !== 'blink',
     shapesMarksAcrossSoftHyphen: engine === 'blink',
     unfitHyphenRetreat: engine === 'blink' ? 'reduced-width' : engine === 'gecko' ? 'full-width' : 'full-width-or-first',
+    hyphenFromPrimaryFont: engine !== 'gecko',
     skipNarrowTabStops: engine === 'webkit',
     hangTabs: engine !== 'gecko',
     zeroWidthGlueTakesLine: engine !== 'gecko',

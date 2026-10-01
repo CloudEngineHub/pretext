@@ -129,10 +129,6 @@ export function measureAnalysis(
   const segmentCount = flags.length
   const fontMeasurement = getFontMeasurement(font, language)
   const emojiCorrection = textMayContainEmoji(normalized) ? getEmojiCorrection(font, fontMeasurement) : 0
-  // The gap before the hyphen, plus the hyphen's own spacing where the engine
-  // letter-spaces it.
-  const hyphenSpacing = letterSpacing === 0 ? 0 : letterSpacing * (engineProfile.letterSpaceDiscretionaryHyphen ? 2 : 1)
-  let discretionaryHyphenWidth = getTextWidth('-', fontMeasurement, emojiCorrection) + hyphenSpacing
   const spaceWidth = getTextWidth(' ', fontMeasurement, emojiCorrection)
   const tabStopAdvance = spaceWidth * 8
   const hasLetterSpacing = letterSpacing !== 0
@@ -301,9 +297,8 @@ export function measureAnalysis(
   // the unbroken text together: cursive joins, marks and kerning across the soft
   // hyphen. Canvas shows how much narrower the neighbors measure joined than
   // apart, which isolated widths can't show when proving that a hyphen overflows.
-  // WebKit fits what it measures: each side alone, and the hyphen its primary font
-  // paints (unfitHyphenRetreat).
-  const fitsAsWebKitMeasures = engineProfile.unfitHyphenRetreat === 'full-width-or-first'
+  // WebKit's return fits each side as measured alone and takes none (unfitHyphenRetreat).
+  const returnFitsEachSideAlone = engineProfile.unfitHyphenRetreat === 'full-width-or-first'
   function getJoinedNarrowing(analysisIndex: number, before: string | null, beforeMetrics: SegmentMetrics | null): number {
     if (before === null) return 0
     let next = analysisIndex + 1
@@ -437,16 +432,17 @@ export function measureAnalysis(
     if (segments !== null) segments.push(text)
     if (kind === SOFT_HYPHEN) {
       discretionaryHyphenContexts ??= zeros(mi)
-      discretionaryHyphenContexts.push(fitsAsWebKitMeasures ? 0 : getJoinedNarrowing(mi, previousJoinablePiece, previousJoinableMetrics))
+      discretionaryHyphenContexts.push(returnFitsEachSideAlone ? 0 : getJoinedNarrowing(mi, previousJoinablePiece, previousJoinableMetrics))
     } else {
       discretionaryHyphenContexts?.push(0)
     }
   }
 
-  // Only a text with a soft hyphen asks which hyphen WebKit's primary font paints.
-  if (fitsAsWebKitMeasures && discretionaryHyphenContexts !== null) {
-    discretionaryHyphenWidth = getTextWidth(getHyphenText(fontMeasurement), fontMeasurement, emojiCorrection) + hyphenSpacing
-  }
+  // The hyphen a chosen soft hyphen paints, which only a text with one asks for, with the
+  // gap before it, plus the hyphen's own spacing where the engine letter-spaces it.
+  const hyphenText = discretionaryHyphenContexts === null ? '-' : engineProfile.hyphenFromPrimaryFont ? getHyphenText(fontMeasurement) : '\u2010'
+  const discretionaryHyphenWidth = getTextWidth(hyphenText, fontMeasurement, emojiCorrection) +
+    (letterSpacing === 0 ? 0 : letterSpacing * (engineProfile.letterSpaceDiscretionaryHyphen ? 2 : 1))
 
   // A segment's width is its width between the text before and after it; one that starts
   // a line takes back the halt Blink gives its first character there.

@@ -40,9 +40,6 @@ rich-c71a21ddc6fa35ca breaks
 rich-d7ac0a6af37a56bf count
 rich-dc1f44c993d80708 breaks
 
-## A soft hyphen in 16 px Inter, whose U+2010 is 1.6 px narrower than its "-", at 73 px: Chrome paints U+2010 where the primary font has it, so its hyphen fits where the "-" the library measures doesn't (main too; ENGINE_FOLLOWUPS.md, Line edges)
-facts-a24d86e312733838 count
-
 ## A soft hyphen that ends a word before a space, or follows a space before a word, whose hyphen doesn't fit, at 24 px and wider: Chrome breaks the word before it between letters, as for the text in one node, where the library ends the line at the space or after the soft hyphen (main and fd8002ba too; ENGINE_FOLLOWUPS.md)
 rich-678c2f661ad5b57b count
 rich-848257104aba6eb8 count

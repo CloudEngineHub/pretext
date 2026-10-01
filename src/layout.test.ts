@@ -2004,9 +2004,9 @@ describe('prepare invariants', () => {
     }
   })
 
-  test('WebKit measures the hyphen its primary font draws: U+2010 where the first family that gives a font has it', () => {
+  test('a chosen soft hyphen measures as the hyphen the engine paints: U+2010 where the primary font has it, or in Gecko where any font draws it', () => {
     const profile = getEngineProfile()
-    const previous = profile.unfitHyphenRetreat
+    const previous = profile.hyphenFromPrimaryFont
     const measureText = Object.getOwnPropertyDescriptor(TestCanvasRenderingContext2D.prototype, 'measureText')!
     // Each character is drawn by the first listed family that has it. `Own Hyphen Sans`
     // has a U+2010 narrower than its `-`, `Latin Only Sans` has none, `Even Hyphen Sans`
@@ -2035,7 +2035,7 @@ describe('prepare invariants', () => {
     const hyphen = measureWidth('-', FONT)
     const text = 'trans\u00ADatlantic'
     try {
-      profile.unfitHyphenRetreat = 'full-width-or-first'
+      profile.hyphenFromPrimaryFont = true
       for (const [family, expected, hyphenCalls] of [
         // The font's own, after a later family's or a generic one's: both hyphens measure
         // differently, so the two generic families and then each family are asked.
@@ -2067,20 +2067,28 @@ describe('prepare invariants', () => {
       hyphenFonts.length = 0
       prepareWithSegments('transatlantic crossing', '16px "Own Hyphen Sans", serif')
       expect(hyphenFonts).toEqual([])
-      // The other profiles measure `-`.
-      profile.unfitHyphenRetreat = 'full-width'
-      clearCache()
-      expect(prepareWithSegments(text, '16px "Own Hyphen Sans", serif').discretionaryHyphenWidth).toBe(hyphen)
-      expect(hyphenFonts).toEqual([])
+      // Gecko takes U+2010 from the first listed font that has it, as Canvas draws it,
+      // and asks no family.
+      profile.hyphenFromPrimaryFont = false
+      for (const [family, expected] of [
+        ['"Own Hyphen Sans", serif', 4],
+        ['"Latin Only Sans", "Own Hyphen Sans", serif', 4],
+        ['"Latin Only Sans", serif', 5],
+      ] as const) {
+        clearCache()
+        hyphenFonts.length = 0
+        expect({ family, width: prepareWithSegments(text, `16px ${family}`).discretionaryHyphenWidth }).toEqual({ family, width: expected })
+        expect(hyphenFonts).toEqual([`16px ${family}`])
+      }
       // The two generic families measure a space or U+2010 alike, which tells nothing: `-`.
-      profile.unfitHyphenRetreat = 'full-width-or-first'
+      profile.hyphenFromPrimaryFont = true
       Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', measureText)
       clearCache()
       expect(measureWidth('\u2010', FONT)).not.toBe(hyphen)
       expect(prepareWithSegments(text, FONT).discretionaryHyphenWidth).toBe(hyphen)
     } finally {
       Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', measureText)
-      profile.unfitHyphenRetreat = previous
+      profile.hyphenFromPrimaryFont = previous
       clearCache()
     }
   })
@@ -2601,7 +2609,8 @@ describe('prepare invariants', () => {
       ['measureTextWithFollowingSpace', false, true, false],
       ['letterSpaceDiscretionaryHyphen', false, true, true],
       ['shapesMarksAcrossSoftHyphen', true, false, false],
-      ['unfitHyphenRetreat', 'reduced-width', 'none', 'full-width'],
+      ['unfitHyphenRetreat', 'reduced-width', 'full-width-or-first', 'full-width'],
+      ['hyphenFromPrimaryFont', true, true, false],
       ['skipNarrowTabStops', false, true, false],
       ['hangTabs', true, true, false],
       ['zeroWidthGlueTakesLine', true, true, false],
