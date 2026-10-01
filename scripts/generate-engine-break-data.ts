@@ -70,8 +70,9 @@ const readText = (path: string) => readFileSync(join(dataDir, path), 'utf8')
 const gzipSize = (text: string) => gzipSync(Buffer.from(text), { level: 9 }).length
 const base64 = (bytes: Uint8Array) => Buffer.from(bytes).toString('base64')
 
-// unpackTable's form: greedy LZ77 over the dictionary and the table, matching at least four
-// bytes among the last 64 positions with the same next four, checked to unpack exactly.
+// unpackTable's form: LZ77 over the dictionary and the table. A copy takes the longest run of at
+// least four bytes that starts at any earlier position, unless the copy one byte later would be
+// longer: then this byte goes out as a literal (lazy matching). Checked to unpack exactly.
 function packTable(bytes: Uint8Array, dictionary: Uint8Array | null = null): string {
   const dict = dictionary ?? new Uint8Array(0)
   const all = new Uint8Array(dict.length + bytes.length)
@@ -82,6 +83,7 @@ function packTable(bytes: Uint8Array, dictionary: Uint8Array | null = null): str
     for (; value >= 0x80; value = Math.floor(value / 0x80)) out.push((value & 0x7f) | 0x80)
     out.push(value)
   }
+  // Earlier positions by their next four bytes.
   const chains = new Map<number, number[]>()
   const key = (i: number) => all[i]! | (all[i + 1]! << 8) | (all[i + 2]! << 16) | (all[i + 3]! * 0x1000000)
   const remember = (i: number) => {
@@ -90,12 +92,9 @@ function packTable(bytes: Uint8Array, dictionary: Uint8Array | null = null): str
     let chain = chains.get(k)
     if (chain === undefined) chains.set(k, chain = [])
     chain.push(i)
-    if (chain.length > 64) chain.shift()
   }
-  for (let i = 0; i < dict.length; i++) remember(i)
-  varint(bytes.length)
-  let literals: number[] = []
-  for (let i = dict.length; i < all.length;) {
+  // The longest run at i that repeats an earlier position's, and how far back the nearest such position is.
+  const longestCopy = (i: number): [number, number] => {
     let length = 0
     let distance = 0
     const chain = i + 4 <= all.length ? chains.get(key(i)) : undefined
@@ -107,19 +106,26 @@ function packTable(bytes: Uint8Array, dictionary: Uint8Array | null = null): str
         if (n > length) { length = n; distance = i - j }
       }
     }
-    if (length >= 4) {
-      varint(literals.length)
-      out.push(...literals)
-      literals = []
-      varint(length - 4)
-      varint(distance)
-      for (let k = 0; k < length; k++) remember(i + k)
-      i += length
-    } else {
+    return [length, distance]
+  }
+  for (let i = 0; i < dict.length; i++) remember(i)
+  varint(bytes.length)
+  let literals: number[] = []
+  for (let i = dict.length; i < all.length;) {
+    const [length, distance] = longestCopy(i)
+    remember(i)
+    if (length < 4 || longestCopy(i + 1)[0] > length) {
       literals.push(all[i]!)
-      remember(i)
       i++
+      continue
     }
+    varint(literals.length)
+    out.push(...literals)
+    literals = []
+    varint(length - 4)
+    varint(distance)
+    for (let k = 1; k < length; k++) remember(i + k)
+    i += length
   }
   varint(literals.length)
   out.push(...literals)
