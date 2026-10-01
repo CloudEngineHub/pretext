@@ -285,12 +285,8 @@ export function measureAnalysis(
   const breakableFitAdvances: (number[] | null)[] = []
   let entryGeometry: (SegmentEntryGeometry | null)[] | null = null
   let lineStartProhibitions: (Uint8Array | null)[] | null = null
-  // When not even the first character of an overflowing word fits an empty line,
-  // WebKit keeps the punctuation, NBSP, U+2010 and U+2013 after that character on the
-  // line, in text holding a code unit above U+00FF (InlineContentBreaker.cpp:124-158,
-  // 222-233), by its scan's line-start table. Blink and Gecko end the line after the
-  // first grapheme.
-  const keepsLineStartPunctuation = engineProfile.lineBreakScan === 'webkit' && /[\u0100-\uFFFF]/.test(normalized)
+  // WebKit's line-start rule applies only in text holding a code unit above U+00FF.
+  const keepsLineStartPunctuation = engineProfile.keepsLineStartPunctuation && /[\u0100-\uFFFF]/.test(normalized)
   const segments = includeSegments ? [] as string[] : null
   const retreatsFromUnfitHyphen = engineProfile.unfitHyphenRetreat !== 'none'
   let discretionaryHyphenContexts: number[] | null = null
@@ -380,7 +376,7 @@ export function measureAnalysis(
           : textMetrics.width >= engineProfile.prefixFitMinWidth ? 'segment-prefixes'
           : 'sum-graphemes'
         const fit = getSegmentFit(text, textMetrics, fontMeasurement, emojiCorrection, fitMode,
-          measuredWithSpace ? spaceWidth : null, engineProfile.lineBreakScan === 'webkit')
+          measuredWithSpace ? spaceWidth : null, engineProfile.keepsLineStartPunctuation)
         fitAdvances = fit.advances
         if (fitAdvances === null) break
         // The cached advances are shared by every occurrence of this text; only

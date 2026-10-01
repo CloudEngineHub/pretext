@@ -950,10 +950,11 @@ describe('boundary-policy regressions', () => {
 
   test('every text segment of an engine scan takes emergency grapheme breaks', () => {
     const profile = getEngineProfile()
-    const previous = profile.lineBreakScan
+    const previous = { lineBreakScan: profile.lineBreakScan, keepsLineStartPunctuation: profile.keepsLineStartPunctuation }
     try {
       for (const scan of ['blink', 'webkit', 'gecko'] as const) {
         profile.lineBreakScan = scan
+        profile.keepsLineStartPunctuation = scan === 'webkit'
         // Segment metrics belong to one engine profile.
         clearCache()
         // Digits, which Safari's JavaScriptCore doesn't mark word-like, symbols and emoji.
@@ -975,7 +976,7 @@ describe('boundary-policy regressions', () => {
         }
       }
     } finally {
-      profile.lineBreakScan = previous
+      Object.assign(profile, previous)
     }
   })
 
@@ -2507,6 +2508,7 @@ describe('prepare invariants', () => {
       ['skipNarrowTabStops', false, true, false],
       ['hangTabs', true, true, false],
       ['zeroWidthGlueTakesLine', true, true, false],
+      ['keepsLineStartPunctuation', false, true, false],
       ['hidesControlCharacters', false, false, true],
       ['hanKerning', true, false, false],
       ['hangsIdeographicSpace', true, false, true],
@@ -2641,6 +2643,7 @@ describe('prepare invariants', () => {
     }
     try {
       profile.lineBreakScan = 'webkit'
+      profile.keepsLineStartPunctuation = true
       // Safari 27 paints these at a width below one character; 8-bit `xb((c` takes one
       // character per line.
       expect(lines('xb((cā')).toEqual(['x', 'b((', 'c', 'ā'])
@@ -2648,6 +2651,7 @@ describe('prepare invariants', () => {
       expect(lines('xb((c')).toEqual(['x', 'b', '(', '(', 'c'])
       // Blink and Gecko end the line after the first grapheme.
       profile.lineBreakScan = 'blink'
+      profile.keepsLineStartPunctuation = false
       expect(lines('xb((cā')).toEqual(['x', 'b', '(', '(', 'c', 'ā'])
     } finally {
       Object.assign(profile, previous)

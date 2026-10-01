@@ -96,6 +96,12 @@ export type EngineProfile = {
   // its own. Gecko drops soft hyphens from its text run and clusters a ZWSP with the marks
   // after it, so glue at a line start can't hold the line: the segment after it starts it.
   zeroWidthGlueTakesLine: boolean
+  // When not even the first character of an overflowing word fits an empty line, WebKit
+  // keeps the punctuation, NBSP, U+2010 and U+2013 after that character on the line, in
+  // text holding a code unit above U+00FF (InlineContentBreaker.cpp:124-158, 222-233;
+  // canWebKitLineStartWith in src/line-breaks.ts). Blink and Gecko end the line after the
+  // first grapheme.
+  keepsLineStartPunctuation: boolean
   // Blink's HanKerning under text-spacing-trim: normal halts CJK opening and closing marks
   // next to other punctuation and at line ends (src/han-kerning.ts). WebKit and Gecko
   // don't trim them by default.
@@ -461,6 +467,7 @@ function buildEngineProfile(): EngineProfile {
     skipNarrowTabStops: engine === 'webkit',
     hangTabs: engine !== 'gecko',
     zeroWidthGlueTakesLine: engine !== 'gecko',
+    keepsLineStartPunctuation: engine === 'webkit',
     hidesControlCharacters: engine === 'gecko',
     hanKerning: engine === 'blink',
     hangsIdeographicSpace: engine !== 'webkit',
