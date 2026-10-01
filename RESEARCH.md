@@ -747,7 +747,12 @@ Chrome's layout kerns across spaces, ZWSP, soft hyphens and same-font spans, whe
 (Engine Facts, Chrome), reports none of it for Arial or Times New Roman; the Chromium profile follows Canvas's cuts
 (headless Chromium 147, 2026-09-12; Dead Ends). In Chrome 153 a run measured whole equals its words measured with the
 spaces beside them, less each inner space once, at all 379,714 positions where both sides hold a character of a script
-of its own, and misses at 818 of 28,774 where one side holds none, all in Amiri (rebuild harness).
+of its own, and misses at 818 of 28,774 where one side holds none, all in Amiri (rebuild harness). This kerning is the
+largest cause of Chrome's wrong lines in real usage, across spaces in Latin text and between kana, which Canvas cuts
+apart as it cuts around every CJK character: 15px Arial `x A x` lays out 31.69px wide where Canvas measures 33.34px,
+and 16px Hiragino Sans `キス` eight times 244.96px where Canvas measures 256px, as Firefox and Safari lay it out
+(Chrome 154.0.8037.57, Firefox 156.0.1, webkit-host, 2026-09-30; ENGINE_FOLLOWUPS.md, Kerning Chrome's Canvas doesn't
+report, has the rates and what a fix would cost).
 
 Where a pair's adjustment sits decides what a break inside the pair leaves on each side: GPOS pair positioning puts it
 all on the first glyph, the legacy `kern` table half on each (`hb-kern.hh:102-106`). On macOS, Times New Roman, Verdana,
@@ -1879,7 +1884,9 @@ Mostly on main as it was then, measured with the old suite in installed browsers
 - **Other shapes of Safari's space-kerning rule** before #311's (2026-09-15): none across format characters (33 rows
   lost), a narrower rule, kerning only under letter spacing, and direction marks as non-letters.
 - **Chrome Canvas kerning settings** (`optimizeLegibility`, `fontKerning`) shape whole strings in only some fonts and
-  turn features on for every measurement (Engine Facts, Chrome). Reopens with a whole-string mode.
+  turn features on for every measurement (Engine Facts, Chrome). Reopens with a whole-string mode, which U+2028 in
+  place of each space is, as the rebuild measures: it was never weighed for main on its own (ENGINE_FOLLOWUPS.md,
+  Kerning Chrome's Canvas doesn't report).
 - **WebKit letter-spaced ligatures** (in the rebuild, from 2026-09-17; Measurement Model): no separator sets two letters
   unligated in one shaping call (U+200C ends the simple path's call, U+034F doesn't stop the ligature, U+180B brings a
   fallback glyph), and a group heuristic was 1.9 px off; a styled connected `<canvas>` would fix about 721 cases but is

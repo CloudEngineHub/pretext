@@ -79,6 +79,10 @@ Measured on macOS at a device pixel ratio of 2 unless an entry says otherwise; W
 
 The rebuild's pages for the unfiled bugs, and for its candidates that don't reach main, are in `rebuild/platform-bugs/pages/` on branch `rebuild-20260916`, run in Chrome 153.0.8010.50, Firefox 156.0 and WebKit 22625.1.29.11.27 on 2026-09-18; Bugzilla searches found no report for them, and issues.chromium.org wasn't searched.
 
+### Chrome: Canvas leaves out kerning the page applies
+
+Unfiled; issues.chromium.org wasn't searched for a report. Chrome's Canvas shapes a string word by word, cut at each space and around each CJK character, where the page shapes a line whole, so `measureText()` leaves out the pair kerning across those cuts: 15 px Arial `x A x` is 33.34 px in Canvas and 31.69 px on the page, and 16 px Hiragino Sans `キス` 32 px and 31.05 px (Chrome 154.0.8037.57, 2026-09-30; in Firefox 156.0.1 and webkit-host, Pretext's widths for both equal the page's). It is the largest cause of Pretext's wrong lines in Chrome on real text, and Pretext has no workaround; `ENGINE_FOLLOWUPS.md` has the rates and what one would cost.
+
 ### Firefox: Canvas measures at a rounded font size
 
 By design: Firefox's Canvas keeps 7 significant bits of a font size (`QuantizeFontSize()`) so its font cache doesn't fill with near-equal sizes, where DOM text keeps 10 and rounds to 1/60 px (`RESEARCH.md`, "Engine Facts", has both roundings). At 13.33 px, Chrome's and Firefox's default button size, the same 3 test paragraphs changed line count at every DPR tested, while whole-pixel sizes matched within 0.02 px (Firefox 155.0.1, 2026-09-14); the README recommends whole pixels. Rescaling widths from the rounded size was rejected for leaving that residual; with both roundings known it may leave none, which would reopen it.
