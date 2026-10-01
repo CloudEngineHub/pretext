@@ -122,13 +122,14 @@ function consumesAtLineStart(kind: number, atChunkStart: boolean): boolean {
 }
 
 // A tab's advance from `position` on the line: to the next stop, or to the one after where
-// the next is under the minimum away (EngineProfile's tabStops). A tab on a stop is a whole
-// stop from the next, so each tab of a run takes one. Stops no wider than 0, under a letter
-// spacing of minus a space or less, leave a tab no advance, as in Gecko (GetSpacingInternal,
-// nsTextFrame.cpp:4262-4264) and as Chrome lays such tabs out. Gecko counts in whole app
-// units, sixtieths of a pixel (AdvanceToNextTab, nsTextFrame.cpp:4298-4304), so a tab
-// exactly the minimum from its stop takes it, as many do: in Arial and Helvetica a space is
-// half a `0`. Canvas sums come within float error of such a tie.
+// the next is under the minimum away. A tab on a stop is a whole stop from the next, so each
+// tab of a run takes one. Stops no wider than 0, under a letter spacing of minus a space or
+// less, leave a tab no advance: Gecko gives tabs no width there (GetSpacingInternal,
+// nsTextFrame.cpp:4262-4264), and Blink's, negative by Font::TabWidth, is clamped to 0 where
+// the tab's item is placed (ClampNegativeToZero, line_breaker.cc:1486, 1703). Gecko counts in
+// whole app units (EngineProfile's tabsInAppUnits), so a tab exactly the minimum from its
+// stop takes it, as many do: in Arial and Helvetica a space is half a `0`. Canvas sums come
+// within float error of such a tie.
 function getTabAdvance(position: number, tabStopAdvance: number, minimumAdvance: number, appUnits: boolean): number {
   if (appUnits) {
     const stop = Math.round(tabStopAdvance * 60)
@@ -468,7 +469,7 @@ function walkPreparedComplexLines(
   // Gecko doesn't hang tabs.
   const hangingKinds = 1 << PRESERVED_SPACE | (engineProfile.hangTabs ? 1 << TAB : 0)
   const zeroWidthGlueTakesLine = engineProfile.zeroWidthGlueTakesLine
-  const tabAppUnits = engineProfile.tabStops === 'spaced-ch'
+  const tabsInAppUnits = engineProfile.tabsInAppUnits
   // A rich item's line starts after the line's content before the item, which can
   // leave it a negative width, and its break before the item is the line's pending
   // break (ItemLine). Any other negative width lays out as 0, as in the simple stepper.
@@ -578,7 +579,7 @@ function walkPreparedComplexLines(
           }
           if (kind !== ZERO_WIDTH_BREAK && kind !== ZERO_WIDTH_GLUE) zeroWidthPrefix = false
           const w = kind === TAB
-            ? getTabAdvance(lineOffset + lineW + leadingSpacing, tabStopAdvance, minimumTabAdvance, tabAppUnits)
+            ? getTabAdvance(lineOffset + lineW + leadingSpacing, tabStopAdvance, minimumTabAdvance, tabsInAppUnits)
             : widths[i]!
           const advance = leadingSpacing + w
           const endTrim = lineEndTrims === null ? 0 : lineEndTrims[i]!

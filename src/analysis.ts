@@ -54,8 +54,8 @@ export const SEGMENT_KINDS: readonly SegmentBreakKind[] = [
 // unit each normalized unit starts from, such as the TAB or LF a space came from. Null otherwise.
 // `texts` holds each segment's text, `starts` where it starts in `normalized`, and `flags` its
 // flags byte: its kind, UNBROKEN where the engine's scan gives no break before text, zero-width
-// glue or a control, other than at a line start, and in the Gecko scan before a tab or the
-// spaces after one, RETURNABLE at the other segments of text with such a boundary, which
+// glue or a control, other than at a line start, and where tabs don't hang before a tab or
+// the spaces after one, RETURNABLE at the other segments of text with such a boundary, which
 // `hasUnbroken` tells, and ONE_CLUSTER where the scan has clusters of its own.
 export type TextAnalysis = {
   normalized: string
@@ -69,6 +69,7 @@ export type TextAnalysis = {
 export type AnalysisProfile = {
   lineBreakScan: 'blink' | 'webkit' | 'gecko'
   graphemeTable: GraphemeTable
+  hangTabs: boolean
 }
 
 const collapsibleWhitespaceRunRe = /[ \t\n\r\f]+/g
@@ -314,7 +315,7 @@ function isControlSegmentCode(code: number): boolean {
 // profile's graphemes look past these characters (src/graphemes.ts), so a cluster extender after
 // them joins the cluster before, unless a bidi level run starts at it, where the scan starts a
 // cluster (gfxTextRun.cpp:2828-2835) and the extender starts a segment.
-function segmentAtLineBreaks(normalized: string, spaceSources: Uint16Array | null, breaks: Uint8Array, whiteSpace: WhiteSpaceMode, scan: AnalysisProfile['lineBreakScan'], afterContent: boolean, dropsBidiControl: boolean): TextAnalysis {
+function segmentAtLineBreaks(normalized: string, spaceSources: Uint16Array | null, breaks: Uint8Array, whiteSpace: WhiteSpaceMode, scan: AnalysisProfile['lineBreakScan'], hangTabs: boolean, afterContent: boolean, dropsBidiControl: boolean): TextAnalysis {
   const oneCluster = scan === 'gecko' ? ONE_CLUSTER : 0
   const starts: number[] = []
   // A plain array, which measurement copies into the prepared handle's bytes: a Uint8Array for
@@ -377,19 +378,18 @@ function segmentAtLineBreaks(normalized: string, spaceSources: Uint16Array | nul
   // before text, zero-width glue or a control, other than at a line start. A
   // ZWSP or soft hyphen there is zero-width glue. Before a space, tab or hard break
   // the scan has no break either, but the line can still end there, as they hang or
-  // end it, so it keeps its kind. Gecko breaks only after a whole run of spaces and tabs
-  // (nsLineBreaker.cpp:318-330) and doesn't hang a tab, so there no line ends before a
-  // tab, or between a tab and the spaces after it, which hang where the run ends the
-  // line; a soft hyphen before the tab keeps its break (GetHyphenationBreaks,
-  // nsTextFrame.cpp:4409-4457). The Gecko scan stands here for the profile's hangTabs,
-  // false only in the engine whose scan it is.
+  // end it, so it keeps its kind. A tab that doesn't hang (EngineProfile's hangTabs) ends
+  // no line before itself, nor do the spaces after it, which hang only where the run of
+  // white space ends the line: Gecko breaks only after the whole run (nsLineBreaker.cpp:
+  // 318-330). A soft hyphen before the tab keeps its break (GetHyphenationBreaks,
+  // nsTextFrame.cpp:4409-4457).
   let hasUnbroken = false
   const count = flags.length
   for (let j = count - 2; j >= 0; j--) {
     const kind = flags[j]! & KIND_BITS
     const next = flags[j + 1]! & KIND_BITS
     if ((breaks[starts[j + 1]!]! & BREAK) !== 0 || kind === HARD_BREAK) continue
-    if (scan === 'gecko' && (next === TAB || (next === PRESERVED_SPACE && kind === TAB))) {
+    if (!hangTabs && (next === TAB || (next === PRESERVED_SPACE && kind === TAB))) {
       if (kind === SOFT_HYPHEN) continue
     } else if (next === TEXT || next === ZERO_WIDTH_GLUE || next === CONTROL) {
       if (kind === ZERO_WIDTH_BREAK || kind === SOFT_HYPHEN) flags[j] = flags[j]! & ~KIND_BITS | ZERO_WIDTH_GLUE
@@ -451,5 +451,5 @@ export function analyzeText(
     if (profile.lineBreakScan === 'webkit' && !preserve && source !== normalized) spaceSources = new Uint16Array(normalized.length)
     breaks = source === normalized ? sourceBreaks : mapSourceLineBreaks(source, normalized.length, sourceBreaks, whiteSpace, spaceSources)
   }
-  return segmentAtLineBreaks(normalized, spaceSources, breaks, whiteSpace, profile.lineBreakScan, afterContent, dropsBidiControl)
+  return segmentAtLineBreaks(normalized, spaceSources, breaks, whiteSpace, profile.lineBreakScan, profile.hangTabs, afterContent, dropsBidiControl)
 }

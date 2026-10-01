@@ -234,6 +234,13 @@ function terminalCursor(prepared: TestPreparedTextWithSegments): TestLayoutCurso
   return { segmentIndex: prepared.segments.length, graphemeIndex: 0 }
 }
 
+// Each engine's tab fields (EngineProfile), which the tab tests set together.
+const TAB_FIELDS = {
+  blink: { letterSpaceTabStops: true, letterSpaceTabs: false, tabMinimumCharacter: ' ', tabsInAppUnits: false },
+  webkit: { letterSpaceTabStops: false, letterSpaceTabs: true, tabMinimumCharacter: ' ', tabsInAppUnits: false },
+  gecko: { letterSpaceTabStops: true, letterSpaceTabs: false, tabMinimumCharacter: '0', tabsInAppUnits: true },
+} as const
+
 // The pinned browsers' desktop user agents, which name only a major version.
 const CHROME_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36'
 const SAFARI_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Safari/605.1.15'
@@ -445,8 +452,9 @@ describe('boundary-policy regressions', () => {
   const baseProfile = {
     lineBreakScan: 'blink' as const,
     graphemeTable: 'chromium/char' as const,
+    hangTabs: true,
   }
-  const geckoProfile = { ...baseProfile, lineBreakScan: 'gecko' as const }
+  const geckoProfile = { ...baseProfile, lineBreakScan: 'gecko' as const, hangTabs: false }
 
   test('independent symbols use grapheme overflow without splitting attached marks', () => {
     for (const text of ['||||', '|\u0301|\u0301']) {
@@ -1346,7 +1354,7 @@ describe('boundary-policy regressions', () => {
     // At 20px the fake Canvas's widths are whole app units, as Firefox's are.
     const LARGE = '20px Test Sans'
     const profile = getEngineProfile()
-    const previous = profile.tabStops
+    const previous = { ...profile }
     const space = measureWidth(' ', LARGE)
     const a = measureWidth('a', LARGE)
     const foo = measureWidth('foo', LARGE)
@@ -1354,31 +1362,32 @@ describe('boundary-policy regressions', () => {
       layoutWithLines(prepareWithSegments(text, LARGE, { whiteSpace: 'pre-wrap', letterSpacing }), 1000, LINE_HEIGHT).lines[0]!.width
     const round = (value: number) => Math.round(value * 1e6) / 1e6
     try {
-      for (const tabStops of ['spaced', 'spaced-ch', 'spaces'] as const) {
-        profile.tabStops = tabStops
+      for (const engine of ['blink', 'gecko', 'webkit'] as const) {
+        const fields = TAB_FIELDS[engine]
+        Object.assign(profile, fields)
         for (const letterSpacing of [-1, -0.5, 2]) {
           // Blink and Gecko put a stop every eight letter-spaced spaces and add no spacing after a
           // tab; WebKit puts one every eight spaces and spaces each tab. The line's last glyph
           // keeps its spacing.
-          const stop = tabStops === 'spaces' ? 8 * space : 8 * (space + letterSpacing)
-          const tabSpacing = tabStops === 'spaces' ? letterSpacing : 0
-          expect({ tabStops, letterSpacing, width: round(width('a\tb', letterSpacing)) }).toEqual({ tabStops, letterSpacing, width: round(stop + tabSpacing + a + letterSpacing) })
+          const stop = fields.letterSpaceTabStops ? 8 * (space + letterSpacing) : 8 * space
+          const tabSpacing = fields.letterSpaceTabs ? letterSpacing : 0
+          expect({ engine, letterSpacing, width: round(width('a\tb', letterSpacing)) }).toEqual({ engine, letterSpacing, width: round(stop + tabSpacing + a + letterSpacing) })
           // Each tab of a run takes a whole stop, under negative spacing too: WebKit's spacing
           // after a tab leaves the next one that far before or after a stop, and under half a
           // space before one it takes the stop after.
           for (let tabs = 1; tabs <= 4; tabs++) {
             const expected = round(tabs * stop + tabSpacing + foo + 3 * letterSpacing)
-            expect({ tabStops, letterSpacing, tabs, width: round(width('\t'.repeat(tabs) + 'foo', letterSpacing)) }).toEqual({ tabStops, letterSpacing, tabs, width: expected })
-            expect({ tabStops, letterSpacing, tabs, width: round(width('a' + '\t'.repeat(tabs) + 'foo', letterSpacing)) }).toEqual({ tabStops, letterSpacing, tabs, width: expected })
+            expect({ engine, letterSpacing, tabs, width: round(width('\t'.repeat(tabs) + 'foo', letterSpacing)) }).toEqual({ engine, letterSpacing, tabs, width: expected })
+            expect({ engine, letterSpacing, tabs, width: round(width('a' + '\t'.repeat(tabs) + 'foo', letterSpacing)) }).toEqual({ engine, letterSpacing, tabs, width: expected })
           }
         }
         // Gecko rounds the letter spacing a stop counts to app units: -0.08px is -5/60px there.
-        if (tabStops !== 'spaces') expect(width('\ta', -0.08)).toBeCloseTo(8 * (space - (tabStops === 'spaced-ch' ? 5 / 60 : 0.08)) + a - 0.08, 9)
+        if (fields.letterSpaceTabStops) expect(width('\ta', -0.08)).toBeCloseTo(8 * (space - (fields.tabsInAppUnits ? 5 / 60 : 0.08)) + a - 0.08, 9)
         // Stops no wider than 0 leave a tab no advance.
-        if (tabStops !== 'spaces') expect(width('a\t\tb', -space - 1)).toBeCloseTo(2 * (a - space - 1), 9)
+        if (fields.letterSpaceTabStops) expect(width('a\t\tb', -space - 1)).toBeCloseTo(2 * (a - space - 1), 9)
       }
     } finally {
-      profile.tabStops = previous
+      Object.assign(profile, previous)
     }
   })
 
@@ -1386,7 +1395,7 @@ describe('boundary-policy regressions', () => {
     // At 20px the fake Canvas's widths are whole app units, as Firefox's are.
     const LARGE = '20px Test Sans'
     const profile = getEngineProfile()
-    const previous = profile.tabStops
+    const previous = { ...profile }
     const space = measureWidth(' ', LARGE)
     const zero = measureWidth('0', LARGE)
     const stop = 8 * space
@@ -1400,24 +1409,26 @@ describe('boundary-policy regressions', () => {
       expect(stop - measureWidth('aaaa', LARGE)).toBeLessThan(zero / 2)
       expect(stop - measureWidth('a.....', LARGE)).toBeLessThan(space / 2)
       expect(stop - measureWidth('aa  0', LARGE)).toBeCloseTo(zero / 2, 9)
-      for (const tabStops of ['spaced', 'spaced-ch', 'spaces'] as const) {
-        profile.tabStops = tabStops
+      for (const engine of ['blink', 'gecko', 'webkit'] as const) {
+        const fields = TAB_FIELDS[engine]
+        Object.assign(profile, fields)
+        const halfZero = fields.tabMinimumCharacter === '0'
         const stops = (text: string) => Math.round((width(`${text}\tb`) - b) / stop)
-        expect({ tabStops, stops: stops('aaa') }).toEqual({ tabStops, stops: 1 })
-        expect({ tabStops, stops: stops('aaaa') }).toEqual({ tabStops, stops: tabStops === 'spaced-ch' ? 2 : 1 })
-        expect({ tabStops, stops: stops('a.....') }).toEqual({ tabStops, stops: 2 })
-        expect({ tabStops, stops: stops('aa  0') }).toEqual({ tabStops, stops: 1 })
-        expect(width('aaaa\tb')).toBeCloseTo((tabStops === 'spaced-ch' ? 2 : 1) * stop + b, 9)
+        expect({ engine, stops: stops('aaa') }).toEqual({ engine, stops: 1 })
+        expect({ engine, stops: stops('aaaa') }).toEqual({ engine, stops: halfZero ? 2 : 1 })
+        expect({ engine, stops: stops('a.....') }).toEqual({ engine, stops: 2 })
+        expect({ engine, stops: stops('aa  0') }).toEqual({ engine, stops: 1 })
+        expect(width('aaaa\tb')).toBeCloseTo((halfZero ? 2 : 1) * stop + b, 9)
       }
     } finally {
-      profile.tabStops = previous
+      Object.assign(profile, previous)
     }
   })
 
   test('the Gecko profile returns a line from a tab that doesn\'t fit to its latest break', () => {
     const LARGE = '20px Test Sans'
     const profile = getEngineProfile()
-    const previous = { lineBreakScan: profile.lineBreakScan, hangTabs: profile.hangTabs, tabStops: profile.tabStops }
+    const previous = { ...profile }
     const stop = 8 * measureWidth(' ', LARGE)
     const col = measureWidth('col1', LARGE)
     const lines = (text: string, width: number) =>
@@ -1427,7 +1438,7 @@ describe('boundary-policy regressions', () => {
       for (const scan of ['gecko', 'blink'] as const) {
         profile.lineBreakScan = scan
         profile.hangTabs = scan !== 'gecko'
-        profile.tabStops = scan === 'gecko' ? 'spaced-ch' : 'spaced'
+        Object.assign(profile, TAB_FIELDS[scan])
         clearCache()
         // `col3` fits and its tab doesn't. Firefox doesn't hang the tab and no line ends before
         // one, so the word goes to the next line with it; Chrome's tab hangs.
@@ -1750,7 +1761,7 @@ describe('engine break scans', () => {
       ['a (\u05D0\u05D1) b', 'en', false, false, [2, 7]],
     ] as const) {
       // The transformation leaves these rows as they are.
-      expect(preserve ? text : removeSkippableSegmentBreaks(text, { lineBreakScan: 'gecko', graphemeTable: 'chromium/char' }, language)).toBe(text)
+      expect(preserve ? text : removeSkippableSegmentBreaks(text, { lineBreakScan: 'gecko', graphemeTable: 'chromium/char', hangTabs: false }, language)).toBe(text)
       expect({ text, language, keepAll, breaks: positions(getGeckoLineBreaks(text, preserve, keepAll, 'chromium/char').breaks, text.length) })
         .toEqual({ text, language, keepAll, breaks: [...expected] })
     }
@@ -2557,7 +2568,10 @@ describe('prepare invariants', () => {
       ['letterSpaceDiscretionaryHyphen', false, true, true],
       ['shapesMarksAcrossSoftHyphen', true, false, false],
       ['unfitHyphenRetreat', 'reduced-width', 'none', 'full-width'],
-      ['tabStops', 'spaced', 'spaces', 'spaced-ch'],
+      ['letterSpaceTabStops', true, false, true],
+      ['letterSpaceTabs', false, true, false],
+      ['tabMinimumCharacter', ' ', ' ', '0'],
+      ['tabsInAppUnits', false, false, true],
       ['hangTabs', true, true, false],
       ['zeroWidthGlueTakesLine', true, true, false],
       ['hidesControlCharacters', false, false, true],
@@ -2770,7 +2784,7 @@ describe('prepare invariants', () => {
     clearWordSegmenter()
     try {
       for (const lineBreakScan of ['blink', 'webkit', 'gecko'] as const) {
-        const profile = { lineBreakScan, graphemeTable: 'chromium/char' as const }
+        const profile = { lineBreakScan, graphemeTable: 'chromium/char' as const, hangTabs: lineBreakScan !== 'gecko' }
         for (const text of ['Hello, world.', '漢字かな、한국어', 'العربية', '\u{1F468}\u200D\u{1F469}\u200D\u{1F467} #\uFE0F\u20E3', '\u0915\u094D\u0937\u093F', 'a\u00ADb c\u200Bd']) {
           expect(analyzeText(text, profile).texts.join('')).toBe(text)
         }
@@ -3887,13 +3901,13 @@ describe('rich-inline invariants', () => {
       [{ text: 'first\r', font: FONT }, { text: '\nsecond\r', font: BOLD }, { text: '\n\nthird', font: FONT }],
     ]
     const profile = getEngineProfile()
-    const previous = { lineBreakScan: profile.lineBreakScan, breaksFromItemText: profile.breaksFromItemText, hangTabs: profile.hangTabs, tabStops: profile.tabStops }
+    const previous = { ...profile }
     try {
       for (const scan of ['blink', 'webkit', 'gecko'] as const) {
         profile.lineBreakScan = scan
         profile.breaksFromItemText = scan === 'webkit'
         profile.hangTabs = scan !== 'gecko'
-        profile.tabStops = scan === 'webkit' ? 'spaces' : scan === 'gecko' ? 'spaced-ch' : 'spaced'
+        Object.assign(profile, TAB_FIELDS[scan])
         clearCache()
         for (const items of rows) {
           for (let width = 4; width <= 320; width += 3.7) expect({ scan, width, lines: richLines(items, width) }).toEqual({ scan, width, lines: flatLines(items, width) })

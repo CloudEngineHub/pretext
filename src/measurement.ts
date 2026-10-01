@@ -84,20 +84,30 @@ export type EngineProfile = {
   // invisibles and from marks after a soft hyphen, which isolated widths do not
   // show. It keeps the overflowing hyphen.
   unfitHyphenRetreat: 'reduced-width' | 'full-width' | 'none'
-  // Pre-wrap tab stops count from the line's start, and a tab moves on to the stop after
-  // the next where the next is under a minimum away (CSS Text 3 §4.1.2).
-  // - 'spaces': WebKit puts a stop every eight spaces and spaces the tab as any glyph; the
-  //   minimum is half a space (FontCascade::tabWidth, FontCascadeInlines.h:76-93;
-  //   WidthIterator.cpp:491-517).
-  // - 'spaced': Blink puts one every eight spaces, each space with its letter spacing
-  //   (Font::TabWidthInternal, font.cc:303-317; TabSize::GetPixelSize, tab_size.h:24-33), and
-  //   adds no spacing after the tab, which it shapes apart from text (shape_result.cc:
-  //   1898-1944); the minimum is half a space (Font::TabWidth, font.cc:319-340).
-  // - 'spaced-ch': Gecko's stops and tabs are as Blink's (ComputeTabWidthAppUnits,
-  //   nsTextFrame.cpp:3875-3906; CanAddSpacingAfter, :3860-3873), with a minimum of half
-  //   the font's `0`, counted in whole app units (GetMinTabAdvanceAppUnits, :1931-1937;
-  //   AdvanceToNextTab, :4298-4304).
-  tabStops: 'spaces' | 'spaced' | 'spaced-ch'
+  // Pre-wrap tab stops count from the line's start, eight spaces apart, and a tab under a
+  // minimum from the next stop takes the stop after it (CSS Text 3 §4.1.2). Blink and Gecko
+  // count each of those spaces with its letter spacing (TabSize::GetPixelSize,
+  // tab_size.h:24-33, since Chromium 140 under the runtime flag TabSizeWithSpacing, which
+  // an older Chromium lacks and so counts plain spaces; Font::TabWidthInternal,
+  // font.cc:303-317; ComputeTabWidthAppUnits, nsTextFrame.cpp:3875-3906). WebKit counts
+  // plain spaces (FontCascade::tabWidth, FontCascadeInlines.h:76-93).
+  letterSpaceTabStops: boolean
+  // WebKit letter-spaces a tab as any glyph with an advance (WidthIterator.cpp:491-517).
+  // Blink shapes a run of tabs apart from text, with no spacing (shape_result.cc:1898-1944),
+  // and Gecko adds none after a tab (CanAddSpacingAfter, nsTextFrame.cpp:3860-3873).
+  letterSpaceTabs: boolean
+  // The character whose advance, halved, is the least a tab advances: a space in Blink and
+  // WebKit (Font::TabWidth, font.cc:319-340; FontCascade::tabWidth), `0` in Gecko
+  // (GetMinTabAdvanceAppUnits, nsTextFrame.cpp:1931-1937). Gecko reads the first available
+  // font's `0`, or its average character width where it has none (ZeroOrAveCharWidth,
+  // gfxFont.h:1698-1700). The profile takes Canvas's width of `0`, which a later font of
+  // the list draws where the first has none, so under such a list, one led by an icon or a
+  // single-script font, a tab near a stop can land a stop from Firefox's.
+  tabMinimumCharacter: ' ' | '0'
+  // Gecko counts a tab's position, its stops and its minimum in whole app units, sixtieths
+  // of a pixel, so a tab exactly the minimum from its stop takes it (AdvanceToNextTab,
+  // nsTextFrame.cpp:4298-4304). Blink and WebKit count in floats (fmodf).
+  tabsInAppUnits: boolean
   // A run of preserved spaces and tabs at the end of a pre-wrap line hangs in Blink
   // and WebKit (CSS Text 3 §4.1.2). Gecko doesn't hang a tab, so a tab counts in the
   // line's fit and width there, as spaces do not, and one that doesn't fit goes to the
@@ -470,7 +480,10 @@ function buildEngineProfile(): EngineProfile {
     letterSpaceDiscretionaryHyphen: engine !== 'blink',
     shapesMarksAcrossSoftHyphen: engine === 'blink',
     unfitHyphenRetreat: engine === 'blink' ? 'reduced-width' : engine === 'gecko' ? 'full-width' : 'none',
-    tabStops: engine === 'webkit' ? 'spaces' : engine === 'gecko' ? 'spaced-ch' : 'spaced',
+    letterSpaceTabStops: engine !== 'webkit',
+    letterSpaceTabs: engine === 'webkit',
+    tabMinimumCharacter: engine === 'gecko' ? '0' : ' ',
+    tabsInAppUnits: engine === 'gecko',
     hangTabs: engine !== 'gecko',
     zeroWidthGlueTakesLine: engine !== 'gecko',
     hidesControlCharacters: engine === 'gecko',
