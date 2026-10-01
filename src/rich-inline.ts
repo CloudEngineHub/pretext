@@ -520,7 +520,7 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
       whitespaceRunOpen = false
       continue
     }
-    const letterSpacing = readLetterSpacing(item.letterSpacing)
+    const letterSpacing = readLetterSpacing(item.letterSpacing, profile)
     const text = texts[index]!
     let start = 0
     while (!preserve && start < text.length && isCollapsibleSpaceCode(text.charCodeAt(start))) start++

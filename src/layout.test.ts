@@ -5515,3 +5515,40 @@ test('letter-spaced text is measured as each engine\'s Canvas shapes it', () => 
     85,
   ])
 })
+
+test('the Firefox profile resolves letter spacing to whole app units', () => {
+  // The engine profile is computed once per process, so each engine runs in a child
+  // process. Every character is 8px and `fi` ligates, 3px narrower, unless the context has
+  // a letterSpacing. Firefox 156 gives each letter these app units, 1/60 px, at these
+  // spacings, rounding half away from zero, and keeps ligatures where the spacing rounds to 0.
+  const layoutUrl = new URL('./layout.ts', import.meta.url).href
+  const spacings: Array<[number, number]> = [
+    [-0.08, -5], [-0.17, -10], [0.15, 9], [0.2, 12], [-0.2, -12], [0.375, 23], [-0.375, -23], [0.125, 8], [-0.125, -8],
+    [0.025, 2], [-0.025, -2], [1 / 120, 1], [-1 / 120, -1], [0.0084, 1], [0.0083, 0], [-0.008, 0], [1e300, 2 ** 30 - 1],
+  ]
+  const rowsOf = (userAgent: string): Array<[number, number, number]> => JSON.parse(runInChild(`
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { userAgent: ${JSON.stringify(userAgent)} } })
+    class Context {
+      font = ''
+      letterSpacing = '0px'
+      measureText(text) {
+        return { width: [...text].length * 8 - (this.letterSpacing === '0px' ? 3 * (text.split('fi').length - 1) : 0) }
+      }
+    }
+    globalThis.OffscreenCanvas = class { getContext() { return new Context() } }
+    const { prepareWithSegments, measureNaturalWidth } = await import(${JSON.stringify(layoutUrl)})
+    // Each letter's spacing in app units, and the width of \`fi\` without its two gaps.
+    console.log(JSON.stringify(${JSON.stringify(spacings)}.map(([spacing]) => {
+      const gap = measureNaturalWidth(prepareWithSegments('ab', '16px Test', { letterSpacing: spacing })) - 16
+      return [spacing, gap * 30, measureNaturalWidth(prepareWithSegments('fi', '16px Test', { letterSpacing: spacing })) - gap]
+    })))
+  `)) as Array<[number, number, number]>
+  const firefox = rowsOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:156.0) Gecko/20100101 Firefox/156.0')
+  for (let i = 0; i < spacings.length; i++) {
+    const [spacing, units] = spacings[i]!
+    expect({ spacing, units: Math.round(firefox[i]![1] * 1e6) / 1e6, fi: Math.round(firefox[i]![2]) }).toEqual({ spacing, units, fi: units === 0 ? 13 : 16 })
+  }
+  // Chrome keeps the spacing as given.
+  const chrome = rowsOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36')
+  for (let i = 0; i < spacings.length - 1; i++) expect(chrome[i]![1]).toBeCloseTo(spacings[i]![0] * 60, 9)
+})

@@ -376,12 +376,23 @@ export function getPreparationLanguage(profile: EngineProfile): string | null {
   return language === '' && profile.laysOutUnderDefaultLocale ? getBlinkDefaultLocale() : language
 }
 
-// A text's letter spacing in CSS px, 0 by default. CSS and Canvas ignore a
-// non-finite one, which Pretext refuses rather than guess at.
-export function readLetterSpacing(letterSpacing: number | undefined): number {
+// The most app units a Gecko length holds (nscoord_MAX, nsCoord.h:28).
+const MAX_APP_UNITS = (1 << 30) - 1
+
+// A text's letter spacing in CSS px as the engine lays it out, 0 by default. CSS and
+// Canvas ignore a non-finite one, which Pretext refuses rather than guess at. Gecko
+// resolves it to whole app units, 1/60 px (ResolveLetterSpacing, nsTextFrame.cpp:1949-1962):
+// the float32 times 60, rounded half away from zero and clamped (DefaultLengthToAppUnits,
+// ServoStyleConstsInlines.h:584-595). At -0.08px each character takes -5/60 px, and a
+// spacing under half a unit is none, the text's ligatures kept (nsLayoutUtils.cpp:6896-6904).
+// Blink keeps 1/65536 px and WebKit a float, taken as given. The profile's scan tells Gecko
+// here, as a profile field of its own would slow Chrome (createMeasureState).
+export function readLetterSpacing(letterSpacing: number | undefined, profile: EngineProfile): number {
   const value = letterSpacing ?? 0
   if (!Number.isFinite(value)) throw new RangeError(`letterSpacing must be a finite number of CSS px, not ${value}`)
-  return value
+  if (profile.lineBreakScan !== 'gecko') return value
+  const units = Math.fround(Math.fround(value) * 60)
+  return Math.min(Math.round(Math.abs(units)), MAX_APP_UNITS) * Math.sign(units) / 60
 }
 
 // A zero per segment, where per-segment widths start, pushed in a loop: Array.from over

@@ -1701,9 +1701,14 @@ repin` shows what), and a fact read in source needs reading again.
   Hiragino Sans). Unfiled: `ComputeLigatureData` divides a signed advance by an unsigned count (`:249-289`), so a span
   starting between two marks of one cluster makes a frame about 17.9 million px wide. (Firefox 156, 2026-09-17 to
   09-23.)
-- **Letter spacing.** A run's last character is always spaced, others only if not a tab or formatting character and a
-  cluster starts after them (`CanAddSpacingAfter`, `nsTextFrame.cpp:3860-3873`): a lone pre-wrap tab at 1px is 43.6 px
-  natively, 44.6 px painted alone. A tab before a change of direction also ends a left-to-right run and gets a gap
+- **Letter spacing.** The page resolves it to whole app units, 1/60 px, from a float32, rounding half away from zero
+  (`ResolveLetterSpacing`, `nsTextFrame.cpp:1949-1962`; `DefaultLengthToAppUnits`, `ServoStyleConstsInlines.h:584-595`):
+  each letter takes -5 units at -0.08px, as Signal Desktop sets Inter, -10 at -0.17px, 23 and -23 at ±0.375px, 1 at
+  0.0084px and none at 0.0083px, where the text also keeps its ligatures. The Gecko profile rounds the same way (#TBD):
+  6 of its accepted failures at -0.08px passed, 3 of them real-usage paragraphs, and no pass was lost. The Canvas rounds
+  half up, -22 units at -0.375px (`CanvasRenderingContext2D.cpp:4771-4774`). A run's last character is always spaced,
+  others only if not a tab or formatting character and a cluster starts after them (`CanAddSpacingAfter`,
+  `nsTextFrame.cpp:3860-3873`): a lone pre-wrap tab at 1px is 43.6 px natively, 44.6 px painted alone. A tab before a change of direction also ends a left-to-right run and gets a gap
   (`a\tبِبِ((tail`), unseen by the Gecko profile where it resolves no levels (Bidi Levels). After a removed soft hyphen,
   a mark is spaced as its own base. From Firefox 153, a Canvas `letterSpacing` under half an app unit turns ligatures off
   and adds nothing, which the Gecko profile measures letter-spaced text under (Measurement Model); 140 ESR adds
