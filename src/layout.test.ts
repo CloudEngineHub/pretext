@@ -4207,6 +4207,19 @@ describe('rich-inline invariants', () => {
           [[chip, text(' '), zero], {}, [[0], [2]]],
           [[chip, text(' '), zero], preWrap, [[0, 1], [2]]],
           [[chip, zero, text(' '), zero, text('cd')], preWrap, [[0, 1, 2], [3, 4]]],
+          // White space is read from the text, not from a width: a space narrower than nothing
+          // under letter spacing, and a tab, which Firefox doesn't hang, break the line after
+          // themselves too.
+          [[chip, { text: ' ', font: FONT, letterSpacing: -6 }, zero], {}, [[0], [2]]],
+          [[chip, text('\t'), zero], preWrap, [[0], [1], [2]]],
+          // Firefox drops soft hyphens before it reads the white space. A space before the soft
+          // hyphens that end its node is that frame's own, so the frame ends before it and the
+          // line has a break there; an item of soft hyphens after the space of another node is
+          // an empty frame past the line's end, after which the line breaks.
+          [[text('ab \u00AD '), zero], {}, [[0, 1]]],
+          [[text('ab \u00AD '), zero, text('cd')], {}, [[0], [1, 2]]],
+          [[text('ab '), text('\u00AD'), zero], {}, [[0, 1], [2]]],
+          [[chip, text(' \u00AD '), zero], {}, [[0, 1], [2]]],
           // After text wider than the line the first break is the one after the box, which stays,
           // unless a soft hyphen ends that text, in its item or one of its own, which gives a break
           // before the box, as an atomic item before the soft hyphen does.
