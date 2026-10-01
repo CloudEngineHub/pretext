@@ -5,6 +5,7 @@
 import { observeSegmentEntries, textMayHaveEntryGeometry, type SegmentEntryGeometry } from './entry-geometry.js'
 import { getHanKerningTrims, textMayHanKern, type HanKerningTrims } from './han-kerning.js'
 import { findGraphemeEnds, type GraphemeTable } from './graphemes.js'
+import { DEFAULT_IGNORABLE, hasProperty } from './line-breaks.js'
 import {
   CONTROL,
   HARD_BREAK,
@@ -26,7 +27,6 @@ import {
   type BreakableFitMode,
   type EngineProfile,
   type FontMeasurement,
-  defaultIgnorableRe,
   getCorrectedSegmentWidth,
   getEmojiCorrection,
   getFollowingSpaceMetrics,
@@ -165,7 +165,7 @@ function spaceSharesScriptRun(text: string, at: number, end: number, runs: Scrip
   let scripts = getKerningScripts(text[at]!)
   // The default ignorables text holds are Common or Inherited; one with a script of its own,
   // as U+061C, counts as the word's first letter.
-  while (scripts === ANY_SCRIPT && at + 1 < end && defaultIgnorableRe.test(text[at]!)) scripts = getKerningScripts(text[++at]!)
+  while (scripts === ANY_SCRIPT && at + 1 < end && hasProperty(text.charCodeAt(at), DEFAULT_IGNORABLE)) scripts = getKerningScripts(text[++at]!)
   if (scripts === ANY_SCRIPT) return true
   for (let i = at - 1; i >= 0; i--) {
     const character = text[i]!
