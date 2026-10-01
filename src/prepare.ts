@@ -242,6 +242,18 @@ export function measureAnalysis(
       !spaceParagraphHasExplicitBidiControls(spaceStart)
   }
 
+  // Blink shapes text items together only where their resolved direction is the same
+  // (ShouldBreakShapingBeforeText, inline_node.cc:472-490, over the items SegmentBidiRuns
+  // splits by level, :1333), and HarfBuzz shapes a right-to-left item in visual order, where
+  // Canvas shows a pair only left to right. Which spaces share a level with the word beside
+  // them depends on the paragraph's direction, which preparation cannot see, so text that
+  // holds a right-to-left letter or an explicit bidi control takes no kerning with spaces. A
+  // text is scanned once, when a word of it first kerns with a space.
+  let oneDirection: boolean | null = null
+  function isOneDirection(): boolean {
+    return oneDirection ??= !rightToLeftLetterRe.test(normalized) && !explicitBidiControlRe.test(normalized)
+  }
+
   // Whether the space before the text segment at `at` is in the script run of the character it
   // kerns with there, the segment's first past default ignorables (getSpaceKerning). Blink
   // shapes each script run in a call of its own (HarfBuzzShaper::Shape,
@@ -458,10 +470,12 @@ export function measureAnalysis(
           const beforeSpace = mi + 1 < segmentCount && isSpaceKind(flags[mi + 1]! & KIND_BITS)
           if (afterSpace || beforeSpace) {
             const kerning = textMetrics.spaceKerning ?? getSpaceKerning(text, textMetrics, fontMeasurement, spaceWidth)
-            if (beforeSpace) followingSpaceKerning = kerning.after
-            // The space hangs where a line ends at it, and what it took with it.
-            if (afterSpace && kerning.before !== 0 && !spacesStartLine(mi - 1) && spaceSharesScriptRun(starts[mi]!, starts[mi]! + text.length)) {
-              widths[mi - 1] = widths[mi - 1]! + kerning.before
+            if ((kerning.after !== 0 || kerning.before !== 0) && isOneDirection()) {
+              if (beforeSpace) followingSpaceKerning = kerning.after
+              // The space hangs where a line ends at it, and what it took with it.
+              if (afterSpace && kerning.before !== 0 && !spacesStartLine(mi - 1) && spaceSharesScriptRun(starts[mi]!, starts[mi]! + text.length)) {
+                widths[mi - 1] = widths[mi - 1]! + kerning.before
+              }
             }
           }
         }

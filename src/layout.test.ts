@@ -5418,7 +5418,7 @@ test('the Chromium profile takes the kerning between a word and the spaces besid
       ['12 TT', '16px Test', {}], ['AA TT', '16px Glyph', {}],
       ['  TT\\n TT', '16px Test', { whiteSpace: 'pre-wrap' }], ['\\u0436\\u0436 \\u2060TT', '16px Test', {}],
       ['\\u0436\\u0436 (TT) TT', '16px Test', {}], ['TT (\\u0436\\u0436) TT', '16px Test', {}], ['(TT) \\u0422\\u0422', '16px Test', {}],
-      ['(12) TT', '16px Test', {}],
+      ['(12) TT', '16px Test', {}], ['\\u05D0 AA TT AA \\u05D1', '16px Test', {}], ['\\u202AAA TT', '16px Test', {}],
     ]) widths.push(prepareWithSegments(text, font, options).widths)
     const lines = []
     for (const [text, width] of [['AA TT', 19.5], ['AA TT', 37], ['AAA TT', 10.5]]) {
@@ -5468,6 +5468,11 @@ test('the Chromium profile takes the kerning between a word and the spaces besid
     [16, 4, 32, 2, 16],
     [32, 4, 16],
     [32, 2, 16],
+    // Which spaces share a level with a word depends on the paragraph's direction once a
+    // text holds a right-to-left letter or an explicit bidi control, so such a text takes no
+    // kerning.
+    [8, 4, 20, 4, 16, 4, 20, 4, 8],
+    [28, 4, 16],
   ])
   expect(lines).toEqual([
     // The kerned word fits, and the space hangs with what it took.

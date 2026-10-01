@@ -69,15 +69,15 @@ export type EngineProfile = {
   // What a word's kerning reaches past the word itself, where Canvas measures words apart.
   // 'following-space': WebKit measures a text item together with a directly following U+0020
   // and subtracts one unshaped space, so the item keeps its kerning with that space wherever
-  // the line ends. 'script-run': Blink's layout shapes each script run of a paragraph in one
-  // call, its spaces included, so in a font whose kerning names the space glyph a word kerns
-  // with the space after it and a space with the word after it. Its Canvas shapes word by word,
-  // cut at each U+0020, so that a string draws as its words drawn apart
-  // (PlainTextNode::SegmentWord and NextWordEndIndex, plain_text_node.cc:84-155, 365-399), and
-  // reports neither. Preparation asks Canvas for the kerning (getSpaceKerning) and adds it to
-  // the word before the space and to the space. 'none': Gecko shapes words without their
-  // spaces. One field for the three, since one more field on the profile slowed Chrome's line
-  // functions (RESEARCH.md, JavaScript Engines).
+  // the line ends. 'script-run': Blink's layout shapes each run of one script and direction in
+  // a paragraph in one call, its spaces included, so in a font whose kerning names the space
+  // glyph a word kerns with the space after it and a space with the word after it, where both
+  // are in one run. Its Canvas shapes word by word, cut at each U+0020, so that a string draws
+  // as its words drawn apart (PlainTextNode::SegmentWord and NextWordEndIndex,
+  // plain_text_node.cc:84-155, 365-399), and reports neither. Preparation asks Canvas for the
+  // kerning (getSpaceKerning) and adds it to the word before the space and to the space.
+  // 'none': Gecko shapes words without their spaces. One field for the three, since one more
+  // field on the profile slowed Chrome's line functions (RESEARCH.md, JavaScript Engines).
   kerningReach: 'following-space' | 'script-run' | 'none'
   // WebKit and Gecko letter-space the visible discretionary hyphen itself.
   // Blink shapes it separately, without spacing.
@@ -465,8 +465,8 @@ function getCharacterSpaceKerning(character: string, measurement: FontMeasuremen
 // - All of it sits on the first glyph of the pair, as GPOS pair positioning puts it. The legacy
 //   `kern` table puts half on each glyph, so a line that ends at the space keeps only half in
 //   Chrome, which a width doesn't show.
-// Which spaces are in a word's script run, and so kern with it, preparation decides
-// (spaceSharesScriptRun, src/prepare.ts).
+// Which spaces are in a word's run, and so kern with it, preparation decides (isOneDirection,
+// spacesStartLine and spaceSharesScriptRun, src/prepare.ts).
 export function getSpaceKerning(seg: string, metrics: SegmentMetrics, measurement: FontMeasurement, spaceWidth: number): SpaceKerning {
   let first = 0
   let last = seg.length - 1
