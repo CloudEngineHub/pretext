@@ -1226,10 +1226,10 @@ grapheme that holds an emoji or a pictograph, in Chrome 154.0.8037.57 and Firefo
 took the widths more than 0.1px off the DOM's:
 - from 2,571 of 265,140 to 807 in Chrome and from 2,298 to 0 in Firefox, over 1,473 emoji graphemes alone and inside a
   word in 30 font lists at 12, 16 and 20px; Chrome's 807 are a skin tone after a character that isn't an emoji;
-- from 25,084 of 350,776 to 0 in Chrome and from some 25,800 to 7-20 in Firefox (one of the first families measured,
-  another each run, before U+FE0E), over 652 emoji graphemes alone, bare, before U+FE0E and before U+FE0F, in the 258
-  installed families and 11 generic ones at 13 and 16px; nearly all were an emoji-presentation character before U+FE0E,
-  which a text font draws;
+- from 25,084 of 350,776 to 0 in Chrome and from some 25,800 in Firefox to 7-20 in one of the first families measured,
+  another each run, before U+FE0E, and 4 that were right before, over 652 emoji graphemes alone, bare, before U+FE0E and
+  before U+FE0F, in the 258 installed families and 11 generic ones at 13 and 16px; nearly all were an emoji-presentation
+  character before U+FE0E, which a text font draws;
 - by 4,112 of 44,640 in Chrome and 7,847 in Firefox, with 178 and 252 that were right before wrong, over 496 graphemes
   that mix fonts (an emoji or a sequence before a mark or a selector, a skin tone after a character of another script)
   in 90 fonts; 6,766 in Chrome and 8,488 in Firefox are wrong after it;
@@ -1242,15 +1242,15 @@ took the widths more than 0.1px off the DOM's:
   in a page's first second (50), and three ZWJ sequences written with no U+FE0F (216).
 
 A stretch that two fonts draw takes no correction, and one measured apart from a mark after it can be another font's
-than on the page: the 178, 252 and 216. A version that also asked such a stretch character by character was measured
-and left out (Decisions Log, 2026-10-01). What the count still gets
-wrong, and the mixes it newly gets wrong, are in ENGINE_FOLLOWUPS.md, Emoji correction. Text fonts whose glyphs are
-exactly as wide as an emoji's, beyond the two found there, real text with a ZWJ sequence that two fonts draw, or a
-platform with the gap whose emoji font varies its advances would reopen it. The rebuild's DOM-free formulas, W being Canvas's width at a size: Chrome's
-DOM width is `Math.ceil(64 × W(size × DPR)) / (64 × DPR)` at DPR 2 and `W(size)` at DPR 1, Firefox's
-`W(size × DPR) / DPR`, Safari's `W(size)` (September 2026). They'd retire the DOM exception and work in workers, but
-make prepared widths depend on the DPR at prepare time, which the API discussion planned before a release decides
-(TODO.md, End of project).
+than on the page: the 178, 252 and 216, and the 4 of the second set, U+26A1, ZWJ, U+2B50 in Menlo and Apple Symbols,
+which draw that U+26A1 themselves. A version that also asked such a stretch character by character was measured and left
+out (Decisions Log, 2026-10-01). What the count still gets wrong, and the mixes it newly gets wrong, are in
+ENGINE_FOLLOWUPS.md, Emoji correction. Text fonts whose glyphs are exactly as wide as an emoji's, beyond the two found
+there, real text with a ZWJ sequence that two fonts draw, or a platform with the gap whose emoji font varies its
+advances would reopen it. The rebuild's DOM-free formulas, W being Canvas's width at a size: Chrome's DOM width is
+`Math.ceil(64 × W(size × DPR)) / (64 × DPR)` at DPR 2 and `W(size)` at DPR 1, Firefox's `W(size × DPR) / DPR`, Safari's
+`W(size)` (September 2026). They'd retire the DOM exception and work in workers, but make prepared widths depend on the
+DPR at prepare time, which the API discussion planned before a release decides (TODO.md, End of project).
 
 #### Widths That Depend On Context
 
@@ -2585,18 +2585,17 @@ decisions for the maintainer.
   with no fragment. A box's width is final, fixed when it's prepared and at least 0, and heights stay the app's, with the
   README's `vertical-align: top` rule (Rich Inline Boundaries, Objects Inside A Line, has the evidence and what reopens
   negative widths and widths given at layout).
-- **2026-10-01: an emoji stretch that two fonts draw takes no correction** (#TBD; landed on judgement). The emoji
-  correction counts the emoji font's glyphs by measuring each stretch of emoji characters whole (Content Language And
-  Fonts, Emoji). A version that also asked a stretch that isn't all emoji glyphs character by character, and bounded
-  the count by the emoji widths that fit in the grapheme, was measured beside it in Chrome 154.0.8037.57 and Firefox
-  156.0.1. The two predict every harness case alike (42,890 in Chrome, 43,997 in Firefox) and every line count of 22
-  and 32 realistic chat paragraphs over 417,820 layouts, with the same `measureText` calls. They differ on graphemes
-  that mix fonts: over the six probe sets of widths (Content Language And Fonts, Emoji, and ENGINE_FOLLOWUPS.md, Emoji
-  correction), 604 widths in Chrome and 451 in Firefox were right under one correction per grapheme and wrong with
-  that version, against 2,518 and 3,867 without it, nearly
-  all in shapes only fuzzing produces (a text font's pictograph joined by a ZWJ to an emoji, a skin tone after a
-  combining mark). It cost 13 runtime lines, a second pattern, a rule for which characters to ask alone that is
-  neither engine's, and a bound whose answer depends on how wide a neighbouring glyph is. Limits says to document such
-  shapes, not chase them, so it was left out and the shapes are named in ENGINE_FOLLOWUPS.md, Emoji correction. Its
-  one cost in text an app may hold is in Firefox: three ZWJ sequences of emoji-test.txt written with no U+FE0F measure
-  5px wide. Such sequences turning up in real text would reopen it.
+- **2026-10-01: an emoji stretch that two fonts draw takes no correction** (#TBD). The emoji correction counts the emoji
+  font's glyphs by measuring each stretch of emoji characters whole (Content Language And Fonts, Emoji). A version that
+  also asked a stretch that isn't all emoji glyphs character by character, and bounded the count by the emoji widths
+  that fit in the grapheme, was measured beside it in Chrome 154.0.8037.57 and Firefox 156.0.1. The two predict every
+  harness case alike (42,890 in Chrome, 43,997 in Firefox) and every line count of 22 and 32 realistic chat paragraphs
+  over 417,820 layouts, with the same `measureText` calls. They differ on graphemes that mix fonts: over the six probe
+  sets of widths (Content Language And Fonts, Emoji, and ENGINE_FOLLOWUPS.md, Emoji correction), 604 widths in Chrome
+  and 451 in Firefox were right under one correction per grapheme and wrong with that version, against 2,518 and 3,867
+  without it, nearly all in shapes only fuzzing produces (a text font's pictograph joined by a ZWJ to an emoji, a skin
+  tone after a combining mark). It cost 13 runtime lines, a second pattern, a rule for which characters to ask alone
+  that is neither engine's, and a bound whose answer depends on how wide a neighbouring glyph is. Limits says to
+  document such shapes, not chase them, so it was left out and the shapes are named in ENGINE_FOLLOWUPS.md, Emoji
+  correction. Its one cost in text an app may hold is in Firefox: three ZWJ sequences of emoji-test.txt written with no
+  U+FE0F measure 5px wide. Such sequences turning up in real text would reopen it.
