@@ -196,19 +196,21 @@ export type EngineProfile = {
   // so it fits the end edge too of an item of white space that ends there, and leaves white space
   // that hangs before the box out of the fit (hangingContentWidth, InlineContentBreaker.cpp:
   // 183-186, 956-958): 'placed'. Gecko fits a frame's whole width, its cloned end edge too, and
-  // lets only an empty frame past the line's end (CanPlaceFrame, nsLineLayout.cpp:1217-1270),
-  // so an atomic item of width 0 stays on a line that already overflows unless the line goes
-  // back to a break before it (getKeptEmptyEnd, src/rich-inline.ts). A frame starts where the
-  // one before it ends, a text frame after its spaces where they fit and at the line's end where
-  // they hang (nsTextFrame.cpp:11216-11229), so an empty frame after spaces that hang is inside
-  // the line, and a padded span after it starts the next: 'both'. In 15px Helvetica Neue,
-  // `Unbreakable` and a span with 20px padding that starts with a line feed keep the line feed
-  // from 107px in Chrome and Safari, from 127px in Firefox, and `Unbreakable   ` and that span
-  // from 86px in Chrome, 105px in Safari and 138px in Firefox; `Ping `, the chip `@alice` and a
-  // span with 12px padding that starts with two spaces keep them on the chip's line from 71px in
-  // Chrome and Safari and from 83px in Firefox, and one of only two spaces at every width in
-  // Chrome and from 117px in Safari and Firefox.
+  // lets only an empty frame past the line's end (CanPlaceFrame, nsLineLayout.cpp:1217-1270):
+  // 'both'. In 15px Helvetica Neue, `Unbreakable` and a span with 20px padding that starts with a
+  // line feed keep the line feed from 107px in Chrome and Safari, from 127px in Firefox, and
+  // `Unbreakable   ` and that span from 86px in Chrome, 105px in Safari and 138px in Firefox;
+  // `Ping `, the chip `@alice` and a span with 12px padding that starts with two spaces keep them
+  // on the chip's line from 71px in Chrome and Safari and from 83px in Firefox, and one of only
+  // two spaces at every width in Chrome and from 117px in Safari and Firefox.
   paddedOpeningFit: 'start' | 'placed' | 'both'
+  // Gecko places a frame whose margin box is empty wherever it falls, on a line that already
+  // overflows too ("Empty frames always fit right where they are", CanPlaceFrame,
+  // nsLineLayout.cpp:1264-1269), so an atomic item of width 0 stays on the line it falls on,
+  // unless the line then goes back to a break before it, as it does where a frame with a width
+  // that continues the text comes next (getKeptEmptyEnd, src/rich-inline.ts). Blink and WebKit
+  // fit it as any other atomic inline and move it to the next line.
+  emptyAtomicAlwaysFits: boolean
   // Blink transforms segment breaks in the text of the whole inline formatting context
   // (ShouldRemoveNewline and RemoveTrailingCollapsibleNewlineIfNeeded, inline_items_builder.cc).
   // Gecko transforms each text frame's own text (nsTextFrameUtils::TransformText), as
@@ -430,16 +432,25 @@ export function getLayoutEngine(userAgent: string): LayoutEngine | null {
   return userAgent.includes('AppleWebKit/') ? 'webkit' : null
 }
 
+// Apart from buildEngineProfile(), so that what the line walkers call for every line stays a read
+// of the cached profile, however much the profile holds. V8 inlines a function only while its
+// bytecode takes at most 460 bytes (max_inlined_bytecode_size), minified or not. With the builder
+// inside, this took 454 bytes with 23 fields and 463 with a 24th, which Chrome 154's V8 no longer
+// inlined into the line counter and the simple and rich steppers, and its plain line APIs ran
+// 11-18% slower. Apart, it takes 21 (Node 23, V8 12.9). Check with node --print-bytecode and
+// --trace-turbo-inlining (RESEARCH.md, JavaScript Engines).
 export function getEngineProfile(): EngineProfile {
-  if (cachedEngineProfile !== null) return cachedEngineProfile
+  return cachedEngineProfile ??= buildEngineProfile()
+}
 
+function buildEngineProfile(): EngineProfile {
   const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent
   // Engines Pretext doesn't recognize take Blink's profile (RESEARCH.md, Decisions Log).
   const engine = getLayoutEngine(ua) ?? 'blink'
   // Fresh-entry observations are verified only for desktop Blink and Gecko.
   const isDesktop = /Windows NT|Macintosh|X11/.test(ua) && !/Android|Mobile|iPhone|iPad|iPod/.test(ua)
 
-  const profile: EngineProfile = {
+  return {
     entryFitBasis: isDesktop && engine === 'blink' ? 'fresh' : isDesktop && engine === 'gecko' ? 'original' : 'disabled',
     lineBreakScan: engine,
     graphemeTable: engine === 'webkit' ? 'apple/char' : engine === 'gecko' ? 'gecko/char' : 'chromium/char',
@@ -462,10 +473,9 @@ export function getEngineProfile(): EngineProfile {
     breaksFromItemText: engine === 'webkit',
     hardBreakItemRetreat: engine === 'blink' ? 'item' : engine === 'webkit' ? 'fit' : 'last-grapheme',
     paddedOpeningFit: engine === 'blink' ? 'start' : engine === 'webkit' ? 'placed' : 'both',
+    emptyAtomicAlwaysFits: engine === 'gecko',
     transformsSegmentBreaksAcrossItems: engine === 'blink',
   }
-  cachedEngineProfile = profile
-  return profile
 }
 
 export function parseFontSize(font: string): number {

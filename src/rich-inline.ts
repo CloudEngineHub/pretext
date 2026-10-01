@@ -1023,7 +1023,7 @@ function stepRichInlineLine(
   fragments: RichInlineFragmentRange[] | null,
 ): number | null {
   const safeWidth = Math.max(1, maxWidth)
-  const { hangTabs, hardBreakItemRetreat, lineFitEpsilon, paddedOpeningFit, spaceBeforeSoftHyphenHangs, unfitHyphenRetreat } = getEngineProfile()
+  const { emptyAtomicAlwaysFits, hangTabs, hardBreakItemRetreat, lineFitEpsilon, paddedOpeningFit, spaceBeforeSoftHyphenHangs, unfitHyphenRetreat } = getEngineProfile()
   let hasContent = false
   let lineWidth = 0
   let remainingWidth = safeWidth
@@ -1130,8 +1130,8 @@ function stepRichInlineLine(
       const occupiedWidth = item.naturalWidth + item.extraWidth
       const totalWidth = gapBefore + occupiedWidth
       // Blink and WebKit move an atomic item of width 0 that doesn't fit to the next line as any
-      // other. Gecko places an empty frame though it sticks out of the line (CanPlaceFrame, which
-      // 'both' ports). It sticks out where the content before it ends past the line's end with the
+      // other. Gecko places an empty frame though it sticks out of the line (CanPlaceFrame,
+      // emptyAtomicAlwaysFits). It sticks out where the content before it ends past the line's end with the
       // collapsed space before the item, which a line end trims no more once the item follows it
       // (nsLineLayout.cpp:1017-1020), and without the preserved spaces that hang, which end at the
       // line's end (nsTextFrame.cpp:11216-11229). White space that ends a text run after content
@@ -1141,7 +1141,7 @@ function stepRichInlineLine(
       // (nsTextFrame.cpp:11432-11439), and may go back to it (getKeptEmptyEnd); other text leaves
       // no break at its end, so the line's first break is the one after the item, which stays.
       if (hasContent && totalWidth > remainingWidth + lineFitEpsilon) {
-        if (paddedOpeningFit !== 'both' || occupiedWidth !== 0) break
+        if (!emptyAtomicAlwaysFits || occupiedWidth !== 0) break
         const contentWidth = lineWidth - lineHangWidth
         const fitLimit = safeWidth + lineFitEpsilon
         if (contentWidth + gapBefore > fitLimit) {
