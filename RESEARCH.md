@@ -1215,12 +1215,15 @@ characters it drew: Apple Color Emoji gives every glyph one advance at a size, s
 (emoji and pictographs with the ZWJ, skin tones, tags, U+20E3 and variation selectors between them) measures a whole
 number of U+1F600's Canvas width, the count of its glyphs, and one with a glyph of another font measures anything else
 and takes no correction. A whole number means to within the rounding of a 32-bit float, which is what Canvas reports
-(`CanvasRenderingContext2D.cpp:5277` in Firefox 156, `text_metrics.cc:179` in Chromium 153): each rounding moves a
-width by up to 2^-24 of itself, Firefox rounds each width once, dividing a whole number of app units, and Chrome once
-for each advance it adds, and the count allows 2^-20 of the width, sixteen roundings. That is 0.00002px at 20px, far
-under the steps widths come in (1/60px in Firefox, its app unit; 0.008px for an advance at 16px in a font of 2,048
-units to the em), so "exactly as wide as an emoji" below means equal but for that rounding. Counting glyphs that way in every grapheme that holds an emoji or a pictograph, in Chrome
-154.0.8037.57 and Firefox 156.0.1 at DPR 2 (2026-10-01, #TBD), took the widths more than 0.1px off the DOM's:
+(`CanvasRenderingContext2D.cpp:5277` in Firefox 156, `text_metrics.cc:179` in Chromium 153): each rounding moves a width
+by up to 2^-24 of itself. Firefox rounds each width once, dividing a whole number of app units. Chrome adds a run's
+advances in 16.16 fixed point and rounds once per run, then once more for each run it adds (`shape_result.cc:1573-1576`
+and `1609`, `text_metrics.cc:222`). Two widths are compared, the emoji's and the stretch's, so a stretch drawn as one
+run needs two roundings, and the count allows 2^-20 of the width, sixteen. That is 0.00002px at 20px, far under the
+steps widths come in (1/60px in Firefox, its app unit; 0.008px for an advance at 16px in a font of 2,048 units to the
+em), so "exactly as wide as an emoji" below means equal but for that rounding. Counting glyphs that way in every
+grapheme that holds an emoji or a pictograph, in Chrome 154.0.8037.57 and Firefox 156.0.1 at DPR 2 (2026-10-01, #TBD),
+took the widths more than 0.1px off the DOM's:
 - from 2,571 of 265,140 to 807 in Chrome and from 2,298 to 0 in Firefox, over 1,473 emoji graphemes alone and inside a
   word in 30 font lists at 12, 16 and 20px; Chrome's 807 are a skin tone after a character that isn't an emoji;
 - from 25,084 of 350,776 to 0 in Chrome and from some 25,800 to 7-20 in Firefox (one of the first families measured,
