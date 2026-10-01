@@ -1608,7 +1608,12 @@ repin` shows what), and a fact read in source needs reading again.
   line, and 16-bit keep-all breaks carry over to 8-bit text. `TextMeasurementCache` (widths keyed by text alone) moves
   float32 line edges too. 55 of 19,933 cases changed with run order (Chrome: 0), and of the 2,442 webkit-host cases main
   before #340 got right and the rebuild didn't, 1,707 were page history; history both orders share shows only in a case
-  run alone in a fresh process. (webkit-host, 2026-09-17 to 09-24.)
+  run alone in a fresh process. (webkit-host, 2026-09-17 to 09-24.) A paragraph takes the items of the same text laid
+  out before it in the other direction (`InlineItemsBuilder.cpp:858-862`): right to left, two spaces,
+  `بِبِ((tail` and two spaces in pre-wrap at 27.86px breaks into 0-4, 6-10, 11-13 after its
+  left-to-right twin and 0-1, 2-7, 8-13 alone. Eleven recordings were pinned to a layout no fresh process gives, seven
+  of which the library had right, until the harness recorded in two opposite orders; 30 such cases are page history
+  now. (webkit-host, 2026-09-30.)
 - **String storage.** A text node is 8-bit from Latin-1 text, 16-bit once its leaf held a character above U+00FF, and
   layout reads it: an emergency break keeps one code unit at an 8-bit line start, and also the characters that can't
   start a line at a 16-bit one; keep-all `abcd,efghé` is 2 lines as 16-bit, 1 as 8-bit. JavaScriptCore's
