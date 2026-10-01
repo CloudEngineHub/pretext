@@ -219,18 +219,43 @@ Firefox changes fonts after it starts (see also `PLATFORM_BUGS.md`, the late fam
 otherwise when recorded 11 s after launch than at 12, 15 or 30 s (91 cases, 2026-09-24), so each Firefox job holds its
 first document until 15 s.
 
+## Other ratios and phones
+
+The checked-in recordings are one setup, macOS at device pixel ratio 2. A run outside it keeps its recordings and lists
+in a store, a harness folder outside git (`--store=<dir>`, `.artifacts/harness-store` by default), and the environment
+key carries the ratio, Chrome's zoom and a simulator's builds, so a store holds one setup per browser and `check`
+refuses to score another. A new store has no accepted list, so every failure reads as new; copy `accepted/` and
+`varying/` into it first and `check` blocks on what differs from the checked-in setup: the new failures fail there only,
+and the accepted cases that pass, pass there only. These runs are evidence; nothing gates on them.
+
+- **`--scale=<n>`** runs Chrome and Firefox at device scale factor n (Chrome's `--force-device-scale-factor`, Firefox's
+  `layout.css.devPixelsPerPx`), and **`--zoom=<n>`** runs Chrome at that page zoom, on `record`, `check`, `gate` and
+  `explain`; webkit-host has no switch for either. Inside what Pretext claims, the sample was wrong on 0.49%, 0.51%,
+  0.50%, 0.49%, 0.50% and 0.49% of paragraphs in Chrome 154.0.8037.57 at ratios 1, 1.25, 1.5, 2, 2.5 and 3, and on
+  0.13%, 0.14%, 0.15% and 0.15% in Firefox 156.0.1 at 1, 1.5, 2 and 3; at most 5 of 11,901 cases flip against ratio 2,
+  none at 3 (2026-09-30). Chrome's page zoom is the same number to its layout: at 125% on a ratio-2 display it recorded
+  every sample case as at ratio 2.5, widths included.
+- **`--browser=ios --runtime="iOS 26.0"`** runs Safari in an iOS simulator. Each job makes a device of that runtime's
+  first iPhone, boots it with `xcrun simctl` alone, so Simulator.app never opens, opens the page in its Safari and
+  deletes the device; a boot takes about a minute. The cases are Safari's, so webkit-host's lists copied to
+  `accepted/ios.txt` and `varying/ios.txt` compare it with Safari 27. Safari 26.0.1 in the iOS 26.0 simulator (23A8464)
+  was wrong on 0.29% of the sample's paragraphs inside what Pretext claims, against 0.08% in Safari 27: of the 30 cases
+  failing there only, 29 are `keep-all` paragraphs and one has a curly quote beside Hangul (2026-09-30; the WebKit
+  profile follows Safari 27 only, `RESEARCH.md`, Decisions Log). No iOS 27 runtime was installed, so iPhone Safari 27
+  has no number yet.
+
 ## Bounds and blind spots
 
 Every job and its children have a memory and a time limit (`watchdog.ts`), since a planted defect, a deliberately broken
 copy of `src/` run to prove a check catches it, is exactly the input that makes a loop run away: on 2026-09-25 three
-orphaned test processes running such defects, with no timeout, held 42-49 GB each and froze a 36 GB Mac. A job's
-browser is capped too (`browsers.ts`). The harness closes its browsers when it exits or is interrupted, but a SIGKILL
-leaves them running: find them by their profiles (`pgrep -fl .artifacts/harness-profiles`, and `pgrep -fl webkit-host`)
-and quit them. Long paragraphs are recorded by binary search over DOM `Range` rectangles for each line's end, not by
-reading every character's rectangle (`observe.ts`): reading them all took 31-74 s natively on a 256,837-unit Arabic
-paragraph while building the per-engine rebuild (branch `rebuild-20260916`, a from-scratch port of each engine's line
-breaking, kept as the plain-text correctness reference; September 2026). Tools delete their own scratch files with
-`rmSync`.
+orphaned test processes running such defects, with no timeout, held 42-49 GB each and froze a 36 GB Mac. A job's browser
+is capped too (`browsers.ts`). The harness closes its browsers when it exits or is interrupted, but a SIGKILL leaves
+them running: find them by their profiles (`pgrep -fl .artifacts/harness-profiles`, and `pgrep -fl webkit-host`) and
+quit them, and delete a simulator device it left (`xcrun simctl list devices | grep pretext-harness`). Long paragraphs
+are recorded by binary search over DOM `Range` rectangles for each line's end, not by reading every character's
+rectangle (`observe.ts`): reading them all took 31-74 s natively on a 256,837-unit Arabic paragraph while building the
+per-engine rebuild (branch `rebuild-20260916`, a from-scratch port of each engine's line breaking, kept as the
+plain-text correctness reference; September 2026). Tools delete their own scratch files with `rmSync`.
 
 The harness can't see the hyphen drawn at a soft-hyphen break: recordings keep no glyphs, and a rule over the boxes
 found 93-358 mismatches per browser, some the recording's (2026-09-24), so it's left to `src/layout.test.ts`. Nor does
@@ -240,7 +265,8 @@ bidi port; several rules of the Gecko profile's analysis of bidi controls (`ENGI
 emoji modifier split from its base across rich items; a rich paragraph of one item, which the adapter writes as plain
 text, so `src/layout.test.ts` checks its line functions against the rich stepper; which line holds a box of width 0,
 which has no rectangle, but through the text around it; Chrome's UI language, and so its `zh` table for pages without a
-`lang`; rendering other than macOS's, though Android and Windows are 65% of page views (`weights.json`); text chat users
-wrote (the sample's chat draws are stand-ins); or the demos' painted layout. No planted defect guards the watchdog's
-kill, the bench's shuffle and its separate compiles (each copy of the library compiled in a module of its own),
-Firefox's start-up hold, the page passing the browser's name to the recorder, or the cap on a job's browser.
+`lang`; rendering other than macOS's and an iOS simulator's (Other ratios and phones), though Android and Windows are
+65% of page views (`weights.json`); text chat users wrote (the sample's chat draws are stand-ins); or the demos' painted
+layout. No planted defect guards the watchdog's kill, the bench's shuffle and its separate compiles (each copy of the
+library compiled in a module of its own), Firefox's start-up hold, the page passing the browser's name to the recorder,
+or the cap on a job's browser.

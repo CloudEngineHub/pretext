@@ -1,4 +1,4 @@
-// bun harness <command> [--browser=chrome|firefox|webkit-host|safari|all] [--cases=<file.ndjson>]
+// bun harness <command> [--browser=chrome|firefox|webkit-host|safari|ios|all] [--cases=<file.ndjson>]
 //   record [--only-new]      record the browser's layout of every case (or the new ones), sorted and shuffled, in fresh short documents;
 //                            --sample=N --seed=S records N of them, drawn from every set
 //   check [--accept=<why>]   predict every pinned case in the browser and score it against the recordings
@@ -18,6 +18,10 @@
 //                            recorded alone in a fresh document, never kept
 // --lib=<dir> predicts with another build: a src/ directory and the adapter beside it in ../harness, this tree's where it
 // has none. Default browsers: chrome, firefox and webkit-host, side by side; explain takes one, chrome by default.
+// Outside the checked-in setup (harness/README.md, Other ratios and phones), for record, check, gate and explain:
+//   --scale=<n>              Chrome and Firefox at device scale factor n; --zoom=<n>: Chrome at page zoom n
+//   --browser=ios --runtime="iOS 26.0"   Safari in a simulator of that runtime, booted for each job, deleted after it
+//   --store=<dir>            the folder these runs keep recordings and lists in, .artifacts/harness-store by default
 import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
 import { basename, join, resolve } from 'node:path'
 import {
@@ -27,7 +31,7 @@ import {
 import { bench, ROWS } from './bench/run.ts'
 import { srcOf } from './bench/lib.ts'
 import { breakDataReport } from './break-data.ts'
-import { appPath, pinInstalled, PINNED, pins, writePin } from './browsers.ts'
+import { appPath, pinInstalled, PINNED, pins, setup, writePin } from './browsers.ts'
 import { LIB, runJob, type Job, type JobResult, type Mode } from './run.ts'
 import { createRng, makeCase, paragraph, parseFont } from './sets/build.ts'
 import {
@@ -43,9 +47,11 @@ const WHOLE = Number.MAX_SAFE_INTEGER
 const ATTRIBUTE_AT_MOST = 200
 
 // What the flags ask for. `sample`: --sample's count, or null. `partial`: the run covers some case files only (--cases),
-// so it leaves the other cases' entries alone.
+// so it leaves the other cases' entries alone. `root`: the harness folder the run reads and writes recordings and lists
+// in. At another ratio or in a phone's browser that is a store, a folder outside git, so the checked-in ones stay those
+// of one setup; a store with no accepted list reads every failure as new.
 export type Options = { lib: string; seed: number; sample: number | null; accept: string; partial: boolean; onlyNew: boolean }
-export type Args = { command: string | undefined; positional: string[]; browsers: BrowserKind[]; cases: string | null; options: Options; flags: Map<string, string> }
+export type Args = { command: string | undefined; positional: string[]; browsers: BrowserKind[]; cases: string | null; options: Options; flags: Map<string, string>; root: string }
 
 export function parseArgs(args: readonly string[]): Args {
   const flags = new Map<string, string>()
@@ -63,7 +69,11 @@ export function parseArgs(args: readonly string[]): Args {
     lib: resolve(flags.get('lib') ?? LIB), seed: Number(flags.get('seed') ?? SEED), sample: flags.has('sample') ? Number(flags.get('sample')) : null,
     accept: flags.get('accept') ?? '', partial: flags.has('cases'), onlyNew: flags.has('only-new'),
   }
-  return { command, positional, browsers, cases: flags.get('cases') ?? null, options, flags }
+  const scaled = flags.has('scale') || flags.has('zoom')
+  if (scaled && browsers.some(b => b !== 'chrome' && (b !== 'firefox' || flags.has('zoom')))) throw new Error('--scale takes --browser=chrome or firefox and --zoom takes chrome: the other browsers have no switch for them')
+  const away = scaled || browsers.some(b => BROWSER[b].phone)
+  const root = flags.has('store') ? resolve(flags.get('store')!) : away ? join(import.meta.dir, '../.artifacts/harness-store') : import.meta.dir
+  return { command, positional, browsers, cases: flags.get('cases') ?? null, options, flags, root }
 }
 
 // Where a command reads and writes the harness's files, how it runs a job in a browser, and where it prints. The tests
@@ -253,7 +263,7 @@ export async function check(browser: BrowserKind, cases: Case[], o: Options, io:
   if (varying.size > 0) out.push(`  varying (harness/varying): ${runs} that vary between runs, predicted but not judged (${verdict.varying.pass} pass, ${verdict.varying.fail} fail); ${varying.size - runs} that move with what was predicted before, judged, and skipped by the gate's reverse-order check`)
   const head = headline(draws)
   const inClaims = headline(drawsInClaims)
-  if (head !== null) out.push(`  real-usage sample: ${(100 * head.share).toFixed(2)}% of real paragraphs right, 95% interval ${(100 * head.low).toFixed(2)}-${(100 * head.high).toFixed(2)}% (${draws.length} draws, ${percent(standInWeight, sampleWeight)} of their weight stand-ins; macOS rendering only)`)
+  if (head !== null) out.push(`  real-usage sample: ${(100 * head.share).toFixed(2)}% of real paragraphs right, 95% interval ${(100 * head.low).toFixed(2)}-${(100 * head.high).toFixed(2)}% (${draws.length} draws, ${percent(standInWeight, sampleWeight)} of their weight stand-ins; ${BROWSER[browser].phone ? 'a simulator\'s' : 'macOS'} rendering only)`)
   if (inClaims !== null && outsideWeight > 0) out.push(`    ${percent(outsideWeight, sampleWeight)} of the weight is outside what Pretext claims (break-all, system-ui); ${(100 * inClaims.share).toFixed(2)}% right without it, 95% interval ${(100 * inClaims.low).toFixed(2)}-${(100 * inClaims.high).toFixed(2)}%`)
   for (const [set, list] of [...behaviours].sort((x, y) => (x[0] < y[0] ? -1 : 1))) {
     let modelled = 0
@@ -460,11 +470,11 @@ async function offlineEqual(ref: string, lib: string, io: Io): Promise<boolean> 
 
 // The case `explain` shows: a pinned one by id with its stored recording, or else a paragraph from the flags (or the one
 // case of a --cases file) recorded alone in a fresh document, and not kept.
-async function explainCase(browser: BrowserKind, cases: Case[], id: string | undefined, flags: Map<string, string>, lib: string): Promise<{ c: Case; recording: Recording | undefined }> {
+async function explainCase(browser: BrowserKind, cases: Case[], id: string | undefined, flags: Map<string, string>, lib: string, root: string): Promise<{ c: Case; recording: Recording | undefined }> {
   if (id !== undefined) {
     const c = cases.find(x => x.id === id)
     if (c === undefined) throw new Error(`No case ${id}`)
-    return { c, recording: readRecordings(recordingsPath(import.meta.dir, browser))?.recordings.get(id) ?? readHistory(historyPath(import.meta.dir, browser))?.cases.get(id)?.[0] }
+    return { c, recording: readRecordings(recordingsPath(root, browser))?.recordings.get(id) ?? readHistory(historyPath(root, browser))?.cases.get(id)?.[0] }
   }
   let c: Case
   const text = flags.get('text')
@@ -522,10 +532,13 @@ async function explain(browser: BrowserKind, c: Case, recording: Recording | und
 }
 
 async function main(): Promise<number> {
-  const { command, positional, browsers, cases: file, options: o, flags } = parseArgs(process.argv.slice(2))
+  const { command, positional, browsers, cases: file, options: o, flags, root } = parseArgs(process.argv.slice(2))
   const dir = join(import.meta.dir, 'cases')
   const { cases, sets } = loadCases(file !== null ? [file] : readdirSync(dir).filter(name => name.endsWith('.ndjson')).sort().map(name => join(dir, name)))
-  const io: Io = { root: import.meta.dir, run: runJob, log: text => console.log(text) }
+  if (flags.has('scale')) setup.scale = Number(flags.get('scale'))
+  if (flags.has('zoom')) setup.zoom = Number(flags.get('zoom'))
+  setup.runtime = flags.get('runtime') ?? null
+  const io: Io = { root, run: runJob, log: text => console.log(text) }
   switch (command) {
     case 'record':
       await Promise.all(browsers.map(b => record(b, cases, o, io)))
@@ -553,11 +566,11 @@ async function main(): Promise<number> {
     }
     case 'repin': {
       // Chrome and Firefox get a pinned copy of the installed app; Safari can't be pinned, so its engine (webkit-host,
-      // and installed Safari's sample) is recorded as the system has it.
+      // and installed Safari's sample) is recorded as the system has it. A phone's browser has no recordings in git.
       const target = positional[1]
       if (target !== 'chrome' && target !== 'firefox' && target !== 'safari') throw new Error('repin takes chrome, firefox or safari')
       if (target !== 'safari') pins[target] = pinInstalled(target)
-      const kinds = BROWSERS.filter(browser => BROWSER[browser].cases === target)
+      const kinds = BROWSERS.filter(browser => BROWSER[browser].cases === target && !BROWSER[browser].phone)
       for (let i = 0; i < kinds.length; i++) await drift(kinds[i]!, cases, o, flags.has('write'), io, join(import.meta.dir, '../.artifacts/harness-repin'))
       console.log(breakDataReport(target, appPath(target)))
       if (target === 'safari') return 0
@@ -567,7 +580,7 @@ async function main(): Promise<number> {
       return 0
     }
     case 'explain': {
-      const { c, recording } = await explainCase(browsers[0]!, cases, positional[1], flags, o.lib)
+      const { c, recording } = await explainCase(browsers[0]!, cases, positional[1], flags, o.lib, root)
       await explain(browsers[0]!, c, recording, o.lib)
       return 0
     }
