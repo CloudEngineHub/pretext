@@ -9,7 +9,7 @@ catalog-b722b31aa0ce53d6 breaks
 catalog-bc37ba36eebfd65c breaks
 catalog-e01b7f79970cbc64 count
 
-## A CR or FF between letters under letter spacing: Firefox keeps it in its text run with no advance and gives it the letter spacing, where the Gecko analysis takes it out of the text, spacing and all, so the line is one gap off Firefox's and the widths within that gap of where the text fits take the other line count; before #TBD it had a space's room and failed the widths beside these instead (ENGINE_FOLLOWUPS.md, White space and controls)
+## A CR or FF between letters under letter spacing, two under 24 px and one at 47.3 px: Firefox keeps it in its text run with no advance and gives it the letter spacing, where the Gecko analysis takes it out of the text, spacing and all, so the line is one gap off Firefox's and the widths within that gap of where the text fits take the other line count; before #TBD it had a space's room and failed the widths beside these instead (ENGINE_FOLLOWUPS.md, White space and controls)
 catalog-11b631dc59ccf502 count
 catalog-26d0c58f4b1a737e count
 catalog-3cf193e86082144e count
