@@ -134,8 +134,10 @@ reasons that cite a `layout.test.ts` line point at the files of main before #340
 ## Commands
 
 AGENTS.md's Validation says when to run `repin`, `check`, `gate` and `bench`. `gate` adds a prediction in reverse order
-(a paragraph mustn't wrap differently because of what was prepared before it), 1,000 seeded cases recorded again (the
-recordings must still describe the browser), and each new failure recorded and predicted alone, to attribute it.
+(a paragraph mustn't wrap differently because of what was prepared before it), 1,000 cases recorded again (the
+recordings must still describe the browser), and each new failure recorded and predicted alone, to attribute it. The
+1,000 are drawn by the commit under test, so one commit always draws the same and successive changes cover every
+recording; the gate prints the seed, and `--seed` draws with another.
 `record --only-new` records new cases, `check --accept="<reason>"` puts the new failures on the accepted list under that
 reason and drops the entries that pass again, and `explain` shows one case, or a paragraph given with `--text`, line by
 line against the browser.

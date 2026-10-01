@@ -3,7 +3,8 @@
 //                            --sample=N --seed=S records N of them, drawn from every set
 //   check [--accept=<why>]   predict every pinned case in the browser and score it against the recordings
 //   gate [--sample=N]        check, plus a prediction in reverse order, N cases recorded again, and attribution
-// record and gate draw with --seed=S (default 20260924).
+// record and gate draw with --seed=S: 20260924 by default for record, and for gate the commit under test's hash, which
+// gate prints as the seed that draws the same cases again.
 //   equal <ref>              whether this tree's build (src/ and the adapter) and <ref>'s predict the same lines, widths
 //                            and line text for every case, with the same line APIs' disagreements and Canvas calls after
 //                            preparing, and each set's measureText calls and submitted units here and there;
@@ -18,11 +19,12 @@
 //                            recorded alone in a fresh document, never kept
 // --lib=<dir> predicts with another build: a src/ directory and the adapter beside it in ../harness, this tree's where it
 // has none. Default browsers: chrome, firefox and webkit-host, side by side; explain takes one, chrome by default.
+import { execFileSync } from 'node:child_process'
 import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
 import { basename, join, resolve } from 'node:path'
 import {
-  accept, attribute, buildChange, checkBlocks, freshRecordings, gateBlocks, gateSample, headline, judge, observable, outsideClaims, pinning, reverseOrder, score,
-  SEED, shown, shrinkWrapShort, widthBand, type Outcome,
+  accept, attribute, buildChange, checkBlocks, commitSeed, freshRecordings, gateBlocks, gateSample, headline, judge, observable, outsideClaims, pinning, reverseOrder,
+  score, SEED, shown, shrinkWrapShort, widthBand, type Outcome,
 } from './score.ts'
 import { bench, ROWS } from './bench/run.ts'
 import { srcOf } from './bench/lib.ts'
@@ -535,6 +537,14 @@ async function main(): Promise<number> {
       return results.some(r => r.blocked) ? 1 : 0
     }
     case 'gate': {
+      // Outside a git checkout, record's seed.
+      if (!flags.has('seed')) {
+        try {
+          o.seed = commitSeed(execFileSync('git', ['rev-parse', 'HEAD'], { cwd: import.meta.dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 10_000 }))
+        } catch {
+          o.seed = SEED
+        }
+      }
       const blocked = await Promise.all(browsers.map(b => gate(b, cases, o, io)))
       return blocked.some(Boolean) ? 1 : 0
     }

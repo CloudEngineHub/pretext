@@ -315,8 +315,15 @@ export function gateBlocks(order: { moved: readonly string[] }, reverse: Readonl
   return out
 }
 
-// A fixed default seed, so a gate's result doesn't depend on the clock.
+// record's default seed, fixed so that a recording's second order doesn't depend on the clock.
 export const SEED = 20260924
+
+// The gate's default seed, the commit under test: the first 48 bits of its hash. Under one fixed seed every gate
+// recorded the same 1,000 cases again, 2.3% of a browser's, and no gate ever saw the rest. One commit always draws the
+// same cases, and each change draws others.
+export function commitSeed(commit: string): number {
+  return Number.parseInt(commit.slice(0, 12), 16)
+}
 
 // The gate's fresh re-recording sample: the n pinned cases whose ids rank first under the seed. The same seed draws the
 // same cases, and a case leaving the pinned set (as page history the gate finds does) changes the sample by one case.

@@ -12,7 +12,7 @@ import { groupLines, recordedLines, scanLineEnds, searchLineEnds, type RectsAt }
 import { bundle, documents, LIB, type Job } from './run.ts'
 import { box } from './sets/build.ts'
 import {
-  accept, attribute, buildChange, checkBlocks, freshRecordings, gateBlocks, gateSample, headline, judge, libraryFaults, pinning, predictionChange, reverseOrder, score, SEED,
+  accept, attribute, buildChange, checkBlocks, commitSeed, freshRecordings, gateBlocks, gateSample, headline, judge, libraryFaults, pinning, predictionChange, reverseOrder, score, SEED,
   type Outcome, type Verdict,
 } from './score.ts'
 import {
@@ -407,7 +407,7 @@ describe('what blocks', () => {
     expect(gateBlocks({ moved: [] }, right, { stale: ['a'] })[0]).toStartWith('BLOCKS: 1 laid out differently from the recordings every time')
   })
 
-  test('the gate\'s sample is the same in every run with the default seed, and moves by one case when one leaves the pinned cases: the gate would be green or red by the clock', () => {
+  test('the gate\'s sample is the same in every run with one seed, and moves by one case when one leaves the pinned cases: the gate would be green or red by the clock', () => {
     const cases: Case[] = []
     for (let i = 0; i < 40; i++) cases.push({ ...paragraphCase(TEXT), id: `case-${i}` })
     const sample = gateSample(cases, SEED, 5).map(c => c.id)
@@ -415,6 +415,21 @@ describe('what blocks', () => {
     const fewer = gateSample(cases.filter(c => c.id !== sample[1]), SEED, 5).map(c => c.id)
     expect(fewer.filter(id => !sample.includes(id))).toHaveLength(1)
     expect([parseArgs(['gate']).options.seed, parseArgs(['gate', '--seed=7']).options.seed]).toEqual([SEED, 7])
+  })
+
+  test('the gate\'s default seed is the commit under test, so each commit draws its own sample and the commits together draw every case: a recording outside one fixed sample would never be recorded again', () => {
+    const cases: Case[] = []
+    for (let i = 0; i < 40; i++) cases.push({ ...paragraphCase(TEXT), id: `case-${i}` })
+    const drawn = new Set<string>()
+    for (let commit = 0; commit < 40; commit++) {
+      const hash = new Bun.CryptoHasher('sha1').update(`commit ${commit}`).digest('hex')
+      const sample = gateSample(cases, commitSeed(hash), 5).map(c => c.id)
+      expect(gateSample(cases, commitSeed(hash), 5).map(c => c.id)).toEqual(sample)
+      for (let i = 0; i < sample.length; i++) drawn.add(sample[i]!)
+    }
+    expect(drawn.size).toBe(40)
+    // A whole number the --seed flag takes back.
+    expect(commitSeed('8e88756b1f0c2d3e4f5a6b7c8d9e0f1a2b3c4d5e\n')).toBe(0x8e88756b1f0c)
   })
 
   test('page history, Firefox\'s U+FE0E cases, cases with nothing visible and cases with no recording aren\'t pinned, but every case is predicted, the pinned first: line APIs that disagree on a case with no recording would go unseen', () => {
