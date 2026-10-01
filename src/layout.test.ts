@@ -3948,12 +3948,17 @@ describe('rich-inline invariants', () => {
     // After preserved spaces, which hang, Chrome keeps the line feed where the text before them
     // fits; Safari fits the span's start edge without them, else keeps the spaces that fit but
     // for the last, and Firefox fits both edges with them, else moves the last space.
-    const previousEngine = { hardBreakItemRetreat: profile.hardBreakItemRetreat, paddedOpeningFit: profile.paddedOpeningFit }
+    const previousEngine = {
+      hardBreakItemRetreat: profile.hardBreakItemRetreat, paddedOpeningFit: profile.paddedOpeningFit,
+      emptyAtomicAlwaysFits: profile.emptyAtomicAlwaysFits, hangsSpacesPerTextFrame: profile.hangsSpacesPerTextFrame,
+    }
     try {
       const space = measureWidth(' ', FONT)
       for (const [retreat, fit] of [['item', 'start'], ['fit', 'placed'], ['last-grapheme', 'both']] as const) {
         profile.hardBreakItemRetreat = retreat
         profile.paddedOpeningFit = fit
+        profile.emptyAtomicAlwaysFits = fit === 'both'
+        profile.hangsSpacesPerTextFrame = fit === 'both'
         // The lines up to the one the padded span's line feed ends; `bar`, whose padding every piece
         // pays, follows.
         const head = (items: Parameters<typeof prepareRichInline>[0], width: number) => {
@@ -4034,6 +4039,7 @@ describe('rich-inline invariants', () => {
     const previous = {
       lineBreakScan: profile.lineBreakScan, breaksFromItemText: profile.breaksFromItemText, hangTabs: profile.hangTabs,
       hardBreakItemRetreat: profile.hardBreakItemRetreat, paddedOpeningFit: profile.paddedOpeningFit,
+      emptyAtomicAlwaysFits: profile.emptyAtomicAlwaysFits, hangsSpacesPerTextFrame: profile.hangsSpacesPerTextFrame,
     }
     try {
       for (const scan of ['blink', 'webkit', 'gecko'] as const) {
@@ -4042,6 +4048,8 @@ describe('rich-inline invariants', () => {
         profile.hangTabs = scan !== 'gecko'
         profile.hardBreakItemRetreat = scan === 'blink' ? 'item' : scan === 'webkit' ? 'fit' : 'last-grapheme'
         profile.paddedOpeningFit = scan === 'blink' ? 'start' : scan === 'webkit' ? 'placed' : 'both'
+        profile.emptyAtomicAlwaysFits = scan === 'gecko'
+        profile.hangsSpacesPerTextFrame = scan === 'gecko'
         clearCache()
         // No break comes before them (UAX #14 LB6, LB7), and the break after a chip takes them
         // onto its line, as Blink takes trailing items.
@@ -4166,7 +4174,10 @@ describe('rich-inline invariants', () => {
         // unless a frame with a width comes next, which sends the line back to its last break that
         // fit, before the box (getKeptEmptyEnd). Each row matches Firefox 156.0.1 (2026-10-01):
         // the items, the options, each line's items in Firefox, and whether the line is narrower
-        // than `a` (else `ab` and a pixel wide).
+        // than `a` (else `ab` and a pixel wide). A line's items are those with a fragment on it,
+        // so a space the line's end consumes is on none; Firefox still paints two of them at the
+        // end of the first line, the space at -6px and the second space of `ab`, a space, a soft
+        // hyphen and a space before `cd` (ENGINE_FOLLOWUPS.md, Rich-inline item edges).
         const zero = { width: 0 }
         const chip: RichInlineItem = { text: 'abcdef', font: FONT, break: 'never' }
         const padded = (value: string): RichInlineItem => ({ text: value, font: FONT, extraWidth: 1 })
