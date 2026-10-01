@@ -131,8 +131,8 @@ export function environmentKey(browser: BrowserKind, env: PageEnv): string {
 export type Session = { close: () => Promise<void> }
 
 // What the harness keeps of a browser it launched: `roots` finds its own processes in a `ps` table, or says why they're
-// gone; `known` is its processes in the last table read; `stop` closes it; `cleanup` removes what it leaves once
-// killed; `moved` asks for the processes to be found again.
+// gone; `known` is its processes in the last table read, and those it named since; `stop` closes it; `cleanup` removes
+// what it leaves once killed; `moved` asks for the processes to be found again.
 export type Launched = { pid?: number; roots: (rows: readonly Row[]) => Row[] | string; known: Row[]; stop: () => Promise<void>; cleanup: () => void; moved?: boolean }
 type Row = { pid: number; ppid: number; command: string }
 
@@ -370,7 +370,9 @@ function launchFirefox(url: string, profile: string, foreground: boolean): Promi
 }
 
 // The host names its web content process on its stdout whenever a navigation commits in another one. build.sh keeps
-// the hash of the source it built from, so a host built before this protocol, or from other source, isn't run.
+// the hash of the source it built from, so a host built before this protocol, or from other source, isn't run. The
+// host and each process it names are known from then, not from the next `ps` table, so the bound holds them while
+// `ps` fails; the table that comes checks the named one's command.
 async function launchWebKitHost(url: string): Promise<Launched> {
   const source = new Bun.CryptoHasher('sha256').update(readFileSync(join(ROOT, 'harness/webkit-host/main.swift'))).digest('hex')
   const built = await Bun.file(`${WEBKIT_HOST}.source-sha256`).text().catch(() => '')
@@ -381,7 +383,7 @@ async function launchWebKitHost(url: string): Promise<Launched> {
     // Exit status 0 is the job's end (--exit-title).
     roots: rows => host.exitCode === 0 ? [] : host.exitCode !== null || host.signalCode !== null ? `exited with ${host.exitCode ?? host.signalCode}`
       : rows.filter(row => row.pid === host.pid || (row.pid === webContent && row.command.endsWith('/com.apple.WebKit.WebContent'))),
-    known: [],
+    known: [{ pid: host.pid, ppid: process.pid, command: WEBKIT_HOST }],
     async stop() {
       host.kill('SIGTERM')
       if (await Promise.race([host.exited.then(() => false), Bun.sleep(4000).then(() => true)])) host.kill('SIGKILL')
@@ -398,6 +400,7 @@ async function launchWebKitHost(url: string): Promise<Launched> {
         const pid = /^web content process (\d+)$/.exec(lines[i]!)?.[1]
         if (pid === undefined) continue
         webContent = Number(pid)
+        launched.known = [...launched.known, { pid: webContent, ppid: 1, command: 'com.apple.WebKit.WebContent' }]
         launched.moved = true
       }
     }
