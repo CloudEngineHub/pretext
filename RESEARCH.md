@@ -536,10 +536,18 @@ lines gets Cn for U+3400.
 
 The tables are ICU's compiled state machines, whose states a small rule change renumbers. As 480 KB of base64 they cost
 a fresh Firefox page 5.2 ms evaluating the bundle, against 1.2 ms before #340, so each is stored as byte ranges of an
-earlier table plus literal bytes and a browser unpacks only its own, 0.4-0.6 ms a page, for 133 KB minified and 64 KB
-gzipped. Keeping Chrome's root table whole and copying the other line tables from it at runtime instead gave 238 KB and
-57 KB and took 3.6 ms in Firefox (2026-09-24). The tables stay as they are, and one bundle serves every engine
-(Decisions Log, 2026-09-26).
+earlier table plus literal bytes. The earlier table is the one that packs it shortest, across engines: Chrome's
+`line_normal` alone, Chrome's Chinese table and Safari's `line_normal` against it, Safari's `line` against that and its
+`line_cj` against `line`, and Safari's grapheme table against Chrome's. So a browser unpacks the tables its own are
+packed against too, Safari three for `line`, about 0.6 ms once per page. That gave a 120 KB minified layout bundle, 57
+KB gzipped, on the branch then, where packing each engine's tables only against its own gave 133 KB and 64 KB, and
+keeping Chrome's root table whole with the other line tables as copies from it and every other table unpacked gave 238
+KB and 57 KB and took 3.6 ms in Firefox (2026-09-24). Measured from main (`bun build src/layout.ts --minify`, then
+`gzip -9`): 80 KB and 21 KB before #340, 108 KB and 52 KB at its merge (f26640eb), and 115 KB and 56 KB on 2026-09-30
+(8e88756b), of which the packed tables are 47 KB of base64 and about 30 KB of the gzipped size. Taking one table's
+string out of that bundle shrinks the gzipped size by 9.5 KB for Chrome's root line table, 4.2 KB for its Chinese
+table, 7.0 KB for Firefox's line data, 2.8 KB for Firefox's bidi classes, 3.0 KB for Chrome's grapheme table and 2.5 KB
+for all four of Safari's. The tables stay as they are, and one bundle serves every engine (Decisions Log, 2026-09-26).
 
 In Line_Break=SA runs (Thai, Lao, Khmer, Myanmar, and in the Blink and WebKit scans also Tai Le, New Tai Lue, Tai Tham,
 Tai Viet and Ahom), `Intl.Segmenter` words stand in for the engines' dictionaries. Chrome 153's equal those of
@@ -1793,8 +1801,10 @@ on the old suite.
 
 - **`Intl.Segmenter` word boundaries patched into break opportunities**: about 20 merge passes over 2,494 lines of
   `analysis.ts`, one rule per failing shape, with deciders near CJK that disagreed, so punctuation bugs kept returning
-  (#274, #276, #290, #291, #293). The scans take 341 lines, at 86 → 88 Chrome Canvas calls per real paragraph; "Fixing a
-  mismatch" (AGENTS.md) forbids the pattern, so nothing reopens it.
+  (#274, #276, #290, #291, #293). With #340, `analysis.ts` fell to 343 lines and the scans took 869
+  (`line-breaks.ts`), 794 (`gecko-line-breaks.ts`) and 520 (`gecko-bidi-levels.ts`), runtime source going from 6,391
+  lines to 6,214, at 86 → 88 Chrome Canvas calls per real paragraph; "Fixing a mismatch" (AGENTS.md) forbids the
+  pattern, so nothing reopens it.
 - **A fix for issue #210 (a leading zero-width space lost at a line start) that loses nothing** (2026-09-11) needs a
   guard keyed to the failing shape: `ZWSP ب SHY ب` and `ZWSP Ꙝ SHY Ꙝ` prepare alike but take 2 and 4 Chrome lines at
   9-14.75 px, as do `CR ZWSP` and `LF ZWSP`. Reopens with contextual widths during preparation or a per-engine model of
@@ -1954,11 +1964,18 @@ below 256 px, Canvas totals are exact (Engine Facts, Chrome).
 #### Tables, Bundles And Data
 
 - **Firefox's line data in Chrome's format** (2026-09-26; branches `ff-table-format-bmp` and
-  `ff-table-format-ranges-first`): 8.7 KB of state machines for Firefox's 0.8 KB, or Chrome's code-point lookup, exact
-  and 3.2 KB off 55 KB gzipped but tying Firefox to Chrome's table and slowing its Arabic, Hebrew, Hindi and Urdu
-  analysis 13% (Decisions Log). Reopens only if table size and per-engine bundles both return.
-- **One bundle per engine** (372-788 KB minified, measured on the rebuild), ruled out on 2026-09-26 (Decisions Log).
-  Reopens if apps ship per-browser builds.
+  `ff-table-format-ranges-first`): 8.7 KB of state machines for Firefox's 0.8 KB pair table, 38 to 482 bytes saved by
+  packing Firefox's data against Chrome's, or Firefox's classes read through Chrome's code-point lookup, exact on every
+  code point and 3.2 KB off 55 KB gzipped, with refreshes still one generator step, but slowing Firefox's Arabic,
+  Hebrew, Hindi and Urdu analysis 13%, or its first `prepare()` by up to 2.3 ms (offline, in Bun), and tying Firefox to
+  Chrome's table, which costs nothing while one bundle serves every engine and would be a loss with a bundle per engine
+  (Decisions Log). The sizes behind the question were mixed units: Firefox's line data, called the largest table at 19.7
+  KB, is that unpacked, and 9.8 KB of base64 and 7.0 KB gzipped as shipped, less than Chrome's root line table (15.0 KB
+  and 9.5 KB), which no option targeted (Break Opportunities From Engine Data has each table's share). Reopens with the
+  table-size question, as 3.2 KB against that Firefox cost.
+- **One bundle per engine** (372-788 KB minified, measured on the rebuild), ruled out for now on 2026-09-26 (Decisions
+  Log). Reopens if apps ship per-browser builds; an app picking an engine's entry point itself with a dynamic import
+  wasn't weighed.
 - **Tables shrunk by computation**: remapping onto base classes fails for Chrome's Chinese table (`〜` and `゠` need a
   class the base lacks), and runtime state machines mean porting ICU's rule compiler, where today's tables need no
   upkeep between refreshes. Reopens with the table-size question.
@@ -2323,8 +2340,8 @@ decisions for the maintainer.
 - **2026-09-23: the Blink scan uses Chromium's Chinese line table**, `line_normal_cj.brk`, on `zh` pages and on pages
   without a language under a Chinese UI, as Chrome does (Content Language And Fonts has what it changes). Issue #321's
   eighth decision advised recording the gap instead; main kept the table when the engine tables landed (#340), 46 test
-  cases for 8.6 KB gzipped and 16 lines (Chrome 153). It was never decided on its own: the acceptance of the tables'
-  bundle that day covers it.
+  cases for 16 lines (Chrome 153) and 4.2 KB gzipped as it ships, packed against Chrome's root table (8.6 KB whole,
+  before the packing). It was never decided on its own: the acceptance of the tables' bundle that day covers it.
 - **2026-09-23: a new harness replaces the old test suite, and what must not regress is decided afresh**, since main's
   tests were old: the engine tables (#340), the harness (#341), then the suite's removal (#348) (harness/README.md, "Why
   the old suite went").
