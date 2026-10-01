@@ -428,6 +428,15 @@ export const defaultIgnorableRe = /\p{Default_Ignorable_Code_Point}/u
 const clusterPartRe = /[\p{M}\p{Cs}]/u
 const combiningMarkRe = /\p{M}/u
 
+// Whether Canvas ends a word on both sides of the character, so that it shows no kerning there
+// and isn't asked: it shapes each ideograph and kana as a word of its own (NextWordEndIndex,
+// plain_text_node.cc:92-153, over kIsCjkIdeographOrSymbolRanges, character_property_data.h:40-80).
+// These are the letters among those ranges, without their marks, punctuation and symbols.
+function isCanvasWord(code: number): boolean {
+  return (code >= 0x3041 && code <= 0x3096) || (code >= 0x30a1 && code <= 0x30fa) ||
+    (code >= 0x3400 && code <= 0x9fff) || (code >= 0xf900 && code <= 0xfaff)
+}
+
 // A character's kerning with a space glyph after it, or before it, asked of Canvas when a
 // segment first has the character at that edge.
 function getCharacterSpaceKerning(character: string, measurement: FontMeasurement, spaceWidth: number, after: boolean): number {
@@ -435,7 +444,8 @@ function getCharacterSpaceKerning(character: string, measurement: FontMeasuremen
   if (kerning === undefined) {
     // Where U+2028 doesn't measure as the space, as in another engine's Canvas, nothing pairs
     // with it.
-    kerning = clusterPartRe.test(character) || getSegmentMetrics('\u2028', measurement).width !== spaceWidth ? noSpaceKerning : { after: NaN, before: NaN }
+    kerning = clusterPartRe.test(character) || isCanvasWord(character.charCodeAt(0)) || getSegmentMetrics('\u2028', measurement).width !== spaceWidth
+      ? noSpaceKerning : { after: NaN, before: NaN }
     measurement.characterSpaceKerning.set(character, kerning)
   }
   if (after) {
@@ -468,7 +478,7 @@ function getCharacterSpaceKerning(character: string, measurement: FontMeasuremen
 // - All of it sits on the first glyph of the pair, as GPOS pair positioning puts it. The legacy
 //   `kern` table puts half on each glyph, so a line that ends at the space keeps only half in
 //   Chrome, which a width doesn't show.
-// Which spaces are in a word's run, and so kern with it, preparation decides (isOneDirection,
+// Which spaces are in a word's run, and so kern with it, preparation decides (oneDirection,
 // spacesStartLine and spaceSharesScriptRun, src/prepare.ts).
 export function getSpaceKerning(seg: string, metrics: SegmentMetrics, measurement: FontMeasurement, spaceWidth: number): SpaceKerning {
   let first = 0

@@ -5434,10 +5434,14 @@ test('the Chromium profile takes the kerning between a word and the spaces besid
     prepare('AA TT AT TA AA TT', '16px Fresh')
     const asked = measured.filter(text => text.includes('\\u2028')).sort()
     prepare('AA TT', '16px Glyph Two')
-    console.log(JSON.stringify({ widths, lines, rich, asked, glyphAsked: measured.filter(text => text.includes('\\u2028')).length - asked.length,
+    const glyphAsked = measured.filter(text => text.includes('\\u2028')).length - asked.length
+    measured.length = 0
+    prepare('\\u6F22 \\u3042 \\u30A2 \\u6F22', '16px Words')
+    prepare('\\u05D0 AA TT', '16px Mixed')
+    console.log(JSON.stringify({ widths, lines, rich, asked, glyphAsked, unasked: measured.filter(text => text.includes('\\u2028')),
       cut: measured.filter(text => text.length > 1 && text.includes(' ')) }))
   `
-  const { widths, lines, rich, asked, glyphAsked, cut } = JSON.parse(runInChild(script)) as Record<'widths' | 'lines' | 'rich' | 'asked' | 'glyphAsked' | 'cut', unknown>
+  const { widths, lines, rich, asked, glyphAsked, unasked, cut } = JSON.parse(runInChild(script)) as Record<'widths' | 'lines' | 'rich' | 'asked' | 'glyphAsked' | 'unasked' | 'cut', unknown>
   expect(widths).toEqual([
     // The word keeps its kerning with the space after it, and the space takes its own
     // with the word after it.
@@ -5503,6 +5507,9 @@ test('the Chromium profile takes the kerning between a word and the spaces besid
   // the letter. No string holds a U+0020 beside other text.
   expect(asked).toEqual(['A\u2028', 'T\u2028', '\u2028', '\u2028A', '\u2028T'])
   expect(glyphAsked).toBe(1)
+  // Canvas shapes an ideograph or a kana as a word of its own, and text that mixes directions
+  // takes no kerning, so neither asks.
+  expect(unasked).toEqual([])
   expect(cut).toEqual([])
 })
 

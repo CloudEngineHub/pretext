@@ -326,11 +326,8 @@ export function measureAnalysis(
   // Canvas shows a pair only left to right. Which spaces share a level with the word beside
   // them depends on the paragraph's direction, which preparation cannot see, so text that
   // holds a right-to-left letter or an explicit bidi control takes no kerning with spaces. A
-  // text is scanned once, when a word of it first kerns with a space.
+  // text is scanned once, at its first word beside a space, before Canvas is asked.
   let oneDirection: boolean | null = null
-  function isOneDirection(): boolean {
-    return oneDirection ??= !rightToLeftLetterRe.test(normalized) && !explicitBidiControlRe.test(normalized)
-  }
 
   // The source a run of combining marks shapes after when only zero-width glue,
   // controls or other such runs, with no break, separate the run from the grapheme
@@ -499,14 +496,12 @@ export function measureAnalysis(
         if (engineProfile.kerningReach === 'script-run') {
           const afterSpace = mi > 0 && isSpaceKind(flags[mi - 1]! & KIND_BITS)
           const beforeSpace = mi + 1 < segmentCount && isSpaceKind(flags[mi + 1]! & KIND_BITS)
-          if (afterSpace || beforeSpace) {
+          if ((afterSpace || beforeSpace) && (oneDirection ??= !rightToLeftLetterRe.test(normalized) && !explicitBidiControlRe.test(normalized))) {
             const kerning = textMetrics.spaceKerning ?? getSpaceKerning(text, textMetrics, fontMeasurement, spaceWidth)
-            if ((kerning.after !== 0 || kerning.before !== 0) && isOneDirection()) {
-              if (beforeSpace) followingSpaceKerning = kerning.after
-              // The space hangs where a line ends at it, and what it took with it.
-              if (afterSpace && kerning.before !== 0 && !spacesStartLine(mi - 1) && spaceSharesScriptRun(normalized, starts[mi]!, starts[mi]! + text.length, scriptRuns ??= { read: 0, scripts: ANY_SCRIPT, bracket: 0 })) {
-                widths[mi - 1] = widths[mi - 1]! + kerning.before
-              }
+            if (beforeSpace) followingSpaceKerning = kerning.after
+            // The space hangs where a line ends at it, and what it took with it.
+            if (afterSpace && kerning.before !== 0 && !spacesStartLine(mi - 1) && spaceSharesScriptRun(normalized, starts[mi]!, starts[mi]! + text.length, scriptRuns ??= { read: 0, scripts: ANY_SCRIPT, bracket: 0 })) {
+              widths[mi - 1] = widths[mi - 1]! + kerning.before
             }
           }
         }
