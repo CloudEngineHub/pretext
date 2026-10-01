@@ -600,7 +600,9 @@ the scans read (the categories of ICU's five line and two character tables, and 
 East_Asian_Width) ships as one list of 4,487 runs of joint classes, the 250 classes the maps together tell apart, with a
 byte per joint class for each map: engines class most code points alike, and so do one engine's tables. From the list
 the library builds a table for each map its engine reads, blocks of 256 code points behind an index, so a class is two
-loads for any code point, where ICU's trie takes four above U+FFFF and Firefox's above U+0FFF. Each state table ships as
+loads for any code point. Before, ICU's tries took two loads below U+10000 and four above, Firefox's line trie two below
+U+1000 and four above, East_Asian_Width a search through its ranges, and Firefox's Bidi_Class one load below U+10000,
+from a table per code unit: that lookup alone gained a load. Each state table ships as
 its rows' differences from rows it repeats, starting from an earlier table's rows where one has its shape: libicucore's
 line tables differ from Chrome's root table in 8 rows. Chrome's Chinese table has a category and two states more than
 the root table, so it ships alone. The class maps are most of what is saved; the pair tables, Firefox's break states and
@@ -619,10 +621,19 @@ Unicode-property bits `hasProperty()` keeps in either form.) The first `prepare(
 took 0.5-1.3 ms longer in Bun 1.4 and 0.2-0.9 ms in Node 23 than the 2.9-6.4 ms it took before (the lower quartile of 40
 fresh processes per profile, on a Latin sentence and on a mixed one, on a machine busy with browser jobs, where two
 copies of the earlier bundle differed by up to 0.5 ms), a hypothesis until the bench's `fresh` rows time it in the
-browsers; its table is in #TBD. Not taken: an LZ pass over these lists, which saved nothing once the bundle is gzipped
-and cost a decoding pass, and a table per code unit with a search above U+FFFF, which would hold less and search for
-every emoji, where the blocks make a class above U+FFFF cost what one below does. One bundle serves every engine
-(Decisions Log, 2026-09-26; the entry of 2026-10-01 has why a shorter form was taken up after that).
+browsers; its table is in #TBD. The scans after that weren't timed in a browser either. Firefox's bidi resolution, the
+one reader whose lookup gained a load, ran offline on Arabic and Hebrew paragraphs 1-3% slower in Node 23 and from as
+fast to 11% slower in Bun 1.4 (the fastest of 15 rounds a process, eleven pairs of processes while the machine was
+quiet; pairs taken while it was busy differed either way by more), also a hypothesis: the bench's Firefox `new` rows on
+Arabic and on mixed text measure it.
+
+Not taken: an LZ pass over these lists, which saved nothing once the bundle is gzipped and cost a decoding pass. A table
+per code unit with a search above U+FFFF, the form Bidi_Class had, is one load below U+10000 and 64 KB a map, where the
+block tables take 18 KB (East_Asian_Width) to 59 KB (Firefox's line classes), 43 KB for Bidi_Class, and it searches for
+every emoji. Blocks below U+10000 only, with the same search above, would take about 27 KB for Chrome's root line table
+in place of 55 KB (103 of its 182 blocks are below U+10000) plus its 790 ranges above, and would search for every emoji
+as well, where the blocks make a class above U+FFFF cost what one below does. One bundle serves every engine (Decisions
+Log, 2026-09-26; the entry of 2026-10-01 has why a shorter form was taken up after that).
 
 Firefox's East_Asian_Width map takes a premise. Gecko asks its ICU4C for that property (`u_getIntPropertyValue`,
 `intl/components/src/UnicodeProperties.h:75-100`), and the map ships the values of icu_properties, the ICU4X crate whose
@@ -2595,9 +2606,12 @@ decisions for the maintainer.
   amends the 2026-09-26 entry, which read as closing how the tables are stored as well as what they hold. Its reason
   stands for what it weighed, an alternative that changed which table Firefox reads and paid for its bytes in analysis
   speed. A storage change is fine while the data stays what each browser's build ships, the generator stays one hand-run
-  step that checks every class of every code point and every state row against the engine files, and a lookup costs the
-  scans no more than before. #TBD is such a change: the classes as one run list and the state tables as row differences,
-  13.3 KB less gzipped, for about 95 KB more typed arrays on a page in one language (110 in the Gecko profile) and a
-  first `prepare()` that unpacks more (Break Opportunities From Engine Data has the numbers). What was ruled out stays
-  out: Firefox's classes through Chrome's lookup, tables computed at runtime and a bundle per engine (Dead Ends, Tables,
-  Bundles And Data).
+  step that checks every class of every code point and every state row against the engine files, and no bench row but
+  `fresh` is slower; what unpacking adds to a page's first `prepare()`, which `fresh` times, and to memory is a trade
+  for the maintainer, with its numbers. #TBD is such a change: the classes as one run list and the state tables as row
+  differences, 13.3 KB less gzipped, for about 95 KB more typed arrays on a page in one language (110 in the Gecko
+  profile) and a first `prepare()` that unpacks more. A class costs the scans as many loads as before or fewer in nine
+  of the ten maps and one more in Firefox's Bidi_Class below U+10000, so Firefox's `new` rows on Arabic and mixed text
+  are the ones that could have been slower (Break Opportunities From Engine Data has the numbers). What was ruled out
+  stays out: Firefox's classes through Chrome's lookup, tables computed at runtime and a bundle per engine (Dead Ends,
+  Tables, Bundles And Data).
