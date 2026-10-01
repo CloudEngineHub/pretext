@@ -3695,10 +3695,10 @@ describe('rich-inline invariants', () => {
     // A mention chip inside Korean words.
     const chip: Items = [{ text: '\uC548\uB155', font: FONT }, { text: '@\uBBFC\uC218', font: '700 12px Test Sans', break: 'never', extraWidth: 24 }, { text: '\uB2D8 \uBC18\uAC00\uC6CC\uC694', font: FONT }]
     const chipWidth = measureWidth('@\uBBFC\uC218', '700 12px Test Sans') + 24
-    // The Korean message as an editor holds it, with two spaces after the comma, a line feed
-    // after the bold word's particle and two more spaces inside the last item. The bold word
-    // ends inside its line's text, so only keep-all keeps the particle after it.
-    const preserved: Items = [{ text: '\uBBFC\uC218 \uC528,  \uC624\uB298 ', font: FONT }, { text: '\uD68C\uC758', font: BOLD }, { text: '\uB294\n\uC138\uC2DC\uC5D0  \uC2DC\uC791\uD569\uB2C8\uB2E4', font: FONT }]
+    // A Korean message as an editor holds it, with two spaces after the comma, a line feed
+    // after the bold word's ending and two more spaces inside the last item. The bold word
+    // ends inside its line's text, so only keep-all keeps the ending after it.
+    const preserved: Items = [{ text: '\uBBFC\uC218 \uC528,  \uC624\uB298 ', font: FONT }, { text: '\uD68C\uC758', font: BOLD }, { text: '\uC5D0\uC11C\uB294\n\uC138 \uAC00\uC9C0\uB97C  \uC815\uD569\uB2C8\uB2E4', font: FONT }]
     const profile = getEngineProfile()
     const previous = { lineBreakScan: profile.lineBreakScan, breaksFromItemText: profile.breaksFromItemText }
     try {
@@ -3716,7 +3716,7 @@ describe('rich-inline invariants', () => {
           // their text in one keep-all pre-wrap node.
           expect({ scan, width, lines: richLines(preserved, width, 'keep-all', 'pre-wrap') }).toEqual({ scan, width, lines: flatLines(preserved, width, 'keep-all', 'pre-wrap') })
         }
-        expect(richLines(preserved, 5 * wide + 0.1, 'keep-all', 'pre-wrap')).toEqual(['\uBBFC\uC218 \uC528,', '\uC624\uB298', '\uD68C\uC758\uB294', '\uC138\uC2DC\uC5D0', '\uC2DC\uC791\uD569\uB2C8\uB2E4'])
+        expect(richLines(preserved, 5 * wide + 0.1, 'keep-all', 'pre-wrap')).toEqual(['\uBBFC\uC218 \uC528,', '\uC624\uB298', '\uD68C\uC758\uC5D0\uC11C\uB294', '\uC138 \uAC00\uC9C0\uB97C', '\uC815\uD569\uB2C8\uB2E4'])
         expect(richLines(preserved, 5 * wide + 0.1, 'normal', 'pre-wrap')).not.toEqual(richLines(preserved, 5 * wide + 0.1, 'keep-all', 'pre-wrap'))
         expect(richLines(korean, 5 * wide + 0.1)).toEqual(['\uBBFC\uC218 \uC528,', '\uC624\uB298', '\uD68C\uC758\uB294', '\uC138\uC2DC\uC5D0', '\uC2DC\uC791\uD569\uB2C8\uB2E4'])
         expect(richLines(korean, 5 * wide + 0.1, 'normal')).toEqual(flatLines(korean, 5 * wide + 0.1, 'normal'))
@@ -5126,7 +5126,7 @@ describe('layout invariants', () => {
       // `中中X中` where the pair halts, and `中X”中` 8px narrower than `中X中”中` less its `中` where
       // `中X」中` is (2026-10-01). An opening quote in a narrow glyph halts only the mark after it
       // and a closing one only the mark before it; a dot, a colon, a semicolon and a middle halt
-      // both, and only a middle is never halted itself. The closing mark after it here is the one
+      // both, and of those only a middle is never halted itself. The closing mark after it is the one
       // Canvas shapes as another word, `”` after a CJK symbol and `」` after the rest, so that
       // the type the library gives the character decides the halt.
       const typed: [string, boolean, boolean, boolean][] = [
