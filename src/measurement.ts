@@ -520,10 +520,13 @@ export function getEmojiCorrection(font: string, measurement: FontMeasurement): 
   return correction
 }
 
-// Canvas reports a width as a 32-bit float, so a few equal advances measure that many
-// times one only within its rounding: 2e-6 px off in Firefox 156, whose emoji take a
-// fractional advance in a bold font.
-const CANVAS_WIDTH_ROUNDING = 1 / 1024
+// Canvas reports a width as a 32-bit float (CanvasRenderingContext2D.cpp:5277 in Firefox,
+// text_metrics.cc:179 in Chrome), so a few equal advances measure that many times one
+// only within that float's rounding, 2^-24 of the width each time one is rounded: 2e-6 px
+// over three emoji of a bold font in Firefox 156. Sixteen roundings are allowed for, a
+// window far finer than the steps a font's advances come in (RESEARCH.md, Content
+// Language And Fonts).
+const CANVAS_WIDTH_ROUNDING = 2 ** -20
 
 // How many glyphs of the emoji font draw a text: the emoji font gives every glyph one
 // advance, the probe's, so text it draws measures a whole number of them, and none
@@ -531,7 +534,7 @@ const CANVAS_WIDTH_ROUNDING = 1 / 1024
 function getEmojiGlyphs(text: string, measurement: FontMeasurement): number {
   const width = getSegmentMetrics(text, measurement).width
   const glyphs = Math.round(width / measurement.emojiWidth)
-  return Math.abs(width - glyphs * measurement.emojiWidth) < CANVAS_WIDTH_ROUNDING ? glyphs : 0
+  return Math.abs(width - glyphs * measurement.emojiWidth) <= width * CANVAS_WIDTH_ROUNDING ? glyphs : 0
 }
 
 // The characters the emoji font shapes together inside a grapheme: emoji and pictographs,
@@ -589,7 +592,7 @@ function countEmojiGlyphs(text: string, measurement: FontMeasurement): number {
     }
     if (glyphs === 0) continue
     const width = getSegmentMetrics(grapheme, measurement).width
-    count += Math.min(glyphs, Math.floor((width + CANVAS_WIDTH_ROUNDING) / measurement.emojiWidth))
+    count += Math.min(glyphs, Math.floor(width * (1 + CANVAS_WIDTH_ROUNDING) / measurement.emojiWidth))
   }
   return count
 }
