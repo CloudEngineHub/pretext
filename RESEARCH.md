@@ -929,8 +929,10 @@ the line ends without that (`keepsEmptyAtomic()` in `src/rich-inline.ts` has the
 16px Arial at 20.25px are `ab` and then the box with `cd`, and with ` cd` the box stays after `ab`. Under pre-wrap the
 space hangs, and Gecko ends its text frame at the line's end whatever follows the frame (`nsTextFrame.cpp:11216-11229`),
 so the box is inside the line and stays, as does a second box, a space or a node of a soft hyphen after it: in the Gecko
-profile the line's run of hanging spaces goes on past an item that takes no room, where Blink's ends at one
-(`ComputeTrailingSpaceWidth`, `line_info.cc:289-415`). The Gecko profile ports this for any atomic item of width 0, a
+profile the line's run of hanging spaces goes on past an item that takes no room with the spaces that overflow, where
+Blink's ends at one (`ComputeTrailingSpaceWidth`, `line_info.cc:289-415`), and the spaces that fit keep their width, so
+the box is at the line's end or right after them (`ab `, a 0px box and a tab with `cd` in pre-wrap 16px Arial make a
+first line as wide as the paragraph at 18-22px in Firefox 156.0.1, and 22.25px wide above that). The Gecko profile ports this for any atomic item of width 0, a
 chip of only a ZWSP too. Of 95,507 layouts in Firefox 156.0.1 (sentences with a 0px box, or two, after every space at
 120-600px in seven fonts, in normal white space and pre-wrap and at eleven letter spacings, two-word shapes at 2-80px,
 Japanese, Arabic, Hebrew and keep-all Korean), 9,184 pass that failed and 124 fail that passed; 585 of the 9,184 are a

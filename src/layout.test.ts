@@ -4133,8 +4133,10 @@ describe('rich-inline invariants', () => {
           [[text('ab '), zero, text(' '), zero, text('cd')], preWrap, [[0, 1, 2, 3], [4]]],
           [[text('ab '), zero, text(' '), zero], preWrap, [[0, 1, 2, 3]]],
           [[text('ab '), text('\u00AD'), zero, text('cd')], preWrap, [[0, 1, 2], [3]]],
-          // A span with padding after it has a width and starts the next line, its spaces too.
+          // A span with padding after it has a width and starts the next line, its spaces too, as
+          // after an item of a soft hyphen there.
           [[text('ab '), zero, padded(' cd')], preWrap, [[0, 1], [2], [2]]],
+          [[text('ab '), text('\u00AD'), padded(' cd')], preWrap, [[0, 1], [2], [2]]],
         ]
         for (const [items, options, gecko, narrow] of emptyBoxRows) {
           const prepared = prepareRichInline(items, options)
@@ -4145,6 +4147,18 @@ describe('rich-inline invariants', () => {
           if (e === 2) expect({ ...shown, lines }).toEqual({ ...shown, lines: gecko })
           else expect({ ...shown, firstLineHasBox: lines[0]!.includes(items.indexOf(zero)) }).toEqual({ ...shown, firstLineHasBox: false })
         }
+        // Firefox's text frame leaves out the preserved spaces that overflow the line and keeps
+        // those that fit, so the box after them is at the line's end, or right after the spaces,
+        // and the line is that wide.
+        const ab = measureWidth('ab', FONT)
+        const space = measureWidth(' ', FONT)
+        const firstWidth = (width: number) => {
+          let first = -1
+          walkRichInlineLineRanges(prepareRichInline([text('ab  '), zero, text('cd')], preWrap), width, range => { if (first < 0) first = range.width })
+          return first
+        }
+        expect(firstWidth(ab + space + 1)).toBe(e === 2 ? ab + space + 1 : ab)
+        expect(firstWidth(ab + 2 * space + 1)).toBe(ab + 2 * space)
       }
     } finally {
       Object.assign(profile, previous)
