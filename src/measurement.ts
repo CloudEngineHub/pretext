@@ -423,40 +423,9 @@ const noSpaceKerning: SpaceKerning = { after: 0, before: 0 }
 // A default ignorable, which HarfBuzz's lookups pass over when they match a pair
 // (skipping_iterator_t::match, hb-ot-layout-gsubgpos.hh; hb_unicode_funcs_t::is_default_ignorable,
 // hb-unicode.hh, which leaves out the Hangul fillers).
-const defaultIgnorableRe = /\p{Default_Ignorable_Code_Point}/u
+export const defaultIgnorableRe = /\p{Default_Ignorable_Code_Point}/u
 // A code unit that is no cluster of its own: a combining mark, or half of a surrogate pair.
 const clusterPartRe = /[\p{M}\p{Cs}]/u
-// Half of a surrogate pair counts with Common: nearly every character past the BMP that text
-// holds beside a space is an emoji.
-const kerningScriptRe = /(\p{sc=Latn})|(\p{sc=Cyrl})|(\p{sc=Grek})|[\p{sc=Zyyy}\p{sc=Zinh}\p{Cs}]/u
-
-// A character's script as far as kerning with a space goes: 0 for Common and Inherited, which
-// take the script of the run they sit in, 1 Latin, 2 Cyrillic, 3 Greek, 4 any other.
-function getKerningScript(character: string): number {
-  // ASCII letters are Latin and the rest of ASCII is Common.
-  const code = character.charCodeAt(0)
-  if (code < 0x80) return (code | 0x20) >= 0x61 && (code | 0x20) <= 0x7a ? 1 : 0
-  const match = kerningScriptRe.exec(character)
-  return match === null ? 4 : match[1] !== undefined ? 1 : match[2] !== undefined ? 2 : match[3] !== undefined ? 3 : 0
-}
-
-// Whether the space before the segment text[at..end) kerns with the character it is asked about
-// there, the segment's first past default ignorables (getSpaceKerning). Blink shapes each script
-// run in a call of its own (HarfBuzzShaper::Shape, harfbuzz_shaper.cc:1063-1104), and a space,
-// like every Common character, joins the run of the text before it (ScriptRunIterator::MergeSets,
-// script_run_iterator.cc:490-510), so it kerns with a word after it only where that word goes on
-// in the same script. Each search back ends at the nearest character with a script, which every
-// word that asks starts with, so a text's searches together read it once.
-export function spaceSharesScriptRun(text: string, at: number, end: number): boolean {
-  while (at + 1 < end && defaultIgnorableRe.test(text[at]!)) at++
-  const script = getKerningScript(text[at]!)
-  if (script === 0) return true
-  for (let i = at - 1; i >= 0; i--) {
-    const before = getKerningScript(text[i]!)
-    if (before !== 0) return before === script
-  }
-  return true
-}
 
 // A character's kerning with a space glyph after it, or before it, asked of Canvas when a
 // segment first has the character at that edge.
@@ -496,7 +465,8 @@ function getCharacterSpaceKerning(character: string, measurement: FontMeasuremen
 // - All of it sits on the first glyph of the pair, as GPOS pair positioning puts it. The legacy
 //   `kern` table puts half on each glyph, so a line that ends at the space keeps only half in
 //   Chrome, which a width doesn't show.
-// - The scripts are Latin, Cyrillic, Greek and one for all others (getKerningScript).
+// Which spaces are in a word's script run, and so kern with it, preparation decides
+// (spaceSharesScriptRun, src/prepare.ts).
 export function getSpaceKerning(seg: string, metrics: SegmentMetrics, measurement: FontMeasurement, spaceWidth: number): SpaceKerning {
   let first = 0
   let last = seg.length - 1
