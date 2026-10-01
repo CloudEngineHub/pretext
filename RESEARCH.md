@@ -1406,7 +1406,8 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   function over 100 bytes, and TurboFan left the 454 bytes a call there), and the Gecko rule for an atomic item of width
   0, which read `paddedOpeningFit` to keep the profile at 23 fields, has a field of its own (`emptyAtomicAlwaysFits`).
   With both, Node read mixed stats, walk and stream 6-8% faster than main and the other rows within 2%. Node's times are
-  a lead only: what the split does to Chrome's is the bench's to say (#TBD, 2026-09-30). No other function inlined while
+  a lead only; in Chrome 154 the bench read every row of this build within noise of main in three sessions, the line
+  rows included, which the field alone had read 11-18% slower (#TBD, 2026-10-01). No other function inlined while
   preparing and laying out the bench's mixed and rich texts takes over 374 bytes (`getMarkContext()`, above).
 - **Class fields in Firefox**: any class field seems to make Firefox 156 compile the whole bundle up front, 4.5-4.8ms on
   a fresh page against 1.9-2.2ms with plain objects, or with the fields emptied or set in constructors; V8 and
