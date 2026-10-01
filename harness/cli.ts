@@ -306,11 +306,11 @@ export async function check(browser: BrowserKind, cases: Case[], o: Options, io:
 export async function gate(browser: BrowserKind, cases: Case[], o: Options, io: Io): Promise<boolean> {
   const job = <T extends Recording | Prediction>(mode: Mode, list: Case[], documentSize: number): Promise<Map<string, T>> =>
     io.run<T>({ browser, mode, cases: list, documentSize, lib: o.lib }).then(result => result.results)
-  // The offline invariants run beside the browser's jobs, which mostly wait on the browser. A child that fails is
-  // reported where its result is read.
-  const profiles = BROWSER[browser].profiles
-  const offline = Promise.all(profiles.map(profile => io.invariants(profile, o.lib)))
-  offline.catch(() => {})
+  // The offline invariants run beside the browser's jobs, which mostly wait on the browser, over the checked-in cases:
+  // a run on a case file of its own (--cases) leaves them out. A child that crashes, or is killed for its time or its
+  // memory, blocks with the gate's other results, not in their place.
+  const profiles = o.partial ? [] : BROWSER[browser].profiles
+  const offline = Promise.all(profiles.map(profile => io.invariants(profile, o.lib).catch((error: unknown) => (error instanceof Error ? error.message : String(error)))))
   const scored = await check(browser, cases, o, io)
   const ids = scored.pinned.map(c => c.id)
   const out: string[] = []
@@ -375,8 +375,15 @@ export async function gate(browser: BrowserKind, cases: Case[], o: Options, io: 
   // What an app relies on in the line APIs that no recording shows, over every case and not a seeded draw of them.
   const invariants = await offline
   let failing = false
+  if (o.partial) out.push('  offline invariants: not run with --cases, since they read the checked-in cases')
   for (let i = 0; i < profiles.length; i++) {
-    const { cases: ran, counts, failures, ms } = invariants[i]!
+    const result = invariants[i]!
+    if (typeof result === 'string') {
+      failing = true
+      out.push(`  BLOCKS: the offline invariants didn't finish in the ${profiles[i]} profile: ${result}`)
+      continue
+    }
+    const { cases: ran, counts, failures, ms } = result
     const failed = Object.entries(counts).map(([name, n]) => `${name} ${n}`).join(', ')
     if (failed === '') {
       out.push(`  offline invariants, ${profiles[i]} profile: none fails over ${ran} cases, in ${(ms / 1000).toFixed(0)} s`)
@@ -506,7 +513,7 @@ export async function equal(browser: BrowserKind, cases: Case[], setOf: Map<stri
 async function everyCaseInvariants(profile: string, lib: string): Promise<Invariants> {
   const child = Bun.spawn([process.execPath, join(import.meta.dir, 'invariants.ts'), `--profile=${profile}`, `--lib=${lib}`, '--draws=all', '--rich=all'], { stdout: 'pipe', stderr: 'inherit', timeout: 300_000, killSignal: 'SIGKILL' })
   const [out, code] = await Promise.all([new Response(child.stdout).text(), child.exited])
-  if (code !== 0) throw new Error(`The offline invariants in the ${profile} profile exited ${code}`)
+  if (code !== 0) throw new Error(`its process ended on ${child.signalCode ?? `exit code ${code}`}`)
   return JSON.parse(out) as Invariants
 }
 

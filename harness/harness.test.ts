@@ -591,7 +591,7 @@ describe('the commands, with a stand-in browser', () => {
     expect(io.printed()).toContain('true loss  fail')
   })
 
-  test('the gate blocks when an offline invariant fails on any case, in either engine profile Chrome stands for: a line API fault on a case no seeded draw holds would land', async () => {
+  test('the gate blocks when an offline invariant fails on any checked-in case or its process dies, in either engine profile Chrome stands for, and still prints what the browser found: a line API fault on a case no seeded draw holds would land', async () => {
     const list = cases(['pass'])
     const green = browser(folder('gate-invariants', { pass: laidOut }), () => right)
     expect(await gate('chrome', list, options, green)).toBe(false)
@@ -599,6 +599,16 @@ describe('the commands, with a stand-in browser', () => {
     const io = browser(folder('gate-invariants', { pass: laidOut }), () => right, undefined, undefined, ['case-1 at 16: line 2 leaves "  " unpainted'])
     expect(await gate('chrome', list, options, io)).toBe(true)
     expect(io.printed()).toContain('  BLOCKS: offline invariants fail in the blink profile, over 3 cases: coverage 1\n    case-1 at 16: line 2 leaves "  " unpainted')
+    // A child killed for its memory or its time blocks, and the gate still prints what the browser found.
+    const killed = browser(folder('gate-invariants', { pass: laidOut }), () => right)
+    killed.invariants = profile => (profile === 'blink' ? Promise.reject(new Error('its process ended on SIGKILL')) : green.invariants(profile, ''))
+    expect(await gate('chrome', list, options, killed)).toBe(true)
+    expect(killed.printed()).toContain('  1 cases recorded again')
+    expect(killed.printed()).toContain('  BLOCKS: the offline invariants didn\'t finish in the blink profile: its process ended on SIGKILL\n  offline invariants, unknown profile: none fails')
+    // A run on a case file of its own reads none of the checked-in cases, so the invariants over them stay out.
+    const partial = browser(folder('gate-invariants', { pass: laidOut }), () => right, undefined, undefined, ['case-1 at 16: line 2 leaves "  " unpainted'])
+    expect(await gate('chrome', list, { ...options, partial: true }, partial)).toBe(false)
+    expect(partial.printed()).toContain('  offline invariants: not run with --cases')
   })
 
   test('the gate blocks on breaks and line APIs that move in reverse order and on recordings that no longer hold, and moves page history it finds off the pinned and accepted cases: a message would wrap differently after other messages, or the next check block', async () => {

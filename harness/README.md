@@ -139,13 +139,14 @@ AGENTS.md's Validation says when to run `repin`, `check`, `gate` and `bench`. `g
 recordings must still describe the browser), and each new failure recorded and predicted alone, to attribute it. The
 1,000 are drawn by the commit under test, so one commit always draws the same and successive changes cover every
 recording; the gate prints the seed, and `--seed` draws with another. It also runs the offline invariants
-(`invariants.ts`, which `bun test` runs on 600 seeded draws) over every case in the browser's engine profile, beside the
-browser's jobs. A drawn case whose lines differ from its recording is recorded once more in a browser process of its
-own: laid out as recorded there, it's page history, and the gate lists it; laid out otherwise there too, it blocks,
-since either the recording is stale or it holds page history both of `record`'s orders shared. `bun harness record
---cases=<a file of those cases>` then lists it as page history. `record --only-new` records new cases, `check
---accept="<reason>"` puts the new failures on the accepted list under that reason and drops the entries that pass again,
-and `explain` shows one case, or a paragraph given with `--text`, line by line against the browser.
+(`invariants.ts`, which `bun test` runs on 600 seeded draws) over every checked-in case in the browser's engine profile,
+beside the browser's jobs, but not on a run with `--cases`; a child that dies blocks like a failing invariant. A drawn
+case whose lines differ from its recording is recorded once more in a browser process of its own: laid out as recorded
+there, it's page history, and the gate lists it; laid out otherwise there too, it blocks, since either the recording is
+stale or it holds page history both of `record`'s orders shared. `bun harness record --cases=<a file of those cases>`
+then lists it as page history. `record --only-new` records new cases, `check --accept="<reason>"` puts the new failures
+on the accepted list under that reason and drops the entries that pass again, and `explain` shows one case, or a
+paragraph given with `--text`, line by line against the browser.
 
 ## Accepted and varying lists
 
