@@ -591,7 +591,7 @@ string out of that bundle shrinks the gzipped size by 9.5 KB for Chrome's root l
 table, 7.0 KB for Firefox's line data, 2.8 KB for Firefox's bidi classes, 3.0 KB for Chrome's grapheme table and 2.5 KB
 for all four of Safari's.  The generator's packer then came to
 look for the longest copy from any earlier position and to match lazily, which took the layout entry from 56.2 to 53.6
-KB gzipped with the same unpacker and the same unpacked bytes (#TBD, 2026-09-30); the parse with the fewest bytes would
+KB gzipped with the same unpacker and the same unpacked bytes (#392, 2026-09-30); the parse with the fewest bytes would
 save 0.5 KB more and take the generator from 2 s to 10 or more, so it wasn't taken. The tables stay as they are, and one bundle serves every engine (Decisions Log, 2026-09-26).
 
 In Line_Break=SA runs (Thai, Lao, Khmer, Myanmar, and in the Blink and WebKit scans also Tai Le, New Tai Lue, Tai Tham,
