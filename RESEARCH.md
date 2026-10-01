@@ -1145,8 +1145,31 @@ in Safari, 19.45px in Firefox; March 2026).
 PLATFORM_BUGS.md has the bug and the correction, whose shape rests on the widening depending only on the size, matching
 across 59 emoji and 7 families and adding up per emoji (March 2026). Taking the font size for the DOM's emoji width
 over-corrected Safari by 4px an emoji, and Firefox's DOM sizes Apple Color Emoji in device pixels, its Canvas in CSS
-pixels (12.5px at 12px and DPR 2, 2026-09-15). The rebuild's DOM-free formulas, W being Canvas's width at a size:
-Chrome's DOM width is `Math.ceil(64 × W(size × DPR)) / (64 × DPR)` at DPR 2 and `W(size)` at DPR 1, Firefox's
+pixels (12.5px at 12px and DPR 2, 2026-09-15). The gap belongs to the emoji font's glyphs, and Canvas shows which
+characters it drew: Apple Color Emoji gives every glyph one advance at a size, so a stretch of emoji characters it draws
+measures a whole number of U+1F600's Canvas width, the count of its glyphs, and one with a glyph of another font
+measures anything else. Counting glyphs that way in every grapheme that holds an emoji or a pictograph, in Chrome
+154.0.8037.57 and Firefox 156.0.1 at DPR 2 (2026-10-01, #TBD), took the widths more than 0.1px off the DOM's:
+- from 2,571 of 265,140 to 807 in Chrome and from 2,298 to 0 in Firefox, over 1,473 emoji graphemes alone and inside a
+  word in 30 font lists at 12, 16 and 20px; Chrome's 807 are a skin tone after a character that isn't an emoji;
+- from 25,084 of 350,776 to 0 in Chrome and from some 25,800 to 7-20 in Firefox (one of the first families measured,
+  another each run, before U+FE0E), over 652 emoji graphemes alone, bare, before U+FE0E and before U+FE0F, in the 258
+  installed families and 11 generic ones at 13 and 16px; nearly all were an emoji-presentation character before U+FE0E,
+  which a text font draws;
+- by 5,448 of 44,640 in Chrome and 7,847 in Firefox, with none that was right before wrong, over 496 graphemes that mix
+  fonts (an emoji or a sequence before a mark or a selector, a skin tone after a character of another script) in 90
+  fonts; 5,252 in Chrome and 8,236 in Firefox stay wrong;
+- by 9,416 of 438,900 in Chrome and 8,730 in Firefox, over the 5,225 forms of emoji-test.txt 17.0 alone and inside a
+  word in 42 fonts at 12 to 23px, and by 256,240 of 575,660 in Chrome and 245,950 in Firefox, over 214 pictographs and
+  keycaps with no U+FE0F in the installed families at ten sizes from 11 to 22px. Nearly all are a pictograph whose
+  presentation is text by default, which only the emoji font has: U+1F336 in 16px Arial is 16px on the page and 20px
+  in Chrome's Canvas, 21px in Firefox's. Of those that were right, 2 are wrong in Chrome, Zapfino's `™` in the second
+  set, and 22 and 263 in Firefox, its box for a missing glyph at 13px.
+
+What it still gets wrong, and the mixes it newly gets wrong, are in ENGINE_FOLLOWUPS.md, Emoji correction. Text fonts
+whose glyphs are exactly as wide as an emoji's, beyond the two found there, or a platform with the gap whose emoji
+font varies its advances would reopen it. The rebuild's DOM-free formulas, W being Canvas's width at a size: Chrome's
+DOM width is `Math.ceil(64 × W(size × DPR)) / (64 × DPR)` at DPR 2 and `W(size)` at DPR 1, Firefox's
 `W(size × DPR) / DPR`, Safari's `W(size)` (September 2026). They'd retire the DOM exception and work in workers, but
 make prepared widths depend on the DPR at prepare time, which the API discussion planned before a release decides
 (TODO.md, End of project).

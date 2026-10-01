@@ -307,7 +307,7 @@ export function measureAnalysis(
     while (next < segmentCount && (flags[next]! & KIND_BITS) === SOFT_HYPHEN) next++
     if (next >= segmentCount || (flags[next]! & KIND_BITS) !== TEXT) return 0
     const after = texts[next]!
-    const apart = getCorrectedSegmentWidth(before, beforeMetrics!, emojiCorrection) + getTextWidth(after, fontMeasurement, emojiCorrection)
+    const apart = getCorrectedSegmentWidth(before, beforeMetrics!, fontMeasurement, emojiCorrection) + getTextWidth(after, fontMeasurement, emojiCorrection)
     const together = getTextWidth(before + after, fontMeasurement, emojiCorrection)
     return apart - together > engineProfile.lineFitEpsilon ? apart - together : 0
   }
@@ -330,7 +330,7 @@ export function measureAnalysis(
   // from the loop below, whose code JavaScriptCore otherwise never optimizes fully on CJK
   // text (RESEARCH.md, Keeping Work Bounded).
   function getTextSegmentWidth(text: string, textMetrics: SegmentMetrics, measuredWithSpace: boolean, followingSpaceKerning: number): number {
-    return getCorrectedSegmentWidth(text, textMetrics, emojiCorrection) - (measuredWithSpace ? spaceWidth : 0) + followingSpaceKerning
+    return getCorrectedSegmentWidth(text, textMetrics, fontMeasurement, emojiCorrection) - (measuredWithSpace ? spaceWidth : 0) + followingSpaceKerning
   }
 
   for (let mi = 0; mi < segmentCount; mi++) {

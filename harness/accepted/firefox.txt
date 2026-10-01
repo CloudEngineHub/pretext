@@ -119,8 +119,6 @@ catalog-a9dcb8429a4baca7 breaks
 catalog-ac3239461359f75a count
 
 ## Emoji beside CJK, Hangul, other scripts or U+FFFC, at 24 px and wider: Firefox breaks around them where the library doesn't
-catalog-17b19a2812fef7e4 count
-catalog-46db3005f1b8eb55 count
 facts-bd0eaee2b5eb1b8c breaks
 facts-d93fe86d92078783 breaks
 
@@ -3456,7 +3454,6 @@ catalog-594f8f14c16e7097 count
 catalog-5e8719f54b359ea3 count
 catalog-610a8506704217f2 count
 catalog-63634335a3e74924 count
-catalog-6c0d82b89d0b858c breaks
 catalog-803731846d271f04 count
 catalog-835e1270144f0076 count
 catalog-8de7db682bf17340 count

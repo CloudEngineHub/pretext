@@ -1,4 +1,4 @@
-// The behaviour catalog's templates, before widths.ts cuts them. Seven sources:
+// The behaviour catalog's templates, before widths.ts cuts them. Eight sources:
 // - the per-engine rebuild's rule families (data/rule-families.ndjson), the flat ones within what the library takes;
 // - filed reports whose reporter measured the width with their own Canvas;
 // - a matrix of every UAX #14 line-break class between the scripts apps mix, under the CSS settings the library takes,
@@ -9,7 +9,8 @@
 //   so the cover keeps a change of each;
 // - a CJK closing mark at a line end before a line feed or a space;
 // - bidi controls where Firefox's line breaker, which never sees them, starts or ends a line, each shape a family of its
-//   own.
+//   own;
+// - emoji characters a named font draws itself, beside one the emoji font draws.
 // main's adversarial families were taken once from the old harness's generator, which is gone: their cases,
 // `catalog/main/*` and `rich/main/*`, stay in the case files as they were cut, and `make.ts cut` keeps them.
 import { readFileSync } from 'node:fs'
@@ -260,13 +261,24 @@ export function bidiControlTemplates(): Template[] {
   return out
 }
 
+// Emoji characters a named font draws with a glyph of its own, which Canvas measures as the page draws them, beside one
+// the emoji font draws, which Chrome's and Firefox's Canvas measure too wide at small sizes (countEmojiGlyphs in
+// src/measurement.ts): Hiragino Sans's U+26AA and U+26AB around U+1F44D. Which graphemes take the correction, font by
+// font and sequence by sequence, is src/layout.test.ts's.
+export function emojiGlyphTemplates(): Template[] {
+  return [{
+    family: 'emoji-glyphs', origin: 'src/measurement.ts: the emoji correction counts the glyphs the emoji font draws',
+    pageLang: 'ja', paragraph: paragraph({ font: font('"Hiragino Sans"', 16), lang: 'ja' }, ['\u26AA\u26AB\u26AA \u767D\u3068\u9ED2 \u26AB\u26AA\u26AB \u{1F44D} \u307E\u308B']), widths: [], grid: true,
+  }]
+}
+
 export function catalogTemplates(): Template[] {
   const catalog: Template[] = []
   const seen = new Set<string>()
   // The order decides which template shows a line break first, which the cover keeps (widths.ts): filed reports, the
-  // rebuild's rule families, the class matrix, the follow-ups' shapes, the mark chains, the line-end marks, then the bidi
-  // controls. main's families came before the class matrix when they were cut.
-  const lists = [reportedTemplates(), ruleFamilyTemplates(), classMatrixTemplates(), followupTemplates(), markChainTemplates(), lineEndMarkTemplates(), bidiControlTemplates()]
+  // rebuild's rule families, the class matrix, the follow-ups' shapes, the mark chains, the line-end marks, the bidi
+  // controls, then the emoji glyphs. main's families came before the class matrix when they were cut.
+  const lists = [reportedTemplates(), ruleFamilyTemplates(), classMatrixTemplates(), followupTemplates(), markChainTemplates(), lineEndMarkTemplates(), bidiControlTemplates(), emojiGlyphTemplates()]
   for (let l = 0; l < lists.length; l++) {
     for (let i = 0; i < lists[l]!.length; i++) {
       const t = lists[l]![i]!
