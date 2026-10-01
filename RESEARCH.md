@@ -589,7 +589,10 @@ KB and 57 KB and took 3.6 ms in Firefox (2026-09-24). Measured from main (`bun b
 (8e88756b), of which the packed tables are 47 KB of base64 and about 30 KB of the gzipped size. Taking one table's
 string out of that bundle shrinks the gzipped size by 9.5 KB for Chrome's root line table, 4.2 KB for its Chinese
 table, 7.0 KB for Firefox's line data, 2.8 KB for Firefox's bidi classes, 3.0 KB for Chrome's grapheme table and 2.5 KB
-for all four of Safari's. The tables stay as they are, and one bundle serves every engine (Decisions Log, 2026-09-26).
+for all four of Safari's.  The generator's packer then came to
+look for the longest copy from any earlier position and to match lazily, which took the layout entry from 56.2 to 53.6
+KB gzipped with the same unpacker and the same unpacked bytes (#392, 2026-09-30); the parse with the fewest bytes would
+save 0.5 KB more and take the generator from 2 s to 10 or more, so it wasn't taken. The tables stay as they are, and one bundle serves every engine (Decisions Log, 2026-09-26).
 
 In Line_Break=SA runs (Thai, Lao, Khmer, Myanmar, and in the Blink and WebKit scans also Tai Le, New Tai Lue, Tai Tham,
 Tai Viet and Ahom), `Intl.Segmenter` words stand in for the engines' dictionaries. Chrome 153's equal those of
