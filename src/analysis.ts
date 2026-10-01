@@ -376,14 +376,23 @@ function segmentAtLineBreaks(normalized: string, spaceSources: Uint16Array | nul
   // A line ends only where the scan breaks, so the walkers learn where it doesn't:
   // before text, zero-width glue or a control, other than at a line start. A
   // ZWSP or soft hyphen there is zero-width glue. Before a space, tab or hard break
-  // the scan has no break either, but the line can still end there, so it keeps its kind.
+  // the scan has no break either, but the line can still end there, as they hang or
+  // end it, so it keeps its kind. Gecko doesn't hang a tab (EngineProfile's hangTabs),
+  // so no line ends before one there either; a soft hyphen before it keeps its break
+  // (GetHyphenationBreaks, nsTextFrame.cpp:4409-4457).
   let hasUnbroken = false
   const count = flags.length
   for (let j = count - 2; j >= 0; j--) {
     const kind = flags[j]! & KIND_BITS
     const next = flags[j + 1]! & KIND_BITS
-    if ((breaks[starts[j + 1]!]! & BREAK) !== 0 || kind === HARD_BREAK || !(next === TEXT || next === ZERO_WIDTH_GLUE || next === CONTROL)) continue
-    if (kind === ZERO_WIDTH_BREAK || kind === SOFT_HYPHEN) flags[j] = flags[j]! & ~KIND_BITS | ZERO_WIDTH_GLUE
+    if ((breaks[starts[j + 1]!]! & BREAK) !== 0 || kind === HARD_BREAK) continue
+    if (next === TAB && scan === 'gecko') {
+      if (kind === SOFT_HYPHEN) continue
+    } else if (next === TEXT || next === ZERO_WIDTH_GLUE || next === CONTROL) {
+      if (kind === ZERO_WIDTH_BREAK || kind === SOFT_HYPHEN) flags[j] = flags[j]! & ~KIND_BITS | ZERO_WIDTH_GLUE
+    } else {
+      continue
+    }
     flags[j + 1] = flags[j + 1]! | UNBROKEN
     hasUnbroken = true
   }

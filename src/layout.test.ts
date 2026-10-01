@@ -1320,34 +1320,116 @@ describe('boundary-policy regressions', () => {
     }
   })
 
-  test('an engine Pretext doesn\'t recognize takes the nearest tab stop however close it is', () => {
-    // At letter spacing -1 the second tab starts 1/16 of a stop before a stop:
-    // skipping to the one after would make the line 92.08px wide.
-    expect(getEngineProfile().skipNarrowTabStops).toBe(false)
-    const lines = layoutWithLines(prepareWithSegments('A\t\tB', FONT, { whiteSpace: 'pre-wrap', letterSpacing: -1 }), 1000, LINE_HEIGHT).lines
-    expect(lines.map(line => line.text)).toEqual(['A\t\tB'])
-    expect(lines[0]!.width).toBeCloseTo(49.84, 6)
-  })
-
-  test('the WebKit profile moves a tab to the following stop when less than half a space remains', () => {
+  test('each engine profile counts its own tab stops under letter spacing', () => {
+    // At 20px the fake Canvas's widths are whole app units, as Firefox's are.
+    const LARGE = '20px Test Sans'
     const profile = getEngineProfile()
-    const previous = profile.skipNarrowTabStops
-    const space = measureWidth(' ', FONT)
-    const a = measureWidth('a', FONT)
-    const tabLineWidth = (letterSpacing: number) =>
-      layoutWithLines(prepareWithSegments('a\tb', FONT, { whiteSpace: 'pre-wrap', letterSpacing }), 1000, LINE_HEIGHT).lines[0]!.width
+    const previous = profile.tabStops
+    const space = measureWidth(' ', LARGE)
+    const a = measureWidth('a', LARGE)
+    const foo = measureWidth('foo', LARGE)
+    const width = (text: string, letterSpacing: number) =>
+      layoutWithLines(prepareWithSegments(text, LARGE, { whiteSpace: 'pre-wrap', letterSpacing }), 1000, LINE_HEIGHT).lines[0]!.width
+    const round = (value: number) => Math.round(value * 1e6) / 1e6
     try {
-      // Letter spacing places the tab a quarter or three quarters of a space
-      // before the first stop, eight spaces from the line start.
-      for (const [remaining, skipped] of [[space / 4, true], [space * 3 / 4, false]] as const) {
-        const letterSpacing = 8 * space - remaining - a
-        profile.skipNarrowTabStops = false
-        const nearest = tabLineWidth(letterSpacing)
-        profile.skipNarrowTabStops = true
-        expect(tabLineWidth(letterSpacing) - nearest).toBeCloseTo(skipped ? 8 * space : 0)
+      for (const tabStops of ['spaced', 'spaced-ch', 'spaces'] as const) {
+        profile.tabStops = tabStops
+        for (const letterSpacing of [-1, -0.5, 2]) {
+          // Blink and Gecko put a stop every eight letter-spaced spaces and add no spacing after a
+          // tab; WebKit puts one every eight spaces and spaces each tab. The line's last glyph
+          // keeps its spacing.
+          const stop = tabStops === 'spaces' ? 8 * space : 8 * (space + letterSpacing)
+          const tabSpacing = tabStops === 'spaces' ? letterSpacing : 0
+          expect({ tabStops, letterSpacing, width: round(width('a\tb', letterSpacing)) }).toEqual({ tabStops, letterSpacing, width: round(stop + tabSpacing + a + letterSpacing) })
+          // Each tab of a run takes a whole stop, under negative spacing too: WebKit's spacing
+          // after a tab leaves the next one that far before or after a stop, and under half a
+          // space before one it takes the stop after.
+          for (let tabs = 1; tabs <= 4; tabs++) {
+            const expected = round(tabs * stop + tabSpacing + foo + 3 * letterSpacing)
+            expect({ tabStops, letterSpacing, tabs, width: round(width('\t'.repeat(tabs) + 'foo', letterSpacing)) }).toEqual({ tabStops, letterSpacing, tabs, width: expected })
+            expect({ tabStops, letterSpacing, tabs, width: round(width('a' + '\t'.repeat(tabs) + 'foo', letterSpacing)) }).toEqual({ tabStops, letterSpacing, tabs, width: expected })
+          }
+        }
+        // Gecko rounds the letter spacing a stop counts to app units: -0.08px is -5/60px there.
+        if (tabStops !== 'spaces') expect(width('\ta', -0.08)).toBeCloseTo(8 * (space - (tabStops === 'spaced-ch' ? 5 / 60 : 0.08)) + a - 0.08, 9)
+        // Stops no wider than 0 leave a tab no advance.
+        if (tabStops !== 'spaces') expect(width('a\t\tb', -space - 1)).toBeCloseTo(2 * (a - space - 1), 9)
       }
     } finally {
-      profile.skipNarrowTabStops = previous
+      profile.tabStops = previous
+    }
+  })
+
+  test('a tab nearer its stop than the engine\'s minimum takes the stop after', () => {
+    // At 20px the fake Canvas's widths are whole app units, as Firefox's are.
+    const LARGE = '20px Test Sans'
+    const profile = getEngineProfile()
+    const previous = profile.tabStops
+    const space = measureWidth(' ', LARGE)
+    const zero = measureWidth('0', LARGE)
+    const stop = 8 * space
+    const b = measureWidth('b', LARGE)
+    const width = (text: string) => layoutWithLines(prepareWithSegments(text, LARGE, { whiteSpace: 'pre-wrap' }), 1000, LINE_HEIGHT).lines[0]!.width
+    try {
+      // The minimum is half a space in Blink and WebKit and half a `0` in Gecko. `aaaa` ends
+      // between the two from the first stop, `a.....` under both, `aaa` over both, and `aa  0`
+      // exactly half a `0` from it, where Gecko's tab takes the stop.
+      expect(stop - measureWidth('aaaa', LARGE)).toBeGreaterThan(space / 2)
+      expect(stop - measureWidth('aaaa', LARGE)).toBeLessThan(zero / 2)
+      expect(stop - measureWidth('a.....', LARGE)).toBeLessThan(space / 2)
+      expect(stop - measureWidth('aa  0', LARGE)).toBeCloseTo(zero / 2, 9)
+      for (const tabStops of ['spaced', 'spaced-ch', 'spaces'] as const) {
+        profile.tabStops = tabStops
+        const stops = (text: string) => Math.round((width(`${text}\tb`) - b) / stop)
+        expect({ tabStops, stops: stops('aaa') }).toEqual({ tabStops, stops: 1 })
+        expect({ tabStops, stops: stops('aaaa') }).toEqual({ tabStops, stops: tabStops === 'spaced-ch' ? 2 : 1 })
+        expect({ tabStops, stops: stops('a.....') }).toEqual({ tabStops, stops: 2 })
+        expect({ tabStops, stops: stops('aa  0') }).toEqual({ tabStops, stops: 1 })
+        expect(width('aaaa\tb')).toBeCloseTo((tabStops === 'spaced-ch' ? 2 : 1) * stop + b, 9)
+      }
+    } finally {
+      profile.tabStops = previous
+    }
+  })
+
+  test('the Gecko profile returns a line from a tab that doesn\'t fit to its latest break', () => {
+    const LARGE = '20px Test Sans'
+    const profile = getEngineProfile()
+    const previous = { lineBreakScan: profile.lineBreakScan, hangTabs: profile.hangTabs, tabStops: profile.tabStops }
+    const stop = 8 * measureWidth(' ', LARGE)
+    const col = measureWidth('col1', LARGE)
+    const lines = (text: string, width: number) =>
+      layoutWithLines(prepareWithSegments(text, LARGE, { whiteSpace: 'pre-wrap' }), width, LINE_HEIGHT).lines.map(line => [line.text, Math.round(line.width * 1e6) / 1e6])
+    const round = (value: number) => Math.round(value * 1e6) / 1e6
+    try {
+      for (const scan of ['gecko', 'blink'] as const) {
+        profile.lineBreakScan = scan
+        profile.hangTabs = scan !== 'gecko'
+        profile.tabStops = scan === 'gecko' ? 'spaced-ch' : 'spaced'
+        clearCache()
+        // `col3` fits and its tab doesn't. Firefox doesn't hang the tab and no line ends before
+        // one, so the word goes to the next line with it; Chrome's tab hangs.
+        expect(col).toBeLessThan(stop)
+        expect({ scan, lines: lines('col1\tcol2\tcol3\tcol4', 2 * stop + col + 1) }).toEqual({ scan, lines: scan === 'gecko'
+          ? [['col1\tcol2\t', round(2 * stop)], ['col3\tcol4', round(stop + col)]]
+          : [['col1\tcol2\tcol3\t', round(2 * stop + col)], ['col4', round(col)]] })
+        if (scan !== 'gecko') continue
+        // The break is the latest before the tab's white space, however much of it fits.
+        expect(lines('aaaa bb \tc', measureWidth('aaaa bb ', LARGE) + 1)).toEqual([['aaaa ', round(measureWidth('aaaa', LARGE))], ['bb \tc', round(stop + measureWidth('c', LARGE))]])
+        // Without a break on the line, it wraps before the tab, between two tabs too, and the
+        // spaces before the tab hang.
+        const long = measureWidth('aaaaaaaaa', LARGE)
+        const tabbed = round(stop + measureWidth('x', LARGE))
+        expect(long).toBeGreaterThan(2 * stop)
+        expect(lines('aaaaaaaaa\tx', long + 1)).toEqual([['aaaaaaaaa', round(long)], ['\tx', tabbed]])
+        expect(lines('aaaaaaaaa \tx', long + 6)).toEqual([['aaaaaaaaa ', round(long)], ['\tx', tabbed]])
+        expect(lines('a\t\tb', stop + 1)).toEqual([['a\t', round(stop)], ['\t', round(stop)], ['b', round(measureWidth('b', LARGE))]])
+        // A soft hyphen before the tab keeps its break, with its hyphen.
+        expect(lines('aaaaaaaaa\u00AD\tx', long + 10)).toEqual([['aaaaaaaaa-', round(long + measureWidth('-', LARGE))], ['\tx', tabbed]])
+      }
+    } finally {
+      Object.assign(profile, previous)
+      clearCache()
     }
   })
 
@@ -3692,13 +3774,13 @@ describe('rich-inline invariants', () => {
       [{ text: 'first\r', font: FONT }, { text: '\nsecond\r', font: BOLD }, { text: '\n\nthird', font: FONT }],
     ]
     const profile = getEngineProfile()
-    const previous = { lineBreakScan: profile.lineBreakScan, breaksFromItemText: profile.breaksFromItemText, hangTabs: profile.hangTabs, skipNarrowTabStops: profile.skipNarrowTabStops }
+    const previous = { lineBreakScan: profile.lineBreakScan, breaksFromItemText: profile.breaksFromItemText, hangTabs: profile.hangTabs, tabStops: profile.tabStops }
     try {
       for (const scan of ['blink', 'webkit', 'gecko'] as const) {
         profile.lineBreakScan = scan
         profile.breaksFromItemText = scan === 'webkit'
         profile.hangTabs = scan !== 'gecko'
-        profile.skipNarrowTabStops = scan === 'webkit'
+        profile.tabStops = scan === 'webkit' ? 'spaces' : scan === 'gecko' ? 'spaced-ch' : 'spaced'
         clearCache()
         for (const items of rows) {
           for (let width = 4; width <= 320; width += 3.7) expect({ scan, width, lines: richLines(items, width) }).toEqual({ scan, width, lines: flatLines(items, width) })
@@ -4340,9 +4422,8 @@ describe('layout invariants', () => {
     const text = 'A\tB'
     const prepared = prepareWithSegments(text, FONT, { whiteSpace: 'pre-wrap', letterSpacing: spacing })
     const line = layoutWithLines(prepared, 200, LINE_HEIGHT).lines[0]!
-    const aWidth = measureWidth('A', FONT)
-    const tabAdvance = nextTabAdvance(aWidth + spacing, measureWidth(' ', FONT))
-    const expected = aWidth + spacing + tabAdvance + spacing + measureWidth('B', FONT) + spacing
+    // The tab ends on the first stop of eight letter-spaced spaces, with no spacing after it.
+    const expected = 8 * (measureWidth(' ', FONT) + spacing) + measureWidth('B', FONT) + spacing
 
     expect(line.text).toBe(text)
     expect(line.width).toBeCloseTo(expected, 5)

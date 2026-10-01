@@ -133,7 +133,14 @@ export function measureAnalysis(
   const discretionaryHyphenWidth = getTextWidth('-', fontMeasurement, emojiCorrection) +
     (letterSpacing === 0 ? 0 : letterSpacing * (engineProfile.letterSpaceDiscretionaryHyphen ? 2 : 1))
   const spaceWidth = getTextWidth(' ', fontMeasurement, emojiCorrection)
-  const tabStopAdvance = spaceWidth * 8
+  // The advance between tab stops, and the least a tab advances (EngineProfile's tabStops).
+  // Gecko rounds the space and the letter spacing to app units, sixtieths of a pixel, each
+  // on its own (ComputeTabWidthAppUnits, nsTextFrame.cpp:3875-3906).
+  const tabStops = engineProfile.tabStops
+  const tabStopAdvance = tabStops === 'spaced-ch'
+    ? (Math.round(spaceWidth * 60) + Math.round(letterSpacing * 60)) * 8 / 60
+    : (spaceWidth + (tabStops === 'spaces' ? 0 : letterSpacing)) * 8
+  let minimumTabAdvance = 0
   const hasLetterSpacing = letterSpacing !== 0
   // Only a segment holding a default-ignorable code point has entry geometry, so text
   // without one doesn't look for it.
@@ -402,7 +409,8 @@ export function measureAnalysis(
         if (hasLetterSpacing) spacingGraphemeCount = countRenderedSpacingGraphemes(text, kind, engineProfile.graphemeTable)
         break
       case TAB:
-        spacingGraphemeCount = 1
+        if (tabStops === 'spaces') spacingGraphemeCount = 1
+        minimumTabAdvance = (tabStops === 'spaced-ch' ? getTextWidth('0', fontMeasurement, emojiCorrection) : spaceWidth) / 2
         break
       case CONTROL: {
         width = getTextWidth(text, fontMeasurement, emojiCorrection)
@@ -467,6 +475,7 @@ export function measureAnalysis(
     lineEndTrims,
     overflowLineEndTrims: hanKerning.overflowLineEndTrims,
     tabStopAdvance,
+    minimumTabAdvance,
   } as unknown as PreparedText & PreparedSegments
   if (segments !== null) prepared.segments = segments
   return prepared

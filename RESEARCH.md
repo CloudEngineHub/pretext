@@ -1560,11 +1560,13 @@ repin` shows what), and a fact read in source needs reading again.
 - **Letter spacing and tabs.** Blink spaces cursive-script runs only at spaces (`shape_result.cc:977-990`), spaces a
   glyph cluster once, and turns off liga, clig and calt under any spacing (`font_features.cc:54-86`). A tab stop is
   eight Canvas spaces plus letter and word spacing (`font.cc:303-317`), rounded up to 1/128 px at DPR 2
-  (`simple_font_data.cc:225-240`), and a tab skips a stop under half a space away (`font.cc:333-337`). Recordings agree:
-  a tab-only line in 16px Arial is 27.563px at −1px letter spacing and 35.563px at 0 (harness recordings at commit
-  b1fd05fc, Chrome 154). The profile models neither the cursive rule nor the spacing and skip in stops, and a unit test
-  pins its stops of spaces alone ("letterSpacing participates in pre-wrap tab positioning", `src/layout.test.ts`), so a
-  port changes that test (ENGINE_FOLLOWUPS.md). (Chrome 153 source, 2026-09-16 and 09-27.)
+  (`simple_font_data.cc:225-240`), and a tab skips a stop under half a space away (`font.cc:333-337`). A run of tabs is
+  an item shaped apart from text, with no spacing of its own, whose later tabs take a whole stop
+  (`shape_result.cc:1898-1944`), which a tab on a stop takes anyway. Recordings agree: a tab-only line in 16px Arial is
+  27.563px at −1px letter spacing and 35.563px at 0 (harness recordings at commit b1fd05fc, Chrome 154), and where
+  letter spacing is minus a space or less, so that stops are no wider than 0, tabs take no advance (792 probe inputs of
+  tab runs, Chrome 154.0.8037.57, 2026-09-30). The profile counts stops so since #TBD (`tabStops`, `src/measurement.ts`)
+  and doesn't model the cursive rule (ENGINE_FOLLOWUPS.md). (Chrome 153 source, 2026-09-16 and 09-27.)
 - **Line breaking.** ICU restarts at each line start without context, so LB20a applies there (`a‐b`, break-all, loose:
   `a` / `‐b`); the Blink scan makes one pass per text (Break Opportunities From Engine Data). Blink takes the last
   offset that fits from glyph positions, then the break at or before it, so a line ends before a ligature unless its
@@ -1735,8 +1737,17 @@ repin` shows what), and a fact read in source needs reading again.
   :4298-4304; `GetMinTabAdvanceAppUnits`, :1931-1937). A tab's position counts advances only at cluster starts, plus
   each character's spacing (`CalcTabWidths`, :4306-4378). Recordings agree (harness recordings at commit b1fd05fc,
   Firefox 156.0.1): a tab-only line is 8 × (space + letter spacing) unless the tab is the text's last character, as in
-  16px Arial at −1, 0 and 1px: 27.6, 35.6 and 43.6px. The profile follows none of this (ENGINE_FOLLOWUPS.md). (Firefox
-  156.0 source, 2026-09-16 and 09-27.)
+  16px Arial at −1, 0 and 1px: 27.6, 35.6 and 43.6px. All of it is in whole app units, so a tab exactly the minimum from
+  its stop takes it, and in Arial and Helvetica, where a space is half a `0`, a tab one space before a stop is one. No
+  break comes before a tab and Firefox doesn't hang one, so a tab that doesn't fit goes to the next line with the word
+  before it, from the last break whose line fits (`BreakAndMeasureText`, `gfxTextRun.cpp:1086-1101`), or, without one,
+  alone, as break-word wraps before any cluster (:1069-1072). The Gecko profile follows the stops, the minimum, the app
+  units and the tab that doesn't fit since #TBD (`tabStops`, `src/measurement.ts`; `segmentAtLineBreaks()`,
+  `src/analysis.ts`), not the spacing after a run's last character (ENGINE_FOLLOWUPS.md). Before it, tab-separated text
+  without letter spacing (six texts such as `col1`, tab, `col2`, tab, `col3` in four fonts at 30-400px, 1,272 probe
+  inputs recorded fresh) failed at 367 widths in Firefox 156.0.1 and 39 in Chrome 154.0.8037.57, which skips a stop
+  under half a space away, and at none in webkit-host; with it none fails in any (2026-09-30). (Firefox 156.0 source,
+  2026-09-16 and 09-27.)
 
 Elsewhere: a context used before Firefox reads its late family names keeps the fallback (PLATFORM_BUGS.md, the late
 family names), and the joined Arabic study is under Content Language And Fonts, Widths That Depend On Context.

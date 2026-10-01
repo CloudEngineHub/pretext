@@ -84,12 +84,24 @@ export type EngineProfile = {
   // invisibles and from marks after a soft hyphen, which isolated widths do not
   // show. It keeps the overflowing hyphen.
   unfitHyphenRetreat: 'reduced-width' | 'full-width' | 'none'
-  // WebKit moves a tab to the following stop when less than half a space would
-  // remain before the next one (FontCascade::tabWidth).
-  skipNarrowTabStops: boolean
+  // Pre-wrap tab stops count from the line's start, and a tab moves on to the stop after
+  // the next where the next is under a minimum away (CSS Text 3 §4.1.2).
+  // - 'spaces': WebKit puts a stop every eight spaces and spaces the tab as any glyph; the
+  //   minimum is half a space (FontCascade::tabWidth, FontCascadeInlines.h:76-93;
+  //   WidthIterator.cpp:491-517).
+  // - 'spaced': Blink puts one every eight spaces, each space with its letter spacing
+  //   (Font::TabWidthInternal, font.cc:303-317; TabSize::GetPixelSize, tab_size.h:24-33), and
+  //   adds no spacing after the tab, which it shapes apart from text (shape_result.cc:
+  //   1898-1944); the minimum is half a space (Font::TabWidth, font.cc:319-340).
+  // - 'spaced-ch': Gecko's stops and tabs are as Blink's (ComputeTabWidthAppUnits,
+  //   nsTextFrame.cpp:3875-3906; CanAddSpacingAfter, :3860-3873), with a minimum of half
+  //   the font's `0`, counted in whole app units (GetMinTabAdvanceAppUnits, :1931-1937;
+  //   AdvanceToNextTab, :4298-4304).
+  tabStops: 'spaces' | 'spaced' | 'spaced-ch'
   // A run of preserved spaces and tabs at the end of a pre-wrap line hangs in Blink
-  // and WebKit (CSS Text 3 §4.1.2). Gecko doesn't hang a tab that doesn't fit, so a
-  // tab counts in the line's fit and width there, as spaces do not.
+  // and WebKit (CSS Text 3 §4.1.2). Gecko doesn't hang a tab, so a tab counts in the
+  // line's fit and width there, as spaces do not, and one that doesn't fit goes to the
+  // next line with the word before it (segmentAtLineBreaks() in src/analysis.ts).
   hangTabs: boolean
   // Blink's break-anywhere retry and WebKit's grapheme search can end a line after
   // zero-width glue when the grapheme after it doesn't fit, so the glue takes a line of
@@ -444,7 +456,7 @@ export function getEngineProfile(): EngineProfile {
     letterSpaceDiscretionaryHyphen: engine !== 'blink',
     shapesMarksAcrossSoftHyphen: engine === 'blink',
     unfitHyphenRetreat: engine === 'blink' ? 'reduced-width' : engine === 'gecko' ? 'full-width' : 'none',
-    skipNarrowTabStops: engine === 'webkit',
+    tabStops: engine === 'webkit' ? 'spaces' : engine === 'gecko' ? 'spaced-ch' : 'spaced',
     hangTabs: engine !== 'gecko',
     zeroWidthGlueTakesLine: engine !== 'gecko',
     hidesControlCharacters: engine === 'gecko',
