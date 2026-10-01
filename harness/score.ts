@@ -5,7 +5,7 @@
 // character (observe.ts). A right count with a wrong break is a failure of its own kind, 'breaks': main before #340
 // passed 4.5-8.1% of its census cases that way by accident.
 import { createRng } from './sets/build.ts'
-import { recordingText, type Varying } from './store.ts'
+import { lineEnds, type Varying } from './store.ts'
 import { BROWSER, type BrowserKind, type Case, type Failure, type Prediction, type Recording, type Status } from './types.ts'
 
 export type Outcome = { status: Status; line: number; detail: string }
@@ -233,19 +233,19 @@ export function reverseOrder(ids: readonly string[], forward: ReadonlyMap<string
   return out
 }
 
-// The gate's fresh re-recording of a sample against the stored recordings. `attempts[0]` records every sampled case;
-// the later attempts record again, each case alone in its own document, the cases the first laid out differently. A
-// case laid out differently in every attempt is stale: the stored recording no longer describes the browser, which
-// blocks. One laid out as stored in some attempt depends on the cases or documents before it: page history the
-// recordings missed, which record would list.
+// The gate's fresh re-recording of a sample against the stored recordings, by where lines start and end (lineEnds).
+// `attempts[0]` records every sampled case; the later attempts record again, each case alone in its own document, the
+// cases the first laid out differently. A case laid out differently in every attempt is stale: the stored recording no
+// longer describes the browser, which blocks. One laid out as stored in some attempt depends on the cases or documents
+// before it: page history the recordings missed, which record would list.
 export function freshRecordings(ids: readonly string[], stored: ReadonlyMap<string, Recording>, attempts: ReadonlyArray<ReadonlyMap<string, Recording>>): { stale: string[]; history: string[] } {
   const out = { stale: [] as string[], history: [] as string[] }
   for (let i = 0; i < ids.length; i++) {
     const id = ids[i]!
-    const want = recordingText(stored.get(id)!)
-    if (recordingText(attempts[0]!.get(id)!) === want) continue
+    const want = lineEnds(stored.get(id)!)
+    if (lineEnds(attempts[0]!.get(id)!) === want) continue
     let always = true
-    for (let k = 1; k < attempts.length; k++) if (recordingText(attempts[k]!.get(id)!) === want) always = false
+    for (let k = 1; k < attempts.length; k++) if (lineEnds(attempts[k]!.get(id)!) === want) always = false
     out[always ? 'stale' : 'history'].push(id)
   }
   return out
@@ -257,7 +257,7 @@ export function freshRecordings(ids: readonly string[], stored: ReadonlyMap<stri
 export type Attribution = 'page history' | 'varies between runs' | 'depends on what was predicted before' | 'true loss'
 
 export function attribute(stored: Recording, recordedAlone: Recording, inCheck: Prediction, alone: readonly [Prediction, Prediction]): Attribution {
-  if (recordingText(recordedAlone) !== recordingText(stored)) return 'page history'
+  if (lineEnds(recordedAlone) !== lineEnds(stored)) return 'page history'
   if (predictionChange(alone[0], alone[1]) === 'lines') return 'varies between runs'
   if (predictionChange(alone[0], inCheck) === 'lines') return 'depends on what was predicted before'
   return 'true loss'

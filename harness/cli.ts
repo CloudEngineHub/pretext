@@ -33,7 +33,7 @@ import { appPath, pinInstalled, PINNED, pins, writePin } from './browsers.ts'
 import { LIB, runJob, type Job, type JobResult, type Mode } from './run.ts'
 import { createRng, makeCase, paragraph, parseFont } from './sets/build.ts'
 import {
-  acceptedPath, assertSameEnvironment, caseText, historyPath, readAccepted, readCases, readHistory, readRecordings, readVarying, recordingText,
+  acceptedPath, assertSameEnvironment, caseText, historyPath, lineEnds, readAccepted, readCases, readHistory, readRecordings, readVarying, recordingText,
   recordingsPath, splitHistory, varyingPath, writeAccepted, writeHistory, writeRecordings, type Accepted, type Varying,
 } from './store.ts'
 import { BROWSER, BROWSERS, type BrowserKind, type Case, type Paragraph, type Prediction, type Recording } from './types.ts'
@@ -141,7 +141,7 @@ export async function record(browser: BrowserKind, cases: Case[], o: Options, io
   writeRecordings(recordingsPath(io.root, browser), { env: a.env, recordings })
   writeHistory(historyPath(io.root, browser), { env: a.env, cases: history })
   io.log(`${browser}: recorded ${sorted.length} cases in sorted and shuffled (seed ${o.seed + 1}) order, ${((a.ms + b.ms) / 2000).toFixed(0)} s each; ${history.size} with page history; ${a.env}`)
-  if (sameEnv) io.log(`${browser}: ${moved} cases laid out differently from the stored recordings of this environment, now page history`)
+  if (sameEnv) io.log(`${browser}: ${moved} cases whose lines start or end elsewhere than in the stored recordings of this environment, now page history`)
   // What the browser changed since the last recording, by family and width band.
   if (old !== null && !sameEnv) {
     const changed = new Map<string, number>()
@@ -308,13 +308,15 @@ export async function gate(browser: BrowserKind, cases: Case[], o: Options, io: 
   const first = await io.run<Recording>({ browser, mode: 'record', cases: sample, documentSize: RECORD_DOCUMENT, lib: o.lib })
   if (sample.length > 0) assertSameEnvironment(browser, scored.env, first.env)
   const attempts = [first.results]
-  const differ = sample.filter(c => recordingText(first.results.get(c.id)!) !== recordingText(scored.recordings.get(c.id)!))
+  const differ = sample.filter(c => lineEnds(first.results.get(c.id)!) !== lineEnds(scored.recordings.get(c.id)!))
+  let widths = 0
+  for (let i = 0; i < sample.length; i++) if (recordingText(first.results.get(sample[i]!.id)!) !== recordingText(scored.recordings.get(sample[i]!.id)!)) widths++
   if (differ.length > 0) {
     attempts.push(await job<Recording>('record', differ, ALONE))
     attempts.push(await job<Recording>('record', differ.slice().reverse(), ALONE))
   }
   const fresh = freshRecordings(sample.map(c => c.id), scored.recordings, attempts)
-  out.push(`  ${sample.length} cases recorded again (seed ${o.seed}): ${differ.length} differ from the recordings, ${fresh.history.length} of them laid out as recorded when alone`)
+  out.push(`  ${sample.length} cases recorded again (seed ${o.seed}): ${differ.length} start or end a line elsewhere than the recordings, ${fresh.history.length} of them laid out as recorded when alone; ${widths - differ.length} more differ only in line widths or height (report only)`)
   // Those depend on the cases before them: page history the recordings missed, which goes on the page-history list as
   // record would put it, so check stops pinning them. An accepted entry of one leaves the list in the same write, since
   // the next check would block on an accepted case no longer pinned. The files get copies: attribution reads the
@@ -384,16 +386,19 @@ export async function drift(browser: BrowserKind, cases: Case[], o: Options, wri
   const added: string[] = []
   const gone: string[] = []
   const found: string[] = []
+  let widths = 0
   for (const [id, recording] of now.recordings) {
     const was = old.get(id)
     if (was === undefined) added.push(id)
-    else if (recordingText(was) !== recordingText(recording)) changed.push(id)
+    else if (lineEnds(was) !== lineEnds(recording)) changed.push(id)
+    else if (recordingText(was) !== recordingText(recording)) widths++
   }
   for (const id of history.cases.keys()) if (!oldHistory.has(id)) found.push(id)
   for (const id of old.keys()) if (!now.recordings.has(id) && !history.cases.has(id)) gone.push(id)
   const env = before === null ? 'none recorded' : before.env === now.env ? 'same environment' : `recorded under ${before.env}`
   const out = [`${browser} drift against harness/recordings (${env}): ${changed.length} cases laid out otherwise, ${found.length} new page history, ${added.length} newly recorded, ${gone.length} no longer recorded`]
   if (changed.length > 0) out.push(`  laid out otherwise: ${shown(changed)}`)
+  if (widths > 0) out.push(`  ${widths} more differ only in line widths or height, which the pass rule doesn't read`)
   if (found.length > 0) out.push(`  new page history: ${shown(found)}`)
   if (added.length > 0) out.push(`  newly recorded: ${shown(added)}`)
   if (gone.length > 0) out.push(`  no longer recorded: ${shown(gone)}`)

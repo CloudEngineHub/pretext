@@ -711,6 +711,7 @@ catalog-207ead83d12b776d count
 catalog-20b7272d91655b73 count
 catalog-20be139e6195fb85 breaks
 catalog-20cf2bab460bfb14 count
+catalog-20fda91836b74945 count
 catalog-210d31c0c7ae2b99 count
 catalog-21116eb9a714bcec count
 catalog-215ce717eb4c56d3 count
@@ -979,6 +980,7 @@ catalog-63bdca867389a6f9 count
 catalog-63ed84f58514031f count
 catalog-645dcbd6865b7ab8 count
 catalog-649a59f1e14490b8 count
+catalog-64af204e17f879ac breaks
 catalog-6528758e78857f6d count
 catalog-654288fb34fe8984 count
 catalog-654425d8fe55de76 count
@@ -1003,6 +1005,7 @@ catalog-6cef974ec9f1b20b count
 catalog-6d044199fb5ac3c1 count
 catalog-6d378e7e6992ab68 count
 catalog-6d720e32d70f0482 count
+catalog-6db8c8206e0a503d breaks
 catalog-6dd5bd72d7e3d2d5 count
 catalog-6e5641eb202e297c count
 catalog-6e9af9887ecb5544 count
@@ -1196,6 +1199,7 @@ catalog-9c368de0b2b6f5e6 breaks
 catalog-9c49a270500adab2 breaks
 catalog-9c638faaf18a195b count
 catalog-9cdfef883da02e76 count
+catalog-9cfe2df5ea839338 count
 catalog-9d2ac5fe9e91430b count
 catalog-9d4108d6e89815bb count
 catalog-9d65fed7e9fac291 count
@@ -3420,6 +3424,12 @@ rich-bcf83992add4faec count
 rich-d46f633fad829104 count
 rich-ee31e728f8b9b40e count
 rich-fcc03bb8c805a9c8 count
+
+## The Thai-page fuzz string ENGINE_FOLLOWUPS.md names for script runs (Thai, Myanmar, Khmer and Bengali marks, an ideograph and a bracket, ending in U+2007), in 16 px Arial at 24 px: Firefox ends a line after the Myanmar letter, after the Khmer sign and after the Bengali letter, 6 lines, where the Gecko scan, which doesn't split text runs where the script changes, keeps the three on one, 5 lines; unscored while page history was decided on line widths, as its first line is 17.6 or 21.1 px wide by what Firefox laid out before
+followup-60f1c8ca3ac68aed count
+
+## U+FFFD, a letter and a soft hyphen that start a pre-wrap paragraph, in 16 px Arial at 25 px: the hyphen doesn't fit after the letter, so Firefox breaks between U+FFFD and the letter, where the library takes the soft hyphen and overflows, as in #323's word; unscored while page history was decided on line widths, as U+FFFD is 13.1 or 16 px wide by what Firefox laid out before
+catalog-4ee5e9be3e576e04 breaks
 
 ## White space and soft hyphens that start a span before a word, after a space, at 24 px and wider: Firefox collapses the white space between the soft hyphens with the space before, as it collapses white space across the characters it discards, where the library keeps both, as it does in one text (c09d264b too; ENGINE_FOLLOWUPS.md)
 rich-afb8005e2a64451d count

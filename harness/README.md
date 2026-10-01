@@ -35,11 +35,12 @@ at, which the text the items join decides.
 
 A recording counts only under the environment that made it, the key in its file's first line: browser build, OS build,
 OS languages, page languages, device pixel ratio and a hash of the served fonts. `check` refuses to score under any
-other ("Record again before scoring"), so a browser or OS update never reads as a regression. A case laid out
-differently in two recordings under one key has page history: its result depends on what the page laid out before,
+other ("Record again before scoring"), so a browser or OS update never reads as a regression. A case whose lines start
+or end elsewhere in two recordings under one key has page history: its result depends on what the page laid out before,
 through the browser's caches, which the paragraph alone can't predict, so it's never pinned. A pinned case is one whose
-recordings all agree, and only pinned cases are scored. A new case fails `check` until `bun harness record --only-new`
-records it, except in installed Safari, which records only a seeded sample: unobserved is never a pass.
+recordings all agree on that, and only pinned cases are scored; line widths and heights may move between recordings,
+since the pass rule doesn't read them. A new case fails `check` until `bun harness record --only-new` records it,
+except in installed Safari, which records only a seeded sample: unobserved is never a pass.
 
 Every pinned case blocks alike, CJK included, and a change that fails one lists it under a written reason, so a hard
 tradeoff goes on record instead of being ruled out. Generated cases under 24 px are scored too, although narrower than

@@ -37,7 +37,7 @@ Pretext takes no paragraph direction; only the Gecko scan resolves levels, takin
 - Chrome measures under `<html dir>` as it was when the context was made, so text against the page's direction wraps slightly differently around brackets. A `direction` option fixed it in a prototype and wasn't taken (RESEARCH.md, Dead Ends); it's on the list for the API discussion planned for the end of the project (TODO.md; 2026-09-13).
 - In a right-to-left paragraph Safari breaks `src/|עברית` and the WebKit scan doesn't; not a case (2026-09-14, Safari 26.5.2).
 - Unwitnessed: whether `direction: rtl` alone turns on Firefox's document bidi, which decides where the Gecko scan must resolve levels.
-- The Gecko scan doesn't split text runs where the script changes (RESEARCH.md, Decisions Log, 2026-09-24). Of the two fuzz strings in `harness/cases/followups.ndjson`, the `ko` one (Firefox 3 lines, the profile 4) is on Firefox's list; the `th` one passes in Firefox and is on Chrome's list for an untraced reason: Chrome keeps its final U+2007 on the last line, the library on a line of its own.
+- The Gecko scan doesn't split text runs where the script changes (RESEARCH.md, Decisions Log, 2026-09-24). Both fuzz strings in `harness/cases/followups.ndjson` are on Firefox's list: the `ko` one (Firefox 3 lines, the profile 4) and the `th` one (Firefox 6 lines at 24px, the profile 5), where Firefox ends a line after the Myanmar letter, after the Khmer sign and after the Bengali letter. The `th` one is also on Chrome's list for an untraced reason: Chrome keeps its final U+2007 on the last line, the library on a line of its own.
 
 ### Emergency breaks inside a word
 

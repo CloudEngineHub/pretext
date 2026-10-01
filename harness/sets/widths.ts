@@ -24,7 +24,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { LIB, runJob } from '../run.ts'
-import { assertSameEnvironment, readRecordings, writeRecordings } from '../store.ts'
+import { assertSameEnvironment, lineEnds, readRecordings, writeRecordings } from '../store.ts'
 import type { BrowserKind, Case, Paragraph, Recording } from '../types.ts'
 import { digest, fixturesOf, lineBreakClass, makeCase, textOf } from './build.ts'
 
@@ -129,17 +129,9 @@ export async function recordFirst(set: string, templates: readonly Template[], b
   }
 }
 
+// `layout`: where each line starts and ends (lineEnds). Line widths are left out: Firefox reports a space that hangs
+// past the edge clipped to it, so a line's width moves with the paragraph's width though no break does.
 type Recorded = { width: number; layout: string; recording: Recording }
-
-// What a width's layout is for the cut: where each line starts and ends. Line widths are left out: Firefox reports a
-// space that hangs past the edge clipped to it, so a line's width moves with the paragraph's width though no break
-// does.
-function breaksOf(recording: Recording): string {
-  if ('error' in recording) return `error ${recording.error}`
-  let out = ''
-  for (let i = 0; i < recording.lines.length; i++) out += `${recording.lines[i]!.first}-${recording.lines[i]!.last} `
-  return out
-}
 
 // Every width a template has been recorded at in one browser, sorted; `first` keeps round 0's widths only.
 function recordedWidths(set: string, t: Template, state: State, first: boolean): Recorded[] {
@@ -147,7 +139,7 @@ function recordedWidths(set: string, t: Template, state: State, first: boolean):
   const out: Recorded[] = []
   for (const width of widths) {
     const recording = state.recordings.get(sweepId(set, t, width))
-    if (recording !== undefined) out.push({ width, layout: breaksOf(recording), recording })
+    if (recording !== undefined) out.push({ width, layout: lineEnds(recording), recording })
   }
   return out.sort((a, b) => a.width - b.width)
 }
@@ -184,7 +176,7 @@ function survivors(set: string, templates: readonly Template[], states: readonly
     for (let b = 0; b < CUT_BROWSERS.length; b++) {
       for (let w = 0; w < widths.length; w++) {
         const recording = states[b]!.recordings.get(sweepId(set, t, widths[w]!))
-        if (recording !== undefined) parts.push(inCodePoints(text, breaksOf(recording)))
+        if (recording !== undefined) parts.push(inCodePoints(text, lineEnds(recording)))
       }
     }
     if (parts.length < widths.length * CUT_BROWSERS.length) {

@@ -289,6 +289,21 @@ describe('the stored recordings', () => {
     expect([...history.keys()]).toEqual(['moved'])
   })
 
+  test('a case whose line widths or height alone move between its recordings stays pinned: a paragraph with the same lines every time would go unscored, its failures with it', () => {
+    const same = layOut(TEXT, STARTS).recording
+    if ('error' in same) throw new Error('unreachable')
+    // WebKit's width cache moves a line's edge by hundredths of a pixel, and a font swapped in late moves the height.
+    const wider: Recording = { lines: same.lines.map((line, i) => (i === 0 ? { ...line, width: line.width + 0.015625 } : line)), height: same.height + 1 }
+    const recordings = new Map<string, Recording>()
+    const history = new Map<string, [Recording, Recording]>()
+    const prior = { recordings: new Map([['stored', wider]]), history: new Map<string, [Recording, Recording]>() }
+    const both = new Map([['orders', same], ['stored', same]])
+    expect(splitHistory(['orders', 'stored'], both, new Map([['orders', wider], ['stored', same]]), recordings, history, prior)).toBe(0)
+    expect([[...recordings.keys()], [...history.keys()]]).toEqual([['orders', 'stored'], []])
+    expect(freshRecordings(['stored'], prior.recordings, [both])).toEqual({ stale: [], history: [] })
+    expect(attribute(wider, same, predicted(TEXT, [0, 10, 21, 31]), [predicted(TEXT, [0, 10, 21, 31]), predicted(TEXT, [0, 10, 21, 31])])).toBe('true loss')
+  })
+
   test('a case laid out differently from the stored recording of its environment is page history too: the gate would block at random', () => {
     const same = layOut(TEXT, STARTS).recording
     const other = layOut(TEXT, [0, 10, 26]).recording
