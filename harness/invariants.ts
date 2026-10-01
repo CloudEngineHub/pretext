@@ -5,9 +5,10 @@
 //
 // Each process gives the library a stand-in Canvas: at 16 px a character is 8 px, a space 4, a mark or a format character
 // 0, plus the letter spacing per grapheme. U+2028 measures as the space, whose glyph Chrome draws it with, and kerns 0,
-// 0.5 or 1 px with the character on either side of it, so the Chromium profile's kerning with spaces (getSpaceKerning in
-// src/measurement.ts) is taken here; it shows none under `fontKerning`, so that kerning sits half on each glyph, as a
-// `kern` table's. The Blink and Gecko processes run under a desktop user agent with a string
+// 0.5 or 1 px with the character on either side of it unless the context's `fontKerning` is 'none', so the Chromium
+// profile finds every font kerning the space and takes its kerning with spaces (getFontSpaceKerning and getSpaceKerning
+// in src/measurement.ts); a U+0020 kerns with nothing under any `fontKerning`, so that kerning sits half on each glyph,
+// as a `kern` table's. The Blink and Gecko processes run under a desktop user agent with a string
 // `letterSpacing` on the context, as Chrome's and Firefox's have, so preparation takes the paths those browsers take.
 // The inputs are seeded draws from harness/cases (a failure names its case, at its width, half and 1.5 times it, 1 and
 // Infinity) and a few fixed ones. The checks:
@@ -54,14 +55,14 @@ type Api = typeof import('../src/layout.ts') & typeof import('../src/rich-inline
 
 const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 
-export function standInWidth(text: string, font: string, letterSpacing: number): number {
+export function standInWidth(text: string, font: string, letterSpacing: number, fontKerning: string): number {
   const size = Number(/(\d+(?:\.\d+)?)px/.exec(font)?.[1] ?? 16) / 16
   let width = 0
   let previous = -1
   for (const ch of text) {
     const code = ch.codePointAt(0)!
     width += /[\p{M}\p{Cf}]/u.test(ch) ? 0 : code === 0x20 || code === 0x2028 ? 4 : 8
-    if (previous >= 0 && (code === 0x2028) !== (previous === 0x2028)) width -= (code === 0x2028 ? previous : code) % 3 / 2
+    if (fontKerning !== 'none' && previous >= 0 && (code === 0x2028) !== (previous === 0x2028)) width -= (code === 0x2028 ? previous : code) % 3 / 2
     previous = code
   }
   let count = 0
@@ -73,13 +74,14 @@ export function standInWidth(text: string, font: string, letterSpacing: number):
 const measured = { calls: 0, units: 0 }
 function installStandIn(profile: Profile): void {
   const spaced = profile === 'blink' || profile === 'gecko'
-  const context = (): { font: string; letterSpacing?: string; measureText: (text: string) => { width: number } } => {
+  const context = (): { font: string; fontKerning: string; letterSpacing?: string; measureText: (text: string) => { width: number } } => {
     const ctx = {
       font: '10px sans-serif',
+      fontKerning: 'auto',
       measureText(text: string): { width: number } {
         measured.calls++
         measured.units += text.length
-        return { width: standInWidth(text, ctx.font, spaced ? Number.parseFloat(ctx.letterSpacing!) : 0) }
+        return { width: standInWidth(text, ctx.font, spaced ? Number.parseFloat(ctx.letterSpacing!) : 0, ctx.fontKerning) }
       },
       ...(spaced ? { letterSpacing: '0px' } : {}),
     }
@@ -289,7 +291,7 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
             if (gapItem.text === undefined) {
               fail('rich lines', at, `line ${i}'s gap before item ${f.itemIndex} is box ${f.gapItemIndex}'s, which holds no white space`)
             } else {
-              const space = standInWidth(' ', gapItem.font, gapItem.letterSpacing ?? 0)
+              const space = standInWidth(' ', gapItem.font, gapItem.letterSpacing ?? 0, 'auto')
               if (Math.abs(f.gapBefore - space) > 1e-6 && !(profile === 'gecko' && f.gapBefore === 0)) fail('rich lines', at, `line ${i}'s gap before item ${f.itemIndex} is ${f.gapBefore}; item ${f.gapItemIndex}'s SPACE is ${space}`)
             }
           }

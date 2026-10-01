@@ -255,15 +255,21 @@ export type FontMeasurement = {
   // Metrics of a text item measured together with one following U+0020, keyed by
   // the item alone. The width includes that space.
   followingSpaceMetrics: Map<string, SegmentMetrics>
-  // In the Chromium profile, a character's kerning with a space glyph after it, and with one
-  // before it, by code unit, once a segment has the character at that edge (getSpaceKerning).
-  kerningWithSpaceAfter: Map<number, number>
-  kerningWithSpaceBefore: Map<number, number>
-  // Whether a pair's kerning with the space sits half on each glyph, once a character kerned
-  // with a space after it (splitsSpaceKerning).
-  splitsSpaceKerning: boolean | null
+  // In the Chromium profile, the font's kerning with the space glyph, or null where it has
+  // none, asked for the first text with a space (getFontSpaceKerning).
+  spaceKerning: FontSpaceKerning | null | undefined
   emojiCorrection: number | null // Probed for the first text that may hold emoji
   hanKerning: HanKerningFontData | null | undefined // Read for the first text that may kern
+}
+// What preparation keeps of a font that kerns with the space glyph.
+export type FontSpaceKerning = {
+  // A character's kerning with a space glyph after it, and with one before it, by code unit,
+  // once a segment has the character at that edge (getSpaceKerning).
+  after: Map<number, number>
+  before: Map<number, number>
+  // Whether a pair's kerning sits half on each glyph, once a character kerned with a space
+  // after it (splitsSpaceKerning).
+  splits: boolean | null
 }
 let cachedEngineProfile: EngineProfile | null = null
 
@@ -443,19 +449,41 @@ function takesNoSpaceKerning(code: number): boolean {
     (code >= 0xac00 && code <= 0xd7a3)
 }
 
+// U+2028 before, between and after the printable ASCII characters.
+let spaceKerningProbe = '\u2028'
+for (let code = 0x21; code <= 0x7e; code++) spaceKerningProbe += String.fromCharCode(code) + '\u2028'
+
+// What is kept of the font's kerning with the space glyph, or null for a font that has none:
+// one whose probe is as wide with kerning off. `fontKerning = 'none'` turns the `kern` feature
+// off (FontFeatureRange::FromFontDescription, font_features.cc:39-47), and with it HarfBuzz's
+// kerning from GPOS, `kern` and `kerx` (hb-ot-shape.cc:127-131, hb-ot-kern-table.hh:67). Asked
+// once per font. Premise: a font that kerns no printable ASCII character with the space kerns
+// nothing with it (RESEARCH.md, Kerning At Line Edges, has the fonts that do).
+export function getFontSpaceKerning(measurement: FontMeasurement): FontSpaceKerning | null {
+  if (measurement.spaceKerning === undefined) {
+    const context = measurement.state.context
+    const kerned = context.measureText(spaceKerningProbe).width
+    context.fontKerning = 'none'
+    const unkerned = context.measureText(spaceKerningProbe).width
+    context.fontKerning = 'auto'
+    // Where U+2028 doesn't measure as the space, as in a font with a glyph for it, nothing
+    // pairs with it.
+    measurement.spaceKerning = kerned !== unkerned && context.measureText('\u2028').width === getSegmentMetrics(' ', measurement).width ? { after: new Map(), before: new Map(), splits: null } : null
+  }
+  return measurement.spaceKerning
+}
+
 // A character's kerning with a space glyph after it, or before it: the two in one string, with
 // U+2028 for the space, less each alone. Asked of Canvas once per font and side.
-function getCharacterSpaceKerning(code: number, spaceFirst: boolean, measurement: FontMeasurement, spaceWidth: number): number {
-  const kernings = spaceFirst ? measurement.kerningWithSpaceBefore : measurement.kerningWithSpaceAfter
+function getCharacterSpaceKerning(code: number, spaceFirst: boolean, measurement: FontMeasurement, font: FontSpaceKerning): number {
+  const kernings = spaceFirst ? font.before : font.after
   let kerning = kernings.get(code)
   if (kerning === undefined) {
     kerning = 0
-    // Where U+2028 doesn't measure as the space, as in another engine's Canvas, nothing pairs
-    // with it.
-    if (!takesNoSpaceKerning(code) && getSegmentMetrics('\u2028', measurement).width === spaceWidth) {
+    if (!takesNoSpaceKerning(code)) {
       const character = String.fromCharCode(code)
       const pairWidth = measurement.state.context.measureText(spaceFirst ? '\u2028' + character : character + '\u2028').width
-      kerning = pairWidth - getSegmentMetrics(character, measurement).width - spaceWidth
+      kerning = pairWidth - getSegmentMetrics(character, measurement).width - getSegmentMetrics(' ', measurement).width
       // Blink keeps a run's width as a float32 (shape_result.cc:1539-1576), so up to the pair's
       // width / 2^22 is rounding, not kerning (RESEARCH.md, Kerning At Line Edges).
       if (Math.abs(kerning) <= pairWidth / 0x400000) kerning = 0
@@ -471,16 +499,16 @@ function getCharacterSpaceKerning(code: number, spaceFirst: boolean, measurement
 // included, only where the font's GPOS covers the space glyph (font_fallback_list.cc:264-277), so
 // a font in which that shows none of a kerning that U+2028 shows has it from `kern`. Asked once
 // per font, of its first character that kerns with a space after it.
-function splitsSpaceKerning(code: number, kerning: number, measurement: FontMeasurement, spaceWidth: number): boolean {
-  if (measurement.splitsSpaceKerning === null) {
+function splitsSpaceKerning(code: number, kerning: number, measurement: FontMeasurement, font: FontSpaceKerning): boolean {
+  if (font.splits === null) {
     const context = measurement.state.context
     const character = String.fromCharCode(code)
     context.fontKerning = 'normal'
-    const shown = context.measureText(character + ' ').width - getSegmentMetrics(character, measurement).width - spaceWidth
+    const shown = context.measureText(character + ' ').width - getSegmentMetrics(character, measurement).width - getSegmentMetrics(' ', measurement).width
     context.fontKerning = 'auto'
-    measurement.splitsSpaceKerning = Math.abs(shown) < Math.abs(kerning) / 2
+    font.splits = Math.abs(shown) < Math.abs(kerning) / 2
   }
-  return measurement.splitsSpaceKerning
+  return font.splits
 }
 
 // The kerning Blink's layout gives a text segment's edges with a U+0020 beside them
@@ -495,15 +523,15 @@ function splitsSpaceKerning(code: number, kerning: number, measurement: FontMeas
 //   and where the kerning tightens the two, the line's last word is narrower here than there.
 // - A space's kerning with the word after it goes on the space: a line that breaks between the
 //   two is shaped again without it (shaping_line_breaker.cc:307-324).
-export function getSpaceKerning(seg: string, metrics: SegmentMetrics, measurement: FontMeasurement, spaceWidth: number): SpaceKerning {
+export function getSpaceKerning(seg: string, metrics: SegmentMetrics, measurement: FontMeasurement, font: FontSpaceKerning): SpaceKerning {
   let first = 0
   let last = seg.length - 1
   while (first < last && hasProperty(seg.charCodeAt(first), DEFAULT_IGNORABLE)) first++
   while (last > first && hasProperty(seg.charCodeAt(last), DEFAULT_IGNORABLE)) last--
   const lastCode = seg.charCodeAt(last)
-  const before = first < last && hasProperty(seg.charCodeAt(first + 1), MARK) ? 0 : getCharacterSpaceKerning(seg.charCodeAt(first), true, measurement, spaceWidth)
-  const after = getCharacterSpaceKerning(lastCode, false, measurement, spaceWidth)
-  const space = after !== 0 && splitsSpaceKerning(lastCode, after, measurement, spaceWidth) ? after / 2 : 0
+  const before = first < last && hasProperty(seg.charCodeAt(first + 1), MARK) ? 0 : getCharacterSpaceKerning(seg.charCodeAt(first), true, measurement, font)
+  const after = getCharacterSpaceKerning(lastCode, false, measurement, font)
+  const space = after !== 0 && splitsSpaceKerning(lastCode, after, measurement, font) ? after / 2 : 0
   return metrics.spaceKerning = after === 0 && before === 0 ? noSpaceKerning : { after: after - space, space, before }
 }
 
@@ -698,7 +726,7 @@ export function getFontMeasurement(font: string, language: string | null): FontM
   let measurement = state.fonts.get(font)
   if (measurement === undefined) {
     const canvasFont = state.genericFamilies === null ? font : getCanvasFont(font, state.genericFamilies)
-    measurement = { state, canvasFont, metrics: new Map(), followingSpaceMetrics: new Map(), kerningWithSpaceAfter: new Map(), kerningWithSpaceBefore: new Map(), splitsSpaceKerning: null, emojiCorrection: null, hanKerning: undefined }
+    measurement = { state, canvasFont, metrics: new Map(), followingSpaceMetrics: new Map(), spaceKerning: undefined, emojiCorrection: null, hanKerning: undefined }
     state.fonts.set(font, measurement)
   }
   state.context.font = measurement.canvasFont

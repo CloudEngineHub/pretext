@@ -1139,7 +1139,8 @@ describe('boundary-policy regressions', () => {
       ...measureText,
       value(this: TestCanvasRenderingContext2D, text: string) {
         measured.add(text)
-        longest = Math.max(longest, text.length)
+        // The longest string with a mark: the Chromium profile also asks the font one long string (getFontSpaceKerning).
+        if (text.includes('\u0301')) longest = Math.max(longest, text.length)
         return { width: measureWidth(text, this.font) }
       },
     })
@@ -5554,9 +5555,11 @@ test('the Chromium profile takes the kerning between a word and the spaces besid
   // space glyph after it, past a word joiner, and a space glyph -2px with a Latin
   // or Cyrillic T after it, and a mark after a space glyph sits on it, 3px narrower.
   // Under fontKerning 'normal' Canvas doesn't cut at U+0020, as for a font whose GPOS
-  // has the space, but for the `Halves` fonts, whose kerning is in a kern table. In
-  // `16px Glyph` U+2028 has a glyph of its own, 8px. Widths are float32, as Canvas's are,
-  // and W is 253 + 1/65536 px, so W with a space glyph, past 256px, loses its last bit.
+  // has the space, but for the `Halves` fonts, whose kerning is in a kern table; under
+  // 'none' nothing kerns. The `Plain` fonts kern nothing under any, and `16px Cyrillic`
+  // only the Cyrillic T. In `16px Glyph` U+2028 has a glyph of its own, 8px. Widths are
+  // float32, as Canvas's are, and W is 253 + 1/65536 px, so W with a space glyph, past
+  // 256px, loses its last bit.
   const layoutUrl = new URL('./layout.ts', import.meta.url).href
   const richInlineUrl = new URL('./rich-inline.ts', import.meta.url).href
   const script = `
@@ -5570,13 +5573,13 @@ test('the Chromium profile takes the kerning between a word and the spaces besid
       fontKerning = 'auto'
       measureText(text) {
         const whole = this.fontKerning === 'normal'
-        measured.push(whole ? 'normal:' + text : text)
+        measured.push(this.fontKerning === 'auto' ? text : this.fontKerning + ':' + text)
         if (whole && !this.font.includes('Halves')) text = text.replaceAll(' ', '\\u2028')
-        const glyph = this.font.includes('Glyph')
         let width = 0
-        for (const ch of text) width += ch === ' ' ? 4 : ch === '\\u2028' ? (glyph ? 8 : 4) : /[\\u2060\\u0301]/.test(ch) ? 0 : ch === 'A' ? 10 : ch === 'W' ? 253 + 1 / 65536 : 8
-        if (glyph) return { width }
-        return { width: Math.fround(width - (text.match(/A\\u2060*\\u2028/g) ?? []).length - 2 * (text.match(/\\u2028[T\\u0422]/g) ?? []).length - 3 * (text.match(/\\u2028\\u0301/g) ?? []).length) }
+        for (const ch of text) width += ch === ' ' ? 4 : ch === '\\u2028' ? (this.font.includes('Glyph') ? 8 : 4) : /[\\u2060\\u0301]/.test(ch) ? 0 : ch === 'A' ? 10 : ch === 'W' ? 253 + 1 / 65536 : 8
+        const pairs = this.font.includes('Cyrillic') ? [/(?!)/g, /\\u2028\\u0422/g] : [/A\\u2060*\\u2028/g, /\\u2028[T\\u0422]/g]
+        const kerning = this.fontKerning === 'none' || this.font.includes('Plain') ? 0 : (text.match(pairs[0]) ?? []).length + 2 * (text.match(pairs[1]) ?? []).length
+        return { width: Math.fround(width - kerning - 3 * (text.match(/\\u2028\\u0301/g) ?? []).length) }
       }
     }
     globalThis.OffscreenCanvas = class { getContext() { return new Context() } }
@@ -5596,6 +5599,7 @@ test('the Chromium profile takes the kerning between a word and the spaces besid
       ['TT \\uFF08TT\\uFF09 TT', '16px Test', {}], ['TT \\uFF08 TT', '16px Test', {}], ['(\\u00B7 \\u0436\\u0436) TT', '16px Test', {}],
       ['AA TT', '16px Halves', {}], ['AA  TT', '16px Halves', { whiteSpace: 'pre-wrap' }],
       ['xW y', '16px Halves Wide', {}], ['y Wx', '16px Halves Wide', {}], ['AA TT', '16px Halves Wide', {}],
+      ['AA TT', '16px Plain', {}], ['\\u0436\\u0436 \\u0422\\u0422', '16px Cyrillic', {}],
     ]) widths.push(prepareWithSegments(text, font, options).widths)
     const lines = []
     for (const [text, width, font] of [['AA TT', 19.5, '16px Test'], ['AA TT', 37, '16px Test'], ['AAA TT', 10.5, '16px Test'], ['AA TT', 19.5, '16px Halves'], ['AA TT', 19.4, '16px Halves']]) {
@@ -5604,18 +5608,19 @@ test('the Chromium profile takes the kerning between a word and the spaces besid
     }
     const rich = [[{ text: 'AA TT', font: '16px Test' }], [{ text: 'AA', font: '16px Test' }, { text: ' TT', font: '16px Test' }]]
       .map(items => measureRichInlineStats(prepareRichInline(items), 100).maxLineWidth)
-    measured.length = 0
-    prepare('AA TT AT TA AA TT', '16px Fresh')
-    const asked = measured.filter(text => text.includes('\\u2028')).sort()
-    prepare('AA TT', '16px Glyph Two')
-    const glyphAsked = measured.filter(text => text.includes('\\u2028')).length - asked.length
+    // What a prepare asks Canvas with a U+2028 in it, the font's probe as its length.
+    const asks = (text, font) => {
+      measured.length = 0
+      prepare(text, font)
+      return measured.filter(text => text.includes('\\u2028')).map(text => text.length > 9 ? text.slice(0, text.indexOf('\\u2028')) + (text.length - text.indexOf('\\u2028')) : text)
+    }
+    const asked = asks('AA TT AT TA AA TT', '16px Fresh')
     const cut = measured.filter(text => text.length > 1 && text.includes(' '))
-    measured.length = 0
-    prepare('\\u6F22 \\u3042 \\u30A2 \\uD55C\\uAD6D \\u6F22', '16px Words')
-    prepare('\\u05D0 AA TT', '16px Mixed')
-    console.log(JSON.stringify({ widths, lines, rich, asked, glyphAsked, unasked: measured.filter(text => text.includes('\\u2028')), cut }))
+    const fontAsked = [asks('AATT', '16px Fresh Two'), asks('AA TT AT', '16px Plain Two'), asks('AA TT', '16px Plain Two'), asks('AA TT', '16px Glyph Two')]
+    const unasked = [asks('\\u6F22 \\u3042 \\u30A2 \\uD55C\\uAD6D \\u6F22', '16px Words'), asks('\\u05D0 AA TT', '16px Mixed')]
+    console.log(JSON.stringify({ widths, lines, rich, asked, fontAsked, unasked, cut }))
   `
-  const { widths, lines, rich, asked, glyphAsked, unasked, cut } = JSON.parse(runInChild(script)) as Record<'widths' | 'lines' | 'rich' | 'asked' | 'glyphAsked' | 'unasked' | 'cut', unknown>
+  const { widths, lines, rich, asked, fontAsked, unasked, cut } = JSON.parse(runInChild(script)) as Record<'widths' | 'lines' | 'rich' | 'asked' | 'fontAsked' | 'unasked' | 'cut', unknown>
   expect(widths).toEqual([
     // The word keeps its kerning with the space after it, and the space takes its own
     // with the word after it.
@@ -5679,6 +5684,10 @@ test('the Chromium profile takes the kerning between a word and the spaces besid
     [261, 4, 8],
     [8, 4, 261],
     [19.5, 1.5, 16],
+    // A font is asked once whether it kerns the printable ASCII characters with the space. One
+    // that kerns none takes no kerning, with a character outside them either: the premise's gap.
+    [20, 4, 16],
+    [16, 4, 16],
   ])
   expect(lines).toEqual([
     // The kerned word fits, and the space hangs with what it took.
@@ -5693,16 +5702,20 @@ test('the Chromium profile takes the kerning between a word and the spaces besid
   // A space inside a rich item kerns as in plain text; the gap between two items
   // takes none (ENGINE_FOLLOWUPS.md).
   expect(rich).toEqual([37, 40])
-  // U+2028 alone once per font, then each edge letter once with it, however many words share
-  // the letter. One string holds a U+0020 beside other text: the first letter that kerns
-  // with a space after it, asked once per font under fontKerning 'normal' for where that
-  // kerning sits.
-  expect(asked).toEqual(['A\u2028', 'T\u2028', '\u2028', '\u2028A', '\u2028T'])
+  // The font is asked once whether it kerns the space: U+2028 between the printable ASCII
+  // characters, 189 units, as the context stands and under fontKerning 'none', then U+2028
+  // alone. Then each edge letter once with U+2028, however many words share the letter. One
+  // string holds a U+0020 beside other text: the first letter that kerns with a space after
+  // it, asked once per font under fontKerning 'normal' for where that kerning sits.
+  expect(asked).toEqual(['189', 'none:189', '\u2028', '\u2028A', 'A\u2028', '\u2028T', 'T\u2028'])
   expect(cut).toEqual(['normal:A '])
-  expect(glyphAsked).toBe(1)
+  // A text without a space doesn't ask the font. A font that kerns nothing is asked once and
+  // its words never; one whose U+2028 isn't the space likewise.
+  expect(fontAsked).toEqual([[], ['189', 'none:189'], [], ['189', 'none:189', '\u2028']])
   // Canvas shapes an ideograph or a kana as a word of its own, no font kerns a Hangul syllable
-  // with the space, and text that mixes directions takes no kerning, so none of them asks.
-  expect(unasked).toEqual([])
+  // with the space, and text that mixes directions takes no kerning, so only their fonts are
+  // asked.
+  expect(unasked).toEqual([['189', 'none:189', '\u2028'], ['189', 'none:189', '\u2028']])
 })
 
 

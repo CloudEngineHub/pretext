@@ -31,6 +31,7 @@ import {
   getEmojiCorrection,
   getFollowingSpaceMetrics,
   getFontMeasurement,
+  getFontSpaceKerning,
   getSegmentFit,
   getSegmentMetrics,
   getSpaceKerning,
@@ -366,11 +367,13 @@ export function measureAnalysis(
     return normalized.slice(baseStart, starts[markChainStart]) + normalized.slice(starts[markChainKept], start)
   }
 
-  // Whether words take Blink's kerning with the spaces beside them. Blink shapes nothing across a
-  // change of direction (ShouldBreakShapingBeforeText, inline_node.cc:472-490), and which spaces
-  // share a word's direction depends on the paragraph's, which preparation can't see, so text
-  // with a right-to-left letter or an explicit bidi control takes none.
-  const kernsSpaces = engineProfile.kernsSpacesInScriptRun && normalized.includes(' ') && !mixedDirectionRe.test(normalized)
+  // The font's kerning with the space where words take Blink's kerning with the spaces beside
+  // them, or null. Blink shapes nothing across a change of direction
+  // (ShouldBreakShapingBeforeText, inline_node.cc:472-490), and which spaces share a word's
+  // direction depends on the paragraph's, which preparation can't see, so text with a
+  // right-to-left letter or an explicit bidi control takes none.
+  let fontSpaceKerning = engineProfile.kernsSpacesInScriptRun && normalized.includes(' ') ? getFontSpaceKerning(fontMeasurement) : null
+  if (fontSpaceKerning !== null && mixedDirectionRe.test(normalized)) fontSpaceKerning = null
   const scriptRuns: ScriptRuns = { read: 0, scripts: ANY_SCRIPT, bracket: 0 }
   // What the word before a space adds to that space, the next segment (SpaceKerning.space).
   let spaceShare = 0
@@ -470,11 +473,11 @@ export function measureAnalysis(
         previousJoinableMetrics = textMetrics
         if (hasLetterSpacing) spacingGraphemeCount = countRenderedSpacingGraphemes(text, kind, engineProfile.graphemeTable)
         let followingSpaceKerning = followingSpaceTail === null || measuredWithSpace ? 0 : getTailKerning(text + followingSpaceTail)
-        if (kernsSpaces && textMetrics.spaceKerning !== noSpaceKerning) {
+        if (fontSpaceKerning !== null && textMetrics.spaceKerning !== noSpaceKerning) {
           const afterSpace = mi > 0 && isSpaceKind(flags[mi - 1]! & KIND_BITS)
           const beforeSpace = mi + 1 < segmentCount && isSpaceKind(flags[mi + 1]! & KIND_BITS)
           if (afterSpace || beforeSpace) {
-            const kerning = textMetrics.spaceKerning ?? getSpaceKerning(text, textMetrics, fontMeasurement, spaceWidth)
+            const kerning = textMetrics.spaceKerning ?? getSpaceKerning(text, textMetrics, fontMeasurement, fontSpaceKerning)
             if (beforeSpace) {
               followingSpaceKerning = kerning.after
               spaceShare = kerning.space
