@@ -207,8 +207,9 @@ function transformText(input: string, is8bit: boolean, preserveWhiteSpace: boole
         // of the source leaves it out. Kept as a control of no advance, as the profile keeps the
         // other controls Firefox hides (hidesControlCharacters), it is text at a line's edges,
         // where Firefox trims it, and takes text with CRLF off the simple line walk (RESEARCH.md,
-        // Dead Ends).
-        if (ch === 0x0d || ch === 0x0c) (leftOut ??= new Uint8Array(len))[i] = 1
+        // Dead Ends). A CR right before a line feed needs no mark: the run that starts there keeps
+        // that line feed, and the CR, a breakable space to the scan too, collapses into it.
+        if (ch === 0x0c || (ch === 0x0d && input.charCodeAt(i + 1) !== 0x0a)) (leftOut ??= new Uint8Array(len))[i] = 1
         orig[n++] = i
         inWhitespace = false
         i++
@@ -719,7 +720,8 @@ function getBreakStates(line: LineData, text: string, is8bit: boolean, afterLead
 // The breaks, whether the text run left out a bidi control, and 1 at each unit that a layout of
 // the source leaves out where collapsing each run of adjacent white space wouldn't, or null where
 // there is none: white space the text run collapsed in a run that read past a character it drops,
-// and a CR or FF in normal white space, which the text run keeps with no advance (transformText).
+// and, in normal white space, an FF or a CR that no line feed follows, which the text run keeps
+// with no advance (transformText).
 export type GeckoLineBreaks = { breaks: Uint8Array, leftOut: Uint8Array | null, dropsBidiControl: boolean }
 
 export function getGeckoLineBreaks(

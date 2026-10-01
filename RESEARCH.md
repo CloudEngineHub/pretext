@@ -1347,11 +1347,13 @@ runs (Firefox 156.0.1, bench sessions of 2026-09-27 and 28, unless noted):
   saved little, since a curly quote or a dash makes English 16-bit, and the controls `worst` row, whose second scan the
   test saves, read no faster. Since #TBD (2026-10-01) the scan runs once for every text: it marks the white space a run
   left out past a dropped character as it collapses the run, and the analysis takes that out of the source, where #368
-  collapsed the source with a regular expression and scanned the result again. Offline the analysis of 60 words with LRM
-  or RLM between spaces at every sixth takes 0.6 times main's time, and that of 8-bit Latin with a soft hyphen between
-  spaces there, whose white space main didn't collapse, 1.1 times, and 1.2 times a second copy of main's; that of 8-bit
-  Latin with CRLF there, whose CR the analysis now takes out, 1.1 to 1.2 times too (Bun's JavaScriptCore, a hypothesis
-  for Firefox).
+  collapsed the source with a regular expression and scanned the result again. Offline, as a share of main's analysis
+  time for the same text (Bun's JavaScriptCore, a hypothesis for Firefox; two sessions): 60 words with LRM or RLM
+  between spaces at every sixth take 0.6 to 0.8; 8-bit Latin with a soft hyphen between spaces there, whose white space
+  main didn't collapse, 1.1 to 1.3; with a lone CR there, which the analysis takes out, 1.0; and with CRLF there 1.0 to
+  1.1. The scan doesn't mark the CR of a CRLF: collapsing adjacent white space already joins it to the line feed's
+  space, and marking it, which builds the source again for every text with CRLF line ends, read 1.2 to 1.3 for the same
+  lines (0 of 700,000 random strings differ between the two).
 - **Graphemes past dropped characters**: the Gecko profile's grapheme table tests only code points in the rules'
   Control category for what the text run drops; testing every code point made Firefox prepare CJK and Arabic 2-3%
   slower (#368).
@@ -1838,8 +1840,9 @@ repin` shows what), and a fact read in source needs reading again.
   `nsLineBreaker.h:260-264`; `nsLineBreaker.cpp:318-327`), and an FF is UAX #14's BK. Every Canvas measures CR and FF as
   a space (Measurement Model; Firefox's at `CanvasRenderingContext2D.cpp:4634-4637`), so since #TBD the Gecko profile's
   analysis takes them out of the text, as the scan marks one as it marks the white space a run left out; before, each
-  became a space, as it still does in the other profiles. Keeping one as a control of no advance was tried and not taken
-  (Dead Ends, Invisible Characters, Controls And Soft Hyphens). Of 13,380 probe cases with a CR or FF (words, white
+  became a space, as it still does in the other profiles. The CR of a CRLF stays unmarked and collapses into the line
+  feed's space, which gives the same text (Work Done Only Where A Rule Applies). Keeping one as a control of no advance
+  was tried and not taken (Dead Ends, Invisible Characters, Controls And Soft Hyphens). Of 13,380 probe cases with a CR or FF (words, white
   space, soft hyphens and marks beside one, sentences with CRLF or lone CR line ends, rich items) Pretext fails 905
   where it failed 1,373 before: 489 that failed pass, and 21 that passed fail, 5 under letter spacing and 16 of a rich
   item that starts with a CR or FF, a mark and a space. On a million random strings the analysis's text differs from a

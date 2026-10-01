@@ -415,8 +415,9 @@ export function analyzeText(
       // (TransformWhiteSpaces, nsTextFrameUtils.cpp:151-193); the scan takes the text as one text
       // frame (transformText in src/gecko-line-breaks.ts). The white space the scan's text run left
       // out of such a run leaves the source too, and so does white space before only bidi controls
-      // at the end, which the line end trims, and a CR or FF, which ends a run and takes no room;
-      // white space on its two sides then touches and is one space, where Firefox keeps two.
+      // at the end, which the line end trims, and a CR or FF, which ends a run and takes no room
+      // (the CR of a CRLF stays, to collapse into the line feed's space); white space on its two
+      // sides then touches and is one space, where Firefox keeps two.
       // The other units keep their breaks: none is at white space, and the unit after a CR or FF
       // has its own, as a CR is one of nsLineBreaker's breakable spaces, whose run gives the unit
       // after it a break (IsSegmentSpace, nsLineBreaker.h:260-264; nsLineBreaker.cpp:318-327), and

@@ -1100,6 +1100,8 @@ describe('boundary-policy regressions', () => {
       expect(segments('ab\rcd')).toEqual(['ab', 'cd'])
       expect(lines('ab\fcd', measureWidth('ab', FONT))).toEqual(['ab', 'cd'])
       expect(segments('ab\r\ncd')).toEqual(['ab', ' ', 'cd'])
+      // The CR of a CRLF collapses into the line feed's space, so the scan doesn't name it.
+      expect(getGeckoLineBreaks('ab\r\ncd', false, false, 'gecko/char').leftOut).toBeNull()
       expect(segments('ab\r\u200E cd')).toEqual(['ab\u200E', ' ', 'cd'])
       expect(segments('ab \u200E\fcd')).toEqual(['ab', ' \u200E', 'cd'])
       expect(segments('ab\r\u200E\rcd')).toEqual(['ab\u200E', 'cd'])
