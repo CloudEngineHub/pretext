@@ -32,8 +32,10 @@ import {
   getFontMeasurement,
   getSegmentFit,
   getSegmentMetrics,
+  getSpaceKerning,
   getTextWidth,
   measureWithLetterSpacing,
+  spaceSharesScriptRun,
   textMayContainEmoji,
   type SegmentFit,
   type SegmentMetrics,
@@ -108,6 +110,10 @@ const rightToLeftLetterRe = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF\u200F\u{10
 const letterBeforeFormatTailRe = /([\p{Lu}\p{Ll}\p{Lt}\p{Lo}\u200E\u200F\u061C])\p{M}*(?:(?![\u00AD\u200E\u200F\u061C])\p{Cf})+$/u
 const letterAfterSpacesRe = / (?: |(?![\u200E\u200F\u061C])\p{Cf})*([0-9\p{Lu}\p{Ll}\p{Lt}\p{Lo}\u200E\u200F\u061C])/uy
 
+function isSpaceKind(kind: number): boolean {
+  return kind === SPACE || kind === PRESERVED_SPACE
+}
+
 // Bidi class B: the characters that end a bidi paragraph.
 function isParagraphSeparatorCode(code: number): boolean {
   return code === 0x0a || code === 0x0d || (code >= 0x1c && code <= 0x1e) || code === 0x85 || code === 0x2029
@@ -157,7 +163,7 @@ export function measureAnalysis(
   // preparation cannot see the page direction. Returns the zero-width breaks
   // between the text and the space, or null when the text takes no kerning.
   function getFollowingSpaceTail(analysisIndex: number, text: string): string | null {
-    if (!engineProfile.measureTextWithFollowingSpace || hasLetterSpacing) return null
+    if (engineProfile.kerningReach !== 'following-space' || hasLetterSpacing) return null
     let next = analysisIndex + 1
     while (next < segmentCount && (flags[next]! & KIND_BITS) === ZERO_WIDTH_BREAK) next++
     if (next >= segmentCount) return null
@@ -314,8 +320,9 @@ export function measureAnalysis(
 
   function getEntryGeometry(text: string, fit: SegmentFit, width: number, fitBasis: 'fresh' | 'original'): SegmentEntryGeometry | null {
     // The fit fixes the text, font and advances, and Pretext sets no other context state.
-    // Only the WebKit profile moves the advances by a following space, and it observes
-    // no entries.
+    // The WebKit profile moves the advances by a following space, and it observes no
+    // entries; the Chromium profile's kerning with a space is in the width alone, which
+    // its fresh entries don't read.
     const cached = fit.entryGeometry
     if (cached !== null && cached.letterSpacing === letterSpacing && cached.emojiCorrection === emojiCorrection) return cached.geometry
     const geometry = observeSegmentEntries(text, fit.advances!, letterSpacing, width, fitBasis,
@@ -367,7 +374,19 @@ export function measureAnalysis(
         previousJoinablePiece = text
         previousJoinableMetrics = textMetrics
         if (hasLetterSpacing) spacingGraphemeCount = countRenderedSpacingGraphemes(text, kind, engineProfile.graphemeTable)
-        const followingSpaceKerning = followingSpaceTail === null || measuredWithSpace ? 0 : getTailKerning(text + followingSpaceTail)
+        let followingSpaceKerning = followingSpaceTail === null || measuredWithSpace ? 0 : getTailKerning(text + followingSpaceTail)
+        if (engineProfile.kerningReach === 'script-run') {
+          const afterSpace = mi > 0 && isSpaceKind(flags[mi - 1]! & KIND_BITS)
+          const beforeSpace = mi + 1 < segmentCount && isSpaceKind(flags[mi + 1]! & KIND_BITS)
+          if (afterSpace || beforeSpace) {
+            const kerning = textMetrics.spaceKerning ?? getSpaceKerning(text, textMetrics, fontMeasurement, spaceWidth)
+            if (beforeSpace) followingSpaceKerning = kerning.after
+            // The space hangs where a line ends at it, and what it took with it.
+            if (afterSpace && kerning.before !== 0 && spaceSharesScriptRun(normalized, starts[mi]!)) {
+              widths[mi - 1] = widths[mi - 1]! + kerning.before
+            }
+          }
+        }
         width = getTextSegmentWidth(text, textMetrics, measuredWithSpace, followingSpaceKerning)
         // Under break-word, Blink retries an overflowing line with a break allowed between
         // any two graphemes (line_breaker.cc), WebKit searches the word's grapheme prefixes

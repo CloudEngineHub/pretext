@@ -744,10 +744,60 @@ pairs. In the fixed-pitch Fira Code and Monaspace Neon, WebKit's layout takes no
 the profile doesn't model.
 
 Chrome's layout kerns across spaces, ZWSP, soft hyphens and same-font spans, where its Canvas, shaping word by word
-(Engine Facts, Chrome), reports none of it for Arial or Times New Roman; the Chromium profile follows Canvas's cuts
-(headless Chromium 147, 2026-09-12; Dead Ends). In Chrome 153 a run measured whole equals its words measured with the
-spaces beside them, less each inner space once, at all 379,714 positions where both sides hold a character of a script
-of its own, and misses at 818 of 28,774 where one side holds none, all in Amiri (rebuild harness).
+(Engine Facts, Chrome), reports none of it (headless Chromium 147, 2026-09-12). In Chrome 153 a run measured whole
+equals its words measured with the spaces beside them, less each inner space once, at all 379,714 positions where both
+sides hold a character of a script of its own, and misses at 818 of 28,774 where one side holds none, all in Amiri
+(rebuild harness).
+
+The Chromium profile takes the kerning with spaces (#TBD; `getSpaceKerning()` in `src/measurement.ts`). Many fonts kern
+letters against the space glyph: of the 6,000 most frequent words of the masonry demo's cards and the Gatsby opening
+(`pages/demos/masonry/shower-thoughts.json`, `corpora/en-gatsby-opening.txt`), Chrome's layout kerns 131 against a
+space beside them in 15px Arial, Helvetica and Trebuchet MS, 193 in Times New Roman, 59 in Roboto, 1,286 in Avenir
+Next, 1,382 in Gill Sans, 2,168 in PT Sans and none in Helvetica Neue, Georgia, Verdana, Tahoma, Inter or Futura. In
+Arial and its like nearly all of it is the space before a capital such as `A`, `T` or `Y` (123 of the 131 words), up
+to 1.66px for a word between two spaces. Before the change the profile's lines came out that much too wide, so a
+paragraph took a line more than Chrome gave it: over the masonry cards at 22 widths, 200 to 368px (41,888 pairs), 70
+times in Arial and Helvetica, 71 in Times New Roman, 56 in Trebuchet MS, 150 in Avenir Next, 550 in Gill Sans and 559
+in PT Sans, against 0 to 4 in Helvetica Neue, Georgia, Verdana and Inter, and a line of six words measured more than
+0.1px wider than painted for 580 of 1,904 cards in Arial (53 of them by more than 1px, at most 2.21px). With it those
+counts are 2, 2, 3, 1, 0, 2 and 1, the level of the fonts that don't kern the space, and no six-word line in Arial,
+Helvetica, Times New Roman, Trebuchet MS, Roboto, Gill Sans, Didot or Optima is more than 0.01px off. On the harness
+it fixed 90 Chrome cases, 11 of them among the 49 real-usage failures inside what Pretext claims (99.51% to 99.63% of
+real paragraphs right), and lost one under 24px (accepted, `harness/accepted/chrome.txt`). Preparing the 1,904 cards
+in one font takes 1.4% more `measureText` calls (11,810 to 11,980), and the harness's sample, where nearly every
+paragraph meets a font for the first time, 24% more calls and 13% more submitted units (pinned Chrome 154.0.8037.57,
+2026-09-30 and 10-01).
+
+Canvas gives the kerning where U+2028 stands for the space: Blink draws U+2028 with the space glyph and its Canvas
+doesn't cut there. A word measured with U+2028 after it, and before it, less the word and a space, equals what the
+layout adds to that word between two spaces, to 0.014px, for all 6,000 words in each of 21 families. The profile asks
+only for the word's edge characters, `A` then U+2028 and U+2028 then `T`, which gave the same value as the whole word
+for every one of those words and families, so the cost follows the alphabet, not the vocabulary. The premises and
+their gaps:
+
+- **The edge character stands for the word.** A font whose lookups read further than the pair, or whose word ends in
+  a ligature that kerns unlike its last letter, isn't seen; a headless WebKit census found such pairs in 389 of 8.0
+  million (above). A character that is part of a longer cluster, a combining mark or half of a surrogate pair, takes
+  none, so a word that ends in a decomposed accent doesn't kern.
+- **The whole adjustment sits on the first glyph of the pair**, as GPOS puts it, so a word keeps its kerning with a
+  space the line ends at, and the space takes its kerning with the next word away when it hangs. The legacy `kern`
+  table puts half on each glyph (below): Chrome's first-word share was 1.00 in Arial, Avenir Next, Gill Sans, Roboto
+  and PT Sans and 0.50 in Helvetica, Times New Roman, Trebuchet MS, Didot, Palatino and Hoefler Text, so there a line
+  that ends at the space keeps half where the profile keeps all, and its paragraph can come out a line short: 11 of
+  41,888 pairs in Didot, 1 in Times New Roman, none in Helvetica or Trebuchet MS. A second context can tell the two
+  apart, since `fontKerning = 'normal'` shows the kerning in the GPOS fonts only; not built.
+- **A space is in the script run of the text before it**, as every Common character is, and Blink shapes each run
+  apart, so a space after Cyrillic doesn't kern with a Latin word after it. Without this the profile lost a Bulgarian
+  paragraph holding `на Android` (`sample-44c6920027f6c34e`), and eight more lines of the sample came out narrower
+  than painted. Scripts other than Latin, Cyrillic and Greek count as one, and half of a surrogate pair as Common.
+- **U+2028 measures as the space.** Where it doesn't, as in another engine's Canvas under the Chromium profile, no
+  kerning is taken. Canvas shapes a string of only Common characters and U+2028 as Common, where the page shapes it
+  in the script of the text before it; a font whose lookups differ between the two would show there, and none of the
+  21 families did.
+
+Kerning across a ZWSP or a soft hyphen before a space, across a rich item's edge and across the gap between two items
+stays missing (ENGINE_FOLLOWUPS.md). Letter-spaced text takes the kerning too, as Blink turns off only ligatures
+under spacing (Engine Facts, Chrome).
 
 Where a pair's adjustment sits decides what a break inside the pair leaves on each side: GPOS pair positioning puts it
 all on the first glyph, the legacy `kern` table half on each (`hb-kern.hh:102-106`). On macOS, Times New Roman, Verdana,
@@ -1550,11 +1600,13 @@ repin` shows what), and a fact read in source needs reading again.
   after Latin resolves as Latin, halting the `。` before it): the rebuild has this (1f380af7), the profile doesn't.
   Chrome 153, unlike 152, halves a closing mark that doesn't fit at a line end. (Chrome 153, 2026-09-17 to 09-26.)
 - **How Canvas shapes.** Word by word (`plain_text_node.cc:84-155`), cut at U+0020, TAB, ZWSP and around CJK ideographs
-  and symbols, so kerning against spaces is lost (Times New Roman `AV To We. V, A Y o`: 262.45 px, DOM 254.23).
-  `optimizeLegibility` shapes whole strings only where lookups involve the space glyph
-  (`font_fallback_list.cc:264-277`): Arial, Times New Roman, PingFang, not Georgia, Helvetica Neue, Verdana (Dead Ends,
-  Kerning). U+2028 for each U+0020 keeps a string whole, legacy `kern` fonts included, but makes it two-byte and takes
-  no word spacing. Canvas shapes each ICU level run in its own direction, the DOM a group in one; a two-byte RTL group
+  and symbols, so kerning against spaces is lost (Times New Roman `AV To We. V, A Y o`: 262.45 px, DOM 254.23): the
+  source says a string must draw as its words drawn apart, for Google Docs (`plain_text_node.cc:365-376`).
+  `optimizeLegibility` shapes whole strings only where GPOS or GSUB lookups involve the space glyph, and
+  `fontKerning = 'normal'` only where GPOS ones do (`font_fallback_list.cc:264-277`, `harfbuzz_face.cc:341-385`):
+  Arial, Times New Roman, PingFang, not Georgia, Helvetica Neue, Verdana (Dead Ends, Kerning). U+2028 for each U+0020
+  keeps a string whole, legacy `kern` fonts included, but makes it two-byte and takes no word spacing; the Chromium
+  profile reads kerning with spaces through it (Kerning At Line Edges). Canvas shapes each ICU level run in its own direction, the DOM a group in one; a two-byte RTL group
   in U+202E … U+202C is one level run. U+FFFC becomes U+200B (`character.h:167-175`): zero where the DOM draws a 1 em
   fallback glyph. (Chrome 153, 2026-09-16 to 09-23.)
 - **Letter spacing and tabs.** Blink spaces cursive-script runs only at spaces (`shape_result.cc:977-990`), spaces a
@@ -1879,7 +1931,21 @@ Mostly on main as it was then, measured with the old suite in installed browsers
 - **Other shapes of Safari's space-kerning rule** before #311's (2026-09-15): none across format characters (33 rows
   lost), a narrower rule, kerning only under letter spacing, and direction marks as non-letters.
 - **Chrome Canvas kerning settings** (`optimizeLegibility`, `fontKerning`) shape whole strings in only some fonts and
-  turn features on for every measurement (Engine Facts, Chrome). Reopens with a whole-string mode.
+  turn features on for every measurement (Engine Facts, Chrome). For kerning with spaces (Kerning At Line Edges), a
+  word measured with the U+0020 on each side of it under `fontKerning = 'normal'` gave Chrome's kerning in Arial,
+  Avenir Next, Gill Sans, Roboto and PT Sans and none in Helvetica, Times New Roman, Trebuchet MS, Didot, Optima,
+  Palatino or Hoefler Text, whose pairs are in the legacy `kern` table; `optimizeLegibility` added Times New Roman
+  only. On the masonry cards (41,888 pairs) Helvetica kept its 70 wrong line counts and Trebuchet MS its 56 under
+  both, and on the harness both fixed 4 or 5 of the sample's 11 kerning failures and lost one or two of its passes,
+  for 66% more `measureText` calls on the sample. In the default state the same measurement changes nothing, since
+  Canvas cuts at the U+0020 (pinned Chrome 154, 2026-09-30).
+- **A word measured whole with its spaces in Chrome**, U+2028 standing for them, as the WebKit profile measures a word
+  with its U+0020: exact for the word, and it fixed 10 of the sample's 11 kerning failures, but every distinct word
+  costs a second Canvas call for the space after it and a third for the space before it, 67% more calls and 118%
+  more submitted units on the harness's sample and 183% more calls on the masonry cards in one font, where the edge
+  characters cost 24%, 13% and 1.4%. With only the space after the word, the WebKit profile's rule, it fixed 2 of the 11: in Arial and its
+  like the kerning is nearly all between a space and the capital after it (pinned Chrome 154, 2026-09-30). Reopens if
+  a font's kerning with the space is found to depend on more than the edge character.
 - **WebKit letter-spaced ligatures** (in the rebuild, from 2026-09-17; Measurement Model): no separator sets two letters
   unligated in one shaping call (U+200C ends the simple path's call, U+034F doesn't stop the ligature, U+180B brings a
   fallback glyph), and a group heuristic was 1.9 px off; a styled connected `<canvas>` would fix about 721 cases but is

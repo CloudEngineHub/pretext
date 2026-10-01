@@ -1700,9 +1700,9 @@ describe('measurement invariants', () => {
 
   test('breakable fit cache distinguishes fit modes', () => {
     const measurement = getFontMeasurement('16px Fit Mode Test', null)
-    const metrics: SegmentMetrics = { width: 80, emojiCount: -1, fit: null }
+    const metrics: SegmentMetrics = { width: 80, emojiCount: -1, fit: null, spaceKerning: null }
     for (const [text, width] of [['a', 10], ['b', 20], ['c', 30], ['ab', 35], ['bc', 60]] as const) {
-      measurement.metrics.set(text, { width, emojiCount: -1, fit: null })
+      measurement.metrics.set(text, { width, emojiCount: -1, fit: null, spaceKerning: null })
     }
     measurement.metrics.set('abc', metrics)
 
@@ -5377,6 +5377,99 @@ test('the Safari profile keeps the kerning between a word and a following space'
     rich: [10, 0, 8],
     lineCount: 3,
   })
+})
+
+
+test('the Chromium profile takes the kerning between a word and the spaces beside it', () => {
+  // The engine profile is computed once per process, so Chrome runs in a child
+  // process. A is 10px, other letters 8px, a space 4px, format characters and
+  // marks 0px. Canvas cuts a string at U+0020 and kerns nothing across it. U+2028
+  // draws the space glyph, 4px, without a cut: in one string A kerns -1px with a
+  // space glyph after it, past a word joiner, and a space glyph -2px with a Latin
+  // or Cyrillic T after it, and a mark after a space glyph sits on it, 3px narrower.
+  // In `16px Glyph` U+2028 has a glyph of its own, 8px.
+  const layoutUrl = new URL('./layout.ts', import.meta.url).href
+  const richInlineUrl = new URL('./rich-inline.ts', import.meta.url).href
+  const script = `
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: {
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36',
+    } })
+    const measured = []
+    class Context {
+      font = ''
+      letterSpacing = '0px'
+      measureText(text) {
+        measured.push(text)
+        const glyph = this.font.includes('Glyph')
+        let width = 0
+        for (const ch of text) width += ch === ' ' ? 4 : ch === '\\u2028' ? (glyph ? 8 : 4) : /[\\u2060\\u0301]/.test(ch) ? 0 : ch === 'A' ? 10 : 8
+        if (glyph) return { width }
+        return { width: width - (text.match(/A\\u2060*\\u2028/g) ?? []).length - 2 * (text.match(/\\u2028[T\\u0422]/g) ?? []).length - 3 * (text.match(/\\u2028\\u0301/g) ?? []).length }
+      }
+    }
+    globalThis.OffscreenCanvas = class { getContext() { return new Context() } }
+    const { prepare, prepareWithSegments, layout, layoutWithLines } = await import(${JSON.stringify(layoutUrl)})
+    const { prepareRichInline, measureRichInlineStats } = await import(${JSON.stringify(richInlineUrl)})
+    const widths = []
+    for (const [text, font, options] of [
+      ['AA TT', '16px Test', {}], ['TT AA', '16px Test', {}], ['AA  TT', '16px Test', { whiteSpace: 'pre-wrap' }],
+      ['AA\\u2060 \\u2060TT', '16px Test', {}], ['AA \\u0301T', '16px Test', {}], ['AA TT', '16px Test', { letterSpacing: 1 }],
+      ['\\u0436\\u0436 TT', '16px Test', {}], ['\\u0436\\u0436 \\u0422\\u0422', '16px Test', {}], ['TT \\u0436\\u0436, TT', '16px Test', {}],
+      ['12 TT', '16px Test', {}], ['AA TT', '16px Glyph', {}],
+    ]) widths.push(prepareWithSegments(text, font, options).widths)
+    const lines = []
+    for (const [text, width] of [['AA TT', 19.5], ['AA TT', 37], ['AAA TT', 10.5]]) {
+      const result = layoutWithLines(prepareWithSegments(text, '16px Test'), width, 20)
+      lines.push({ lines: result.lines.map(line => [line.text, line.width]), lineCount: layout(prepare(text, '16px Test'), width, 20).lineCount })
+    }
+    const rich = [[{ text: 'AA TT', font: '16px Test' }], [{ text: 'AA', font: '16px Test' }, { text: ' TT', font: '16px Test' }]]
+      .map(items => measureRichInlineStats(prepareRichInline(items), 100).maxLineWidth)
+    measured.length = 0
+    prepare('AA TT AT TA AA TT', '16px Fresh')
+    const asked = measured.filter(text => text.includes('\\u2028')).sort()
+    prepare('AA TT', '16px Glyph Two')
+    console.log(JSON.stringify({ widths, lines, rich, asked, glyphAsked: measured.filter(text => text.includes('\\u2028')).length - asked.length,
+      cut: measured.filter(text => text.length > 1 && text.includes(' ')) }))
+  `
+  const { widths, lines, rich, asked, glyphAsked, cut } = JSON.parse(runInChild(script)) as Record<'widths' | 'lines' | 'rich' | 'asked' | 'glyphAsked' | 'cut', unknown>
+  expect(widths).toEqual([
+    // The word keeps its kerning with the space after it, and the space takes its own
+    // with the word after it.
+    [19, 2, 16],
+    [16, 4, 20],
+    // The first and the last of a run of preserved spaces.
+    [19, 6, 16],
+    // HarfBuzz's lookups skip a word joiner, on either side.
+    [19, 2, 16],
+    // A mark after the space is the space's own cluster, no pair with it.
+    [19, 4, 8],
+    // Letter spacing keeps the kerning.
+    [20, 2, 17],
+    // The space is in the script run of the text before it: after Cyrillic it kerns
+    // with a Cyrillic word, not with a Latin one, and a comma keeps the run's script.
+    [16, 4, 16],
+    [16, 2, 16],
+    [16, 4, 24, 4, 16],
+    // Before any script the run takes the script of what follows.
+    [16, 2, 16],
+    // Where U+2028 doesn't measure as the space, no kerning is taken.
+    [20, 4, 16],
+  ])
+  expect(lines).toEqual([
+    // The kerned word fits, and the space hangs with what it took.
+    { lines: [['AA ', 19], ['TT', 16]], lineCount: 2 },
+    { lines: [['AA TT', 37]], lineCount: 1 },
+    // A word broken between letters keeps the kerning on its last letter.
+    { lines: [['A', 10], ['A', 10], ['A ', 9], ['T', 8], ['T', 8]], lineCount: 5 },
+  ])
+  // A space inside a rich item kerns as in plain text; the gap between two items
+  // takes none (ENGINE_FOLLOWUPS.md).
+  expect(rich).toEqual([37, 40])
+  // U+2028 alone once per font, then each edge letter once with it, however many words share
+  // the letter. No string holds a U+0020 beside other text.
+  expect(asked).toEqual(['A\u2028', 'T\u2028', '\u2028', '\u2028A', '\u2028T'])
+  expect(glyphAsked).toBe(1)
+  expect(cut).toEqual([])
 })
 
 

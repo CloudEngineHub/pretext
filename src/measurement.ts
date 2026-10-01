@@ -10,6 +10,13 @@ export type SegmentMetrics = {
   width: number
   emojiCount: number // Emoji graphemes, or -1 until counted
   fit: SegmentFit | null // Where it breaks under overflow, for the last fit mode asked
+  spaceKerning: SpaceKerning | null // Its kerning beside a space, once asked (getSpaceKerning)
+}
+
+// What a text segment takes beside a U+0020 in the Chromium profile (getSpaceKerning).
+export type SpaceKerning = {
+  after: number // What a space after the segment adds to the segment
+  before: number // What the segment adds to a space before it
 }
 
 // Where a segment breaks under overflow-wrap: break-word in one fit mode (getSegmentFit),
@@ -59,12 +66,19 @@ export type EngineProfile = {
   // made Firefox prepare new text much slower (RESEARCH.md, Break Opportunities From
   // Engine Data; Decisions Log).
   prefixFitMinWidth: number
-  // WebKit measures a text item together with a directly following U+0020 and
-  // subtracts one unshaped space, so the item keeps its kerning with that space
-  // wherever the line ends. Blink also kerns there, but in its default state its
-  // Canvas splits words at spaces and shows none of it; Gecko shapes words
-  // without their spaces.
-  measureTextWithFollowingSpace: boolean
+  // What a word's kerning reaches past the word itself, where Canvas measures words apart.
+  // 'following-space': WebKit measures a text item together with a directly following U+0020
+  // and subtracts one unshaped space, so the item keeps its kerning with that space wherever
+  // the line ends. 'script-run': Blink's layout shapes each script run of a paragraph in one
+  // call, its spaces included, so in a font whose kerning names the space glyph a word kerns
+  // with the space after it and a space with the word after it. Its Canvas shapes word by word,
+  // cut at each U+0020, so that a string draws as its words drawn apart
+  // (PlainTextNode::SegmentWord and NextWordEndIndex, plain_text_node.cc:84-155, 365-399), and
+  // reports neither. Preparation asks Canvas for the kerning (getSpaceKerning) and adds it to
+  // the word before the space and to the space. 'none': Gecko shapes words without their
+  // spaces. One field for the three, since one more field on the profile slowed Chrome's line
+  // functions (RESEARCH.md, JavaScript Engines).
+  kerningReach: 'following-space' | 'script-run' | 'none'
   // WebKit and Gecko letter-space the visible discretionary hyphen itself.
   // Blink shapes it separately, without spacing.
   letterSpaceDiscretionaryHyphen: boolean
@@ -237,6 +251,9 @@ export type FontMeasurement = {
   // Metrics of a text item measured together with one following U+0020, keyed by
   // the item alone. The width includes that space.
   followingSpaceMetrics: Map<string, SegmentMetrics>
+  // In the Chromium profile, each character's kerning with a space glyph after it and before
+  // it, NaN until a segment has the character at that edge (getSpaceKerning).
+  characterSpaceKerning: Map<string, SpaceKerning>
   emojiCorrection: number | null // Probed for the first text that may hold emoji
   hanKerning: HanKerningFontData | null | undefined // Read for the first text that may kern
 }
@@ -397,9 +414,94 @@ export function getFollowingSpaceMetrics(seg: string, measurement: FontMeasureme
 }
 
 function addMetrics(cache: Map<string, SegmentMetrics>, seg: string, text: string, measurement: FontMeasurement): SegmentMetrics {
-  const metrics: SegmentMetrics = { width: measurement.state.context.measureText(text).width, emojiCount: -1, fit: null }
+  const metrics: SegmentMetrics = { width: measurement.state.context.measureText(text).width, emojiCount: -1, fit: null, spaceKerning: null }
   cache.set(seg, metrics)
   return metrics
+}
+
+const noSpaceKerning: SpaceKerning = { after: 0, before: 0 }
+// A format character, which HarfBuzz's lookups skip when they match a pair
+// (skipping_iterator_t::may_skip, hb-ot-layout-gsubgpos.hh).
+const formatCharacterRe = /\p{Cf}/u
+// A code unit that is no cluster of its own: a combining mark, or half of a surrogate pair.
+const clusterPartRe = /[\p{M}\p{Cs}]/u
+// Half of a surrogate pair counts with Common: nearly every character past the BMP that text
+// holds beside a space is an emoji.
+const kerningScriptRe = /(\p{sc=Latn})|(\p{sc=Cyrl})|(\p{sc=Grek})|[\p{sc=Zyyy}\p{sc=Zinh}\p{Cs}]/u
+
+// A character's script as far as kerning with a space goes: 0 for Common and Inherited, which
+// take the script of the run they sit in, 1 Latin, 2 Cyrillic, 3 Greek, 4 any other.
+function getKerningScript(character: string): number {
+  // ASCII letters are Latin and the rest of ASCII is Common.
+  const code = character.charCodeAt(0)
+  if (code < 0x80) return (code | 0x20) >= 0x61 && (code | 0x20) <= 0x7a ? 1 : 0
+  const match = kerningScriptRe.exec(character)
+  return match === null ? 4 : match[1] !== undefined ? 1 : match[2] !== undefined ? 2 : match[3] !== undefined ? 3 : 0
+}
+
+// Whether the space before text[at] kerns with the character there. Blink shapes each script
+// run in a call of its own (HarfBuzzShaper::Shape, harfbuzz_shaper.cc:1063-1104), and a space,
+// like every Common character, joins the run of the text before it (ScriptRunIterator::MergeSets,
+// script_run_iterator.cc:490-510), so it kerns with a word after it only where that word goes on
+// in the same script. Each search back ends at the nearest character with a script, which every
+// word that asks starts with, so a text's searches together read it once.
+export function spaceSharesScriptRun(text: string, at: number): boolean {
+  const script = getKerningScript(text[at]!)
+  if (script === 0) return true
+  for (let i = at - 1; i >= 0; i--) {
+    const before = getKerningScript(text[i]!)
+    if (before !== 0) return before === script
+  }
+  return true
+}
+
+// A character's kerning with a space glyph after it, or before it, asked of Canvas when a
+// segment first has the character at that edge.
+function getCharacterSpaceKerning(character: string, measurement: FontMeasurement, spaceWidth: number, after: boolean): number {
+  let kerning = measurement.characterSpaceKerning.get(character)
+  if (kerning === undefined) {
+    // Where U+2028 doesn't measure as the space, as in another engine's Canvas, nothing pairs
+    // with it.
+    kerning = clusterPartRe.test(character) || getSegmentMetrics('\u2028', measurement).width !== spaceWidth ? noSpaceKerning : { after: NaN, before: NaN }
+    measurement.characterSpaceKerning.set(character, kerning)
+  }
+  if (after) {
+    if (Number.isNaN(kerning.after)) {
+      kerning.after = getSegmentMetrics(character + '\u2028', measurement).width - getSegmentMetrics(character, measurement).width - spaceWidth
+    }
+    return kerning.after
+  }
+  if (Number.isNaN(kerning.before)) {
+    kerning.before = getSegmentMetrics('\u2028' + character, measurement).width - getSegmentMetrics(character, measurement).width - spaceWidth
+  }
+  return kerning.before
+}
+
+// The kerning Blink's layout gives a text segment's edges with a U+0020 beside them, which its
+// Canvas, cutting words at U+0020, doesn't report (EngineProfile.kerningReach). Blink draws
+// U+2028 with the space glyph (HarfBuzzGetNominalGlyph, harfbuzz_face.cc:103-113) and its Canvas
+// doesn't cut there, so a string with U+2028 for the space is shaped whole, legacy `kern` tables
+// included, which the Canvas kerning settings leave out: `fontKerning = 'normal'` and
+// `textRendering = 'optimizeLegibility'` shape a string whole only where GPOS or GSUB lookups
+// cover the space glyph (font_fallback_list.cc:264-277, harfbuzz_face.cc:341-385).
+//
+// Premises, each with its gap (RESEARCH.md, Kerning At Line Edges):
+// - The kerning is that of the segment's last character with the space after it, and of the
+//   space with its first character, past format characters. So it costs two Canvas calls per
+//   distinct edge character in a font, not per word. A lookup that reads further into the word
+//   isn't seen, and a character that is part of a longer cluster takes none.
+// - All of it sits on the first glyph of the pair, as GPOS pair positioning puts it. The legacy
+//   `kern` table puts half on each glyph, so a line that ends at the space keeps only half in
+//   Chrome, which a width doesn't show.
+// - The scripts are Latin, Cyrillic, Greek and one for all others (getKerningScript).
+export function getSpaceKerning(seg: string, metrics: SegmentMetrics, measurement: FontMeasurement, spaceWidth: number): SpaceKerning {
+  let first = 0
+  let last = seg.length - 1
+  while (first < last && formatCharacterRe.test(seg[first]!)) first++
+  while (last > first && formatCharacterRe.test(seg[last]!)) last--
+  const before = getCharacterSpaceKerning(seg[first]!, measurement, spaceWidth, false)
+  const after = getCharacterSpaceKerning(seg[last]!, measurement, spaceWidth, true)
+  return metrics.spaceKerning = after === 0 && before === 0 ? noSpaceKerning : { after, before }
 }
 
 // A text's width in the font, less the emoji correction.
@@ -440,7 +542,7 @@ export function getEngineProfile(): EngineProfile {
     graphemeTable: engine === 'webkit' ? 'apple/char' : engine === 'gecko' ? 'gecko/char' : 'chromium/char',
     lineFitEpsilon: engine === 'webkit' ? 1 / 64 : 0.005,
     prefixFitMinWidth: engine === 'webkit' ? 0 : engine === 'gecko' ? 80 : Infinity,
-    measureTextWithFollowingSpace: engine === 'webkit',
+    kerningReach: engine === 'webkit' ? 'following-space' : engine === 'blink' ? 'script-run' : 'none',
     letterSpaceDiscretionaryHyphen: engine !== 'blink',
     shapesMarksAcrossSoftHyphen: engine === 'blink',
     unfitHyphenRetreat: engine === 'blink' ? 'reduced-width' : engine === 'gecko' ? 'full-width' : 'none',
@@ -584,7 +686,7 @@ export function getFontMeasurement(font: string, language: string | null): FontM
   let measurement = state.fonts.get(font)
   if (measurement === undefined) {
     const canvasFont = state.genericFamilies === null ? font : getCanvasFont(font, state.genericFamilies)
-    measurement = { state, canvasFont, metrics: new Map(), followingSpaceMetrics: new Map(), emojiCorrection: null, hanKerning: undefined }
+    measurement = { state, canvasFont, metrics: new Map(), followingSpaceMetrics: new Map(), characterSpaceKerning: new Map(), emojiCorrection: null, hanKerning: undefined }
     state.fonts.set(font, measurement)
   }
   state.context.font = measurement.canvasFont
