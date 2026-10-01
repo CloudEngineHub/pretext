@@ -984,7 +984,7 @@ function stepRichInlineLine(
   fragments: RichInlineFragmentRange[] | null,
 ): number | null {
   const safeWidth = Math.max(1, maxWidth)
-  const { hangTabs, hardBreakItemRetreat, lineFitEpsilon, paddedOpeningFit, spaceBeforeSoftHyphenHangs, unfitHyphenRetreat } = getEngineProfile()
+  const { emptyAtomicAlwaysFits, hangTabs, hardBreakItemRetreat, lineFitEpsilon, paddedOpeningFit, spaceBeforeSoftHyphenHangs, unfitHyphenRetreat } = getEngineProfile()
   let hasContent = false
   let lineWidth = 0
   let remainingWidth = safeWidth
@@ -1081,9 +1081,9 @@ function stepRichInlineLine(
 
       const occupiedWidth = item.naturalWidth + item.extraWidth
       const totalWidth = gapBefore + occupiedWidth
-      // Gecko places an empty frame wherever it falls (CanPlaceFrame, which 'both' ports), where
-      // Blink and WebKit move an atomic item of width 0 to the next line as any other.
-      if (hasContent && totalWidth > remainingWidth + lineFitEpsilon && !(paddedOpeningFit === 'both' && occupiedWidth === 0)) break
+      // Gecko places an empty frame wherever it falls (CanPlaceFrame, nsLineLayout.cpp:1264-1269),
+      // where Blink and WebKit move an atomic item of width 0 to the next line as any other.
+      if (hasContent && totalWidth > remainingWidth + lineFitEpsilon && !(emptyAtomicAlwaysFits && occupiedWidth === 0)) break
 
       collectItemRest(fragments, itemIndex, item, EMPTY_LAYOUT_CURSOR, gapBefore, gapItemIndex, occupiedWidth)
       hasContent = true
