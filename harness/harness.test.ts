@@ -485,6 +485,8 @@ describe('the gate and page history of predictions', () => {
     const alone = new Map([['emoji', two], ['stale', three]])
     expect(freshRecordings(['emoji', 'stale', 'same'], stored, [inSample, alone, alone])).toEqual({ stale: ['stale'], history: ['emoji'] })
     expect(freshRecordings(['same'], stored, [inSample])).toEqual({ stale: [], history: [] })
+    // One past the cases the gate records alone has no second recording, and blocks.
+    expect(freshRecordings(['emoji'], stored, [inSample, new Map()])).toEqual({ stale: ['emoji'], history: [] })
   })
 
   test('a prediction that flips between runs, once listed, is never judged, and the gate calls it varying, not a library defect: check blocked at random on a system-ui label', () => {
@@ -576,10 +578,11 @@ describe('the commands, with a stand-in browser', () => {
   })
 
   test('the gate blocks on breaks and line APIs that move in reverse order and on recordings that no longer hold, and moves page history it finds off the pinned and accepted cases: a message would wrap differently after other messages, or the next check block', async () => {
-    // After "first" in a job, "moves" breaks otherwise and "measures" disagrees. "found", an accepted failure, is laid out
-    // otherwise among other cases and as recorded alone. "emoji" and "late" are laid out otherwise among other cases, and
-    // alone only after "found", as Firefox's color emoji are after a U+FE0E case: the sample puts one before "found" and
-    // one after it, so each is laid out as recorded in one of the lone orders. "stale" is laid out otherwise every time.
+    // After "first" in a job, "moves" breaks otherwise and "measures" disagrees. "found", an accepted failure, "emoji"
+    // and "late" are laid out as recorded only in a browser process that laid out nothing before them, a fresh document
+    // or not, as a right-to-left paragraph is in WebKit after its left-to-right twin and Firefox's color emoji are after
+    // a U+FE0E case: recorded alone in one process for all that differ, in the sample's order and in reverse, "emoji" and
+    // "found" never came first, and blocked. "stale" is laid out otherwise every time.
     const recorded = { first: laidOut, moves: laidOut, measures: laidOut, found: laidOut, emoji: laidOut, late: laidOut, stale: laidOut }
     const root = folder('gate-order', recorded, { accepted: '## why\nfound breaks\n' })
     const afterFirst = (c: Case, job: Job): boolean => job.cases.indexOf(c) > job.cases.findIndex(x => x.id === 'first')
@@ -587,12 +590,9 @@ describe('the commands, with a stand-in browser', () => {
       if (c.id === 'found') return wrong
       if (afterFirst(c, job)) return right
       return c.id === 'moves' ? wrong : c.id === 'measures' ? { ...right, disagreement: 'measureLineStats gives 3 lines' } as Prediction : right
-    }, (c, job) => {
-      if (c.id === 'stale' || (job.documentSize > 1 && c.id !== 'first' && c.id !== 'moves' && c.id !== 'measures')) return other
-      return (c.id === 'emoji' || c.id === 'late') && job.cases.indexOf(c) > job.cases.findIndex(x => x.id === 'found') ? other : laidOut
-    })
+    }, (c, job) => (c.id === 'stale' || (['found', 'emoji', 'late'].includes(c.id) && job.cases.indexOf(c) > 0) ? other : laidOut))
     const list = cases(Object.keys(recorded))
-    expect(gateSample(list, SEED, 9).map(c => c.id).filter(id => ['emoji', 'found', 'late'].includes(id))).toEqual(['emoji', 'found', 'late'])
+    expect(gateSample(list, SEED, 9).map(c => c.id).filter(id => ['stale', 'emoji', 'found', 'late'].includes(id))).toEqual(['stale', 'emoji', 'found', 'late'])
     expect(await gate('chrome', list, options, io)).toBe(true)
     expect(io.printed()).toContain('BLOCKS: 1 predictions break differently in reverse order: moves')
     expect(io.printed()).toContain('BLOCKS: 1 cases in reverse order where another line API disagrees with the walk')

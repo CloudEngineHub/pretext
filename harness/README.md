@@ -138,7 +138,11 @@ AGENTS.md's Validation says when to run `repin`, `check`, `gate` and `bench`. `g
 (a paragraph mustn't wrap differently because of what was prepared before it), 1,000 cases recorded again (the
 recordings must still describe the browser), and each new failure recorded and predicted alone, to attribute it. The
 1,000 are drawn by the commit under test, so one commit always draws the same and successive changes cover every
-recording; the gate prints the seed, and `--seed` draws with another.
+recording; the gate prints the seed, and `--seed` draws with another. A drawn case whose lines differ from its
+recording is recorded once more in a browser process of its own: laid out as recorded there, it's page history, and
+the gate lists it; laid out otherwise there too, it blocks, since either the recording is stale or it holds page
+history both of `record`'s orders shared. `bun harness record --cases=<a file of those cases>` then lists it as page
+history.
 `record --only-new` records new cases, `check --accept="<reason>"` puts the new failures on the accepted list under that
 reason and drops the entries that pass again, and `explain` shows one case, or a paragraph given with `--text`, line by
 line against the browser.
@@ -157,7 +161,8 @@ from the browser's Canvas, so attribution never calls such a move a library defe
 
 Page history misleads (`RESEARCH.md`, Evaluation Traps, has the cases; Engine Facts, Safari (WebKit), has WebKit's
 caches): when the gate's attribution calls a failure page history, that holds only once the case fails the same way
-alone, and a webkit-host win or loss counts only if it holds alone or in fresh documents in both orders. The cases seen
+alone, and a webkit-host win or loss counts only if it holds alone in a process of its own (`bun harness explain
+--cases=<a file of the one case>`) or in fresh documents in both orders. The cases seen
 with page history, `recordings/<browser>.history.txt`, are kept across every recording under one environment, and
 `repin` carries them to a new build, since two orders miss history both share: one recording's two orders found 11 of
 webkit-host's 87 (2026-09-24), and without the carried list 33 cases would have blocked when Firefox went to 156.0.1

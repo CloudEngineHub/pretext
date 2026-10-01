@@ -43,6 +43,8 @@ const RECORD_DOCUMENT = 200
 const ALONE = 1
 const WHOLE = Number.MAX_SAFE_INTEGER
 const ATTRIBUTE_AT_MOST = 200
+// The gate launches a browser for each sampled case that differs from its recording, up to this many.
+const FRESH_AT_MOST = 30
 
 // What the flags ask for. `sample`: --sample's count, or null. `partial`: the run covers some case files only (--cases),
 // so it leaves the other cases' entries alone.
@@ -307,21 +309,22 @@ export async function gate(browser: BrowserKind, cases: Case[], o: Options, io: 
   const order = reverseOrder(ids, scored.predictions, reverse, scored.varying)
   if (order.widths.length > 0) out.push(`  ${order.widths.length} predictions change only their line widths in reverse order (report only): ${shown(order.widths)}`)
   if (order.listed.length > 0) out.push(`  ${order.listed.length} varying predictions break differently in reverse order (listed, not blocking)`)
-  // A fresh recording of a seeded sample, then each case that differs alone, in forward and in reverse order: blocks
-  // where the browser lays it out differently from the recording every time.
+  // A fresh recording of a seeded sample, then each case that differs alone in a browser process of its own: blocks
+  // where the browser lays it out differently from the recording there too. A fresh document isn't enough: WebKit
+  // keeps a text's inline items for the whole process (record has the source), and Firefox lays color emoji out wider
+  // in every document after one with a text-presentation emoji (score.ts), so in one process for all of them the
+  // verdict went by which cases differed together.
   const sample = gateSample(scored.pinned, o.seed, o.sample ?? 1000)
   const first = await io.run<Recording>({ browser, mode: 'record', cases: sample, documentSize: RECORD_DOCUMENT, lib: o.lib })
   if (sample.length > 0) assertSameEnvironment(browser, scored.env, first.env)
-  const attempts = [first.results]
   const differ = sample.filter(c => lineEnds(first.results.get(c.id)!) !== lineEnds(scored.recordings.get(c.id)!))
   let widths = 0
   for (let i = 0; i < sample.length; i++) if (recordingText(first.results.get(sample[i]!.id)!) !== recordingText(scored.recordings.get(sample[i]!.id)!)) widths++
-  if (differ.length > 0) {
-    attempts.push(await job<Recording>('record', differ, ALONE))
-    attempts.push(await job<Recording>('record', differ.slice().reverse(), ALONE))
-  }
-  const fresh = freshRecordings(sample.map(c => c.id), scored.recordings, attempts)
+  const alone = new Map<string, Recording>()
+  for (let i = 0; i < differ.length && i < FRESH_AT_MOST; i++) alone.set(differ[i]!.id, (await job<Recording>('record', [differ[i]!], ALONE)).get(differ[i]!.id)!)
+  const fresh = freshRecordings(sample.map(c => c.id), scored.recordings, [first.results, alone])
   out.push(`  ${sample.length} cases recorded again (seed ${o.seed}): ${differ.length} start or end a line elsewhere than the recordings, ${fresh.history.length} of them laid out as recorded when alone; ${widths - differ.length} more differ only in line widths or height (report only)`)
+  if (differ.length > FRESH_AT_MOST) out.push(`  only the first ${FRESH_AT_MOST} were recorded alone (more than that usually means the recordings are stale)`)
   // Those depend on the cases before them: page history the recordings missed, which goes on the page-history list as
   // record would put it, so check stops pinning them. An accepted entry of one leaves the list in the same write, since
   // the next check would block on an accepted case no longer pinned. The files get copies: attribution reads the

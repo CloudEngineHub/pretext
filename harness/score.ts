@@ -234,10 +234,10 @@ export function reverseOrder(ids: readonly string[], forward: ReadonlyMap<string
 }
 
 // The gate's fresh re-recording of a sample against the stored recordings, by where lines start and end (lineEnds).
-// `attempts[0]` records every sampled case; the later attempts record again, each case alone in its own document, the
-// cases the first laid out differently. A case laid out differently in every attempt is stale: the stored recording no
-// longer describes the browser, which blocks. One laid out as stored in some attempt depends on the cases or documents
-// before it: page history the recordings missed, which record would list.
+// `attempts[0]` records every sampled case; the later attempts record again, each case alone, the cases the first laid
+// out differently, or the first of them. A case laid out differently in every attempt, or in none after the first, is
+// stale: the stored recording doesn't describe the browser, which blocks. One laid out as stored in some attempt
+// depends on the cases before it: page history the recordings missed, which record would list.
 export function freshRecordings(ids: readonly string[], stored: ReadonlyMap<string, Recording>, attempts: ReadonlyArray<ReadonlyMap<string, Recording>>): { stale: string[]; history: string[] } {
   const out = { stale: [] as string[], history: [] as string[] }
   for (let i = 0; i < ids.length; i++) {
@@ -245,7 +245,10 @@ export function freshRecordings(ids: readonly string[], stored: ReadonlyMap<stri
     const want = lineEnds(stored.get(id)!)
     if (lineEnds(attempts[0]!.get(id)!) === want) continue
     let always = true
-    for (let k = 1; k < attempts.length; k++) if (lineEnds(attempts[k]!.get(id)!) === want) always = false
+    for (let k = 1; k < attempts.length; k++) {
+      const again = attempts[k]!.get(id)
+      if (again !== undefined && lineEnds(again) === want) always = false
+    }
     out[always ? 'stale' : 'history'].push(id)
   }
   return out
