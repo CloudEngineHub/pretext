@@ -8,8 +8,8 @@
 //   bun harness/sets/make.ts bisect <set> --browser=<b>       # the kept changes' exact widths in one browser
 //   bun harness/sets/make.ts cut <set>                        # the cut cases, into harness/cases/<set>.ndjson, with
 //                                                             # the set's main/* cases, taken once, kept as they are;
-//                                                             # only the templates the saved search holds survive
-//                                                             # (harness/README.md, How cases grow)
+//                                                             # refused unless the saved search covers every
+//                                                             # template of the set (harness/README.md, How cases grow)
 //   bun harness/sets/make.ts sizes                            # each case file's cases and units per browser
 //
 // then `bun harness record --only-new` records the new cases `check` compares against.

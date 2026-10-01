@@ -115,10 +115,10 @@ New cases mustn't pile up as the old suite's did, a hand-written repro per bug.
 2. `make.ts first <set> --browser=<b>` in Chrome, Firefox and webkit-host, then `make.ts select <set>`, then
    `make.ts bisect <set> --browser=<b>` in each.
 3. `make.ts cut <set>` writes `cases/<set>.ndjson`. It keeps only the frozen `main/*` cases and the templates the saved
-   search holds, so after a partial search it silently drops every other generated case (8,926 at b1fd05fc); search the
-   whole set before cutting, then remove `.artifacts/harness-sets/<set>/`. A template added to an existing family should
-   bring its older cases back byte for byte, and a whole-catalog search derives every generated case again, so a
-   browser's drift lands in the PR.
+   search holds, so it refuses a search that doesn't cover every template of the set (a cut after a partial search
+   dropped 8,926 generated cases with no word at b1fd05fc); search the whole set before cutting, then remove
+   `.artifacts/harness-sets/<set>/`. A template added to an existing family should bring its older cases back byte for
+   byte, and a whole-catalog search derives every generated case again, so a browser's drift lands in the PR.
 4. `bun harness record --only-new`, then `bun harness check`; a new failure the change doesn't fix goes on the accepted
    list with `check --accept="<reason>"`.
 

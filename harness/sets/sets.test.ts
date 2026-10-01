@@ -118,7 +118,7 @@ describe('the cut', () => {
     const spaces = template('a b c d e', 'test/spaces')
     record([[mixed, layout], [spaces, layout]], [29, 30, 39, 40, 49, 50, 59, 60])
     select(SET, [mixed, spaces], false)
-    const widths = (t: Template, edge: boolean): number[] => cut(SET, [t]).filter(c => (c.edge === true) === edge).map(c => c.paragraph.width).sort((x, y) => x - y)
+    const widths = (t: Template, edge: boolean): number[] => cut(SET, [mixed, spaces]).filter(c => c.family === t.family && (c.edge === true) === edge).map(c => c.paragraph.width).sort((x, y) => x - y)
     // The three widest changes, 1/64 px either side where the side's layout reaches (the recorded 39 stands in for
     // 39.984375, which falls between recordings), and a whole pixel inside each layout.
     expect(widths(mixed, true)).toEqual([39, 40.015625, 49, 50.015625, 59, 60.015625])
@@ -126,6 +126,21 @@ describe('the cut', () => {
     // Only the widest of the changes that break alike.
     expect(widths(spaces, true)).toEqual([59, 60.015625])
     expect(widths(spaces, false)).toEqual([1, 55, 100_000])
+  })
+
+  test('a cut from a search that missed a template, or that ran before one was added, is refused: the set would lose every generated case of the templates the search doesn\'t hold, with no word', () => {
+    const searched = template('a\u{200B}b')
+    const missed = template('c\u{200B}d')
+    record([[searched, twoThenOne]])
+    // No browser recorded `missed`.
+    expect(select(SET, [searched, missed], false).incomplete).toBe(1)
+    expect(() => cut(SET, [searched, missed])).toThrow('1 templates weren\'t recorded in every browser')
+    // Recorded since, but select hasn't run over it.
+    select(SET, [searched], false)
+    record([[searched, twoThenOne], [missed, twoThenOne]])
+    expect(() => cut(SET, [searched, missed])).toThrow('select ran over other templates than the set\'s 2')
+    select(SET, [searched, missed], false)
+    expect(new Set(cut(SET, [searched, missed]).map(c => c.behaviour)).size).toBe(2)
   })
 
   test('the cover keeps one change per kind of line break: two inputs that break the same way would double the review for one behaviour', () => {
