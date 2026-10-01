@@ -131,9 +131,10 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
   const json = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 
   // Lines that cover `stream` forward without overlap, leaving between them only what may go unpainted there: in
-  // Firefox bidi controls too, which it leaves out of its text runs.
+  // Firefox bidi controls too, which it leaves out of its text runs, and in WebKit a U+2028 or U+2029, which its scan
+  // makes a hard break in normal white space as a line feed is one in pre-wrap.
   const gecko = profile === 'gecko'
-  const unpaintedNormal = gecko ? /^[ \u00AD\u200B\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]*$/ : /^[ \u00AD\u200B]*$/
+  const unpaintedNormal = gecko ? /^[ \u00AD\u200B\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]*$/ : profile === 'webkit' ? /^[ \u00AD\u200B\u2028\u2029]*$/ : /^[ \u00AD\u200B]*$/
   const unpaintedPreWrap = gecko ? /^[\n\u00AD\u200B\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]*$/ : /^[\n\u00AD\u200B]*$/
   const covers = (stream: string, spans: ReadonlyArray<[number, number]>, whiteSpace: 'normal' | 'pre-wrap', from = 0): string | null => {
     const unpainted = whiteSpace === 'normal' ? unpaintedNormal : unpaintedPreWrap
