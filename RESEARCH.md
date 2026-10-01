@@ -276,8 +276,13 @@ a rule by reading it and its unit tests (`rebuild/src/engines/<engine>/`) agains
   the project is closed (Decisions Log, 2026-09-23 and 2026-09-26).
 - **`\p{…}`** follows the JavaScript engine's Unicode tables, not layout's, so the rebuild takes no engine decision from
   it. Main's scans do, through `hasProperty()` (`src/line-breaks.ts`: letters and numbers, marks, punctuation,
-  default-ignorables, emoji, Hangul), on the premise that a browser's JavaScript engine and its layout use the same
-  Unicode version, which nothing checks.
+  default-ignorables, emoji, Hangul), and so does the cursive rule for letter spacing, which reads scripts and script
+  extensions (`src/prepare.ts`), on the premise that a browser's JavaScript engine and its layout use the same Unicode
+  version, which nothing checks. Script extensions are revised in most Unicode versions, more than those classes are,
+  so the premise carries more there: where the two differ, a punctuation mark or a combining mark that scripts share
+  is spaced otherwise than the browser spaces it. What no property says is listed by hand in the code with how it was
+  derived, as the eight wide opening brackets Blink makes Han are, and the unit tests of these rules read Bun's
+  tables (Unicode 17 in Bun 1.4.2).
 - **`Intl.Segmenter`** stays for Southeast Asian words (Dead Ends, Tables, Bundles And Data, has the alternatives)
   because Pretext needs the browser's split, not the right one. Firefox's slow Thai segmentation is its own trade for
   download size, so no bug was filed.
@@ -1665,14 +1670,23 @@ repin` shows what), and a fact read in source needs reading again.
   `shape_result_spacing.cc:103-131`), spaces a glyph cluster once, and turns off liga, clig and calt under any spacing
   (`font_features.cc:54-86`). The run is the shaping run's script, so digits, brackets and punctuation after Arabic, or
   before it at the start of the text, take none either, and a closing bracket goes back to its opening bracket's run
-  (`script_run_iterator.cc`): of an Arabic word, a space and `123.`, only the space is spaced. The Blink profile
-  follows a reduced port of that iterator (#TBD, `src/prepare.ts`): in Chrome 154 it gives 59 probe strings Chrome's
-  gaps, and the real-usage sample's 8 failing Arabic and Urdu paragraphs under letter spacing pass (2026-09-30 and
-  10-01). A character several scripts share stays in a run of any of them and else starts a run of the one with the
-  lowest code, Latin aside (`GetScripts`, `MergeSets`, `script_run_iterator.cc:118-215`, `:491-563`), which the port
-  leaves out: U+202F, which Latin, Mongolian and Phags-pa share, takes no gap alone, after Arabic or between Han
-  characters, and one among Latin letters, and its Mongolian run takes in the digits around it, so `10`, U+202F, `000`
-  in a text of its own takes none of its 6 gaps (Chrome 154, 2026-10-01; ENGINE_FOLLOWUPS.md, Letter spacing). A tab
+  (`script_run_iterator.cc`): of an Arabic word, a space and `123.`, only the space is spaced. The rule sits behind the
+  runtime flag `IgnoreLetterSpacingInCursiveScripts`, which Chrome's release notes list from Chrome 137 (stable
+  2025-05-27) and the Chromium 152 and 153 trees have as stable; before it Chrome spaced every letter. These docs
+  said 149 until #TBD, with no source. The Blink profile follows a reduced port of that iterator (#TBD,
+  `src/prepare.ts`): in Chrome 154 it gives 63 probe strings Chrome's gaps, and the real-usage sample's 8 failing
+  Arabic and Urdu paragraphs under letter spacing pass (2026-09-30 and 10-01). A Common character right before a
+  mark that has script extensions takes the mark's scripts (`FetchNextCharacter`, `:624-635`), whose lowest code
+  leads: `1` under the Arabic vowel sign U+064B starts an Arabic run among Latin letters, and under U+0303, which
+  Latin, Syriac and three more scripts share, it leaves an Arabic run and stays in a Syriac one; the port follows
+  all but the last. A character several scripts share starts a run that holds them all, the lowest code leading,
+  Latin aside for a Common character, which the next character with a script narrows, and it stays in a run of any of
+  them (`GetScripts`, `MergeSets`, `script_run_iterator.cc:118-215`, `:491-565`); a Common character that only one
+  script lists stays in whatever run it is in. The port gives a shared character its leading script wherever it
+  stands and leaves the rest out: U+202F, which Latin, Mongolian and Phags-pa share, takes no gap alone, after Arabic
+  or between Han characters, and one among Latin letters, and its Mongolian run takes in the digits around it, so
+  `10`, U+202F, `000` in a text of its own takes none of its 6 gaps (Chrome 154, 2026-10-01; ENGINE_FOLLOWUPS.md,
+  Letter spacing). A tab
   stop is eight Canvas spaces plus letter and word spacing (`font.cc:303-317`), rounded up to 1/128 px at DPR 2
   (`simple_font_data.cc:225-240`), and a tab skips a stop under half a space away (`font.cc:333-337`). Recordings agree:
   a tab-only line in 16px Arial is 27.563px at −1px letter spacing and 35.563px at 0 (harness recordings at commit
@@ -1816,7 +1830,8 @@ repin` shows what), and a fact read in source needs reading again.
   a mark is spaced as its own base. From Firefox 153, a Canvas `letterSpacing` under half an app unit turns ligatures off
   and adds nothing, which the Gecko profile measures letter-spaced text under (Measurement Model); 140 ESR adds
   0.00104 px a character at `0.001px` and has no `ctx.lang`, and ESR is dropped where it costs complexity (Part 1,
-  Limits). The page decides on the spacing in whole app units (`nsLayoutUtils.cpp:6896-6904`), so its text at 0.001px
+  Limits); at the `0.000001px` the profile sets, that rate would add a millionth of a px a character, far under the
+  line fit's 0.005 px for any line, which is inferred from the 0.001px reading and wasn't measured. The page decides on the spacing in whole app units (`nsLayoutUtils.cpp:6896-6904`), so its text at 0.001px
   keeps its ligatures, where the Canvas decides on the float (`CanvasRenderingContext2D.cpp:5233-5241`). (Firefox 156,
   2026-09-17 to 09-30.)
 - **Breaks.** The Gecko scan ports Gecko's rules (Break Opportunities From Engine Data), such as `-` kept with a digit
