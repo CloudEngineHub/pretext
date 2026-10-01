@@ -1,0 +1,3 @@
+## system-ui and -apple-system, outside what Pretext claims (README): WebKit's Canvas gives Amharic in these font lists other widths from one run to the next, with the same measureText calls; of every case predicted 10 times, half of them in reverse order, only these two moved, 4 and 3 times, in their line widths alone, which made equal count a difference between a build and itself
+sample-19fdc5774f8f01ab runs
+sample-6ca83f78f802bc2a runs
