@@ -1,4 +1,4 @@
-// The behaviour catalog's templates, before widths.ts cuts them. Seven sources:
+// The behaviour catalog's templates, before widths.ts cuts them. Eight sources:
 // - the per-engine rebuild's rule families (data/rule-families.ndjson), the flat ones within what the library takes;
 // - filed reports whose reporter measured the width with their own Canvas;
 // - a matrix of every UAX #14 line-break class between the scripts apps mix, under the CSS settings the library takes,
@@ -9,7 +9,8 @@
 //   so the cover keeps a change of each;
 // - a CJK closing mark at a line end before a line feed or a space;
 // - bidi controls where Firefox's line breaker, which never sees them, starts or ends a line, each shape a family of its
-//   own.
+//   own;
+// - CJK marks Chrome halts next to other punctuation.
 // main's adversarial families were taken once from the old harness's generator, which is gone: their cases,
 // `catalog/main/*` and `rich/main/*`, stay in the case files as they were cut, and `make.ts cut` keeps them.
 import { readFileSync } from 'node:fs'
@@ -260,13 +261,29 @@ export function bidiControlTemplates(): Template[] {
   return out
 }
 
+// Marks Chrome halts in pairs, in one family: `「` after a fullwidth colon, and after curly quotes, a semicolon and a
+// fullwidth full stop, in a font with `halt`. Every character Chrome types for the pair rule is src/layout.test.ts's;
+// these confirm a few in the browser, where each halt moves the width at which a line takes one more character, as
+// the cover describes a break by its UAX #14 classes and keeps few of them.
+export function hanKerningPairTemplates(): Template[] {
+  const texts = ['他说：「你好」她说：「再见」我说：「好」', '她说“「你好」”；「再见」．「好的」']
+  const out: Template[] = []
+  for (let i = 0; i < texts.length; i++) {
+    out.push({
+      family: 'han-kerning-pairs', origin: 'src/han-kerning.ts: marks Chrome halts next to other punctuation', pageLang: 'zh', widths: [], grid: true,
+      paragraph: paragraph({ font: font('"PingFang SC"', 16), lang: 'zh' }, [texts[i]!]),
+    })
+  }
+  return out
+}
+
 export function catalogTemplates(): Template[] {
   const catalog: Template[] = []
   const seen = new Set<string>()
   // The order decides which template shows a line break first, which the cover keeps (widths.ts): filed reports, the
-  // rebuild's rule families, the class matrix, the follow-ups' shapes, the mark chains, the line-end marks, then the bidi
-  // controls. main's families came before the class matrix when they were cut.
-  const lists = [reportedTemplates(), ruleFamilyTemplates(), classMatrixTemplates(), followupTemplates(), markChainTemplates(), lineEndMarkTemplates(), bidiControlTemplates()]
+  // rebuild's rule families, the class matrix, the follow-ups' shapes, the mark chains, the line-end marks, the bidi
+  // controls, then the pairs Chrome halts. main's families came before the class matrix when they were cut.
+  const lists = [reportedTemplates(), ruleFamilyTemplates(), classMatrixTemplates(), followupTemplates(), markChainTemplates(), lineEndMarkTemplates(), bidiControlTemplates(), hanKerningPairTemplates()]
   for (let l = 0; l < lists.length; l++) {
     for (let i = 0; i < lists[l]!.length; i++) {
       const t = lists[l]![i]!
