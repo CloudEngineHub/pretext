@@ -197,7 +197,9 @@ export type EngineProfile = {
   // that hangs before the box out of the fit (hangingContentWidth, InlineContentBreaker.cpp:
   // 183-186, 956-958): 'placed'. Gecko fits a frame's whole width, its cloned end edge too, and
   // lets only an empty frame past the line's end (CanPlaceFrame, nsLineLayout.cpp:1217-1270),
-  // wherever it falls, so an atomic item of width 0 stays on a line that already overflows: 'both'. In 15px Helvetica Neue, `Unbreakable` and a span with 20px padding that starts with a
+  // so an atomic item of width 0 stays on a line that already overflows unless the line goes
+  // back to a break before it (keepsEmptyAtomic, src/rich-inline.ts): 'both'. In 15px Helvetica
+  // Neue, `Unbreakable` and a span with 20px padding that starts with a
   // line feed keep the line feed from 107px in Chrome and Safari, from 127px in Firefox, and
   // `Unbreakable   ` and that span from 86px in Chrome, 105px in Safari and 138px in Firefox;
   // `Ping `, the chip `@alice` and a span with 12px padding that starts with two spaces keep them

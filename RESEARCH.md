@@ -916,17 +916,27 @@ invariants check, and the empty-text spelling floated in #201 needs a `font` and
 `extraWidth`, which no line hangs: U+FFFC in the paragraph's text, as Blink and Gecko take an atomic inline there
 (`src/rich-inline.ts` cites them), with a break on both sides and preserved white space after it kept on its line as
 after a chip, so it needs no rule of its own. Apps stood in for one with an atomic NBSP whose `extraWidth` made up the
-rest of the object's width (#201), which lays out as the box does in every engine's profile (`src/layout.test.ts`; a
-stand-in Canvas fuzz of 220,000 layouts found no difference, 2026-09-30). A box of width 0 is a box, with a break on
-both sides, as an empty inline-block of width 0 is; Firefox places one wherever it falls, even on a line that already
-overflows (`CanPlaceFrame`, `nsLineLayout.cpp:1264-1269`), as the Gecko profile does for any atomic item of width 0
-(`paddedOpeningFit`, whose `'both'` ports that function), where Chrome and Safari move it to the next line. A negative width is refused, as one that isn't finite is. An
-inline-block of width 0 with a negative right margin lays out as a negative `extraWidth` does in Firefox 156.0.1 and
-webkit-host, but Chrome 154.0.8037.57 ends a line at a space that overflows before it and starts the next line with the
-box, where the negative width would bring the line back within its width, and fits a word after it that rich inline
-moves to the next line (`one two`, a -15px box, `three four five` in 16px Arial, `one two three` at 77.5px): 51 of 884
-layouts of four shapes at 10-120px differ in Chrome and none in the others (2026-09-30). No app was found that needs
-one; the negative values apps pass are `extraWidth`s relative to a stand-in character. That reopens if one does.
+rest of the object's width (#201), which takes the box's lines and line widths in every engine's profile
+(`src/layout.test.ts`; a stand-in Canvas fuzz of 220,000 layouts found no difference, 2026-09-30), though not always its
+fragment widths: white space that hangs comes out of a stand-in's text width and never out of a box
+(ENGINE_FOLLOWUPS.md, Rich-inline item edges). A box of width 0 is a box, with a break on both sides, as an empty
+inline-block of width 0 is. One that falls past a line's end, after a space that doesn't fit or an atomic item wider
+than the line, moves to the next line in Chrome and Safari, as any atomic item does. Firefox places an empty frame there
+(`CanPlaceFrame`, `nsLineLayout.cpp:1264-1269`) without counting the break after it as one that fits (`:1260`,
+`:1506-1513`), so a frame with a width that comes next, text or white space in a text node of its own, sends the line
+back to its last break that fit, and the empty frame starts the next line with it; it stays where the line ends without
+that (`keepsEmptyAtomic()` in `src/rich-inline.ts` has the cases). `ab `, a 0px box and `cd` in 16px Arial at 20.25px
+are `ab` and then the box with `cd`, and with ` cd` the box stays after `ab`. The Gecko profile ports this for any
+atomic item of width 0: on 103 layouts of 86 such paragraphs it puts every box on Firefox 156.0.1's line, where it had
+put 52 on another line, 15 of them with another line count (2026-09-30, #TBD; the harness now records a box of width 0
+by its top). That reopens if a Firefox build changes `CanPlaceFrame` or how a text frame trims the white space it breaks
+after (`nsTextFrame.cpp:11202-11229`). A negative width is refused, as one that isn't finite is. An inline-block of
+width 0 with a negative right margin lays out as a negative `extraWidth` does in Firefox 156.0.1 and webkit-host, but
+Chrome 154.0.8037.57 ends a line at a space that overflows before it and starts the next line with the box, where the
+negative width would bring the line back within its width, and fits a word after it that rich inline moves to the next
+line (`one two`, a -15px box, `three four five` in 16px Arial, `one two three` at 77.5px): 51 of 884 layouts of four
+shapes at 10-120px differ in Chrome and none in the others (2026-09-30). No app was found that needs one; the negative
+values apps pass are `extraWidth`s relative to a stand-in character. That reopens if one does.
 
 Heights stay the app's (Limits), and with `vertical-align: top` or `bottom` on every box a line is as tall as the
 paragraph's line-height or its tallest box, whichever is taller, to within one layout unit: about 13,000 lines with

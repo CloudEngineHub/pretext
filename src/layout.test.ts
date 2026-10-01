@@ -4070,12 +4070,55 @@ describe('rich-inline invariants', () => {
             }
           }
         }
-        // Firefox places a box of width 0 where it falls, even after a space that doesn't fit, where
-        // Chrome and Safari move it to the next line (paddedOpeningFit 'both', Gecko's CanPlaceFrame).
-        const prepared = prepareRichInline([text('ab '), { width: 0 }, text('cd')])
-        const fragments: number[] = []
-        walkRichInlineLineRanges(prepared, measureWidth('ab', FONT) + 1, range => { fragments.push(range.fragments.length) })
-        expect({ engine: profile.lineBreakScan, fragments }).toEqual({ engine: profile.lineBreakScan, fragments: e === 2 ? [2, 1] : [1, 2] })
+        // A box of width 0 that sticks out of the line, after a space that doesn't fit or an atomic
+        // item wider than the line. Chrome and Safari move it to the next line as any other.
+        // Firefox places it there (paddedOpeningFit 'both', Gecko's CanPlaceFrame) and keeps it,
+        // unless a frame with a width comes next, which sends the line back to its last break that
+        // fit, before the box (keepsEmptyAtomic). Each row matches Firefox 156.0.1 (2026-09-30):
+        // the items, the options, each line's items in Firefox, and whether the line is narrower
+        // than `a` (else `ab` and a pixel wide).
+        const zero = { width: 0 }
+        const chip: RichInlineItem = { text: 'abcdef', font: FONT, break: 'never' }
+        const preWrap = { whiteSpace: 'pre-wrap' } as const
+        type Row = [items: Array<RichInlineItem | RichInlineBox>, options: Parameters<typeof prepareRichInline>[1], lines: number[][], narrow?: true]
+        const emptyBoxRows: Row[] = [
+          // Text right after it, a second empty box between them, a soft hyphen or a tab: the box moves down.
+          [[text('ab '), zero, text('cd')], {}, [[0], [1, 2]]],
+          [[text('ab '), zero, zero, text('cd')], {}, [[0], [1, 2, 3]]],
+          [[text('ab '), zero, text('\u00ADcd')], {}, [[0], [1, 2]]],
+          [[chip, zero, text('cd')], {}, [[0], [1, 2]]],
+          [[chip, zero, text('\tcd')], preWrap, [[0], [1, 2], [2]]],
+          // The paragraph's end, an atomic item with a width, or text that starts with a space of its
+          // own node, a ZWSP, a line feed or preserved spaces: the box stays.
+          [[text('ab '), zero], {}, [[0, 1]]],
+          [[text('ab '), zero, { text: 'cd', font: FONT, break: 'never' }], {}, [[0, 1], [2]]],
+          [[text('ab '), zero, text(' cd')], {}, [[0, 1], [2]]],
+          [[text('ab '), zero, text('\u200Bcd')], {}, [[0, 1], [2]]],
+          [[chip, zero, text(' cd')], {}, [[0, 1], [2]]],
+          [[chip, zero, text('\ncd')], preWrap, [[0, 1, 2], [2]]],
+          [[chip, zero, text('  cd')], preWrap, [[0, 1, 2], [2]]],
+          // White space in a node of its own after it is a frame with a width: the box moves down.
+          [[text('ab '), zero, text(' '), text('cd')], {}, [[0], [1], [3]]],
+          [[text('ab '), zero, text(' '), zero], {}, [[0], [1, 3]]],
+          [[text('ab '), zero, text(' '), { width: 5 }], {}, [[0], [1, 3]]],
+          // White space before it after content already past the line's end breaks the line itself.
+          [[chip, text(' '), zero], {}, [[0], [2]]],
+          [[chip, text(' '), zero], preWrap, [[0, 1], [2]]],
+          [[chip, zero, text(' '), zero, text('cd')], preWrap, [[0, 1, 2], [3, 4]]],
+          // After text wider than the line the first break is the one after the box, which stays.
+          [[text('a'), zero, text('b')], {}, [[0, 1], [2]], true],
+          // Preserved spaces that hang leave the box inside the line.
+          [[text('ab '), zero, text('cd')], preWrap, [[0, 1], [2]]],
+        ]
+        for (const [items, options, gecko, narrow] of emptyBoxRows) {
+          const prepared = prepareRichInline(items, options)
+          const lines: number[][] = []
+          const width = narrow === true ? measureWidth('a', FONT) - 1 : measureWidth('ab', FONT) + 1
+          walkRichInlineLineRanges(prepared, width, range => { lines.push(range.fragments.map(f => f.itemIndex)) })
+          const shown = { engine: profile.lineBreakScan, items, options }
+          if (e === 2) expect({ ...shown, lines }).toEqual({ ...shown, lines: gecko })
+          else expect({ ...shown, firstLineHasBox: lines[0]!.includes(items.indexOf(zero)) }).toEqual({ ...shown, firstLineHasBox: false })
+        }
       }
     } finally {
       Object.assign(profile, previous)

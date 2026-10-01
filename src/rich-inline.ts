@@ -960,6 +960,39 @@ function retreatsBefore(flow: InternalPreparedRichInline, itemIndex: number): bo
   return (kind === TEXT && (advances === null || advances.length === 1)) || (kind === PRESERVED_SPACE && segments[0]!.length === 1)
 }
 
+// Whether Gecko keeps the empty atomic item `itemIndex`, which it places though it sticks out of
+// the line (CanPlaceFrame, nsLineLayout.cpp:1264-1269), on that line. The break after a frame that
+// sticks out doesn't count as one that fits (:1260), and the line remembers its last break that
+// fits, or with none its first (NotifyOptionalBreakPosition, :1506-1513). A text frame with a width
+// that comes next sticks out too and sends the line back there (:1323-1334;
+// nsBlockFrame.cpp:5361-5379): to before the empty item where white space or an atomic item comes
+// before it, whose break the line had, but to after it where text does, which leaves no break at
+// its end (`afterText`). The line keeps the item where it ends without going back: at the
+// paragraph's end, before an atomic item with a width, which moves down whole (:1337-1341), and
+// before text whose first piece has no width, an empty frame too. That piece is a ZWSP, a hard
+// break, preserved spaces, which hang (nsTextFrame.cpp:11216-11229), or the collapsible space that
+// starts the text's own node, trimmed where the frame breaks after it (:11202-11213). White space
+// in a node of its own, before an atomic item or other text, is a whole frame, which keeps its
+// width (gapItemIndex names the node). An item that takes no room, as one of soft hyphens, is
+// passed over.
+function keepsEmptyAtomic(flow: InternalPreparedRichInline, itemIndex: number, afterText: boolean): boolean {
+  if (afterText) return true
+  for (let k = itemIndex + 1; k < flow.items.length; k++) {
+    const next = flow.items[k]
+    if (next === undefined) continue
+    if (next.gapItemIndex >= 0 && next.gapItemIndex !== k) return false
+    if (next.break === 'never') {
+      if (next.naturalWidth + next.extraWidth === 0) continue
+      return true
+    }
+    if (next.gapItemIndex === k) return true
+    if (!next.establishesLine) continue
+    const kind = next.lineData.segmentFlags[0]! & KIND_BITS
+    return kind === ZERO_WIDTH_BREAK || kind === HARD_BREAK || kind === PRESERVED_SPACE
+  }
+  return true
+}
+
 // The line state a walked item takes and leaves, one for every walk.
 const itemLine: ItemLine = createItemLine(false)
 
@@ -1081,9 +1114,27 @@ function stepRichInlineLine(
 
       const occupiedWidth = item.naturalWidth + item.extraWidth
       const totalWidth = gapBefore + occupiedWidth
-      // Gecko places an empty frame wherever it falls (CanPlaceFrame, which 'both' ports), where
-      // Blink and WebKit move an atomic item of width 0 to the next line as any other.
-      if (hasContent && totalWidth > remainingWidth + lineFitEpsilon && !(paddedOpeningFit === 'both' && occupiedWidth === 0)) break
+      // Blink and WebKit move an atomic item of width 0 that doesn't fit to the next line as any
+      // other. Gecko places an empty frame though it sticks out of the line (CanPlaceFrame, which
+      // 'both' ports). It sticks out where the content before it ends past the line's end with the
+      // collapsed space before the item, which a line end trims no more once the item follows it
+      // (nsLineLayout.cpp:1017-1020), and without the preserved spaces that hang, which end at the
+      // line's end (nsTextFrame.cpp:11216-11229). White space that ends a text run after content
+      // already past the line's end breaks the line after itself (:11443-11456), so the item starts
+      // the next line; else the line keeps the item unless it goes back to a break before it
+      // (keepsEmptyAtomic).
+      if (hasContent && totalWidth > remainingWidth + lineFitEpsilon) {
+        if (paddedOpeningFit !== 'both' || occupiedWidth !== 0) break
+        const contentWidth = lineWidth - lineHangWidth
+        const fitLimit = safeWidth + lineFitEpsilon
+        if (contentWidth + gapBefore > fitLimit) {
+          const afterWhiteSpace = gapBefore > 0 || lineHangWidth > 0
+          if (afterWhiteSpace && contentWidth > fitLimit) break
+          let before = itemIndex - 1
+          while (flow.items[before] === undefined) before--
+          if (!keepsEmptyAtomic(flow, itemIndex, !afterWhiteSpace && flow.items[before]!.break !== 'never')) break
+        }
+      }
 
       collectItemRest(fragments, itemIndex, item, EMPTY_LAYOUT_CURSOR, gapBefore, gapItemIndex, occupiedWidth)
       hasContent = true
