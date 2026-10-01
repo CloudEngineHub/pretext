@@ -416,11 +416,15 @@ export function analyzeText(
       // frame (transformText in src/gecko-line-breaks.ts). The white space the scan's text run left
       // out of such a run leaves the source too, and so does white space before only bidi controls
       // at the end, which the line end trims, and a CR or FF, which ends a run and takes no room.
-      // A break is never at white space, and the unit after a CR or FF that had one has its own
-      // unless it is a combining mark, so the other units keep theirs. Where the white space right
-      // after a soft hyphen leaves, the break after it stays that white space's, which draws no
-      // hyphen (SOFT_HYPHEN_BREAK): Gecko hyphenates only at a soft hyphen that ends what its text
-      // run left out (GetHyphenationBreaks, nsTextFrame.cpp:4436-4443).
+      // The other units keep their breaks: none is at white space, and the unit after a CR or FF
+      // has its own, as a CR is one of nsLineBreaker's breakable spaces, whose run gives the unit
+      // after it a break (IsSegmentSpace, nsLineBreaker.h:260-264; nsLineBreaker.cpp:318-327), and
+      // an FF is UAX #14's BK, which the word breaker breaks after. Only a combining mark there has
+      // none, since a break inside a cluster holds only after a space (SetPotentialLineBreaks,
+      // gfxTextRun.cpp:219-226), so the break Firefox has before the CR is lost (ENGINE_FOLLOWUPS.md).
+      // Where the white space right after a soft hyphen leaves, the break after it stays that white
+      // space's, which draws no hyphen (SOFT_HYPHEN_BREAK): Gecko hyphenates only at a soft hyphen
+      // that ends what its text run left out (GetHyphenationBreaks, nsTextFrame.cpp:4436-4443).
       const leftOut = gecko.leftOut
       const trailing = !preserve && (dropsBidiControl || leftOut !== null) ? getTrailingCollapsibleStart(source, 0, profile) : source.length
       if (leftOut !== null || trailing < source.length) {

@@ -160,10 +160,10 @@ export function isEastAsianSegmentBreak(text: string, start: number, end: number
 }
 
 // The scan transforms a text node's text as one text frame's. Firefox transforms a frame at a
-// time, each from the white-space state the frame before it left (nsTextFrame.cpp:2515-2518,
-// :2590-2592), and bidi resolution splits a text node into a frame for each level run
-// (nsBidiPresUtils.cpp:1037-1053). A frame that starts at a character the text run drops ends
-// the white-space run there (nsTextFrameUtils.cpp:370-379), and the first line trims the white
+// time, each from the white-space state the frame before it left (mNextRunContextInfo,
+// nsTextFrame.cpp:2515-2518), and bidi resolution splits a text node into a frame for each level
+// run (nsBidiPresUtils.cpp:1037-1053). A frame that starts at a character the text run drops ends
+// the white-space run there (nsTextFrameUtils.cpp:370-379), and a line's start trims the white
 // space a frame starts with while the line holds nothing (nsTextFrame.cpp:10904-10944). A
 // dropped character starts a frame only where it is a bidi control that starts a level run, and
 // whether one does turns on the paragraph's direction, which Pretext doesn't take: after a
@@ -202,8 +202,11 @@ function transformText(input: string, is8bit: boolean, preserveWhiteSpace: boole
         // stays in the text run, which gives it no glyph and no advance: it skips a control
         // character it doesn't draw as a hexbox, which is never CR and, in release and beta builds,
         // no other one either (gfxFont::SplitAndInitTextRun, gfxFont.cpp:3620-3627 and :3874-3892;
-        // layout.css.control-characters.visible, StaticPrefList.yaml:10926-10928). Every Canvas
-        // measures it as a space, so a layout of the source leaves it out.
+        // layout.css.control-characters.visible, StaticPrefList.yaml:10926-10929). Every Canvas
+        // measures it as a space (Firefox's: CanvasRenderingContext2D.cpp:4634-4637), so a layout
+        // of the source leaves it out. Left in as a control of no advance, as the profile keeps the
+        // other controls Firefox hides, it takes lines Firefox doesn't give it and slows the
+        // layout of text with CRLF (RESEARCH.md, Dead Ends).
         if (ch === 0x0d || ch === 0x0c) (leftOut ??= new Uint8Array(len))[i] = 1
         orig[n++] = i
         inWhitespace = false
