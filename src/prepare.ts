@@ -262,7 +262,7 @@ export function measureAnalysis(
   // preparation cannot see the page direction. Returns the zero-width breaks
   // between the text and the space, or null when the text takes no kerning.
   function getFollowingSpaceTail(analysisIndex: number, text: string): string | null {
-    if (engineProfile.kerningReach !== 'following-space' || hasLetterSpacing) return null
+    if (!engineProfile.measureTextWithFollowingSpace || hasLetterSpacing) return null
     let next = analysisIndex + 1
     while (next < segmentCount && (flags[next]! & KIND_BITS) === ZERO_WIDTH_BREAK) next++
     if (next >= segmentCount) return null
@@ -498,7 +498,7 @@ export function measureAnalysis(
         previousJoinableMetrics = textMetrics
         if (hasLetterSpacing) spacingGraphemeCount = countRenderedSpacingGraphemes(text, kind, engineProfile.graphemeTable)
         let followingSpaceKerning = followingSpaceTail === null || measuredWithSpace ? 0 : getTailKerning(text + followingSpaceTail)
-        if (engineProfile.kerningReach === 'script-run') {
+        if (engineProfile.kernsSpacesInScriptRun) {
           const afterSpace = mi > 0 && isSpaceKind(flags[mi - 1]! & KIND_BITS)
           const beforeSpace = mi + 1 < segmentCount && isSpaceKind(flags[mi + 1]! & KIND_BITS)
           if ((afterSpace || beforeSpace) && (oneDirection ??= !rightToLeftLetterRe.test(normalized) && !explicitBidiControlRe.test(normalized))) {

@@ -67,19 +67,16 @@ export type EngineProfile = {
   // made Firefox prepare new text much slower (RESEARCH.md, Break Opportunities From
   // Engine Data; Decisions Log).
   prefixFitMinWidth: number
-  // What a word's kerning reaches past the word itself, where Canvas measures words apart.
-  // 'following-space': WebKit measures a text item together with a directly following U+0020
-  // and subtracts one unshaped space, so the item keeps its kerning with that space wherever
-  // the line ends. 'script-run': Blink's layout shapes each run of one script and direction in
-  // a paragraph in one call, its spaces included, so in a font whose kerning names the space
-  // glyph a word kerns with the space after it and a space with the word after it, where both
-  // are in one run. Its Canvas shapes word by word, cut at each U+0020, so that a string draws
-  // as its words drawn apart (PlainTextNode::SegmentWord and NextWordEndIndex,
-  // plain_text_node.cc:84-155, 365-399), and reports neither. Preparation asks Canvas for the
-  // kerning (getSpaceKerning) and adds it to the word before the space and to the space.
-  // 'none': Gecko shapes words without their spaces. One field for the three, since one more
-  // field on the profile slowed Chrome's line functions (RESEARCH.md, JavaScript Engines).
-  kerningReach: 'following-space' | 'script-run' | 'none'
+  // WebKit measures a text item together with a directly following U+0020 and
+  // subtracts one unshaped space, so the item keeps its kerning with that space
+  // wherever the line ends. Gecko shapes words without their spaces.
+  measureTextWithFollowingSpace: boolean
+  // Blink's layout shapes each run of one script and direction in one call, its spaces
+  // included (HarfBuzzShaper::Shape, harfbuzz_shaper.cc:1063-1104), so in a font whose kerning
+  // names the space glyph a word kerns with the space after it and a space with the word after
+  // it. Its Canvas cuts a string at each U+0020 and reports neither (PlainTextNode::SegmentWord,
+  // plain_text_node.cc:365-399), so preparation asks Canvas for it (getSpaceKerning).
+  kernsSpacesInScriptRun: boolean
   // WebKit and Gecko letter-space the visible discretionary hyphen itself.
   // Blink shapes it separately, without spacing.
   letterSpaceDiscretionaryHyphen: boolean
@@ -515,7 +512,7 @@ function splitsSpaceKerning(character: string, kerning: number, measurement: Fon
 }
 
 // The kerning Blink's layout gives a text segment's edges with a U+0020 beside them, which its
-// Canvas, cutting words at U+0020, doesn't report (EngineProfile.kerningReach). Blink draws
+// Canvas, cutting words at U+0020, doesn't report (EngineProfile.kernsSpacesInScriptRun). Blink draws
 // U+2028 with the space glyph (HarfBuzzGetGlyph, harfbuzz_face.cc:103-113) and its Canvas
 // doesn't cut there, so a string with U+2028 for the space is shaped whole, legacy `kern` tables
 // included, which the Canvas kerning settings leave out: `fontKerning = 'normal'` and
@@ -594,7 +591,8 @@ function buildEngineProfile(): EngineProfile {
     graphemeTable: engine === 'webkit' ? 'apple/char' : engine === 'gecko' ? 'gecko/char' : 'chromium/char',
     lineFitEpsilon: engine === 'webkit' ? 1 / 64 : 0.005,
     prefixFitMinWidth: engine === 'webkit' ? 0 : engine === 'gecko' ? 80 : Infinity,
-    kerningReach: engine === 'webkit' ? 'following-space' : engine === 'blink' ? 'script-run' : 'none',
+    measureTextWithFollowingSpace: engine === 'webkit',
+    kernsSpacesInScriptRun: engine === 'blink',
     letterSpaceDiscretionaryHyphen: engine !== 'blink',
     shapesMarksAcrossSoftHyphen: engine === 'blink',
     unfitHyphenRetreat: engine === 'blink' ? 'reduced-width' : engine === 'gecko' ? 'full-width' : 'none',
