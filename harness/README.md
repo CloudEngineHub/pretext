@@ -246,4 +246,5 @@ which has no rectangle, but through the text around it; Chrome's UI language, an
 `lang`; rendering other than macOS's, though Android and Windows are 65% of page views (`weights.json`); text chat users
 wrote (the sample's chat draws are stand-ins); or the demos' painted layout. No planted defect guards the watchdog's
 kill, the bench's shuffle and its separate compiles (each copy of the library compiled in a module of its own),
-Firefox's start-up hold, the page passing the browser's name to the recorder, or the cap on a job's browser.
+Firefox's start-up hold, the page passing the browser's name to the recorder, or the cap on a job's browser beyond its
+kill needing no `ps` table.

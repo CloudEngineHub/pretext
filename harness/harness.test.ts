@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { srcOf } from './bench/lib.ts'
-import { fontsKey, keyOf, type Environment } from './browsers.ts'
+import { fontsKey, keyOf, kill, type Environment, type Launched } from './browsers.ts'
 import { icuEntries, rustByteStrings } from './break-data.ts'
 import { check, drift, equal, gate, parseArgs, record, type Io, type Options } from './cli.ts'
 import { groupLines, recordedLines, scanLineEnds, searchLineEnds, type RectsAt } from './observe.ts'
@@ -686,6 +686,21 @@ describe('the commands, with a stand-in browser', () => {
     const same = browser(root, () => right)
     expect(await equal('chrome', list, new Map(list.map(c => [c.id, 'smoke'])), LIB, { ...options, lib: 'here' }, same)).toBe(false)
   })
+})
+
+describe('a browser past its memory bound', () => {
+  test('the processes last found are killed though ps fails: a page that allocates without end would keep its browser until the machine stalls', async () => {
+    const child = Bun.spawn(['sleep', '30'], { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' })
+    let cleaned = false
+    const launched: Launched = {
+      roots: () => 'quit', known: [{ pid: child.pid, ppid: process.pid, command: 'sleep 30' }], stop: () => Promise.resolve(),
+      cleanup: () => { cleaned = true },
+    }
+    // As under a load average above 200.
+    kill(launched, () => { throw new Error('spawnSync ps ETIMEDOUT') })
+    await child.exited
+    expect([child.signalCode, cleaned]).toEqual(['SIGKILL', true])
+  }, 10_000)
 })
 
 describe('the browser\'s break data', () => {
