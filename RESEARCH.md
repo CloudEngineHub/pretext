@@ -1210,7 +1210,10 @@ after `aa`, and 22 pinned cases need them, all Balinese and Batak vowel killers 
 holding a code unit Firefox's `HasRTLChars` flags, no corpus or chat text among them, at about 150-200ns a unit in
 Firefox 156. Over 63 million strings (#365 lists the kinds) the guarded scan equaled resolving everywhere, and the unit
 tests fail without each rule the argument uses. This is the method to use for any port claimed exact: a written
-argument, a fuzz against the unguarded path, and a unit test per rule.
+argument, a fuzz against the unguarded path, and a unit test per rule. One rule, that in pre-wrap every line starts a
+text run, shows only in the scan's cluster starts, so its test reads the scan: without it the scan's flags differ on
+3,097 of 2.4 million scans of random strings and the analysis on none, since a hard break ends the segment before the
+line's first unit either way (2026-09-30); dropping the rule would rest the guard's claim on the analysis.
 
 Rejected: resolving wherever a cluster holds several code points, exact with a shorter argument, but vowel marks and
 emoji make that 37% of Arabic paragraphs and 57% of the chat's right-to-left texts, saving 5-15%; and setting the whole

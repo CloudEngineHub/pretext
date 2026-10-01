@@ -15,6 +15,7 @@ type AnalysisModule = typeof import('./analysis.ts')
 type LayoutModule = typeof import('./layout.ts')
 type LineBreakModule = typeof import('./line-break.ts')
 type LineBreaksModule = typeof import('./line-breaks.ts')
+type GeckoLineBreaksModule = typeof import('./gecko-line-breaks.ts')
 type MeasurementModule = typeof import('./measurement.ts')
 type RichInlineModule = typeof import('./rich-inline.ts')
 type SegmentMetrics = ReturnType<MeasurementModule['getSegmentMetrics']>
@@ -44,6 +45,8 @@ let analyzeText: AnalysisModule['analyzeText']
 let SEGMENT_KINDS: AnalysisModule['SEGMENT_KINDS']
 let KIND_BITS: AnalysisModule['KIND_BITS']
 let getBlinkLineBreaks: LineBreaksModule['getBlinkLineBreaks']
+let CLUSTER_START: LineBreaksModule['CLUSTER_START']
+let getGeckoLineBreaks: GeckoLineBreaksModule['getGeckoLineBreaks']
 let prepareRichInline: RichInlineModule['prepareRichInline']
 let layoutNextRichInlineLineRange: RichInlineModule['layoutNextRichInlineLineRange']
 let materializeRichInlineLineRange: RichInlineModule['materializeRichInlineLineRange']
@@ -253,13 +256,14 @@ class TestOffscreenCanvas {
 
 beforeAll(async () => {
   Reflect.set(globalThis, 'OffscreenCanvas', TestOffscreenCanvas)
-  const [mod, lineBreakMod, measurementMod, richInlineMod, analysisMod, lineBreaksMod] = await Promise.all([
+  const [mod, lineBreakMod, measurementMod, richInlineMod, analysisMod, lineBreaksMod, geckoLineBreaksMod] = await Promise.all([
     import('./layout.ts'),
     import('./line-break.ts'),
     import('./measurement.ts'),
     import('./rich-inline.ts'),
     import('./analysis.ts'),
     import('./line-breaks.ts'),
+    import('./gecko-line-breaks.ts'),
   ])
   ;({
     prepare,
@@ -278,7 +282,8 @@ beforeAll(async () => {
   ;({ countPreparedLines, walkPreparedLinesRaw } = lineBreakMod)
   ;({ getSegmentFit, getFontMeasurement, getPreparationLanguage, getEngineProfile } = measurementMod)
   ;({ analyzeText, SEGMENT_KINDS, KIND_BITS, SPACED, ONE_CLUSTER, UNBROKEN } = analysisMod)
-  ;({ getBlinkLineBreaks } = lineBreaksMod)
+  ;({ getBlinkLineBreaks, CLUSTER_START } = lineBreaksMod)
+  ;({ getGeckoLineBreaks } = geckoLineBreaksMod)
   ;({ prepareRichInline, layoutNextRichInlineLineRange, materializeRichInlineLineRange, measureRichInlineStats, walkRichInlineLineRanges } = richInlineMod)
 })
 
@@ -595,6 +600,11 @@ describe('boundary-policy regressions', () => {
     // A level run can start at white space the scan drops, here the space before the LF, and then
     // splits the text run at the LF, kept as a space inside U+0600's cluster, before the mark.
     expect(analyzeText('\u0600 \n\u0301', geckoProfile).flags[2]! & UNBROKEN).toBe(0)
+    // In pre-wrap each line is resolved apart and starts a text run, so a mark right after a line
+    // feed starts a cluster where Firefox resolves levels. Only the scan's cluster starts show
+    // it, as a hard break ends the segment before the mark either way.
+    expect(getGeckoLineBreaks('\u05D0\n\u0301', true, false, 'gecko/char').breaks[2]).toBe(CLUSTER_START)
+    expect(getGeckoLineBreaks('a\n\u0301', true, false, 'gecko/char').breaks[2]).toBe(0)
   })
 
   test('small kana and U+30FC stay with the text before them where the profile resolves them to NS', () => {
