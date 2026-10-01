@@ -182,7 +182,7 @@ Main keeps one measurement context, replaced only when preparation's language ch
 
 ### Emoji correction
 
-The correction is one width per font, read once from a DOM span, but the gap it corrects depends on the device pixel ratio, so it may go stale when a window moves to another display (inferred, never measured; #321's side finding 6). In a worker it stays 0 (PLATFORM_BUGS.md; #292), and a hand-off from the page is on the API discussion's list (TODO.md).
+The correction is one width per font, read once from a DOM span and kept until `clearCache()` or a change of language, but the gap it corrects depends on the device pixel ratio times the page zoom: for a 16px Arial emoji, Chrome's Canvas says 20px at every ratio and its page 20, 17.6, 16 and 16px at ratios 1, 1.25, 1.5 and 2, and Firefox's Canvas 21px and its page 21px at ratio 1 and 16px at 2. So once the ratio crosses from 1.25 or under to 1.5 or over, or back, as a page zoomed past 125% on a 1x display does (a window dragged between a 1x and a Retina display is inferred to; both displays here are Retina), every handle, and every later prepare in a font already read, is off by 4-5px an emoji until `clearCache()` and a new prepare. Over the sample's 294 plain in-claims cases with an emoji, nearly all with one, prepared at ratio 2 and laid out at 1: 6 break wrongly in Chrome and 6 in Firefox where none did (about 2% of their weight), 1 with a wrong line count, and about three quarters of bubbles sized to the widest line are 4-5px too narrow for it, which the browser then wraps; prepared at 1 and laid out at 2, they are that much too wide. With three emoji in the emoji's place, 6-8 have a wrong height and 17-22 a wrong break (Chrome 154.0.8037.57 with its zoom changed under a live page, Firefox 156.0.1 at `layout.css.devPixelsPerPx` 1 against 2, 2026-09-30). Read at the ratio it's used at, the correction leaves nothing at ratios 1, 2 and 3 and up to 0.6px an emoji at fractional ones. A fix reads the ratio when preparing, a new hidden input and so the maintainer's call (RESEARCH.md, Limits), and must drop the cached fit advances too, which hold the old correction (#321's side finding 6 inferred this, unmeasured). In a worker it stays 0 (PLATFORM_BUGS.md; #292), and a hand-off from the page is on the API discussion's list (TODO.md).
 
 ### Canvas answers that differ from the page
 
@@ -215,7 +215,7 @@ Check each with `bun harness explain`, then drop it.
 ### Never measured
 
 - Whether a line or piece measured with Canvas matches its painted DOM width in installed browsers, the premise of painting one element per line, as the Markdown chat does.
-- The checks from #321's decision 7 that the per-engine rebuild didn't settle: Chrome's whole-string widths under `optimizeLegibility`, held-out Chrome cases at a real DPR 2, whether the emoji correction changes between DPR 1 and 2, and the U+2010 width in Amiri and Noto Naskh Arabic.
+- The checks from #321's decision 7 that the per-engine rebuild didn't settle: Chrome's whole-string widths under `optimizeLegibility`, held-out Chrome cases at a real DPR 2, and the U+2010 width in Amiri and Noto Naskh Arabic.
 - Whether an iPhone holds 100k chat messages now (RESEARCH.md, Dead Ends, The Markdown Chat At Scale): offline on 2026-09-16, the branch that became #340, plus three memory cuts that never landed, retained 565-625 MiB in JavaScriptCore, against 858 MiB for main before #340.
 
 ## Deferred engine decisions

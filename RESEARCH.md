@@ -81,10 +81,12 @@ Inside these, fixes land on judgement; outside, ask the maintainer first.
   engine is never refused or shown nothing. A fringe browser gets a fix of its own only when it's extremely cheap and
   also serves the major browsers; unrecognized engines take Blink's profile; runtimes such as React Native need only not
   crash or do anything catastrophically worse than main before #340; Firefox ESR, old browsers and quirks mode get
-  nothing that costs complexity; the WebKit profile follows Safari 27 only (Decisions Log). Windows is untested, and
-  sampling platforms the project can't run (Windows, Android) stays modest, since fewer Pretext users target them. For
-  the harness's real-usage sample (harness/README.md, Two kinds of set), choosing which real text it holds matters more
-  than adding platforms (2026-09-24).
+  nothing that costs complexity; the WebKit profile follows Safari 27 only (Decisions Log, 2026-09-16, has what that
+  costs Safari 26). Windows and Android are untested, not untestable: an Android emulator is installed on the
+  development Mac, and no harness run has used it. Sampling them stays modest, since fewer Pretext users target them.
+  For the harness's real-usage sample (harness/README.md, Two kinds of set), choosing which real text it holds matters
+  more than adding platforms (2026-09-24). What moves with the device pixel ratio, page zoom and text-only zoom is
+  under Part 2, Measurement Model.
 - **Keep fixing** common app text (Latin, CJK, Arabic, Hebrew, emoji, chat punctuation, URLs), rich inline, the
   documented CSS and the major browsers; rare Unicode (NEL, controls) only when the fix is cheap and costs no other
   case. Document, don't chase, browser bugs, effects Canvas can't see and text shapes only fuzzing produces. Speed may
@@ -434,6 +436,27 @@ which reproduced Core Text's widths on all but 17 of 2.6 million items (emulatio
 integer app units, 60 per px, rounded per glyph: 16px Courier New `aaaa bbbb` is one line at 86.4px, two at 86.38px. The
 WebKit profile fits with WebKit's 1/64 px, the Blink and Gecko profiles with 0.005px, no engine's arithmetic; Chrome's
 grid needs a DPR `layout()` doesn't read (ENGINE_FOLLOWUPS.md).
+
+Canvas measures at the CSS size whatever the device pixel ratio or page zoom (Blink resets a Canvas font's size "so we
+skip zoom and minimum font size", `canvas_rendering_context_2d.cc:702-706`), and the page lays text out at the size
+times both, so Pretext rests on advances scaling with size. On macOS they do. With the real-usage sample
+(harness/README.md, Two kinds of set) recorded and predicted at each setting, the share of its draws inside Pretext's
+claims that fail was 0.49-0.58% in Chrome at ratios 0.5 to 3.5 and at page zooms of 67% to 200% at ratio 2 (0.49% at
+ratio 2 itself; to Blink, zoom and ratio are one number), 0.13-0.17% in Firefox at ratios 1 to 3, and 0.08-0.09% in
+webkit-host at page zooms of 85% to 150% (Chrome 154.0.8037.57, Firefox 156.0.1, webkit-host, 2026-09-30; other
+operating systems unmeasured). Predictions for text without emoji didn't move with the ratio. What doesn't hold:
+- The emoji correction is read at one ratio and goes stale at another (ENGINE_FOLLOWUPS.md, Emoji correction).
+- Chrome's worst setting, a ratio of 0.9 (0.58%), floors some whole font sizes a hundredth of a zoomed px low, as it
+  floors fractional ones at ratio 2 (Engine Facts, Chrome).
+- In webkit-host, `system-ui` and `-apple-system` lists, outside the claims, that pass at 100% zoom stop passing: 111
+  more of the sample's cases fail at 110% and 328 at 150%.
+- Text-only zoom isn't zoom to Canvas. Firefox's Zoom Text Only and WebKit's text zoom at 120% paint text larger than
+  the size Pretext is given while widths and `devicePixelRatio` stay, and about half the paragraphs break otherwise
+  (253 of 521 draws in Firefox, 250 of 520 in webkit-host); they scale a px `line-height` too, and WebKit a px
+  `letter-spacing`. A minimum font size does the same to text under it, in Safari as in Chrome and Firefox (Content
+  Language And Fonts): at a 14px minimum, webkit-host failed 2.9% of the in-claims weight, where 9.9% of the sample's
+  weight is text under 14px. iPhone Safari's text autosizing does it to blocks wider than the viewport unless the page
+  sets `-webkit-text-size-adjust: 100%` (25 more failures of 10,345 draws in the iOS 26.0 simulator).
 
 Emergency breaks follow each engine's loop: Chrome lays the line out again with a break allowed between any two
 graphemes (`line_breaker.cc:4258-4330`), Firefox takes a cluster start only while the line has no ordinary break
@@ -2336,9 +2359,19 @@ decisions for the maintainer.
   only painting a line without its paragraph's bidi context goes wrong.
 - **2026-09-16: the WebKit profile follows Safari 27 only.** Safari 26, on macOS and iOS 26, breaks differently around
   curly quotes, guillemets, keep-all punctuation, U+2028 and U+2029, and an overflowing first character; following 27
-  cost it about 2,900 left-to-right and 1,150 right-to-left line counts in the old test suite, mostly at widths
-  narrower than one character. A profile can't tell the two apart: only Safari's own user agent names a version, not
-  the other WebKit browsers on iPhone and iPad.
+  cost it about 2,900 left-to-right and 1,150 right-to-left line counts in the old test suite, mostly at widths narrower
+  than one character. On real text only keep-all shows: in Safari 26.0.1 (the iOS 26.0 simulator, a page with a viewport
+  and `text-size-adjust: 100%`, 2026-09-30) the real-usage sample's draws inside Pretext's claims fail as often under
+  `word-break: normal` as in Safari 27's WebKit (23 of 10,029 against 24, 0.08% by weight) and 26 of 316 under keep-all,
+  about a quarter by weight, against none: every Chinese or Japanese keep-all paragraph that wraps (19 of 23) and 7 of
+  281 Hangul ones, 10 of the 26 with a wrong line count. Of the 23, one is Safari 26's alone, a curly quote beside
+  Hangul, and no guillemet case fails. The user agent can't tell the two apart, since only Safari's own names a version,
+  not the other WebKit browsers on iPhone and iPad; a feature can: `typeof ReadableStream.from` is `'function'` in
+  WebKit 7625 (Safari 27) and `'undefined'` through 7624.5 (Safari 26.x), on the page and in a worker, the boundary at
+  which `BreakablePositions.h` changes (read in WebKit's tags; run only in 26.0.1 and 27.0). So the reason left is the
+  one in Part 1, Limits: old browsers get nothing that costs complexity, here a second WebKit rule set that no pinned
+  browser checks. It reopens if keep-all on Safari 26 matters to an app while Safari 26 is in wide use: restoring Safari
+  26's keep-all rule alone left 23 failures in a prototype, level with Safari 27.
 - **2026-09-18: Firefox measures on an OffscreenCanvas, as the other engines do.** A `<canvas>` element's context would
   get `system-ui` and optical-size variable fonts right, but forces style updates once a page inserts a CSS rule, and
   workers have none (Dead Ends, DOM And Canvas-Element Paths). On 2026-09-19 it was allowed only if it proved light and
