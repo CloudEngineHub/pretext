@@ -5420,6 +5420,8 @@ test('the Chromium profile takes the kerning between a word and the spaces besid
       ['\\u0436\\u0436 (TT) TT', '16px Test', {}], ['TT (\\u0436\\u0436) TT', '16px Test', {}], ['(TT) \\u0422\\u0422', '16px Test', {}],
       ['(12) TT', '16px Test', {}], ['\\u05D0 AA TT AA \\u05D1', '16px Test', {}], ['\\u202AAA TT', '16px Test', {}],
       ['AA T\\u0301T', '16px Test', {}],
+      ['TT\\u3002 TT', '16px Test', {}], ['TT \\u00B7 TT', '16px Test', {}], ['\\u03B1\\u03B1 \\u00B7 TT', '16px Test', {}],
+      ['TT \\uFF08TT\\uFF09 TT', '16px Test', {}],
     ]) widths.push(prepareWithSegments(text, font, options).widths)
     const lines = []
     for (const [text, width] of [['AA TT', 19.5], ['AA TT', 37], ['AAA TT', 10.5]]) {
@@ -5477,6 +5479,15 @@ test('the Chromium profile takes the kerning between a word and the spaces besid
     // A first letter with a combining mark after it may be drawn as one glyph, which the
     // bare letter's kerning with the space says nothing about.
     [19, 4, 16],
+    // Script_Extensions: an ideographic full stop is in East Asian scripts only, so it ends a
+    // Latin run and the space after it is in its run. A middle dot is in Latin and Greek among
+    // others: it goes on a Latin run, and after Greek it leaves the run Greek.
+    [24, 4, 16],
+    [16, 4, 8, 2, 16],
+    [16, 4, 8, 4, 16],
+    // A fullwidth opening bracket is in the Han scripts, a run of its own, which its closing
+    // bracket takes.
+    [16, 4, 32, 4, 16],
   ])
   expect(lines).toEqual([
     // The kerned word fits, and the space hangs with what it took.
