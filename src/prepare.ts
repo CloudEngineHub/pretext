@@ -126,7 +126,8 @@ export function measureAnalysis(
 ): (PreparedText & PreparedLineBreakData) | (PreparedText & PreparedSegments) {
   const { normalized, texts, starts, flags } = analysis
   const segmentCount = flags.length
-  const fontMeasurement = getFontMeasurement(font, language)
+  const hasLetterSpacing = letterSpacing !== 0
+  const fontMeasurement = getFontMeasurement(font, language, hasLetterSpacing)
   const emojiCorrection = textMayContainEmoji(normalized) ? getEmojiCorrection(font, fontMeasurement) : 0
   // The gap before the hyphen, plus the hyphen's own spacing where the engine
   // letter-spaces it.
@@ -134,7 +135,6 @@ export function measureAnalysis(
     (letterSpacing === 0 ? 0 : letterSpacing * (engineProfile.letterSpaceDiscretionaryHyphen ? 2 : 1))
   const spaceWidth = getTextWidth(' ', fontMeasurement, emojiCorrection)
   const tabStopAdvance = spaceWidth * 8
-  const hasLetterSpacing = letterSpacing !== 0
   // Only a segment holding a default-ignorable code point has entry geometry, so text
   // without one doesn't look for it.
   const entryFitBasis = engineProfile.entryFitBasis !== 'disabled' && textMayHaveEntryGeometry(normalized) ? engineProfile.entryFitBasis : 'disabled'

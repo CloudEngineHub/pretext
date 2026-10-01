@@ -1,4 +1,4 @@
-// The behaviour catalog's templates, before widths.ts cuts them. Seven sources:
+// The behaviour catalog's templates, before widths.ts cuts them. Eight sources:
 // - the per-engine rebuild's rule families (data/rule-families.ndjson), the flat ones within what the library takes;
 // - filed reports whose reporter measured the width with their own Canvas;
 // - a matrix of every UAX #14 line-break class between the scripts apps mix, under the CSS settings the library takes,
@@ -9,7 +9,8 @@
 //   so the cover keeps a change of each;
 // - a CJK closing mark at a line end before a line feed or a space;
 // - bidi controls where Firefox's line breaker, which never sees them, starts or ends a line, each shape a family of its
-//   own.
+//   own;
+// - letter-spaced text in a font with `fi`, `fl` and `ffi` ligatures, which the browsers turn off under letter spacing.
 // main's adversarial families were taken once from the old harness's generator, which is gone: their cases,
 // `catalog/main/*` and `rich/main/*`, stay in the case files as they were cut, and `make.ts cut` keeps them.
 import { readFileSync } from 'node:fs'
@@ -260,13 +261,34 @@ export function bidiControlTemplates(): Template[] {
   return out
 }
 
+// Words with `fi`, `fl`, `ff` and `ffi` in Roboto, whose optional ligatures Chrome, Firefox and Safari turn off under any
+// letter spacing (shapesLetterSpaced in src/measurement.ts): each word is as wide as its letters, 0.35-1.34 px more
+// than with its ligatures at 16 px. Under positive and negative spacing, and as one word too long for its line, which
+// breaks between letters by the same advances. Which contexts measure which shaping is src/layout.test.ts's.
+export function letterSpacedLigatureTemplates(): Template[] {
+  const shapes: ReadonlyArray<readonly [string, number, number]> = [
+    ['a difficult office workflow: fluffy waffles, five official offers', 16, 0.5],
+    ['the final offer of fifty official certificates of fitness', 15, -0.2],
+    ['unofficialdifficultiesofflineaffiliations', 16, 1],
+  ]
+  const out: Template[] = []
+  for (let i = 0; i < shapes.length; i++) {
+    const [text, size, letterSpacing] = shapes[i]!
+    out.push({
+      family: 'letter-spaced-ligatures', origin: 'src/measurement.ts: letter spacing turns optional ligatures off', pageLang: 'en', widths: [], grid: true,
+      paragraph: paragraph({ font: font('Roboto, Arial, sans-serif', size), lang: 'en', letterSpacing }, [text]),
+    })
+  }
+  return out
+}
+
 export function catalogTemplates(): Template[] {
   const catalog: Template[] = []
   const seen = new Set<string>()
   // The order decides which template shows a line break first, which the cover keeps (widths.ts): filed reports, the
-  // rebuild's rule families, the class matrix, the follow-ups' shapes, the mark chains, the line-end marks, then the bidi
-  // controls. main's families came before the class matrix when they were cut.
-  const lists = [reportedTemplates(), ruleFamilyTemplates(), classMatrixTemplates(), followupTemplates(), markChainTemplates(), lineEndMarkTemplates(), bidiControlTemplates()]
+  // rebuild's rule families, the class matrix, the follow-ups' shapes, the mark chains, the line-end marks, the bidi
+  // controls, then the letter-spaced ligatures. main's families came before the class matrix when they were cut.
+  const lists = [reportedTemplates(), ruleFamilyTemplates(), classMatrixTemplates(), followupTemplates(), markChainTemplates(), lineEndMarkTemplates(), bidiControlTemplates(), letterSpacedLigatureTemplates()]
   for (let l = 0; l < lists.length; l++) {
     for (let i = 0; i < lists[l]!.length; i++) {
       const t = lists[l]![i]!

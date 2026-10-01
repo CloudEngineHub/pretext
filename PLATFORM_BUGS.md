@@ -98,7 +98,7 @@ Unfiled, from the rebuild's pages (2026-09-18):
 - Firefox 156: Canvas `wordSpacing` spaces U+3000 and skips U+00A0, the reverse of CSS; Canvas `letterSpacing` spaces joined Arabic letters where the DOM adds nothing (بيت in 40 px Geeza Pro at 8 px: 73.350 px against 49.350 px); an OffscreenCanvas measures bidi and C0 controls the DOM hides.
 - WebKit: Canvas `letterSpacing` keeps the optional ligatures CSS letter spacing turns off (`ffi fl` in 32 px Hoefler Text at 1 px: 57.400 px against 63.408 px; `RESEARCH.md`, "Measurement Model", has what Pretext does).
 
-Pretext avoids most of these (an OffscreenCanvas, no `wordSpacing`, no width for Firefox's hidden controls), but takes Canvas `letterSpacing` for some widths at a line's edges (`measureWithLetterSpacing()`), where the Firefox and WebKit spacing bugs reach it (not measured on main).
+Pretext avoids most of these (an OffscreenCanvas, no `wordSpacing`, no width for Firefox's hidden controls). The Blink and Gecko profiles measure letter-spaced text under a Canvas `letterSpacing` too small to add width, for its shaping alone, so the spacing Firefox's Canvas gives joined Arabic letters never reaches a width; the WebKit profile can't, and measures such text with its ligatures (`ENGINE_FOLLOWUPS.md`, Letter spacing). Pretext also takes Canvas `letterSpacing` at the text's own spacing for some widths at a line's edges (`measureWithLetterSpacing()`), where the Firefox bug reaches it (not measured on main).
 
 ### Firefox: Thai, Lao, Khmer and Burmese words from a model
 

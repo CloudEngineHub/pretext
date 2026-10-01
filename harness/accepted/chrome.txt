@@ -793,7 +793,7 @@ catalog-1bb8a4f2d58e1bb9 count
 catalog-1bb9f68eb596a30b count
 catalog-1bda318ad0191cd6 count
 catalog-1be043f2e29ebfd3 breaks
-catalog-1bfd958f892bede0 count
+catalog-1bfd958f892bede0 breaks
 catalog-1c5e251e692f830c count
 catalog-1c8321046e7169ee count
 catalog-1c8934e573bd54c7 count
@@ -968,7 +968,7 @@ catalog-3ba76aeed0a02fcc count
 catalog-3bdc284d49ec54b9 count
 catalog-3c3258c1e729361d count
 catalog-3c91a76b7c0c9120 count
-catalog-3ce02d071883a2ac count
+catalog-3ce02d071883a2ac breaks
 catalog-3ce75492ff6e8026 count
 catalog-3d04dc4ea42e7f4e count
 catalog-3d4018e9f86b48a5 count
@@ -1053,7 +1053,7 @@ catalog-4e9328b444ca215d count
 catalog-4ea4bda12646a13f count
 catalog-4f607154b6937a56 count
 catalog-4f899818f5b6bf10 count
-catalog-4fa146c5bb0b946b count
+catalog-4fa146c5bb0b946b breaks
 catalog-4faae4074edd3680 count
 catalog-4fb7ae2e6fe721a5 count
 catalog-508fe520958cf115 count
@@ -1194,7 +1194,7 @@ catalog-6a16cb2aded923ed breaks
 catalog-6a284af1324dfad0 count
 catalog-6a2a693ba35e59a8 count
 catalog-6a9e3afe6e543b4b count
-catalog-6aa86a3e307ec889 count
+catalog-6aa86a3e307ec889 breaks
 catalog-6aaa97b735061a85 count
 catalog-6aab9565d3e3096b count
 catalog-6ac116e9c411322c breaks
@@ -1242,7 +1242,7 @@ catalog-746be35b88282fde count
 catalog-747af315bd5bb10f count
 catalog-74cf31956314f9f2 count
 catalog-751a426f2cd36dfa count
-catalog-762713134eb6f6ab count
+catalog-762713134eb6f6ab breaks
 catalog-768e61ecf19f8db6 count
 catalog-76c23185237b3d41 breaks
 catalog-76e331c11438bdc7 count
@@ -1368,7 +1368,7 @@ catalog-8d6a132a35e5e196 count
 catalog-8d9c0c33ac6a7e35 count
 catalog-8da3d9b16d23fd15 count
 catalog-8df3a77ef1a92571 count
-catalog-8e5d36d4b44bfb05 count
+catalog-8e5d36d4b44bfb05 breaks
 catalog-8ec4b82e933f78d8 count
 catalog-8ee086f6419700f5 breaks
 catalog-8ef20e6ae6303198 count
@@ -1485,7 +1485,7 @@ catalog-a34662bc1e3aad34 breaks
 catalog-a3847151e9b556e4 count
 catalog-a4135851126d3e15 count
 catalog-a41fb056c275ff7f count
-catalog-a4299d4c3f87463b count
+catalog-a4299d4c3f87463b breaks
 catalog-a449db8730e255a4 count
 catalog-a4f5423bfae07b31 count
 catalog-a514323ef66d9e61 breaks
@@ -1722,7 +1722,7 @@ catalog-d686c958219dd574 count
 catalog-d6d0c7f6479a9e4a count
 catalog-d7436451b784436c breaks
 catalog-d76683398000140b count
-catalog-d77a6d5a469c10d9 count
+catalog-d77a6d5a469c10d9 breaks
 catalog-d78116d6cf770b7b breaks
 catalog-d7b5a0c7591056c7 count
 catalog-d887c310bf12042b count
@@ -1752,7 +1752,7 @@ catalog-de62259907278410 count
 catalog-decdcbab0d6e62a4 count
 catalog-e00483320815ca80 count
 catalog-e01b29c681e4b339 breaks
-catalog-e07f8290c690e538 count
+catalog-e07f8290c690e538 breaks
 catalog-e08e90775d442ddf breaks
 catalog-e0db4952aeba6a1c count
 catalog-e0f60da9297d04d5 breaks
@@ -3956,7 +3956,6 @@ sample-c11591c08197d852 breaks
 sample-53ffbeedb28e3e2a breaks
 
 ## Real usage: Roboto and Inter, served as web fonts; one word lands on the other line (main before #340 too)
-sample-2f7ddc63b335c886 breaks
 sample-a12ef9c593d534c3 count
 sample-d7a74fa4b0e4e131 count
 sample-e16c3b260bcd3f6e count
@@ -4040,11 +4039,11 @@ facts-00cc74ca1670ec71 breaks
 facts-ac98ae1937ab309e breaks
 facts-f8f613f12b8ffae8 breaks
 old-gate-091ae680a641b5eb count
-old-gate-0a144c01bf5ebe94 count
+old-gate-0a144c01bf5ebe94 breaks
 old-gate-0eea5deda1d13e7f count
 old-gate-1a6a7eb9655478e8 count
 old-gate-1d8c70da199e271c breaks
-old-gate-28f1b71db41cf4d7 breaks
+old-gate-28f1b71db41cf4d7 count
 old-gate-2cc3dd823dbbe301 count
 old-gate-31af20e064ef2edc breaks
 old-gate-31e4205e7b3d6d33 count
@@ -4053,7 +4052,7 @@ old-gate-35beb0937be3f4df breaks
 old-gate-3b44d0256f640c89 count
 old-gate-3f01143a9a1e57c6 count
 old-gate-447065020227fb6e breaks
-old-gate-4761a851d3addc7b count
+old-gate-4761a851d3addc7b breaks
 old-gate-4d17d533b9e4ffc9 breaks
 old-gate-528fcf9feff47c76 count
 old-gate-541d12f4b4fd7e8c count
@@ -4076,15 +4075,15 @@ old-gate-9f28e33ae3c05a93 breaks
 old-gate-a73092582360832b count
 old-gate-b3caec5337828db6 breaks
 old-gate-b57a87356f9e0d0f count
-old-gate-beb0c43bb9347cfd count
+old-gate-beb0c43bb9347cfd breaks
 old-gate-c4568682294f538c count
 old-gate-c4f3a8c867b040c3 count
 old-gate-c851e59459d91c49 count
-old-gate-c9e251023bac0c65 count
+old-gate-c9e251023bac0c65 breaks
 old-gate-ca593894995b479b count
 old-gate-cd05d32fef9e06e6 count
 old-gate-ce3d9e1e527d0074 breaks
-old-gate-d14fd950180537ab breaks
+old-gate-d14fd950180537ab count
 old-gate-d625354e9d307ce1 count
 old-gate-da6c060be9c4a0ad count
 old-gate-db372a5d11cd92c2 count

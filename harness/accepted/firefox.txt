@@ -746,7 +746,6 @@ catalog-285252de48cc3baa count
 catalog-28b9a03c56e7d16a breaks
 catalog-28dcff99dac35cc7 count
 catalog-291b58accf0a7c3c count
-catalog-295460ff937c742d count
 catalog-29c3ca2eb442f13d breaks
 catalog-29cee86ab57f520c breaks
 catalog-2ad3421240627a5d breaks
@@ -754,7 +753,6 @@ catalog-2ba7fd2e5c369753 count
 catalog-2bf44506eda3c84f count
 catalog-2c2427f4cf002e43 count
 catalog-2c6be00dbfad7699 count
-catalog-2c73beb5b6bb7c60 count
 catalog-2c75cd4963996fc9 count
 catalog-2c800a57281760ee count
 catalog-2c904a761778b204 count
@@ -891,7 +889,7 @@ catalog-4ebe3a022b579ce5 count
 catalog-4edd694b05af1ae1 count
 catalog-4ef8b604533013fe count
 catalog-4f254e1c1fe7428f count
-catalog-4f50256b31f9c840 count
+catalog-4f50256b31f9c840 breaks
 catalog-4fcdadabc0f9ee07 count
 catalog-4fceac0871b15d4a count
 catalog-50db0472ad44a3e5 count
@@ -1270,7 +1268,7 @@ catalog-af42f851523a9f45 count
 catalog-afaff3c5ea5b0a20 count
 catalog-afbe65aee94d6c7a count
 catalog-afe9498cc2578371 count
-catalog-b0f28313ce4d73bc count
+catalog-b0f28313ce4d73bc breaks
 catalog-b1e78448dccae108 count
 catalog-b23d102017ca4b3e count
 catalog-b24992e1d51fbf03 count
@@ -3157,7 +3155,6 @@ sample-91dec2d4c651ce92 count
 sample-e5258bc22a63bfc0 breaks
 
 ## Real usage: Roboto and Inter, served as web fonts; one word lands on the other line (main before #340 too)
-sample-2f7ddc63b335c886 breaks
 sample-e726bd7217f63339 breaks
 sample-e8cac7f67840689b breaks
 

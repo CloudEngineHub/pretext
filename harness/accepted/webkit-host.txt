@@ -135,6 +135,9 @@ catalog-9d5251eebb33ef36 count
 catalog-c87a1e216aa3a4ea count
 catalog-efc5ebc1693c3350 count
 
+## Letter-spaced words with fi, fl or ffi in Roboto, at 24 px and wider: Safari turns those ligatures off under letter spacing, where its Canvas letterSpacing keeps them, so the library measures such a word up to 1.3 px narrower and keeps it on a line Safari wraps it from (ENGINE_FOLLOWUPS.md, Letter spacing)
+catalog-024b371958f09677 count
+
 ## Letter-spacing across scripts (Thai, Arabic, Khmer, CJK, digits and hyphens) and in rich runs, at 24 px and wider: WebKit spaces or breaks these where the library doesn't
 catalog-0cd616621690d7a0 count
 catalog-0e274d0bebe3851d count
@@ -3292,7 +3295,7 @@ sample-48b1ab52d386bd38 breaks
 sample-53ffbeedb28e3e2a breaks
 sample-863aac68305946bb breaks
 
-## Real usage: Roboto and Inter, served as web fonts; one word lands on the other line (main before #340 too)
+## Real usage: Roboto, served as a web font, at -0.2 px letter-spacing; Safari turns the fi of "Notifikasi" off under letter spacing, where its Canvas letterSpacing keeps it, so the library's first line is 326.70 px at 327 px and keeps a word Safari wraps (main before #340 too; ENGINE_FOLLOWUPS.md, Letter spacing)
 sample-2f7ddc63b335c886 breaks
 
 ## Real usage: a word longer than the line (URLs, message placeholders, long Cyrillic or Armenian words), broken between characters; WebKit fits one character more or fewer than the library's character widths allow (main before #340 too)

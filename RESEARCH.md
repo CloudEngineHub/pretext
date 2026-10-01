@@ -396,12 +396,27 @@ A chosen soft hyphen paints U+2010 where the primary font maps it, else `-`; sin
 measuring under two fallbacks whose U+2010 differ tells which (36 of 36 families, rebuild harness). Only Safari
 letter-spaces the hyphen. Pretext measures `-`, a gap ENGINE_FOLLOWUPS.md sizes.
 
-Safari's page turns off `liga`, `clig`, `dlig` and `hlig` under any non-zero letter spacing and its Canvas
-`letterSpacing` doesn't (WebKit #283408 lacks WebKit #176215's fix): 32px Hoefler Text `ffi fl` at 0.001px is 54.403px
-in Canvas, 57.414px on the page (webkit-host and Safari 27, 2026-09-16 to 19); Chrome's agree. Pretext's model, the
-unspaced width plus the spacing per grapheme after the first, is 2-3px off Safari in Amiri, Hoefler Text and Futura, and
-no Canvas string gets two letters unligated into one Safari shaping call (1,596 strings in 15 fonts; Dead Ends,
-Kerning). A WebKit fix would make it exact.
+Every page shapes text under any non-zero letter spacing without its optional ligatures: Blink turns off `liga`, `clig`
+and `calt` (`font_features.cc:52-86`), Gecko and WebKit `liga`, `clig`, `dlig` and `hlig` (`gfxFont.cpp:672-685`;
+`UnrealizedCoreTextFont.cpp:258-264`), so a word is as wide as its letters plus the spacing: 16px Roboto `difficult` is
+52.87px wide, and 54.20px plus nine gaps under any spacing, in all three. Chrome's and Firefox's Canvas `letterSpacing`
+turns them off too, and adds nothing at `0.000001px`, under Blink's unit of 1/65536 px and Gecko's app unit
+(`shape_result_spacing.cc:14-33`; `CanvasRenderingContext2D.cpp:4771-4774`): that Canvas width is the page's with
+`font-variant-ligatures: none`, the same in Firefox and within 0.007px in Chrome, where the page rounds an item up to
+1/64 px (five words in 16px Roboto, Futura, Georgia and Helvetica Neue and 32px Hoefler Text). So the Blink and Gecko
+profiles measure letter-spaced text through a context set to that spacing, kept apart per font from what unspaced text
+measures, and add the spacing per grapheme themselves; a word's prefixes and its widths at line edges come from the same
+shaping (#TBD; Chrome 154.0.8037.57 and Firefox 156.0.1, 2026-09-30). On the masonry demo's 1,904 paragraphs at 22
+widths in 15px Roboto at 0.15px, that took wrong line counts from 33 to 9 in Chrome, where 10 are wrong without spacing,
+and from 28 to 0 in Firefox, and the paragraphs that wrap again when sized to their predicted widest line from 16 and 18
+to 0. Firefox's page turns them off only where the spacing is at least half an app unit (Engine Facts, Firefox).
+
+Safari's Canvas `letterSpacing` keeps them (WebKit #283408 lacks WebKit #176215's fix): 32px Hoefler Text `ffi fl` at
+0.001px is 54.403px in Canvas, 57.414px on the page (webkit-host and Safari 27, 2026-09-16 to 19). The WebKit profile's
+model, the unspaced width plus the spacing per grapheme after the first, is 2-3px off Safari in Amiri, Hoefler Text and
+Futura and up to 1.3px a word in 16px Roboto, and no Canvas string gets two letters unligated into one Safari shaping call (1,596
+strings in 15 fonts; Dead Ends, Kerning): on those Roboto paragraphs webkit-host has 26 wrong line counts of 41,888, and
+15 of 1,904 wrap again (ENGINE_FOLLOWUPS.md). A WebKit fix would make it exact.
 
 Contexts read language their own ways (Content Language And Fonts). Safari's has no `lang`, `fontKerning` or
 `textRendering` (WebKit #285993), and an attribute a browser lacks, once set, is silently a plain JavaScript property:
@@ -1690,10 +1705,12 @@ repin` shows what), and a fact read in source needs reading again.
   cluster starts after them (`CanAddSpacingAfter`, `nsTextFrame.cpp:3860-3873`): a lone pre-wrap tab at 1px is 43.6 px
   natively, 44.6 px painted alone. A tab before a change of direction also ends a left-to-right run and gets a gap
   (`a\tبِبِ((tail`), unseen by the Gecko profile where it resolves no levels (Bidi Levels). After a removed soft hyphen,
-  a mark is spaced as its own base. From Firefox 153, `letterSpacing = '0.001px'` turns ligatures off as the DOM's
-  non-zero spacing does and adds nothing, so a port can add spacing in JavaScript; 140 ESR adds 0.00104 px a character
-  and has no `ctx.lang`, and ESR is dropped where it costs complexity (Part 1, Limits). (Firefox 156, 2026-09-17 to
-  09-27.)
+  a mark is spaced as its own base. From Firefox 153, a Canvas `letterSpacing` under half an app unit turns ligatures off
+  and adds nothing, which the Gecko profile measures letter-spaced text under (Measurement Model); 140 ESR adds
+  0.00104 px a character at `0.001px` and has no `ctx.lang`, and ESR is dropped where it costs complexity (Part 1,
+  Limits). The page decides on the spacing in whole app units (`nsLayoutUtils.cpp:6896-6904`), so its text at 0.001px
+  keeps its ligatures, where the Canvas decides on the float (`CanvasRenderingContext2D.cpp:5233-5241`). (Firefox 156,
+  2026-09-17 to 09-30.)
 - **Breaks.** The Gecko scan ports Gecko's rules (Break Opportunities From Engine Data), such as `-` kept with a digit
   (`COVID-19`) and a break after `/` before an ASCII letter, the opposite of Chrome and Safari. Not carried:
   - An emergency wrap after a hyphen between alphanumerics (`SetupClusterBoundaries`), taken only when nothing else
@@ -1907,8 +1924,10 @@ below 256 px, Canvas totals are exact (Engine Facts, Chrome).
 - **A float32 error bound**, cutting exactly only near it (2026-09-20): 1.16× slower, and a 512 px target made resizes
   47-60% slower. Reopens with a representation handling both precision and the cold-prefix cost.
 - **Admission and fit rules** (no reopen recorded): emergency-prefix differences for every admission; choosing by
-  prefix-measurement mode; Canvas's letter-spaced widths everywhere (breaks ligatures); Safari's inferred carried
-  adjustment on every prefix; Firefox's 1/60 px box rounding in line fits (regressed unrelated cases).
+  prefix-measurement mode; Safari's inferred carried adjustment on every prefix; Firefox's 1/60 px box rounding in line
+  fits (regressed unrelated cases). Canvas's letter-spaced widths everywhere were on this list for losing ligatures,
+  which the pages lose too: #TBD measures letter-spaced text that way in the Blink and Gecko profiles (Measurement
+  Model).
 - **A Canvas check in `layout()`** near the width gained one case and lost one, and `layout()` makes no Canvas calls
   (AGENTS.md, Implementation notes), which a cheaper Chrome recipe from the emulation study would need too.
 - **Gecko prefix fits from 24px, or everywhere** (2026-09-27): the 24-80px lines they fix cost too much in preparing new

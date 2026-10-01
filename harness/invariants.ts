@@ -56,7 +56,9 @@ export function standInWidth(text: string, font: string, letterSpacing: number):
   let width = 0
   for (const ch of text) width += /[\p{M}\p{Cf}]/u.test(ch) ? 0 : ch === ' ' ? 4 : 8
   let count = 0
-  if (letterSpacing !== 0) for (const _ of graphemes.segment(text)) count++
+  // A spacing under Blink's unit, 1/65536 px, adds nothing in Chrome or Firefox, whose unit is 1/60 px: the library
+  // measures letter-spaced text under such a spacing (LETTER_SPACED_SHAPING in src/measurement.ts).
+  if (Math.abs(letterSpacing) >= 1 / 65536) for (const _ of graphemes.segment(text)) count++
   return width * size + count * letterSpacing
 }
 

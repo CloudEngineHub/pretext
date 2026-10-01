@@ -1699,7 +1699,7 @@ describe('measurement invariants', () => {
   })
 
   test('breakable fit cache distinguishes fit modes', () => {
-    const measurement = getFontMeasurement('16px Fit Mode Test', null)
+    const measurement = getFontMeasurement('16px Fit Mode Test', null, false)
     const metrics: SegmentMetrics = { width: 80, emojiCount: -1, fit: null }
     for (const [text, width] of [['a', 10], ['b', 20], ['c', 30], ['ab', 35], ['bc', 60]] as const) {
       measurement.metrics.set(text, { width, emojiCount: -1, fit: null })
@@ -5457,4 +5457,61 @@ test('the Chromium profile measures a page without a language under Intl\'s defa
   `
   const { rows, intl } = JSON.parse(runInChild(script)) as { rows: Record<string, string[]>; intl: string }
   expect(rows).toEqual({ '': [intl], en: ['en'] })
+})
+
+test('letter-spaced text is measured as each engine\'s Canvas shapes it', () => {
+  // The engine profile is computed once per process, so each engine runs in a child
+  // process. Every character is 8px and `fi` ligates, 3px narrower. Like Chrome's and
+  // Firefox's, the context shapes without the ligature under any letterSpacing but 0, and
+  // adds a spacing only from 1/65536 px. Safari's keeps the ligature under letterSpacing,
+  // so the WebKit profile leaves the context's alone and measures the ligature.
+  const layoutUrl = new URL('./layout.ts', import.meta.url).href
+  const richInlineUrl = new URL('./rich-inline.ts', import.meta.url).href
+  const rowsOf = (userAgent: string): unknown => JSON.parse(runInChild(`
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { userAgent: ${JSON.stringify(userAgent)} } })
+    const log = []
+    class Context {
+      font = ''
+      letterSpacing = '0px'
+      measureText(text) {
+        log.push(this.letterSpacing)
+        const spacing = Number.parseFloat(this.letterSpacing)
+        const count = [...text].length
+        const ligatures = spacing === 0 ? text.split('fi').length - 1 : 0
+        return { width: count * 8 - ligatures * 3 + (Math.abs(spacing) >= 1 / 65536 ? count * spacing : 0) }
+      }
+    }
+    globalThis.OffscreenCanvas = class { getContext() { return new Context() } }
+    const { prepareWithSegments, layoutWithLines } = await import(${JSON.stringify(layoutUrl)})
+    const { prepareRichInline, measureRichInlineStats } = await import(${JSON.stringify(richInlineUrl)})
+    const font = '16px Test'
+    const row = letterSpacing => {
+      const before = log.length
+      const prepared = prepareWithSegments('fig find', font, { letterSpacing })
+      return [prepared.widths, prepared.breakableFitAdvances[2], layoutWithLines(prepared, 76, 20).lineCount, [...new Set(log.slice(before))], log.length - before]
+    }
+    // Without spacing, under two spacings, which share their measurements, and without again.
+    const rows = [row(0), row(2), row(-1), row(0)]
+    // A letter-spaced item between items that aren't.
+    const rich = prepareRichInline([{ text: 'fig ', font }, { text: 'fig', font, letterSpacing: 2 }, { text: ' fig', font }])
+    console.log(JSON.stringify([...rows, measureRichInlineStats(rich, 1000).maxLineWidth]))
+  `))
+  // Each row: the segments' widths, the advances a break inside `find` falls by, the lines
+  // at 76px, the letterSpacing the context measured under, and its measureText calls.
+  const shaped = [
+    [[21, 8, 29], [8, 8, 8, 8], 1, ['0px'], 9],
+    [[28, 8, 38], [8, 8, 8, 8], 2, ['0.000001px'], 7],
+    [[22, 8, 29], [8, 8, 8, 8], 1, [], 0],
+    [[21, 8, 29], [8, 8, 8, 8], 1, [], 0],
+    88,
+  ]
+  expect(rowsOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36')).toEqual(shaped)
+  expect(rowsOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:156.0) Gecko/20100101 Firefox/156.0')).toEqual(shaped)
+  expect(rowsOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Safari/605.1.15')).toEqual([
+    [[21, 8, 29], [8, 5, 8, 8], 1, ['0px'], 7],
+    [[25, 8, 35], [8, 5, 8, 8], 1, ['0px'], 1],
+    [[19, 8, 26], [8, 5, 8, 8], 1, [], 0],
+    [[21, 8, 29], [8, 5, 8, 8], 1, [], 0],
+    85,
+  ])
 })
