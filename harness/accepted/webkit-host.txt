@@ -103,20 +103,9 @@ catalog-ef80bea8577ea4c7 count
 catalog-f67d77f18a519536 count
 catalog-f8c9cc5fb3c842f8 breaks
 facts-0813a82f5b36d627 count
-facts-0e696fc6988e8211 count
-facts-1d36ba094f4df296 breaks
-facts-50fc5bdab261717b count
-facts-68abc663229eeb33 breaks
-facts-6ba8a9ac509d1b42 count
-facts-6d224b34ed76519a breaks
 facts-6e21867973072665 count
-facts-8e7f1f4ac28706ad count
-facts-992ad3e2cac24507 breaks
-facts-a53f616529c2f3d9 count
-facts-beb90f6d215e81b7 count
 facts-cb726fe075c99028 count
 facts-d586e19a99606fb9 count
-facts-f4c241559e8fd0ae count
 old-gate-431f934b64337fc7 breaks
 old-gate-5807fa59410c4a83 breaks
 old-gate-5af2d5845d9a0c9d breaks
@@ -340,7 +329,6 @@ catalog-093d51ce427667bc count
 catalog-09563178145e9621 count
 catalog-09667eca3b396be2 breaks
 catalog-0a08189a5e653e93 count
-catalog-0a973757a03761ac count
 catalog-0ade151f89292ca9 count
 catalog-0b08717f4235a401 count
 catalog-0b4918934e55965c count
@@ -1409,7 +1397,6 @@ catalog-cfd436ca1995a76d count
 catalog-d00955b39961b743 count
 catalog-d0375af1dad944ed count
 catalog-d03b3b76360f94c8 count
-catalog-d0ce0b80fed820a6 count
 catalog-d0dec72c303f2b23 count
 catalog-d0ef813d7d3dd515 count
 catalog-d1e0a06a25941fef count
@@ -1737,6 +1724,11 @@ rich-4e7797d2c399aac5 breaks
 rich-94e63267840040ac breaks
 rich-9d0c04c18c44fb34 count
 rich-f6d6190bf525ffc7 count
+
+## Narrower than real layouts: a soft hyphen after a word joiner, a combining mark and a ZWSP at 1 px letter-spacing, at 1-8 px: WebKit gives the characters without an advance no letter spacing, so its hyphen fits the line, where the library spaces them, finds the hyphen 3 px too wide and returns to the ZWSP; main kept every unfit hyphen and passed by accident (ENGINE_FOLLOWUPS.md, Letter spacing)
+catalog-1d72217944543263 breaks
+catalog-3552d0e49f3c4569 breaks
+catalog-a1b0b5def1fd6512 breaks
 
 ## Narrower than real layouts: width 1, where nothing fits and WebKit keeps spaces, marks, controls or zero-width characters with the character before them otherwise than the library
 catalog-0099ca5fe40e865a count
@@ -2734,7 +2726,6 @@ old-gate-c3afe2d7b44933ef count
 
 ## Outside what Pretext claims: system-ui font lists (README.md, Caveats); not looked into, since Safari's Canvas and DOM agree on system-ui itself
 sample-0c1ec78ea4cfbfeb breaks
-sample-1a18338f179a5fb2 breaks
 sample-207a75e33cbd70eb breaks
 sample-21c92e326cbdb57e breaks
 sample-23ca4df477e53669 count
@@ -2757,11 +2748,9 @@ sample-819ea30d59f573cf breaks
 sample-8ca12314a5172d97 breaks
 sample-9c3334d37a7b138a breaks
 sample-9d14c23a04cb8cb0 breaks
-sample-a36f4d1d05bc9aa7 breaks
 sample-a9da0755c335c393 count
 sample-ac70e5a04aeb85fa breaks
 sample-b9e10cb886979e50 breaks
-sample-bc0069836eb0091f breaks
 sample-e0d5e23e5630df98 breaks
 sample-e59e3ed268c7a10c count
 sample-fcc082da63a5687c count
@@ -3297,23 +3286,6 @@ sample-2f7ddc63b335c886 breaks
 
 ## Real usage: a word longer than the line (URLs, message placeholders, long Cyrillic or Armenian words), broken between characters; WebKit fits one character more or fewer than the library's character widths allow (main before #340 too)
 sample-53c686eca38a7ced breaks
-
-## Real usage: soft hyphens; WebKit takes fewer soft-hyphen breaks than the library, moving the syllable before the hyphen to the next line (main before #340 too)
-sample-16a3704504259e8b breaks
-sample-2fb48a3ad067e670 breaks
-sample-347ac514160904d0 breaks
-sample-44e20720676184ff breaks
-sample-47cdc26516624116 breaks
-sample-4e652a6e528375ea breaks
-sample-6ab055ea83584055 breaks
-sample-6efb26191a4ca1ea breaks
-sample-7209228d4c484728 breaks
-sample-922d892454a68c2a breaks
-sample-926fb64160152b31 breaks
-sample-9d7e37be6c85f48b breaks
-sample-ae8d301037b80b5a breaks
-sample-d712baf7139ff041 breaks
-sample-da2e5a0e849969a1 breaks
 
 ## Real usage: table cells 25-125 px wide holding IDs, phone numbers and formulas; WebKit breaks at hyphens, brackets and between digits otherwise than the library (main before #340 too)
 sample-db62d90b64149427 breaks

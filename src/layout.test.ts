@@ -882,7 +882,6 @@ describe('boundary-policy regressions', () => {
       const text = '\u000Btrans\u00ADic'
       const width = measureWidth('trans', FONT) + 0.1
       for (const [unfitHyphenRetreat, expected] of [
-        ['none', ['\u000Btrans-', 'ic']],
         ['reduced-width', ['\u000Btrans-', 'ic']],
         ['full-width', ['\u000B', 'trans-', 'ic']],
       ] as const) {
@@ -1823,12 +1822,12 @@ describe('prepare invariants', () => {
     expect(layout(prepared, alphaWidth + 0.1, LINE_HEIGHT).lineCount).toBe(2)
   })
 
-  test('Blink and Gecko return from an unfit hyphen, and only Blink paints the hyphen unspaced', async () => {
+  test('every engine returns from an unfit hyphen its own way, and only Blink paints the hyphen unspaced', async () => {
     const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
     try {
       for (const [index, userAgent, unfitHyphenRetreat, letterSpaceDiscretionaryHyphen] of [
         [0, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36', 'reduced-width', false],
-        [1, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5.2 Safari/605.1.15', 'none', true],
+        [1, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5.2 Safari/605.1.15', 'full-width-or-first', true],
         [2, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:155.0) Gecko/20100101 Firefox/155.0', 'full-width', true],
       ] as const) {
         Object.defineProperty(globalThis, 'navigator', { value: { userAgent }, configurable: true, writable: true })
@@ -1862,17 +1861,13 @@ describe('prepare invariants', () => {
       // "foo trans" fits and "foo trans-" does not.
       const text = 'foo trans\u00ADatlantic'
       const width = measureWidth('foo trans', FONT) + 0.1
-      for (const [unfitHyphenRetreat, expected] of [
-        ['none', ['foo trans-', 'atlantic']],
-        ['reduced-width', ['foo ', 'trans-', 'atlantic']],
-      ] as const) {
-        profile.unfitHyphenRetreat = unfitHyphenRetreat
-        const prepared = prepareWithSegments(text, FONT)
-        expect(layoutWithLines(prepared, width, LINE_HEIGHT).lines.map(line => line.text)).toEqual([...expected])
-        expect(collectStreamedLines(prepared, width).map(line => line.text)).toEqual([...expected])
-        expect(measureLineStats(prepared, width).lineCount).toBe(expected.length)
-        expect(layout(prepare(text, FONT), width, LINE_HEIGHT).lineCount).toBe(expected.length)
-      }
+      profile.unfitHyphenRetreat = 'reduced-width'
+      const expected = ['foo ', 'trans-', 'atlantic']
+      const prepared = prepareWithSegments(text, FONT)
+      expect(layoutWithLines(prepared, width, LINE_HEIGHT).lines.map(line => line.text)).toEqual(expected)
+      expect(collectStreamedLines(prepared, width).map(line => line.text)).toEqual(expected)
+      expect(measureLineStats(prepared, width).lineCount).toBe(expected.length)
+      expect(layout(prepare(text, FONT), width, LINE_HEIGHT).lineCount).toBe(expected.length)
 
       // The zero-width space leaves no room for the hyphen, so the line returns
       // to the soft hyphen that the zero-width space replaced as pending.
@@ -1919,6 +1914,152 @@ describe('prepare invariants', () => {
     } finally {
       Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', measureText)
       profile.unfitHyphenRetreat = previous
+    }
+  })
+
+  test('WebKit returns an unfit soft hyphen to the latest earlier break that fits, else to the first on the line, with each side measured alone', () => {
+    const profile = getEngineProfile()
+    const previous = profile.unfitHyphenRetreat
+    const measureText = Object.getOwnPropertyDescriptor(TestCanvasRenderingContext2D.prototype, 'measureText')!
+    // An `i` is 3px wide, narrower than the hyphen, and A and V kern by -2px, so A and VAV
+    // measure 2px wider apart than AVAV.
+    const measure = (text: string): number => measureWidth(text, FONT) - 6.6 * (text.match(/i/g) ?? []).length - 2 * (text.match(/AV/g) ?? []).length
+    Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', {
+      ...measureText,
+      value(this: TestCanvasRenderingContext2D, text: string) {
+        measured.push(text)
+        return { width: measure(text) }
+      },
+    })
+    const lineTexts = (text: string, width: number): string[] => {
+      const prepared = prepareWithSegments(text, FONT)
+      const lines = layoutWithLines(prepared, width, LINE_HEIGHT).lines.map(line => line.text)
+      expect(collectStreamedLines(prepared, width).map(line => line.text)).toEqual(lines)
+      expect(measureLineStats(prepared, width).lineCount).toBe(lines.length)
+      expect(layout(prepare(text, FONT), width, LINE_HEIGHT).lineCount).toBe(lines.length)
+      return lines
+    }
+    const measured: string[] = []
+    const measuredFor = (text: string): string[] => {
+      clearCache()
+      measured.length = 0
+      prepare(text, FONT)
+      return measured.slice()
+    }
+    clearCache()
+    try {
+      profile.unfitHyphenRetreat = 'full-width-or-first'
+      // `the interna` fits and its hyphen doesn't: the line returns to the space. A
+      // soft hyphen whose hyphen fits is returned to before it.
+      const text = 'the interna\u00ADtion\u00ADal'
+      expect(lineTexts(text, measure('the interna') + 0.1)).toEqual(['the ', 'interna-', 'tional'])
+      expect(lineTexts(text, measure('the internation') + 0.1)).toEqual(['the interna-', 'tional'])
+      // A break between two text segments ends the line as well.
+      expect(lineTexts('x ab-cd\u00ADefgh', measure('x ab-cd') + 0.1)).toEqual(['x ab-', 'cdefgh'])
+
+      // No break on the line fits its hyphen: `trans-` overflows, and so does `transi-`.
+      // WebKit's return stops at the line's first break, where Gecko's finds none and the
+      // line stays at its last.
+      const narrow = 'trans\u00ADi\u00ADt\u00ADlantic'
+      const width = measure('transi') + 0.1
+      expect(lineTexts(narrow, width)).toEqual(['trans-', 'it-', 'lantic'])
+      profile.unfitHyphenRetreat = 'full-width'
+      expect(lineTexts(narrow, width)).toEqual(['transi-', 't-', 'lantic'])
+
+      // Gecko shapes A and VAV together, so a hyphen that overflows by less than they narrow
+      // stays. WebKit fits the two as it measures them, apart: the line returns, nothing is joined.
+      const kerned = 'ab A\u00ADVAV'
+      const hyphenLine = measure('ab A-')
+      expect(lineTexts(kerned, hyphenLine - 1)).toEqual(['ab A-', 'VAV'])
+      expect(measuredFor(kerned)).toContain('AVAV')
+      profile.unfitHyphenRetreat = 'full-width-or-first'
+      expect(lineTexts(kerned, hyphenLine - 1)).toEqual(['ab ', 'AVAV'])
+      expect(measuredFor(kerned)).not.toContain('AVAV')
+    } finally {
+      Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', measureText)
+      profile.unfitHyphenRetreat = previous
+      clearCache()
+    }
+  })
+
+  test('WebKit measures the hyphen its primary font draws: U+2010 where the first family that gives a font has it', () => {
+    const profile = getEngineProfile()
+    const previous = profile.unfitHyphenRetreat
+    const measureText = Object.getOwnPropertyDescriptor(TestCanvasRenderingContext2D.prototype, 'measureText')!
+    // Each character is drawn by the first listed family that has it. `Own Hyphen Sans`
+    // has a U+2010 narrower than its `-`, `Latin Only Sans` has none, `Even Hyphen Sans`
+    // has one as wide as its `-`, `Missing Sans` gives no font, and the two generic
+    // families draw everything, monospace wider.
+    const hyphenFonts: string[] = []
+    Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', {
+      ...measureText,
+      value(this: TestCanvasRenderingContext2D, text: string) {
+        canvasMeasurementCount++
+        if (text === '\u2010') hyphenFonts.push(this.font)
+        const families = this.font.replace(/^.*?\dpx\s+/, '').split(',').map(family => family.trim().replace(/^"|"$/g, ''))
+        let width = 0
+        for (const ch of text) {
+          let family = ''
+          for (let i = 0; i < families.length && family === ''; i++) {
+            if (families[i] !== 'Missing Sans' && !(families[i] === 'Latin Only Sans' && ch === '\u2010')) family = families[i]!
+          }
+          if (family === 'monospace') width += 10
+          else if (ch === '\u2010') width += family === 'Own Hyphen Sans' ? 4 : family === 'Even Hyphen Sans' ? measureWidth('-', this.font) : 5
+          else width += measureWidth(ch, this.font)
+        }
+        return { width }
+      },
+    })
+    const hyphen = measureWidth('-', FONT)
+    const text = 'trans\u00ADatlantic'
+    try {
+      profile.unfitHyphenRetreat = 'full-width-or-first'
+      for (const [family, expected, hyphenCalls] of [
+        // The font's own, after a later family's or a generic one's: both hyphens measure
+        // differently, so the two generic families and then each family are asked.
+        ['"Own Hyphen Sans", serif', 4, 5],
+        ['"Missing Sans", "Own Hyphen Sans", serif', 4, 5],
+        ['Own Hyphen Sans', 4, 5],
+        // The primary font has none, so `-`, though a later family or a generic one draws U+2010.
+        ['"Latin Only Sans", "Own Hyphen Sans", serif', hyphen, 5],
+        ['"Latin Only Sans", serif', hyphen, 5],
+        // Both hyphens measure the same, which asks nothing more.
+        ['"Even Hyphen Sans", serif', hyphen, 1],
+        // No family gives a font: the last asked is the generic family itself.
+        ['"Missing Sans", serif', 5, 5],
+      ] as const) {
+        clearCache()
+        hyphenFonts.length = 0
+        const font = `16px ${family}`
+        expect({ family, width: prepareWithSegments(text, font).discretionaryHyphenWidth }).toEqual({ family, width: expected })
+        expect({ family, calls: hyphenFonts.length }).toEqual({ family, calls: hyphenCalls })
+        // The font's later texts ask nothing again, and measure in the font itself.
+        expect(prepareWithSegments(`x ${text}`, font).discretionaryHyphenWidth).toBe(expected)
+        expect(hyphenFonts.length).toBe(hyphenCalls)
+        expect(prepareWithSegments('new words', font).widths[0]).toBe(measureWidth('new', font))
+      }
+      // That hyphen follows the gap before it, as `-` does.
+      expect(prepareWithSegments(text, '16px "Own Hyphen Sans", serif', { letterSpacing: 2 }).discretionaryHyphenWidth).toBe(4 + 2)
+      // A text without a soft hyphen asks for no hyphen but `-`.
+      clearCache()
+      hyphenFonts.length = 0
+      prepareWithSegments('transatlantic crossing', '16px "Own Hyphen Sans", serif')
+      expect(hyphenFonts).toEqual([])
+      // The other profiles measure `-`.
+      profile.unfitHyphenRetreat = 'full-width'
+      clearCache()
+      expect(prepareWithSegments(text, '16px "Own Hyphen Sans", serif').discretionaryHyphenWidth).toBe(hyphen)
+      expect(hyphenFonts).toEqual([])
+      // The two generic families measure a space or U+2010 alike, which tells nothing: `-`.
+      profile.unfitHyphenRetreat = 'full-width-or-first'
+      Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', measureText)
+      clearCache()
+      expect(measureWidth('\u2010', FONT)).not.toBe(hyphen)
+      expect(prepareWithSegments(text, FONT).discretionaryHyphenWidth).toBe(hyphen)
+    } finally {
+      Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', measureText)
+      profile.unfitHyphenRetreat = previous
+      clearCache()
     }
   })
 
@@ -3542,24 +3683,21 @@ describe('rich-inline invariants', () => {
       const smallFont = '12px Test Sans'
       const split = [{ text: 'T', font: smallFont }, { text: 'po\u00ADd', font: FONT }]
       const poFits = measureWidth('T', smallFont) + measureWidth('po', FONT)
-      for (const unfitHyphenRetreat of ['none', 'reduced-width'] as const) {
+      for (const unfitHyphenRetreat of ['reduced-width', 'full-width', 'full-width-or-first'] as const) {
         profile.unfitHyphenRetreat = unfitHyphenRetreat
         expect(lineTexts(split, poFits - 0.1)).toEqual(['Tp', 'od'])
         expect(lineTexts(split, poFits)).toEqual(['Tpo-', 'd'])
         expect(lineTexts([{ text: 'T', font: FONT }, { text: 'p\u00ADd', font: FONT }], 12)).toEqual(['T', 'p-', 'd'])
       }
 
-      // As in plain text, only the Chromium profile returns from the unfit hyphen
-      // to a break before the item, here the space.
+      // As in plain text, the line returns from the unfit hyphen to a break before
+      // the item, here the space.
       const width = measureWidth('a po', FONT) + 0.1
-      for (const [unfitHyphenRetreat, expected] of [
-        ['none', ['a po-', 'd']],
-        ['reduced-width', ['a', 'pod']],
-      ] as const) {
+      for (const unfitHyphenRetreat of ['reduced-width', 'full-width', 'full-width-or-first'] as const) {
         profile.unfitHyphenRetreat = unfitHyphenRetreat
-        expect(lineTexts([{ text: 'a ', font: FONT }, { text: 'po\u00ADd', font: FONT }], width)).toEqual([...expected])
+        expect(lineTexts([{ text: 'a ', font: FONT }, { text: 'po\u00ADd', font: FONT }], width)).toEqual(['a', 'pod'])
         expect(layoutWithLines(prepareWithSegments('a po\u00ADd', FONT), width, LINE_HEIGHT).lines.map(line => line.text.trimEnd()))
-          .toEqual([...expected])
+          .toEqual(['a', 'pod'])
       }
     } finally {
       profile.unfitHyphenRetreat = previous

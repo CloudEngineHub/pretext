@@ -30,6 +30,7 @@ import {
   getEmojiCorrection,
   getFollowingSpaceMetrics,
   getFontMeasurement,
+  getHyphenText,
   getSegmentFit,
   getSegmentMetrics,
   getTextWidth,
@@ -130,8 +131,8 @@ export function measureAnalysis(
   const emojiCorrection = textMayContainEmoji(normalized) ? getEmojiCorrection(font, fontMeasurement) : 0
   // The gap before the hyphen, plus the hyphen's own spacing where the engine
   // letter-spaces it.
-  const discretionaryHyphenWidth = getTextWidth('-', fontMeasurement, emojiCorrection) +
-    (letterSpacing === 0 ? 0 : letterSpacing * (engineProfile.letterSpaceDiscretionaryHyphen ? 2 : 1))
+  const hyphenSpacing = letterSpacing === 0 ? 0 : letterSpacing * (engineProfile.letterSpaceDiscretionaryHyphen ? 2 : 1)
+  let discretionaryHyphenWidth = getTextWidth('-', fontMeasurement, emojiCorrection) + hyphenSpacing
   const spaceWidth = getTextWidth(' ', fontMeasurement, emojiCorrection)
   const tabStopAdvance = spaceWidth * 8
   const hasLetterSpacing = letterSpacing !== 0
@@ -292,7 +293,6 @@ export function measureAnalysis(
   // first grapheme.
   const keepsLineStartPunctuation = engineProfile.lineBreakScan === 'webkit' && /[\u0100-\uFFFF]/.test(normalized)
   const segments = includeSegments ? [] as string[] : null
-  const retreatsFromUnfitHyphen = engineProfile.unfitHyphenRetreat !== 'none'
   let discretionaryHyphenContexts: number[] | null = null
   let previousJoinablePiece: string | null = null
   let previousJoinableMetrics: SegmentMetrics | null = null
@@ -301,6 +301,9 @@ export function measureAnalysis(
   // the unbroken text together: cursive joins, marks and kerning across the soft
   // hyphen. Canvas shows how much narrower the neighbors measure joined than
   // apart, which isolated widths can't show when proving that a hyphen overflows.
+  // WebKit fits what it measures: each side alone, and the hyphen its primary font
+  // paints (unfitHyphenRetreat).
+  const fitsAsWebKitMeasures = engineProfile.unfitHyphenRetreat === 'full-width-or-first'
   function getJoinedNarrowing(analysisIndex: number, before: string | null, beforeMetrics: SegmentMetrics | null): number {
     if (before === null) return 0
     let next = analysisIndex + 1
@@ -432,12 +435,17 @@ export function measureAnalysis(
     if (prohibitions !== null && lineStartProhibitions === null) lineStartProhibitions = Array.from({ length: mi }, () => null)
     lineStartProhibitions?.push(prohibitions)
     if (segments !== null) segments.push(text)
-    if (kind === SOFT_HYPHEN && retreatsFromUnfitHyphen) {
+    if (kind === SOFT_HYPHEN) {
       discretionaryHyphenContexts ??= zeros(mi)
-      discretionaryHyphenContexts.push(getJoinedNarrowing(mi, previousJoinablePiece, previousJoinableMetrics))
+      discretionaryHyphenContexts.push(fitsAsWebKitMeasures ? 0 : getJoinedNarrowing(mi, previousJoinablePiece, previousJoinableMetrics))
     } else {
       discretionaryHyphenContexts?.push(0)
     }
+  }
+
+  // Only a text with a soft hyphen asks which hyphen WebKit's primary font paints.
+  if (fitsAsWebKitMeasures && discretionaryHyphenContexts !== null) {
+    discretionaryHyphenWidth = getTextWidth(getHyphenText(fontMeasurement), fontMeasurement, emojiCorrection) + hyphenSpacing
   }
 
   // A segment's width is its width between the text before and after it; one that starts

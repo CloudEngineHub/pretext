@@ -79,11 +79,31 @@ export type EngineProfile = {
   // boundaries and applies the reduced width to every earlier opportunity.
   // Gecko records a soft-hyphen break only where its hyphen fits, and any other
   // break where its line fits (gfxTextRun.cpp:1086-1101), so the line returns to
-  // the latest opportunity that fits at the full width. WebKit also returns, but
-  // that is not modeled: its installed losses come from letter spacing on
-  // invisibles and from marks after a soft hyphen, which isolated widths do not
-  // show. It keeps the overflowing hyphen.
-  unfitHyphenRetreat: 'reduced-width' | 'full-width' | 'none'
+  // the latest opportunity that fits at the full width. WebKit wraps the content
+  // after the soft hyphen, finds that the hyphen overflows (processInlineContent,
+  // InlineContentBreaker.cpp:104-122) and builds the line again up to each of its
+  // wrap opportunities, the latest first, until one ends without a soft hyphen or
+  // fits its hyphen; the line's first opportunity stays whatever its hyphen
+  // overflows (revertToLastNonOverflowingItem, TextOnlySimpleLineBuilder.cpp:459-480,
+  // and rebuildLineForTrailingSoftHyphen, InlineLineBuilder.cpp:1860-1887, for lines
+  // with inline boxes): 'full-width-or-first', the latest opportunity that fits at
+  // the full width, else the line's first. WebKit fits what it measures, which the
+  // same value stands for: each text item on its own (TextUtil::width,
+  // TextUtil.cpp:62-100), where an item ends at its soft hyphen, so no text
+  // measures narrower joined across one; and the hyphen it paints, U+2010 where
+  // the primary font, the first listed family that gives a font, has a glyph for
+  // it, else `-` (hyphenString, StyleComputedStyle.cpp:419-431; TextUtil::hyphenWidth,
+  // TextUtil.cpp:621-624). Canvas draws U+2010 in a later family or a system font
+  // where the primary font lacks it, so the profile asks which family draws it
+  // (getHyphenText). Blink and Gecko choose their hyphen the same way
+  // (ComputedStyle::HyphenString, shaped in hyphen_result.cc:12-16, and
+  // MakeHyphenTextRun, gfxTextRun.cpp:2458-2473); their profiles measure `-`, a
+  // named gap (ENGINE_FOLLOWUPS.md, Line edges). The two measuring rules have no
+  // field of their own, since one more field on the profile slowed Chrome's line APIs
+  // (RESEARCH.md, JavaScript Engines). In 16px Arial at 76-80px Safari 27 lays out
+  // `the interna\u00ADtion\u00ADal` as `the` / `interna-` / `tional`, and at 40px
+  // `trans\u00ADi\u00ADt\u00ADlantic` starts with `trans-`, 40.9px wide.
+  unfitHyphenRetreat: 'reduced-width' | 'full-width' | 'full-width-or-first'
   // WebKit moves a tab to the following stop when less than half a space would
   // remain before the next one (FontCascade::tabWidth).
   skipNarrowTabStops: boolean
@@ -238,6 +258,7 @@ export type FontMeasurement = {
   // the item alone. The width includes that space.
   followingSpaceMetrics: Map<string, SegmentMetrics>
   emojiCorrection: number | null // Probed for the first text that may hold emoji
+  hyphenText: string | null // Asked for the first text with a soft hyphen (getHyphenText)
   hanKerning: HanKerningFontData | null | undefined // Read for the first text that may kern
 }
 let cachedEngineProfile: EngineProfile | null = null
@@ -258,6 +279,10 @@ const maybeEmojiRe = /[\p{Emoji_Presentation}\p{Extended_Pictographic}\p{Regiona
 const genericKeywords = ['serif', 'sans-serif', 'cursive', 'fantasy', 'monospace']
 // A quoted family name, or an unquoted generic keyword with what precedes it.
 const familyListItemRe = /("[^"]*"|'[^']*')|(^|,)(\s*)(serif|sans-serif|cursive|fantasy|monospace)(?=\s*(?:,|$))/gi
+// A font string's size, with its line height, after which its family list starts.
+const fontSizeRe = /\dpx(?:\s*\/\s*\S+)?\s+/
+// One family of a family list, with the white space around it.
+const familyRe = /(?:"[^"]*"|'[^']*'|[^,])+/g
 
 // The families WebKit's page gives the generic keywords under a language, or null
 // where they resolve as in Canvas. The page asks Core Text wherever WebKit's script
@@ -321,13 +346,58 @@ function hasFamily(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingConte
 // The Canvas font that measures what the page draws: each unquoted generic keyword
 // in the family list, after the size, becomes the page's families for it.
 function getCanvasFont(font: string, families: readonly string[]): string {
-  const size = /\dpx(?:\s*\/\s*\S+)?\s+/.exec(font)
+  const size = fontSizeRe.exec(font)
   if (size === null) return font
   const start = size.index + size[0].length
   return font.slice(0, start) + font.slice(start).replace(familyListItemRe, (item: string, quoted: string | undefined, separator: string, space: string, keyword: string) => {
     const named = quoted === undefined ? families[genericKeywords.indexOf(keyword.toLowerCase())]! : ''
     return named === '' ? item : separator + space + named
   })
+}
+
+// The string a chosen soft hyphen paints in the font, as WebKit takes it from the primary
+// font (unfitHyphenRetreat): U+2010 where that font draws it, else `-`. Where
+// both measure the same in the font, either does. Else Canvas tells which family draws a
+// character from two lists: all three engines draw each character with the first listed
+// font that has its glyph (WebKit's glyphDataForVariant, FontCascadeFonts.cpp:426-439), so
+// a family draws it where `family, monospace` and `family, serif` measure it alike and the
+// two generic families alone don't. WebKit's primary font is the first listed family's
+// that gives a font, whether or not it has a glyph for a space (primaryFont,
+// FontCascadeFonts.h:225-254). Canvas can't tell a family that gives no font from one that
+// lacks the character, so the premise is that the primary font draws a space, and it is the
+// first family's that does; a first family whose font has no space, an icon font, is skipped
+// where WebKit takes it. `-` where the generic families measure alike, which tells nothing,
+// or the font string has no size in px.
+export function getHyphenText(measurement: FontMeasurement): string {
+  if (measurement.hyphenText !== null) return measurement.hyphenText
+  const font = measurement.canvasFont
+  const size = fontSizeRe.exec(font)
+  let hyphenText = '-'
+  if (size !== null && getSegmentMetrics('\u2010', measurement).width !== getSegmentMetrics('-', measurement).width) {
+    const context = measurement.state.context
+    const start = size.index + size[0].length
+    const prefix = font.slice(0, start)
+    const families = font.slice(start).match(familyRe) ?? []
+    const monospace = prefix + 'monospace'
+    const serif = prefix + 'serif'
+    if (measureIn(context, monospace, ' ') !== measureIn(context, serif, ' ') && measureIn(context, monospace, '\u2010') !== measureIn(context, serif, '\u2010')) {
+      for (let i = 0; i < families.length; i++) {
+        const beforeMonospace = `${prefix}${families[i]}, monospace`
+        const beforeSerif = `${prefix}${families[i]}, serif`
+        if (measureIn(context, beforeMonospace, ' ') !== measureIn(context, beforeSerif, ' ')) continue
+        if (measureIn(context, beforeMonospace, '\u2010') === measureIn(context, beforeSerif, '\u2010')) hyphenText = '\u2010'
+        break
+      }
+    }
+    context.font = font
+  }
+  measurement.hyphenText = hyphenText
+  return hyphenText
+}
+
+function measureIn(context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, font: string, text: string): number {
+  context.font = font
+  return context.measureText(text).width
 }
 
 // The language setLocale() gave, which preparation reads in place of the page's,
@@ -443,7 +513,7 @@ export function getEngineProfile(): EngineProfile {
     measureTextWithFollowingSpace: engine === 'webkit',
     letterSpaceDiscretionaryHyphen: engine !== 'blink',
     shapesMarksAcrossSoftHyphen: engine === 'blink',
-    unfitHyphenRetreat: engine === 'blink' ? 'reduced-width' : engine === 'gecko' ? 'full-width' : 'none',
+    unfitHyphenRetreat: engine === 'blink' ? 'reduced-width' : engine === 'gecko' ? 'full-width' : 'full-width-or-first',
     skipNarrowTabStops: engine === 'webkit',
     hangTabs: engine !== 'gecko',
     zeroWidthGlueTakesLine: engine !== 'gecko',
@@ -584,7 +654,7 @@ export function getFontMeasurement(font: string, language: string | null): FontM
   let measurement = state.fonts.get(font)
   if (measurement === undefined) {
     const canvasFont = state.genericFamilies === null ? font : getCanvasFont(font, state.genericFamilies)
-    measurement = { state, canvasFont, metrics: new Map(), followingSpaceMetrics: new Map(), emojiCorrection: null, hanKerning: undefined }
+    measurement = { state, canvasFont, metrics: new Map(), followingSpaceMetrics: new Map(), emojiCorrection: null, hyphenText: null, hanKerning: undefined }
     state.fonts.set(font, measurement)
   }
   state.context.font = measurement.canvasFont
