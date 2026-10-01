@@ -234,6 +234,24 @@ function terminalCursor(prepared: TestPreparedTextWithSegments): TestLayoutCurso
   return { segmentIndex: prepared.segments.length, graphemeIndex: 0 }
 }
 
+// The pinned browsers' desktop user agents, which name only a major version.
+const CHROME_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36'
+const SAFARI_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Safari/605.1.15'
+const FIREFOX_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:156.0) Gecko/20100101 Firefox/156.0'
+
+// The whole engine profile a user agent gets, from a copy of the measurement module of its
+// own, as the library computes its profile once per module.
+async function engineProfileUnder(userAgent: string): Promise<ReturnType<MeasurementModule['getEngineProfile']>> {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
+  try {
+    Object.defineProperty(globalThis, 'navigator', { value: { userAgent }, configurable: true })
+    return (await import(`./measurement.ts?user-agent=${encodeURIComponent(userAgent)}`) as MeasurementModule).getEngineProfile()
+  } finally {
+    if (descriptor === undefined) Reflect.deleteProperty(globalThis, 'navigator')
+    else Object.defineProperty(globalThis, 'navigator', descriptor)
+  }
+}
+
 class TestCanvasRenderingContext2D {
   font = ''
 
@@ -1026,6 +1044,10 @@ describe('boundary-policy regressions', () => {
       expect(lines('ab \u200E\ncd', measureWidth('ab', FONT), { whiteSpace: 'pre-wrap' })).toEqual(['ab \u200E', 'cd'])
       // A chunk that starts with what the text run drops, a control in it, offers no break after it.
       expect(lines('\u202C\u00ADab', 1)).toEqual(['\u202C\u00ADa', 'b'])
+      // Nor does one that starts with white space the line start removes, before the control:
+      // Firefox 156.0.1 lays out a space, U+200E and `abcdef gh` in 16px Arial at 30px in 3
+      // lines, with no empty line before `abc` (2026-09-30).
+      expect(lines(' \u200Eabcdef gh', measureWidth('abc', FONT))).toEqual(['\u200Eabc', 'def ', 'gh'])
       // Firefox collapses white space through a run of controls, keeping its first space, or its
       // segment break if it holds one, and the line end trims one before only controls.
       expect(prepareWithSegments('ab \u200E cd', FONT).segments).toEqual(['ab', ' \u200E', 'cd'])
@@ -2421,31 +2443,58 @@ describe('prepare invariants', () => {
     }
   })
 
-  test('break scans follow the layout engine the user agent names', async () => {
-    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
-    try {
-      // WebKit fits emergency breaks from grapheme prefixes, Gecko in segments at least 80px wide,
-      // Blink from standalone graphemes.
-      for (const [userAgent, scan, prefixes] of [
-        ['Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36', 'blink', Infinity],
-        ['Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:155.0) Gecko/20100101 Firefox/155.0', 'gecko', 80],
-        ['Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5.2 Safari/605.1.15', 'webkit', 0],
-        // An app web view names no browser.
-        ['Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148', 'webkit', 0],
-        // Engines Pretext doesn't recognize take Blink's scan.
-        ['Bun/1.4.0', 'blink', Infinity],
-      ] as const) {
-        Object.defineProperty(globalThis, 'navigator', { value: { userAgent, vendor: '' }, configurable: true })
-        const measurement = await import(`./measurement.ts?user-agent=${encodeURIComponent(userAgent)}`) as MeasurementModule
-        const profile = measurement.getEngineProfile()
-        expect({ userAgent, scan: profile.lineBreakScan, prefixes: profile.prefixFitMinWidth }).toEqual({ userAgent, scan, prefixes })
-      }
-    } finally {
-      if (descriptor === undefined) {
-        Reflect.deleteProperty(globalThis, 'navigator')
-      } else {
-        Object.defineProperty(globalThis, 'navigator', descriptor)
-      }
+  test('each engine\'s user agent builds its whole profile', async () => {
+    // Every field getEngineProfile() gives Chrome, Safari and Firefox, as [field, Blink's,
+    // WebKit's, Gecko's]. The tests that set a field by hand check what its value does; this one
+    // checks which engine takes which, so that a value moved to another engine fails here and
+    // not only in that browser's cases. EngineProfile (src/measurement.ts) has each field's
+    // rule and its source in the engine.
+    type Profile = ReturnType<MeasurementModule['getEngineProfile']>
+    const fields: Array<{ [K in keyof Profile]: [K, Profile[K], Profile[K], Profile[K]] }[keyof Profile]> = [
+      ['entryFitBasis', 'fresh', 'disabled', 'original'],
+      ['lineBreakScan', 'blink', 'webkit', 'gecko'],
+      ['graphemeTable', 'chromium/char', 'apple/char', 'gecko/char'],
+      ['lineFitEpsilon', 0.005, 1 / 64, 0.005],
+      ['prefixFitMinWidth', Infinity, 0, 80],
+      ['measureTextWithFollowingSpace', false, true, false],
+      ['letterSpaceDiscretionaryHyphen', false, true, true],
+      ['shapesMarksAcrossSoftHyphen', true, false, false],
+      ['unfitHyphenRetreat', 'reduced-width', 'none', 'full-width'],
+      ['skipNarrowTabStops', false, true, false],
+      ['hangTabs', true, true, false],
+      ['zeroWidthGlueTakesLine', true, true, false],
+      ['hidesControlCharacters', false, false, true],
+      ['hanKerning', true, false, false],
+      ['hangsIdeographicSpace', true, false, true],
+      ['laysOutUnderDefaultLocale', true, false, false],
+      ['namesGenericFamiliesByLanguage', false, true, false],
+      ['spaceBeforeSoftHyphenHangs', 'break', 'own-break', 'line-end'],
+      ['collapsesSpaceAcrossSoftHyphens', false, false, true],
+      ['breaksFromItemText', false, true, false],
+      ['hardBreakItemRetreat', 'item', 'fit', 'last-grapheme'],
+      ['paddedOpeningFit', 'start', 'placed', 'both'],
+      ['transformsSegmentBreaksAcrossItems', true, false, false],
+    ]
+    const profileOf = (engine: 1 | 2 | 3, entryFitBasis?: Profile['entryFitBasis']): Record<string, unknown> => {
+      const profile: Record<string, unknown> = {}
+      for (let i = 0; i < fields.length; i++) profile[fields[i]![0]] = fields[i]![engine]
+      if (entryFitBasis !== undefined) profile['entryFitBasis'] = entryFitBasis
+      return profile
+    }
+    for (const [userAgent, profile] of [
+      [CHROME_USER_AGENT, profileOf(1)],
+      [SAFARI_USER_AGENT, profileOf(2)],
+      [FIREFOX_USER_AGENT, profileOf(3)],
+      // Entry fits are verified only on desktop, so Chrome and Firefox on a phone take none; an
+      // app's web view on an iPhone names no browser and is WebKit.
+      ['Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Mobile Safari/537.36', profileOf(1, 'disabled')],
+      ['Mozilla/5.0 (Android 14; Mobile; rv:156.0) Gecko/156.0 Firefox/156.0', profileOf(3, 'disabled')],
+      ['Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148', profileOf(2)],
+      // Engines Pretext doesn't recognize take Blink's profile.
+      ['Bun/1.4.0', profileOf(1, 'disabled')],
+    ] as const) {
+      const built: unknown = await engineProfileUnder(userAgent)
+      expect({ userAgent, profile: built }).toEqual({ userAgent, profile })
     }
   })
 
@@ -2869,7 +2918,7 @@ describe('rich-inline invariants', () => {
     expect(measureRichInlineStats(prepared, measureWidth('A', FONT)).lineCount).toBe(1)
   })
 
-  test('a paragraph of one item lays out as that item with an empty item after it', () => {
+  test('a paragraph of one item lays out as that item with an empty item after it', async () => {
     // One item alone takes the text walkers (onlyItem in rich-inline.ts) unless it's atomic
     // or has extraWidth; with any item after it, even an empty one, the rich stepper walks
     // it. Only the cursor after the last line counts the empty item. The stream takes one
@@ -2891,15 +2940,41 @@ describe('rich-inline invariants', () => {
     }
     const texts = ['alpha beta gamma delta', 'A B', 'supercalifragilistic word', '​ab cd', 'ab­cd ef', ' lead trail ', '­ab cd', 'ab cd ef', ' ​', '­']
     const widths = [-1, 0.5, 1, 8, 12, 20, 37.5, 60, 1000, Infinity]
-    for (const text of texts) {
-      for (const letterSpacing of [0, -6, -12, 2]) {
+    const expectSame = (text: string, options: Parameters<typeof prepareRichInline>[1], letterSpacings: readonly number[], font = FONT) => {
+      for (const letterSpacing of letterSpacings) {
         for (const style of [{}, { break: 'never' as const }, { extraWidth: 3 }]) {
-          const one = prepareRichInline([{ text, font: FONT, letterSpacing, ...style }])
-          const two = prepareRichInline([{ text, font: FONT, letterSpacing, ...style }, { text: '', font: FONT }])
+          const one = prepareRichInline([{ text, font, letterSpacing, ...style }], options)
+          const two = prepareRichInline([{ text, font, letterSpacing, ...style }, { text: '', font: FONT }], options)
           const whole = measureRichInlineStats(two, Infinity).maxLineWidth
-          for (const maxWidth of [...widths, whole - 0.004]) expect({ text, letterSpacing, style, maxWidth, ...walk(one, maxWidth, 1) }).toEqual({ text, letterSpacing, style, maxWidth, ...walk(two, maxWidth, 2) })
+          for (const maxWidth of [...widths, whole - 0.004]) expect({ text, options, letterSpacing, style, maxWidth, ...walk(one, maxWidth, 1) }).toEqual({ text, options, letterSpacing, style, maxWidth, ...walk(two, maxWidth, 2) })
         }
       }
+    }
+    for (const text of texts) expectSame(text, undefined, [0, -6, -12, 2])
+    // A width under 1px lays out as 1px, where two words of a 0.5px font fit a line each.
+    expectSame('ab cd', undefined, [0], '0.5px Test Sans')
+    // An item the rich stepper walks itself never takes the text walkers: one holding a hard
+    // break or a tab, as every line feed and tab of a pre-wrap paragraph is, and U+2028 in
+    // the WebKit profile. Nor does one whose start a line start consumes past its first
+    // segment, as the Gecko profile's does where it starts with white space and soft hyphens.
+    // Pre-wrap text that ends in spaces is left out: the two report its last line's width
+    // otherwise (ENGINE_FOLLOWUPS.md, Rich-inline item edges).
+    const engines = [await engineProfileUnder(CHROME_USER_AGENT), await engineProfileUnder(SAFARI_USER_AGENT), await engineProfileUnder(FIREFOX_USER_AGENT)]
+    const profile = getEngineProfile()
+    const previous = { ...profile }
+    try {
+      for (let e = 0; e < engines.length; e++) {
+        Object.assign(profile, engines[e]!)
+        clearCache()
+        for (const text of ['ab\ncd', 'a\n\u{1F600}', '\nab\n\ncd\n', 'ab\tcd ef', '\tab', 'ab cd\t', '   ', 'ab  cd', 'ab\u2028cd ef']) expectSame(text, { whiteSpace: 'pre-wrap' }, [0, -6, -12, 2])
+        for (const text of [' \u00AD \u00AD中', ' \u00AD\u00AD中文 中', '\u00AD \u00ADab', 'ab\u2028cd ef', '민수 씨 오늘']) {
+          expectSame(text, undefined, [0, -6, -12, 2])
+          expectSame(text, { wordBreak: 'keep-all' }, [0, -6, -12, 2])
+        }
+      }
+    } finally {
+      Object.assign(profile, previous)
+      clearCache()
     }
     // At -6px, `A B` fits whole at 8px, where the text walkers break at the space after
     // `A`: the item's whole fit (stepRichInlineLine) takes it, as Blink takes a text item
@@ -3210,6 +3285,10 @@ describe('rich-inline invariants', () => {
         expect(gaps(['(q) \u00AD\u200F\u00AD', ' this more'])).toEqual([0, r(space)])
         expect(gaps(['(q) \u00AD\u202B\u00AD', ' this more'])).toEqual([0, r(second)])
         expect(gaps(['ab', '\u0628\u0628\n\u061C\u00AD', ' \u00ADmore'])).toEqual([0, 0, r(second)])
+        // An atomic item's Hebrew letters aren't in the paragraph, which holds U+FFFC for it, so
+        // the space after it stays left-to-right and U+200F ends the run: Firefox 156.0.1 draws
+        // these items 114.63px wide in 16px Arial, with both spaces after the chip (2026-09-30).
+        expect(gaps(['ab ', { text: '\u05D0\u05D1', break: 'never' }, ' \u200F\u00AD', ' this more'])).toEqual([0, r(space), r(space), r(space)])
         // A soft hyphen after no white space opens no run, and text after one closes it.
         expect(walk(['see\u00AD', ' this word'], Infinity)).toEqual([[r(see + space + words), [[0, 0, r(see)], [1, r(space), r(words)]]]])
         expect(walk(['see \u00AD', 'x', ' this word'], Infinity)).toEqual([[r(see + space + x + space + words), [[0, 0, r(see + space)], [1, 0, r(x)], [2, r(space), r(words)]]]])
@@ -3400,9 +3479,12 @@ describe('rich-inline invariants', () => {
     // item. In the row after those the walk ends at the space before the first item's
     // Thai word, which doesn't fit, where the joined text breaks inside that word. In
     // the four after it a soft hyphen starts an item after other text, in the one after
-    // those an inner break ties with a pending break before the item, and in the last the
-    // joined text breaks inside the second item's first segment, which doesn't fit whole
-    // after the first item, so the line takes that segment's first grapheme.
+    // those an inner break ties with a pending break before the item, in the one after that
+    // the joined text breaks inside the second item's first segment, which doesn't fit whole
+    // after the first item, so the line takes that segment's first grapheme, and in the last
+    // the joined text breaks twice inside the first item's one segment, which no line fits
+    // whole: graphemes fill the second line from the first of those breaks, and it returns to
+    // the second.
     const expectFlatLines = (parts: readonly string[], width: number) => {
       const prepared = prepareRichInline(parts.map(text => ({ text, font: FONT })))
       const richLines: string[] = []
@@ -3436,6 +3518,7 @@ describe('rich-inline invariants', () => {
       [['nmdo', '\u00ADau', 'o a'], 57.6],
       [['\u4E2D\u6587\u201C', '\uD83D\uDE0A\u201D\u4E2D\u6587'], 44],
       [['\u0E2A\u0E27\u0E31\u0E2A', '\u0E2A\u0E27\u0E31\u0E2A'], 48],
+      [['\u0E2D\u0E32\u0E2B\u0E32\u0E23', '\u0E2D'], 32],
     ] as const) expectFlatLines(parts, width)
     // An item that a line start consumes, holding only a soft hyphen, keeps the break
     // before it, where the next item continues its run: the line ends there, after the
@@ -3585,8 +3668,8 @@ describe('rich-inline invariants', () => {
   test('rich items under keep-all break where their text in one node does, and WebKit reads each item boundary alone', () => {
     type Items = Parameters<typeof prepareRichInline>[0]
     // Each line's text, with a space for a gap.
-    const richLines = (items: Items, width: number, wordBreak: 'normal' | 'keep-all' = 'keep-all') => {
-      const prepared = prepareRichInline(items, { wordBreak })
+    const richLines = (items: Items, width: number, wordBreak: 'normal' | 'keep-all' = 'keep-all', whiteSpace: 'normal' | 'pre-wrap' = 'normal') => {
+      const prepared = prepareRichInline(items, { wordBreak, whiteSpace })
       const lines: string[] = []
       walkRichInlineLineRanges(prepared, width, range => {
         lines.push(materializeRichInlineLineRange(prepared, range).fragments.map(fragment => (fragment.gapItemIndex < 0 ? '' : ' ') + fragment.text).join('').trimEnd())
@@ -3594,8 +3677,8 @@ describe('rich-inline invariants', () => {
       expect(measureRichInlineStats(prepared, width).lineCount).toBe(lines.length)
       return lines
     }
-    const flatLines = (items: Items, width: number, wordBreak: 'normal' | 'keep-all' = 'keep-all') =>
-      layoutWithLines(prepareWithSegments(items.map(item => item.text).join(''), FONT, { wordBreak }), width, LINE_HEIGHT).lines.map(line => line.text.trimEnd())
+    const flatLines = (items: Items, width: number, wordBreak: 'normal' | 'keep-all' = 'keep-all', whiteSpace: 'normal' | 'pre-wrap' = 'normal') =>
+      layoutWithLines(prepareWithSegments(items.map(item => item.text).join(''), FONT, { wordBreak, whiteSpace }), width, LINE_HEIGHT).lines.map(line => line.text.trimEnd())
     // The fake Canvas measures bold as regular, so same-size runs lay out as one node would.
     const BOLD = '700 16px Test Sans'
     const wide = measureWidth('\u4E2D', FONT)
@@ -3607,6 +3690,9 @@ describe('rich-inline invariants', () => {
     // A mention chip inside Korean words.
     const chip: Items = [{ text: '\uC548\uB155', font: FONT }, { text: '@\uBBFC\uC218', font: '700 12px Test Sans', break: 'never', extraWidth: 24 }, { text: '\uB2D8 \uBC18\uAC00\uC6CC\uC694', font: FONT }]
     const chipWidth = measureWidth('@\uBBFC\uC218', '700 12px Test Sans') + 24
+    // The Korean message as an editor holds it, with two spaces after the comma, a line feed
+    // after the second word and two more spaces inside the last item.
+    const preserved: Items = [{ text: '\uBBFC\uC218 \uC528,  \uC624\uB298\n', font: FONT }, { text: '\uD68C\uC758', font: BOLD }, { text: '\uB294 \uC138\uC2DC\uC5D0  \uC2DC\uC791\uD569\uB2C8\uB2E4', font: FONT }]
     const profile = getEngineProfile()
     const previous = { lineBreakScan: profile.lineBreakScan, breaksFromItemText: profile.breaksFromItemText }
     try {
@@ -3620,7 +3706,12 @@ describe('rich-inline invariants', () => {
         for (let width = wide; width <= 26 * wide; width += wide / 4) {
           for (const items of [korean, chinese]) expect({ scan, width, lines: richLines(items, width) }).toEqual({ scan, width, lines: flatLines(items, width) })
           if (scan !== 'webkit') expect({ scan, width, lines: richLines(stop, width) }).toEqual({ scan, width, lines: flatLines(stop, width) })
+          // Keep-all and pre-wrap together, as prepare() takes them together: the items break as
+          // their text in one keep-all pre-wrap node.
+          expect({ scan, width, lines: richLines(preserved, width, 'keep-all', 'pre-wrap') }).toEqual({ scan, width, lines: flatLines(preserved, width, 'keep-all', 'pre-wrap') })
         }
+        expect(richLines(preserved, 5 * wide + 0.1, 'keep-all', 'pre-wrap')).toEqual(['\uBBFC\uC218 \uC528,', '\uC624\uB298', '\uD68C\uC758\uB294', '\uC138\uC2DC\uC5D0', '\uC2DC\uC791\uD569\uB2C8\uB2E4'])
+        expect(richLines(preserved, 5 * wide + 0.1, 'normal', 'pre-wrap')).not.toEqual(richLines(preserved, 5 * wide + 0.1, 'keep-all', 'pre-wrap'))
         expect(richLines(korean, 5 * wide + 0.1)).toEqual(['\uBBFC\uC218 \uC528,', '\uC624\uB298', '\uD68C\uC758\uB294', '\uC138\uC2DC\uC5D0', '\uC2DC\uC791\uD569\uB2C8\uB2E4'])
         expect(richLines(korean, 5 * wide + 0.1, 'normal')).toEqual(flatLines(korean, 5 * wide + 0.1, 'normal'))
         expect(richLines(korean, 5 * wide + 0.1, 'normal')).not.toEqual(richLines(korean, 5 * wide + 0.1))
@@ -4004,22 +4095,7 @@ describe('rich-inline invariants', () => {
   })
 
   test('a box lays out as the atomic NBSP it replaces, whose extraWidth made up the rest of its width, in each engine', async () => {
-    // Each engine's whole profile, from a copy of the module under its user agent.
-    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
-    const engines: Array<ReturnType<MeasurementModule['getEngineProfile']>> = []
-    try {
-      for (const userAgent of [
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Safari/605.1.15',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:156.0) Gecko/20100101 Firefox/156.0',
-      ]) {
-        Object.defineProperty(globalThis, 'navigator', { value: { userAgent }, configurable: true, writable: true })
-        engines.push((await import(`./measurement.ts?box-${engines.length}`) as MeasurementModule).getEngineProfile())
-      }
-    } finally {
-      if (descriptor === undefined) Reflect.deleteProperty(globalThis, 'navigator')
-      else Object.defineProperty(globalThis, 'navigator', descriptor)
-    }
+    const engines = [await engineProfileUnder(CHROME_USER_AGENT), await engineProfileUnder(SAFARI_USER_AGENT), await engineProfileUnder(FIREFOX_USER_AGENT)]
     const nbsp = measureWidth(' ', FONT)
     const standIn = (items: Array<RichInlineItem | RichInlineBox>): RichInlineItem[] =>
       items.map(item => item.text === undefined ? { text: ' ', font: FONT, break: 'never', extraWidth: item.width - nbsp } : item)
@@ -4911,29 +4987,33 @@ describe('layout invariants', () => {
   test("Blink's HanKerning trims an opening mark after a closing one and a line-end closing mark", () => {
     const measureText = Object.getOwnPropertyDescriptor(TestCanvasRenderingContext2D.prototype, 'measureText')!
     // A font with halt: inside one string, 「 after a closing or opening mark and a closing
-    // mark before another lose half an em, as Canvas shapes them. 、。，． are closing marks
-    // that draw in the left half of their em next to Han text and centered alone, as locl
-    // can place them. Canvas shapes `(`, `)`, `·` and `”` as words of their own, so it
-    // halts nothing next to them.
+    // mark before another, or before ：, ・ or U+3000, lose half an em, as Canvas shapes them. 、。，．：；
+    // are marks that draw in the left half of their em next to Han text and centered alone, as
+    // locl can place them. Canvas shapes `(`, `)`, `·`, `；` and curly quotes as words of their
+    // own, so it halts nothing next to them. Curly quotes are narrow, but in the font named Wide
+    // Quotes, where each is an em wide, an opening one drawn in its right half and a closing one
+    // in its left.
     Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', {
       ...measureText,
       value(this: TestCanvasRenderingContext2D, text: string) {
         canvasMeasurementCount++
         const em = parseFontSize(this.font)
-        const pairs = (text.match(/(?<=[」』）】〉》「、。，．])「|[」』）】〉》、。，．](?=[」』）】〉》、。，．])/g) ?? []).length
-        const width = measureWidth(text, this.font) - pairs * em / 2
+        const pairs = (text.match(/(?<=[」』）】〉》「、。，．])「|[」』）】〉》、。，．](?=[」』）】〉》、。，．：・\u3000])/g) ?? []).length
+        const wideQuotes = this.font.includes('Wide Quotes')
         // Ink bounds over the characters, each at its advance.
         const han = /\p{sc=Han}/u.test(text)
         let x = 0
         let left = Infinity
         let right = -Infinity
         for (const ch of text) {
-          const w = measureWidth(ch, this.font)
-          const dot = /^[、。，．]$/.test(ch)
-          left = Math.min(left, x + (dot ? (han ? 0.1 : 0.3) * em : 0))
-          right = Math.max(right, x + (dot ? (han ? 0.4 : 0.7) * em : w))
+          const quote = wideQuotes ? '“‘”’'.indexOf(ch) : -1
+          const w = quote < 0 ? measureWidth(ch, this.font) : em
+          const dot = /^[、。，．：；]$/.test(ch)
+          left = Math.min(left, x + (quote >= 0 ? (quote < 2 ? 0.6 : 0.1) * em : dot ? (han ? 0.1 : 0.3) * em : 0))
+          right = Math.max(right, x + (quote >= 0 ? (quote < 2 ? 0.9 : 0.4) * em : dot ? (han ? 0.4 : 0.7) * em : w))
           x += w
         }
+        const width = (wideQuotes ? x : measureWidth(text, this.font)) - pairs * em / 2
         return { width, actualBoundingBoxLeft: -left, actualBoundingBoxRight: right }
       },
     })
@@ -5023,6 +5103,33 @@ describe('layout invariants', () => {
           const complex = { ...prepared, simpleLineWalkFastPath: false } as typeof prepared
           expect(layoutWithLines(complex, width, LINE_HEIGHT)).toEqual(lines)
         }
+      }
+      // Every character HanKerning types by itself, before Ps and Pe (getStaticCharType in
+      // src/han-kerning.ts), as [the character, whether 「 after it is halted, whether 」 before it
+      // is]: in Chrome 154.0.8037.57 (2026-09-30), 16px PingFang SC under zh and 16px Hiragino
+      // Sans under ja both draw `中X「中` and `中」X中` 8px narrower than `中X中中` and `中中X中` where
+      // the pair halts. An opening quote in a narrow glyph halts only the mark after it and a
+      // closing one only the mark before it; a dot, a colon, a semicolon and a middle halt both.
+      const typed: [string, boolean, boolean][] = [
+        ['\u2018', true, false], ['\u201C', true, false], ['\u2019', false, true], ['\u201D', false, true],
+        ['\u3001', true, true], ['\u3002', true, true], ['\uFF0C', true, true], ['\uFF0E', true, true],
+        ['\uFF1A', true, true], ['\uFF1B', true, true],
+        ['\u00B7', true, true], ['\u2027', true, true], ['\u3000', true, true], ['\u30FB', true, true],
+      ]
+      for (let t = 0; t < typed.length; t++) {
+        const [mark, haltsAfter, haltsBefore] = typed[t]!
+        const pairs: [string, boolean][] = [[`中${mark}「中`, haltsAfter], [`中」${mark}中`, haltsBefore]]
+        for (let p = 0; p < pairs.length; p++) {
+          const [text, halts] = pairs[p]!
+          expect({ text, width: measureNaturalWidth(prepareWithSegments(text, font)) }).toEqual({ text, width: measureWidth(text, font) - (halts ? 8 : 0) })
+        }
+      }
+      // Fullwidth curly quotes type as opening and closing marks (HanKerning::GetCharType,
+      // han_kerning.cc:142-168), so 「 is halted after an opening mark and 」 before a closing one:
+      // 16px Hiragino Sans GB under zh, whose quotes are an em wide, draws `中“「中` and `中」”中` at
+      // 56px in Chrome 154.0.8037.57, 8px narrower than `中“中中` (2026-09-30).
+      for (const text of ['中“「中', '中‘「中', '中」”中', '中」’中']) {
+        expect({ text, width: measureNaturalWidth(prepareWithSegments(text, '16px Halt Wide Quotes Sans')) }).toEqual({ text, width: 56 })
       }
       // A line that ends with a halted mark paints it halted, where what follows it takes no room:
       // a space, which fits with letter spacing where the mark and the gap after it don't, and

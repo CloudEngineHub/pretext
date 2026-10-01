@@ -850,7 +850,9 @@ discussion's list (TODO.md).
 An item holding only soft hyphens and collapsible white space is no line content, since a line start consumes it, but
 since #369 it takes part in the paragraph's runs and breaks as its text does in one text node. The rules, with each
 browser's example, are in the comments of `src/rich-inline.ts` and of the engine profile's `spaceBeforeSoftHyphenHangs`,
-and the harness's `rich/continued` families pin them; these results shaped them. After content the item keeps the
+and the harness's `rich/continued` families pin the lines; which engine takes which `spaceBeforeSoftHyphenHangs`
+value moves only line widths, which the harness doesn't judge, so `src/layout.test.ts` pins it with each engine's whole
+profile. These results shaped them. After content the item keeps the
 collapsed space before it: ending the line before the item lost 288 Firefox cases of a 43,462-case probe, as Firefox
 keeps the space and the soft hyphen on the line. Where a line
 ends after it, the browsers break at that space and move the soft hyphen on, so the space hangs, but each engine keeps
