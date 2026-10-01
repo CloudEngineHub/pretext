@@ -539,8 +539,9 @@ function getEmojiGlyphs(text: string, measurement: FontMeasurement): number {
 
 // The characters the emoji font shapes together inside a grapheme: emoji and pictographs,
 // the characters that join or modify them (ZWJ, skin tones, tags, U+20E3) and the
-// variation selectors. A grapheme of emojiGraphemeRe holds one.
-const emojiStretchRe = /[\p{Emoji}\p{Extended_Pictographic}\p{Emoji_Component}\uFE0E]+/gu
+// variation selectors. Every emoji character has one of the two properties. A grapheme
+// of emojiGraphemeRe holds one.
+const emojiStretchRe = /[\p{Extended_Pictographic}\p{Emoji_Component}\uFE0E]+/gu
 
 // The glyphs of the emoji font in a text: what the correction is subtracted for, once
 // each. Font fallback decides which font draws an emoji character, and Canvas shows what
