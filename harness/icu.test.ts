@@ -9,7 +9,7 @@
 //   update is no regression.
 // No Thai, Lao, Khmer or Myanmar letter is drawn: inside their runs Intl.Segmenter stands in for ICU's dictionaries
 // (src/line-breaks.ts), and the two engines' dictionaries differ on random letters.
-import { dlopen, FFIType, ptr, type Pointer } from 'bun:ffi'
+import { dlopen, FFIType, type Pointer } from 'bun:ffi'
 import { describe, expect, test } from 'bun:test'
 import { charTablesPacked, lineTablesPacked, type LineTable } from '../src/generated/engine-break-data.ts'
 import { findGraphemeEnds } from '../src/graphemes.ts'
@@ -38,23 +38,28 @@ const UBRK_CHARACTER = 0
 const UBRK_LINE = 2
 
 // The system's iterator for a locale's rules, or for compiled rules; null where ICU refuses them (a status above 0).
+// Each call takes its arrays themselves, which bun holds for the call. ICU goes on reading compiled rules and the text
+// an iterator was set, so both stay referenced here, where the collector can't take them between the calls.
 function open(type: number, locale: string): Pointer | null {
   status[0] = 0
-  const iterator = icu!.ubrk_open(type, ptr(Buffer.from(`${locale}\0`)), ptr(NO_TEXT), 0, ptr(status))
+  const iterator = icu!.ubrk_open(type, Buffer.from(`${locale}\0`), NO_TEXT, 0, status)
   return status[0] > 0 ? null : iterator
 }
+const opened: Uint8Array[] = []
 function openRules(rules: Uint8Array): Pointer | null {
+  opened.push(rules)
   status[0] = 0
-  const iterator = icu!.ubrk_openBinaryRules(ptr(rules), rules.length, ptr(NO_TEXT), 0, ptr(status))
+  const iterator = icu!.ubrk_openBinaryRules(rules, rules.length, NO_TEXT, 0, status)
   return status[0] > 0 ? null : iterator
 }
 
 // Every boundary after the start, as ubrk_next gives them.
+let units = NO_TEXT
 function boundaries(iterator: Pointer, text: string): string {
-  const units = new Uint16Array(text.length + 1)
+  units = new Uint16Array(text.length + 1)
   for (let i = 0; i < text.length; i++) units[i] = text.charCodeAt(i)
   status[0] = 0
-  icu!.ubrk_setText(iterator, ptr(units), text.length, ptr(status))
+  icu!.ubrk_setText(iterator, units, text.length, status)
   icu!.ubrk_first(iterator)
   let out = ''
   for (let at = icu!.ubrk_next(iterator); at >= 0; at = icu!.ubrk_next(iterator)) out += `${at} `
