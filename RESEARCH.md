@@ -1070,14 +1070,7 @@ fits only the start edge of a padded span that starts with white space after tex
 chip's `white-space: nowrap` box does: the rebuild's premise, the chip's max-content width with its preserved spaces, is
 6.6px wider than all three browsers lay out the 12px chip ` @bob ` in 15px Helvetica Neue prose (2026-09-29).
 Of 500 real-usage pre-wrap paragraphs split into same-font spans, each one that fails fails in one node too; what's left
-is at padded span edges and tab stops across fonts (ENGINE_FOLLOWUPS.md, Rich-inline item edges). After spaces that
-hang, a padded span that starts with spaces stays on their line in the WebKit profile where its padding fits after the
-text before them, as WebKit leaves content that hangs out of the fit. Gecko's hang is its text frame's own: the frame
-ends after its spaces where they fit and at the line's end where they don't, and the span after it is a frame with a
-width, which fits only after that, so the Gecko profile counts those spaces (#TBD). `ab ` and a span ` cd` with 3px of
-padding on each side in pre-wrap 16px Arial keep the span's space on the first line from 28.25px in Firefox 156.0.1, the
-22.25px of `ab ` and the padding, where the profile kept it from 23.8px; of 5,059 pre-wrap layouts of such spans after a
-word, spaces in a node of their own, a chip or a box, 585 pass that failed and none fails that passed (2026-10-01).
+is at padded span edges and tab stops across fonts (ENGINE_FOLLOWUPS.md, Rich-inline item edges).
 
 #### Painting Lines
 

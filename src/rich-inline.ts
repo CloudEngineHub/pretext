@@ -1172,10 +1172,7 @@ function stepRichInlineLine(
     // the run the line ends with, so the reserved width of an item that starts with them fits
     // where the line's content before that run fits, as WebKit fits a box's edge
     // (InlineContentBreaker, hangingContentWidth), though WebKit leaves out only the last
-    // white-space item's (ENGINE_FOLLOWUPS.md). Gecko fits a span's whole frame, its padding too,
-    // after the frame of the spaces before it, which ends after them where they fit and at the
-    // line's end where they hang (CanPlaceFrame, 'both'), so there only unpadded white space goes
-    // on the run.
+    // white-space item's (ENGINE_FOLLOWUPS.md).
     const reservedWidth = gapBefore + item.extraWidth
     if (hasContent && reservedWidth > remainingWidth + lineFitEpsilon && (item.establishesLine || reservedWidth > 0) &&
       !fitsOpening(flow, itemIndex, lineWidth, lineHangWidth, safeWidth + lineFitEpsilon, paddedOpeningFit, startItemIndex, startSegmentIndex)) {
@@ -1203,8 +1200,7 @@ function stepRichInlineLine(
           breakOccupiedWidth = fragments === null ? 0 : fragments[breakFragmentCount - 1]!.occupiedWidth - retreat
         }
       }
-      const hangs = (firstKind === PRESERVED_SPACE || (firstKind === TAB && hangTabs)) && reservedWidth <= remainingWidth + lineHangWidth + lineFitEpsilon &&
-        (paddedOpeningFit !== 'both' || item.extraWidth <= 0)
+      const hangs = (firstKind === PRESERVED_SPACE || (firstKind === TAB && hangTabs)) && reservedWidth <= remainingWidth + lineHangWidth + lineFitEpsilon
       if (!keepsHardBreak && !hangs) {
         returnsToBreak = !item.breakBefore
         break
