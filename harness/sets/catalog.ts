@@ -263,23 +263,14 @@ export function bidiControlTemplates(): Template[] {
 
 // Words with `fi`, `fl`, `ff` and `ffi` in Roboto, whose optional ligatures Chrome, Firefox and Safari turn off under any
 // letter spacing (shapesLetterSpaced in src/measurement.ts): each word is as wide as its letters, 0.35-1.34 px more
-// than with its ligatures at 16 px. Under positive and negative spacing, and as one word too long for its line, which
-// breaks between letters by the same advances. Which contexts measure which shaping is src/layout.test.ts's.
+// than with its ligatures at 16 px. One paragraph: the cover tells a line break by its classes and the spacing's sign,
+// not by its font, so it keeps no second one. Which contexts measure which shaping, and a break inside a word by the
+// same advances, are src/layout.test.ts's; the sample holds Roboto under negative spacing.
 export function letterSpacedLigatureTemplates(): Template[] {
-  const shapes: ReadonlyArray<readonly [string, number, number]> = [
-    ['a difficult office workflow: fluffy waffles, five official offers', 16, 0.5],
-    ['the final offer of fifty official certificates of fitness', 15, -0.2],
-    ['unofficialdifficultiesofflineaffiliations', 16, 1],
-  ]
-  const out: Template[] = []
-  for (let i = 0; i < shapes.length; i++) {
-    const [text, size, letterSpacing] = shapes[i]!
-    out.push({
-      family: 'letter-spaced-ligatures', origin: 'src/measurement.ts: letter spacing turns optional ligatures off', pageLang: 'en', widths: [], grid: true,
-      paragraph: paragraph({ font: font('Roboto, Arial, sans-serif', size), lang: 'en', letterSpacing }, [text]),
-    })
-  }
-  return out
+  return [{
+    family: 'letter-spaced-ligatures', origin: 'src/measurement.ts: letter spacing turns optional ligatures off', pageLang: 'en', widths: [], grid: true,
+    paragraph: paragraph({ font: font('Roboto, Arial, sans-serif', 16), lang: 'en', letterSpacing: 0.5 }, ['a difficult office workflow: fluffy waffles, five official offers']),
+  }]
 }
 
 export function catalogTemplates(): Template[] {
