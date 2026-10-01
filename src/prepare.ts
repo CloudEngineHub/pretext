@@ -67,7 +67,7 @@ function addInternalLetterSpacing(width: number, graphemeCount: number, letterSp
 const cursiveScriptRe = /[\p{Script=Arabic}\p{Script=Syriac}\p{Script=Nko}\p{Script=Mandaic}\p{Script=Mongolian}\p{Script=Phags_Pa}\p{Script=Hanifi_Rohingya}]/uy
 // What starts or goes on with a cursive run in Blink: the letters, and the Common
 // characters whose scripts include Arabic, such as U+060C and U+0640, since Arabic has
-// the lowest code of a character's scripts (ICUScriptData::GetScripts, :118-222). Gap:
+// the lowest code of a character's scripts (ICUScriptData::GetScripts, :118-215). Gap:
 // those characters after a script that shares them, such as Thaana, go on with its run.
 const cursiveRunRe = /[\p{scx=Arabic}\p{Script=Syriac}\p{Script=Nko}\p{Script=Mandaic}\p{Script=Mongolian}\p{Script=Phags_Pa}\p{Script=Hanifi_Rohingya}]/uy
 const mayBeCursiveRe = new RegExp(cursiveRunRe.source, 'u')
@@ -88,9 +88,9 @@ function startScriptRun(text: string): ScriptRun {
 }
 
 // Takes the code point c at text[i] into the run. A closing bracket goes back to its
-// opening bracket's run, among the last 32 opened (CloseBracket, kMaxBrackets,
-// script_run_iterator.cc:354-390), and a wide or fullwidth opening bracket starts a Han
-// run (FixScriptsByEastAsianWidth, :87-109). The pairs are Unicode 15's, as the Gecko
+// opening bracket's run, among the last 32 opened (OpenBracket and CloseBracket,
+// script_run_iterator.cc:431-481), and a wide or fullwidth opening bracket starts a Han
+// run (FixScriptsByEastAsianWidth, :83-110). The pairs are Unicode 15's, as the Gecko
 // profile's bidi levels read them.
 function enterScriptRun(run: ScriptRun, text: string, i: number, c: number): void {
   const { openBrackets } = run
