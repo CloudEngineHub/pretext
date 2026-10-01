@@ -283,7 +283,11 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
             if (gapItem.text === undefined) {
               fail('rich lines', at, `line ${i}'s gap before item ${f.itemIndex} is box ${f.gapItemIndex}'s, which holds no white space`)
             } else {
-              const space = standInWidth(' ', gapItem.font, gapItem.letterSpacing ?? 0)
+              // Firefox lays letter spacing out in whole app units, 1/60 px, rounded half away from zero
+              // (readLetterSpacing in src/measurement.ts).
+              const given = gapItem.letterSpacing ?? 0
+              const spacing = gecko ? Math.sign(given) * Math.round(Math.abs(Math.fround(Math.fround(given) * 60))) / 60 : given
+              const space = standInWidth(' ', gapItem.font, spacing)
               if (Math.abs(f.gapBefore - space) > 1e-6 && !(profile === 'gecko' && f.gapBefore === 0)) fail('rich lines', at, `line ${i}'s gap before item ${f.itemIndex} is ${f.gapBefore}; item ${f.gapItemIndex}'s SPACE is ${space}`)
             }
           }
