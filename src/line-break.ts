@@ -840,6 +840,18 @@ function walkPreparedComplexLines(
         if (pendingBreakSegmentIndex === consumedEndSegmentIndex && lineEndGraphemeIndex === 0) {
           endWidth = pendingBreakWidth
           returnsFromHyphen = true
+        } else if (
+          pendingBreakSegmentIndex === consumedEndSegmentIndex - 1 &&
+          pendingBreakSegmentIndex > lineStartSegmentIndex &&
+          (segmentFlags[pendingBreakSegmentIndex - 1]! & KIND_BITS) === SPACE &&
+          (segmentFlags[pendingBreakSegmentIndex]! & KIND_BITS) === HARD_BREAK
+        ) {
+          // A collapsible space that ends the line before a hard break is removed, as
+          // where the line wraps after it (CSS Text 3 §4.1.2). Only Safari's U+2028 and
+          // U+2029 follow one: WebKit removes a line's trailing trimmable content when
+          // the line closes (InlineLineBuilder.cpp:646), and a line break appended
+          // after it leaves it trimmable (Line::appendLineBreak, InlineLine.cpp:588-597).
+          endWidth = pendingBreakWidth
         } else {
           endWidth = lineW - lineEndTrimmed
         }
