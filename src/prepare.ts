@@ -410,7 +410,7 @@ export function measureAnalysis(
         break
       case TAB:
         if (tabStops === 'spaces') spacingGraphemeCount = 1
-        minimumTabAdvance = (tabStops === 'spaced-ch' ? getTextWidth('0', fontMeasurement, emojiCorrection) : spaceWidth) / 2
+        if (minimumTabAdvance === 0) minimumTabAdvance = (tabStops === 'spaced-ch' ? getTextWidth('0', fontMeasurement, emojiCorrection) : spaceWidth) / 2
         break
       case CONTROL: {
         width = getTextWidth(text, fontMeasurement, emojiCorrection)

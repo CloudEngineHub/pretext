@@ -1738,16 +1738,18 @@ repin` shows what), and a fact read in source needs reading again.
   each character's spacing (`CalcTabWidths`, :4306-4378). Recordings agree (harness recordings at commit b1fd05fc,
   Firefox 156.0.1): a tab-only line is 8 × (space + letter spacing) unless the tab is the text's last character, as in
   16px Arial at −1, 0 and 1px: 27.6, 35.6 and 43.6px. All of it is in whole app units, so a tab exactly the minimum from
-  its stop takes it, and in Arial and Helvetica, where a space is half a `0`, a tab one space before a stop is one. No
-  break comes before a tab and Firefox doesn't hang one, so a tab that doesn't fit goes to the next line with the word
-  before it, from the last break whose line fits (`BreakAndMeasureText`, `gfxTextRun.cpp:1086-1101`), or, without one,
-  alone, as break-word wraps before any cluster (:1069-1072). The Gecko profile follows the stops, the minimum, the app
-  units and the tab that doesn't fit since #TBD (`tabStops`, `src/measurement.ts`; `segmentAtLineBreaks()`,
-  `src/analysis.ts`), not the spacing after a run's last character (ENGINE_FOLLOWUPS.md). Before it, tab-separated text
-  without letter spacing (six texts such as `col1`, tab, `col2`, tab, `col3` in four fonts at 30-400px, 1,272 probe
-  inputs recorded fresh) failed at 367 widths in Firefox 156.0.1 and 39 in Chrome 154.0.8037.57, which skips a stop
-  under half a space away, and at none in webkit-host; with it none fails in any (2026-09-30). (Firefox 156.0 source,
-  2026-09-16 and 09-27.)
+  its stop takes it, and in Arial and Helvetica, where a space is half a `0`, a tab one space before a stop is one. A
+  break comes only after a whole run of spaces and tabs (`nsLineBreaker.cpp:318-330`) and Firefox doesn't hang a tab,
+  so a tab that doesn't fit goes to the next line with the word before it, from the last break whose line fits
+  (`BreakAndMeasureText`, `gfxTextRun.cpp:1086-1101`), or, without one, alone, as break-word wraps before any cluster
+  (:1069-1072): a later tab of the run too, while the spaces before it hang. The Gecko profile follows the stops, the
+  minimum, the app units and the tab that doesn't fit since #TBD (`tabStops`, `src/measurement.ts`;
+  `segmentAtLineBreaks()`, `src/analysis.ts`), not the spacing after a run's last character (ENGINE_FOLLOWUPS.md).
+  Before it, tab-separated text without letter spacing (six texts such as `col1`, tab, `col2`, tab, `col3` in four
+  fonts at 30-400px, 1,272 probe inputs recorded fresh) failed at 367 widths in Firefox 156.0.1 and 39 in Chrome
+  154.0.8037.57, which skips a stop under half a space away, and at none in webkit-host, and runs of a tab, spaces and
+  a tab (seven texts such as `ab`, tab, space, tab, space, `cd` in 16px Arial and 13px Menlo at 24-300px, 980 inputs)
+  at 301 in Firefox; with it none fails in any (2026-09-30 and 10-01). (Firefox 156.0 source, 2026-09-16 and 09-27.)
 
 Elsewhere: a context used before Firefox reads its late family names keeps the fallback (PLATFORM_BUGS.md, the late
 family names), and the joined Arabic study is under Content Language And Fonts, Widths That Depend On Context.

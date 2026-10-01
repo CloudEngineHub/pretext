@@ -54,9 +54,9 @@ export const SEGMENT_KINDS: readonly SegmentBreakKind[] = [
 // unit each normalized unit starts from, such as the TAB or LF a space came from. Null otherwise.
 // `texts` holds each segment's text, `starts` where it starts in `normalized`, and `flags` its
 // flags byte: its kind, UNBROKEN where the engine's scan gives no break before text, zero-width
-// glue or a control, other than at a line start, RETURNABLE at the other segments of text with
-// such a boundary, which `hasUnbroken` tells, and ONE_CLUSTER where the scan has clusters of
-// its own.
+// glue or a control, other than at a line start, and in the Gecko scan before a tab or the
+// spaces after one, RETURNABLE at the other segments of text with such a boundary, which
+// `hasUnbroken` tells, and ONE_CLUSTER where the scan has clusters of its own.
 export type TextAnalysis = {
   normalized: string
   spaceSources: Uint16Array | null
@@ -377,16 +377,19 @@ function segmentAtLineBreaks(normalized: string, spaceSources: Uint16Array | nul
   // before text, zero-width glue or a control, other than at a line start. A
   // ZWSP or soft hyphen there is zero-width glue. Before a space, tab or hard break
   // the scan has no break either, but the line can still end there, as they hang or
-  // end it, so it keeps its kind. Gecko doesn't hang a tab (EngineProfile's hangTabs),
-  // so no line ends before one there either; a soft hyphen before it keeps its break
-  // (GetHyphenationBreaks, nsTextFrame.cpp:4409-4457).
+  // end it, so it keeps its kind. Gecko breaks only after a whole run of spaces and tabs
+  // (nsLineBreaker.cpp:318-330) and doesn't hang a tab, so there no line ends before a
+  // tab, or between a tab and the spaces after it, which hang where the run ends the
+  // line; a soft hyphen before the tab keeps its break (GetHyphenationBreaks,
+  // nsTextFrame.cpp:4409-4457). The Gecko scan stands here for the profile's hangTabs,
+  // false only in the engine whose scan it is.
   let hasUnbroken = false
   const count = flags.length
   for (let j = count - 2; j >= 0; j--) {
     const kind = flags[j]! & KIND_BITS
     const next = flags[j + 1]! & KIND_BITS
     if ((breaks[starts[j + 1]!]! & BREAK) !== 0 || kind === HARD_BREAK) continue
-    if (next === TAB && scan === 'gecko') {
+    if (scan === 'gecko' && (next === TAB || (next === PRESERVED_SPACE && kind === TAB))) {
       if (kind === SOFT_HYPHEN) continue
     } else if (next === TEXT || next === ZERO_WIDTH_GLUE || next === CONTROL) {
       if (kind === ZERO_WIDTH_BREAK || kind === SOFT_HYPHEN) flags[j] = flags[j]! & ~KIND_BITS | ZERO_WIDTH_GLUE

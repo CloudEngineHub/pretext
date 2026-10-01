@@ -124,8 +124,8 @@ function consumesAtLineStart(kind: number, atChunkStart: boolean): boolean {
 // A tab's advance from `position` on the line: to the next stop, or to the one after where
 // the next is under the minimum away (EngineProfile's tabStops). A tab on a stop is a whole
 // stop from the next, so each tab of a run takes one. Stops no wider than 0, under a letter
-// spacing of minus a space or less, leave a tab no advance, as in Gecko (GetSpacing,
-// nsTextFrame.cpp:4306-4309) and as Chrome lays such tabs out. Gecko counts in whole app
+// spacing of minus a space or less, leave a tab no advance, as in Gecko (GetSpacingInternal,
+// nsTextFrame.cpp:4262-4264) and as Chrome lays such tabs out. Gecko counts in whole app
 // units, sixtieths of a pixel (AdvanceToNextTab, nsTextFrame.cpp:4298-4304), so a tab
 // exactly the minimum from its stop takes it, as many do: in Arial and Helvetica a space is
 // half a `0`. Canvas sums come within float error of such a tie.
@@ -692,7 +692,7 @@ function walkPreparedComplexLines(
               // BreakAndMeasureText keeps the last break whose line fits (gfxTextRun.cpp:1086-1101).
               // Without one it wraps before the tab, as break-word lets it before any cluster
               // (:1069-1072), and the spaces before the tab hang.
-              if (kind === TAB && !hangs && pendingBreakSegmentIndex < 0) {
+              if (kind === TAB && !hangs && pendingBreakSegmentIndex < 0 && innerBreakSegmentIndex < 0) {
                 endSegmentIndex = i
                 endGraphemeIndex = 0
                 endWidth = hangEndSegmentIndex === i && i > lineStartSegmentIndex ? hangStartWidth : contentW

@@ -1424,6 +1424,20 @@ describe('boundary-policy regressions', () => {
         expect(lines('aaaaaaaaa\tx', long + 1)).toEqual([['aaaaaaaaa', round(long)], ['\tx', tabbed]])
         expect(lines('aaaaaaaaa \tx', long + 6)).toEqual([['aaaaaaaaa ', round(long)], ['\tx', tabbed]])
         expect(lines('a\t\tb', stop + 1)).toEqual([['a\t', round(stop)], ['\t', round(stop)], ['b', round(measureWidth('b', LARGE))]])
+        // No line ends between a tab and the spaces after it either: where a later tab of the
+        // run doesn't fit, the line wraps before that tab, or returns to the break before the run.
+        const b = round(measureWidth('b', LARGE))
+        expect(lines('a\t \t b', stop + 6)).toEqual([['a\t ', round(stop)], ['\t ', round(stop)], ['b', b]])
+        expect(lines('x a\t \t b', stop + 6)).toEqual([['x ', round(measureWidth('x', LARGE))], ['a\t ', round(stop)], ['\t ', round(stop)], ['b', b]])
+        // A break of the joined text inside a rich item's segment is such a break: the two Thai
+        // items join into words that break after the second item's first letter, and its tab, under
+        // half a `0` before its stop, takes the stop after and doesn't fit.
+        const THAI = '\u0E2A\u0E27\u0E31\u0E2A'
+        const rich = prepareRichInline([{ text: THAI, font: LARGE }, { text: THAI + '\tx', font: LARGE }], { whiteSpace: 'pre-wrap' })
+        const richLines: string[] = []
+        walkRichInlineLineRanges(rich, stop + 1, range => { richLines.push(materializeRichInlineLineRange(rich, range).fragments.map(fragment => fragment.text).join('')) })
+        expect(measureWidth(THAI, LARGE)).toBeLessThan(stop)
+        expect(richLines).toEqual([THAI, '\u0E2A', '\u0E27\u0E31\u0E2A\t', 'x'])
         // A soft hyphen before the tab keeps its break, with its hyphen.
         expect(lines('aaaaaaaaa\u00AD\tx', long + 10)).toEqual([['aaaaaaaaa-', round(long + measureWidth('-', LARGE))], ['\tx', tabbed]])
       }
