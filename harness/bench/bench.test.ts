@@ -86,7 +86,8 @@ function sessionOf(session: number, ops: Record<string, [number, number | ((roun
     results: { [id]: { id, timerStep: 0.005, start: snapshot, end: snapshot, ops: Object.entries(ops).map(([op, [candidate, control, spread]]) => ({ op, rounds: rounds(candidate, control, spread, ms) })) } },
   }
 }
-const row = (all: SessionResults[], entry: string): string => report(all, { hypotheses: false, sizes: {} }).split('\n').find(line => line.includes(` ${entry} |`))!
+const BUILDS = 'base: main (0123abc, 2026-09-30); candidate: this tree\'s src/'
+const row = (all: SessionResults[], entry: string): string => report(all, { builds: BUILDS, hypotheses: false, sizes: {} }).split('\n').find(line => line.includes(` ${entry} |`))!
 
 describe('the report', () => {
   const two = [
@@ -145,6 +146,10 @@ describe('the report', () => {
     expect(row(noisyThenApart, 'layout')).toEndWith('| +30.0% +12.0% | two speeds (base 2.62, control 2.93 µs/1k) |')
     // A control 8% from base at its median, with a third of its rounds on base's other side, is noise.
     expect(row(two, 'stats')).toContain('| +8.0% +0.0% | within noise')
+  })
+
+  test('the output starts with the builds it compared: a pasted table wouldn\'t say what it timed', () => {
+    expect(report(two, { builds: BUILDS, hypotheses: false, sizes: {} }).split('\n')[1]).toBe(BUILDS)
   })
 })
 

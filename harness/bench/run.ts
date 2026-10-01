@@ -10,7 +10,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { serveJob } from '../run.ts'
 import { BROWSER, type BrowserKind } from '../types.ts'
-import { benchBundle, srcOf } from './lib.ts'
+import { benchBundle, buildName, srcOf } from './lib.ts'
 import type { Doc, DocResult, OpSpec } from './page.ts'
 import { readings, report, unconfirmed, type SessionResults } from './report.ts'
 import { createRng } from '../sets/build.ts'
@@ -229,7 +229,7 @@ export async function bench(baseRef: string, lib: string, browsers: BrowserKind[
   // An entry a line, as bench/calibration.json keeps a calibration's.
   writeFileSync(join(dir, 'readings.json'), `${JSON.stringify(readings(all)).replace(/"[^"]+":\[\[/g, '\n$&')}\n`)
   const after = power()
-  console.log(report(all, { hypotheses: background, sizes: { base: built.base, candidate: built.candidate } }))
+  console.log(report(all, { builds: `base: ${buildName(baseRef)}; candidate: ${buildName(lib)}`, hypotheses: background, sizes: { base: built.base, candidate: built.candidate } }))
   console.log(`power ${after.source} ${after.percent}%, load ${load()}`)
   if (failed.size > 0) throw new Error(`bench: ${[...failed].map(([browser, why]) => `${browser} ${why}`).join('; ')}`)
 }

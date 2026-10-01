@@ -221,6 +221,12 @@ mixed, Latin and CJK messages, each family in a document of its own.
   slowdowns known between main before #340 (6d1d2106) and 217c84b8, a commit of #340: pre-wrap layout and walk at 1.05
   of base's time in Chrome and 1.18-1.25 in Firefox, and letter-spaced CJK and control layouts at 1.12 and 1.20 in
   Safari.
+- **A baseline.** `bun harness bench main` shows one change. Changes that each read within noise add up, and each PR's
+  ratio carries its own sessions' noise, so the ratios don't multiply into where main stands. After every ten merged
+  changes to `src/`, and before a release, time main against a fixed commit, main before #340:
+  `bun harness bench 6d1d2106`, with Chrome in three runs (`--browser=chrome` and `--rows=new,fresh,rich`,
+  `seen,resize,lines`, `worst`), since a run of every row of that build went past the 6 GB bound on the bench's Chrome
+  twice (2026-09-26). The first line of the output names both builds and their commits.
 - **WebKit's width cache** samples one Canvas call in 21 after a run of misses, so a prepare that submits n strings
   speeds up only after 21 / gcd(n, 21) repeats: compare submitted text and cold first prepares.
 

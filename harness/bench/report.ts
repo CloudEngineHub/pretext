@@ -1,7 +1,7 @@
-// What the bench prints: per browser, row and family or operation, base's and the candidate's cost (per 1,000 UTF-16
-// units, or per call for labels), candidate/base as the median over rounds of each round's paired ratio with its
-// quartiles and each session's median, control/base the same way, and a verdict (`verdict()`). Then the costliest
-// entry per row, the fresh pages and the bundles' sizes.
+// What the bench prints: the builds, then per browser, row and family or operation, base's and the candidate's cost (per
+// 1,000 UTF-16 units, or per call for labels), candidate/base as the median over rounds of each round's paired ratio
+// with its quartiles and each session's median, control/base the same way, and a verdict (`verdict()`). Then the
+// costliest entry per row, the fresh pages and the bundles' sizes.
 import CALIBRATION from './calibration.json'
 import type { DocResult, Sample } from './page.ts'
 
@@ -119,8 +119,8 @@ type FreshTimes = { compile: number[]; run: number[]; first: number[]; second: n
 const pct = (x: number): string => `${x >= 1 ? '+' : ''}${((x - 1) * 100).toFixed(1)}%`
 const speed = (x: number): string => (x >= 100 ? x.toFixed(0) : x.toPrecision(3))
 
-export function report(all: readonly SessionResults[], o: { hypotheses: boolean; sizes: Record<string, { bytes: number; gzipped: number }> }): string {
-  const out: string[] = []
+export function report(all: readonly SessionResults[], o: { builds: string; hypotheses: boolean; sizes: Record<string, { bytes: number; gzipped: number }> }): string {
+  const out: string[] = ['', o.builds]
   for (const browser of new Set(all.map(r => r.browser))) {
     const results = all.filter(r => r.browser === browser)
     out.push(`\n## ${browser}`, '| row | family / operation | base | candidate | candidate/base [quartiles] per session | control/base per session | verdict |', '|---|---|---:|---:|---|---|---|')
