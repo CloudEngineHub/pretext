@@ -3,6 +3,12 @@ report-23cd6052bc54f415 breaks
 report-953b7e9cd05588ed breaks
 report-b980d5159851daba breaks
 
+## A CR between CJK characters at -1 px letter spacing, at 24 px and wider: Firefox keeps the CR in its text run with no advance and gives it the letter spacing, so `xx 漢字` and the CR are 43.70 px and fit at 43.72-44.18 px, where the Gecko analysis takes the CR out of the text, spacing and all, has 44.70 px and breaks before `字`; before #TBD the CR had a space's room there (ENGINE_FOLLOWUPS.md, White space and controls)
+catalog-2ba906e88a826adc breaks
+catalog-b722b31aa0ce53d6 breaks
+catalog-bc37ba36eebfd65c breaks
+catalog-e01b7f79970cbc64 count
+
 ## A CR or FF between letters under letter spacing: Firefox keeps it in its text run with no advance and gives it the letter spacing, where the Gecko analysis takes it out of the text, spacing and all, so the line is one gap off Firefox's and the widths within that gap of where the text fits take the other line count; before #TBD it had a space's room and failed the widths beside these instead (ENGINE_FOLLOWUPS.md, White space and controls)
 catalog-11b631dc59ccf502 count
 catalog-26d0c58f4b1a737e count
@@ -16,6 +22,10 @@ rich-4635ddffedd43c84 breaks
 rich-8736e842495c21ea count
 rich-d232a1424826203f count
 rich-d7a1851aecf96951 breaks
+
+## A space before a CR where the line would end, at 24 px and wider: Firefox's fit trims only the run of spaces that ends the line (gfxTextRun::BreakAndMeasureText, gfxTextRun.cpp:1152-1160), and the CR after the space ends that run, so `aaaa A` with its space, 55.17 px, doesn't fit at 52-55.15 px and `A` starts the next line, where the Gecko analysis takes the CR out of the text, hangs the space and fits `aaaa A`; before #TBD the CR was one more space that hung (ENGINE_FOLLOWUPS.md, White space and controls)
+catalog-28710b5f63c26c5b count
+catalog-c5e152ff1220e623 count
 
 ## A span of a soft hyphen after a word, before a span that starts with LRI, at 24 px and wider: Firefox breaks after the LRI, which it doesn't for the text in one node, where the library breaks as in one node, inside the word after the LRI (main too; ENGINE_FOLLOWUPS.md)
 rich-04d0135c57e7b691 breaks
@@ -85,6 +95,26 @@ rich-b602484cd58bdb83 count
 rich-c8521a67b8b0da17 count
 rich-cd735845ca3573ac count
 rich-ed780af4f39be6f6 count
+
+## Arabic letters beside a CR or FF in a word too wide for the line, at 24 px and wider: Firefox breaks the word between joined letters, with brackets kept beside the Arabic after them, and each part has its joined width, where the library gives each letter the width it has alone; the lines are the same whether the CR or FF takes a space's room, none, or stays in the text with no advance, so it isn't the cause, which isn't traced further (the shapes of "Arabic and Hebrew beside brackets" and "Arabic words with vowel marks, too wide for the line")
+catalog-0569c851a6d3d8c2 breaks
+catalog-10ffbf5245d38007 breaks
+catalog-4179aa20b1ff64b7 count
+catalog-4aa3be0034487507 breaks
+catalog-56d2c31cd3650466 count
+catalog-702560e0797f6fc0 count
+catalog-96611e4fcb532883 breaks
+catalog-96a310142bea1297 breaks
+catalog-9adfd216c7042c6e count
+catalog-9e9983398e4c3041 breaks
+catalog-c20a663b7649bdd3 count
+catalog-d9bb15b2c6258cea breaks
+catalog-dd32b54e376716ef breaks
+catalog-f9c976d911342fe4 count
+
+## Arabic with vowel marks after a CR at -1 px letter spacing, at 24 px and wider: Firefox's text is 2 px wider than the library's and takes a line more, as where it leaves the spacing out between joined Arabic letters ("Real usage: Arabic and Urdu with letter-spacing"); with the CR's own spacing modelled the lines are the same, so the CR isn't the cause, which isn't traced further
+catalog-1014b311f41b1696 count
+catalog-9e3eaa44ca87f741 count
 
 ## CJK beside Latin, closing punctuation, small kana or U+FFFC, and CJK under keep-all or a changed page language, at 24 px and wider: Firefox breaks there where the library doesn't
 catalog-01c6cd1732e973a0 count
@@ -2982,18 +3012,15 @@ sample-fe501abf645689c3 error
 sample-ff42ba37219be8db error
 sample-ffd94dbfb29c6f0c error
 
-## Pasted C0 and C1 controls (CR, FF, VT, NUL, NEL) between letters, at 24 px and wider: Firefox gives them widths and line ends the library doesn't model
+## Pasted C0 and C1 controls (VT, NUL and NEL, and CR and FF under pre-wrap) between letters, at 24 px and wider: Firefox gives them widths and line ends the library doesn't model
 catalog-0154b38964d405ff count
 catalog-036fe1be6283f402 count
-catalog-0569c851a6d3d8c2 breaks
 catalog-06425e7f5d96c42d count
 catalog-0885bc84b785d554 count
 catalog-0cc51166616b074b count
 catalog-0ee9906e1dc3eaf7 breaks
 catalog-100cbaad58daa249 count
-catalog-1014b311f41b1696 count
 catalog-10b04eac49740daa count
-catalog-10ffbf5245d38007 breaks
 catalog-120e49af7a6b4b73 count
 catalog-128e709fcff49ed1 breaks
 catalog-1365b1e8dfac5dbe count
@@ -3003,12 +3030,10 @@ catalog-187fac98080e7a39 breaks
 catalog-19864e450690f6db count
 catalog-1c1fc69e3e43c0c5 count
 catalog-1f07e7ce8558ec61 count
-catalog-28710b5f63c26c5b count
 catalog-28e2ed8b6574716b count
 catalog-2a3b015a5cf165f0 count
 catalog-2a3fd8e6126b8f9a count
 catalog-2a99cb4421a51838 count
-catalog-2ba906e88a826adc breaks
 catalog-2d42b7a5956aa38f count
 catalog-2d79a4fc2ae2b2d0 count
 catalog-2d8340777692c08a count
@@ -3021,17 +3046,14 @@ catalog-39e9eb3339bc461a count
 catalog-3d1abb6547800ac3 breaks
 catalog-3f7017a07d458db3 count
 catalog-416aa06864624017 count
-catalog-4179aa20b1ff64b7 count
 catalog-46239743c4aceca8 count
 catalog-4a2ea3b0e4ae08e9 count
-catalog-4aa3be0034487507 breaks
 catalog-4bb1d059196d6b86 count
 catalog-4f38ce0eb0974524 count
 catalog-4ff4650aedd372cf breaks
 catalog-50b0a3ac5ee970ee count
 catalog-53446c5d5d5d509d breaks
 catalog-55b51a35f8207a9b count
-catalog-56d2c31cd3650466 count
 catalog-57198da3b0934a77 count
 catalog-57887fb9af9fca8d breaks
 catalog-5947596297954521 count
@@ -3050,7 +3072,6 @@ catalog-6c0cca70a369f5c6 count
 catalog-6de3182bbf064a98 count
 catalog-6f4183f39f6faa09 count
 catalog-6fa57e8d8f662b88 count
-catalog-702560e0797f6fc0 count
 catalog-70a4b64fb0c9f38a count
 catalog-73fb6c1587d87527 count
 catalog-7837e2811a0b442c count
@@ -3065,12 +3086,7 @@ catalog-90f8b60972e4d479 count
 catalog-91b71bc70b07d6d6 count
 catalog-933c19ea76c3a95a count
 catalog-938d58fccb579bf3 breaks
-catalog-96611e4fcb532883 breaks
-catalog-96a310142bea1297 breaks
-catalog-9adfd216c7042c6e count
-catalog-9e3eaa44ca87f741 count
 catalog-9e49a39dbf52bd2b count
-catalog-9e9983398e4c3041 breaks
 catalog-9f61b14f9e826dea count
 catalog-a7049a8012bbfb31 count
 catalog-a81fbebc98a9e068 breaks
@@ -3084,26 +3100,19 @@ catalog-b47213aeac060371 count
 catalog-b64424b8b99ec8b9 count
 catalog-b6ec3bcfb4fd8fa2 count
 catalog-b70e03561759471c breaks
-catalog-b722b31aa0ce53d6 breaks
 catalog-b96b74c1c64e0621 count
 catalog-bb68a880699cc7f4 count
-catalog-bc37ba36eebfd65c breaks
 catalog-c0a1368677125ec5 count
 catalog-c1d5dec91d65d477 count
-catalog-c20a663b7649bdd3 count
 catalog-c2658e4fe55b6fe0 count
 catalog-c4d0fc7c7c0738e9 breaks
-catalog-c5e152ff1220e623 count
 catalog-c7fc830af740765d count
 catalog-c96296e1f0605cf9 count
 catalog-d1ec84782fca5579 breaks
 catalog-d233b74f210cf7e1 count
 catalog-d72648c7b27b5bd7 count
 catalog-d94f0aacec15b8a4 breaks
-catalog-d9bb15b2c6258cea breaks
-catalog-dd32b54e376716ef breaks
 catalog-dd76d084f982c580 count
-catalog-e01b7f79970cbc64 count
 catalog-e0ed2cab9d98583d count
 catalog-e33bba36540a2683 count
 catalog-e5fc88abda777106 count
@@ -3118,7 +3127,6 @@ catalog-f5e7cac7a3ef46fd breaks
 catalog-f5fdeff0099bcf0e count
 catalog-f65820c0d78a8cc7 breaks
 catalog-f726e40884af90e0 breaks
-catalog-f9c976d911342fe4 count
 catalog-fab216e704957421 count
 catalog-fd70967c1ddf7c1f count
 catalog-fe3dd66e20224309 count
