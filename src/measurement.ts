@@ -201,8 +201,8 @@ export type EngineProfile = {
   // back to a break before it (keepsEmptyAtomic, src/rich-inline.ts). A frame starts where the
   // one before it ends, a text frame after its spaces where they fit and at the line's end where
   // they hang (nsTextFrame.cpp:11216-11229), so the spaces before a padded span count in its
-  // fit: 'both'. In 15px Helvetica Neue, `Unbreakable` and a span with 20px padding that starts
-  // with a
+  // fit, and an empty frame after spaces that hang is inside the line: 'both'. In 15px Helvetica
+  // Neue, `Unbreakable` and a span with 20px padding that starts with a
   // line feed keep the line feed from 107px in Chrome and Safari, from 127px in Firefox, and
   // `Unbreakable   ` and that span from 86px in Chrome, 105px in Safari and 138px in Firefox;
   // `Ping `, the chip `@alice` and a span with 12px padding that starts with two spaces keep them

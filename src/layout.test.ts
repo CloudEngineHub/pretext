@@ -4125,8 +4125,16 @@ describe('rich-inline invariants', () => {
           [[text('a\u00AD'), zero, text('b')], {}, [[0], [1], [2]], true],
           [[text('a'), text('\u00AD'), zero, text('b')], {}, [[0, 1], [2], [3]], true],
           [[chip, text('\u00AD'), zero, text('cd')], {}, [[0, 1], [2, 3]]],
-          // Preserved spaces that hang leave the box inside the line.
+          // Preserved spaces that hang end their frame at the line's end, so the box is inside the
+          // line, and so is what follows it without a width: a second box, a space, which hangs too,
+          // and a box after an item of a soft hyphen.
           [[text('ab '), zero, text('cd')], preWrap, [[0, 1], [2]]],
+          [[text('ab '), zero, zero, text('cd')], preWrap, [[0, 1, 2], [3]]],
+          [[text('ab '), zero, text(' '), zero, text('cd')], preWrap, [[0, 1, 2, 3], [4]]],
+          [[text('ab '), zero, text(' '), zero], preWrap, [[0, 1, 2, 3]]],
+          [[text('ab '), text('\u00AD'), zero, text('cd')], preWrap, [[0, 1, 2], [3]]],
+          // A span with padding after it has a width and starts the next line, its spaces too.
+          [[text('ab '), zero, padded(' cd')], preWrap, [[0, 1], [2], [2]]],
         ]
         for (const [items, options, gecko, narrow] of emptyBoxRows) {
           const prepared = prepareRichInline(items, options)

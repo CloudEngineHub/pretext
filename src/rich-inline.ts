@@ -1024,7 +1024,12 @@ function stepRichInlineLine(
   let lineWidth = 0
   let remainingWidth = safeWidth
   // The width of the run of preserved spaces and tabs the line ends with, which hangs past
-  // its end (ItemLine).
+  // its end (ItemLine). An item that takes no room, an atomic item of width 0 or one of soft
+  // hyphens alone, ends the run, as Blink's walk back over the line's items stops at one
+  // (ComputeTrailingSpaceWidth, line_info.cc:289-415), but not in Gecko ('both'), where the
+  // spaces that hang end their own text frame at the line's end whatever follows the frame
+  // (nsTextFrame.cpp:11216-11229): an empty frame after them is inside the line, and white space
+  // after that hangs with them.
   let lineHangWidth = 0
   // Whether the line ends at a hard break.
   let endsAtHardBreak = false
@@ -1106,7 +1111,7 @@ function stepRichInlineLine(
       if (hasContent) consumedAfterContent = true
       lineWidth += gapBefore
       remainingWidth = safeWidth - lineWidth
-      lineHangWidth = 0
+      if (paddedOpeningFit !== 'both') lineHangWidth = 0
       continue
     }
     const atItemStart = isLineStartCursor(cursor)
@@ -1145,7 +1150,7 @@ function stepRichInlineLine(
       hasContent = true
       lineWidth += totalWidth
       remainingWidth = safeWidth - lineWidth
-      lineHangWidth = 0
+      if (paddedOpeningFit !== 'both' || totalWidth !== 0) lineHangWidth = 0
       continue
     }
 
