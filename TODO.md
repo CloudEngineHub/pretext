@@ -19,7 +19,7 @@ Held until the current work is done, and all before the first release.
   - a paragraph direction, and the device pixel ratio for Chrome's fit grid, the 1/64 device px Chrome fits lines on (RESEARCH.md, Measurement Model; decisions 3 and 4 of issue #321, a study of offline engine emulators);
   - `getTextClusters()` once Chrome ships it, no help for Firefox;
   - `extraWidth` on a rich item split across lines: today every piece is charged all of it, as CSS `box-decoration-break: clone` pads, where browsers default to `slice`, which pads only the outer ends; perhaps CSS's names at the release, `paddingInline: [start, end]` with `boxDecorationBreak`, so neither meaning is silent (#382). With it, whether a non-finite `extraWidth` throws, as a non-finite `letterSpacing` (#356) and box width (#387) do: today `NaN` or `Infinity` is taken as given and lays out wrongly without an error;
-  - what `PreparedTextWithSegments` makes public: README documents `segments` and `kinds`, but the type also exposes the line walkers' own arrays, which two demos read (`widths`), and `SegmentBreakKind`, which types `kinds`, isn't exported (`src/layout.ts`);
+  - what `PreparedTextWithSegments` makes public: README documents `segments` and `kinds`, but the type also exposes the line walkers' own arrays, which two demos read (`widths`);
   - rich inline as one analysis of the paragraph cut at item boundaries, in place of each item's own analysis patched toward the joined text, which needs fragment cursors that don't index each item's own prepared text (RESEARCH.md, Rich Inline Boundaries, Continuing The Line; not prototyped);
   - how a browser whose Canvas lacks what its profile needs degrades, still laying text out rather than showing nothing.
 - Then a release, not before.
