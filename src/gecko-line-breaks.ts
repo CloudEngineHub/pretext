@@ -107,8 +107,9 @@ function isInvalidChar(ch: number): boolean {
 
 // Whether the text run leaves out a bidi control, which only 16-bit text does (IsDiscardable), is
 // noted as it leaves them out, as IsDiscardable notes a soft hyphen (HasShy): testing the text for
-// one before the scan costs every text a pass (RESEARCH.md, Keeping Work Bounded).
-type Transformed = { text: string, orig: Int32Array, skipped: Uint8Array, dropsBidiControl: boolean }
+// one before the scan costs every text a pass (RESEARCH.md, Keeping Work Bounded). `collapsed` is
+// GeckoLineBreaks'.
+type Transformed = { text: string, orig: Int32Array, skipped: Uint8Array, collapsed: Uint8Array | null, dropsBidiControl: boolean }
 
 // IsDiscardable, nsTextFrameUtils.cpp:32-49
 export function isDiscardable(ch: number, is8bit: boolean): boolean {
@@ -118,8 +119,8 @@ const isSpaceOrTab = (ch: number) => ch === 0x20 || ch === 0x09
 const isSpaceOrTabOrSegmentBreak = (ch: number) => ch === 0x20 || ch === 0x09 || ch === 0x0a
 
 // IsSpaceCombiningSequenceTail(const char16_t*, int32_t), nsTextFrameUtils.cpp:24-30, on code units.
-export function isSpaceCombiningSequenceTail(text: string, from: number): boolean {
-  for (let i = from; i < text.length; i++) {
+export function isSpaceCombiningSequenceTail(text: string, from: number, end = text.length): boolean {
+  for (let i = from; i < end; i++) {
     const ch = text.charCodeAt(i)
     if (isClusterExtenderExcludingJoiners(ch)) return true
     if (!isBidiControl(ch)) return false
@@ -157,11 +158,27 @@ export function isEastAsianSegmentBreak(text: string, start: number, end: number
     (japaneseOrChinese && (isEastAsianPunctuation(widths, before) || isEastAsianPunctuation(widths, after)))
 }
 
+// Firefox transforms one text frame's text at a time, each from the white-space state the frame
+// before it left (INCOMING_WHITESPACE, nsTextFrame.cpp:2515-2518, :2590-2592), and bidi resolution
+// splits a text node into a frame for each level run (nsBidiPresUtils.cpp:1037-1053). A white-space
+// run collects only its own frame's units (nsTextFrameUtils.cpp:319-345), so a frame that starts
+// inside one changes it. Where the frame starts at a character the text run drops, that character
+// ends the run (nsTextFrameUtils.cpp:370-379): the white space after it is a run of its own, and a
+// space before it is no combining mark's base. Where it starts at white space, that white space
+// collapses into the run, which keeps what its first frame kept. Among white space and dropped
+// characters only a bidi control starts a level run or lets the unit after it start one, since a
+// soft hyphen takes the level of the unit before it and white space that of white space before
+// it. The first line's start also trims the white space each frame starts with while the line
+// holds nothing (nsTextFrame.cpp:10904-10944), and a frame of only dropped characters places
+// nothing on it (nsLineLayout.cpp:912, :1032-1038). So the levels are resolved once, where they
+// can first matter: at a control a white-space run meets before white space or a combining mark,
+// or at white space after the dropped characters that start the text, a bidi control among them.
 function transformText(input: string, is8bit: boolean, preserveWhiteSpace: boolean): Transformed {
   const len = input.length
   // The source index of each kept unit.
   const orig = new Int32Array(len)
   const skipped = new Uint8Array(len)
+  let collapsed: Uint8Array | null = null
   let n = 0
   let dropsBidiControl = false
   if (preserveWhiteSpace) {
@@ -178,6 +195,15 @@ function transformText(input: string, is8bit: boolean, preserveWhiteSpace: boole
   } else {
     // COMPRESS_WHITESPACE_NEWLINE, :272-387
     let inWhitespace = false
+    // The paragraph's levels once a white-space run needs them, null until then and where Firefox
+    // resolves none.
+    let levels: Uint8Array | null = null
+    let resolved = false
+    // Whether the white-space run has read past a character the text run drops, in this frame or
+    // the one before.
+    let pastDropped = false
+    // How many of the kept units the first line's start trims.
+    let trimmed = 0
     let i = 0
     while (i < len) {
       const ch = input.charCodeAt(i)
@@ -191,25 +217,67 @@ function transformText(input: string, is8bit: boolean, preserveWhiteSpace: boole
         let keepLastSpace = false
         let hasSegmentBreak = ch === 0x0a
         let trailingDiscardables = 0
+        if (!inWhitespace) pastDropped = false
+        // Whether the run's frame starts where the first line still holds nothing: at the text's
+        // start, or where a level run starts after only trimmed white space and dropped characters,
+        // which takes a bidi control among them.
+        let startsLine = i === 0
+        if (dropsBidiControl && n === trimmed && isDiscardable(input.charCodeAt(i - 1), is8bit)) {
+          if (!resolved) { levels = getGeckoParagraphLevels(input); resolved = true }
+          startsLine = levels !== null && levels[i] !== levels[i - 1]
+        }
+        // Where the run's frame ends, when that is inside the run or at the unit after it.
+        let frameEnd = len
         let j = i + 1
-        while (j < len && (isSpaceOrTabOrSegmentBreak(input.charCodeAt(j)) || isDiscardable(input.charCodeAt(j), is8bit))) {
-          if (input.charCodeAt(j) === 0x0a) hasSegmentBreak = true
-          j++
+        for (; j < len; j++) {
+          const c = input.charCodeAt(j)
+          const white = isSpaceOrTabOrSegmentBreak(c)
+          const dropped = !white && isDiscardable(c, is8bit)
+          if (dropped && c !== CH_SHY && !resolved) {
+            // A frame that ends among the run's dropped characters changes nothing where plain text
+            // comes after them: the run ends there anyway.
+            let next = j + 1
+            while (next < len && isDiscardable(input.charCodeAt(next), is8bit)) next++
+            const after = next < len ? input.charCodeAt(next) : 0
+            if (!isSpaceOrTabOrSegmentBreak(after) && !isClusterExtenderExcludingJoiners(after)) {
+              pastDropped = true
+              j = next
+              break
+            }
+            levels = getGeckoParagraphLevels(input)
+            resolved = true
+          }
+          if (levels !== null && levels[j] !== levels[j - 1]) frameEnd = j
+          if (frameEnd === j || (!white && !dropped)) break
+          if (dropped) pastDropped = true
+          else if (c === 0x0a) hasSegmentBreak = true
         }
         while (isDiscardable(input.charCodeAt(j - 1), is8bit)) { j--; trailingDiscardables++ } // :334-336
-        if (!is8bit && input.charCodeAt(j - 1) === 0x20 && j < len && isSpaceCombiningSequenceTail(input, j)) { keepLastSpace = true; j-- } // :339-345
+        if (!is8bit && input.charCodeAt(j - 1) === 0x20 && j < frameEnd && isSpaceCombiningSequenceTail(input, j, frameEnd)) { keepLastSpace = true; j-- } // :339-345
         // TransformWhiteSpaces over [i, j), :84-209. The runs it deletes whole, next to a ZWSP or
         // between East Asian characters (:120-150), are gone already (removeSkippableSegmentBreaks in
         // src/analysis.ts), so a run keeps one space. A space or tab in a run with a segment break
         // goes (:152-162), and the run's first segment break stays as a space (:181-193).
         for (let k = i; k < j; k++) {
           const c = input.charCodeAt(k)
-          if (isDiscardable(c, is8bit) || inWhitespace || (hasSegmentBreak && isSpaceOrTab(c))) {
+          if (isDiscardable(c, is8bit)) {
             skipped[k] = 1
-            dropsBidiControl ||= c !== CH_SHY && !isSpaceOrTabOrSegmentBreak(c)
+            dropsBidiControl ||= c !== CH_SHY
+            // The trim stops at the first unit that isn't white space (GetTrimmableWhitespaceCount,
+            // nsTextFrame.cpp:967-996).
+            startsLine = false
+          } else if (inWhitespace || (hasSegmentBreak && isSpaceOrTab(c))) {
+            skipped[k] = 1
+            // The white space a trimmed run leaves out goes with the unit it kept.
+            if (pastDropped || (startsLine && i > 0)) (collapsed ??= new Uint8Array(len))[k] = 1
           } else {
             orig[n++] = k
             inWhitespace = true
+            if (startsLine) {
+              trimmed++
+              // Collapsing the text's leading white space drops the run at its start.
+              if (i > 0) (collapsed ??= new Uint8Array(len))[k] = 1
+            }
           }
         }
         if (keepLastSpace) orig[n++] = j++
@@ -246,7 +314,7 @@ function transformText(input: string, is8bit: boolean, preserveWhiteSpace: boole
     }
   }
   text += input.slice(sliceStart, sliceEnd)
-  return { text, orig: orig.subarray(0, n), skipped, dropsBidiControl }
+  return { text, orig: orig.subarray(0, n), skipped, collapsed, dropsBidiControl }
 }
 
 // IsTrimmableSpace, nsTextFrame.cpp:921-942, in normal white space.
@@ -680,8 +748,12 @@ function getBreakStates(line: LineData, text: string, is8bit: boolean, afterLead
 // right after a soft hyphen adds SOFT_HYPHEN_BREAK: BreakAndMeasureText takes it as the normal
 // break, which neither fits nor draws a hyphen (gfxTextRun.cpp:1053-1063). A CLUSTER_START marks
 // where a cluster starts without a break, where only break-word can wrap (gfxTextRun.cpp:1068-1074).
-// The breaks, and whether the text run left out a bidi control.
-export type GeckoLineBreaks = { breaks: Uint8Array, dropsBidiControl: boolean }
+// The breaks, whether the text run left out a bidi control, and 1 at each white-space unit that a
+// layout of the source leaves out as the text run does, or null where there is none: white space
+// the text run collapsed in a run that read past a character it drops, which collapsing each run
+// of adjacent white space doesn't find, and white space the first line's start trims after dropped
+// characters (transformText).
+export type GeckoLineBreaks = { breaks: Uint8Array, collapsed: Uint8Array | null, dropsBidiControl: boolean }
 
 export function getGeckoLineBreaks(
   source: string,
@@ -691,13 +763,13 @@ export function getGeckoLineBreaks(
 ): GeckoLineBreaks {
   const len = source.length
   const flags = new Uint8Array(len + 1)
-  if (len === 0) return { breaks: flags, dropsBidiControl: false }
+  if (len === 0) return { breaks: flags, collapsed: null, dropsBidiControl: false }
   let is8bit = true
   for (let i = 0; i < len && is8bit; i++) is8bit = source.charCodeAt(i) < 0x100
   // CharacterDataBuffer::SetTo stores 1b text when every unit is below 256 (CharacterDataBuffer.cpp:235-286).
   const tr = transformText(source, is8bit, preserveWhiteSpace)
   const n = tr.text.length
-  if (n === 0) return { breaks: flags, dropsBidiControl: tr.dropsBidiControl }
+  if (n === 0) return { breaks: flags, collapsed: tr.collapsed, dropsBidiControl: tr.dropsBidiControl }
 
   // The text run is built before the break sinks are set up (nsTextFrame.cpp:2860-2864), in one
   // piece unless bidi levels split it where that matters.
@@ -746,5 +818,5 @@ export function getGeckoLineBreaks(
       flags[rawPos] = CLUSTER_START
     }
   }
-  return { breaks: flags, dropsBidiControl: tr.dropsBidiControl }
+  return { breaks: flags, collapsed: tr.collapsed, dropsBidiControl: tr.dropsBidiControl }
 }

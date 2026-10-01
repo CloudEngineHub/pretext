@@ -6,14 +6,17 @@ report-b980d5159851daba breaks
 ## A bidi control after a space that starts a span, before white space that starts the next, at 24 px and wider: Firefox drops it from its text (IsDiscardable) and ends the line past it, where the library keeps it as text of no width, which the next line starts with (main and 0fef0023 too; ENGINE_FOLLOWUPS.md)
 rich-426a9dc0f93dbfdb breaks
 
-## A newline, soft hyphen and newline that start a span, at 24 px and wider: Firefox collapses them into one space, as it collapses white space across the characters it discards, where the library keeps a space on each side of the soft hyphen, as it does in one text (ENGINE_FOLLOWUPS.md)
-rich-90126064978ae3b0 breaks
-
 ## A soft hyphen whose hyphen doesn't fit, where rich items split its word, at 24 px and wider: Firefox breaks the word between letters, the library at the soft hyphen, as it does for the text in one node (ENGINE_FOLLOWUPS.md)
 rich-4635ddffedd43c84 breaks
 rich-8736e842495c21ea count
 rich-d232a1424826203f count
 rich-d7a1851aecf96951 breaks
+
+## A span after other text that starts with a right-to-left mark and a space, at 24 px and wider: Firefox keeps the space, as the span doesn't start the line, where the span's own analysis takes its text to start one and leaves the space out, as Firefox's first line trims white space after a control at another bidi level (the library kept the space before #TBD; ENGINE_FOLLOWUPS.md)
+rich-0bc38a1530fdf171 count
+rich-42baf0f1118c9e6c breaks
+rich-6482db6290255b8c breaks
+rich-7954c4115b82d822 count
 
 ## A span of a soft hyphen after a word, before a span that starts with LRI, at 24 px and wider: Firefox breaks after the LRI, which it doesn't for the text in one node, where the library breaks as in one node, inside the word after the LRI (main too; ENGINE_FOLLOWUPS.md)
 rich-04d0135c57e7b691 breaks
@@ -226,7 +229,6 @@ catalog-fb808032c72f7987 count
 catalog-fc543e6d51f516f1 count
 catalog-fc9a4c6d9a188f50 count
 catalog-feeb4f1f6f39e524 count
-facts-13d0f4eb240877c7 count
 old-gate-716890708b219d79 count
 old-gate-f59a86459057b5a6 count
 old-gate-f9552b36e7a9e2a0 count
@@ -3420,9 +3422,6 @@ rich-bcf83992add4faec count
 rich-d46f633fad829104 count
 rich-ee31e728f8b9b40e count
 rich-fcc03bb8c805a9c8 count
-
-## White space and soft hyphens that start a span before a word, after a space, at 24 px and wider: Firefox collapses the white space between the soft hyphens with the space before, as it collapses white space across the characters it discards, where the library keeps both, as it does in one text (c09d264b too; ENGINE_FOLLOWUPS.md)
-rich-afb8005e2a64451d count
 
 ## White space before bidi controls at another bidi level at the end of a span, before white space that starts the next, at 24 px and wider: Firefox ends its text run at the controls and keeps both, where the Gecko analysis reads white space through bidi controls as one run whatever their levels and leaves out white space before only controls at the end of a text (#368), so the library gives the two one gap (main too; ENGINE_FOLLOWUPS.md)
 rich-27fd19a39448d520 count

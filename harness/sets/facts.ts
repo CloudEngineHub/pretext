@@ -2,8 +2,8 @@
 // §1c in the rebuild), each against a fake Canvas and one engine profile, and 33 of them use texts no browser case holds.
 // data/engine-facts.json keeps the texts of the 28 whose tests lay out plain text, taken from the tests once, with the
 // white-space and word-break modes and page languages each test names. The ones that lay out rich items are in rich.ts,
-// and three read only the user agent. Here each text runs in 16px Arial, and widths.ts finds where each browser's lines
-// change.
+// and three read only the user agent. A fact added since goes at the end, under its test's line when it was added.
+// Here each text runs in 16px Arial, and widths.ts finds where each browser's lines change.
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { font, paragraph } from './build.ts'

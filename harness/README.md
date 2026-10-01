@@ -129,7 +129,11 @@ grew.
 
 `sets/data/engine-facts.json`'s `layout.test.ts` line numbers, the facts set's case origins and the four accepted-list
 reasons that cite a `layout.test.ts` line point at the files of main before #340 (6d1d2106), not today's; read them with
-`git show 6d1d2106:<path>`. ENGINE_FOLLOWUPS.md, Harness debt, has what to prune when the sets are made again.
+`git show 6d1d2106:<path>`. A fact added since names its test's line in the change that added it (line 1000, Firefox's
+white space around bidi controls, #TBD). The facts set has no cover, so it keeps the width where a template's words
+join, which the catalog's cover drops once a narrower change has shown that kind of break: a fact that rests on a
+line's width, such as one space against two, goes there. ENGINE_FOLLOWUPS.md, Harness debt, has what to prune when the
+sets are made again.
 
 ## Commands
 

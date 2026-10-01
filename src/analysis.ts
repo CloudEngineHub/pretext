@@ -130,24 +130,6 @@ export function removeSkippableSegmentBreaks(text: string, profile: AnalysisProf
   return copied === 0 ? text : result + text.slice(copied)
 }
 
-// Gecko's white-space run reads through the bidi controls in it, which its text run drops, and
-// keeps its segment break if it holds one, or else its first white space (TransformWhiteSpaces,
-// nsTextFrameUtils.cpp:151-193), and a last space before a combining sequence tail as the tail's
-// base (TransformText, nsTextFrameUtils.cpp:319-345). So the run's other white space goes, and so
-// does white space before only bidi controls at the end, which the line end trims.
-const whiteSpaceThroughBidiControlsRe = /(?<![ \t\n\r\f])[ \t\n\r\f]+(?:[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]+[ \t\n\r\f]*)+/g
-function collapseWhiteSpaceThroughBidiControls(text: string): string {
-  return text.replace(whiteSpaceThroughBidiControlsRe, (run: string, at: number) => {
-    if (at + run.length === text.length) return run.replace(collapsibleWhitespaceRunRe, '')
-    let last = run.length - 1
-    while (!isCollapsibleSpaceCode(run.charCodeAt(last))) last--
-    const base = last > 0 && run.charCodeAt(last) === 0x20 && isSpaceCombiningSequenceTail(text, at + last + 1)
-    const kept = Math.max(run.indexOf('\n'), 0)
-    const end = base ? last : run.length
-    return run.slice(0, kept).replace(collapsibleWhitespaceRunRe, '') + run[kept] + run.slice(kept + 1, end).replace(collapsibleWhitespaceRunRe, '') + (base ? run.slice(last) : '')
-  })
-}
-
 // Where the collapsible white space that ends text[from, text.length) starts, which the analysis
 // leaves out and a line end trims, or the text's length where none ends it. Gecko's white-space
 // run reads through the bidi controls in it and after it (TransformText, nsTextFrameUtils.cpp:
@@ -424,17 +406,56 @@ export function analyzeText(
     if (profile.lineBreakScan === 'webkit') {
       sourceBreaks = getWebKitLineBreaks(source, preserve, keepAll, language)
     } else {
-      let gecko = getGeckoLineBreaks(source, preserve, keepAll, profile.graphemeTable)
+      const gecko = getGeckoLineBreaks(source, preserve, keepAll, profile.graphemeTable)
       dropsBidiControl = gecko.dropsBidiControl
-      // Where that collapse drops white space, the scan runs again: its text run is the same, but
-      // its offsets move.
-      const collapsed = dropsBidiControl && !preserve ? collapseWhiteSpaceThroughBidiControls(source) : source
-      if (collapsed !== source) {
-        source = collapsed
-        normalized = collapseWhitespaceNormal(source)
-        gecko = getGeckoLineBreaks(source, preserve, keepAll, profile.graphemeTable)
-      }
       sourceBreaks = gecko.breaks
+      // Gecko's white-space run reads through the soft hyphens and bidi controls in it, which its
+      // text run drops, and keeps its segment break if it holds one, or else its first white space
+      // (TransformWhiteSpaces, nsTextFrameUtils.cpp:151-193), within one text frame (transformText
+      // in src/gecko-line-breaks.ts). The white space the scan's text run left out of such a run
+      // leaves the source too, and so does white space before only bidi controls at the end, which
+      // the line end trims. A break is never at white space, so the other units keep theirs. Where
+      // the white space right after a soft hyphen leaves, the break after it stays that white
+      // space's, which draws no hyphen (SOFT_HYPHEN_BREAK): Gecko hyphenates only at a soft hyphen
+      // that ends what its text run left out (GetHyphenationBreaks, nsTextFrame.cpp:4436-4442).
+      const trailing = !preserve && (dropsBidiControl || gecko.collapsed !== null) ? getTrailingCollapsibleStart(source, 0, profile) : source.length
+      if (gecko.collapsed !== null || trailing < source.length) {
+        // A run that goes on into that trailing white space and keeps its one white space there, as
+        // a segment break after a soft hyphen, keeps its first white space instead: the text before
+        // the trailing white space holds the run's space, as rich inline takes an item's to
+        // (whitespaceRunOpen in src/rich-inline.ts).
+        let runSpace = -1
+        if (gecko.collapsed !== null) {
+          for (let i = trailing - 1; i >= 0 && trailing < source.length; i--) {
+            const code = source.charCodeAt(i)
+            if (!isCollapsibleSpaceCode(code) && !isDiscardable(code, false)) break
+            if (isCollapsibleSpaceCode(code) && gecko.collapsed[i] !== 1) {
+              runSpace = -1
+              break
+            }
+            if (isCollapsibleSpaceCode(code)) runSpace = i
+          }
+        }
+        // Only the units from the first one that leaves move.
+        const from = gecko.collapsed === null ? trailing : 0
+        let kept = ''
+        let copied = 0
+        let count = from
+        let last = from - 1
+        for (let i = from; i < source.length; i++) {
+          if (i < trailing ? gecko.collapsed !== null && gecko.collapsed[i] === 1 && i !== runSpace : isCollapsibleSpaceCode(source.charCodeAt(i))) {
+            kept += source.slice(copied, i)
+            copied = i + 1
+            continue
+          }
+          const breakBefore = sourceBreaks[i]!
+          sourceBreaks[count++] = last >= 0 && last < i - 1 && (breakBefore & BREAK) !== 0 && source.charCodeAt(last) === 0x00AD ? breakBefore | SOFT_HYPHEN_BREAK : breakBefore
+          last = i
+        }
+        sourceBreaks[count] = sourceBreaks[source.length]!
+        source = kept + source.slice(copied)
+        normalized = collapseWhitespaceNormal(source)
+      }
     }
     if (profile.lineBreakScan === 'webkit' && !preserve && source !== normalized) spaceSources = new Uint16Array(normalized.length)
     breaks = source === normalized ? sourceBreaks : mapSourceLineBreaks(source, normalized.length, sourceBreaks, whiteSpace, spaceSources)
