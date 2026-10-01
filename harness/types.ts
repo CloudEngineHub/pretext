@@ -86,7 +86,8 @@ export type Case = {
   edge?: true
 }
 
-export type Rect = { x: number; y: number; width: number; height: number }
+// `box`: the rect of a box (TextRun), which is a visible character whatever its width.
+export type Rect = { x: number; y: number; width: number; height: number; box?: true }
 
 // One line as the browser laid it out: the UTF-16 offsets of the code points that start its first and last visible
 // character (-1 on a line without one), and the horizontal extent of the line's text boxes.

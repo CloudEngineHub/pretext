@@ -31,7 +31,7 @@ case, recorded or not: the line APIs (`layout()`, `measureLineStats()`, `walkLin
 `layoutNextLine()`, `layoutWithLines()`, `materializeLineRange()` and their rich-inline counterparts) must agree on
 lines, widths and text, and none may call `measureText` after preparing. A rich fragment's text is
 `materializeLineRange()`'s over its cursors in its item's own prepared text, but for the hyphen of a soft hyphen it ends
-at, which the text the items join decides.
+at, which the text the items join decides. A box is a visible character whatever its width, placed by its top.
 
 A recording counts only under the environment that made it, the key in its file's first line: browser build, OS build,
 OS languages, page languages, device pixel ratio and a hash of the served fonts. `check` refuses to score under any
@@ -238,9 +238,9 @@ it see re-layout at a line's own width; a defect that changes the widths a prepa
 lines when another is used (the stand-in Canvas gives the same widths to every way); a bracket-pair error in the Gecko
 bidi port; several rules of the Gecko profile's analysis of bidi controls (`ENGINE_FOLLOWUPS.md`, Harness debt); an
 emoji modifier split from its base across rich items; a rich paragraph of one item, which the adapter writes as plain
-text, so `src/layout.test.ts` checks its line functions against the rich stepper; which line holds a box of width 0,
-which has no rectangle, but through the text around it; Chrome's UI language, and so its `zh` table for pages without a
-`lang`; rendering other than macOS's, though Android and Windows are 65% of page views (`weights.json`); text chat users
-wrote (the sample's chat draws are stand-ins); or the demos' painted layout. No planted defect guards the watchdog's
-kill, the bench's shuffle and its separate compiles (each copy of the library compiled in a module of its own),
-Firefox's start-up hold, the page passing the browser's name to the recorder, or the cap on a job's browser.
+text, so `src/layout.test.ts` checks its line functions against the rich stepper; Chrome's UI language, and so its `zh`
+table for pages without a `lang`; rendering other than macOS's, though Android and Windows are 65% of page views
+(`weights.json`); text chat users wrote (the sample's chat draws are stand-ins); or the demos' painted layout. No
+planted defect guards the watchdog's kill, the bench's shuffle and its separate compiles (each copy of the library
+compiled in a module of its own), Firefox's start-up hold, the page passing the browser's name to the recorder, or the
+cap on a job's browser.
