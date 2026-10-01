@@ -134,13 +134,16 @@ export async function record(browser: BrowserKind, cases: Case[], o: Options, io
   // A seeded sample of every set, for a browser recorded on one.
   if (o.sample !== null) sorted = shuffled(sorted, o.seed).slice(0, o.sample).sort((a, b) => (a.id < b.id ? -1 : 1))
   // One browser instance at a time per browser. The second order is the first reversed, so of any two cases each is
-  // laid out before the other once, and a case that lays out otherwise after one particular case shows. A shuffled
-  // second order kept half of all pairs in their first order. WebKit has such pairs: it lays a right-to-left
-  // paragraph out with the items of a left-to-right one of the same text and line-breaking styles laid out before it
-  // in the process, since its TextBreakingPositionCache keys a text's items by the text, those styles and the origin
-  // (TextBreakingPositionCache.h:49) and InlineItemsBuilder.cpp:858-862 builds a paragraph's items from an entry
-  // whatever its direction. The first recording this way listed 29 webkit-host cases a sorted and a shuffled order had
-  // pinned (2026-09-30).
+  // laid out before the other once. A shuffled second order kept half of all pairs in their first order. WebKit has
+  // pairs where that shows: it lays a right-to-left paragraph out with the items of a left-to-right one of the same
+  // text and line-breaking styles laid out before it in the process, since its TextBreakingPositionCache keys a text's
+  // items by the text, those styles and the origin (TextBreakingPositionCache.h:48) and
+  // InlineItemsBuilder.cpp:858-862 builds a paragraph's items from an entry whatever its direction. The first
+  // recording this way listed 29 webkit-host cases a sorted and a shuffled order had pinned (2026-09-30). The cache
+  // doesn't keep every entry, though: at 2,500,000 units of text and breaks it drops entries at random down to
+  // 500,000 (TextBreakingPositionCache.cpp:37-38, 52-59, 65-76), which a pass over every case reaches at least twice,
+  // so a case takes its twin's layout only where the twin's entry lasted until it, and which pass that is differs
+  // from one recording to the next (splitHistory, store.ts).
   const a = await io.run<Recording>({ browser, mode: 'record', cases: sorted, documentSize: RECORD_DOCUMENT, lib: o.lib })
   const b = await io.run<Recording>({ browser, mode: 'record', cases: sorted.slice().reverse(), documentSize: RECORD_DOCUMENT, lib: o.lib })
   if (a.env !== b.env) throw new Error(`The environment changed between the two recordings: ${a.env} | ${b.env}`)
@@ -325,9 +328,10 @@ export async function gate(browser: BrowserKind, cases: Case[], o: Options, io: 
   if (order.listed.length > 0) out.push(`  ${order.listed.length} varying predictions break differently in reverse order (listed, not blocking)`)
   // A fresh recording of a seeded sample, then each case that differs alone in a browser process of its own: blocks
   // where the browser lays it out differently from the recording there too. A fresh document isn't enough: WebKit
-  // keeps a text's inline items for the whole process (record has the source), and Firefox lays color emoji out wider
-  // in every document after one with a text-presentation emoji (score.ts), so in one process for all of them the
-  // verdict went by which cases differed together.
+  // keeps a text's inline items across documents, in a cache of the process that a sample this size doesn't fill
+  // (record has the source), and Firefox lays color emoji out wider in every document after one with a
+  // text-presentation emoji (score.ts), so in one process for all of them the verdict went by which cases differed
+  // together.
   const sample = gateSample(scored.pinned, o.seed, o.sample ?? 1000)
   const first = await io.run<Recording>({ browser, mode: 'record', cases: sample, documentSize: RECORD_DOCUMENT, lib: o.lib })
   if (sample.length > 0) assertSameEnvironment(browser, scored.env, first.env)

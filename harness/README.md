@@ -170,9 +170,13 @@ new build, since two orders miss history both share: one recording's two orders 
 `record`'s second order is its first reversed, so every case is laid out once before and once after each other one:
 WebKit lays a right-to-left paragraph out with the items of a left-to-right one of the same text laid out before it, and
 when the second order was a shuffle, which keeps half of all pairs in order, 29 webkit-host cases were pinned to the
-order both had shared, which the first recording in sorted and reversed order listed (2026-09-30). A case recorded again
-keeps what is stored while it holds the layouts just recorded, a page-history pair in either order, so a full `record`
-under the same environment rewrites a file only where a case's lines moved.
+order both had shared, which the first recording in sorted and reversed order listed (2026-09-30). The two orders don't
+show every such pair: WebKit's cache drops entries at random once it holds enough text, which a pass over every case
+reaches (`RESEARCH.md`, Engine Facts, Safari (WebKit)), so a case whose twin's entry was dropped before the case came
+stays pinned, at its layout alone, until a gate draws the two together and lists it. For the same reason which pass
+shows which layout differs between recordings, so a case recorded again keeps what is stored while it holds the layouts
+just recorded, a page-history pair in either order, and a full `record` under the same environment rewrites a file only
+where a case's lines moved.
 
 ## Proving "no change"
 

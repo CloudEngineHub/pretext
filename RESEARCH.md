@@ -1614,6 +1614,17 @@ repin` shows what), and a fact read in source needs reading again.
   left-to-right twin and 0-1, 2-7, 8-13 alone. Eleven recordings were pinned to a layout no fresh process gives, seven
   of which the library had right, until the harness recorded in two opposite orders; 30 such cases are page history
   now. (webkit-host, 2026-09-30.)
+  The cache doesn't keep every text for the process's life. An entry needs a text of 5 code units and 3 break positions
+  (`TextBreakingPositionCache.h:41-42`); once the entries' text and four units a break pass 2,500,000, the next entry
+  drops others at random down to 500,000; past 500,000 the same happens after 10 s without a new entry; and memory
+  pressure empties the cache (`TextBreakingPositionCache.cpp:37-39, 52-76`, `MemoryRelease.cpp:103`). So what a
+  paragraph takes over depends on how much other text came between, not on order alone: in one webkit-host process that
+  right-to-left case had its twin's layout with 0, 150 and 800 paragraphs of 150 words between the two (up to 1.9
+  million units) and its layout alone with 3,000 (7.6 million), in both of two runs. One pass over the harness's 44,350
+  webkit-host cases lays out 11,069 such texts, about 6 million units by a count of words and spaces, so which of two
+  opposite orders shows a twin's layout differs from one recording to the next, and a twin whose entry was dropped first
+  shows in neither. (WebKit 7625.1.29.11.27's source and webkit-host, 2026-10-01; other thresholds or another key would
+  reopen it.)
 - **String storage.** A text node is 8-bit from Latin-1 text, 16-bit once its leaf held a character above U+00FF, and
   layout reads it: an emergency break keeps one code unit at an 8-bit line start, and also the characters that can't
   start a line at a 16-bit one; keep-all `abcd,efghé` is 2 lines as 16-bit, 1 as 8-bit. JavaScriptCore's
