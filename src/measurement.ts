@@ -68,6 +68,28 @@ export type EngineProfile = {
   // WebKit and Gecko letter-space the visible discretionary hyphen itself.
   // Blink shapes it separately, without spacing.
   letterSpaceDiscretionaryHyphen: boolean
+  // Gecko resolves letter spacing to whole app units, 1/60 px (ResolveLetterSpacing,
+  // nsTextFrame.cpp:1949-1962): at -0.08px each character takes -5/60 px, and a spacing
+  // under half a unit is none. Blink keeps 1/65536 px and WebKit a float, which
+  // preparation takes as given (readLetterSpacing).
+  letterSpacingInAppUnits: boolean
+  // Under any letter spacing but 0 the engines shape text without its optional ligatures:
+  // Blink turns off liga, clig and calt (font_features.cc:52-86), Gecko and WebKit liga,
+  // clig, dlig and hlig (gfxFont.cpp:672-685 under nsLayoutUtils.cpp:6896-6904;
+  // UnrealizedCoreTextFont.cpp:258-264 under StyleComputedStyleBase.cpp:318-333), so `fi`,
+  // `fl` and `ffi` take their letters' own advances: 16px Roboto `difficult` is 52.87px
+  // wide, and 54.20px plus the spacing under any. Blink's and Gecko's Canvas letterSpacing
+  // turns them off as their pages do (canvas_rendering_context_2d_state.cc:871-907;
+  // CanvasRenderingContext2D.cpp:5233-5241). WebKit's keeps them (FontCascade.cpp:81;
+  // PLATFORM_BUGS.md), so the WebKit profile measures letter-spaced text with its ligatures
+  // and comes out that much narrower than Safari (ENGINE_FOLLOWUPS.md, Letter spacing).
+  canvasLetterSpacingDropsLigatures: boolean
+  // Which text of the scripts whose letters join takes no letter spacing
+  // (getUnspacedGraphemes in src/prepare.ts): in Blink a script run of one of them, but
+  // for its spaces ('run'); in Gecko a cluster whose first character is of one of them
+  // ('cluster'); in WebKit none, which spaces every glyph that has an advance
+  // (ComplexTextController.cpp:793-796, WidthIterator.cpp:511-516).
+  unspacedCursive: 'run' | 'cluster' | 'none'
   // Blink's page shapes a soft hyphen inside its text, so nonspacing marks after
   // one shape with the text before it and take no advance. Its Canvas turns the soft
   // hyphen into a ZWSP and shapes each word alone, where such a mark can take a
@@ -229,16 +251,8 @@ type MeasureState = {
   genericFamilies: string[] | null // The families the language gives the generic keywords, or null
   takesLetterSpacing: boolean // As Chrome's and Firefox's contexts do, as a string of CSS px
   // Whether the context shapes text under LETTER_SPACED_SHAPING as the page shapes text
-  // under letter spacing. Under any spacing but 0 the engines shape without optional
-  // ligatures: Blink turns off liga, clig and calt (font_features.cc:52-86), Gecko and
-  // WebKit liga, clig, dlig and hlig (gfxFont.cpp:672-685 under nsLayoutUtils.cpp:6896-6904;
-  // UnrealizedCoreTextFont.cpp:258-264 under StyleComputedStyleBase.cpp:318-333), so `fi`,
-  // `fl` and `ffi` take their letters' own advances: 16px Roboto `difficult` is 52.87px
-  // wide, and 54.20px plus the spacing under any. Blink's and Gecko's Canvas letterSpacing
-  // turns them off as their pages do (canvas_rendering_context_2d_state.cc:871-907;
-  // CanvasRenderingContext2D.cpp:5233-5241). WebKit's doesn't (FontCascade.cpp:81;
-  // PLATFORM_BUGS.md), so the WebKit profile measures letter-spaced text with its ligatures
-  // and comes out that much narrower than Safari (ENGINE_FOLLOWUPS.md, Letter spacing).
+  // under letter spacing, without its optional ligatures: it takes a letterSpacing and
+  // the engine's Canvas turns them off under one (canvasLetterSpacingDropsLigatures).
   shapesLetterSpaced: boolean
   letterSpaced: boolean // Whether the context is set to LETTER_SPACED_SHAPING, by getFontMeasurement()
   fonts: Map<string, FontMeasurement>
@@ -385,17 +399,14 @@ export function getPreparationLanguage(profile: EngineProfile): string | null {
 const MAX_APP_UNITS = (1 << 30) - 1
 
 // A text's letter spacing in CSS px as the engine lays it out, 0 by default. CSS and
-// Canvas ignore a non-finite one, which Pretext refuses rather than guess at. Gecko
-// resolves it to whole app units, 1/60 px (ResolveLetterSpacing, nsTextFrame.cpp:1949-1962):
-// the float32 times 60, rounded half away from zero and clamped (DefaultLengthToAppUnits,
-// ServoStyleConstsInlines.h:584-595). At -0.08px each character takes -5/60 px, and a
-// spacing under half a unit is none, the text's ligatures kept (nsLayoutUtils.cpp:6896-6904).
-// Blink keeps 1/65536 px and WebKit a float, taken as given. The profile's scan tells Gecko
-// here, as a profile field of its own would slow Chrome (createMeasureState).
+// Canvas ignore a non-finite one, which Pretext refuses rather than guess at. Gecko's
+// whole app units are the float32 times 60, rounded half away from zero and clamped
+// (DefaultLengthToAppUnits, ServoStyleConstsInlines.h:584-595), and a spacing that
+// rounds to none keeps the text's ligatures (nsLayoutUtils.cpp:6896-6904).
 export function readLetterSpacing(letterSpacing: number | undefined, profile: EngineProfile): number {
   const value = letterSpacing ?? 0
   if (!Number.isFinite(value)) throw new RangeError(`letterSpacing must be a finite number of CSS px, not ${value}`)
-  if (profile.lineBreakScan !== 'gecko') return value
+  if (!profile.letterSpacingInAppUnits) return value
   const units = Math.fround(Math.fround(value) * 60)
   return Math.min(Math.round(Math.abs(units)), MAX_APP_UNITS) * Math.sign(units) / 60
 }
@@ -493,6 +504,9 @@ function buildEngineProfile(): EngineProfile {
     prefixFitMinWidth: engine === 'webkit' ? 0 : engine === 'gecko' ? 80 : Infinity,
     measureTextWithFollowingSpace: engine === 'webkit',
     letterSpaceDiscretionaryHyphen: engine !== 'blink',
+    letterSpacingInAppUnits: engine === 'gecko',
+    canvasLetterSpacingDropsLigatures: engine !== 'webkit',
+    unspacedCursive: engine === 'blink' ? 'run' : engine === 'gecko' ? 'cluster' : 'none',
     shapesMarksAcrossSoftHyphen: engine === 'blink',
     unfitHyphenRetreat: engine === 'blink' ? 'reduced-width' : engine === 'gecko' ? 'full-width' : 'none',
     skipNarrowTabStops: engine === 'webkit',
@@ -669,9 +683,7 @@ function createMeasureState(language: string | null): MeasureState {
     context,
     genericFamilies: language !== null && profile.namesGenericFamiliesByLanguage ? getWebKitGenericFamilies(language, context) : null,
     takesLetterSpacing,
-    // The profile's scan tells WebKit here: a profile field of its own, even unread, made
-    // Chrome's plain line APIs 11-18% slower (RESEARCH.md, JavaScript Engines).
-    shapesLetterSpaced: takesLetterSpacing && profile.lineBreakScan !== 'webkit',
+    shapesLetterSpaced: takesLetterSpacing && profile.canvasLetterSpacingDropsLigatures,
     letterSpaced: false,
     fonts: new Map(),
     letterSpacedFonts: new Map(),

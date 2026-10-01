@@ -1268,6 +1268,7 @@ describe('boundary-policy regressions', () => {
     // Blink and Gecko keep NEL as ordinary text.
     expect(prepareWithSegments('zz ab\u0085cd', FONT).kinds).not.toContain('control')
     profile.lineBreakScan = 'webkit'
+    profile.unspacedCursive = 'none'
     try {
       const lines = (text: string, width: number, options?: { whiteSpace?: 'pre-wrap', letterSpacing?: number }) => {
         const prepared = prepareWithSegments(text, FONT, options)
@@ -1339,6 +1340,7 @@ describe('boundary-policy regressions', () => {
       expect(lines('a\u0085 b', nel - 0.5, { whiteSpace: 'pre-wrap', letterSpacing: 1 }).map(line => line.text)).toEqual(['a', '\u0085', ' ', 'b'])
     } finally {
       profile.lineBreakScan = previous
+      profile.unspacedCursive = 'run'
     }
   })
 
@@ -2459,6 +2461,9 @@ describe('prepare invariants', () => {
       ['prefixFitMinWidth', Infinity, 0, 80],
       ['measureTextWithFollowingSpace', false, true, false],
       ['letterSpaceDiscretionaryHyphen', false, true, true],
+      ['letterSpacingInAppUnits', false, false, true],
+      ['canvasLetterSpacingDropsLigatures', true, false, true],
+      ['unspacedCursive', 'run', 'none', 'cluster'],
       ['shapesMarksAcrossSoftHyphen', true, false, false],
       ['unfitHyphenRetreat', 'reduced-width', 'none', 'full-width'],
       ['skipNarrowTabStops', false, true, false],

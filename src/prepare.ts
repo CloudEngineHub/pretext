@@ -370,8 +370,8 @@ export function measureAnalysis(
 
   // Whether the text may hold graphemes that take no letter spacing in this engine, and
   // Blink's script run over it.
-  const cursiveSpacing = hasLetterSpacing && engineProfile.lineBreakScan !== 'webkit' && mayBeCursiveRe.test(normalized)
-  const scriptRun = cursiveSpacing && engineProfile.lineBreakScan === 'blink' ? startScriptRun(normalized) : null
+  const cursiveSpacing = hasLetterSpacing && engineProfile.unspacedCursive !== 'none' && mayBeCursiveRe.test(normalized)
+  const scriptRun = cursiveSpacing && engineProfile.unspacedCursive === 'run' ? startScriptRun(normalized) : null
 
   const widths: number[] = []
   // An engine's scan makes one prepared segment per analysis segment, whose flags the
