@@ -1023,18 +1023,20 @@ function stepRichInlineLine(
   fragments: RichInlineFragmentRange[] | null,
 ): number | null {
   const safeWidth = Math.max(1, maxWidth)
-  const { emptyAtomicAlwaysFits, hangTabs, hardBreakItemRetreat, lineFitEpsilon, paddedOpeningFit, spaceBeforeSoftHyphenHangs, unfitHyphenRetreat } = getEngineProfile()
+  const { emptyAtomicAlwaysFits, hangsSpacesPerTextFrame, hangTabs, hardBreakItemRetreat, lineFitEpsilon, paddedOpeningFit, spaceBeforeSoftHyphenHangs, unfitHyphenRetreat } = getEngineProfile()
   let hasContent = false
   let lineWidth = 0
   let remainingWidth = safeWidth
   // The width of the run of preserved spaces and tabs the line ends with, which hangs past
   // its end (ItemLine). An atomic item, or an item of soft hyphens alone, which takes no room,
   // ends the run, as Blink's walk back over the line's items stops at one
-  // (ComputeTrailingSpaceWidth, line_info.cc:289-415). In Gecko ('both') a text frame's width
-  // leaves out the spaces that overflow the line and keeps those that fit, whatever follows the
-  // frame (nsTextFrame.cpp:11216-11229), so there the run goes on past such an item with what
-  // overflows, which only an item that takes no room leaves: it is inside the line, at its end,
-  // white space after it hangs too, and the padding of a span after it finds no room.
+  // (ComputeTrailingSpaceWidth, line_info.cc:289-415) and as WebKit's atomic inline box ends the
+  // content that can hang (ContinuousContent::append, InlineContentBreaker.cpp:943-947). In
+  // Gecko a text frame's width leaves out the spaces that overflow the line and keeps those that
+  // fit, whatever follows the frame (hangsSpacesPerTextFrame), so there the run goes on past
+  // such an item with what overflows, which only an item that takes no room leaves: it is inside
+  // the line, at its end, white space after it hangs too, and the padding of a span after it
+  // finds no room.
   let lineHangWidth = 0
   // Whether the line ends at a hard break.
   let endsAtHardBreak = false
@@ -1119,7 +1121,7 @@ function stepRichInlineLine(
       if (hasContent) consumedAfterContent = true
       lineWidth += gapBefore
       remainingWidth = safeWidth - lineWidth
-      lineHangWidth = paddedOpeningFit === 'both' ? Math.min(lineHangWidth, Math.max(0, -remainingWidth)) : 0
+      lineHangWidth = hangsSpacesPerTextFrame ? Math.min(lineHangWidth, Math.max(0, -remainingWidth)) : 0
       continue
     }
     const atItemStart = isLineStartCursor(cursor)
@@ -1161,7 +1163,7 @@ function stepRichInlineLine(
       hasContent = true
       lineWidth += totalWidth
       remainingWidth = safeWidth - lineWidth
-      lineHangWidth = paddedOpeningFit === 'both' ? Math.min(lineHangWidth, Math.max(0, -remainingWidth)) : 0
+      lineHangWidth = hangsSpacesPerTextFrame ? Math.min(lineHangWidth, Math.max(0, -remainingWidth)) : 0
       continue
     }
 

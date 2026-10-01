@@ -211,6 +211,18 @@ export type EngineProfile = {
   // that continues the text comes next (getKeptEmptyEnd, src/rich-inline.ts). Blink and WebKit
   // fit it as any other atomic inline and move it to the next line.
   emptyAtomicAlwaysFits: boolean
+  // Where the preserved spaces that end a pre-wrap line's text and overflow the line still hang
+  // once an item that takes no room follows them on the line, an atomic item of width 0 or an
+  // item of soft hyphens alone. Gecko takes the hang out of each text frame's own width, the
+  // trailing spaces past the line's end and no more, whatever follows the frame (hang =
+  // min(max(0, advance - available), trimmable), nsTextFrame::ReflowText, nsTextFrame.cpp:
+  // 11216-11229), so such an item is inside the line, at its end, and white space after it hangs
+  // too. Blink reads the line's trailing spaces by walking back from its last item and stops at
+  // an atomic inline or at text that doesn't end in a space (ComputeTrailingSpaceWidth,
+  // line_info.cc:289-415), and in WebKit an atomic inline box ends the content that can hang
+  // (ContinuousContent::append, InlineContentBreaker.cpp:943-947), so there the run of spaces
+  // that hang ends at such an item.
+  hangsSpacesPerTextFrame: boolean
   // Blink transforms segment breaks in the text of the whole inline formatting context
   // (ShouldRemoveNewline and RemoveTrailingCollapsibleNewlineIfNeeded, inline_items_builder.cc).
   // Gecko transforms each text frame's own text (nsTextFrameUtils::TransformText), as
@@ -474,6 +486,7 @@ function buildEngineProfile(): EngineProfile {
     hardBreakItemRetreat: engine === 'blink' ? 'item' : engine === 'webkit' ? 'fit' : 'last-grapheme',
     paddedOpeningFit: engine === 'blink' ? 'start' : engine === 'webkit' ? 'placed' : 'both',
     emptyAtomicAlwaysFits: engine === 'gecko',
+    hangsSpacesPerTextFrame: engine === 'gecko',
     transformsSegmentBreaksAcrossItems: engine === 'blink',
   }
 }
