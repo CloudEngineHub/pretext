@@ -139,15 +139,13 @@ AGENTS.md's Validation says when to run `repin`, `check`, `gate` and `bench`. `g
 recordings must still describe the browser), and each new failure recorded and predicted alone, to attribute it. The
 1,000 are drawn by the commit under test, so one commit always draws the same and successive changes cover every
 recording; the gate prints the seed, and `--seed` draws with another. It also runs the offline invariants
-(`invariants.ts`, which `bun test` runs on 600 seeded draws) over every case in the browser's engine profile, beside
-the browser's jobs. A drawn case whose lines differ from its
-recording is recorded once more in a browser process of its own: laid out as recorded there, it's page history, and
-the gate lists it; laid out otherwise there too, it blocks, since either the recording is stale or it holds page
-history both of `record`'s orders shared. `bun harness record --cases=<a file of those cases>` then lists it as page
-history.
-`record --only-new` records new cases, `check --accept="<reason>"` puts the new failures on the accepted list under that
-reason and drops the entries that pass again, and `explain` shows one case, or a paragraph given with `--text`, line by
-line against the browser.
+(`invariants.ts`, which `bun test` runs on 600 seeded draws) over every case in the browser's engine profile, beside the
+browser's jobs. A drawn case whose lines differ from its recording is recorded once more in a browser process of its
+own: laid out as recorded there, it's page history, and the gate lists it; laid out otherwise there too, it blocks,
+since either the recording is stale or it holds page history both of `record`'s orders shared. `bun harness record
+--cases=<a file of those cases>` then lists it as page history. `record --only-new` records new cases, `check
+--accept="<reason>"` puts the new failures on the accepted list under that reason and drops the entries that pass again,
+and `explain` shows one case, or a paragraph given with `--text`, line by line against the browser.
 
 ## Accepted and varying lists
 
@@ -164,14 +162,14 @@ from the browser's Canvas, so attribution never calls such a move a library defe
 Page history misleads (`RESEARCH.md`, Evaluation Traps, has the cases; Engine Facts, Safari (WebKit), has WebKit's
 caches): when the gate's attribution calls a failure page history, that holds only once the case fails the same way
 alone, and a webkit-host win or loss counts only if it holds alone in a process of its own (`bun harness explain
---cases=<a file of the one case>`) or in fresh documents in both orders. The cases seen
-with page history, `recordings/<browser>.history.txt`, are kept across every recording under one environment, and
-`repin` carries them to a new build, since two orders miss history both share: one recording's two orders found 11 of
-webkit-host's 87 (2026-09-24), and without the carried list 33 cases would have blocked when Firefox went to 156.0.1
-(2026-09-25). `record`'s second order is its first reversed, so every case is laid out once before and once after each
-other one: WebKit lays a right-to-left paragraph out with the items of a left-to-right one of the same text laid out
-before it, and when the second order was a shuffle, which keeps half of all pairs in order, one pass in reverse found
-27 webkit-host cases pinned to the order both had shared (2026-09-30).
+--cases=<a file of the one case>`) or in fresh documents in both orders. The cases seen with page history,
+`recordings/<browser>.history.txt`, are kept across every recording under one environment, and `repin` carries them to a
+new build, since two orders miss history both share: one recording's two orders found 11 of webkit-host's 87
+(2026-09-24), and without the carried list 33 cases would have blocked when Firefox went to 156.0.1 (2026-09-25).
+`record`'s second order is its first reversed, so every case is laid out once before and once after each other one:
+WebKit lays a right-to-left paragraph out with the items of a left-to-right one of the same text laid out before it, and
+when the second order was a shuffle, which keeps half of all pairs in order, one pass in reverse found 27 webkit-host
+cases pinned to the order both had shared (2026-09-30).
 
 ## Proving "no change"
 
@@ -224,10 +222,10 @@ with the new build into a scratch copy of the recordings and prints the cases la
 and whether the browser's break data still matches `scripts/engine-data/`.
 
 webkit-host lays text out as Safari 27.0 does: the same line geometry on 25,180 cases in both orders (2026-09-17) and on
-installed Safari's 2,000-case sample except page history (2026-09-24); a Safari or macOS update voids that until
-`repin safari`, which records both and prints on how many of the cases both pin their lines agree, shows they agree
-again. Installed Safari stalls when hidden (WebKit suspends a
-hidden page past a CPU limit averaged over 8 minutes), so keep its window uncovered during a job.
+installed Safari's 2,000-case sample except page history (2026-09-24); a Safari or macOS update voids that until `repin
+safari`, which records both and prints on how many of the cases both pin their lines agree, shows they agree again.
+Installed Safari stalls when hidden (WebKit suspends a hidden page past a CPU limit averaged over 8 minutes), so keep
+its window uncovered during a job.
 
 Firefox changes fonts after it starts (see also `PLATFORM_BUGS.md`, the late family names): emoji beside Arial laid out
 otherwise when recorded 11 s after launch than at 12, 15 or 30 s (91 cases, 2026-09-24), so each Firefox job holds its

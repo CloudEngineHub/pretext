@@ -135,11 +135,11 @@ export async function record(browser: BrowserKind, cases: Case[], o: Options, io
   if (o.sample !== null) sorted = shuffled(sorted, o.seed).slice(0, o.sample).sort((a, b) => (a.id < b.id ? -1 : 1))
   // One browser instance at a time per browser. The second order is the first reversed, so of any two cases each is
   // laid out before the other once, and a case that lays out otherwise after one particular case shows. A shuffled
-  // second order kept half of all pairs in their first order: WebKit lays a right-to-left paragraph out with the
-  // items of a left-to-right one of the same text and line-breaking styles laid out before it in the process (its
-  // TextBreakingPositionCache keys a text's items by the text, those styles and the origin, TextBreakingPositionCache.h:49,
-  // and InlineItemsBuilder.cpp:858-862 takes them unread), and one pass in reverse found 27 webkit-host cases two
-  // such orders had pinned (2026-09-30).
+  // second order kept half of all pairs in their first order. WebKit has such pairs: it lays a right-to-left
+  // paragraph out with the items of a left-to-right one of the same text and line-breaking styles laid out before it
+  // in the process, since its TextBreakingPositionCache keys a text's items by the text, those styles and the origin
+  // (TextBreakingPositionCache.h:49) and InlineItemsBuilder.cpp:858-862 builds a paragraph's items from an entry
+  // whatever its direction. One pass in reverse found 27 webkit-host cases two such orders had pinned (2026-09-30).
   const a = await io.run<Recording>({ browser, mode: 'record', cases: sorted, documentSize: RECORD_DOCUMENT, lib: o.lib })
   const b = await io.run<Recording>({ browser, mode: 'record', cases: sorted.slice().reverse(), documentSize: RECORD_DOCUMENT, lib: o.lib })
   if (a.env !== b.env) throw new Error(`The environment changed between the two recordings: ${a.env} | ${b.env}`)
@@ -305,9 +305,11 @@ export async function check(browser: BrowserKind, cases: Case[], o: Options, io:
 export async function gate(browser: BrowserKind, cases: Case[], o: Options, io: Io): Promise<boolean> {
   const job = <T extends Recording | Prediction>(mode: Mode, list: Case[], documentSize: number): Promise<Map<string, T>> =>
     io.run<T>({ browser, mode, cases: list, documentSize, lib: o.lib }).then(result => result.results)
-  // The offline invariants run beside the browser's jobs, which mostly wait on the browser.
+  // The offline invariants run beside the browser's jobs, which mostly wait on the browser. A child that fails is
+  // reported where its result is read.
   const profiles = BROWSER[browser].profiles
   const offline = Promise.all(profiles.map(profile => io.invariants(profile, o.lib)))
+  offline.catch(() => {})
   const scored = await check(browser, cases, o, io)
   const ids = scored.pinned.map(c => c.id)
   const out: string[] = []
