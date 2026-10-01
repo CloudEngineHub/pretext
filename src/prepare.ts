@@ -59,11 +59,14 @@ function addInternalLetterSpacing(width: number, graphemeCount: number, letterSp
 // script of a cluster's first character (GetSpacingInternal, nsTextFrame.cpp:4202-4213), so
 // digits and punctuation among the letters keep their spacing. Blink asks the script of the
 // shaping run the cluster is in and spaces only its spaces (ComputeSpacing,
-// shape_result_spacing.cc:103-131): a run takes in the characters of no script after it,
-// the ones that start the text, and the punctuation its script shares
+// shape_result_spacing.cc:103-131, behind the runtime flag
+// IgnoreLetterSpacingInCursiveScripts, on since Chrome 137): a run takes in the characters
+// of no script after it, the ones that start the text, and the punctuation its script shares
 // (script_run_iterator.cc), so of an Arabic word, a space and `123.` only the space is
 // spaced. WebKit spaces every glyph with an advance. Chrome 154, Firefox 156 and
-// webkit-host lay 59 strings out so (2026-10-01).
+// webkit-host lay 63 strings out so (2026-10-01). The profile's unspacedCursive names the
+// engine's rule, and the scripts and script extensions are the JavaScript engine's
+// (RESEARCH.md, Tables Against Canvas).
 const cursiveScriptRe = /[\p{Script=Arabic}\p{Script=Syriac}\p{Script=Nko}\p{Script=Mandaic}\p{Script=Mongolian}\p{Script=Phags_Pa}\p{Script=Hanifi_Rohingya}]/uy
 // What starts or goes on with a cursive run in Blink: the letters; the Common characters
 // and marks whose scripts include Arabic, such as U+060C, U+0640 and the vowel signs,
