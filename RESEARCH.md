@@ -989,8 +989,9 @@ that continues the line decides whether the text before the hyphen fits, and whi
 at the rich stepper's return in `src/rich-inline.ts`. A run that continues across items moves to the next line whole in
 every profile where its first break is a soft hyphen whose hyphen doesn't fit, as it does in Safari 27 (`the `, `inter`,
 `na\u00ADtion\u00ADal` at 84px in 16px Arial, #323's cases). Until #TBD the WebKit profile made that return only, and
-kept an unfit hyphen in one text, where WebKit returns as well (Engine Facts, Safari). Fit with the width you report,
-or text laid out at its widest line wraps differently (#308, 2026-09-15).
+kept an unfit hyphen in one text and in an item that a break comes before, as after a space or an atomic item, where
+WebKit returns as well (Engine Facts, Safari). Fit with the width you report, or text laid out at its widest line wraps
+differently (#308, 2026-09-15).
 
 #### Box Edges And Pre-wrap
 

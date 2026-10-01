@@ -87,22 +87,23 @@ export type EngineProfile = {
   // overflows (revertToLastNonOverflowingItem, TextOnlySimpleLineBuilder.cpp:459-480,
   // and rebuildLineForTrailingSoftHyphen, InlineLineBuilder.cpp:1860-1887, for lines
   // with inline boxes): 'full-width-or-first', the latest opportunity that fits at
-  // the full width, else the line's first. WebKit fits what it measures, which the
-  // same value stands for: each text item on its own (TextUtil::width,
-  // TextUtil.cpp:62-100), where an item ends at its soft hyphen, so no text
-  // measures narrower joined across one; and the hyphen it paints, U+2010 where
-  // the primary font, the first listed family that gives a font, has a glyph for
-  // it, else `-` (hyphenString, StyleComputedStyle.cpp:419-431; TextUtil::hyphenWidth,
-  // TextUtil.cpp:621-624). Canvas draws U+2010 in a later family or a system font
-  // where the primary font lacks it, so the profile asks which family draws it
-  // (getHyphenText). Blink and Gecko choose their hyphen the same way
-  // (ComputedStyle::HyphenString, shaped in hyphen_result.cc:12-16, and
+  // the full width, else the line's first, which is the soft hyphen the walker
+  // reaches before any opportunity on the line has fit. WebKit fits what it
+  // measures, which the same value stands for: each text item on its own
+  // (TextUtil::width, TextUtil.cpp:62-100), where an item ends at its soft hyphen,
+  // so no text measures narrower joined across one; and the hyphen it paints, U+2010
+  // where the primary font, the first listed family that gives a font, has a glyph
+  // for it, else `-` (hyphenString, StyleComputedStyle.cpp:419-431;
+  // TextUtil::hyphenWidth, TextUtil.cpp:621-624). Canvas draws U+2010 in a later
+  // family or a system font where the primary font lacks it, so the profile asks
+  // which family draws it (getHyphenText). Blink and Gecko choose their hyphen the
+  // same way (ComputedStyle::HyphenString, shaped in hyphen_result.cc:12-16, and
   // MakeHyphenTextRun, gfxTextRun.cpp:2458-2473); their profiles measure `-`, a
   // named gap (ENGINE_FOLLOWUPS.md, Line edges). The two measuring rules have no
-  // field of their own, since one more field on the profile slowed Chrome's line APIs
-  // (RESEARCH.md, JavaScript Engines). In 16px Arial at 76-80px Safari 27 lays out
-  // `the interna\u00ADtion\u00ADal` as `the` / `interna-` / `tional`, and at 40px
-  // `trans\u00ADi\u00ADt\u00ADlantic` starts with `trans-`, 40.9px wide.
+  // field of their own, since one more field on the profile slowed Chrome's line
+  // APIs (RESEARCH.md, JavaScript Engines). In 16px Arial at 76-80px Safari 27 lays
+  // out `the interna\u00ADtion\u00ADal` as `the` / `interna-` / `tional`, and at
+  // 40px `trans\u00ADi\u00ADt\u00ADlantic` starts with `trans-`, 40.9px wide.
   unfitHyphenRetreat: 'reduced-width' | 'full-width' | 'full-width-or-first'
   // WebKit moves a tab to the following stop when less than half a space would
   // remain before the next one (FontCascade::tabWidth).

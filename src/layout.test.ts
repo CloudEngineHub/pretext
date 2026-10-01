@@ -3699,6 +3699,17 @@ describe('rich-inline invariants', () => {
         expect(layoutWithLines(prepareWithSegments('a po\u00ADd', FONT), width, LINE_HEIGHT).lines.map(line => line.text.trimEnd()))
           .toEqual(['a', 'pod'])
       }
+
+      // A soft hyphen that starts the text right after an atomic item breaks there with
+      // its hyphen where that fits. Where it doesn't, the line returns to the break
+      // after the item, which a return at the full width reaches.
+      const chip = [{ text: 'ab ', font: FONT }, { text: 'xy', font: FONT, break: 'never' as const }, { text: '\u00ADcd ef', font: FONT }]
+      const chipHyphenFits = measureWidth('xy-', FONT)
+      for (const unfitHyphenRetreat of ['full-width', 'full-width-or-first'] as const) {
+        profile.unfitHyphenRetreat = unfitHyphenRetreat
+        expect(lineTexts(chip, chipHyphenFits - 0.1)).toEqual(['ab', 'xy', 'cd', 'ef'])
+        expect(lineTexts(chip, chipHyphenFits)).toEqual(['ab', 'xy-', 'cd', 'ef'])
+      }
     } finally {
       profile.unfitHyphenRetreat = previous
     }

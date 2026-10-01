@@ -454,8 +454,10 @@ function walkPreparedComplexLines(
   // WebKit return to any opportunity whose line fits, such as a break between text segments.
   const retreatsAtFullWidth = retreatsFromUnfitHyphen && engineProfile.unfitHyphenRetreat !== 'reduced-width'
   const reservedHyphenWidth = retreatsAtFullWidth ? 0 : discretionaryHyphenWidth
-  // WebKit's return stops at the line's first opportunity, whatever its hyphen overflows.
-  // A rich item that continues a line doesn't know that line's first opportunity.
+  // WebKit's return stops at the line's first opportunity, whatever its hyphen overflows:
+  // the soft hyphen the line reaches before any of its opportunities has fit, since one
+  // without a hyphen fits where the text before it did. A rich item that continues a line
+  // doesn't know that line's first opportunity.
   const keepsFirstBreak = retreatsFromUnfitHyphen && engineProfile.unfitHyphenRetreat === 'full-width-or-first' && !continues
   const breakBeforeSegmentIndex = item !== null && item.breakBefore ? cursor.segmentIndex : -1
   const fitBreakBefore = item !== null && item.fitsBreakBefore ? cursor.segmentIndex : -1
