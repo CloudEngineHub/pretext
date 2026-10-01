@@ -63,7 +63,7 @@ function addInternalLetterSpacing(width: number, graphemeCount: number, letterSp
 // the ones that start the text, and the punctuation its script shares
 // (script_run_iterator.cc), so of an Arabic word, a space and `123.` only the space is
 // spaced. WebKit spaces every glyph with an advance. Chrome 154, Firefox 156 and
-// webkit-host lay 57 strings out so (2026-10-01).
+// webkit-host lay 59 strings out so (2026-10-01).
 const cursiveScriptRe = /[\p{Script=Arabic}\p{Script=Syriac}\p{Script=Nko}\p{Script=Mandaic}\p{Script=Mongolian}\p{Script=Phags_Pa}\p{Script=Hanifi_Rohingya}]/uy
 // What starts or goes on with a cursive run in Blink: the letters; the Common characters
 // whose scripts include Arabic, such as U+060C and U+0640, since Arabic has the lowest
@@ -77,14 +77,18 @@ const mayBeCursiveRe = new RegExp(cursiveRunRe.source, 'u')
 // Characters of no script, which Blink leaves in the run before them: Common ones that no
 // script lists, and marks, which inherit.
 const scriptNeutralRe = /[\p{scx=Common}\p{Script=Inherited}]/uy
-const firstScriptRe = /[^\p{scx=Common}\p{Script=Inherited}]/u
+// What gives a text's first run its script: a character that has one, or one of the wide
+// and fullwidth opening brackets of no script, which Blink makes Han
+// (FixScriptsByEastAsianWidth, script_run_iterator.cc:83-110).
+const firstScriptRe = /[^\p{scx=Common}\p{Script=Inherited}]|[\u2329\uFE59\uFE5B\uFE5D\uFF08\uFF3B\uFF5B\uFF5F]/u
 
 // Blink's script run as preparation follows it through a text's segments, in order:
 // whether it is cursive, and each bracket it has open, as its opening character and then
 // 1 where that bracket's run is cursive, else 0.
 type ScriptRun = { cursive: boolean; openBrackets: number[] }
 
-// The run a text starts in: that of its first character that has a script.
+// The run a text starts in: that of its first character that has a script, which takes in
+// the characters of no script before it.
 function startScriptRun(text: string): ScriptRun {
   const first = firstScriptRe.exec(text)
   return { cursive: first !== null && mayBeCursiveRe.test(first[0]), openBrackets: [] }
@@ -95,7 +99,8 @@ function startScriptRun(text: string): ScriptRun {
 // own stays open, so a second closing bracket goes back to that run too (OpenBracket and
 // CloseBracket, script_run_iterator.cc:431-481). A wide or fullwidth opening bracket
 // starts a Han run (FixScriptsByEastAsianWidth, :83-110). The pairs are Unicode 15's, as
-// the Gecko profile's bidi levels read them.
+// the Gecko profile's bidi levels read them, with U+2329 and U+232A folded into U+3008
+// and U+3009, which ICU pairs only with each other (ENGINE_FOLLOWUPS.md, Letter spacing).
 function enterScriptRun(run: ScriptRun, text: string, i: number, c: number): void {
   const { openBrackets } = run
   const bracket = getBidiBrackets().get(c)
