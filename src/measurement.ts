@@ -538,36 +538,46 @@ function getEmojiGlyphs(text: string, measurement: FontMeasurement): number {
 }
 
 // The characters the emoji font shapes together inside a grapheme: emoji and pictographs,
-// what joins or alters them (ZWJ, skin tones, tags, U+20E3) and the variation selectors.
-// A grapheme of emojiGraphemeRe holds one.
+// the characters that join or modify them (ZWJ, skin tones, tags, U+20E3) and the
+// variation selectors. A grapheme of emojiGraphemeRe holds one.
 const emojiStretchRe = /[\p{Emoji}\p{Extended_Pictographic}\p{Emoji_Component}\uFE0E]+/gu
 // Each character with the variation selector after it, which picks its font.
 const selectedCharacterRe = /.[\uFE0E\uFE0F]?/gsu
 
 // The glyphs of the emoji font in a text: what the correction is subtracted for, once
 // each. Font fallback decides which font draws an emoji character, and Canvas shows what
-// it decided, at one cached Canvas call per distinct grapheme of a font. A grapheme with
-// a glyph of another font measures as the page draws it: Menlo's own U+26A1, Inter's
-// U+2B1C, Hiragino Sans's U+26AA, or U+231A before U+FE0E, which asks for a text font
-// (gfxTextRun.cpp:3268-3273). A pictograph whose presentation is text by default takes
-// the correction with no U+FE0F where only the emoji font has it, as U+1F336 in Arial.
-// Two or more glyphs are a sequence the emoji font has no glyph for, drawn as its parts.
+// it decided, at one cached Canvas call per distinct grapheme of a font. For a character
+// with no selector, the named font's own glyph comes before the emoji font's
+// (CheckCandidate, gfxTextRun.cpp:3350-3359; FontFallbackIterator::Next,
+// font_fallback_iterator.cc:166-178), and U+FE0E asks for a text font
+// (gfxTextRun.cpp:3270-3273; SymbolsIterator::Consume, symbols_iterator.cc:67-71). So a
+// grapheme with a glyph of another font measures as the page draws it: Menlo's own
+// U+26A1, Inter's U+2B1C, Hiragino Sans's U+26AA, or U+231A before U+FE0E. A pictograph
+// whose presentation is text by default takes the correction with no U+FE0F where only
+// the emoji font has it, as U+1F336 in Arial. Two or more glyphs are a sequence the
+// emoji font has no glyph for, drawn as its parts.
 //
-// A grapheme can mix fonts: a font is matched character by character, a character that
-// extends a cluster taking the font before it only where that font has it
+// A grapheme can mix fonts. Firefox matches a font character by character, a character
+// that extends a cluster taking the font before it only where that font has it
 // (gfxFontGroup::FindFontForChar, gfxTextRun.cpp:3178-3194), and each font shapes its own
 // characters together. So each stretch of emoji characters is asked apart from the rest
 // of its grapheme: a ZWJ sequence, a skin-toned emoji or a flag before a combining mark
 // of another script is still one glyph. A stretch that isn't all emoji glyphs is asked
-// character by character, each with its variation selector: a skin tone after a digit
-// or after a glyph of the named font. What only joins or alters isn't asked: alone,
-// Chrome draws U+20E3 from the emoji font in Zapfino, and after `©` as a missing glyph.
+// character by character, each with its variation selector, and only its characters of
+// emojiGraphemeRe: a skin tone or a regional indicator, whose presentation is emoji, a
+// pictograph, or an emoji character before U+FE0F. ZWJ, tags, a selector and U+20E3
+// aren't asked alone: they continue the cluster of the character before them
+// (hb_set_unicode_props, hb-ot-shape.cc:468-542), where Chrome draws them in that
+// character's font or as its missing glyph, and alone they measure as neither. Alone,
+// U+20E3 is the emoji font's glyph in Zapfino.
 //
-// Asked apart, a piece can take another font than it has inside its grapheme: Chrome
-// sends a whole cluster to the next font when one of its glyphs is missing
-// (HarfBuzzShaper::ExtractShapeResults, harfbuzz_shaper.cc:586-655), so a skin tone
-// before a combining mark is the named font's missing glyph. The grapheme's own width
-// bounds the count: no more emoji glyphs than emoji widths fit in it.
+// Asking a skin tone alone is Firefox's outcome, and Chrome's gap. Chrome keeps the tone
+// in the cluster of a letter, a digit or a mark before it and sends a cluster to the next
+// font whole when one of its glyphs is missing (HarfBuzzShaper::ExtractShapeResults,
+// harfbuzz_shaper.cc:586-655), so there the tone is the named font's missing glyph. The
+// grapheme's own width bounds the count, no more emoji glyphs than emoji widths fit in
+// it, which catches that only while the grapheme's other glyphs are narrower than an
+// emoji.
 //
 // The gaps are in ENGINE_FOLLOWUPS.md, Emoji correction: another font's glyph exactly
 // as wide as an emoji takes the correction, as does Firefox's box for a missing glyph at

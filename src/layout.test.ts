@@ -1808,7 +1808,10 @@ describe('measurement invariants', () => {
       // A sequence the emoji font has no glyph for takes one correction for each part.
       ['\u{1F468}\u200D\u{1F680}\u200D\u{1F680}', 2],
       ['\u{1F600}\u200D\u{1F600}\u200D\u{1F600}', 3],
-      // Graphemes that mix fonts. A skin tone after a character of the named font:
+      // Graphemes that mix fonts. A skin tone after a character of the named font, as
+      // Firefox draws it, from the emoji font. Chrome draws that tone as the named font's
+      // missing glyph, in the character's cluster, and gets this count all the same: a
+      // named gap (ENGINE_FOLLOWUPS.md, Emoji correction).
       ['\u306A\u{1F3FB}', 1],
       ['\u26AA\u{1F3FB}', 1],
       ['2\u{1F3FB}', 1],
@@ -1821,6 +1824,8 @@ describe('measurement invariants', () => {
       ['\u{1F468}\u200D\u{1F469}\u200D\u{1F467}\u17C8\u{1F3FB}', 2],
       // No more glyphs than emoji widths fit in the grapheme: a sequence joined to a
       // character of the named font, and the cluster Chrome draws as a missing glyph.
+      // Both hold only while that character and that missing glyph are narrower than an
+      // emoji.
       ['\u00A9\u200D\u{1F469}\u200D\u{1F467}', 1],
       ['\u{1F3FB}\u0301', 0],
       ['\u{1F680}\u{1F3FB}\u0301', 1],
