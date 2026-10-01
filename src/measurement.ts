@@ -17,10 +17,10 @@ export type SegmentMetrics = {
 export type SegmentFit = {
   mode: BreakableFitMode
   advances: number[] | null // Per grapheme, or null for one grapheme
-  // With advances in the WebKit profile, the graphemes after the first that WebKit
-  // doesn't start a line with when a line holds only an overflowing first character,
-  // by their first code unit, as ascending grapheme indices. Null without any.
-  lineStartProhibitions: number[] | null
+  // With advances in the WebKit profile, per grapheme, 1 for one after the first that
+  // WebKit doesn't start a line with when a line holds only an overflowing first
+  // character, by its first code unit. Null without any.
+  lineStartProhibitions: Uint8Array | null
   entryGeometry: {
     letterSpacing: number
     emojiCorrection: number
@@ -539,9 +539,9 @@ export function getSegmentFit(
   const ends = new Int32Array(seg.length)
   const count = findGraphemeEnds(getEngineProfile().graphemeTable, seg, 0, seg.length, ends)
   if (count <= 1) return metrics.fit = { mode, advances: null, lineStartProhibitions: null, entryGeometry: null }
-  let prohibitions: number[] | null = null
+  let prohibitions: Uint8Array | null = null
   if (withLineStartProhibitions) {
-    for (let i = 1; i < count; i++) if (!canWebKitLineStartWith(seg.charCodeAt(ends[i - 1]!))) (prohibitions ??= []).push(i)
+    for (let i = 1; i < count; i++) if (!canWebKitLineStartWith(seg.charCodeAt(ends[i - 1]!))) (prohibitions ??= new Uint8Array(count))[i] = 1
   }
   // Prefix widths, or each grapheme alone or after the one before it. Past
   // MAX_PREFIX_FIT_GRAPHEMES, prefixes give way to pairs.

@@ -1235,14 +1235,18 @@ units (`eb3bbbe`, `f0a326d`); measuring every growing Canvas prefix (`fcf9c62`);
 start for every streamed line (`2c52171`); retrying white-space and font-size suffix regexes, and restarting
 preferred-hyphen searches (#221); measuring each run of a combining-mark chain after the whole chain before it (#351);
 looking for a bidi control after each soft hyphen of a run, which made Firefox prepare the bench's invisible tails 44%
-slower until each run was scanned once, at its start (#368).
+slower until each run was scanned once, at its start (#368); searching a segment's list of the graphemes WebKit doesn't
+start a line with once per grapheme, where a flag per grapheme is one read (#TBD).
 
 The regex traps needed internal white space before content, or digit runs without `px`; the hyphen one, a long
 hyphenated run over many lines. A continuation from anywhere must seek its starting boundary; a positioned scan can
 carry its index. Before #351 (2026-09-26) an unbroken word of soft-hyphen and accent pairs took 64ms at 1× and 3,957ms
 at 8×, and the first fix, argued from runs of 1-2 accents, cut the context short past about 95 and moved Safari's widths
 up to 7px: test long runs. A `prepare()` that takes seconds, such as one 160,000-character word, can get the Chrome tab
-killed as hung (Chrome 153, September 2026).
+killed as hung (Chrome 153, September 2026). The WebKit list was a trap in `layout()` and every line walker, at a width
+narrower than a glyph: one call on 160,000 `…` took 3.2 s under Bun 1.4 with a stand-in Canvas, and now under 1 ms
+(2026-09-30). No test would have shown it: the harness's growth check (`harness/invariants.ts`) counts Canvas calls and
+lines up to 4,096 units, not time, so time the walkers on a long run by hand.
 
 #### Canvas Work
 

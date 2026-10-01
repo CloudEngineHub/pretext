@@ -284,7 +284,7 @@ export function measureAnalysis(
   let simpleKinds = !hasLetterSpacing
   const breakableFitAdvances: (number[] | null)[] = []
   let entryGeometry: (SegmentEntryGeometry | null)[] | null = null
-  let lineStartProhibitions: (number[] | null)[] | null = null
+  let lineStartProhibitions: (Uint8Array | null)[] | null = null
   // When not even the first character of an overflowing word fits an empty line,
   // WebKit keeps the punctuation, NBSP, U+2010 and U+2013 after that character on the
   // line, in text holding a code unit above U+00FF (InlineContentBreaker.cpp:124-158,
@@ -342,7 +342,7 @@ export function measureAnalysis(
     let spacingGraphemeCount = 0
     let fitAdvances: number[] | null = null
     let entry: SegmentEntryGeometry | null = null
-    let prohibitions: number[] | null = null
+    let prohibitions: Uint8Array | null = null
     switch (kind) {
       case TEXT: {
         // A control the engine hides takes no advance, only letter spacing.
