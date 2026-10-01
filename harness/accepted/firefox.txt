@@ -3456,6 +3456,14 @@ rich-66104da5d28ab8e4 breaks
 rich-8cd941655dd7be98 count
 rich-ce7bddd0b27c873e count
 
+## White space, then a right-to-left mark with soft hyphens at the end of a span, before white space that starts the next, in a left-to-right paragraph, at 24 px and wider: Firefox ends its white-space run at the mark, which is at another bidi level than the white space there, and keeps both spaces, where rich lines resolve no levels and carry the run past the mark as one space, as Firefox does under direction: rtl (ENGINE_FOLLOWUPS.md)
+rich-17286779a3574402 count
+rich-2273d82c15891cc6 breaks
+rich-57545ea1a56fed12 count
+rich-9a2f1d48d54592d8 count
+rich-ad4cfe8561fad751 count
+rich-c9040bfe99878c7a count
+
 ## Within 1/64 px of where the browser's lines change, at 24 px and wider: the library's fit lands on the other side there, while the whole-pixel widths inside both layouts pass
 catalog-005a8fe68a67e9a2 count
 catalog-007f7a7e64a6a3b4 count

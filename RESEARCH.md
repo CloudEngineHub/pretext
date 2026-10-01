@@ -884,16 +884,25 @@ frame ends the run, and so does an atomic inline (`BuildTextRunsScanner::ScanFra
 where the embedding level changes, and a text run doesn't go on across the split (`ContinueTextRunAcrossFrames`,
 `nsTextFrame.cpp:2023-2030`), so a dropped character at another level than the white space before it ends the run too.
 Since #369 the Gecko profile follows that run across items (`collapsesSpaceAcrossSoftHyphens`; `whitespaceRunOpen` in
-`src/rich-inline.ts`, whose comments have the rules and Firefox's widths), with levels from a port of Firefox's (Bidi
-Levels), made only for text with right-to-left characters and only once a run would go on past such characters
-(`getItemLevels()`, #371; Keeping Work Bounded, Work Done Only Where A Rule Applies). White space and soft hyphens after
-an item's leading white space are part of that run, so the Gecko profile walks an item of soft hyphens and white space
-only where it starts with a soft hyphen, whose white space starts a run of its own: walking every such item there, as
-Chrome and Safari do, lost 421 Firefox cases of a 28,435-case probe and fixed 30. The run
-fixed 6,220 Firefox cases of an 80,512-case probe and lost 220, most of which Firefox lays out otherwise as spans than
-as one node, and moved no Chrome or webkit-host case; since #372 (2026-09-28) an item of only white space and bidi
-controls between words takes one space, as in Firefox. What it still gets wrong, such as two spaces around a control at
-another level, which one gap in one item's font can't hold, is in ENGINE_FOLLOWUPS.md, Rich-inline item edges.
+`src/rich-inline.ts`, whose comments have the rules and Firefox's widths). It resolves no levels and takes each dropped
+character at the level of the white space before it, which a soft hyphen and an embedding or override control always
+have, and a direction mark unless it goes against its paragraph's direction after white space that follows text of that
+direction, follows a mark of the other direction, or sits in an embedding or isolate of the other direction. From #369
+to #TBD it read the paragraph's levels from a port of Firefox's (Bidi Levels), made on first need since #371, which took
+every paragraph as left-to-right: the port was right in left-to-right paragraphs, and in right-to-left ones it was wrong
+where the run without levels is right, as a mirror image. On six shapes with U+200F or U+061C after white space that
+follows Latin text, at 31 widths from 60 to 180px, the port passed 186 of 186 left-to-right cases and 173 right-to-left
+ones, and the run without levels passes 173 and 186; on five shapes with a mark or a PDI inside an embedding or isolate
+the port passed all 155 cases in each direction, and the run without levels passes 142 (Firefox 156.0.1, 2026-10-01). In
+the harness's rich set, whose level templates are left-to-right paragraphs, the port decided 6 Firefox cases, each a
+right-to-left mark with a soft hyphen after white space at an item's end. White space and soft hyphens after an item's
+leading white space are part of that run, so the Gecko profile walks an item of soft hyphens and white space only where
+it starts with a soft hyphen, whose white space starts a run of its own: walking every such item there, as Chrome and
+Safari do, lost 421 Firefox cases of a 28,435-case probe and fixed 30. The run fixed 6,220 Firefox cases of an
+80,512-case probe and lost 220, most of which Firefox lays out otherwise as spans than as one node, and moved no Chrome
+or webkit-host case; since #372 (2026-09-28) an item of only white space and bidi controls between words takes one
+space, as in Firefox. What it still gets wrong, such as two spaces around a control at another level, which one gap in
+one item's font can't hold, is in ENGINE_FOLLOWUPS.md, Rich-inline item edges.
 
 #### Atomic Items' Own White Space
 
@@ -1173,10 +1182,8 @@ ENGINE_FOLLOWUPS.md).
 
 ### Bidi Levels
 
-Pretext takes no paragraph direction, and none of the engine scans resolves bidi levels. Only rich inline's Gecko
-profile does, for Firefox's white-space run across items (Rich Inline Boundaries), with a port of servo/unicode-bidi
-whose levels are never returned to callers and which takes every paragraph as left-to-right
-(`src/gecko-bidi-levels.ts`; ENGINE_FOLLOWUPS.md).
+Pretext takes no paragraph direction and resolves no bidi levels (ENGINE_FOLLOWUPS.md, Bidi levels, direction and
+script runs).
 
 `segLevels`, removed in #258 (Decisions Log, 2026-09-13), came from pdf.js through chenglou/text-layout, earlier prior
 art (Dead Ends, The Measurement Model): the direction from the first strong character, no embeddings, isolates, bracket
@@ -1199,8 +1206,7 @@ Blink and WebKit run ICU's `ubidi_setPara`, Firefox the unicode-bidi crate 0.3.1
 300,000 short fuzz strings (the unidirectional shortcut, removed characters' levels, paragraph splits at class B,
 brackets under overrides). So the rebuild ported ICU 78.2's `ubidi.cpp` line by line (844 lines; Dead Ends, Tables,
 Bundles And Data), matching icu4c 78.3 and libicucore on 770,241 BidiTest runs, 183,379 BidiCharacterTest lines and
-405,000 fuzz strings; macOS 27's libicucore gives U+F7F0-U+F8FF Apple's own classes (September 2026). Nothing checked in
-would catch a subtle bracket-pair (N0) error in main's Gecko port.
+405,000 fuzz strings; macOS 27's libicucore gives U+F7F0-U+F8FF Apple's own classes (September 2026).
 
 Firefox splits a text run where the bidi level changes (`ContinueTextRunAcrossFrames`, `nsTextFrame.cpp:2023-2030`), and
 a split only starts a cluster, restarts clusters within its word and ends a word after a space before a cluster
@@ -1226,9 +1232,24 @@ for them, which started a segment at a cluster extender after a bidi control whe
 level runs it fired only at a mark that starts a cluster of its own, as a Myanmar visarga does, and kept two such marks
 after a control on one line where Firefox breaks before each: of 52 cases, 4 such texts at 13 widths from 1 to 60px, 5
 of them under 2px letter spacing, 10 pass with the rule, as on main, and 48 without it. The splits, their guard and that
-rule were 90 lines of code. Reopens if real text shows a direction change inside a cluster (ENGINE_FOLLOWUPS.md, Bidi
-levels, direction and script runs): the splits and the guard, `levelsMayMatter()`, with its argument, are in
-`src/gecko-line-breaks.ts` at 8e88756b, and the guard's method stays the one to use for any port claimed exact: a
+rule were 90 lines of code.
+
+The levels came from a port of servo/unicode-bidi, the crate Firefox runs, with its Bidi_Class and bracket tables, never
+returned to callers and taking every paragraph as left-to-right. Its one other reader, rich inline's white-space run
+across items (Rich Inline Boundaries, Firefox's White-Space Run Across Items), gave levels up in the same change, so the
+port left too: in all 559 lines of code and 15.6 KB of the minified bundle, 6.9 KB gzipped. For rich inline that cost 6
+more generated Firefox cases, all left-to-right paragraphs with a right-to-left mark after white space that follows
+Latin text; in a right-to-left paragraph the same items now lay out as in Firefox, where the port gave a space too many.
+A mark or a PDI inside an embedding or isolate of the other direction is a loss in both directions. Reopens if real text
+shows a direction change inside a cluster, or, in a left-to-right paragraph or inside an embedding or isolate, a rich
+item of only white space and such a mark or PDI, or one that ends in it and a soft hyphen after white space
+(ENGINE_FOLLOWUPS.md, Bidi levels, direction and script runs, and Rich-inline item edges). A port brought back for rich
+inline needs the paragraph's direction to be right in both, which Pretext doesn't take (TODO.md). U+200F between two
+spaces is real, in 18 of the 394,387 Arabic and Hebrew strings, text an app sets in right-to-left paragraphs. On the
+stand-in Canvas, which has no direction, rich lines lay such a string out as the port did unless the mark and its white
+space are an item of their own, as in 3 of 65,399 cuts of the strings that hold a control into items at random spaces.
+The port (`src/gecko-bidi-levels.ts`), the splits and the guard, `levelsMayMatter()`, with its argument
+(`src/gecko-line-breaks.ts`), are at 8e88756b, and the guard's method stays the one to use for any port claimed exact: a
 written argument, a fuzz against the unguarded path, and a unit test per rule.
 
 While the scan made the splits, two designs were rejected: resolving wherever a cluster holds several code points,
@@ -1293,12 +1314,6 @@ runs (Firefox 156.0.1, bench sessions of 2026-09-27 and 28, unless noted):
   empty observation is kept as a found one is: since #368 a segment ending in a long run of controls is a few clusters,
   not one per control, so it falls within that bound, and observing again at every prepare made Firefox prepare the
   invisible tails 6% slower.
-- **The paragraph's bidi levels for rich items** (#371; Rich Inline Boundaries, Firefox's White-Space Run Across Items)
-  are made only the first time an item's white-space run goes on past a character Firefox drops, which none of the
-  bench's messages do. Made for every Gecko paragraph they made `prepareRichInline()` of Latin and Arabic messages 8%
-  and 25% slower than main, and made only where an item holds a soft hyphen or bidi control 5% and 3%, where on first
-  need they read within 2% (Bun's JavaScriptCore on the stand-in Canvas, warm caches, medians of 5 or 6 processes;
-  hypotheses until a browser shows them).
 
 #### The Walkers' Shapes
 
@@ -2427,7 +2442,11 @@ decisions for the maintainer.
   with no fragment. A box's width is final, fixed when it's prepared and at least 0, and heights stay the app's, with the
   README's `vertical-align: top` rule (Rich Inline Boundaries, Objects Inside A Line, has the evidence and what reopens
   negative widths and widths given at layout).
-- **2026-10-01: the Gecko scan doesn't split text runs where the bidi level changes** (#TBD), as it doesn't where the
-  script changes (2026-09-24). The splits moved only generated texts with a direction change inside a cluster, 24
-  Firefox cases of at most 56px, and no text of the real-usage sample, the corpora or a probe of written
-  mixed-direction paragraphs (Bidi Levels has the numbers and what reopens it).
+- **2026-10-01: Pretext resolves no bidi levels** (#TBD). The Gecko scan doesn't split text runs where the level
+  changes, as it doesn't where the script changes (2026-09-24), and rich inline carries Firefox's white-space run across
+  items past a dropped character at any level, so the port of Firefox's levels and its tables left the bundle, 6.9 KB
+  gzipped. Levels moved only generated texts: a direction change inside a cluster, and in rich inline a right-to-left
+  mark and a soft hyphen after white space at an item's end in a left-to-right paragraph, where the port, which took
+  every paragraph as left-to-right, was right, as it was wrong for the same items in a right-to-left one. That's 30
+  Firefox cases, and no text of the real-usage sample, the corpora or a probe of written mixed-direction paragraphs
+  (Bidi Levels has the numbers and what reopens it).

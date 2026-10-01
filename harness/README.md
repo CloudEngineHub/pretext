@@ -235,8 +235,8 @@ breaking, kept as the plain-text correctness reference; September 2026). Tools d
 The harness can't see the hyphen drawn at a soft-hyphen break: recordings keep no glyphs, and a rule over the boxes
 found 93-358 mismatches per browser, some the recording's (2026-09-24), so it's left to `src/layout.test.ts`. Nor does
 it see re-layout at a line's own width; a defect that changes the widths a prepared handle keeps for one way of fitting
-lines when another is used (the stand-in Canvas gives the same widths to every way); a bracket-pair error in the Gecko
-bidi port; several rules of the Gecko profile's analysis of bidi controls (`ENGINE_FOLLOWUPS.md`, Harness debt); an
+lines when another is used (the stand-in Canvas gives the same widths to every way); several rules of the Gecko
+profile's analysis of bidi controls (`ENGINE_FOLLOWUPS.md`, Harness debt); an
 emoji modifier split from its base across rich items; a rich paragraph of one item, which the adapter writes as plain
 text, so `src/layout.test.ts` checks its line functions against the rich stepper; which line holds a box of width 0,
 which has no rectangle, but through the text around it; Chrome's UI language, and so its `zh` table for pages without a

@@ -123,30 +123,24 @@ export function readValues<T extends Uint16Array | Uint32Array>(
 }
 
 // Code point ranges packed as flat [start - previous end - 1, end - start, value] uint32 triples, which
-// a binary search looks up, with `bmp` a value per code unit below U+10000 in place of the ranges
-// there. A code point in no range reads as 0.
-export type RangeTable = { readonly bmp: Uint8Array | null, readonly starts: number[], readonly ends: number[], readonly values: number[] }
+// a binary search looks up. A code point in no range reads as 0.
+export type RangeTable = { readonly starts: number[], readonly ends: number[], readonly values: number[] }
 
-export function unpackRanges(packed: string, bmp: boolean): RangeTable {
+export function unpackRanges(packed: string): RangeTable {
   const triples = readValues(Uint32Array, unpackTable(packed))
-  const table: RangeTable = { bmp: bmp ? new Uint8Array(0x10000) : null, starts: [], ends: [], values: [] }
+  const table: RangeTable = { starts: [], ends: [], values: [] }
   let previousEnd = -1
   for (let i = 0; i < triples.length; i += 3) {
     const start = previousEnd + 1 + triples[i]!
     previousEnd = start + triples[i + 1]!
-    const value = triples[i + 2]!
-    if (table.bmp !== null && start < 0x10000) table.bmp.fill(value, start, Math.min(previousEnd + 1, 0x10000))
-    if (table.bmp === null || previousEnd >= 0x10000) {
-      table.starts.push(table.bmp === null ? start : Math.max(start, 0x10000))
-      table.ends.push(previousEnd)
-      table.values.push(value)
-    }
+    table.starts.push(start)
+    table.ends.push(previousEnd)
+    table.values.push(triples[i + 2]!)
   }
   return table
 }
 
 export function getRangeValue(table: RangeTable, cp: number): number {
-  if (cp < 0x10000 && table.bmp !== null) return table.bmp[cp]!
   const { starts, ends } = table
   let lo = 0
   let hi = starts.length - 1

@@ -36,7 +36,6 @@ import {
   geckoLineTrieHighStart,
   geckoLineTrieIndexPacked,
 } from './generated/engine-break-data.js'
-import { getParagraphLevels } from './gecko-bidi-levels.js'
 import { findGraphemeEnds, isBidiControl, type GraphemeTable } from './graphemes.js'
 import {
   BREAK as OPPORTUNITY,
@@ -143,7 +142,7 @@ export function isJapaneseOrChinese(language: string | null): boolean {
 // punctuation. Only an interior run qualifies.
 export function isEastAsianSegmentBreak(text: string, start: number, end: number, japaneseOrChinese: boolean): boolean {
   if (start === 0 || end >= text.length) return false
-  const widths = eastAsianWidths ??= unpackRanges(geckoEastAsianWidthRangesPacked, false)
+  const widths = eastAsianWidths ??= unpackRanges(geckoEastAsianWidthRangesPacked)
   let before: number
   let pos = start
   do {
@@ -269,45 +268,7 @@ function hasCompressedLeadingWhitespace(source: string, skipped: Uint8Array, is8
   return false
 }
 
-// --- 2. Bidi levels (nsBidiPresUtils.cpp) ---
-
-// encoding_rs::mem::is_utf16_code_unit_bidi (mem.rs:1392-1422), used by HasRTLChars (nsBidiUtils.h:107-111).
-function isUtf16CodeUnitBidi(u: number): boolean {
-  if (u < 0x0590) return false
-  if (u >= 0x0900 && u < 0xd802) {
-    if (u >= 0x200f && u <= 0x2067) return u === 0x200f || u === 0x202b || u === 0x202e || u === 0x2067
-    return false
-  }
-  if (u >= 0xd83c && u < 0xfb1d) return false
-  if (u >= 0xd804 && u < 0xd83a) return false
-  if (u > 0xfefe) return false
-  if (u >= 0xfe00 && u < 0xfe70) return false
-  return true
-}
-
-// HasRTLChars (nsBidiUtils.h:107-111).
-function hasRtlChars(source: string): boolean {
-  for (let i = 0; i < source.length; i++) if (isUtf16CodeUnitBidi(source.charCodeAt(i))) return true
-  return false
-}
-
-// ReplaceSeparators, nsBidiPresUtils.cpp:861-875
-function replaceSeparator(u: number): number {
-  return u === 0x09 || u === 0x0a || u === 0x0b || u === 0x0d || (u >= 0x1c && u <= 0x1f) || u === 0x85 || u === 0x2029 ? 0x20 : u
-}
-
-// A left-to-right block resolves bidi only where its text has right-to-left characters (Resolve
-// :790-854, ChildListMayRequireBidi :1467-1475): the levels of its paragraph in white-space: normal
-// there, its separators replaced, else null. Only rich inline's white-space run reads them
-// (src/rich-inline.ts); the scan below splits no text run by them.
-export function getGeckoParagraphLevels(source: string): Uint8Array | null {
-  if (!hasRtlChars(source)) return null
-  const paragraph = new Uint16Array(source.length)
-  for (let i = 0; i < paragraph.length; i++) paragraph[i] = replaceSeparator(source.charCodeAt(i))
-  return getParagraphLevels(paragraph)
-}
-
-// --- 3. Text-run glyph records (gfxTextRun.cpp, gfxFont.cpp) ---
+// --- 2. Text-run glyph records (gfxTextRun.cpp, gfxFont.cpp) ---
 //
 // Only the facts SetPotentialLineBreaks reads are recorded: which positions start a cluster and
 // which are spaces. Every position belongs to one shaped word, space or invalid character.
@@ -362,7 +323,7 @@ function splitAndInitTextRun(g: Glyphs, text: string, graphemeTable: GraphemeTab
   if (end > wordStart) setupClusterBoundaries(g, text, wordStart, end, graphemeTable, ends)
 }
 
-// --- 4. ICU4X 2.1.2's line iterator for one word (icu_segmenter src/line.rs) ---
+// --- 3. ICU4X 2.1.2's line iterator for one word (icu_segmenter src/line.rs) ---
 
 // Firefox's line data, which the first scan unpacks (getGeckoLineBreaks).
 type LineData = { readonly trieIndex: Uint16Array, readonly trieData: Uint8Array, readonly states: Uint8Array }
@@ -580,7 +541,7 @@ function markWordBreaks(line: LineData, text: string, start: number, end: number
   }
 }
 
-// --- 5. nsLineBreaker (dom/base/nsLineBreaker.cpp) ---
+// --- 4. nsLineBreaker (dom/base/nsLineBreaker.cpp) ---
 
 // kNonBreakableASCII, nsLineBreaker.cpp:33-48
 const NON_BREAKABLE_ASCII = new Uint8Array([
