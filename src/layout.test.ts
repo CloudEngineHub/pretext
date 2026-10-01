@@ -1817,6 +1817,9 @@ describe('measurement invariants', () => {
       ['\u{1F468}\u200D\u{1F469}\u200D\u{1F467}\u17C8', 1],
       ['\u{1F44B}\u{1F3FD}\u17C8', 1],
       ['\u{1F1EF}\u{1F1F5}\u17C8', 1],
+      // A skin tone after that mark is asked apart too, an emoji as Firefox draws it.
+      // Chrome draws it in the mark's cluster as the named font's missing glyph: the
+      // same named gap.
       ['\u{1F468}\u200D\u{1F469}\u200D\u{1F467}\u17C8\u{1F3FB}', 2],
       // A stretch that two fonts draw takes no correction. That is right for U+20E3 after
       // a character of the named font, and a named gap for a sequence joined by a ZWJ to

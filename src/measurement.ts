@@ -557,11 +557,15 @@ const emojiStretchRe = /[\p{Extended_Pictographic}\p{Emoji_Component}\uFE0E]+/gu
 // emoji font has no glyph for, drawn as its parts.
 //
 // Each stretch of emoji characters is asked whole, and apart from the rest of its
-// grapheme, since each font shapes its own characters together: an emoji, a sequence or
-// a flag before a combining mark of another script is still one glyph. A stretch that
-// two fonts draw takes no correction, as a text font's pictograph joined by a ZWJ to an
-// emoji in Firefox, and a stretch asked apart can be another font's than inside its
-// grapheme, as a skin tone after a letter in Chrome.
+// grapheme, since each font shapes its own characters together: Firefox matches a font
+// character by character (gfxFontGroup::FindFontForChar, gfxTextRun.cpp:3178-3194), and
+// Chrome ends a run where emoji give way to text before it shapes
+// (RunSegmenter::Consume, run_segmenter.cc:44-73, over SymbolsIterator::Consume,
+// symbols_iterator.cc:34-79). So an emoji, a sequence or a flag before a combining mark
+// of another script is still one glyph. A stretch that two fonts draw takes no
+// correction, as a text font's pictograph joined by a ZWJ to an emoji in Firefox, and a
+// stretch asked apart can be another font's than inside its grapheme, as a skin tone
+// after a letter in Chrome.
 //
 // Those and the other gaps are in ENGINE_FOLLOWUPS.md, Emoji correction: another font's
 // glyph exactly as wide as an emoji takes the correction, as does Firefox's box for a
