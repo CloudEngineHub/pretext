@@ -286,52 +286,6 @@ export function getParagraphLevels(text: Uint16Array): Uint8Array {
   return applyL1(text, original, levels)
 }
 
-// Whether the unit at text[at], inside a cluster of a paragraph that starts at `from` and holds no
-// bidi controls, takes the level of the unit before it, where the paragraph's white space and BN
-// from `trailingFrom` on end it. Every unit is then at level 0 (explicit.rs:34-215), where L stays
-// 0, R goes to 1 and a number to 2 (I1). An NSM takes the class of the unit before it (W1), a BN
-// its level (lib.rs:1264-1270) unless L1 resets it to 0 at the paragraph's end (lib.rs:1146-1200),
-// and L, ON and WS keep their classes until N1 and N2 give neutrals that of an L beside them or 0,
-// except the brackets N0 resolves. So L or a neutral after L or a neutral that is no bracket shares
-// its level. A bracket is inside a cluster only right after a Prepend character (UAX #29 GB9b),
-// which is L, AN or AL, and after L it resolves to L.
-export function keepsClusterLevel(text: string, at: number, from: number, trailingFrom: number): boolean {
-  const classes = bidiClasses ??= unpackRanges(geckoBidiClassRangesPacked, true)
-  const brackets = bidiBrackets ??= unpackBrackets()
-  const cls = getParagraphClass(classes, text, at)
-  if (cls === NSM || (cls === BN && at < trailingFrom)) return true
-  if (cls !== L && cls !== ON && cls !== WS) return false
-  // The unit before, past NSM and BN, or sos.
-  for (let i = at - 1; i >= from; i--) {
-    if (i > from && (text.charCodeAt(i) & 0xfc00) === 0xdc00 && (text.charCodeAt(i - 1) & 0xfc00) === 0xd800) i--
-    const c = getParagraphClass(classes, text, i)
-    if (c === NSM || c === BN) continue
-    return (c === L || c === ON || c === WS) && !brackets.has(text.codePointAt(i)!)
-  }
-  return true
-}
-
-// Where the white space and BN that end the paragraph text[from, to) start.
-export function getTrailingWhiteSpaceStart(text: string, from: number, to: number): number {
-  const classes = bidiClasses ??= unpackRanges(geckoBidiClassRangesPacked, true)
-  let i = to
-  while (i > from) {
-    const j = i - 2 >= from && (text.charCodeAt(i - 1) & 0xfc00) === 0xdc00 && (text.charCodeAt(i - 2) & 0xfc00) === 0xd800 ? i - 2 : i - 1
-    const c = getParagraphClass(classes, text, j)
-    if (c !== WS && c !== BN) break
-    i = j
-  }
-  return i
-}
-
-// The class of the code point at text[i] in a paragraph: a lone surrogate reads as U+FFFD, as
-// charAt reads it, and a separator as a space (nsBidiPresUtils.cpp:861-875).
-function getParagraphClass(classes: RangeTable, text: string, i: number): number {
-  const cp = text.codePointAt(i)!
-  const cls = getRangeValue(classes, (cp & 0xfff800) === 0xd800 ? 0xfffd : cp)
-  return cls === B || cls === S ? WS : cls
-}
-
 // reorder_levels over the whole paragraph as one line (lib.rs:1146-1204), as visual_runs does
 // (utf16.rs ParagraphBidiInfo::visual_runs -> reordered_levels).
 function applyL1(text: Uint16Array, original: Uint8Array, levels: Uint8Array): Uint8Array {

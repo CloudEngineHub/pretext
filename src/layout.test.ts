@@ -35,7 +35,6 @@ let countPreparedLines: LineBreakModule['countPreparedLines']
 let walkPreparedLinesRaw: LineBreakModule['walkPreparedLinesRaw']
 let SPACED: AnalysisModule['SPACED']
 let ONE_CLUSTER: AnalysisModule['ONE_CLUSTER']
-let UNBROKEN: AnalysisModule['UNBROKEN']
 let getSegmentFit: MeasurementModule['getSegmentFit']
 let getFontMeasurement: MeasurementModule['getFontMeasurement']
 let getPreparationLanguage: MeasurementModule['getPreparationLanguage']
@@ -277,7 +276,7 @@ beforeAll(async () => {
   } = mod)
   ;({ countPreparedLines, walkPreparedLinesRaw } = lineBreakMod)
   ;({ getSegmentFit, getFontMeasurement, getPreparationLanguage, getEngineProfile } = measurementMod)
-  ;({ analyzeText, SEGMENT_KINDS, KIND_BITS, SPACED, ONE_CLUSTER, UNBROKEN } = analysisMod)
+  ;({ analyzeText, SEGMENT_KINDS, KIND_BITS, SPACED, ONE_CLUSTER } = analysisMod)
   ;({ getBlinkLineBreaks } = lineBreaksMod)
   ;({ prepareRichInline, layoutNextRichInlineLineRange, materializeRichInlineLineRange, measureRichInlineStats, walkRichInlineLineRanges } = richInlineMod)
 })
@@ -564,37 +563,20 @@ describe('boundary-policy regressions', () => {
     const khmer = 'a ខ\u17D2ម\u17C2រ，b'
     expect(analyzeText(khmer, baseProfile).texts).toEqual(['a', ' ', 'ខ\u17D2ម\u17C2រ，', 'b'])
     expect(analyzeText(khmer, geckoProfile).texts).toEqual(['a', ' ', 'ខ\u17D2ម\u17C2រ', '，', 'b'])
-    // Firefox splits text runs where the script changes, which would break before the
-    // Bengali letter here. The Gecko scan doesn't, on purpose (RESEARCH.md, Decisions Log).
+    // Firefox splits text runs where the script changes, which would break before the Bengali
+    // letter here, and where the bidi level changes, which would start a cluster at a Balinese
+    // vowel killer after Arabic letters and at a skin-tone modifier after a Hebrew letter. The
+    // Gecko scan splits at neither, on purpose (RESEARCH.md, Decisions Log).
     expect(analyzeText('\u1019\u17D2\u09AF', geckoProfile).texts).toEqual(['\u1019\u17D2\u09AF'])
-    // It does split them where bidi levels change, and a text run starts a cluster, so a Balinese
-    // vowel killer after Arabic letters, or a skin-tone modifier after a Hebrew letter, a closing
-    // bracket that resolves right-to-left or a vowel mark on an Arabic letter, starts one, and the
-    // modifier stays one cluster.
-    expect(analyzeText('\u0628\u0628\u1B44\u0628\u0628', geckoProfile).texts).toEqual(['\u0628\u0628', '\u1B44', '\u0628\u0628'])
-    for (const text of ['\u05D0', '\u05D0(\u05D1)', '\u0628\u064E']) {
-      const { texts, flags } = analyzeText(`${text}\uD83C\uDFFB`, geckoProfile)
-      expect(texts).toEqual([text, '\uD83C\uDFFB'])
-      expect(flags[1]! & ONE_CLUSTER).toBe(ONE_CLUSTER)
-    }
-    // So does a Hebrew letter after U+0D4E, a Prepend character that resolves to level 0.
-    expect(analyzeText('\u0D4E\u05D0', geckoProfile).flags[0]! & ONE_CLUSTER).toBe(0)
-    // A word a level run cuts finds its clusters again in each piece: after the ALM, which the text
-    // run leaves out, the vowel killer starts a level run, and the Bengali letter after it a cluster.
-    expect(analyzeText('\u0937\u061C\u1B44\u09B0', geckoProfile).texts).toEqual(['\u0937\u061C', '\u1B44', '\u09B0'])
+    expect(analyzeText('\u0628\u0628\u1B44\u0628\u0628', geckoProfile).texts).toEqual(['\u0628\u0628\u1B44', '\u0628\u0628'])
+    expect(analyzeText('\u05D0\uD83C\uDFFB', geckoProfile).flags[0]! & ONE_CLUSTER).toBe(ONE_CLUSTER)
     // The profile's graphemes look past a bidi control, so a mark after one joins the cluster
-    // before it, unless a level run starts there: after an LRM between Arabic letters the kasra
-    // starts a cluster, and a segment.
-    expect(analyzeText('\u0628\u200E\u0650\u0628', geckoProfile).texts).toEqual(['\u0628\u200E', '\u0650\u0628'])
+    // before it. One that starts a cluster, as a Myanmar visarga does, goes on in the segment as
+    // it does without the control, and Firefox breaks before each where nothing fits.
     expect(analyzeText('a\u200E\u0301b', geckoProfile).texts).toEqual(['a\u200E\u0301b'])
-    // A ZWJ that ends the paragraph resolves to level 0 (UAX #9 L1), so after a Hebrew letter it
-    // starts one too, and its segment is no longer one cluster. Before more text it keeps the
-    // letter's level.
-    expect(analyzeText('\u05D0\u200D', geckoProfile).flags[0]! & ONE_CLUSTER).toBe(0)
-    expect(analyzeText('\u05D0\u200D \u05D1', geckoProfile).flags[0]! & ONE_CLUSTER).toBe(ONE_CLUSTER)
-    // A level run can start at white space the scan drops, here the space before the LF, and then
-    // splits the text run at the LF, kept as a space inside U+0600's cluster, before the mark.
-    expect(analyzeText('\u0600 \n\u0301', geckoProfile).flags[2]! & UNBROKEN).toBe(0)
+    const visargas = analyzeText('a\u200E\u1038\u1038', geckoProfile)
+    expect(visargas.texts).toEqual(['a\u200E\u1038\u1038'])
+    expect(visargas.flags[0]! & ONE_CLUSTER).toBe(0)
   })
 
   test('small kana and U+30FC stay with the text before them where the profile resolves them to NS', () => {
