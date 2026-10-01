@@ -1940,8 +1940,14 @@ below 256 px, Canvas totals are exact (Engine Facts, Chrome).
 - **Admission and fit rules** (no reopen recorded): emergency-prefix differences for every admission; choosing by
   prefix-measurement mode; Safari's inferred carried adjustment on every prefix; Firefox's 1/60 px box rounding in line
   fits (regressed unrelated cases). Canvas's letter-spaced widths everywhere were on this list for losing ligatures,
-  which the pages lose too: #TBD measures letter-spaced text that way in the Blink and Gecko profiles (Measurement
-  Model).
+  which the pages lose too: #TBD measures letter-spaced text under a Canvas spacing too small to add width in the
+  Blink and Gecko profiles (Measurement Model).
+- **Canvas widths at the text's own letter spacing** (2026-09-30): they would need a cache per spacing, and each Canvas
+  spaces otherwise than its page. Chrome's gives digits and brackets beside an Arabic word the gaps the page's Arabic
+  run leaves out (`123` right after an Arabic word at 4px: 3 gaps in Canvas, none on the page, Chrome 154); Firefox's
+  spaces joined Arabic letters and rounds half an app unit up (PLATFORM_BUGS.md); Safari's keeps ligatures. So the
+  spacing is added in JavaScript by each engine's rule (`src/prepare.ts`). Reopens if the Canvases come to agree with
+  their pages.
 - **A Canvas check in `layout()`** near the width gained one case and lost one, and `layout()` makes no Canvas calls
   (AGENTS.md, Implementation notes), which a cheaper Chrome recipe from the emulation study would need too.
 - **Gecko prefix fits from 24px, or everywhere** (2026-09-27): the 24-80px lines they fix cost too much in preparing new
