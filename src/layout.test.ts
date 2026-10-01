@@ -4234,6 +4234,11 @@ describe('rich-inline invariants', () => {
           [[text('ab \u00AD '), zero, text('cd')], {}, [[0], [1, 2]]],
           [[text('ab '), text('\u00AD'), zero], {}, [[0, 1], [2]]],
           [[chip, text(' \u00AD '), zero], {}, [[0, 1], [2]]],
+          // The white space may be any number of such items back: before a second item of soft
+          // hyphens, in a node that ends in a space and a soft hyphen before one, or a tab.
+          [[text('ab '), text('\u00AD'), text('\u00AD'), zero], {}, [[0, 1, 2], [3]]],
+          [[text('ab \u00AD'), text('\u00AD'), zero], {}, [[0, 1], [2]]],
+          [[chip, text('\t'), text('\u00AD'), zero], preWrap, [[0], [1, 2], [3]]],
           // After text wider than the line the first break is the one after the box, which stays,
           // unless a soft hyphen ends that text, in its item or one of its own, which gives a break
           // before the box, as an atomic item before the soft hyphen does.

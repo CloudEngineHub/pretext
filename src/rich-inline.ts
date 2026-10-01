@@ -1019,23 +1019,32 @@ function getKeptEmptyEnd(flow: InternalPreparedRichInline, itemIndex: number): n
 // the space is the item's gap, which the line's width doesn't hold yet, or preserved spaces, which
 // lineHangWidth holds: 0. White space in a node of its own is a frame of nothing else: 0. A space
 // before the soft hyphens that end its item is inside the item's width. An item of soft hyphens
-// alone holds the space that starts its node; after the white space of an earlier node it is an
-// empty frame, which ends where that white space does: 0. Preserved spaces before the soft
-// hyphens that end their item hang in Firefox and not here, so they aren't read as white space
+// alone holds the space that starts its node. Without one it is an empty frame, and the text
+// ends as it does before it, however many such items back: white space there gives 0, as the
+// empty frame ends where the white space does. Preserved spaces before the soft hyphens that end
+// their item hang in Firefox and not here, so they aren't read as white space
 // (ENGINE_FOLLOWUPS.md).
 function getFrameEndSpace(flow: InternalPreparedRichInline, itemIndex: number, before: number): number {
-  const frame = flow.items[before]!
   const { gapItemIndex } = flow.items[itemIndex]!
   if (gapItemIndex >= 0 && gapItemIndex !== before) return 0
-  if (frame.break === 'never') return -1
-  // The item's own analysis, in which every soft hyphen is one (isDiscardedBreak).
-  const { letterSpacing, segmentFlags, widths } = frame.prepared
-  let s = segmentFlags.length - 1
-  while (s >= 0 && (segmentFlags[s]! & KIND_BITS) === SOFT_HYPHEN) s--
-  if (s < 0) return frame.gapItemIndex === before ? frame.gapBefore : gapItemIndex >= 0 || frame.gapItemIndex >= 0 ? 0 : -1
-  const kind = segmentFlags[s]! & KIND_BITS
-  if (kind === SPACE) return widths[s]! + ((segmentFlags[s]! & SPACED) !== 0 ? letterSpacing : 0)
-  return gapItemIndex >= 0 || kind === TAB || (kind === PRESERVED_SPACE && s === segmentFlags.length - 1) ? 0 : -1
+  for (let index = before; index >= 0; index--) {
+    const frame = flow.items[index]
+    if (frame === undefined) continue
+    if (frame.break === 'never') return -1
+    // The item's own analysis, in which every soft hyphen is one (isDiscardedBreak).
+    const { letterSpacing, segmentFlags, widths } = frame.prepared
+    let s = segmentFlags.length - 1
+    while (s >= 0 && (segmentFlags[s]! & KIND_BITS) === SOFT_HYPHEN) s--
+    if (s < 0) {
+      if (frame.gapItemIndex === index) return index === before ? frame.gapBefore : 0
+      if (gapItemIndex >= 0 || frame.gapItemIndex >= 0) return 0
+      continue
+    }
+    const kind = segmentFlags[s]! & KIND_BITS
+    if (kind === SPACE) return index === before ? widths[s]! + ((segmentFlags[s]! & SPACED) !== 0 ? letterSpacing : 0) : 0
+    return gapItemIndex >= 0 || kind === TAB || (kind === PRESERVED_SPACE && s === segmentFlags.length - 1) ? 0 : -1
+  }
+  return -1
 }
 
 // The line state a walked item takes and leaves, one for every walk.
