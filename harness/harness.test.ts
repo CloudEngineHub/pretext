@@ -300,7 +300,7 @@ describe('the stored recordings', () => {
     const both = new Map([['orders', same], ['stored', same]])
     expect(splitHistory(['orders', 'stored'], both, new Map([['orders', wider], ['stored', same]]), recordings, history, prior)).toBe(0)
     expect([[...recordings.keys()], [...history.keys()]]).toEqual([['orders', 'stored'], []])
-    // The stored recording stays, so recording again changes no file.
+    // The stored recording stays, so recording again doesn't rewrite it.
     expect(recordings.get('stored')).toBe(wider)
     expect(freshRecordings(['stored'], prior.recordings, [both])).toEqual({ stale: [], history: [] })
     expect(attribute(wider, same, predicted(TEXT, [0, 10, 21, 31]), [predicted(TEXT, [0, 10, 21, 31]), predicted(TEXT, [0, 10, 21, 31])])).toBe('true loss')
@@ -316,6 +316,18 @@ describe('the stored recordings', () => {
     expect(splitHistory(['kept', 'listed', 'moved'], both, both, recordings, history, prior)).toBe(1)
     expect([...recordings.keys()]).toEqual(['kept'])
     expect([...history.keys()].sort()).toEqual(['listed', 'moved'])
+  })
+
+  test('a page-history case recorded again keeps its stored pair while its two orders give those two layouts, whichever comes first: every full recording would rewrite the page-history file', () => {
+    const same = layOut(TEXT, STARTS).recording
+    const other = layOut(TEXT, [0, 10, 26]).recording
+    const third = layOut(TEXT, [0, 10, 21, 31]).recording
+    const stored: [Recording, Recording] = [other, same]
+    const prior = { recordings: new Map<string, Recording>(), history: new Map([['swapped', stored], ['changed', stored]]) }
+    const history = new Map<string, [Recording, Recording]>()
+    splitHistory(['changed', 'swapped'], new Map([['changed', same], ['swapped', same]]), new Map([['changed', third], ['swapped', other]]), new Map(), history, prior)
+    expect(history.get('swapped')).toBe(stored)
+    expect(history.get('changed')).toEqual([same, third])
   })
 })
 

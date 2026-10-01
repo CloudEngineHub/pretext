@@ -139,7 +139,8 @@ export async function record(browser: BrowserKind, cases: Case[], o: Options, io
   // paragraph out with the items of a left-to-right one of the same text and line-breaking styles laid out before it
   // in the process, since its TextBreakingPositionCache keys a text's items by the text, those styles and the origin
   // (TextBreakingPositionCache.h:49) and InlineItemsBuilder.cpp:858-862 builds a paragraph's items from an entry
-  // whatever its direction. One pass in reverse found 27 webkit-host cases two such orders had pinned (2026-09-30).
+  // whatever its direction. The first recording this way listed 29 webkit-host cases a sorted and a shuffled order had
+  // pinned (2026-09-30).
   const a = await io.run<Recording>({ browser, mode: 'record', cases: sorted, documentSize: RECORD_DOCUMENT, lib: o.lib })
   const b = await io.run<Recording>({ browser, mode: 'record', cases: sorted.slice().reverse(), documentSize: RECORD_DOCUMENT, lib: o.lib })
   if (a.env !== b.env) throw new Error(`The environment changed between the two recordings: ${a.env} | ${b.env}`)
