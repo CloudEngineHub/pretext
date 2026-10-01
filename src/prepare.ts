@@ -5,6 +5,7 @@
 import { observeSegmentEntries, textMayHaveEntryGeometry, type SegmentEntryGeometry } from './entry-geometry.js'
 import { getHanKerningTrims, textMayHanKern, type HanKerningTrims } from './han-kerning.js'
 import { findGraphemeEnds, type GraphemeTable } from './graphemes.js'
+import { getBidiBrackets } from './gecko-bidi-levels.js'
 import {
   CONTROL,
   HARD_BREAK,
@@ -50,6 +51,90 @@ function countRenderedSpacingGraphemes(text: string, kind: SegmentKindCode, grap
 
 function addInternalLetterSpacing(width: number, graphemeCount: number, letterSpacing: number): number {
   return graphemeCount > 1 ? width + (graphemeCount - 1) * letterSpacing : width
+}
+
+// The scripts whose letters join, Arabic, Syriac, N'Ko, Mandaic, Mongolian, Phags-pa and
+// Hanifi Rohingya, take no letter spacing in Blink and Gecko, which name the same seven
+// (IsCursiveScript, shape_result.cc:977-990; UnicodeProperties.h:350-355). Gecko asks the
+// script of a cluster's first character (GetSpacingInternal, nsTextFrame.cpp:4202-4213), so
+// digits and punctuation among the letters keep their spacing. Blink asks the script of the
+// shaping run the cluster is in and spaces only its spaces (ComputeSpacing,
+// shape_result_spacing.cc:103-131): a run takes in the characters of no script after it,
+// the ones that start the text, and the punctuation its script shares
+// (script_run_iterator.cc), so of an Arabic word, a space and `123.` only the space is
+// spaced. WebKit spaces every glyph with an advance. Chrome 154, Firefox 156 and
+// webkit-host lay 51 strings out so (2026-09-30).
+const cursiveScriptRe = /[\p{Script=Arabic}\p{Script=Syriac}\p{Script=Nko}\p{Script=Mandaic}\p{Script=Mongolian}\p{Script=Phags_Pa}\p{Script=Hanifi_Rohingya}]/uy
+// What starts or goes on with a cursive run in Blink: the letters, and the Common
+// characters whose scripts include Arabic, such as U+060C and U+0640, since Arabic has
+// the lowest code of a character's scripts (ICUScriptData::GetScripts, :118-222). Gap:
+// those characters after a script that shares them, such as Thaana, go on with its run.
+const cursiveRunRe = /[\p{scx=Arabic}\p{Script=Syriac}\p{Script=Nko}\p{Script=Mandaic}\p{Script=Mongolian}\p{Script=Phags_Pa}\p{Script=Hanifi_Rohingya}]/uy
+const mayBeCursiveRe = new RegExp(cursiveRunRe.source, 'u')
+// Characters of no script, which Blink leaves in the run before them: Common ones that no
+// script lists, and marks, which inherit.
+const scriptNeutralRe = /[\p{scx=Common}\p{Script=Inherited}]/uy
+const firstScriptRe = /[^\p{scx=Common}\p{Script=Inherited}]/u
+
+// Blink's script run as preparation follows it through a text's segments, in order:
+// whether it is cursive, and each bracket it has open, as its opening character and then
+// 1 where that bracket's run is cursive, else 0.
+type ScriptRun = { cursive: boolean; openBrackets: number[] }
+
+// The run a text starts in: that of its first character that has a script.
+function startScriptRun(text: string): ScriptRun {
+  const first = firstScriptRe.exec(text)
+  return { cursive: first !== null && mayBeCursiveRe.test(first[0]), openBrackets: [] }
+}
+
+// Takes the code point c at text[i] into the run. A closing bracket goes back to its
+// opening bracket's run, among the last 32 opened (CloseBracket, kMaxBrackets,
+// script_run_iterator.cc:354-390), and a wide or fullwidth opening bracket starts a Han
+// run (FixScriptsByEastAsianWidth, :87-109). The pairs are Unicode 15's, as the Gecko
+// profile's bidi levels read them.
+function enterScriptRun(run: ScriptRun, text: string, i: number, c: number): void {
+  const { openBrackets } = run
+  const bracket = getBidiBrackets().get(c)
+  // No bracket's code is the 0 or 1 that tells its run.
+  const opened = bracket !== undefined && (bracket & 1) === 0 ? openBrackets.lastIndexOf(bracket >> 1) : -1
+  if (opened >= 0) {
+    run.cursive = openBrackets[opened + 1] === 1
+    openBrackets.length = opened
+    return
+  }
+  scriptNeutralRe.lastIndex = cursiveRunRe.lastIndex = i
+  if (!scriptNeutralRe.test(text)) run.cursive = cursiveRunRe.test(text)
+  if (bracket === undefined || (bracket & 1) === 0) return
+  if (c === 0x2329 || c >= 0xFE59) run.cursive = false
+  if (openBrackets.length === 64) openBrackets.splice(0, 2)
+  openBrackets.push(bracket >> 1, run.cursive ? 1 : 0)
+}
+
+// Which graphemes of a text segment take no letter spacing, as ascending indices, or null
+// without any: in Gecko, which has no run here, those whose first character is of a
+// cursive script; in Blink those whose first character is in a cursive run and isn't a
+// no-break space. A rich item's text starts a run of its own (ENGINE_FOLLOWUPS.md, Letter
+// spacing).
+function getUnspacedGraphemes(text: string, graphemeTable: GraphemeTable, run: ScriptRun | null): number[] | null {
+  const ends = new Int32Array(text.length)
+  const count = findGraphemeEnds(graphemeTable, text, 0, text.length, ends)
+  let unspaced: number[] | null = null
+  for (let g = 0, start = 0; g < count; start = ends[g++]!) {
+    let joins = false
+    if (run === null) {
+      cursiveScriptRe.lastIndex = start
+      joins = cursiveScriptRe.test(text)
+    } else {
+      for (let i = start; i < ends[g]!;) {
+        const c = text.codePointAt(i)!
+        enterScriptRun(run, text, i, c)
+        if (i === start) joins = run.cursive && c !== 0xA0
+        i += c > 0xFFFF ? 2 : 1
+      }
+    }
+    if (joins) (unspaced ??= []).push(g)
+  }
+  return unspaced
 }
 
 // Code points that WebKit's FontCascade::characterRangeCodePath sends to the
@@ -274,6 +359,11 @@ export function measureAnalysis(
     return normalized.slice(baseStart, starts[markChainStart]) + normalized.slice(starts[markChainKept], start)
   }
 
+  // Whether the text may hold graphemes that take no letter spacing in this engine, and
+  // Blink's script run over it.
+  const cursiveSpacing = hasLetterSpacing && engineProfile.lineBreakScan !== 'webkit' && mayBeCursiveRe.test(normalized)
+  const scriptRun = cursiveSpacing && engineProfile.lineBreakScan === 'blink' ? startScriptRun(normalized) : null
+
   const widths: number[] = []
   // An engine's scan makes one prepared segment per analysis segment, whose flags the
   // walkers, layout()'s count and rich-inline layout read where the scan gives no break.
@@ -366,9 +456,19 @@ export function measureAnalysis(
         const textMetrics = getTextMetrics(text, followingSpaceTail)
         previousJoinablePiece = text
         previousJoinableMetrics = textMetrics
-        if (hasLetterSpacing) spacingGraphemeCount = countRenderedSpacingGraphemes(text, kind, engineProfile.graphemeTable)
         const followingSpaceKerning = followingSpaceTail === null || measuredWithSpace ? 0 : getTailKerning(text + followingSpaceTail)
         width = getTextSegmentWidth(text, textMetrics, measuredWithSpace, followingSpaceKerning)
+        // The walkers put a gap after every grapheme of a spaced segment, so a grapheme
+        // the engine gives none takes one back from its advance, here and in the advances
+        // a break inside the segment falls by.
+        let unspaced: number[] | null = null
+        if (hasLetterSpacing) {
+          spacingGraphemeCount = countRenderedSpacingGraphemes(text, kind, engineProfile.graphemeTable)
+          if (cursiveSpacing) {
+            unspaced = getUnspacedGraphemes(text, engineProfile.graphemeTable, scriptRun)
+            if (unspaced !== null) width -= unspaced.length * letterSpacing
+          }
+        }
         // Under break-word, Blink retries an overflowing line with a break allowed between
         // any two graphemes (line_breaker.cc), WebKit searches the word's grapheme prefixes
         // (TextUtil::breakWord) and Gecko may wrap before any cluster (gfxTextRun.cpp:1069-1072),
@@ -389,7 +489,12 @@ export function measureAnalysis(
           fitAdvances = fitAdvances.slice()
           fitAdvances[fitAdvances.length - 1] = fitAdvances[fitAdvances.length - 1]! + followingSpaceKerning
         }
-        if (entryFitBasis !== 'disabled') {
+        // Such a segment takes no entry geometry, whose fresh widths Canvas would space
+        // by its own rule (ENGINE_FOLLOWUPS.md, Letter spacing).
+        if (unspaced !== null) {
+          fitAdvances = fitAdvances.slice()
+          for (let k = 0; k < unspaced.length; k++) fitAdvances[unspaced[k]!] = fitAdvances[unspaced[k]!]! - letterSpacing
+        } else if (entryFitBasis !== 'disabled') {
           entry = getEntryGeometry(text, fit, addInternalLetterSpacing(width, spacingGraphemeCount, letterSpacing), entryFitBasis)
         }
         if (keepsLineStartPunctuation) prohibitions = fit.lineStartProhibitions

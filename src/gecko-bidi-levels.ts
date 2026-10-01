@@ -26,6 +26,10 @@ let bidiBrackets: Map<number, number> | null = null
 // char_data::bidi_matched_opening_bracket (char_data/mod.rs:44-56) for every bracket: its pair's opening
 // bracket, or the bracket it normalizes to, << 1, | 1 for an opening bracket. The data gives flat
 // [opening, closing, normalized opening or 0] triples, and no bracket is in two.
+export function getBidiBrackets(): Map<number, number> {
+  return bidiBrackets ??= unpackBrackets()
+}
+
 function unpackBrackets(): Map<number, number> {
   const triples = readValues(Uint32Array, unpackTable(geckoBidiPairsPacked))
   const brackets = new Map<number, number>()
@@ -107,7 +111,7 @@ export function getParagraphLevels(text: Uint16Array): Uint8Array {
   const levels = new Uint8Array(n)
   if (n === 0) return levels
   const classes = bidiClasses ??= unpackRanges(geckoBidiClassRangesPacked, true)
-  const brackets = bidiBrackets ??= unpackBrackets()
+  const brackets = getBidiBrackets()
 
   // compute_initial_info with split_paragraphs None and a given paragraph level (lib.rs:304-452).
   let isPureLtr = true
@@ -297,7 +301,7 @@ export function getParagraphLevels(text: Uint16Array): Uint8Array {
 // which is L, AN or AL, and after L it resolves to L.
 export function keepsClusterLevel(text: string, at: number, from: number, trailingFrom: number): boolean {
   const classes = bidiClasses ??= unpackRanges(geckoBidiClassRangesPacked, true)
-  const brackets = bidiBrackets ??= unpackBrackets()
+  const brackets = getBidiBrackets()
   const cls = getParagraphClass(classes, text, at)
   if (cls === NSM || (cls === BN && at < trailingFrom)) return true
   if (cls !== L && cls !== ON && cls !== WS) return false

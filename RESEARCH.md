@@ -1572,14 +1572,19 @@ repin` shows what), and a fact read in source needs reading again.
   no word spacing. Canvas shapes each ICU level run in its own direction, the DOM a group in one; a two-byte RTL group
   in U+202E … U+202C is one level run. U+FFFC becomes U+200B (`character.h:167-175`): zero where the DOM draws a 1 em
   fallback glyph. (Chrome 153, 2026-09-16 to 09-23.)
-- **Letter spacing and tabs.** Blink spaces cursive-script runs only at spaces (`shape_result.cc:977-990`), spaces a
-  glyph cluster once, and turns off liga, clig and calt under any spacing (`font_features.cc:54-86`). A tab stop is
-  eight Canvas spaces plus letter and word spacing (`font.cc:303-317`), rounded up to 1/128 px at DPR 2
+- **Letter spacing and tabs.** Blink spaces cursive-script runs only at spaces (`shape_result.cc:977-990`,
+  `shape_result_spacing.cc:103-131`), spaces a glyph cluster once, and turns off liga, clig and calt under any spacing
+  (`font_features.cc:54-86`). The run is the shaping run's script, so digits, brackets and punctuation after Arabic, or
+  before it at the start of the text, take none either, and a closing bracket goes back to its opening bracket's run
+  (`script_run_iterator.cc`): of an Arabic word, a space and `123.`, only the space is spaced. The Blink profile
+  follows a reduced port of that iterator (#TBD, `src/prepare.ts`): in Chrome 154 it gives 51 probe strings Chrome's
+  gaps, and the real-usage sample's 8 failing Arabic and Urdu paragraphs under letter spacing pass (2026-09-30). A tab
+  stop is eight Canvas spaces plus letter and word spacing (`font.cc:303-317`), rounded up to 1/128 px at DPR 2
   (`simple_font_data.cc:225-240`), and a tab skips a stop under half a space away (`font.cc:333-337`). Recordings agree:
   a tab-only line in 16px Arial is 27.563px at −1px letter spacing and 35.563px at 0 (harness recordings at commit
-  b1fd05fc, Chrome 154). The profile models neither the cursive rule nor the spacing and skip in stops, and a unit test
-  pins its stops of spaces alone ("letterSpacing participates in pre-wrap tab positioning", `src/layout.test.ts`), so a
-  port changes that test (ENGINE_FOLLOWUPS.md). (Chrome 153 source, 2026-09-16 and 09-27.)
+  b1fd05fc, Chrome 154). The profile models neither the spacing nor the skip in stops, and a unit test pins its stops
+  of spaces alone ("letterSpacing participates in pre-wrap tab positioning", `src/layout.test.ts`), so a port changes
+  that test (ENGINE_FOLLOWUPS.md). (Chrome 153 source, 2026-09-16 to 09-30.)
 - **Line breaking.** ICU restarts at each line start without context, so LB20a applies there (`a‐b`, break-all, loose:
   `a` / `‐b`); the Blink scan makes one pass per text (Break Opportunities From Engine Data). Blink takes the last
   offset that fits from glyph positions, then the break at or before it, so a line ends before a ligature unless its
@@ -1706,7 +1711,11 @@ repin` shows what), and a fact read in source needs reading again.
   each letter takes -5 units at -0.08px, as Signal Desktop sets Inter, -10 at -0.17px, 23 and -23 at ±0.375px, 1 at
   0.0084px and none at 0.0083px, where the text also keeps its ligatures. The Gecko profile rounds the same way (#TBD):
   6 of its accepted failures at -0.08px passed, 3 of them real-usage paragraphs, and no pass was lost. The Canvas rounds
-  half up, -22 units at -0.375px (`CanvasRenderingContext2D.cpp:4771-4774`). A run's last character is always spaced,
+  half up, -22 units at -0.375px (`CanvasRenderingContext2D.cpp:4771-4774`). A cluster whose first character's script
+  is cursive (Arabic, Syriac, N'Ko, Mandaic, Mongolian, Phags-pa, Hanifi Rohingya) takes none
+  (`GetSpacingInternal`, `nsTextFrame.cpp:4202-4213`; `UnicodeProperties.h:350-355`), joined or not, while digits,
+  brackets and punctuation among them keep theirs, tatweel and U+060C too; the Gecko profile follows it (#TBD), and
+  the sample's 7 failing Arabic and Urdu paragraphs under letter spacing pass. A run's last character is always spaced,
   others only if not a tab or formatting character and a cluster starts after them (`CanAddSpacingAfter`,
   `nsTextFrame.cpp:3860-3873`): a lone pre-wrap tab at 1px is 43.6 px natively, 44.6 px painted alone. A tab before a change of direction also ends a left-to-right run and gets a gap
   (`a\tبِبِ((tail`), unseen by the Gecko profile where it resolves no levels (Bidi Levels). After a removed soft hyphen,
