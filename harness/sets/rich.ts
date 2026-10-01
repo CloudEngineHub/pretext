@@ -59,7 +59,11 @@
 // - boxes (RichInlineBox), cut on their own: custom emoji at the line height between words with spaces on both sides,
 //   before punctuation and at the paragraph's end; boxes inside words, of width 0 and beside U+00A0; adjacent boxes, a
 //   box wider than most widths and one taller than the line; a box inside a keep-all Korean word; and in pre-wrap,
-//   preserved spaces split across items after a box, which stay on its line, a line feed and a tab after one.
+//   preserved spaces split across items after a box, which stay on its line, a line feed and a tab after one;
+// - shapes whose rule only a unit test held, cut on their own: a padded code span alone in its paragraph, which the
+//   adapter still lays out with rich-inline, for its padding; in pre-wrap, a box about as wide as the words after it
+//   before preserved spaces that start their item, which stay on its line however far it overflows; and a Korean
+//   message under keep-all and pre-wrap together, with a chip, preserved spaces and a line feed.
 import { TEXTS } from '../../src/test-data.ts'
 import type { CssFont, Paragraph, TextRun } from '../types.ts'
 import { box, codePoints, createRng, font, paragraph, span } from './build.ts'
@@ -253,10 +257,14 @@ export function richTemplates(): Template[] {
     ['adjacent-and-wide', ARIAL, [box(40, 20, ARIAL), box(40, 20, ARIAL), ' a photo ', box(260, 120, ARIAL), ' and after it'], 'en', 'normal', 'normal'],
     ['keep-all', KOREAN, ['안녕하세요', box(20, 20, KOREAN), '님, 반가워요 ', box(20, 20, KOREAN), '오늘'], 'ko', 'keep-all', 'normal'],
     ['pre-wrap', ARIAL, [box(60, 20, ARIAL), '  ', span(' ', BOLD(ARIAL)), 'next words', box(30, 40, ARIAL), '\n', emoji, '\tgo'], 'en', 'normal', 'pre-wrap'],
+    ['pre-wrap', ARIAL, [box(76, 20, ARIAL), '   next words'], 'en', 'normal', 'pre-wrap'],
   ]
   for (let i = 0; i < boxes.length; i++) {
     const [family, base, parts, lang, wordBreak, whiteSpace] = boxes[i]!
     out.push(template(`boxes/${family}`, 'boxes as an app writes an image or custom emoji, an empty inline-block of its width (#201; src/layout.test.ts, rich-inline invariants)', base, parts, lang, wordBreak, whiteSpace))
   }
+  out.push(template('code-spans', 'inline code with padding, alone in its paragraph (src/layout.test.ts, rich-inline invariants)', HELVETICA, [span('git commit --amend --no-edit', CODE, { padding: 7 })]))
+  out.push(template('keep-all/pre-wrap', 'word-break: keep-all and white-space: pre-wrap together on the paragraph (src/layout.test.ts, rich-inline invariants)', KOREAN,
+    ['민수 씨,  ', span('@지훈', BOLD(KOREAN_CHIP), { atomic: true, padding: 11 }), ' 오늘\n', span('회의', BOLD(KOREAN)), '는 세 시에  시작합니다'], 'ko', 'keep-all', 'pre-wrap'))
   return out
 }
