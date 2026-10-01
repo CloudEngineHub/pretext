@@ -77,10 +77,15 @@ const mayBeCursiveRe = new RegExp(cursiveRunRe.source, 'u')
 // Characters of no script, which Blink leaves in the run before them: Common ones that no
 // script lists, and marks, which inherit.
 const scriptNeutralRe = /[\p{scx=Common}\p{Script=Inherited}]/uy
-// What gives a text's first run its script: a character that has one, or one of the wide
-// and fullwidth opening brackets of no script, which Blink makes Han
-// (FixScriptsByEastAsianWidth, script_run_iterator.cc:83-110).
-const firstScriptRe = /[^\p{scx=Common}\p{Script=Inherited}]|[\u2329\uFE59\uFE5B\uFE5D\uFF08\uFF3B\uFF5B\uFF5F]/u
+// The opening brackets of no script that Blink makes Han, those whose East Asian Width is
+// wide, fullwidth or halfwidth (FixScriptsByEastAsianWidth, script_run_iterator.cc:83-110).
+// Regular expressions have no property for that width, so these are listed: of Unicode
+// 17's 64 opening brackets, the eight of that width whose script extensions are Common
+// alone. U+3008-U+301A and U+FF62, of that width too, list their scripts.
+const wideOpeningBrackets = '\u2329\uFE59\uFE5B\uFE5D\uFF08\uFF3B\uFF5B\uFF5F'
+// What gives a text's first run its script: a character that has one, or a wide opening
+// bracket.
+const firstScriptRe = new RegExp(`[^\\p{scx=Common}\\p{Script=Inherited}]|[${wideOpeningBrackets}]`, 'u')
 
 // Blink's script run as preparation follows it through a text's segments, in order:
 // whether it is cursive, and each bracket it has open, as its opening character and then
@@ -97,10 +102,10 @@ function startScriptRun(text: string): ScriptRun {
 // Takes the code point c at text[i] into the run. A closing bracket goes back to its
 // opening bracket's run, among the last 32 opened, and closes the ones opened since; its
 // own stays open, so a second closing bracket goes back to that run too (OpenBracket and
-// CloseBracket, script_run_iterator.cc:431-481). A wide or fullwidth opening bracket
-// starts a Han run (FixScriptsByEastAsianWidth, :83-110). The pairs are Unicode 15's, as
-// the Gecko profile's bidi levels read them, with U+2329 and U+232A folded into U+3008
-// and U+3009, which ICU pairs only with each other (ENGINE_FOLLOWUPS.md, Letter spacing).
+// CloseBracket, script_run_iterator.cc:431-481). A wide opening bracket starts a Han run.
+// The pairs are Unicode 15's, as the Gecko profile's bidi levels read them, with U+2329
+// and U+232A folded into U+3008 and U+3009, which ICU pairs only with each other
+// (ENGINE_FOLLOWUPS.md, Letter spacing).
 function enterScriptRun(run: ScriptRun, text: string, i: number, c: number): void {
   const { openBrackets } = run
   const bracket = getBidiBrackets().get(c)
@@ -114,7 +119,7 @@ function enterScriptRun(run: ScriptRun, text: string, i: number, c: number): voi
   scriptNeutralRe.lastIndex = cursiveRunRe.lastIndex = i
   if (!scriptNeutralRe.test(text)) run.cursive = cursiveRunRe.test(text)
   if (bracket === undefined || (bracket & 1) === 0) return
-  if (c === 0x2329 || c >= 0xFE59) run.cursive = false
+  if (wideOpeningBrackets.includes(text.charAt(i))) run.cursive = false
   if (openBrackets.length === 64) openBrackets.splice(0, 2)
   openBrackets.push(bracket >> 1, run.cursive ? 1 : 0)
 }
