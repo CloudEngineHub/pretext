@@ -439,8 +439,7 @@ function takesNoSpaceKerning(code: number): boolean {
     // character_property_data.h:40-80, of which these are the letters).
     (code >= 0x3041 && code <= 0x3096) || (code >= 0x30a1 && code <= 0x30fa) ||
     (code >= 0x3400 && code <= 0x9fff) || (code >= 0xf900 && code <= 0xfaff) ||
-    // Premise: no font kerns a Hangul syllable with the space. In one that does, lines stay as
-    // wide as their words measured apart (RESEARCH.md, Kerning At Line Edges).
+    // Premise: no font kerns a Hangul syllable with the space (RESEARCH.md, Kerning At Line Edges).
     (code >= 0xac00 && code <= 0xd7a3)
 }
 
@@ -457,9 +456,8 @@ function getCharacterSpaceKerning(code: number, spaceFirst: boolean, measurement
       const character = String.fromCharCode(code)
       const pairWidth = measurement.state.context.measureText(spaceFirst ? '\u2028' + character : character + '\u2028').width
       kerning = pairWidth - getSegmentMetrics(character, measurement).width - spaceWidth
-      // Blink keeps a run's width as a float32 (ShapeResult::ComputeGlyphPositions,
-      // shape_result.cc:1539-1576), so the three widths can differ by rounding alone: up to the
-      // pair's width / 2^22 is no kerning (RESEARCH.md, Kerning At Line Edges).
+      // Blink keeps a run's width as a float32 (shape_result.cc:1539-1576), so up to the pair's
+      // width / 2^22 is rounding, not kerning (RESEARCH.md, Kerning At Line Edges).
       if (Math.abs(kerning) <= pairWidth / 0x400000) kerning = 0
     }
     kernings.set(code, kerning)
@@ -467,13 +465,12 @@ function getCharacterSpaceKerning(code: number, spaceFirst: boolean, measurement
   return kerning
 }
 
-// Whether the font's kerning with the space sits half on each glyph of a pair, as HarfBuzz
-// puts a pair's kerning from the legacy `kern` table (hb_kern_machine_t::kern,
-// hb-kern.hh:100-107), where GPOS puts it on the first. Under `fontKerning = 'normal'` Canvas
-// shapes a string whole, its U+0020 included, only where the font's GPOS covers the space glyph
-// (ComputeCanShapeWordByWord, font_fallback_list.cc:264-277), so a font in which that shows
-// none of a kerning that U+2028 shows has it from `kern`. Asked once per font, of its first
-// character that kerns with a space after it.
+// Whether the font's kerning with the space sits half on each glyph of a pair, as HarfBuzz puts
+// it from the legacy `kern` table (hb_kern_machine_t::kern, hb-kern.hh:100-107), where GPOS puts
+// it on the first. Under `fontKerning = 'normal'` Canvas shapes a string whole, its U+0020
+// included, only where the font's GPOS covers the space glyph (font_fallback_list.cc:264-277), so
+// a font in which that shows none of a kerning that U+2028 shows has it from `kern`. Asked once
+// per font, of its first character that kerns with a space after it.
 function splitsSpaceKerning(code: number, kerning: number, measurement: FontMeasurement, spaceWidth: number): boolean {
   if (measurement.splitsSpaceKerning === null) {
     const context = measurement.state.context
@@ -487,23 +484,17 @@ function splitsSpaceKerning(code: number, kerning: number, measurement: FontMeas
 }
 
 // The kerning Blink's layout gives a text segment's edges with a U+0020 beside them
-// (EngineProfile.kernsSpacesInScriptRun). Blink draws U+2028 with the space glyph
-// (HarfBuzzGetGlyph, harfbuzz_face.cc:103-113) and its Canvas doesn't cut there, so Canvas
-// shows the kerning of a character with U+2028. Premises, with their gaps and what was measured
-// in RESEARCH.md, Kerning At Line Edges:
-// - The segment's last and first character, past default ignorables, which HarfBuzz's lookups
-//   pass over (skipping_iterator_t::match, hb-ot-layout-gsubgpos.hh), stand for the word. A
-//   first character with a combining mark after it takes none, since the font may draw the two
-//   as one glyph.
-// - A word keeps its kerning with the space after it where a line ends at that space, which
-//   hangs: all of it, as GPOS puts it, or the word's half (splitsSpaceKerning). Blink does so
-//   for start-aligned text without a decoration; otherwise it shapes the line's end again
-//   without the space (NeedsAccurateEndPosition, line_breaker.cc:255-268, 1655-1659), and the
-//   line's last word comes out narrower here than there by that kerning.
-// - A space's kerning with the word after it goes on the space, since a line that breaks
-//   between the two is shaped again without it (shaping_line_breaker.cc:307-324).
-// Which spaces are in a word's run, and so kern with it, preparation decides (measureAnalysis
-// and spaceSharesScriptRun, src/prepare.ts).
+// (EngineProfile.kernsSpacesInScriptRun), read from Canvas with U+2028 for the space: Blink
+// draws U+2028 with the space glyph (HarfBuzzGetGlyph, harfbuzz_face.cc:103-113) and its Canvas
+// doesn't cut there. Premises, with their gaps in RESEARCH.md, Kerning At Line Edges:
+// - The segment's last and first character stand for the word, past default ignorables, which
+//   HarfBuzz's lookups pass over. A first character with a combining mark after it takes none.
+// - A line that ends at the space after a word keeps the word's share of their kerning, as
+//   Blink keeps it for start-aligned text without a decoration (DontReshapeEndIfAtSpace,
+//   line_breaker.cc:1655-1659). Otherwise Blink shapes the line's end again without the space,
+//   and the line's last word is narrower here than there by that share.
+// - A space's kerning with the word after it goes on the space: a line that breaks between the
+//   two is shaped again without it (shaping_line_breaker.cc:307-324).
 export function getSpaceKerning(seg: string, metrics: SegmentMetrics, measurement: FontMeasurement, spaceWidth: number): SpaceKerning {
   let first = 0
   let last = seg.length - 1
