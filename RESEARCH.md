@@ -534,15 +534,36 @@ to the HH class, unambiguous hyphens, beside U+2010; LB20a; LB21a), so headless 
 `ppucd` writes no `cp` line for 210,383 code points whose values equal their block's, so a generator reading only `cp`
 lines gets Cn for U+3400.
 
-The tables are ICU's compiled state machines, whose states a small rule change renumbers. As 480 KB of base64 they cost
-a fresh Firefox page 5.2 ms evaluating the bundle, against 1.2 ms before #340, so each is stored as byte ranges of an
-earlier table plus literal bytes and a browser unpacks only its own, 0.4-0.6 ms a page, for 133 KB minified and 64 KB
-gzipped. Keeping Chrome's root table whole and copying the other line tables from it at runtime instead gave 238 KB and
-57 KB and took 3.6 ms in Firefox (2026-09-24). The generator's packer looks for the longest copy from any earlier
-position and matches lazily, which took the layout entry from 56.2 to 53.6 KB gzipped with the same unpacker and the
-same unpacked bytes (#TBD, 2026-09-30); the parse with the fewest bytes would save 0.5 KB more and take the generator
-from 2 s to 10 or more, so it wasn't taken. The tables stay as they are, and one bundle serves every engine (Decisions
-Log, 2026-09-26).
+The tables are ICU's compiled state machines and code-point tries, whose states a small rule change renumbers. As 480 KB
+of base64 they cost a fresh Firefox page 5.2 ms evaluating the bundle, against 1.2 ms before #340, so each was stored as
+byte ranges of an earlier table plus literal bytes, a browser unpacking only its own, 0.4-0.6 ms a page, for 133 KB
+minified and 64 KB gzipped. Keeping Chrome's root table whole and copying the other line tables from it at runtime
+instead gave 238 KB and 57 KB and took 3.6 ms in Firefox (2026-09-24). A packer that looks for the longest copy from
+any earlier position and matches lazily took the layout entry from 56.2 to 53.6 KB gzipped with the same unpacker and
+the same unpacked bytes (#TBD, 2026-09-30); the parse with the fewest bytes would save 0.5 KB more and take the
+generator from 2 s to 10 or more, so it wasn't taken.
+
+Since #TBD (2026-09-30) the module holds what the tables say in place of their bytes, and the layout entry is 40.3 KB
+gzipped and 95.3 KB minified, 13.3 KB and 13.4 KB less. Every code point's class in the ten maps the scans read (the
+categories of ICU's five line and two character tables, and Firefox's Line_Break, Bidi_Class and East_Asian_Width)
+ships as one list of 4,487 runs of joint classes, the 250 classes the maps together tell apart, with a byte per joint
+class for each map: engines class most code points alike, and so do one engine's tables. From the list the library
+builds a table for each map its engine reads, blocks of 256 code points behind an index, so a class is two loads for
+any code point, where ICU's trie takes four above U+FFFF and Firefox's above U+0FFF. Each state table ships as its
+rows' differences from rows it repeats, starting from an earlier table's rows where one has its shape: libicucore's
+line tables differ from Chrome's root table in 8 rows. Chrome's Chinese table has a category and two states more than
+the root table, so it ships alone. The class maps are most of what is saved. The generator checks every class of every
+code point and every state row against the engine files, and a test checks the shipped module the same way.
+
+An LZ pass over these lists saved nothing once the bundle is gzipped and cost a decoding pass. The blocks cover every
+code point, so a class above U+FFFF costs what one below does; a table per code unit with a search above U+FFFF would
+hold less and search for every emoji. An engine's tables hold about 190 KB of typed arrays against 100 (the Gecko
+profile's 147-207 against 39-113), 36 KB of it the decoded run list. The times were measured offline only (Bun 1.4 and
+Node 23, fresh processes on a busy machine, 2026-10-01), so they are hypotheses until the browsers are timed:
+unpacking an engine's tables before the first `prepare()` took 2.0-2.9 ms against 1.2-2.1 (the lower quartile of 60
+processes; two copies of main's bundle differed by up to 0.2 ms), and the first `prepare()` 0.3-0.8 ms more than
+main's 3.2-4.5 (of 40; the copies by up to 0.3). Scan times after that weren't told apart from the noise, in which the
+copies differed by up to a quarter. One bundle serves every engine (Decisions Log, 2026-09-26).
 
 In Line_Break=SA runs (Thai, Lao, Khmer, Myanmar, and in the Blink and WebKit scans also Tai Le, New Tai Lue, Tai Tham,
 Tai Viet and Ahom), `Intl.Segmenter` words stand in for the engines' dictionaries. Chrome 153's equal those of
@@ -1952,7 +1973,9 @@ below 256 px, Canvas totals are exact (Engine Facts, Chrome).
 - **Firefox's line data in Chrome's format** (2026-09-26; branches `ff-table-format-bmp` and
   `ff-table-format-ranges-first`): 8.7 KB of state machines for Firefox's 0.8 KB, or Chrome's code-point lookup, exact
   and 3.2 KB off 55 KB gzipped but tying Firefox to Chrome's table and slowing its Arabic, Hebrew, Hindi and Urdu
-  analysis 13% (Decisions Log). Reopens only if table size and per-engine bundles both return.
+  analysis 13%, a remap being one more load for each character (Decisions Log). The run list of #TBD shares the
+  engines' classes in the module only: each map still unpacks to a table of its own (Break Opportunities From Engine
+  Data). Reopens only if table size and per-engine bundles both return.
 - **One bundle per engine** (372-788 KB minified, measured on the rebuild), ruled out on 2026-09-26 (Decisions Log).
   Reopens if apps ship per-browser builds.
 - **Tables shrunk by computation**: remapping onto base classes fails for Chrome's Chinese table (`〜` and `゠` need a
@@ -2388,7 +2411,12 @@ decisions for the maintainer.
 - **2026-09-26: the break tables stay as they are**, closing the check the 2026-09-23 entry left for the end. The one
   alternative left to weigh, Firefox's line data stored in Chrome's format, was worth taking only without a maintenance
   burden, and it wasn't worth it (Dead Ends, Tables, Bundles And Data). It reopens only if table size and per-engine
-  bundles both return.
+  bundles both return. The options weighed were keeping the tables, that format, a bundle per engine and classes from
+  Unicode properties; the same pinned data in a shorter form wasn't among them. #TBD (2026-09-30) is that: run lists
+  for the classes and row differences for the state tables, generated and checked at each refresh, 13.3 KB less
+  gzipped than the packed tables' 53.6, for a slower first unpacking and larger tables in memory (Break Opportunities
+  From Engine Data has the numbers). The tables still say what each browser's build says, on every code point and
+  state row.
 - **2026-09-27: the Gecko profile keeps its 80px floor for prefix fits, as a premise.** A prefix fit finds where an
   emergency break falls inside a segment by measuring the segment's grapheme prefixes, and the Gecko profile makes one
   only in segments at least 80px wide. Prefixes model Firefox's whole-word advances better than standalone graphemes,
