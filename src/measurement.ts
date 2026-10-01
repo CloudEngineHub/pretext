@@ -144,8 +144,8 @@ export type EngineProfile = {
   // ` \u00AD \u00AD`, `cd` in 16px Arial in one 39.15px line at 40px, where Chrome and Safari
   // give 2 lines, as they do for one text node. Rich-inline takes it across items and after an
   // item's leading white space (whitespaceRunOpen in src/rich-inline.ts); the Gecko profile's
-  // analysis does only through bidi controls, inside a text past its first white space
-  // (ENGINE_FOLLOWUPS.md).
+  // analysis takes it inside a text, where its scan's white-space run reads through both
+  // (transformText in src/gecko-line-breaks.ts).
   collapsesSpaceAcrossSoftHyphens: boolean
   // Where rich-inline finds break opportunities next to an item boundary. Blink runs one
   // line-break iterator over the text of the whole inline formatting context, and Gecko
