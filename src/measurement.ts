@@ -207,9 +207,11 @@ export type EngineProfile = {
   // Gecko places a frame whose margin box is empty wherever it falls, on a line that already
   // overflows too ("Empty frames always fit right where they are", CanPlaceFrame,
   // nsLineLayout.cpp:1264-1269), so an atomic item of width 0 stays on the line it falls on,
-  // unless the line then goes back to a break before it, as it does where a frame with a width
-  // that continues the text comes next (getKeptEmptyEnd, src/rich-inline.ts). Blink and WebKit
-  // fit it as any other atomic inline and move it to the next line.
+  // unless the line ends before it: it breaks after white space that follows text already past
+  // its end (getFrameEndSpace, src/rich-inline.ts), which only a frame that always fits is left
+  // to show, and it goes back to a break before the item where a frame with a width that
+  // continues the text comes next (getKeptEmptyEnd). Blink and WebKit fit it as any other atomic
+  // inline and move it to the next line.
   emptyAtomicAlwaysFits: boolean
   // Where the preserved spaces that end a pre-wrap line's text and overflow the line still hang
   // once an item that takes no room follows them on the line, an atomic item of width 0 or an
