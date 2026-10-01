@@ -328,10 +328,9 @@ export async function gate(browser: BrowserKind, cases: Case[], o: Options, io: 
   if (order.listed.length > 0) out.push(`  ${order.listed.length} varying predictions break differently in reverse order (listed, not blocking)`)
   // A fresh recording of a seeded sample, then each case that differs alone in a browser process of its own: blocks
   // where the browser lays it out differently from the recording there too. A fresh document isn't enough: WebKit
-  // keeps a text's inline items across documents, in a cache of the process that a sample this size doesn't fill
-  // (record has the source), and Firefox lays color emoji out wider in every document after one with a
-  // text-presentation emoji (score.ts), so in one process for all of them the verdict went by which cases differed
-  // together.
+  // keeps a text's inline items across documents, in a cache of the process that 1,000 cases don't fill (record has
+  // the source), and Firefox lays color emoji out wider in every document after one with a text-presentation emoji
+  // (score.ts), so in one process for all of them the verdict went by which cases differed together.
   const sample = gateSample(scored.pinned, o.seed, o.sample ?? 1000)
   const first = await io.run<Recording>({ browser, mode: 'record', cases: sample, documentSize: RECORD_DOCUMENT, lib: o.lib })
   if (sample.length > 0) assertSameEnvironment(browser, scored.env, first.env)
