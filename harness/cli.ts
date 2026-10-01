@@ -508,8 +508,9 @@ export async function equal(browser: BrowserKind, cases: Case[], setOf: Map<stri
   return differ.length > 0
 }
 
-// The gate's offline invariants: harness/invariants.ts over every case in one engine profile, which takes about 16 s
-// and up to 0.67 GB, killed after 5 minutes.
+// The gate's offline invariants: harness/invariants.ts over every case in one engine profile, which takes 20-25 s of
+// processor time at a load average of 30-60 and up to 0.67 GB, killed after 5 minutes, or by its watchdog, which says
+// why on stderr.
 async function everyCaseInvariants(profile: string, lib: string): Promise<Invariants> {
   const child = Bun.spawn([process.execPath, join(import.meta.dir, 'invariants.ts'), `--profile=${profile}`, `--lib=${lib}`, '--draws=all', '--rich=all'], { stdout: 'pipe', stderr: 'inherit', timeout: 300_000, killSignal: 'SIGKILL' })
   const [out, code] = await Promise.all([new Response(child.stdout).text(), child.exited])

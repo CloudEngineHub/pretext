@@ -7,8 +7,9 @@
 // 0, plus the letter spacing per grapheme. The Blink and Gecko processes run under a desktop user agent with a string
 // `letterSpacing` on the context, as Chrome's and Firefox's have, so preparation takes the paths those browsers take.
 // The inputs are seeded draws from harness/cases (a failure names its case, at its width, half and 1.5 times it, 1 and
-// Infinity) and a few fixed ones; `bun harness gate` runs its browser's profile over every case (`all`), about 16 s a
-// profile: in 500 draws, five WebKit-profile cases that failed the coverage check had about a 4% chance to be drawn.
+// Infinity) and a few fixed ones; `bun harness gate` runs its browser's profile over every case (`all`), 20-25 s of
+// processor time a profile at a load average of 30-60: in 500 draws, five WebKit-profile cases that failed the coverage
+// check had about a 4% chance to be drawn.
 // The checks:
 // - every line API agrees with walkLineRanges (predict.ts's check), and layoutWithLines and layoutNextLine give equal
 //   line objects, so a field one of them forgets shows;
@@ -353,17 +354,24 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
     const out = JSON.stringify(h.widths.map(w => [api.layout(h.fast, w, 20), api.layoutWithLines(h.handle, w, 20).lines]))
     return out
   }
-  const plainInput = (label: string, text: string, font: string, options: PrepareOptions, width: number, lineHeight: number): void => {
+  // A case's width, half and 1.5 times it, then 1 and Infinity, but for a paragraph an earlier case held at another
+  // width (`repeated`), where those two would walk the same lines again: 16,674 paragraphs make the 70,453 cases, and
+  // a run over all of them took 33 s of processor time with the repeats and 20 s without (2026-10-01).
+  const widthsOf = (width: number, repeated: boolean): number[] => [width, Math.max(1, width / 2), width * 1.5, ...(repeated ? [] : [1, Infinity])]
+  const plainInput = (label: string, text: string, font: string, options: PrepareOptions, widths: number[], lineHeight: number): void => {
     const handle = api.prepareWithSegments(text, font, options)
     const fast = api.prepare(text, font, options)
-    const widths = [width, Math.max(1, width / 2), width * 1.5, 1, Infinity]
     for (let i = 0; i < widths.length; i++) plain(label, handle, fast, options.whiteSpace ?? 'normal', widths[i]!, lineHeight)
     if (held.length >= HELD && !label.startsWith('fixed')) return
-    const h = { label, text, font, options, widths: [width, 1], handle, copy: structuredClone(handle), fast }
+    const h = { label, text, font, options, widths: [widths[0]!, 1], handle, copy: structuredClone(handle), fast }
     held.push({ ...h, laidOut: layOut(h) })
   }
+  const paragraphs = new Set<string>()
   for (const c of drawnCases(draws.dir, draws.seed, draws.plain, draws.rich)) {
     const p = c.paragraph
+    const paragraph = JSON.stringify({ ...p, width: 0 })
+    const widths = widthsOf(p.width, paragraphs.has(paragraph))
+    paragraphs.add(paragraph)
     // Each thousand cases a timer runs, since the watchdog kills a process that runs none for 30 s and every case takes
     // longer on a loaded machine, and the caches empty: with every case's widths kept, the process held 0.8 GB of the
     // watchdog's 1 GB, and holds up to 0.67 GB without.
@@ -373,15 +381,15 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
     }
     if (isRich(p.runs)) {
       const items = richItems(p.runs)
-      for (const width of [p.width, Math.max(1, p.width / 2), p.width * 1.5, 1, Infinity]) rich(c.id, items, width, richOptions(c))
+      for (let i = 0; i < widths.length; i++) rich(c.id, items, widths[i]!, richOptions(c))
     } else {
-      plainInput(c.id, p.runs.map(run => run.text).join(''), canvasFont(p.runs[0]!.font), prepareOptions(c), p.width, p.lineHeight)
+      plainInput(c.id, p.runs.map(run => run.text).join(''), canvasFont(p.runs[0]!.font), prepareOptions(c), widths, p.lineHeight)
     }
   }
   const FONT = '16px Test'
   // A mark after a word joiner, where Chrome and Firefox measure a fresh line's first graphemes apart (entry geometry).
-  plainInput('fixed a WJ U+0301 bc', 'a\u2060\u0301bc ', FONT, { letterSpacing: -1 }, 27, 20)
-  plainInput('fixed a WJ U+0301 bc x16', 'a\u2060\u0301bc '.repeat(16), FONT, { letterSpacing: -1 }, 27, 20)
+  plainInput('fixed a WJ U+0301 bc', 'a\u2060\u0301bc ', FONT, { letterSpacing: -1 }, widthsOf(27, false), 20)
+  plainInput('fixed a WJ U+0301 bc x16', 'a\u2060\u0301bc '.repeat(16), FONT, { letterSpacing: -1 }, widthsOf(27, false), 20)
   // A SPACE is 4px here: the gap's sign changes at letter spacing -4.
   for (const letterSpacing of [-10, -4.1, -4, -3.9, 0, 2]) rich(`fixed a gap at letter spacing ${letterSpacing}`, [{ text: 'x ', font: FONT, letterSpacing }, { text: 'y', font: FONT, letterSpacing }], Infinity)
   rich('fixed empty and blank items', ['', 'AB', ' ', 'CD', ''].map(text => ({ text, font: FONT })), 16.1)
