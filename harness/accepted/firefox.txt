@@ -12,12 +12,6 @@ rich-8736e842495c21ea count
 rich-d232a1424826203f count
 rich-d7a1851aecf96951 breaks
 
-## A span after other text that starts with a right-to-left mark and a space, at 24 px and wider: Firefox keeps the space, as the span doesn't start the line, where the span's own analysis takes its text to start one and leaves the space out, as Firefox's first line trims white space after a control at another bidi level (the library kept the space before #TBD; ENGINE_FOLLOWUPS.md)
-rich-0bc38a1530fdf171 count
-rich-42baf0f1118c9e6c breaks
-rich-6482db6290255b8c breaks
-rich-7954c4115b82d822 count
-
 ## A span of a soft hyphen after a word, before a span that starts with LRI, at 24 px and wider: Firefox breaks after the LRI, which it doesn't for the text in one node, where the library breaks as in one node, inside the word after the LRI (main too; ENGINE_FOLLOWUPS.md)
 rich-04d0135c57e7b691 breaks
 rich-05d465f9481322f1 breaks
@@ -3429,6 +3423,9 @@ rich-4aaf3b30f4f2a014 count
 rich-66104da5d28ab8e4 breaks
 rich-8cd941655dd7be98 count
 rich-ce7bddd0b27c873e count
+
+## White space on both sides of a right-to-left mark between Latin words in a left-to-right paragraph, at 24 px and wider: Firefox ends its white-space run at the mark, which starts a bidi level run there, and keeps both spaces, where the Gecko scan takes a text as one text frame and keeps one, as Firefox does for the same text in a right-to-left paragraph, since Pretext takes no paragraph direction (main too; ENGINE_FOLLOWUPS.md)
+facts-a93377367151561f count
 
 ## Within 1/64 px of where the browser's lines change, at 24 px and wider: the library's fit lands on the other side there, while the whole-pixel widths inside both layouts pass
 catalog-005a8fe68a67e9a2 count

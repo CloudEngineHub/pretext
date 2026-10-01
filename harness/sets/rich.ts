@@ -30,9 +30,7 @@
 //   space in the item or a collapsed one before it, which Firefox's scan of the joined text takes as text, and after
 //   other text; and, cut on its own too, a padded span that starts with a line separator after a word, before which
 //   WebKit's check at an item boundary gives no break (getWebKitBreakBetweenItems in src/line-breaks.ts), so a line
-//   that can't fit its padding breaks the word (hardBreakItemRetreat in src/measurement.ts); and, cut on its own too, an
-//   item after a word that starts with a right-to-left mark and a space, which Firefox keeps there, where an item's
-//   analysis takes its text to start a line and trims it (ENGINE_FOLLOWUPS.md, Rich-inline item edges);
+//   that can't fit its padding breaks the word (hardBreakItemRetreat in src/measurement.ts);
 // - cut on their own too, a line that ends at a space inside an item under negative letter spacing, whose next line the
 //   browsers start after the space, beside a break at the collapsed space between items;
 // - keep-all paragraphs, cut on their own: a Korean chat message with a mention chip, a bold run inside a word and a
@@ -191,7 +189,6 @@ export function richTemplates(): Template[] {
     ['bidi-level-of-the-white-space', ['\u{5E9}\u{5DC}\u{5D5}\u{5DD} \u{200E}\u{AD}', span(' chip', ARIAL, { atomic: true }), ' this more']],
     ['bidi-level-at-the-item-offset', ['ab ', 'see \u{200F}', ' this more']], ['bidi-level-at-the-item-offset', ['ab ', 'see \u{200F}\u{AD}', ' this more']],
     ['bidi-level-of-every-dropped-character', ['(q) \u{AD}\u{200F}', ' this more']], ['bidi-level-of-every-dropped-character', ['(q) \u{AD}\u{200F}\u{AD}', ' this more']],
-    ['white-space-after-level-run-starts-item', ['Hello', '\u{200F} world wide']],
     ['bidi-level-of-a-newline', ['\u{202D}\u{AD}', '\u{628}\u{628}\n\u{61C}', span(' \u{AD}more', ARIAL, { atomic: true })], 'ar'],
     ['bidi-level-of-a-newline', ['\u{202D}\u{AD}', '\u{628}\u{628}\n\u{61C}\u{AD}', span(' \u{AD}more', ARIAL, { atomic: true })], 'ar'],
     ['soft-hyphen-before-bidi-control', ['\u{AD}', '\u{202B}more words']], ['soft-hyphen-before-bidi-control', ['see \u{AD}', '\u{2066}this word']],

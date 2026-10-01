@@ -571,12 +571,13 @@ inside a word at one. Since #368 (2026-09-27) the Gecko profile's analysis does 
 own, so neither the walkers nor `layout()`'s count know of controls (Decisions Log, 2026-09-27): a run of soft hyphens
 and bidi controls holding a control joins the segment before it, and the white-space collapse and the graphemes
 (Grapheme Clusters From Engine Data) read past such characters. Since #TBD (2026-10-01) the collapse is the scan's own:
-the analysis leaves out the white space that the scan's port of `TransformText` dropped from a run that read past a
-soft hyphen or bidi control, one text frame at a time (Engine Facts, Firefox, Text frames), where #368 collapsed through
-bidi controls whatever their bidi level, kept a space on each side of a soft hyphen, and scanned the text again. The
-rules that follow from Firefox's, each with its Gecko source, are in the comments of `src/analysis.ts`; what they still
-get wrong is in ENGINE_FOLLOWUPS.md, White space and controls, and what they cost under Keeping Work Bounded, Work Done
-Only Where A Rule Applies.
+the analysis leaves out the white space that the scan's port of `TransformText` dropped from a run that read past a soft
+hyphen or bidi control, where #368 collapsed through bidi controls with a regular expression, kept a space on each side
+of a soft hyphen, and scanned the text again. The scan takes a text as one of Firefox's text frames, as #368's collapse
+did, since where a frame ends turns on the paragraph's direction (Engine Facts, Firefox, Text frames). The rules that
+follow from Firefox's, each with its Gecko source, are in the comments of `src/analysis.ts`; what they still get wrong
+is in ENGINE_FOLLOWUPS.md, White space and controls, and what they cost under Keeping Work Bounded, Work Done Only Where
+A Rule Applies.
 
 Combining marks after zero-width glue or a control shape with the grapheme before them and what separates them, so a run
 is measured after that source, minus it; without the separators Canvas composes the marks with the grapheme or draws
@@ -1223,10 +1224,7 @@ tests fail without each rule the argument uses. This is the method to use for an
 argument, a fuzz against the unguarded path, and a unit test per rule. One rule, that in pre-wrap every line starts a
 text run, shows only in the scan's cluster starts, so its test reads the scan: without it the scan's flags differ on
 3,097 of 2.4 million scans of random strings and the analysis on none, since a hard break ends the segment before the
-line's first unit either way (2026-09-30); dropping the rule would rest the guard's claim on the analysis. Since #TBD
-the scan also resolves levels where a white-space run meets a bidi control before white space or a combining mark, to
-end the run where Firefox's text frame ends, and where white space follows the dropped characters that start a text, a
-bidi control among them, to trim it where Firefox's first line does (Engine Facts, Firefox, Text frames).
+line's first unit either way (2026-09-30); dropping the rule would rest the guard's claim on the analysis.
 
 Rejected: resolving wherever a cluster holds several code points, exact with a shorter argument, but vowel marks and
 emoji make that 37% of Arabic paragraphs and 57% of the chat's right-to-left texts, saving 5-15%; and setting the whole
@@ -1280,16 +1278,11 @@ runs (Firefox 156.0.1, bench sessions of 2026-09-27 and 28, unless noted):
   the text for a control before the scan instead, so the scan runs once, costs a pass over every text: a regular
   expression or a loop read one to four `seen` rows 1.0-3.6% slower in both sessions of every run, skipping 8-bit text
   saved little, since a curly quote or a dash makes English 16-bit, and the controls `worst` row, whose second scan the
-  test saves, read no faster. Since #TBD (2026-10-01) the scan runs once for every text: the analysis takes the white
-  space to leave out from the scan's own text run, where #368 collapsed the source with a regular expression and
-  scanned the result again. The scan resolves levels for a white-space run only where white space or a combining mark
-  comes after the controls it meets, since a text frame that ends among them changes nothing before plain text:
-  resolved at every control a run met, the analysis of Arabic with isolates around names and an RLM before a word took
-  1.7 times main's time, and so resolved 0.7 times, with the one scan (Bun's JavaScriptCore, a hypothesis for
-  Firefox). It also resolves them at white space after the dropped characters that start a text, a bidi control among
-  them, where the first line's start trims the white space if a level run starts there: 300 Hebrew texts of 60 words
-  that start with RLM and a space take that pass where main took none, 1.7 times main's analysis time, and with the RLM
-  right before the first word, or a soft hyphen in its place, which starts no level run, they take none (1.0).
+  test saves, read no faster. Since #TBD (2026-10-01) the scan runs once for every text: it marks the white space a run
+  left out past a dropped character as it collapses the run, and the analysis takes that out of the source, where #368
+  collapsed the source with a regular expression and scanned the result again. Offline the analysis of 60 words with LRM
+  or RLM between spaces at every sixth takes 0.6 times main's time, and that of 8-bit Latin with a soft hyphen between
+  spaces there, whose white space main didn't collapse, 1.1 times (Bun's JavaScriptCore, a hypothesis for Firefox).
 - **Graphemes past dropped characters**: the Gecko profile's grapheme table tests only code points in the rules'
   Control category for what the text run drops; testing every code point made Firefox prepare CJK and Arabic 2-3%
   slower (#368).
@@ -1720,28 +1713,34 @@ repin` shows what), and a fact read in source needs reading again.
   and has no `ctx.lang`, and ESR is dropped where it costs complexity (Part 1, Limits). (Firefox 156, 2026-09-17 to
   09-27.)
 - **Text frames.** Bidi resolution splits a text node into a frame for each level run (`nsBidiPresUtils.cpp:1037-1053`),
-  only in 16-bit text with a right-to-left character (`HasRTLChars`), and `TransformText` runs on one frame's text at a
-  time, carrying only whether the frame before ended in white space (`nsTextFrame.cpp:2515-2518`). So a white-space run
-  collapses through the soft hyphens and bidi controls of its frame, and a control that starts a level run ends it: in
-  16px Arial `see`, space, a control, space, `this` is 55.15px wide with LRM, LRE, RLE, PDF, LRI, RLI, FSI, PDI or a
-  soft hyphen, and 59.60px, two spaces, with RLM or ALM; RLM between Hebrew words keeps one space, and `a`, space, RLI,
-  `b`, space, PDI, space, `c` three. White space that starts a frame collapses into the run before it (space, RLE,
-  space). A run's last space stays as a combining mark's base only inside its frame: `see`, two spaces, LRM, U+0301, `x`
-  is 42.70px wide, and 38.25px with RLM. The first line's start trims all the white space each frame starts with while
-  the line holds nothing: RLM or ALM, then one to three spaces, a space and a tab, or a line feed and a space, and
-  `see this`, is 55.15px wide, and LRM, space, `see this` 59.60px. Past the first line's start that white space stays:
-  spans `Hello` and RLM, space, `world wide` are 116.48px wide, with the space. A frame whose end drops a soft hyphen
-  gives a break with a hyphen there, and a segment break is transformed by the characters around it in its own frame. A
-  block of only dropped characters has no height. The Gecko scan follows the white-space run and the line start since
-  #TBD (`transformText()`), resolving levels where a white-space run meets a bidi control before white space or a
-  combining mark, or follows the dropped characters that start the text, a control among them; ENGINE_FOLLOWUPS.md has
-  what it doesn't follow, under White space and controls, and under Rich-inline item edges the white space an item
-  loses because its analysis takes it to start a line. On 5 million random strings without ZWSP or East Asian
-  characters the scan's text run equals a model of `TransformText` run frame by frame; on 1.5 million without combining
-  marks the analysis's text equals a second model's, which also trims the first line's start, where main's differs on
-  89,462; and on 3 million the analysis is the same with every text's levels resolved before the scan, but for the
-  flags of one string with a lone carriage return. (Firefox 156.0.1, 18,317 probe cases, most in 16px Arial, 2026-09-30
-  and 10-01. Reopens with a recorded frame split that a level run doesn't explain.)
+  in a left-to-right block only in 16-bit text with a right-to-left character (`HasRTLChars`), and `TransformText` runs
+  on one frame's text at a time, carrying only whether the frame before ended in white space
+  (`nsTextFrame.cpp:2515-2518`). So a white-space run collapses through the soft hyphens and bidi controls of its frame,
+  and a control that starts a level run ends it; white space that starts a frame collapses into the run before it
+  (space, RLE, space). Which control starts a level run turns on the paragraph's direction. In 16px Arial `see`, space,
+  a control, space, `this` in a left-to-right paragraph is 55.15px wide with LRM, LRE, RLE, PDF, LRI, RLI, FSI, PDI or a
+  soft hyphen, and 59.60px, two spaces, with RLM or ALM; in a right-to-left paragraph it is 55.15px with RLM, ALM and
+  LRM. `אב`, space, LRM, space, `גד` is 36.63px in a left-to-right paragraph and 41.08px in a right-to-left one, RLM
+  between Hebrew words keeps one space in both, and after digits RLM keeps two in a left-to-right paragraph and LRM two
+  in a right-to-left one (`12`, space, mark, space, `34` is 44.50px, else 40.05px). `a`, space, RLI, `b`, space, PDI,
+  space, `c` keeps three spaces in both, and `א`, space, RLI, `ב`, space, PDI, space, `ג` three in a right-to-left
+  paragraph and two in a left-to-right one, where the PDI takes the level of the text inside. A run's last space stays
+  as a combining mark's base only inside its frame: in a left-to-right paragraph `see`, two spaces, LRM, U+0301, `x` is
+  42.70px wide, and 38.25px with RLM. The first line's start trims all the white space each frame starts with while the
+  line holds nothing: in a left-to-right paragraph RLM or ALM, then one to three spaces, a space and a tab, or a line
+  feed and a space, and `see this`, is 55.15px wide, and in a right-to-left one RLM or ALM, space, `see this` 59.60px,
+  with the space; LRM, space, `see this` is 59.60px in both, and LRM, space, `אב גד` 41.08px in a left-to-right
+  paragraph and 36.63px in a right-to-left one. Past the first line's start that white space stays: spans `Hello` and
+  RLM, space, `world wide` are 116.48px wide, with the space, in both. A frame whose end drops a soft hyphen gives a
+  break with a hyphen there, and a segment break is transformed by the characters around it in its own frame. A block of
+  only dropped characters has no height. The Gecko scan takes a text as one frame (`transformText()`): Pretext takes no
+  paragraph direction, and outside an embedding or isolate a mark of the paragraph's own direction never starts a level
+  run after white space. ENGINE_FOLLOWUPS.md, White space and controls, has what that gets wrong, and Dead Ends,
+  Invisible Characters, Controls And Soft Hyphens, the port that ended runs at level runs. On 2.5 million random strings
+  without combining marks the analysis's text equals a model of `TransformText` over the whole text, where main's
+  differed on 5,999 of a million, and on 4 million scans the scan's breaks are main's. (Firefox 156.0.1, 62,132 probe
+  cases, 7,979 in right-to-left paragraphs, most in 16px Arial, 2026-09-30 and 10-01. Reopens with a `direction` option,
+  or with a recorded frame split that a level run doesn't explain.)
 - **Breaks.** The Gecko scan ports Gecko's rules (Break Opportunities From Engine Data), such as `-` kept with a digit
   (`COVID-19`) and a break after `/` before an ASCII letter, the opposite of Chrome and Safari. Not carried:
   - An emergency wrap after a hyphen between alphanumerics (`SetupClusterBoundaries`), taken only when nothing else
@@ -1900,6 +1899,22 @@ Mostly on main as it was then, measured with the old suite in installed browsers
   numbers). It would reopen only with a glue test the shared walkers pay nothing for.
 - **A `glue` kind for no-break runs** (not zero-width glue, which stays) was a label, and a wrong one (Decisions Log,
   2026-09-24).
+- **Firefox's white-space run ended at each bidi level run of one text** (fdacfde2 in #TBD's history, 2026-10-01;
+  Firefox 156.0.1): the Gecko scan resolved levels where a white-space run met a bidi control before white space or a
+  combining mark, ended the run where a level run starts there, and trimmed the first line's start after dropped
+  characters, in 30 more runtime lines than the scan #TBD landed (Engine Facts, Firefox, Text frames, has Firefox's
+  rule). The scan resolves every paragraph as left-to-right, so of 62,132 probe cases it passed 2,298 that main failed
+  and failed 771 that main passed. Of those, 242 were plain text in right-to-left paragraphs, all its plain-text losses
+  but one: there RLM or ALM after Latin text or digits keeps the level of the white space before it, so `see`, space,
+  RLM, space, `this` is 55.15px wide where the port gave it the 59.60px of a left-to-right paragraph, and RLM, space,
+  `see this` keeps the space the port trimmed. The other 528 were rich items that start with a control at another level
+  and white space after other content: an item's analysis takes its text to start a line, so the trim took the space
+  Firefox keeps there, and items `Hello` and RLM, space, `world wide` at 57px came out as `Hello` with `wo` on its line,
+  then `rld wide`. Telling the item's analysis that it follows content left 5 of 168 such losses on two probes, but the
+  item's segments were then not `prepareWithSegments(item.text)`'s, which a fragment's cursors index; giving the item
+  the gap of its leading white space left 49. The level pass also made the analysis of text that starts with RLM and a
+  space 1.5-1.7 times main's (Bun's JavaScriptCore). It reopens with a `direction` option (TODO.md) and a rich item's
+  analysis that knows it follows content.
 
 #### Arabic And Joined Scripts
 
@@ -2449,8 +2464,9 @@ decisions for the maintainer.
   Chrome's and Firefox's worst-case rows 5-11% (Dead Ends, Invisible Characters, Controls And Soft Hyphens). The
   analysis also fixes the other four, `a`, LRI, U+0301, PDI, `b` at 1px, whose mark Firefox keeps with the `a`, and makes
   the white space on both sides of a control take the room of one space, about 22 of its 68 runtime lines. Since #TBD
-  (2026-10-01) that holds within one of Firefox's text frames, which a control at another bidi level starts (Engine
-  Facts, Firefox, Text frames).
+  (2026-10-01) the collapse reads through soft hyphens too and comes from the scan's own text run. It still takes a text
+  as one of Firefox's text frames: where a frame ends turns on the paragraph's direction, which Pretext doesn't take
+  (Engine Facts, Firefox, Text frames).
 - **2026-09-30: an object inside a line is a box, `{ width }`, a type of its own** (#387). Apps stood in for one with an
   atomic NBSP whose `extraWidth` made up the rest of its width (#201), where an empty text item stays what it is, dropped
   with no fragment. A box's width is final, fixed when it's prepared and at least 0, and heights stay the app's, with the

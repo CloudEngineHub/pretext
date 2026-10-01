@@ -1043,49 +1043,35 @@ describe('boundary-policy regressions', () => {
       expect(prepareWithSegments('ab \u200E', FONT).segments).toEqual(['ab\u200E'])
       expect(measureRichInlineStats(prepareRichInline([{ text: 'ab \u200E', font: FONT }, { text: 'cd', font: FONT }]), 1000).maxLineWidth)
         .toBe(measureWidth('ab cd', FONT))
-      // The run is one text frame's, and Firefox splits a frame where the bidi level changes. A
-      // control that starts a level run ends the white-space run, so the white space after it
-      // stays: U+200F or U+061C between Latin words, after U+200E or a soft hyphen too, and
-      // U+2069 after white space inside its isolate.
+      // The run reads through every control, whichever bidi level run it starts. Whether Firefox
+      // ends the run at one turns on the paragraph's direction, which Pretext doesn't take, so a
+      // text is one text frame's (transformText in src/gecko-line-breaks.ts): U+200F between Latin
+      // words keeps Firefox's one space in a right-to-left paragraph, where a left-to-right one
+      // keeps two, and U+200E between Hebrew words the one of a left-to-right paragraph.
       const segments = (text: string) => prepareWithSegments(text, FONT).segments
-      expect(segments('ab \u200F cd')).toEqual(['ab', ' \u200F ', 'cd'])
-      expect(prepareWithSegments('ab \u200F cd', FONT).widths[1]).toBe(measureWidth('  ', FONT))
-      expect(segments('ab\t\u061C\ncd')).toEqual(['ab', ' \u061C ', 'cd'])
-      expect(segments('ab \u200E\u200F cd')).toEqual(['ab', ' \u200E\u200F ', 'cd'])
-      expect(segments('ab \u00AD\u200F cd')).toEqual(['ab', ' \u00AD\u200F ', 'cd'])
-      expect(segments('a \u2067b \u2069 c')).toEqual(['a', ' \u2067', 'b', ' \u2069 ', 'c'])
-      // A control that keeps the level before it ends none: U+200E in text whose levels Firefox
-      // resolves, and U+200F between Hebrew letters. White space that starts a level run, as
-      // inside U+2067 or U+202B, collapses into the run before it.
-      expect(segments('ab \u200E cd\u200F')).toEqual(['ab', ' \u200E', 'cd\u200F'])
-      expect(segments('\u05D0 \u200F \u05D1')).toEqual(['\u05D0', ' \u200F', '\u05D1'])
-      expect(segments('ab \u2067 cd\u2069')).toEqual(['ab', ' \u2067', 'cd\u2069'])
-      expect(segments('ab \u202B \u202C cd')).toEqual(['ab', ' \u202B\u202C', 'cd'])
-      // A run's last space stays as the base of a mark after it, through controls of its frame,
-      // not through one that starts a level run.
+      expect(segments('ab \u200F cd')).toEqual(['ab', ' \u200F', 'cd'])
+      expect(segments('\u05D0 \u200E \u05D1')).toEqual(['\u05D0', ' \u200E', '\u05D1'])
+      expect(segments('ab\t\u061C\ncd')).toEqual(['ab\u061C', ' ', 'cd'])
+      expect(segments('a \u2067b \u2069 c')).toEqual(['a', ' \u2067', 'b', ' \u2069', 'c'])
+      expect(segments('\u200F ab')).toEqual(['\u200F', ' ', 'ab'])
+      // A run's last space stays as the base of a mark after it, through controls.
       expect(segments('ab \u200E \u200E\u0301c')).toEqual(['ab', ' \u200E \u200E', '\u0301c'])
-      expect(segments('ab \u200E \u200F\u0301c')).toEqual(['ab', ' \u200E\u200F', '\u0301c'])
       // The run reads through soft hyphens as through controls. The break after white space that
       // left from after a soft hyphen is that white space's, which draws no hyphen.
       expect(segments('ab \u00AD cd')).toEqual(['ab', ' ', '\u00AD', 'cd'])
       expect(segments('ab \u00AD \u200E cd')).toEqual(['ab', ' \u00AD\u200E', 'cd'])
       expect(prepareWithSegments('ab \u200E \u00AD cd', FONT).kinds).toEqual(['text', 'space', 'zero-width-break', 'text'])
+      // A run whose dropped characters all come after its white space leaves out only white space
+      // that touches the unit it keeps, which the scan doesn't name.
+      expect(getGeckoLineBreaks('ab  \u200Ecd', false, false, 'gecko/char').collapsed).toBeNull()
       // A run that goes on into the text's trailing white space keeps its first white space, where
       // its segment break comes after a soft hyphen: with the trailing white space left out, a rich
-      // item's text still holds the run's one space.
+      // item's text still holds the run's one space. A run that keeps its first white space
+      // anyway keeps no second one.
       expect(segments('ab \u00AD\n\u2066 ')).toEqual(['ab', ' \u00AD\u2066'])
       expect(segments('ab \u00AD\n')).toEqual(['ab', ' ', '\u00AD'])
       expect(segments('ab \u00AD\n\u2066 cd')).toEqual(['ab', '\u00AD', ' \u2066', 'cd'])
-      // The first line's start trims the white space of each frame that starts it: all the white
-      // space after a control that starts a level run, not that after one at the level of that
-      // white space.
-      expect(segments('\u200F ab')).toEqual(['\u200Fab'])
-      expect(segments(' \u200F ab')).toEqual(['\u200Fab'])
-      expect(segments('\u200F  ab')).toEqual(['\u200Fab'])
-      expect(segments(' \u200F \tab')).toEqual(['\u200Fab'])
-      expect(segments('\u200F \n ab')).toEqual(['\u200Fab'])
-      expect(segments('\u200E ab\u05D0')).toEqual(['\u200E', ' ', 'ab\u05D0'])
-      expect(segments('ab \u200F ')).toEqual(['ab\u200F'])
+      expect(segments('ab \u00AD \u00AD ')).toEqual(['ab', ' ', '\u00AD\u00AD'])
       // Controls, and soft hyphens before them, take no letter spacing.
       expect(prepareWithSegments('a\u200Eb', FONT, { letterSpacing: 2 }).widths).toEqual([measureWidth('ab', FONT) + 2])
       expect(prepareWithSegments('a\u00AD\u200Eb', FONT, { letterSpacing: 2 }).widths).toEqual([measureWidth('a\u00AD\u200Eb', FONT) + 2])

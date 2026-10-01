@@ -411,13 +411,14 @@ export function analyzeText(
       sourceBreaks = gecko.breaks
       // Gecko's white-space run reads through the soft hyphens and bidi controls in it, which its
       // text run drops, and keeps its segment break if it holds one, or else its first white space
-      // (TransformWhiteSpaces, nsTextFrameUtils.cpp:151-193), within one text frame (transformText
-      // in src/gecko-line-breaks.ts). The white space the scan's text run left out of such a run
-      // leaves the source too, and so does white space before only bidi controls at the end, which
-      // the line end trims. A break is never at white space, so the other units keep theirs. Where
-      // the white space right after a soft hyphen leaves, the break after it stays that white
-      // space's, which draws no hyphen (SOFT_HYPHEN_BREAK): Gecko hyphenates only at a soft hyphen
-      // that ends what its text run left out (GetHyphenationBreaks, nsTextFrame.cpp:4436-4442).
+      // (TransformWhiteSpaces, nsTextFrameUtils.cpp:151-193); the scan takes the text as one text
+      // frame (transformText in src/gecko-line-breaks.ts). The white space the scan's text run left
+      // out of such a run leaves the source too, and so does white space before only bidi controls
+      // at the end, which the line end trims. A break is never at white space, so the other units
+      // keep theirs. Where the white space right after a soft hyphen leaves, the break after it
+      // stays that white space's, which draws no hyphen (SOFT_HYPHEN_BREAK): Gecko hyphenates only
+      // at a soft hyphen that ends what its text run left out (GetHyphenationBreaks,
+      // nsTextFrame.cpp:4436-4442).
       const trailing = !preserve && (dropsBidiControl || gecko.collapsed !== null) ? getTrailingCollapsibleStart(source, 0, profile) : source.length
       if (gecko.collapsed !== null || trailing < source.length) {
         // A run that goes on into that trailing white space and keeps its one white space there, as
