@@ -352,12 +352,12 @@ describe('the stored recordings', () => {
   test('each part of the environment key changes it, and so do the served fonts but not the notes on where they came from: a browser, OS or display change would read as library regressions or fixes', () => {
     const base: Environment = {
       browser: 'webkit-host', version: '27.0', webkit: '22625.1.29.11.27', os: '26A428', osLanguages: 'zh-Hans-US,en-US', pageLanguages: ['zh-CN'],
-      devicePixelRatio: 2, fonts: 'eb39315129b7',
+      devicePixelRatio: 2, zoom: null, fonts: 'eb39315129b7',
     }
     expect(keyOf(base)).toBe('webkit-host 27.0 webkit=22625.1.29.11.27 os=26A428 os-languages=zh-Hans-US,en-US page-languages=zh-CN dpr=2 fonts=eb39315129b7')
     const changes: Array<Partial<Environment>> = [
       { browser: 'safari' }, { version: '27.1' }, { webkit: '22625.1.29.11.28' }, { webkit: null }, { os: '26A429' }, { osLanguages: 'en-US' },
-      { pageLanguages: ['en-US', 'en'] }, { devicePixelRatio: 1 }, { fonts: '0123456789ab' },
+      { pageLanguages: ['en-US', 'en'] }, { devicePixelRatio: 1 }, { zoom: 1.25 }, { fonts: '0123456789ab' },
     ]
     for (let i = 0; i < changes.length; i++) expect(keyOf({ ...base, ...changes[i] })).not.toBe(keyOf(base))
     const dir = join(import.meta.dir, '../.artifacts/harness-test-fonts')
@@ -373,6 +373,20 @@ describe('the stored recordings', () => {
     writeFileSync(join(dir, 'fonts.json'), manifest('Test Sans', 'made for the test'))
     writeFileSync(join(dir, 'test.woff2'), 'two')
     expect(fontsKey(dir)).not.toBe(served)
+  })
+
+  test('a run at another ratio or in a phone\'s browser keeps its recordings in a store, never in harness/: one record would replace the checked-in recordings with another setup\'s', () => {
+    const harness = parseArgs(['record']).root
+    expect(harness).toBe(import.meta.dir)
+    expect(parseArgs(['record']).browsers).toEqual(['chrome', 'firefox', 'webkit-host'])
+    const away = [['--browser=chrome,firefox', '--scale=1.5'], ['--browser=chrome', '--zoom=1.25'], ['--browser=ios']]
+    for (let i = 0; i < away.length; i++) {
+      expect(parseArgs(['record', ...away[i]!]).root).toBe(join(import.meta.dir, '../.artifacts/harness-store'))
+      expect(parseArgs(['record', ...away[i]!, '--store=/tmp/store']).root).toBe('/tmp/store')
+    }
+    // webkit-host and installed Safari have no switch for either, nor Firefox for page zoom.
+    expect(() => parseArgs(['record', '--scale=1'])).toThrow('no switch')
+    expect(() => parseArgs(['record', '--browser=firefox', '--zoom=1.25'])).toThrow('no switch')
   })
 
   test('a case laid out differently in its two orders is never pinned: page history would block changes at random', () => {
