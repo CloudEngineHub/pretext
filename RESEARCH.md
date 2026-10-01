@@ -1469,7 +1469,7 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   0, which read `paddedOpeningFit` to keep the profile at 23 fields, has a field of its own (`emptyAtomicAlwaysFits`).
   With both, Node read mixed stats, walk and stream 6-8% faster than main and the other rows within 2%. Node's times are
   a lead only; in Chrome 154 the bench read every row of this build within noise of main in three sessions, the line
-  rows included, which the field alone had read 11-18% slower (#TBD, 2026-10-01). No other function inlined while
+  rows included, which the field alone had read 11-18% slower (#391, 2026-10-01). No other function inlined while
   preparing and laying out the bench's mixed and rich texts takes over 374 bytes (`getMarkContext()`, above).
 - **Class fields in Firefox**: with any class field in the bundle, Firefox 156 took 4.5-4.8ms to evaluate it on a fresh
   page, against 1.9-2.2ms with plain objects, or with the fields emptied or set in constructors, seemingly because it
