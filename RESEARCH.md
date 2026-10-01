@@ -574,10 +574,11 @@ and bidi controls holding a control joins the segment before it, and the white-s
 the analysis leaves out the white space that the scan's port of `TransformText` dropped from a run that read past a soft
 hyphen or bidi control, where #368 collapsed through bidi controls with a regular expression, kept a space on each side
 of a soft hyphen, and scanned the text again. The scan takes a text as one of Firefox's text frames, as #368's collapse
-did, since where a frame ends turns on the paragraph's direction (Engine Facts, Firefox, Text frames). The rules that
-follow from Firefox's, each with its Gecko source, are in the comments of `src/analysis.ts`; what they still get wrong
-is in ENGINE_FOLLOWUPS.md, White space and controls, and what they cost under Keeping Work Bounded, Work Done Only Where
-A Rule Applies.
+did, since where a frame ends turns on the paragraph's direction (Engine Facts, Firefox, Text frames). A CR or FF, which
+Firefox's text run keeps with no advance, leaves the same way (Engine Facts, Firefox, CR and FF). The rules that follow
+from Firefox's, each with its Gecko source, are in the comments of `src/analysis.ts`; what they still get wrong is in
+ENGINE_FOLLOWUPS.md, White space and controls, and what they cost under Keeping Work Bounded, Work Done Only Where A
+Rule Applies.
 
 Combining marks after zero-width glue or a control shape with the grapheme before them and what separates them, so a run
 is measured after that source, minus it; without the separators Canvas composes the marks with the grapheme or draws
@@ -1282,7 +1283,9 @@ runs (Firefox 156.0.1, bench sessions of 2026-09-27 and 28, unless noted):
   left out past a dropped character as it collapses the run, and the analysis takes that out of the source, where #368
   collapsed the source with a regular expression and scanned the result again. Offline the analysis of 60 words with LRM
   or RLM between spaces at every sixth takes 0.6 times main's time, and that of 8-bit Latin with a soft hyphen between
-  spaces there, whose white space main didn't collapse, 1.1 times (Bun's JavaScriptCore, a hypothesis for Firefox).
+  spaces there, whose white space main didn't collapse, 1.1 times, and 1.2 times a second copy of main's; that of 8-bit
+  Latin with CRLF there, whose CR the analysis now takes out, 1.1 to 1.2 times too (Bun's JavaScriptCore, a hypothesis
+  for Firefox).
 - **Graphemes past dropped characters**: the Gecko profile's grapheme table tests only code points in the rules'
   Control category for what the text run drops; testing every code point made Firefox prepare CJK and Arabic 2-3%
   slower (#368).
@@ -1741,6 +1744,22 @@ repin` shows what), and a fact read in source needs reading again.
   differed on 5,999 of a million, and on 4 million scans the scan's breaks are main's. (Firefox 156.0.1, 62,132 probe
   cases, 7,979 in right-to-left paragraphs, most in 16px Arial, 2026-09-30 and 10-01. Reopens with a `direction` option,
   or with a recorded frame split that a level run doesn't explain.)
+- **CR and FF.** In normal white space `TransformText` takes neither as white space (`nsTextFrameUtils.cpp:51-57`), so
+  one ends a white-space run and stays in the text run, which gives it no glyph and no advance: `SplitAndInitTextRun`
+  skips a control character it doesn't draw as a hexbox, which is never CR and, in release and beta builds, no other one
+  (`gfxFont.cpp:3620-3627`, `:3874-3892`; `layout.css.control-characters.visible`). In 16px Arial `see`, CR or FF,
+  `this` is 50.70px wide, and a line can end after the CR; `see`, CR, LRM, space, `this` is 55.15px, one space; `see`,
+  space, LRM, CR, LF, `this` and `see`, space, CR, space, `this` are 59.60px, two, one for each run; and at 1px letter
+  spacing `see`, CR, `this` is 58.70px, the CR taking a gap of its own. Every Canvas measures CR and FF as a space
+  (Measurement Model), so since #TBD the Gecko profile's analysis takes them out of the text, as the scan marks one as
+  it marks the white space a run left out; before, each became a space, as it still does in the other profiles. Of
+  13,380 probe cases with a CR or FF (words, white space, soft hyphens and marks beside one, sentences with CRLF or lone
+  CR line ends, rich items) Pretext fails 905 where it failed 1,373 before: 489 that failed pass, and 21 that passed fail, 5
+  under letter spacing and 16 of a rich item that starts with a CR or FF, a mark and a space. On a million random
+  strings the analysis's text differs from a model of `TransformText` on 1,730, each with white space touching both
+  sides of a CR or FF, where it differed on 88,125 before. ENGINE_FOLLOWUPS.md, White space and controls, has what is left.
+  (Firefox 156.0.1, 2026-10-01. Reopens with a Firefox release that draws hidden control characters, as Nightly does, or
+  with normal white space that keeps two spaces that touch.)
 - **Breaks.** The Gecko scan ports Gecko's rules (Break Opportunities From Engine Data), such as `-` kept with a digit
   (`COVID-19`) and a break after `/` before an ASCII letter, the opposite of Chrome and Safari. Not carried:
   - An emergency wrap after a hyphen between alphanumerics (`SetupClusterBoundaries`), taken only when nothing else
@@ -1870,7 +1889,8 @@ Mostly on main as it was then, measured with the old suite in installed browsers
   per-grapheme spacing unit.
 - **Lone CR, FF and VT per engine in pre-wrap** (2026-09-11): two prototypes lost 150-228 results each, as did deleting
   CR or making it a zero-width break; CR reaches every layer, so apps normalize line endings (README). Reopens with a
-  model traced from the engines' line builders.
+  model traced from the engines' line builders. In normal white space, where no engine breaks a line at one, the Gecko
+  profile takes CR and FF out since #TBD (Engine Facts, Firefox, CR and FF).
 - **Folding invisibles into their neighbors** (2026-09-15/16) lost 776 real rows in an offline replay, as controls got
   zero width where browsers give them width and soft hyphens and ZWSPs took spacing and width the page doesn't give
   them, and 1,887 Chrome and Safari rows in the old suite run in installed browsers, such as `a`, U+00AD, U+0301,

@@ -3,6 +3,11 @@ report-23cd6052bc54f415 breaks
 report-953b7e9cd05588ed breaks
 report-b980d5159851daba breaks
 
+## A CR or FF between letters under letter spacing: Firefox keeps it in its text run with no advance and gives it the letter spacing, where the Gecko analysis takes it out of the text, spacing and all, so the line is one gap off Firefox's and the widths within that gap of where the text fits take the other line count; before #TBD it had a space's room and failed the widths beside these instead (ENGINE_FOLLOWUPS.md, White space and controls)
+catalog-11b631dc59ccf502 count
+catalog-26d0c58f4b1a737e count
+catalog-3cf193e86082144e count
+
 ## A bidi control after a space that starts a span, before white space that starts the next, at 24 px and wider: Firefox drops it from its text (IsDiscardable) and ends the line past it, where the library keeps it as text of no width, which the next line starts with (main and 0fef0023 too; ENGINE_FOLLOWUPS.md)
 rich-426a9dc0f93dbfdb breaks
 
@@ -973,7 +978,6 @@ catalog-6357f34a1644caba count
 catalog-637722e05dcc3f91 count
 catalog-63bdca867389a6f9 count
 catalog-63ed84f58514031f count
-catalog-645dcbd6865b7ab8 count
 catalog-649a59f1e14490b8 count
 catalog-6528758e78857f6d count
 catalog-654288fb34fe8984 count
@@ -1151,7 +1155,6 @@ catalog-91eeb432bb38922c count
 catalog-91f834d584057cdd count
 catalog-91fc5ab6bc6bc8e8 breaks
 catalog-928ab9607d08f856 count
-catalog-92b9f2487ad12839 count
 catalog-92c0e588404686a0 count
 catalog-92c43a35b138f4f4 count
 catalog-92df2a2bb66eeb49 count
@@ -1224,7 +1227,6 @@ catalog-a40cbb73d37d7bd0 breaks
 catalog-a41fb056c275ff7f count
 catalog-a440428d57b09fd8 breaks
 catalog-a443d59fea79ba8c count
-catalog-a464bc854e5a85ea count
 catalog-a466dec4f1d7c8e1 breaks
 catalog-a47f83ac7699a018 breaks
 catalog-a4933474b771f192 breaks
@@ -2999,7 +3001,6 @@ catalog-13c877c90aaddc8b breaks
 catalog-180a5c8b2828d9cf count
 catalog-187fac98080e7a39 breaks
 catalog-19864e450690f6db count
-catalog-1a5d9bdd9cc59da0 count
 catalog-1c1fc69e3e43c0c5 count
 catalog-1f07e7ce8558ec61 count
 catalog-28710b5f63c26c5b count
@@ -3035,7 +3036,6 @@ catalog-57198da3b0934a77 count
 catalog-57887fb9af9fca8d breaks
 catalog-5947596297954521 count
 catalog-5b8c4d4da9707f9a count
-catalog-5c2a1a42737f5215 breaks
 catalog-5d9beb819d65c420 count
 catalog-5db2e7186d836808 breaks
 catalog-5fd49258e05a7d38 count
@@ -3053,7 +3053,6 @@ catalog-6fa57e8d8f662b88 count
 catalog-702560e0797f6fc0 count
 catalog-70a4b64fb0c9f38a count
 catalog-73fb6c1587d87527 count
-catalog-771f09af6c13ff57 count
 catalog-7837e2811a0b442c count
 catalog-7d6a6f3fcab2fd8c count
 catalog-7e750e48852264bf count
@@ -3102,7 +3101,6 @@ catalog-d233b74f210cf7e1 count
 catalog-d72648c7b27b5bd7 count
 catalog-d94f0aacec15b8a4 breaks
 catalog-d9bb15b2c6258cea breaks
-catalog-db7feeb8e10b6394 breaks
 catalog-dd32b54e376716ef breaks
 catalog-dd76d084f982c580 count
 catalog-e01b7f79970cbc64 count
@@ -3126,7 +3124,6 @@ catalog-fd70967c1ddf7c1f count
 catalog-fe3dd66e20224309 count
 facts-3c7fb53688acaebf count
 facts-41f7a911b5d592b8 count
-facts-efaeb7dbcdac540a count
 old-gate-0389719e61d4cfa7 breaks
 old-gate-04d3119da5a3931e breaks
 old-gate-398911ce17952484 breaks
@@ -3429,7 +3426,6 @@ facts-a93377367151561f count
 
 ## Within 1/64 px of where the browser's lines change, at 24 px and wider: the library's fit lands on the other side there, while the whole-pixel widths inside both layouts pass
 catalog-005a8fe68a67e9a2 count
-catalog-007f7a7e64a6a3b4 count
 catalog-0c1e48b240872fc5 count
 catalog-0c1f4594053f1687 count
 catalog-0e945d174b559d71 count

@@ -1063,7 +1063,7 @@ describe('boundary-policy regressions', () => {
       expect(prepareWithSegments('ab \u200E \u00AD cd', FONT).kinds).toEqual(['text', 'space', 'zero-width-break', 'text'])
       // A run whose dropped characters all come after its white space leaves out only white space
       // that touches the unit it keeps, which the scan doesn't name.
-      expect(getGeckoLineBreaks('ab  \u200Ecd', false, false, 'gecko/char').collapsed).toBeNull()
+      expect(getGeckoLineBreaks('ab  \u200Ecd', false, false, 'gecko/char').leftOut).toBeNull()
       // A run that goes on into the text's trailing white space keeps its first white space, where
       // its segment break comes after a soft hyphen: with the trailing white space left out, a rich
       // item's text still holds the run's one space. A run that keeps its first white space
@@ -1072,6 +1072,18 @@ describe('boundary-policy regressions', () => {
       expect(segments('ab \u00AD\n')).toEqual(['ab', ' ', '\u00AD'])
       expect(segments('ab \u00AD\n\u2066 cd')).toEqual(['ab', '\u00AD', ' \u2066', 'cd'])
       expect(segments('ab \u00AD \u00AD ')).toEqual(['ab', ' ', '\u00AD\u00AD'])
+      // A CR or FF takes no room, as Firefox's text run gives it no advance, and a line can
+      // end where it was. It is no white space of a run, so the white space on its two sides
+      // is two runs, which keep a space each through a control, and CRLF is one space.
+      expect(segments('ab\rcd')).toEqual(['ab', 'cd'])
+      expect(lines('ab\fcd', measureWidth('ab', FONT))).toEqual(['ab', 'cd'])
+      expect(segments('ab\r\ncd')).toEqual(['ab', ' ', 'cd'])
+      expect(segments('ab\r\u200E cd')).toEqual(['ab\u200E', ' ', 'cd'])
+      expect(segments('ab \u200E\fcd')).toEqual(['ab', ' \u200E', 'cd'])
+      expect(segments('ab\r\u200E\rcd')).toEqual(['ab\u200E', 'cd'])
+      expect(segments('ab \u200E\r\ncd')).toEqual(['ab', ' \u200E ', 'cd'])
+      expect(segments('ab\r\n\u00AD cd')).toEqual(['ab', ' ', '\u00AD', 'cd'])
+      expect(prepareWithSegments('ab\rcd', FONT, { whiteSpace: 'pre-wrap' }).segments).toEqual(['ab', '\n', 'cd'])
       // Controls, and soft hyphens before them, take no letter spacing.
       expect(prepareWithSegments('a\u200Eb', FONT, { letterSpacing: 2 }).widths).toEqual([measureWidth('ab', FONT) + 2])
       expect(prepareWithSegments('a\u00AD\u200Eb', FONT, { letterSpacing: 2 }).widths).toEqual([measureWidth('a\u00AD\u200Eb', FONT) + 2])
@@ -1251,10 +1263,10 @@ describe('boundary-policy regressions', () => {
           // The ZWSP must touch the run, and the run must contain a newline.
           ['ab\n\u2060\u200Bcd', 'ab \u2060\u200Bcd', 'ab \u2060\u200Bcd', 'ab \u2060\u200Bcd'],
           ['ab \u200Bcd', 'ab \u200Bcd', 'ab \u200Bcd', 'ab \u200Bcd'],
-          // CR joins Blink's run only. FF joins neither run and still collapses.
+          // CR joins Blink's run only. FF joins neither run, and takes no room in Firefox.
           ['ab\u200B\r\ncd', 'ab\u200B cd', 'ab\u200Bcd', 'ab\u200B cd'],
           ['ab\u200B\f\ncd', 'ab\u200B cd', 'ab\u200B cd', 'ab\u200B cd'],
-          ['ab\u200B\n\fcd', 'ab\u200B cd', 'ab\u200B cd', 'ab\u200B cd'],
+          ['ab\u200B\n\fcd', 'ab\u200B cd', 'ab\u200B cd', 'ab\u200Bcd'],
           // Gecko's run continues through SHY without ending on one, and leaves
           // out a last SPACE before a combining mark.
           ['ab\u200B\n\u00AD\ncd', 'ab\u200B \u00AD cd', 'ab\u200B\u00AD cd', 'ab\u200B\u00ADcd'],

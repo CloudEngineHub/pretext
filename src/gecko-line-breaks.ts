@@ -107,9 +107,9 @@ function isInvalidChar(ch: number): boolean {
 
 // Whether the text run leaves out a bidi control, which only 16-bit text does (IsDiscardable), is
 // noted as it leaves them out, as IsDiscardable notes a soft hyphen (HasShy): testing the text for
-// one before the scan costs every text a pass (RESEARCH.md, Keeping Work Bounded). `collapsed` is
+// one before the scan costs every text a pass (RESEARCH.md, Keeping Work Bounded). `leftOut` is
 // GeckoLineBreaks'.
-type Transformed = { text: string, orig: Int32Array, skipped: Uint8Array, collapsed: Uint8Array | null, dropsBidiControl: boolean }
+type Transformed = { text: string, orig: Int32Array, skipped: Uint8Array, leftOut: Uint8Array | null, dropsBidiControl: boolean }
 
 // IsDiscardable, nsTextFrameUtils.cpp:32-49
 export function isDiscardable(ch: number, is8bit: boolean): boolean {
@@ -163,20 +163,20 @@ export function isEastAsianSegmentBreak(text: string, start: number, end: number
 // :2590-2592), and bidi resolution splits a text node into a frame for each level run
 // (nsBidiPresUtils.cpp:1037-1053). A frame that starts at a character the text run drops ends
 // the white-space run there (nsTextFrameUtils.cpp:370-379), and the first line trims the white
-// space a frame starts with while the line holds nothing (nsTextFrame.cpp:10904-10944). Among
-// white space and dropped characters only a bidi control starts a level run, and whether one
-// does turns on the paragraph's direction, which Pretext doesn't take: after a space, U+200F
-// between Latin words starts one in a left-to-right paragraph and none in a right-to-left one,
-// and U+200E between Hebrew words the other way around. So a white-space run reads through
-// every character the text run drops. That is Firefox's run wherever the control keeps the
-// level of the white space before it, as a mark of the paragraph's own direction does outside
-// an embedding or isolate; ENGINE_FOLLOWUPS.md, White space and controls, has the rest.
+// space a frame starts with while the line holds nothing (nsTextFrame.cpp:10904-10944). A
+// dropped character starts a frame only where it is a bidi control that starts a level run, and
+// whether one does turns on the paragraph's direction, which Pretext doesn't take: after a
+// space, U+200F between Latin words starts one in a left-to-right paragraph and none in a
+// right-to-left one, and U+200E between Hebrew words the other way around. So a white-space run
+// reads through every character the text run drops. That is Firefox's run wherever the control
+// keeps the level of the white space before it, as a mark of the paragraph's own direction does
+// outside an embedding or isolate; ENGINE_FOLLOWUPS.md, White space and controls, has the rest.
 function transformText(input: string, is8bit: boolean, preserveWhiteSpace: boolean): Transformed {
   const len = input.length
   // The source index of each kept unit.
   const orig = new Int32Array(len)
   const skipped = new Uint8Array(len)
-  let collapsed: Uint8Array | null = null
+  let leftOut: Uint8Array | null = null
   let n = 0
   let dropsBidiControl = false
   if (preserveWhiteSpace) {
@@ -197,6 +197,13 @@ function transformText(input: string, is8bit: boolean, preserveWhiteSpace: boole
     while (i < len) {
       const ch = input.charCodeAt(i)
       if (!isSpaceOrTabOrSegmentBreak(ch) && !isDiscardable(ch, is8bit)) {
+        // A CR or FF is no white space to TransformText (:51-57), so it ends a white-space run and
+        // stays in the text run, which gives it no glyph and no advance: it skips a control
+        // character it doesn't draw as a hexbox, which is never CR and, in release and beta builds,
+        // no other one either (gfxFont::SplitAndInitTextRun, gfxFont.cpp:3620-3627 and :3874-3892;
+        // layout.css.control-characters.visible, StaticPrefList.yaml:10926-10928). Every Canvas
+        // measures it as a space, so a layout of the source leaves it out.
+        if (ch === 0x0d || ch === 0x0c) (leftOut ??= new Uint8Array(len))[i] = 1
         orig[n++] = i
         inWhitespace = false
         i++
@@ -230,7 +237,7 @@ function transformText(input: string, is8bit: boolean, preserveWhiteSpace: boole
             skipped[k] = 1
             // Where the run reads through a dropped character, white space it leaves out may not
             // touch the unit it keeps, so collapsing adjacent white space wouldn't drop it.
-            if (dropped > trailingDiscardables) (collapsed ??= new Uint8Array(len))[k] = 1
+            if (dropped > trailingDiscardables) (leftOut ??= new Uint8Array(len))[k] = 1
           } else {
             orig[n++] = k
             inWhitespace = true
@@ -270,7 +277,7 @@ function transformText(input: string, is8bit: boolean, preserveWhiteSpace: boole
     }
   }
   text += input.slice(sliceStart, sliceEnd)
-  return { text, orig: orig.subarray(0, n), skipped, collapsed, dropsBidiControl }
+  return { text, orig: orig.subarray(0, n), skipped, leftOut, dropsBidiControl }
 }
 
 // IsTrimmableSpace, nsTextFrame.cpp:921-942, in normal white space.
@@ -704,11 +711,11 @@ function getBreakStates(line: LineData, text: string, is8bit: boolean, afterLead
 // right after a soft hyphen adds SOFT_HYPHEN_BREAK: BreakAndMeasureText takes it as the normal
 // break, which neither fits nor draws a hyphen (gfxTextRun.cpp:1053-1063). A CLUSTER_START marks
 // where a cluster starts without a break, where only break-word can wrap (gfxTextRun.cpp:1068-1074).
-// The breaks, whether the text run left out a bidi control, and 1 at each white-space unit that a
-// layout of the source leaves out as the text run does, or null where there is none: white space
-// the text run collapsed in a run that read past a character it drops, which collapsing each run
-// of adjacent white space doesn't find (transformText).
-export type GeckoLineBreaks = { breaks: Uint8Array, collapsed: Uint8Array | null, dropsBidiControl: boolean }
+// The breaks, whether the text run left out a bidi control, and 1 at each unit that a layout of
+// the source leaves out where collapsing each run of adjacent white space wouldn't, or null where
+// there is none: white space the text run collapsed in a run that read past a character it drops,
+// and a CR or FF in normal white space, which the text run keeps with no advance (transformText).
+export type GeckoLineBreaks = { breaks: Uint8Array, leftOut: Uint8Array | null, dropsBidiControl: boolean }
 
 export function getGeckoLineBreaks(
   source: string,
@@ -718,13 +725,13 @@ export function getGeckoLineBreaks(
 ): GeckoLineBreaks {
   const len = source.length
   const flags = new Uint8Array(len + 1)
-  if (len === 0) return { breaks: flags, collapsed: null, dropsBidiControl: false }
+  if (len === 0) return { breaks: flags, leftOut: null, dropsBidiControl: false }
   let is8bit = true
   for (let i = 0; i < len && is8bit; i++) is8bit = source.charCodeAt(i) < 0x100
   // CharacterDataBuffer::SetTo stores 1b text when every unit is below 256 (CharacterDataBuffer.cpp:235-286).
   const tr = transformText(source, is8bit, preserveWhiteSpace)
   const n = tr.text.length
-  if (n === 0) return { breaks: flags, collapsed: tr.collapsed, dropsBidiControl: tr.dropsBidiControl }
+  if (n === 0) return { breaks: flags, leftOut: null, dropsBidiControl: tr.dropsBidiControl }
 
   // The text run is built before the break sinks are set up (nsTextFrame.cpp:2860-2864), in one
   // piece unless bidi levels split it where that matters.
@@ -773,5 +780,5 @@ export function getGeckoLineBreaks(
       flags[rawPos] = CLUSTER_START
     }
   }
-  return { breaks: flags, collapsed: tr.collapsed, dropsBidiControl: tr.dropsBidiControl }
+  return { breaks: flags, leftOut: tr.leftOut, dropsBidiControl: tr.dropsBidiControl }
 }

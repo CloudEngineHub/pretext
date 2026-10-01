@@ -90,8 +90,9 @@ function isSegmentBreakRunSpace(code: number, scan: AnalysisProfile['lineBreakSc
 // - Gecko: SPACE, TAB and LF, continuing through the characters Gecko discards
 //   (SHY and bidi controls) without ending on one, and leaving out a last SPACE
 //   before a combining sequence tail. Text holding a ZWSP is 16-bit in Gecko.
-// Characters outside the run, such as FF, keep the ordinary collapse. `removed`, when given,
-// takes the index of each unit removed, in order.
+// Characters outside the run, such as FF, keep the ordinary collapse, or take no room in the
+// Gecko profile (analyzeText). `removed`, when given, takes the index of each unit removed, in
+// order.
 export function removeSkippableSegmentBreaks(text: string, profile: AnalysisProfile, language: string | null = null, removed: number[] | null = null): string {
   const scan = profile.lineBreakScan
   if (scan === 'webkit' || !text.includes('\n')) return text
@@ -414,23 +415,26 @@ export function analyzeText(
       // (TransformWhiteSpaces, nsTextFrameUtils.cpp:151-193); the scan takes the text as one text
       // frame (transformText in src/gecko-line-breaks.ts). The white space the scan's text run left
       // out of such a run leaves the source too, and so does white space before only bidi controls
-      // at the end, which the line end trims. A break is never at white space, so the other units
-      // keep theirs. Where the white space right after a soft hyphen leaves, the break after it
-      // stays that white space's, which draws no hyphen (SOFT_HYPHEN_BREAK): Gecko hyphenates only
-      // at a soft hyphen that ends what its text run left out (GetHyphenationBreaks,
-      // nsTextFrame.cpp:4436-4442).
-      const trailing = !preserve && (dropsBidiControl || gecko.collapsed !== null) ? getTrailingCollapsibleStart(source, 0, profile) : source.length
-      if (gecko.collapsed !== null || trailing < source.length) {
+      // at the end, which the line end trims, and a CR or FF, which ends a run and takes no room.
+      // A break is never at white space, and the unit after a CR or FF that had one has its own
+      // unless it is a combining mark, so the other units keep theirs. Where the white space right
+      // after a soft hyphen leaves, the break after it stays that white space's, which draws no
+      // hyphen (SOFT_HYPHEN_BREAK): Gecko hyphenates only at a soft hyphen that ends what its text
+      // run left out (GetHyphenationBreaks, nsTextFrame.cpp:4436-4443).
+      const leftOut = gecko.leftOut
+      const trailing = !preserve && (dropsBidiControl || leftOut !== null) ? getTrailingCollapsibleStart(source, 0, profile) : source.length
+      if (leftOut !== null || trailing < source.length) {
         // A run that goes on into that trailing white space and keeps its one white space there, as
         // a segment break after a soft hyphen, keeps its first white space instead: the text before
         // the trailing white space holds the run's space, as rich inline takes an item's to
-        // (whitespaceRunOpen in src/rich-inline.ts).
+        // (whitespaceRunOpen in src/rich-inline.ts), a CR or FF there too, which rich inline reads
+        // as an item's white space.
         let runSpace = -1
-        if (gecko.collapsed !== null) {
-          for (let i = trailing - 1; i >= 0 && trailing < source.length; i--) {
+        if (leftOut !== null && trailing < source.length) {
+          for (let i = trailing - 1; i >= 0; i--) {
             const code = source.charCodeAt(i)
             if (!isCollapsibleSpaceCode(code) && !isDiscardable(code, false)) break
-            if (isCollapsibleSpaceCode(code) && gecko.collapsed[i] !== 1) {
+            if (isCollapsibleSpaceCode(code) && leftOut[i] !== 1) {
               runSpace = -1
               break
             }
@@ -438,13 +442,13 @@ export function analyzeText(
           }
         }
         // Only the units from the first one that leaves move.
-        const from = gecko.collapsed === null ? trailing : 0
+        const from = leftOut === null ? trailing : 0
         let kept = ''
         let copied = 0
         let count = from
         let last = from - 1
         for (let i = from; i < source.length; i++) {
-          if (i < trailing ? gecko.collapsed !== null && gecko.collapsed[i] === 1 && i !== runSpace : isCollapsibleSpaceCode(source.charCodeAt(i))) {
+          if (i < trailing ? leftOut !== null && leftOut[i] === 1 && i !== runSpace : isCollapsibleSpaceCode(source.charCodeAt(i))) {
             kept += source.slice(copied, i)
             copied = i + 1
             continue
