@@ -470,7 +470,7 @@ export function hostAgreement(root: string): string {
     if (lineEnds(other) !== lineEnds(recording)) differ.push(id)
     else if (recordingText(other) !== recordingText(recording)) widths++
   }
-  return `webkit-host against installed Safari: ${shared - differ.length} of the ${shared} cases both pin have the same lines${differ.length > 0 ? `; otherwise: ${shown(differ)}` : ''}${widths > 0 ? `; ${widths} more differ only in line widths or height` : ''}`
+  return `webkit-host against installed Safari: ${shared - differ.length} of the ${shared} cases both pin have the same lines${widths > 0 ? `, ${widths} of them with other line widths or height` : ''}${differ.length > 0 ? `; otherwise: ${shown(differ)}` : ''}`
 }
 
 // ---- equal and explain ----

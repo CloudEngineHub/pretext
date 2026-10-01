@@ -721,7 +721,7 @@ describe('the commands, with a stand-in browser', () => {
     const wider: Recording = { lines: laidOut.lines.map(line => ({ ...line, width: line.width + 1 })), height: laidOut.height }
     writeRecordings(recordingsPath(root, 'webkit-host'), { env: 'host', recordings: new Map([['same', laidOut], ['moved', laidOut], ['wider', laidOut], ['host-only', laidOut]]) })
     writeRecordings(recordingsPath(root, 'safari'), { env: 'safari', recordings: new Map([['same', laidOut], ['moved', other], ['wider', wider], ['sample-only', laidOut]]) })
-    expect(hostAgreement(root)).toBe('webkit-host against installed Safari: 2 of the 3 cases both pin have the same lines; otherwise: moved; 1 more differ only in line widths or height')
+    expect(hostAgreement(root)).toBe('webkit-host against installed Safari: 2 of the 3 cases both pin have the same lines, 1 of them with other line widths or height; otherwise: moved')
   })
 
   test('equal counts a moved line, other line text, another disagreement and another Canvas call after preparing as a difference, and lists a case that varies between runs apart: a change to src/ or the adapter would show nothing, or main against itself differ', async () => {
