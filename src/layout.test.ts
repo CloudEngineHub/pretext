@@ -380,9 +380,12 @@ describe('shared public contracts', () => {
     }
   })
 
-  test('a NaN or missing width lays out as an unbounded one in every line API', () => {
+  test('a NaN or missing width breaks lines as an unbounded one', () => {
     // layout() counts the first text in its own loop, the second, where the scan gives
-    // no break at NEL, with the simple stepper, and the rest with the full walker.
+    // no break at NEL, with the simple stepper, and the rest with the full walker. None
+    // holds one of the three exceptions (ENGINE_FOLLOWUPS.md, Small ones): the pre-wrap
+    // text has no spaces before its newline or its end, no streamed line starts inside
+    // a segment, and the rich items hold no soft hyphen.
     for (const [text, options, walkFastPath, countFastPath] of [
       ['aaaa bbbb 中文字', {}, true, true],
       ['aaaa\u0085bbbb cccc', {}, false, true],

@@ -288,7 +288,11 @@ export function countPreparedLines(prepared: PreparedLineBreakData, maxWidth: nu
       // A segment that fits only by its line-end trim ends the line, as the full
       // width it adds leaves no room after it. The test is for overflow, here and
       // for a line's first segment, as in the walkers: a width that isn't a number
-      // overflows nothing, so it lays out as an unbounded one.
+      // overflows nothing, so its lines break as an unbounded width's. Three places
+      // ask whether something fits instead, which nothing does at NaN: a pre-wrap
+      // line's hanging spaces then give a NaN width, a stream's line that starts
+      // inside a segment with entry geometry ends after one grapheme, and rich
+      // inline walks an item it would take whole (ENGINE_FOLLOWUPS.md, Small ones).
       if (!(lineW + w - endTrim > fitLimit)) {
         lineW += w
         continue
