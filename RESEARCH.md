@@ -920,7 +920,7 @@ rest of the object's width (#201), which lays out as the box does in every engin
 stand-in Canvas fuzz of 220,000 layouts found no difference, 2026-09-30). A box of width 0 is a box, with a break on
 both sides, as an empty inline-block of width 0 is; Firefox places one wherever it falls, even on a line that already
 overflows (`CanPlaceFrame`, `nsLineLayout.cpp:1264-1269`), as the Gecko profile does for any atomic item of width 0
-(`paddedOpeningFit`, whose `'both'` ports that function), where Chrome and Safari move it to the next line. A negative width is refused, as one that isn't finite is. An
+(`emptyAtomicAlwaysFits`), where Chrome and Safari move it to the next line. A negative width is refused, as one that isn't finite is. An
 inline-block of width 0 with a negative right margin lays out as a negative `extraWidth` does in Firefox 156.0.1 and
 webkit-host, but Chrome 154.0.8037.57 ends a line at a space that overflows before it and starts the next line with the
 box, where the negative width would bring the line back within its width, and fits a word after it that rich inline
@@ -1403,9 +1403,11 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   field of a constant value, which adds no bytecode, as main, and the 463-byte one as main with
   `--max-inlined-bytecode-size=470`. So the accessor is a function apart from `buildEngineProfile()`, 21 bytes whatever
   the profile holds, which both of V8's optimizing tiers inline in Chrome 154, into the full walker too (Maglev takes no
-  function over 100 bytes, and TurboFan left the 454 bytes a call there). Node's times are a lead only: what the split
-  does to Chrome's is the bench's to say (#TBD, 2026-09-30). No other function inlined while preparing and laying out
-  the bench's mixed and rich texts takes over 374 bytes (`getMarkContext()`, above).
+  function over 100 bytes, and TurboFan left the 454 bytes a call there), and the Gecko rule for an atomic item of width
+  0, which read `paddedOpeningFit` to keep the profile at 23 fields, has a field of its own (`emptyAtomicAlwaysFits`).
+  With both, Node read mixed stats, walk and stream 6-8% faster than main and the other rows within 2%. Node's times are
+  a lead only: what the split does to Chrome's is the bench's to say (#TBD, 2026-09-30). No other function inlined while
+  preparing and laying out the bench's mixed and rich texts takes over 374 bytes (`getMarkContext()`, above).
 - **Class fields in Firefox**: any class field seems to make Firefox 156 compile the whole bundle up front, 4.5-4.8ms on
   a fresh page against 1.9-2.2ms with plain objects, or with the fields emptied or set in constructors; V8 and
   JavaScriptCore didn't care (#340, 2026-09-23).

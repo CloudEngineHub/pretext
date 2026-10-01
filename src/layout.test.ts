@@ -4071,7 +4071,7 @@ describe('rich-inline invariants', () => {
           }
         }
         // Firefox places a box of width 0 where it falls, even after a space that doesn't fit, where
-        // Chrome and Safari move it to the next line (paddedOpeningFit 'both', Gecko's CanPlaceFrame).
+        // Chrome and Safari move it to the next line (emptyAtomicAlwaysFits, Gecko's CanPlaceFrame).
         const prepared = prepareRichInline([text('ab '), { width: 0 }, text('cd')])
         const fragments: number[] = []
         walkRichInlineLineRanges(prepared, measureWidth('ab', FONT) + 1, range => { fragments.push(range.fragments.length) })

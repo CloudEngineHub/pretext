@@ -196,14 +196,19 @@ export type EngineProfile = {
   // so it fits the end edge too of an item of white space that ends there, and leaves white space
   // that hangs before the box out of the fit (hangingContentWidth, InlineContentBreaker.cpp:
   // 183-186, 956-958): 'placed'. Gecko fits a frame's whole width, its cloned end edge too, and
-  // lets only an empty frame past the line's end (CanPlaceFrame, nsLineLayout.cpp:1217-1270),
-  // wherever it falls, so an atomic item of width 0 stays on a line that already overflows: 'both'. In 15px Helvetica Neue, `Unbreakable` and a span with 20px padding that starts with a
+  // lets only an empty frame past the line's end (CanPlaceFrame, nsLineLayout.cpp:1217-1270):
+  // 'both'. In 15px Helvetica Neue, `Unbreakable` and a span with 20px padding that starts with a
   // line feed keep the line feed from 107px in Chrome and Safari, from 127px in Firefox, and
   // `Unbreakable   ` and that span from 86px in Chrome, 105px in Safari and 138px in Firefox;
   // `Ping `, the chip `@alice` and a span with 12px padding that starts with two spaces keep them
   // on the chip's line from 71px in Chrome and Safari and from 83px in Firefox, and one of only
   // two spaces at every width in Chrome and from 117px in Safari and Firefox.
   paddedOpeningFit: 'start' | 'placed' | 'both'
+  // Gecko places a frame whose margin box is empty wherever it falls, on a line that already
+  // overflows too ("Empty frames always fit right where they are", CanPlaceFrame,
+  // nsLineLayout.cpp:1264-1269), so an atomic item of width 0 stays on the line it falls on.
+  // Blink and WebKit fit it as any other atomic inline and move it to the next line.
+  emptyAtomicAlwaysFits: boolean
   // Blink transforms segment breaks in the text of the whole inline formatting context
   // (ShouldRemoveNewline and RemoveTrailingCollapsibleNewlineIfNeeded, inline_items_builder.cc).
   // Gecko transforms each text frame's own text (nsTextFrameUtils::TransformText), as
@@ -466,6 +471,7 @@ function buildEngineProfile(): EngineProfile {
     breaksFromItemText: engine === 'webkit',
     hardBreakItemRetreat: engine === 'blink' ? 'item' : engine === 'webkit' ? 'fit' : 'last-grapheme',
     paddedOpeningFit: engine === 'blink' ? 'start' : engine === 'webkit' ? 'placed' : 'both',
+    emptyAtomicAlwaysFits: engine === 'gecko',
     transformsSegmentBreaksAcrossItems: engine === 'blink',
   }
 }
