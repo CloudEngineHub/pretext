@@ -362,6 +362,34 @@ describe('shared public contracts', () => {
     }
   })
 
+  test('a NaN or missing width lays out as an unbounded one in every line API', () => {
+    // layout() counts the first text in its own loop, the second, where the scan gives
+    // no break at NEL, with the simple stepper, and the rest with the full walker.
+    for (const [text, options, walkFastPath, countFastPath] of [
+      ['aaaa bbbb 中文字', {}, true, true],
+      ['aaaa\u0085bbbb cccc', {}, false, true],
+      ['aaaa bb­bb cccc', {}, false, false],
+      ['aaaa bbbb\ncccc', { whiteSpace: 'pre-wrap' }, false, false],
+      ['aaaa bbbb cccc', { letterSpacing: 1 }, false, false],
+    ] as const) {
+      const prepared = prepareWithSegments(text, FONT, options)
+      expect([prepared.simpleLineWalkFastPath, prepared.simpleLineCountFastPath]).toEqual([walkFastPath, countFastPath])
+      const unbounded = layoutWithLines(prepared, Infinity, LINE_HEIGHT)
+      expect(unbounded.lineCount).toBe(text.includes('\n') ? 2 : 1)
+      for (const width of [NaN, undefined as unknown as number]) {
+        expect(layout(prepare(text, FONT, options), width, LINE_HEIGHT)).toEqual({ lineCount: unbounded.lineCount, height: unbounded.height })
+        expect(layoutWithLines(prepared, width, LINE_HEIGHT)).toEqual(unbounded)
+        expect(measureLineStats(prepared, width)).toEqual(measureLineStats(prepared, Infinity))
+        expect(collectStreamedLines(prepared, width)).toEqual(unbounded.lines)
+      }
+    }
+    const rich = prepareRichInline([{ text: 'aaaa bbbb ', font: FONT }, { text: 'cccc 中文字', font: FONT, extraWidth: 4 }])
+    for (const width of [NaN, undefined as unknown as number]) {
+      expect(measureRichInlineStats(rich, width)).toEqual(measureRichInlineStats(rich, Infinity))
+      expect(layoutNextRichInlineLineRange(rich, width)).toEqual(layoutNextRichInlineLineRange(rich, Infinity))
+    }
+  })
+
   test('numeric layout APIs do not measure text after preparation', () => {
     const text = 'foo trans­atlantic 世界\n\tbar'
     const options = { whiteSpace: 'pre-wrap' } as const

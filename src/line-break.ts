@@ -286,8 +286,10 @@ export function countPreparedLines(prepared: PreparedLineBreakData, maxWidth: nu
     const endTrim = lineEndTrims === null ? 0 : lineEndTrims[i]!
     if (hasContent) {
       // A segment that fits only by its line-end trim ends the line, as the full
-      // width it adds leaves no room after it.
-      if (lineW + w - endTrim <= fitLimit) {
+      // width it adds leaves no room after it. The test is for overflow, here and
+      // for a line's first segment, as in the walkers: a width that isn't a number
+      // overflows nothing, so it lays out as an unbounded one.
+      if (!(lineW + w - endTrim > fitLimit)) {
         lineW += w
         continue
       }
@@ -301,7 +303,7 @@ export function countPreparedLines(prepared: PreparedLineBreakData, maxWidth: nu
 
     const startW = lineStartExtras === null ? w : w + lineStartExtras[i]!
     const advances = breakableFitAdvances[i] as number[] | null
-    if (startW - endTrim <= fitLimit || advances === null) {
+    if (!(startW - endTrim > fitLimit) || advances === null) {
       lineW += startW
       hasContent = true
       continue
