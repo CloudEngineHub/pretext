@@ -1763,21 +1763,30 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   Pretext's took 10-83 µs to compile in d8 15.4.80, the shell of Chrome 154's V8, and 8-65 µs in SpiderMonkey 156.0.1's
   shell, where a literal of plain ranges, or of binary properties alone (`Emoji`, `Default_Ignorable_Code_Point`), whose
   sets the engines keep, took 2-4 µs. Main held 31 expressions with property classes, 28 literals and three
-  `new RegExp()` calls at module scope, and the bench's chat messages test four to ten of them, by engine; the six #397
-  added read as 0.2 ms of a fresh page's compile in Chrome 154 and Firefox 156. So the 16 that most text never reaches
-  are built at first use (`lazyRegExp()`, `src/line-breaks.ts`): the seven tests behind `hasProperty()`, the cursive
-  rule's six, and three that follow a rarer test (a control segment under letter spacing, and in the WebKit profile a
-  word that ends in a format character). It costs 6 code lines. Offline, the bench's bundle then compiled in 1.27-1.31
-  ms against 1.73-1.82 in d8 and in 1.07-1.13 ms against 1.40-1.47 in the SpiderMonkey shell, and ran 0.01-0.04 ms
-  longer in both and in Bun 1.4's JavaScriptCore, whose compile didn't move (a page in a process that had loaded the
-  bundle before, as the bench's fresh pages after the first are; medians of 60 pages for each of five families). In a
+  `new RegExp()` calls at module scope, and the bench's chat messages test four to ten of them, by engine. So the 16
+  that most text never reaches are built at first use (`lazyRegExp()`, `src/line-breaks.ts`): the seven tests behind
+  `hasProperty()`, the cursive rule's six, and three that follow a rarer test (a control segment under letter spacing,
+  and in the WebKit profile a word that ends in a format character). It costs 6 code lines. In the bench, a fresh page
+  then compiled the bundle in 1.33-1.36 ms against 1.72-1.76 in Chrome 154 and in 2.73-2.79 ms against 3.03-3.12 in
+  Firefox 156, which also ran it in 0.12 ms against 0.26-0.28: the cursive rule's three `new RegExp()` calls, which
+  #397 added, no longer run with the module (with that rule's six alone built at first use, Firefox's run read 0.08 ms).
+  Chrome ran it 0.01 ms longer. Safari 27.0 compiled it as before (1.24-1.26 ms against 1.23-1.27) and ran it in
+  0.51-0.54 ms against 0.46-0.48, the 16 closures and 13 `String.raw` calls for nothing in return (ordinary strings with
+  doubled backslashes read 0.01 ms shorter offline). So a page loads about 0.4 ms sooner in Chrome and 0.45 ms in
+  Firefox, and about 0.06 ms later in Safari. The first batches of messages took as long as main's, and every
+  `prepare()` row on seen text and on the worst-case shapes read within noise in the three browsers (two sessions, five
+  families, against main as of #399). The shells had shown the compile beforehand: offline, the bundle compiled in
+  1.27-1.31 ms against 1.73-1.82 in d8 and in 1.07-1.13 ms against 1.40-1.47 in the SpiderMonkey shell, and ran
+  0.01-0.04 ms longer in both and in Bun 1.4's JavaScriptCore, whose compile didn't move (a page in a process that had
+  loaded the bundle before; medians of 60 pages for each of five families). They missed Firefox's shorter run there,
+  since a shell process seems to keep the expressions it has made; a new process showed it (0.49 ms against 0.64). In a
   new process, where nothing has built a set yet, compiling and running it read 2.1 ms against 3.7 in d8, 1.9 against
   2.5 in the SpiderMonkey shell and 1.7 against 1.8 in Bun (medians of 25, 25 and 15 processes). The bench doesn't show
-  that: its Chrome pages run the bundle in 0.06-0.07 ms, as a d8 process that has loaded it before does (0.03 ms), where
-  a new one takes 1.3 ms. The first batches of messages took as long as main's. `prepare()` read within 1.4% of main on
-  seen and on new Latin, Arabic and mixed messages in the three shells, where two copies of main read within 1.6%, and
-  within 1.3% on four of the bench's worst-case shapes in d8 and the SpiderMonkey shell (Bun's runs of those were
-  noisier, two copies of main up to 5% apart). On letter-spaced Arabic, where the cursive rule's expressions are fetched
+  that case for Chrome: its pages run the bundle in 0.06-0.07 ms, as a d8 process that has loaded it before does (0.03
+  ms), where a new one takes 1.3 ms. Offline, `prepare()` read within 1.4% of main on seen and on new Latin, Arabic and
+  mixed messages in the three shells, where two copies of main read within 1.6%, and within 1.3% on four of the bench's
+  worst-case shapes in d8 and the SpiderMonkey shell (Bun's runs of those were noisier, two copies of main up to 5%
+  apart). On letter-spaced Arabic, which the bench has no row for and where the cursive rule's expressions are fetched
   for every character, d8 read 0.6-1.2% slower and Bun under the Blink profile 2.7%. Fifteen literals stay. Six hold
   only binary properties and cost nothing to parse. Four are tested for every segment of ordinary text, so every page
   builds them anyway (`combiningMarkRe`, `numericRunRe`, Gecko's `controlCharacterRe`, WebKit's
@@ -1785,10 +1794,10 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   and as main with it a literal. Five are tested for every segment or mark of a worst-case shape, the three of
   `getMarkContext()`'s mark runs and Han kerning's two: with them built at first use too, the keep-all CJK brackets
   shape read 1.5% slower in d8 (0.1-3.3% over 12 processes) and 2.8% in Bun (from 2.0% faster to 4.7% slower over 8),
-  which isn't shown free, and they cost a page about 0.07 ms of compile in d8 and 0.04 ms in the SpiderMonkey shell.
-  Every number here is from a shell on a stand-in Canvas, a hypothesis until the bench's fresh rows show it (the PR has
-  them). A new expression with such a class that most text never reaches goes through `lazyRegExp()`; one tested per
-  segment stays a literal. Reopens if the bench reads the worst-case rows level with those five built at first use.
+  which isn't shown free, and they cost a page about 0.07 ms of compile in d8 and 0.04 ms in the SpiderMonkey shell. The
+  shells' numbers are hypotheses, on a stand-in Canvas; the browsers' are the bench's, whose tables are in the PR. A new
+  expression with such a class that most text never reaches goes through `lazyRegExp()`; one tested per segment stays a
+  literal. Reopens if the bench reads the worst-case rows level with those five built at first use.
 - **A loop slows once a check in it has held**: a check in the counter's loop that handed unbroken-boundary lines to the
   full walker slowed counting all other text up to 1.6 times in Firefox and 1.3 in Chrome, though the check alone cost
   nothing (#350, 2026-09-26).
