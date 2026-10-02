@@ -416,13 +416,9 @@ export function measureAnalysis(
   let simpleKinds = !hasLetterSpacing
   const breakableFitAdvances: (number[] | null)[] = []
   let entryGeometry: (SegmentEntryGeometry | null)[] | null = null
-  let lineStartProhibitions: (number[] | null)[] | null = null
-  // When not even the first character of an overflowing word fits an empty line,
-  // WebKit keeps the punctuation, NBSP, U+2010 and U+2013 after that character on the
-  // line, in text holding a code unit above U+00FF (InlineContentBreaker.cpp:124-158,
-  // 222-233), by its scan's line-start table. Blink and Gecko end the line after the
-  // first grapheme.
-  const keepsLineStartPunctuation = engineProfile.lineBreakScan === 'webkit' && /[\u0100-\uFFFF]/.test(normalized)
+  let lineStartProhibitions: (Uint8Array | null)[] | null = null
+  // WebKit's line-start rule applies only in text holding a code unit above U+00FF.
+  const keepsLineStartPunctuation = engineProfile.keepsLineStartPunctuation && /[\u0100-\uFFFF]/.test(normalized)
   const segments = includeSegments ? [] as string[] : null
   let discretionaryHyphenContexts: number[] | null = null
   let previousJoinablePiece: string | null = null
@@ -475,7 +471,7 @@ export function measureAnalysis(
     let spacingGraphemeCount = 0
     let fitAdvances: number[] | null = null
     let entry: SegmentEntryGeometry | null = null
-    let prohibitions: number[] | null = null
+    let prohibitions: Uint8Array | null = null
     switch (kind) {
       case TEXT: {
         // A control the engine hides takes no advance, only letter spacing.
@@ -523,7 +519,7 @@ export function measureAnalysis(
           : textMetrics.width >= engineProfile.prefixFitMinWidth ? 'segment-prefixes'
           : 'sum-graphemes'
         const fit = getSegmentFit(text, textMetrics, fontMeasurement, emojiCorrection, fitMode,
-          measuredWithSpace ? spaceWidth : null, engineProfile.lineBreakScan === 'webkit')
+          measuredWithSpace ? spaceWidth : null, engineProfile.keepsLineStartPunctuation)
         fitAdvances = fit.advances
         if (fitAdvances === null) break
         // The cached advances are shared by every occurrence of this text; only

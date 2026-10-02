@@ -33,9 +33,9 @@ export type PreparedLineBreakData = {
   simpleLineCountFastPath: boolean
   breakableFitAdvances: (number[] | null)[] // Per-grapheme fit advances for breakable segments, else null
   entryGeometry: (SegmentEntryGeometry | null)[] | null // Per segment, how its tails fit on a fresh line; null without any
-  // Per segment with breakable fit advances, the graphemes that can't start a line, which
-  // a line holding only an overflowing first grapheme keeps. Null without any.
-  lineStartProhibitions: (number[] | null)[] | null
+  // Per segment with breakable fit advances, per grapheme, 1 for one that can't start a
+  // line, which a line holding only an overflowing first grapheme keeps. Null without any.
+  lineStartProhibitions: (Uint8Array | null)[] | null
   // Per segment, width a line that starts with it adds back, which its width leaves out
   // after the text before it, as Blink's halt of an opening mark (src/han-kerning.ts).
   // Null without any.
@@ -157,7 +157,7 @@ function getOverflowingFirstGraphemeEnd(
 ): number {
   const prohibitions = prepared.lineStartProhibitions?.[segmentIndex] ?? null
   let end = graphemeIndex + 1
-  while (prohibitions !== null && end < endGraphemeIndex && prohibitions.includes(end)) end++
+  while (prohibitions !== null && end < endGraphemeIndex && prohibitions[end] === 1) end++
   return end
 }
 
@@ -202,6 +202,16 @@ function getTerminalLetterSpacing(
   }
 
   return 0
+}
+
+// The width a paragraph is laid out at: one that isn't a number, such as the `undefined`
+// of a container not measured yet, is unbounded. Every comparison fails at `NaN`, and the
+// line loops ask some whether a segment fits and others whether it overflows, so the line
+// APIs called once for a paragraph pass their width through here and the loops stay
+// written for numbers. The streams, called once for each line, take their width as given
+// (RESEARCH.md, Decisions Log, 2026-10-02).
+export function normalizeMaxWidth(maxWidth: number): number {
+  return maxWidth <= Infinity ? maxWidth : Infinity
 }
 
 // Mutates `cursor` to the next renderable line start. False when no line remains.
@@ -347,7 +357,7 @@ export function countPreparedLines(prepared: PreparedLineBreakData, maxWidth: nu
       lineW += advances[g++]!
       if (prohibitions !== null && lineW > fitLimit) {
         const kept = g
-        while (g < advances.length && prohibitions.includes(g)) lineW += advances[g++]!
+        while (g < advances.length && prohibitions[g] === 1) lineW += advances[g++]!
         if (g > kept) {
           count++
           lineW = 0
