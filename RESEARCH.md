@@ -577,7 +577,7 @@ to the HH class, unambiguous hyphens, beside U+2010; LB20a; LB21a), so headless 
 lines gets Cn for U+3400.
 
 The tables are ICU's compiled state machines, whose states a small rule change renumbers. As 480 KB of base64 they cost
-a fresh Firefox page 5.2 ms evaluating the bundle, against 1.2 ms before #340, so until #TBD each was stored as byte
+a fresh Firefox page 5.2 ms evaluating the bundle, against 1.2 ms before #340, so until #394 each was stored as byte
 ranges of an earlier table plus literal bytes. The earlier table was the one that packed it shortest, across engines:
 Chrome's `line_normal` alone, Chrome's Chinese table and Safari's `line_normal` against it, Safari's `line` against that
 and its `line_cj` against `line`, and Safari's grapheme table against Chrome's. So a browser unpacked the tables its own
@@ -594,7 +594,7 @@ lazily, which took the layout entry from 56.2 to 53.6 KB gzipped with the same u
 (#392, 2026-09-30); the parse with the fewest bytes would save 0.5 KB more and take the generator from 2 s to 10 or
 more, so it wasn't taken.
 
-Since #TBD (2026-10-01) the module holds what the tables say in place of their bytes, and the layout entry is 40.4 KB
+Since #394 (2026-10-01) the module holds what the tables say in place of their bytes, and the layout entry is 40.4 KB
 gzipped and 95.4 KB minified, 13.3 KB less of each than under #392's packing. Every code point's class in the ten maps
 the scans read (the categories of ICU's five line and two character tables, and Firefox's Line_Break, Bidi_Class and
 East_Asian_Width) ships as one list of 4,487 runs of joint classes, the 250 classes the maps together tell apart, with a
@@ -623,7 +623,7 @@ UTF-16 units of chat messages, then as many again. The first batch took 0.3-0.45
 it took before, 0.15-0.4 ms longer in Safari than 2.6-4.5 ms, and 0.1 ms or less longer in Firefox than 2.1-4.1 ms,
 where two copies of the earlier bundle differed by 0.08 ms or less; compiling the bundle took as long as before (medians
 of 18 pages a bundle for each of Latin, CJK, Arabic, Thai and mixed text; Chrome 154.0.8037.57, Firefox 156.0.1 and
-Safari 27.0, 2026-10-01; the tables are in #TBD). Offline it had read 0.5-1.3 ms longer in Bun 1.4 and 0.2-0.9 ms in
+Safari 27.0, 2026-10-01; the tables are in #394). Offline it had read 0.5-1.3 ms longer in Bun 1.4 and 0.2-0.9 ms in
 Node 23. The second batch read no further from the earlier bundle's than its two copies did from each other, 0.16 ms at
 most, except on Safari's Thai page: 0.26 and 0.08 ms more in the two sessions, where the copies differed by 0.04 and
 0.06. No table is unpacked in a second batch in the Blink and WebKit profiles (checked offline on the bench's texts) and
@@ -2096,14 +2096,14 @@ below 256 px, Canvas totals are exact (Engine Facts, Chrome).
   (Decisions Log). The sizes behind the question were mixed units: Firefox's line data, called the largest table at 19.7
   KB, is that unpacked, and 9.8 KB of base64 and 7.0 KB gzipped as shipped, less than Chrome's root line table (15.0 KB
   and 9.5 KB), which no option targeted (Break Opportunities From Engine Data has each table's share). The run list of
-  #TBD shares the engines' classes in the module only: each map still unpacks to a table of its own, so a lookup takes
+  #394 shares the engines' classes in the module only: each map still unpacks to a table of its own, so a lookup takes
   no remap. Reopens with the table-size question, as 3.2 KB against that Firefox cost.
 - **One bundle per engine** (372-788 KB minified, measured on the rebuild), ruled out for now on 2026-09-26 (Decisions
   Log). Reopens if apps ship per-browser builds; an app picking an engine's entry point itself with a dynamic import
   wasn't weighed.
 - **Tables shrunk by computation**: remapping onto base classes fails for Chrome's Chinese table (`〜` and `゠` need a
   class the base lacks), and runtime state machines mean porting ICU's rule compiler, where today's tables need no
-  upkeep between refreshes. The shorter form of #TBD computes nothing of the kind: it stores each table's own classes
+  upkeep between refreshes. The shorter form of #394 computes nothing of the kind: it stores each table's own classes
   and rows, and Chrome's Chinese table whole. Reopens with the table-size question.
 - **Dictionaries or ICU4X's LSTM model** for Thai, Lao, Khmer and Burmese (2026-09-25; weighed, not built): hundreds of
   KB each, and a JavaScript copy of Firefox's model is expected to run slower than Firefox's own, which wasn't
@@ -2510,7 +2510,7 @@ decisions for the maintainer.
   without a language under a Chinese UI, as Chrome does (Content Language And Fonts has what it changes). Issue #321's
   eighth decision advised recording the gap instead; main kept the table when the engine tables landed (#340), 46 test
   cases for 16 lines (Chrome 153) and 4.2 KB gzipped as it ships, packed against Chrome's root table (8.6 KB whole,
-  before the packing; since #TBD its rows ship alone, 2.7 KB gzipped, and its classes in the run list every map shares).
+  before the packing; since #394 its rows ship alone, 2.7 KB gzipped, and its classes in the run list every map shares).
   It was never decided on its own: the acceptance of the tables' bundle that day covers it.
 - **2026-09-23: a new harness replaces the old test suite, and what must not regress is decided afresh**, since main's
   tests were old: the engine tables (#340), the harness (#341), then the suite's removal (#348) (harness/README.md, "Why
@@ -2610,13 +2610,13 @@ decisions for the maintainer.
   with no fragment. A box's width is final, fixed when it's prepared and at least 0, and heights stay the app's, with the
   README's `vertical-align: top` rule (Rich Inline Boundaries, Objects Inside A Line, has the evidence and what reopens
   negative widths and widths given at layout).
-- **2026-10-01: the break tables may be stored in a shorter form where that adds no maintenance burden** (#TBD). This
+- **2026-10-01: the break tables may be stored in a shorter form where that adds no maintenance burden** (#394). This
   amends the 2026-09-26 entry, which read as closing how the tables are stored as well as what they hold. Its reason
   stands for what it weighed, an alternative that changed which table Firefox reads and paid for its bytes in analysis
   speed. A storage change is fine while the data stays what each browser's build ships, the generator stays one hand-run
   step that checks every class of every code point and every state row against the engine files, and no bench row but
   `fresh` is slower; what unpacking adds to a page's first `prepare()`, which `fresh` times, and to memory is a trade
-  for the maintainer, with its numbers. #TBD is such a change: the classes as one run list and the state tables as row
+  for the maintainer, with its numbers. #394 is such a change: the classes as one run list and the state tables as row
   differences, 13.3 KB less gzipped, for about 95 KB more typed arrays on a page in one language (110 in the Gecko
   profile) and a first `prepare()` on a page that takes 0.45 ms longer or less in Chrome, Firefox and Safari, a trade
   the maintainer took that day. A class costs the scans as many loads as before or fewer in nine of the ten maps and one
