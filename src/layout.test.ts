@@ -1840,15 +1840,49 @@ describe('measurement invariants', () => {
     expect(getSegmentFit('abc', metrics, measurement, 0, 'sum-graphemes').advances).toEqual([10, 20, 30])
   })
 
-  test('the emoji correction counts U+FE0F only after an emoji character', () => {
-    // Like Chrome and Firefox on macOS at small sizes, Canvas measures the emoji
-    // 4px wider than DOM text.
+  test('the emoji correction counts the glyphs the emoji font draws', () => {
+    // Like Chrome and Firefox on macOS at small sizes, Canvas measures each glyph of the
+    // emoji font 20px wide where DOM text draws it 16px wide. Each font shapes its own
+    // characters together, so a grapheme is drawn as the longest pieces a font has a
+    // glyph for. The named font draws U+26A1 itself, 9.5px wide, U+26AA nearly as wide as
+    // an emoji, and U+231A where U+FE0E asks for a text font.
     const font = '16px Emoji Correction Test'
+    const emojiFontGlyphs = [
+      '\u{1F600}', '\u2764\uFE0F', '\u{1F44B}', '\u{1F44B}\u{1F3FD}', '\u{1F3FB}', '\u{1F3FD}', '\u231A', '\u{1F680}', '1\uFE0F\u20E3', '#\uFE0F\u20E3',
+      // Chrome and Firefox draw these from the emoji font too, with the same gap.
+      '1\uFE0F', '#\uFE0F',
+      // The emoji font draws U+26A1 before U+FE0F.
+      '\u26A1\uFE0F',
+      // No text font has U+1F336, a pictograph whose presentation is text by default, so
+      // the emoji font draws it with no U+FE0F.
+      '\u{1F336}',
+      // Sequences, and the parts the emoji font draws where it has no glyph for the whole.
+      '\u{1F468}\u200D\u{1F680}', '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}', '\u{1F469}\u200D\u{1F467}',
+      '\u{1F468}', '\u{1F469}', '\u{1F467}', '\u{1F1EF}\u{1F1F5}', '\u{1F1EF}', '\u{1F1F5}',
+    ]
+    const pieces = new Map<string, number>([
+      ['\u26A1', 9.5], ['\u26AA', 20.25], ['\u231A\uFE0E', 9.25], ['\u00A9', 11.75], ['\u306A', 16], ['\u17C8', 3],
+      ['\u200D', 0], ['\uFE0F', 0], ['\uFE0E', 0],
+      // Chrome's Canvas draws U+20E3 after a character of the named font as that font's
+      // missing glyph, which after `1` adds up to an emoji's width, as in 12px Baskerville.
+      ['a\uFE0F\u20E3', 21.5], ['1\u20E3', 20], ['\u00A9\u20E3', 23.75],
+    ])
+    for (let i = 0; i < emojiFontGlyphs.length; i++) pieces.set(emojiFontGlyphs[i]!, 20)
     const measureText = Object.getOwnPropertyDescriptor(TestCanvasRenderingContext2D.prototype, 'measureText')!
     Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', {
       ...measureText,
       value(this: TestCanvasRenderingContext2D, text: string) {
-        return { width: text === '\u{1F600}' ? 20 : measureWidth(text, this.font) }
+        let width = 0
+        for (const grapheme of getSegmentGraphemes(text)) {
+          for (let at = 0, end = 0; at < grapheme.length; at = end) {
+            end = grapheme.length
+            while (end > at && !pieces.has(grapheme.slice(at, end))) end--
+            if (end > at) width += pieces.get(grapheme.slice(at, end))!
+            else width += measureWidth(grapheme.slice(at, end = at + String.fromCodePoint(grapheme.codePointAt(at)!).length), this.font)
+          }
+        }
+        // A 32-bit float, as Canvas reports: three glyphs are 60.000004px.
+        return { width: Math.fround(width * (1 + 2 ** -24)) }
       },
     })
     const cases: [string, number][] = [
@@ -1856,13 +1890,48 @@ describe('measurement invariants', () => {
       [' \uFE0F', 0],
       ['\u3000\uFE0F', 0],
       ['1\u20E3', 0],
+      ['a\uFE0F\u20E3', 0],
       ['\u2764\uFE0F', 1],
       ['\u{1F44B}', 1],
       ['1\uFE0F\u20E3', 1],
       ['#\uFE0F\u20E3', 1],
-      // Chrome and Firefox draw these from the emoji font too, with the same gap.
       ['1\uFE0F', 1],
       ['#\uFE0F', 1],
+      // With no U+FE0F, the font that draws the character decides: the emoji font, or
+      // the named font, as for a pictograph code point that is no emoji yet (U+1F02C).
+      ['\u{1F336}', 1],
+      ['\u00A9 \u{1F02C}', 0],
+      // A glyph of the named font is measured as the page draws it, beside an emoji too.
+      ['\u26A1', 0],
+      ['\u26AA', 0],
+      ['done\u26A1 \u26A1\u{1F44B}!', 1],
+      ['\u26A1\u26A1\uFE0F', 1],
+      ['\u231A \u231A\uFE0E', 1],
+      // A sequence the emoji font has no glyph for takes one correction for each part.
+      ['\u{1F468}\u200D\u{1F680}\u200D\u{1F680}', 2],
+      ['\u{1F600}\u200D\u{1F600}\u200D\u{1F600}', 3],
+      // Graphemes that mix fonts. A skin tone after a character of the named font is
+      // asked apart from it, as Firefox draws it, from the emoji font. Chrome draws that
+      // tone as the named font's missing glyph, in the character's cluster, and gets this
+      // count all the same: a named gap (ENGINE_FOLLOWUPS.md, Emoji correction).
+      ['\u306A\u{1F3FB}', 1],
+      ['\u26AA\u{1F3FB}', 1],
+      ['2\u{1F3FB}', 1],
+      // An emoji, a ZWJ sequence, a skin-toned emoji and a flag before a combining mark
+      // of another script, each still one glyph:
+      ['\u{1F600}\u17C8', 1],
+      ['\u{1F468}\u200D\u{1F469}\u200D\u{1F467}\u17C8', 1],
+      ['\u{1F44B}\u{1F3FD}\u17C8', 1],
+      ['\u{1F1EF}\u{1F1F5}\u17C8', 1],
+      // A skin tone after that mark is asked apart too, an emoji as Firefox draws it.
+      // Chrome draws it in the mark's cluster as the named font's missing glyph: the
+      // same named gap.
+      ['\u{1F468}\u200D\u{1F469}\u200D\u{1F467}\u17C8\u{1F3FB}', 2],
+      // A stretch that two fonts draw takes no correction. That is right for U+20E3 after
+      // a character of the named font, and a named gap for a sequence joined by a ZWJ to
+      // such a character, where Firefox draws the sequence from the emoji font.
+      ['\u00A9\u20E3', 0],
+      ['\u00A9\u200D\u{1F469}\u200D\u{1F467}', 0],
     ]
     try {
       const uncorrected = cases.map(([text]) => measureNaturalWidth(prepareWithSegments(text, font)))

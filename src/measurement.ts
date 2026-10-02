@@ -8,7 +8,7 @@ import type { HanKerningFontData } from './han-kerning.js'
 // so their reads see one shape.
 export type SegmentMetrics = {
   width: number
-  emojiCount: number // Emoji graphemes, or -1 until counted
+  emojiCount: number // Glyphs the emoji font draws (countEmojiGlyphs), or -1 until counted
   fit: SegmentFit | null // Where it breaks under overflow, for the last fit mode asked
 }
 
@@ -318,6 +318,7 @@ export type FontMeasurement = {
   // the item alone. The width includes that space.
   followingSpaceMetrics: Map<string, SegmentMetrics>
   emojiCorrection: number | null // Probed for the first text that may hold emoji
+  emojiWidth: number // Canvas's width of one glyph of the emoji font, measured with the correction
   hyphenText: string | null // Asked for the first text with a soft hyphen (getHyphenText)
   hanKerning: HanKerningFontData | null | undefined // Read for the first text that may kern
 }
@@ -340,10 +341,11 @@ const MAX_PREFIX_FIT_GRAPHEMES = 96
 // `font-variant-ligatures: none` (2026-09-30).
 const LETTER_SPACED_SHAPING = '0.000001px'
 
-// Graphemes drawn from the emoji font: those holding an emoji-presentation
-// character, or an emoji character followed by U+FE0F, such as U+2764 or a
-// keycap base like `1`. U+FE0F after a letter or a space changes nothing.
-const emojiGraphemeRe = /\p{Emoji_Presentation}|\p{Emoji}\uFE0F/u
+// Graphemes the emoji font may draw a glyph in, which Canvas widths then tell
+// (countEmojiGlyphs): those holding an emoji-presentation character or a pictograph,
+// or an emoji character followed by U+FE0F, such as a keycap base like `1`. U+FE0F
+// after a letter or a space changes nothing.
+const emojiGraphemeRe = /\p{Emoji_Presentation}|\p{Extended_Pictographic}|\p{Emoji}\uFE0F/u
 const maybeEmojiRe = /[\p{Emoji_Presentation}\p{Extended_Pictographic}\p{Regional_Indicator}\uFE0F\u20E3]/u
 
 const genericKeywords = ['serif', 'sans-serif', 'cursive', 'fantasy', 'monospace']
@@ -525,11 +527,13 @@ export function zeros(count: number): number[] {
 export function measureWithLetterSpacing(text: string, letterSpacing: number, emojiCorrection: number, measurement: FontMeasurement): number | null {
   const { context, takesLetterSpacing } = measurement.state
   if (!takesLetterSpacing) return null
+  // Counted before the spacing is set: the count measures stretches into the font's segment cache.
+  const corrected = emojiCorrection === 0 ? 0 : countEmojiGlyphs(text, measurement) * emojiCorrection
   const previous = context.letterSpacing
   try {
     context.letterSpacing = `${letterSpacing}px`
     if (Number.parseFloat(context.letterSpacing) !== letterSpacing) return null
-    const width = context.measureText(text).width - (emojiCorrection === 0 ? 0 : countEmojiGraphemes(text) * emojiCorrection)
+    const width = context.measureText(text).width - corrected
     return Number.isFinite(width) ? width : null
   } finally {
     context.letterSpacing = previous
@@ -556,7 +560,7 @@ function addMetrics(cache: Map<string, SegmentMetrics>, seg: string, text: strin
 
 // A text's width in the font, less the emoji correction.
 export function getTextWidth(text: string, measurement: FontMeasurement, emojiCorrection: number): number {
-  return getCorrectedSegmentWidth(text, getSegmentMetrics(text, measurement), emojiCorrection)
+  return getCorrectedSegmentWidth(text, getSegmentMetrics(text, measurement), measurement, emojiCorrection)
 }
 
 export type LayoutEngine = 'blink' | 'webkit' | 'gecko'
@@ -645,7 +649,7 @@ export function getEmojiCorrection(font: string, measurement: FontMeasurement): 
   if (correction !== null) return correction
 
   const fontSize = parseFontSize(font)
-  const canvasW = measurement.state.context.measureText('\u{1F600}').width
+  const canvasW = measurement.emojiWidth = measurement.state.context.measureText('\u{1F600}').width
   correction = 0
   // document.body is null until the parser reaches <body>, which lib.dom's type leaves out.
   if (
@@ -670,24 +674,73 @@ export function getEmojiCorrection(font: string, measurement: FontMeasurement): 
   return correction
 }
 
-function countEmojiGraphemes(text: string): number {
+// Canvas reports a width as a 32-bit float (CanvasRenderingContext2D.cpp:5277 in Firefox,
+// text_metrics.cc:179 in Chrome), so a few equal advances measure that many times one
+// only within that float's rounding, 2^-24 of the width each time one is rounded: 2e-6 px
+// over three emoji of a bold font in Firefox 156. Sixteen roundings are allowed for, a
+// window far finer than the steps a font's advances come in (RESEARCH.md, Content
+// Language And Fonts).
+const CANVAS_WIDTH_ROUNDING = 2 ** -20
+
+// How many glyphs of the emoji font draw a text: the emoji font gives every glyph one
+// advance, the probe's, so text it draws measures a whole number of them, and none
+// where it measures anything else.
+function getEmojiGlyphs(text: string, measurement: FontMeasurement): number {
+  const width = getSegmentMetrics(text, measurement).width
+  const glyphs = Math.round(width / measurement.emojiWidth)
+  return Math.abs(width - glyphs * measurement.emojiWidth) <= width * CANVAS_WIDTH_ROUNDING ? glyphs : 0
+}
+
+// The characters the emoji font shapes together inside a grapheme: emoji and pictographs,
+// the characters that join or modify them (ZWJ, skin tones, tags, U+20E3) and the
+// variation selectors. Every emoji character has one of the two properties. A grapheme
+// of emojiGraphemeRe holds one.
+const emojiStretchRe = /[\p{Extended_Pictographic}\p{Emoji_Component}\uFE0E]+/gu
+
+// The glyphs of the emoji font in a text: what the correction is subtracted for, once
+// each. Font fallback decides which font draws an emoji character, and Canvas shows what
+// it decided, at one cached Canvas call per distinct stretch of a font. For a character
+// with no selector, the named font's own glyph comes before the emoji font's
+// (CheckCandidate, gfxTextRun.cpp:3350-3359; FontFallbackIterator::Next,
+// font_fallback_iterator.cc:166-178), and U+FE0E asks for a text font
+// (gfxTextRun.cpp:3270-3273; SymbolsIterator::Consume, symbols_iterator.cc:67-71). So a
+// stretch with a glyph of another font measures as the page draws it: Menlo's own
+// U+26A1, Inter's U+2B1C, Hiragino Sans's U+26AA, or U+231A before U+FE0E. A pictograph
+// whose presentation is text by default takes the correction with no U+FE0F where only
+// the emoji font has it, as U+1F336 in Arial. Two or more glyphs are a sequence the
+// emoji font has no glyph for, drawn as its parts.
+//
+// Each stretch of emoji characters is asked whole, and apart from the rest of its
+// grapheme, since each font shapes its own characters together: Firefox matches a font
+// character by character (gfxFontGroup::FindFontForChar, gfxTextRun.cpp:3178-3194), and
+// Chrome ends a run where emoji give way to text before it shapes
+// (RunSegmenter::Consume, run_segmenter.cc:44-73, over SymbolsIterator::Consume,
+// symbols_iterator.cc:34-79). So an emoji, a sequence or a flag before a combining mark
+// of another script is still one glyph. A stretch that two fonts draw takes no
+// correction, as a text font's pictograph joined by a ZWJ to an emoji in Firefox, and a
+// stretch asked apart can be another font's than inside its grapheme, as a skin tone
+// after a letter in Chrome.
+//
+// Those and the other gaps are in ENGINE_FOLLOWUPS.md, Emoji correction: another font's
+// glyph exactly as wide as an emoji takes the correction, as does Firefox's box for a
+// missing glyph at 13px, and an emoji font whose advances vary would take none.
+function countEmojiGlyphs(text: string, measurement: FontMeasurement): number {
   const ends = new Int32Array(text.length)
   const graphemeCount = findGraphemeEnds(getEngineProfile().graphemeTable, text, 0, text.length, ends)
   let count = 0
   for (let i = 0, start = 0; i < graphemeCount; start = ends[i++]!) {
-    if (emojiGraphemeRe.test(text.slice(start, ends[i]))) count++
+    const grapheme = text.slice(start, ends[i])
+    if (!emojiGraphemeRe.test(grapheme)) continue
+    const stretches = grapheme.match(emojiStretchRe)!
+    for (let s = 0; s < stretches.length; s++) count += getEmojiGlyphs(stretches[s]!, measurement)
   }
   return count
 }
 
-function getEmojiCount(seg: string, metrics: SegmentMetrics): number {
-  if (metrics.emojiCount < 0) metrics.emojiCount = countEmojiGraphemes(seg)
-  return metrics.emojiCount
-}
-
-export function getCorrectedSegmentWidth(seg: string, metrics: SegmentMetrics, emojiCorrection: number): number {
+export function getCorrectedSegmentWidth(seg: string, metrics: SegmentMetrics, measurement: FontMeasurement, emojiCorrection: number): number {
   if (emojiCorrection === 0) return metrics.width
-  return metrics.width - getEmojiCount(seg, metrics) * emojiCorrection
+  if (metrics.emojiCount < 0) metrics.emojiCount = countEmojiGlyphs(seg, measurement)
+  return metrics.width - metrics.emojiCount * emojiCorrection
 }
 
 export function getSegmentFit(
@@ -723,7 +776,7 @@ export function getSegmentFit(
       // The whole segment is the last prefix; with a following space it was
       // measured together with that space.
       const width = followingSpaceWidth !== null && i === count - 1
-        ? getCorrectedSegmentWidth(seg, metrics, emojiCorrection) - followingSpaceWidth
+        ? getCorrectedSegmentWidth(seg, metrics, measurement, emojiCorrection) - followingSpaceWidth
         : getTextWidth(seg.slice(0, end), measurement, emojiCorrection)
       advances.push(width - previousWidth)
       previousWidth = width
@@ -756,7 +809,7 @@ export function getFontMeasurement(font: string, language: string | null, letter
   let measurement = fonts.get(font)
   if (measurement === undefined) {
     const canvasFont = state.genericFamilies === null ? font : getCanvasFont(font, state.genericFamilies)
-    measurement = { state, canvasFont, metrics: new Map(), followingSpaceMetrics: new Map(), emojiCorrection: null, hyphenText: null, hanKerning: undefined }
+    measurement = { state, canvasFont, metrics: new Map(), followingSpaceMetrics: new Map(), emojiCorrection: null, emojiWidth: 0, hyphenText: null, hanKerning: undefined }
     fonts.set(font, measurement)
   }
   state.context.font = measurement.canvasFont

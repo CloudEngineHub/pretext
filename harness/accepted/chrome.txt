@@ -284,24 +284,14 @@ catalog-0057c0c10a909d12 breaks
 catalog-00b4ead5698f3a27 breaks
 catalog-1807f2f44e84df1f count
 catalog-1954d2797d6d0091 count
-catalog-1cd3b86a8c4bde40 count
 catalog-22ea523a1f4a058d breaks
-catalog-2be626a64768deb3 count
-catalog-2cd2ef93d162599e count
-catalog-422c983dcd39d713 count
 catalog-4be46556665d2cc6 breaks
 catalog-5efe0f589c5c5705 breaks
 catalog-780f54f9d72bdde8 count
-catalog-8842c3d02d2552f3 breaks
-catalog-9239419590f3a1de breaks
-catalog-95bb98231f4d4b92 count
-catalog-a13178de96953b3b count
 catalog-a2cc454ac65921f8 breaks
-catalog-cb51f8f01ca013f3 breaks
 catalog-d3e2cc529d5b0d0a count
 catalog-fa5851ac4b498f4e count
 catalog-fcafb5f9cf97b368 breaks
-catalog-fcd37970c2522473 breaks
 
 ## Gatsby whole at 220 px in Georgia: Chrome fits line 636 of 9,378, whose text boxes measure 220.008 px, into the 220 px box; the library breaks a word early (main before #340 fails this book too)
 c-6561c4772ce2a7aa breaks
@@ -4067,7 +4057,6 @@ catalog-1bf76a99ac1611ca count
 catalog-227d08791a4249e3 count
 catalog-2857745be266a421 count
 catalog-29ce9f4f691a9e06 count
-catalog-41394cb635c6503c count
 catalog-48dc03636c1cd6bb count
 catalog-4b62a9992782c7e2 count
 catalog-4d3b1e5225d1d7a6 count
@@ -4080,7 +4069,6 @@ catalog-69fafadff79e6558 count
 catalog-6f428f9e5e78847e breaks
 catalog-72183fe330d64293 count
 catalog-777055eea5ead1e4 count
-catalog-7f9154dd6941d482 count
 catalog-835e48ad53da1a7b breaks
 catalog-84e09474a6c72218 count
 catalog-864b96b62243319d count
@@ -4098,7 +4086,6 @@ catalog-9df7661e909601df breaks
 catalog-a070ef98ce0e89fd count
 catalog-a81e726553ec8137 count
 catalog-ab768ff90353bb44 breaks
-catalog-adc124482a8fbb48 count
 catalog-b079f28e331e675f count
 catalog-b2a4bb947e94af9b breaks
 catalog-b5ffc44a84aaff90 count
@@ -4112,7 +4099,6 @@ catalog-dbe3c0b23a54090c count
 catalog-e240c469477e3059 breaks
 catalog-e417b572f1090482 count
 catalog-e4cc26500491364f count
-catalog-e78f2cb1559e0b18 count
 catalog-eb94625eb1fe2a23 count
 catalog-eba954bc60b5545f breaks
 catalog-ec81a5790ed3dbe9 breaks
