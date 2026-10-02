@@ -633,9 +633,9 @@ the bytes per joint class keep #392's packing. Taking one string out of the bund
 KB for the run list, 2.6 KB and 2.7 KB for the rows of Chrome's root and Chinese line tables, 1.0 KB for the bytes per
 joint class and 0.5 KB or less for each other table. Nothing is derived: the generator, still run by hand, reads the
 same engine files, checks every class of every code point and every state row against them as the library unpacks them,
-and a test checks the shipped module the same way. Since #TBD (2026-10-01) Firefox's Bidi_Class isn't
-among the maps (Bidi Levels): nine maps, 4,268 runs of 155 joint classes, and a layout entry of 37.6 KB gzipped and
-88.9 KB minified, 4.4 KB and 10.7 KB less than with the map and the level port that read it.
+and a test checks the shipped module the same way. Since #TBD (2026-10-01) Firefox's Bidi_Class isn't among the maps
+(Bidi Levels): nine maps, 4,268 runs of 155 joint classes, and a layout entry of 37.7 KB gzipped and 89.0 KB minified,
+4.4 KB and 10.7 KB less than with the map and the level port that read it.
 
 What that costs (2026-10-01). The unpacked tables take more memory: on a page in one language, 198 KB of typed arrays
 against 103 in the Blink profile, 199 against 104 in the WebKit profile, and 151 against 40 in the Gecko profile, or 212
@@ -659,7 +659,12 @@ nothing was run to say which lookup that comes from. Firefox's bidi resolution, 
 load, doesn't show: Firefox's `new` rows on Arabic and on mixed text read within noise (-2% and +5%, then +2% and +3%,
 in the two sessions, the control copy between -7% and +3%), and its `seen` rows on both 4% faster in each session.
 Offline it had read 1-3% slower in Node 23 and from as fast to 11% slower in Bun 1.4.
-The Bidi_Class table, 43 KB of the Gecko profile's 212, left with #TBD, and nothing here was measured again after it.
+The Bidi_Class table, 43 KB of the Gecko profile's 212, left with #TBD, and the memory wasn't counted again after it. In
+that change's bench the bundle of both entries, a tenth smaller, compiled faster on each of the five fresh pages in
+every browser: in 1.61-1.68 ms against the 1.74-1.81 of the earlier bundle's two copies in Chrome, 2.76-2.86 against
+3.07-3.18 in Firefox and 1.14-1.16 against 1.27-1.31 in Safari. The first batches show no change to claim: within 4% of
+both copies, but Firefox's Arabic and mixed pages, 5-7% under both, and Safari's mixed page, 2-6% over both (2026-10-02,
+two sessions; the tables are in #TBD).
 
 Not taken: an LZ pass over these lists, which saved nothing once the bundle is gzipped and cost a decoding pass. A table
 per code unit with a search above U+FFFF, the form Bidi_Class had, is one load below U+10000 and 64 KB a map, where the
@@ -1426,7 +1431,15 @@ right-to-left one. The Gecko scan made those splits from #340: levels changed no
 changes falling where segments end anyway, yet took 38-46% of the profile's right-to-left analysis. From #365
 (2026-09-27) it made them only where a guard showed one could matter, in 262 of the harness's 10,733 texts holding a
 code unit Firefox's `HasRTLChars` flags, the guarded scan equal to resolving everywhere over 63 million fuzz strings.
-Since #TBD (2026-10-01) it makes none.
+Since #TBD (2026-10-01) it makes none. Firefox 156.0.1 then prepared text whose widths it had cached 3.4-5.5% faster on
+Latin, CJK, Arabic and mixed chat messages, with Thai level, and 3.3-7.3% faster on each of the bench's nine worst-case
+texts, in both of two sessions against main at #399. No row of Chrome's moved, nor of Safari's once the two that read
+slower, Thai `layout()` at new widths and the mixed stream, were run again over three sessions (2026-10-02; the tables
+are in #TBD). Latin and CJK text, which resolved no levels, gains as much as Arabic. That is read as the test for a
+word's end, which the scan made for every character through a helper the splits shared, with nothing run to confirm it.
+Firefox's Latin `layout()` at new widths read 14.8% faster in the same table, and that isn't this change's doing, as
+`layout()` runs none of its code: main after #394 to #399 had read the row 17.6% slower than main before them, and one
+build read it 13.5% slower or level by the names the bench's minifier gave its top-level bindings.
 
 With that the Gecko analysis reads 7 of the harness's texts otherwise, all generated: Balinese and Batak vowel killers
 after Arabic or Hebrew letters, U+0600 before an ideographic space, a kasra after U+200E between Arabic letters and one
