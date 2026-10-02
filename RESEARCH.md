@@ -913,8 +913,9 @@ page, which is start-aligned with no decoration or background, they were 2, 2, 2
 left on the word, as Chrome leaves it there: the level of the fonts that don't kern the space. With the placement the
 profile takes they are 2 in Arial, 3 in Times New Roman, 16 in Avenir Next and 43 in Gill Sans, and 2, 2, 0 and 2 where
 the same cards are centered, underlined or painted on a background (the other four fonts weren't measured again). On the
-harness, whose pages are of the first kind, the profile fixes 43 Chrome cases, 11 of them among the 49 real-usage
-failures inside what Pretext claims (99.51% to 99.63% of real paragraphs right), and loses none.
+harness, whose pages are of the first kind, the profile fixes 43 Chrome cases, 11 of them among the 40 real-usage
+failures inside what Pretext claims (99.61% to 99.74% of real paragraphs right), and loses one, a generated
+letter-spaced case that main passed by two errors that cancelled (the script runs, below; main at #399, 2026-10-02).
 
 Outside the harness, with that kerning left on the word: of 186,720 layouts recorded fresh and not kept, 7,652 were
 wrong before and 509 with it: Latin, Cyrillic and Greek paragraphs and interface texts in 56 and 80 font specs, texts
@@ -953,22 +954,26 @@ alone, since ideographs, kana and Hangul syllables aren't asked about. Korean's 
 about, its syllables made 2.30 times main's calls in order and 3.16 times the units.
 
 The harness predicts its sample's 11,901 paragraphs in 72 documents, where their 331 font strings are new 1,764 times,
-1,508 of them with a text that holds a space: 6.7 paragraphs to a new font. There the calls grow 8.9% (232,950 to
-253,716) and the submitted units 70% (848,525 to 1,444,794), the question's 378 units each time. With every font's words
-asked about and no question, the calls grew 18.1% and the units 9.7%. The books, 72 long texts in 12 fonts, make 25 more
-calls of 48,920 and 1.8% more units, where they made 0.9% more calls. So the question costs most where a font holds
-little text. In a background window of pinned Chrome on a busy machine, so as hypotheses: in a font size Canvas hasn't
-measured in, the question took 0.6 to 1.75 times as long as measuring 60 words apart (0.1ms in Roboto served as a web
-font, 0.2 to 0.7ms in Helvetica Neue, Arial, Georgia, Times New Roman and Gill Sans; the median of 259 families 1.75
-times), and 0.3 to 0.75 times as long as the 155 calls per font it replaces on the sample. Nearly all of it is the first
-call, which makes Canvas load the 94 glyphs, most of which a font that holds much text loads anyway. The first question
-in a family took longer, 0.6 to 2ms in those fonts, 9ms in Papyrus and Bradley Hand and 234ms in Chalkduster, whose
-glyphs are heavy however they are asked for: at each later size its question took 2.7ms, as did its 94 characters in one
-string without U+2028 (2026-10-01). The bench's `fresh` rows are where this shows. Chrome 154's bench, whose own fonts
-kern nothing with the space, read seen text 2.9% slower in Latin and 3.8% in CJK with every font's words asked about,
-and every new and seen row within noise of main with the question. With its Latin rows in Arial it read seen text 3.4%
-slower than main and in Gill Sans 5.1%, both with a word's kerning left on the word, which copies the word's fit
-advances wherever it kerns (two sessions each, 2026-10-01; the PR has the tables).
+1,508 of them with a text that holds a space: 6.7 paragraphs to a new font. There the calls grow 10.1% (245,597 to
+270,482) and the submitted units 85% (874,030 to 1,613,539), the question's 378 units each time; a font's letter-spaced
+text, which is measured apart from its other text since #397, asks again, which is a fifth of that growth (before #397
+the calls grew 8.9% and the units 70%). With every font's words asked about and no question, the calls grew 18.1% and
+the units 9.7%. The books, 72 long texts in 12 fonts, make 25 more calls of 48,921 and 1.8% more units, where they made
+0.9% more calls. So the question costs most where a font holds little text. In a background window of pinned Chrome on a
+busy machine, so as hypotheses: in a font size Canvas hasn't measured in, the question took 0.6 to 1.75 times as long as
+measuring 60 words apart (0.1ms in Roboto served as a web font, 0.2 to 0.7ms in Helvetica Neue, Arial, Georgia, Times
+New Roman and Gill Sans; the median of 259 families 1.75 times), and 0.3 to 0.75 times as long as the 155 calls per font
+it replaces on the sample. Nearly all of it is the first call, which makes Canvas load the 94 glyphs, most of which a
+font that holds much text loads anyway. The first question in a family took longer, 0.6 to 2ms in those fonts, 9ms in
+Papyrus and Bradley Hand and 234ms in Chalkduster, whose glyphs are heavy however they are asked for: at each later size
+its question took 2.7ms, as did its 94 characters in one string without U+2028 (2026-10-01). The bench's `fresh` rows
+are where this shows. Chrome 154's bench, whose own fonts kern nothing with the space, read seen text 2.9% slower in
+Latin and 3.8% in CJK with every font's words asked about, and every new and seen row within noise of main with the
+question. With its Latin rows in Arial it read seen text 3.4% slower than main and in Gill Sans 5.1%, both with a word's
+kerning left on the word, which copies the word's fit advances wherever it kerns (two sessions each, 2026-10-01; the PR
+has the tables). With the placement the profile takes, it read every new and seen row within noise in its own fonts,
+Latin seen text 3.0% slower in Arial and 4.3% in Gill Sans, and a fresh page's first batch in Arial at 2.60µs a unit
+against 2.23 (two sessions each, 2026-10-02, against the main before #394).
 
 Canvas gives the kerning where U+2028 stands for the space: Blink draws U+2028 with the space glyph and its Canvas
 doesn't cut there. A word measured with U+2028 after it, and before it, less the word and a space, equals what the
@@ -1058,9 +1063,19 @@ vocabulary. The premises and their gaps:
   Where a search for the space's run meets a closing bracket or a character of several scripts, the profile reads the
   runs from the text's start as Blink does (`readScriptRuns()` in `src/prepare.ts`). A run that ends with several
   scripts left gives its opening bracket the first of them, and Blink orders a Common character's extensions by ICU
-  script code with Latin last (`GetScripts`, `:191-198`): after `(· ж)` the space doesn't kern with a Latin word.
-  Scripts other than Latin, Cyrillic and Greek count as one, half of a surrogate pair as Common, and any opening bracket
-  as the pair of any closing one (ENGINE_FOLLOWUPS.md has what each gets wrong).
+  script code with Latin last (`GetScripts`, `:191-198`): after `(· ж)` the space doesn't kern with a Latin word. That
+  reader is the one the rule for letter spacing in cursive scripts reads the runs through (Engine Facts, Chrome, Letter
+  spacing and tabs), since one library holds one port of an engine's rule. The first builds gave the kerning a reader of
+  its own, with any opening bracket the pair of any closing one, only the last one opened remembered, half of a
+  surrogate pair read as Common and no rule for a Common character under a mark. With the letter-spacing rule's bracket
+  pairs, bracket stack and mark rule, and a character's scripts as bits for both, the two rules take 21 code lines fewer
+  than side by side, and the kerning is Chrome's where its own reader wasn't: of 25 strings, the reader of its own had
+  10 a kerning off in 16px Arial, 0.88px, and 9 in 16px Gill Sans, 1.60px, 6 of them narrower than the page (`жж (All
+  [All] All) All`, where the last bracket goes back to the Cyrillic run past the inner pair; `All (жж] All`, where `]`
+  pairs with nothing; `All`, `1` under the Greek mark U+0342, `All`; two Deseret letters before `All`; `All 〈 All` and
+  `All 〈All〉 All`, whose bracket is U+2329), and the shared one has all 25 to 0.01px in both (pinned Chrome
+  154.0.8037.57, 2026-10-02). Scripts other than Latin, Cyrillic, Greek and the seven cursive ones count as one, and the
+  cursive ones as one (ENGINE_FOLLOWUPS.md, Kerning with spaces, has what that and the reader's other gaps get wrong).
 - **A space kerns with a word only inside one item.** Blink shapes nothing across a control item or a change of
   direction. Preserved spaces that start the text or follow a forced break are an item of their own with a break
   opportunity after it (`inline_items_builder.cc:988-1034`), so under pre-wrap they don't kern with the word after them,
@@ -1877,10 +1892,12 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   JavaScriptCore (Bun 1.4) nothing for either. The Chromium profile's six classes for script runs, as literals, took the
   bench's bundle from 3.13 to 3.36ms to compile there (medians of 350 compiles), and Chrome 154's bench read 1.54 to
   1.75ms on a fresh page, whatever the page's text and font. Made from their sources when a word first needs one
-  (`getScriptClasses()` in `src/prepare.ts`), the bundle took 3.17ms in Node. That the literals are Chrome's 0.2ms is a
-  hypothesis until its bench times the second form (2026-10-01). Main's own such literals weren't touched: with the 17 a
-  script found written as constructor calls, its bundle compiled in 2.36ms of 3.18 in Node, so about a quarter of a
-  fresh page's compile may be theirs, an open saving (ENGINE_FOLLOWUPS.md, Cost).
+  (`getScriptClasses()` in `src/prepare.ts`), the bundle took 3.17ms in Node. Chrome 154's bench then read a fresh
+  page's compile at 1.63ms against 1.56 for the main before #394, 0.07ms more where the literals had read 0.2 (two
+  sessions, 2026-10-02), so the literals were most of it. The reader of script runs that the kerning and the
+  letter-spacing rule now share makes its seven classes so, #397's among them. Main's own such literals weren't touched:
+  with the 17 a script found written as constructor calls, its bundle compiled in 2.36ms of 3.18 in Node, so about a
+  quarter of a fresh page's compile may be theirs, an open saving (ENGINE_FOLLOWUPS.md, Cost).
 - **Class fields in Firefox**: with any class field in the bundle, Firefox 156 took 4.5-4.8ms to evaluate it on a fresh
   page, against 1.9-2.2ms with plain objects, or with the fields emptied or set in constructors, seemingly because it
   then compiles the whole bundle up front (the doubling is measured, the cause a guess); V8 and JavaScriptCore didn't
@@ -2055,21 +2072,26 @@ repin` shows what), and a fact read in source needs reading again.
   list it, but release tags 137.0.7151.55 and .119 have the flag experimental and 138.0.7204.49 stable (97e135f47a); the
   second is 65df445712 (Chromium #473579852), in tag 149.0.7827.0 and not in 148.0.7778.288 (the tags' source, read
   2026-10-01; what the profile gets wrong on the older two is in ENGINE_FOLLOWUPS.md, Letter spacing). The Blink profile
-  follows a reduced port of that iterator (#397, `src/prepare.ts`): in Chrome 154 it gives 64 probe strings Chrome's
-  gaps, and the real-usage sample's 8 failing Arabic and Urdu paragraphs under letter spacing pass (2026-09-30 and
-  10-01). A Common character right before a mark that has script extensions takes the mark's scripts
-  (`FetchNextCharacter`, `:624-635`), whose lowest code leads: `1` under the Arabic vowel sign U+064B starts an Arabic
-  run among Latin letters, and under U+0303, which Latin, Syriac and three more scripts share, it leaves an Arabic run
-  and stays in a Syriac one; the port follows all but the last. A wide opening bracket under such a mark has the mark's
-  scripts before its width is asked, so it isn't made Han (`Fetch` runs before `OpenBracket`, `:334-338`, `:431-441`). A
-  character several scripts share starts a run that holds them all, the lowest code leading, Latin aside for a Common
-  character, which the next character with a script narrows, and it stays in a run of any of them (`GetScripts`,
-  `MergeSets`, `script_run_iterator.cc:118-215`, `:491-565`); a Common character that only one script lists stays in
-  whatever run it is in. The port gives a shared character its leading script wherever it stands and leaves the rest
-  out: U+202F, which Latin, Mongolian and Phags-pa share, takes no gap alone, after Arabic or between Han characters,
-  and one among Latin letters, and its Mongolian run takes in the digits around it, so `10`, U+202F, `000` in a text of
-  its own takes none of its 6 gaps (Chrome 154, 2026-10-01; ENGINE_FOLLOWUPS.md, Letter spacing). A tab stop is eight
-  Canvas spaces plus letter and word spacing (`font.cc:303-317`), rounded up to 1/128 px at DPR 2
+  follows a reduced port of that iterator (#397, `readScriptRuns()` in `src/prepare.ts`, which the kerning with spaces
+  reads too since #TBD; Kerning At Line Edges): in Chrome 154 it gives 64 probe strings Chrome's gaps, and the
+  real-usage sample's 8 failing Arabic and Urdu paragraphs under letter spacing pass (2026-09-30 and 10-01). A Common
+  character right before a mark that has script extensions takes the mark's scripts (`FetchNextCharacter`, `:624-635`),
+  whose lowest code leads: `1` under the Arabic vowel sign U+064B starts an Arabic run among Latin letters, and under
+  U+0303, which Latin, Syriac and three more scripts share, it leaves an Arabic run and stays in a Syriac one; the port
+  follows all but the last. A wide opening bracket under such a mark has the mark's scripts before its width is asked,
+  so it isn't made Han (`Fetch` runs before `OpenBracket`, `:334-338`, `:431-441`). A space takes a mark's scripts as a
+  digit does: `a`, a space under U+064B, a space and `12` take 3 gaps in Chrome 154, the digits in the Arabic run, and
+  an Arabic word, a space under U+0301, a space and `12` take 4, the digits out of it. Since #TBD the port reads the
+  runs over the whole text and gives 3 and 5, the fifth a gap the walkers charge a mark after a space
+  (ENGINE_FOLLOWUPS.md, Letter spacing); while it was fed a text's segments, which hold no space, it gave 6 and 2
+  (2026-10-02). A character several scripts share starts a run that holds them all, the lowest code leading, Latin aside
+  for a Common character, which the next character with a script narrows, and it stays in a run of any of them
+  (`GetScripts`, `MergeSets`, `script_run_iterator.cc:118-215`, `:491-565`); a Common character that only one script
+  lists stays in whatever run it is in. The port gives a shared character its leading script wherever it stands and
+  leaves the rest out: U+202F, which Latin, Mongolian and Phags-pa share, takes no gap alone, after Arabic or between
+  Han characters, and one among Latin letters, and its Mongolian run takes in the digits around it, so `10`, U+202F,
+  `000` in a text of its own takes none of its 6 gaps (Chrome 154, 2026-10-01; ENGINE_FOLLOWUPS.md, Letter spacing). A
+  tab stop is eight Canvas spaces plus letter and word spacing (`font.cc:303-317`), rounded up to 1/128 px at DPR 2
   (`simple_font_data.cc:225-240`), and a tab skips a stop under half a space away (`font.cc:333-337`). The spacing is in
   a stop only under the runtime flag `TabSizeWithSpacing` (`TabSize::GetPixelSize`, `tab_size.h:24-33`), on by default
   since Chromium 140 (Chromium commit 74fb9bb2, 2025-07-11) and no longer a flag from 155 (c8a9ba0b): a Chromium before
@@ -2588,7 +2610,9 @@ Mostly on main as it was then, measured with the old suite in installed browsers
   stays 0.20 to 0.87px wide in 16px Arial and up to 2.80px in Gill Sans, 38 more wrong of 46,400 generated interface
   layouts, 3 of the sample's 11,901 paragraphs with one line 0.25 to 0.31px wider and no break moved), and none at a
   word's edge that is a default ignorable (5 lines; 17 generated harness cases fail again). Chrome 154's bench read both
-  level with the profile in Arial (two sessions, 2026-10-01), so they buy lines only.
+  level with the profile in Arial (two sessions, 2026-10-01), so they buy lines only. Since letter spacing reads the
+  runs through the same reader (2026-10-02), the first premise deletes nothing: `readScriptRuns()` stays for the cursive
+  rule.
 - **WebKit letter-spaced ligatures** (in the rebuild, from 2026-09-17; Measurement Model): no separator sets two letters
   unligated in one shaping call (U+200C ends the simple path's call, U+034F doesn't stop the ligature, U+180B brings a
   fallback glyph), and a group heuristic was 1.9 px off; a styled connected `<canvas>` would fix about 721 cases but is
