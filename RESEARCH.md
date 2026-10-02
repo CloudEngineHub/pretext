@@ -1141,7 +1141,7 @@ random item sequences it moves 85 on a stand-in Canvas, of which 39 pass that fa
 and 600 of the others don't move there. The 19 are under negative letter spacing, in layouts where Firefox has the box
 inside the line and Pretext's widths put it past the line's end, which the older reading hid: 16 a tab before items of
 soft hyphens, 2 a pre-wrap space before the soft hyphen that ends its item, 1 a padded span's last piece (2026-10-01,
-#TBD; ENGINE_FOLLOWUPS.md, Rich-inline item edges, has them and the gaps left; the harness now records a box of width 0
+#405; ENGINE_FOLLOWUPS.md, Rich-inline item edges, has them and the gaps left; the harness now records a box of width 0
 by its top). All of those counts are from before #394 to #403, and two of their causes are closed since: letter spacing
 off Firefox's grid by #397 and tab stops under letter spacing by #395. With them in, of 18,675 layouts in Firefox
 156.0.1 (the 9,979 and the later 1,253 recorded again, unchanged; the unit test's rows at their widths; and 7,215 of a
@@ -1781,12 +1781,12 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   about 16% slower or faster by nothing but the names the bench's minifier gives the bundle's top-level bindings. It is
   the one resize text whose lines hold words longer than the line (two rules of 72 hyphens, each 448px in 16px Helvetica
   Neue, against widths of 240-460px), so the one where `countPreparedLines()` runs its grapheme loop. The row first read
-  slower on #TBD, whose code `layout()` never runs. Each build below was timed against main before #394 (29562782), in
+  slower on #405, whose code `layout()` never runs. Each build below was timed against main before #394 (29562782), in
   three sessions of Firefox 156.0.1's resize rows (2026-10-02), and every other resize row read within noise in each:
 
   | Build | Names of the shared top-level bindings | The row, per session |
   | --- | --- | --- |
-  | #TBD's branch before it took #394 to #403 (b9c9d758) | its own | +15.6%, +17.0%, +16.3% |
+  | #405's branch before it took #394 to #403 (b9c9d758) | its own | +15.6%, +17.0%, +16.3% |
   | That main plus only the branch's new profile field, read by nothing | main's, all 410 | -3.5%, -0.5%, -4.3% |
   | The branch without that field | others than the branch's | -3.2%, +3.7%, +3.5% |
   | That build plus one unused local in the rich stepper | the branch's, all 412 | +13.2%, +12.3%, +17.6% |
@@ -1804,7 +1804,7 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   branch's `SPACE` falls in a fixed one. Why that would compile a slower loop isn't known, as a fixed slot is one load
   fewer. An app's bundler picks its own names, so the same source can read either way there. So a verdict on this row
   alone says nothing about a change whose code `layout()` doesn't run (`harness/README.md`, Bench). Making those
-  constants literals in the emitted code would take the names out of it, and is being tried apart from #TBD. Reopen on a
+  constants literals in the emitted code would take the names out of it, and is being tried apart from #405. Reopen on a
   Firefox whose scopes give every binding one kind of slot, or if the row moves between two builds whose minified names
   are the same.
 - **`%` on numbers that aren't whole** is a call: V8 works a remainder out inline only for two positive whole numbers
