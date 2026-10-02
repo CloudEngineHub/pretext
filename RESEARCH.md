@@ -1334,6 +1334,12 @@ advances would reopen it. The rebuild's DOM-free formulas, W being Canvas's widt
 `W(size)` (September 2026). They'd retire the DOM exception and work in workers, but make prepared widths depend on the
 DPR at prepare time, which the API discussion planned before a release decides (TODO.md, End of project).
 
+Letter-spaced text is counted the same way. The Blink and Gecko profiles measure its stretches through the context that
+shapes letter-spaced text (Measurement Model), and a text measured under its real spacing is counted before that spacing
+is set. Over 1,332 strings from templates of running text in 16 fonts at 1px and at -0.5px, 21,312 widths each, 1,744
+in Chrome and 1,264 in Firefox went from wrong to right and none from right to wrong, the same before #397 gave
+letter-spaced text that context and after (2026-10-01).
+
 #### Widths That Depend On Context
 
 Whole-run agreement, isolated-letter agreement and matching breaks are separate claims. These probes run from 6fadbe5
@@ -2812,6 +2818,7 @@ decisions for the maintainer.
   without it, nearly all in shapes only fuzzing produces (a text font's pictograph joined by a ZWJ to an emoji, a skin
   tone after a combining mark). It cost 13 runtime lines, a second pattern, a rule for which characters to ask alone
   that is neither engine's, and a bound whose answer depends on how wide a neighbouring glyph is. Limits says to
-  document such shapes, not chase them, so it was left out and the shapes are named in ENGINE_FOLLOWUPS.md, Emoji
-  correction. Its one cost in text an app may hold is in Firefox: three ZWJ sequences of emoji-test.txt written with no
-  U+FE0F measure 5px wide. Such sequences turning up in real text would reopen it.
+  document such shapes, not chase them, so it was left out, unmerged on branch `emoji-correction`, and the shapes are
+  named gaps in ENGINE_FOLLOWUPS.md, Emoji correction. Leaving it out costs one thing in text an app may hold, in
+  Firefox: three ZWJ sequences of emoji-test.txt written with no U+FE0F measure 5px wide. Such sequences turning up in
+  real text would reopen it.
