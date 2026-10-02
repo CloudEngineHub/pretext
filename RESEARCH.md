@@ -831,15 +831,32 @@ line is Chrome's to 0.03px for all 650 such fits tried in 26 font specs, where m
 layouts in 18 font specs, where main's does in none of 8,006, and in 6 of 23,041 in 12 common ones at 34 widths, where
 main's does in 11 of 22,726; all eight are the guillemet text in 14px Avenir Next.
 
-The cost is Canvas calls while a font is new, for each distinct first and last character of its words. Each of the 1,904
+The cost is Canvas calls while a font is new. A font is first asked once whether it kerns anything with the space
+(`getFontSpaceKerning()` in `src/measurement.ts`; the premise is below): one string, U+2028 before, between and after
+the 94 printable ASCII characters, measured as the context stands and again under `fontKerning = 'none'`. A font whose
+two widths are equal takes no kerning with spaces: none of its words is looked at and its texts aren't scanned for
+direction. That is 695 of the 819 faces measured below, Helvetica Neue, Georgia, Verdana and Inter among them. In a font that kerns, each distinct first and last character of its words is then asked about. Each of the 1,904
 cards prepared alone in a new font, 15px Arial, makes 1.51 times main's `measureText` calls (97,271 to 147,169 in all;
 the median card 1.53 times, from 1.23 to 1.75) and 1.39 times its submitted units. The first 10 prepared in order make
-24% more calls (287 to 355), the first 100 9% more and all of them 1.4% more (11,810 to 11,981). The harness's sample,
-11,901 paragraphs in 272 fonts, makes 18% more calls (232,950 to 275,069) and 10% more units. A font that doesn't kern
-the space pays the same calls, less one, for no change. Alone in a new font, Gatsby paragraphs make 1.37 times the
-calls, Hindi ones 1.21 and Thai ones 1.14; Chinese, Japanese and Korean ones stay within 2% in order and 6% alone,
-since ideographs, kana and Hangul syllables aren't asked about. Korean's figure rests on a premise (below): asked about,
-its syllables made 2.30 times main's calls in order and 3.16 times the units.
+24% more calls (287 to 355), the first 100 9% more and all of them 1.4% more (11,810 to 11,981). Those were counted
+before the font's question, which adds its two calls of 189 units to each. Alone in a new font that kerns, Gatsby
+paragraphs make 1.37 times the calls, Hindi ones 1.21 and Thai ones 1.14; Chinese, Japanese and Korean ones stay within
+2% in order and 6% alone, since ideographs, kana and Hangul syllables aren't asked about. Korean's figure rests on a
+premise (below): asked about, its syllables made 2.30 times main's calls in order and 3.16 times the units.
+
+The harness predicts its sample's 11,901 paragraphs in 72 documents, where their 331 font strings are new 1,764 times,
+1,508 of them with a text that holds a space: 6.7 paragraphs to a new font. There the calls grow 8.9% (232,950 to
+253,798) and the submitted units 70% (848,525 to 1,444,957), the question's 378 units each time. With every font's
+words asked about and no question, the calls grew 18.1% and the units 9.7%. The books, 72 long texts in 12 fonts, make
+25 more calls of 48,920 and 1.8% more units, where they made 0.9% more calls. So the question costs most where a font
+holds little text. In a background window of pinned Chrome on a busy machine, so as hypotheses: in a font size Canvas
+hasn't measured in, the question took 0.6 to 1.75 times as long as measuring 60 words apart (0.1ms in Roboto served as
+a web font, 0.2 to 0.7ms in Helvetica Neue, Arial, Georgia, Times New Roman and Gill Sans; the median of 259 families
+1.75 times), and 0.3 to 0.75 times as long as the 155 calls per font it replaces on the sample. Nearly all of it is the
+first call, which makes Canvas load the 94 glyphs, most of which a font that holds much text loads anyway. The first
+question in a family took longer, 0.6 to 2ms in those fonts, 9ms in Papyrus and Bradley Hand and 234ms in Chalkduster,
+whose glyphs are heavy however they are asked for: at each later size its question took 2.7ms, as did its 94
+characters in one string without U+2028 (2026-10-01). The bench's `fresh` rows are where this shows.
 
 Canvas gives the kerning where U+2028 stands for the space: Blink draws U+2028 with the space glyph and its Canvas
 doesn't cut there. A word measured with U+2028 after it, and before it, less the word and a space, equals what the
@@ -941,8 +958,41 @@ vocabulary. The premises and their gaps:
   syllables (326 distinct first and 191 distinct last characters in 150 paragraphs of `corpora/ko-sonagi.txt`), which is
   what the calls above would have paid for. Reopens with a font that kerns a syllable with the space; Windows' Malgun
   Gothic wasn't measured.
-- **U+2028 measures as the space.** Where it doesn't, as in another engine's Canvas under the Chromium profile, no
-  kerning is taken.
+- **A font that kerns no printable ASCII character with the space kerns nothing with it.** The font's question takes
+  that for speed. `fontKerning = 'none'` turns the `kern` feature off (`FontFeatureRange::FromFontDescription`,
+  `font_features.cc:39-47`), and HarfBuzz then applies no kerning from GPOS, `kern` or `kerx` (`hb-ot-shape.cc:127-131`,
+  `hb-ot-kern-table.hh:67`, `hb-aat-layout-kerx-table.hh:109`), so the string's two widths differ by its characters'
+  kernings with the space glyph and by nothing else. In 16px Arial, Gill Sans, Helvetica and Times New Roman they
+  differ by the sum of the 94 characters' kernings asked singly, to 0.0001px, and where no character kerns they are the
+  same number, so the question needs no rounding bound. Its answer was that of asking the 94 singly in every face
+  tried: 819 faces of 273 families, the 257 that macOS 27 lists and 16 more that Chrome resolves, in regular, bold and
+  italic, of which 124 faces of 44 families kern, and the sample's 331 font strings and 36 font lists (pinned Chrome
+  154.0.8037.57, 2026-10-01). The gap is a font whose only pairs with the space are outside ASCII, which measures as on
+  main. Asked singly over Latin-1, Latin Extended, Greek, Cyrillic, Armenian, Georgian, the Indic and Southeast Asian
+  blocks, General Punctuation and the symbols up to U+22FF, 18 of the 819 faces are such, in 7 families, each checked
+  against the page: Tamil MN (10 letters after a space, 1.17px at 16px, so a five-word line stays 4.69px wide),
+  Malayalam MN and Malayalam Sangam MN (33 letters, 0.23px), Gujarati Sangam MN (3 letters, 0.01px), DIN Condensed
+  (Greek `Λ` and `Τ`, 1.6 and 0.48px), bold Helvetica Neue (U+02BC, 0.88px), bold Mukta Mahee (danda, double danda and
+  the four curly quotes, 0.64 to 0.96px), and bold Athelas, which moves `Ά`, `Έ`, `Ό` and `Ύ` 0.8 to 4px away from a
+  space before them, so a line of four such words stays 10.4px narrow. The four Indic families are also every face
+  found that kerns a letter outside Latin, Cyrillic and Greek with the space. A question of the letters alone would
+  also miss bold PT Serif, Mukta Mahee, SignPainter and `system-ui` from 18px, which kern only punctuation with the
+  space; one of the letters, the comma and the full stop, 218 units, would miss only SignPainter, which kerns `&`.
+  Reopens with a common font in the gap; Windows' and Android's fonts weren't measured.
+- **What Canvas shows under `fontKerning = 'none'` too isn't the font's kerning**, and the question doesn't see it,
+  so a font that kerns no ASCII takes none of it. A character asked about singly can't tell it from kerning, so a font
+  that kerns takes all of it. Some of it the page doesn't have. Canvas shapes a two-byte string by another path than a
+  one-byte one (Keeping Work Bounded), so in Amiri and Noto Naskh Arabic ASCII punctuation measures otherwise with
+  U+2028 than alone, a full stop 1.84px wider in 16px Amiri, while Chrome lays out `abc. def (ghi) jkl` as its words
+  measure alone: with every font's words asked about, that line of Latin text was 10.86px wide in Amiri and one in Noto
+  Naskh Arabic 3.29px narrow, and neither is now. U+02DD in `system-ui` is the same, 0.31px at 16px, and is still taken
+  from 18px, where the font kerns the comma and full stop. Some of it the page has: Waseem widens a full stop before a
+  space by 1.98px, so `abc. def. ghi` stays 3.95px narrow there, as on main; and a Thai SARA AM or a Lao AM after a
+  space joins the space's cluster, so `ไทย ำ ไทย ำ` is 0.89px wide in 16px Arial without it, which Arial takes, and
+  0.28px narrow in Georgia, which doesn't. Text in Amiri, Noto Naskh Arabic or Waseem mostly holds Arabic letters and
+  takes no kerning either way.
+- **U+2028 measures as the space.** Where it doesn't, no kerning is taken: Euphemia UCAS has a glyph of its own for it,
+  8.05px against the space's 4.75px at 16px. A font is asked this once, after its question found kerning.
 - **A difference no larger than float32 rounding is no kerning.** Blink adds a run's advances up in 1/65536 px and
   keeps the sum as a float32 (`ShapeResult::ComputeGlyphPositions`, `shape_result.cc:1539-1576`), which from 256px up
   is coarser than that, so a pair's width and its parts' can differ where the font kerns nothing: from 160px up, for
@@ -2124,12 +2174,12 @@ Mostly on main as it was then, measured with the old suite in installed browsers
   both, and on the harness both fixed 4 or 5 of the sample's 11 kerning failures and lost one or two of its passes,
   for 66% more `measureText` calls on the sample. In the default state the same measurement changes nothing, since
   Canvas cuts at the U+0020 (pinned Chrome 154, 2026-09-30). The profile uses `fontKerning` only to learn, once per
-  font, where its kerning with the space sits.
+  font, whether it kerns with the space and where that kerning sits.
 - **A word measured whole with its spaces in Chrome**, U+2028 standing for them, as the WebKit profile measures a word
   with its U+0020: exact for the word, and it fixed 10 of the sample's 11 kerning failures, but every distinct word
   costs a second Canvas call for the space after it and a third for the space before it, 67% more calls and 118%
   more submitted units on the harness's sample and 183% more calls on the masonry cards in one font, where the edge
-  characters cost 18%, 10% and 1.4%. With only the space after the word, the WebKit profile's rule, it fixed 2 of the
+  characters cost 18%, 10% and 1.4% (8.9% and 70% on the sample since each font is asked first). With only the space after the word, the WebKit profile's rule, it fixed 2 of the
   11: in Arial and its like the kerning is nearly all between a space and the capital after it (pinned Chrome 154,
   2026-09-30). Reopens if a font's kerning with the space is found to depend on more than the edge character, as it
   does for a comma or a full stop in a run of a script the font shapes otherwise (Kerning At Line Edges): there only
