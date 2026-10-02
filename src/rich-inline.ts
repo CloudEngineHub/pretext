@@ -20,7 +20,7 @@ import {
   type TextAnalysis,
   type WhiteSpaceMode,
 } from './analysis.js'
-import { getGeckoParagraphLevels, isDiscardable } from './gecko-line-breaks.js'
+import { getGeckoParagraphLevels, isDiscardable, isSpaceOrTabOrSegmentBreak } from './gecko-line-breaks.js'
 import { getWebKitBreakBetweenItems } from './line-breaks.js'
 import { buildLineTextFromRange, getGraphemeEnds, type PreparedSegments } from './line-text.js'
 import {
@@ -739,7 +739,7 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
     let spaceEnd = text.length
     while (spaceEnd > end && !isCollapsibleSpaceCode(text.charCodeAt(spaceEnd - 1))) spaceEnd--
     const levelsSplitRun = profile.collapsesSpaceAcrossSoftHyphens && itemBreak !== 'never'
-    const runGoesOn = levelsSplitRun && runEnd > 0 && isCollapsibleSpaceCode(text.charCodeAt(runEnd - 1)) && keepsLevel(index, runEnd - 1, runEnd, spaceEnd)
+    const runGoesOn = levelsSplitRun && runEnd > 0 && isSpaceOrTabOrSegmentBreak(text.charCodeAt(runEnd - 1)) && keepsLevel(index, runEnd - 1, runEnd, spaceEnd)
     const gapsTrailingWhitespace = hasTrailingWhitespace && ownsWhiteSpace
     pendingGapWidth = !gapsTrailingWhitespace
       ? null

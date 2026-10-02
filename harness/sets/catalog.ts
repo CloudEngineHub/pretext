@@ -239,8 +239,11 @@ export function lineEndMarkTemplates(): Template[] {
 
 // Bidi controls, which Firefox leaves out of the text runs it breaks (src/analysis.ts): a chunk of only them between hard
 // breaks, as a run, at the paragraph start and end, a control before a hard break, and one after a space where a line can
-// end, in both white-space modes and as an isolate around a word. Two words on each side give the search widths where the
-// lines around it change.
+// end, in both white-space modes and as an isolate around a word. Then white space on both sides of U+200E at the
+// paragraph start, which Firefox's white-space run reads through, so the line start trims all of it (transformText in
+// src/gecko-line-breaks.ts). Two words give the search widths where the lines change. White space on both sides of a
+// control between words is in the facts set (data/engine-facts.json): the cover here keeps a break's kind once, at the
+// narrowest width that shows it, and what tells one space from two is the width where the words join.
 export function bidiControlTemplates(): Template[] {
   const shapes: ReadonlyArray<readonly [string, string, 'normal' | 'pre-wrap']> = [
     ['between', 'ab cd\n\u200E\nef gh', 'pre-wrap'],
@@ -251,6 +254,7 @@ export function bidiControlTemplates(): Template[] {
     ['after-space', 'ab cd \u200Eef gh', 'normal'],
     ['after-space-pre-wrap', 'ab cd \u200Eef gh', 'pre-wrap'],
     ['isolate-after-space', 'ab cd \u2068ef\u2069 gh', 'normal'],
+    ['between-spaces-at-start', ' \u200E ab cd', 'normal'],
   ]
   const out: Template[] = []
   for (let i = 0; i < shapes.length; i++) {

@@ -15,6 +15,7 @@ type AnalysisModule = typeof import('./analysis.ts')
 type LayoutModule = typeof import('./layout.ts')
 type LineBreakModule = typeof import('./line-break.ts')
 type LineBreaksModule = typeof import('./line-breaks.ts')
+type GeckoLineBreaksModule = typeof import('./gecko-line-breaks.ts')
 type MeasurementModule = typeof import('./measurement.ts')
 type RichInlineModule = typeof import('./rich-inline.ts')
 type SegmentMetrics = ReturnType<MeasurementModule['getSegmentMetrics']>
@@ -44,6 +45,8 @@ let analyzeText: AnalysisModule['analyzeText']
 let SEGMENT_KINDS: AnalysisModule['SEGMENT_KINDS']
 let KIND_BITS: AnalysisModule['KIND_BITS']
 let getBlinkLineBreaks: LineBreaksModule['getBlinkLineBreaks']
+let CLUSTER_START: LineBreaksModule['CLUSTER_START']
+let getGeckoLineBreaks: GeckoLineBreaksModule['getGeckoLineBreaks']
 let prepareRichInline: RichInlineModule['prepareRichInline']
 let layoutNextRichInlineLineRange: RichInlineModule['layoutNextRichInlineLineRange']
 let materializeRichInlineLineRange: RichInlineModule['materializeRichInlineLineRange']
@@ -278,13 +281,14 @@ class TestOffscreenCanvas {
 
 beforeAll(async () => {
   Reflect.set(globalThis, 'OffscreenCanvas', TestOffscreenCanvas)
-  const [mod, lineBreakMod, measurementMod, richInlineMod, analysisMod, lineBreaksMod] = await Promise.all([
+  const [mod, lineBreakMod, measurementMod, richInlineMod, analysisMod, lineBreaksMod, geckoLineBreaksMod] = await Promise.all([
     import('./layout.ts'),
     import('./line-break.ts'),
     import('./measurement.ts'),
     import('./rich-inline.ts'),
     import('./analysis.ts'),
     import('./line-breaks.ts'),
+    import('./gecko-line-breaks.ts'),
   ])
   ;({
     prepare,
@@ -303,7 +307,8 @@ beforeAll(async () => {
   ;({ countPreparedLines, walkPreparedLinesRaw } = lineBreakMod)
   ;({ getSegmentFit, getFontMeasurement, getPreparationLanguage, getEngineProfile } = measurementMod)
   ;({ analyzeText, SEGMENT_KINDS, KIND_BITS, SPACED, ONE_CLUSTER, UNBROKEN } = analysisMod)
-  ;({ getBlinkLineBreaks } = lineBreaksMod)
+  ;({ getBlinkLineBreaks, CLUSTER_START } = lineBreaksMod)
+  ;({ getGeckoLineBreaks } = geckoLineBreaksMod)
   ;({ prepareRichInline, layoutNextRichInlineLineRange, materializeRichInlineLineRange, measureRichInlineStats, walkRichInlineLineRanges } = richInlineMod)
 })
 
@@ -621,6 +626,11 @@ describe('boundary-policy regressions', () => {
     // A level run can start at white space the scan drops, here the space before the LF, and then
     // splits the text run at the LF, kept as a space inside U+0600's cluster, before the mark.
     expect(analyzeText('\u0600 \n\u0301', geckoProfile).flags[2]! & UNBROKEN).toBe(0)
+    // In pre-wrap each line is resolved apart and starts a text run, so a mark right after a line
+    // feed starts a cluster where Firefox resolves levels. Only the scan's cluster starts show
+    // it, as a hard break ends the segment before the mark either way.
+    expect(getGeckoLineBreaks('\u05D0\n\u0301', true, false, 'gecko/char').breaks[2]).toBe(CLUSTER_START)
+    expect(getGeckoLineBreaks('a\n\u0301', true, false, 'gecko/char').breaks[2]).toBe(0)
   })
 
   test('small kana and U+30FC stay with the text before them where the profile resolves them to NS', () => {
@@ -1062,6 +1072,52 @@ describe('boundary-policy regressions', () => {
       expect(prepareWithSegments('ab \u200E', FONT).segments).toEqual(['ab\u200E'])
       expect(measureRichInlineStats(prepareRichInline([{ text: 'ab \u200E', font: FONT }, { text: 'cd', font: FONT }]), 1000).maxLineWidth)
         .toBe(measureWidth('ab cd', FONT))
+      // The run reads through every control, whichever bidi level run it starts. Whether Firefox
+      // ends the run at one turns on the paragraph's direction, which Pretext doesn't take, so a
+      // text is one text frame's (transformText in src/gecko-line-breaks.ts): U+200F between Latin
+      // words keeps Firefox's one space in a right-to-left paragraph, where a left-to-right one
+      // keeps two, and U+200E between Hebrew words the one of a left-to-right paragraph.
+      const segments = (text: string) => prepareWithSegments(text, FONT).segments
+      expect(segments('ab \u200F cd')).toEqual(['ab', ' \u200F', 'cd'])
+      expect(segments('\u05D0 \u200E \u05D1')).toEqual(['\u05D0', ' \u200E', '\u05D1'])
+      expect(segments('ab\t\u061C\ncd')).toEqual(['ab\u061C', ' ', 'cd'])
+      expect(segments('a \u2067b \u2069 c')).toEqual(['a', ' \u2067', 'b', ' \u2069', 'c'])
+      expect(segments('\u200F ab')).toEqual(['\u200F', ' ', 'ab'])
+      // A run's last space stays as the base of a mark after it, through controls.
+      expect(segments('ab \u200E \u200E\u0301c')).toEqual(['ab', ' \u200E \u200E', '\u0301c'])
+      // The run reads through soft hyphens as through controls. The break after white space that
+      // left from after a soft hyphen is that white space's, which draws no hyphen.
+      expect(segments('ab \u00AD cd')).toEqual(['ab', ' ', '\u00AD', 'cd'])
+      expect(segments('ab \u00AD \u200E cd')).toEqual(['ab', ' \u00AD\u200E', 'cd'])
+      expect(prepareWithSegments('ab \u200E \u00AD cd', FONT).kinds).toEqual(['text', 'space', 'zero-width-break', 'text'])
+      // A run whose dropped characters all come after its white space leaves out only white space
+      // that touches the unit it keeps, which the scan doesn't name.
+      expect(getGeckoLineBreaks('ab  \u200Ecd', false, false, 'gecko/char').leftOut).toBeNull()
+      // A run that goes on into the text's trailing white space keeps its first white space, where
+      // its segment break comes after a soft hyphen: with the trailing white space left out, a rich
+      // item's text still holds the run's one space. A run that keeps its first white space
+      // anyway keeps no second one.
+      expect(segments('ab \u00AD\n\u2066 ')).toEqual(['ab', ' \u00AD\u2066'])
+      expect(segments('ab \u00AD\n')).toEqual(['ab', ' ', '\u00AD'])
+      expect(segments('ab \u00AD\n\u2066 cd')).toEqual(['ab', '\u00AD', ' \u2066', 'cd'])
+      expect(segments('ab \u00AD \u00AD ')).toEqual(['ab', ' ', '\u00AD\u00AD'])
+      // A CR or FF takes no room, as Firefox's text run gives it no advance, and a line can
+      // end where it was. It is no white space of a run, so the white space on its two sides
+      // is two runs, which keep a space each through a control, and CRLF is one space.
+      expect(segments('ab\rcd')).toEqual(['ab', 'cd'])
+      expect(lines('ab\fcd', measureWidth('ab', FONT))).toEqual(['ab', 'cd'])
+      expect(segments('ab\r\ncd')).toEqual(['ab', ' ', 'cd'])
+      // The CR of a CRLF collapses into the line feed's space, so the scan doesn't name it.
+      expect(getGeckoLineBreaks('ab\r\ncd', false, false, 'gecko/char').leftOut).toBeNull()
+      expect(segments('ab\r\u200E cd')).toEqual(['ab\u200E', ' ', 'cd'])
+      expect(segments('ab \u200E\fcd')).toEqual(['ab', ' \u200E', 'cd'])
+      expect(segments('ab\r\u200E\rcd')).toEqual(['ab\u200E', 'cd'])
+      expect(segments('ab \u200E\r\ncd')).toEqual(['ab', ' \u200E ', 'cd'])
+      expect(segments('ab\r\n\u00AD cd')).toEqual(['ab', ' ', '\u00AD', 'cd'])
+      // Nor is it the white space of a run that goes on into a text's trailing white space: the
+      // space after the soft hyphen is a run of its own.
+      expect(segments('ab\r\u00AD ')).toEqual(['ab', '\u00AD'])
+      expect(prepareWithSegments('ab\rcd', FONT, { whiteSpace: 'pre-wrap' }).segments).toEqual(['ab', '\n', 'cd'])
       // Controls, and soft hyphens before them, take no letter spacing.
       expect(prepareWithSegments('a\u200Eb', FONT, { letterSpacing: 2 }).widths).toEqual([measureWidth('ab', FONT) + 2])
       expect(prepareWithSegments('a\u00AD\u200Eb', FONT, { letterSpacing: 2 }).widths).toEqual([measureWidth('a\u00AD\u200Eb', FONT) + 2])
@@ -1241,10 +1297,10 @@ describe('boundary-policy regressions', () => {
           // The ZWSP must touch the run, and the run must contain a newline.
           ['ab\n\u2060\u200Bcd', 'ab \u2060\u200Bcd', 'ab \u2060\u200Bcd', 'ab \u2060\u200Bcd'],
           ['ab \u200Bcd', 'ab \u200Bcd', 'ab \u200Bcd', 'ab \u200Bcd'],
-          // CR joins Blink's run only. FF joins neither run and still collapses.
+          // CR joins Blink's run only. FF joins neither run, and takes no room in Firefox.
           ['ab\u200B\r\ncd', 'ab\u200B cd', 'ab\u200Bcd', 'ab\u200B cd'],
           ['ab\u200B\f\ncd', 'ab\u200B cd', 'ab\u200B cd', 'ab\u200B cd'],
-          ['ab\u200B\n\fcd', 'ab\u200B cd', 'ab\u200B cd', 'ab\u200B cd'],
+          ['ab\u200B\n\fcd', 'ab\u200B cd', 'ab\u200B cd', 'ab\u200Bcd'],
           // Gecko's run continues through SHY without ending on one, and leaves
           // out a last SPACE before a combining mark.
           ['ab\u200B\n\u00AD\ncd', 'ab\u200B \u00AD cd', 'ab\u200B\u00AD cd', 'ab\u200B\u00ADcd'],
@@ -3649,8 +3705,10 @@ describe('rich-inline invariants', () => {
         // in 16px Arial, with both spaces after the chip (2026-09-30). The row tells the item's
         // text from a placeholder for it, not U+FFFC from another neutral.
         expect(gaps(['ab ', { text: '\u05D0\u05D1', break: 'never' }, ' \u200F\u00AD', ' this more'])).toEqual([0, r(space), r(space), r(space)])
-        // A soft hyphen after no white space opens no run, and text after one closes it.
+        // A soft hyphen after no white space opens no run, and text after one closes it. A CR or
+        // FF is no white space of Gecko's run, which takes no room there (analyzeText).
         expect(walk(['see\u00AD', ' this word'], Infinity)).toEqual([[r(see + space + words), [[0, 0, r(see)], [1, r(space), r(words)]]]])
+        if (collapses) expect(walk(['see\r\u00AD ', 'this word'], Infinity)).toEqual([[r(see + space + words), [[0, 0, r(see)], [1, r(space), r(words)]]]])
         expect(walk(['see \u00AD', 'x', ' this word'], Infinity)).toEqual([[r(see + space + x + space + words), [[0, 0, r(see + space)], [1, 0, r(x)], [2, r(space), r(words)]]]])
         // An atomic item's own white space makes no gap, and the run ends there.
         expect(walk(['see \u00AD', { text: ' chip', break: 'never' }, ' this word'], Infinity)).toEqual([[r(see + space + chip + space + words), [[0, 0, r(see + space)], [1, 0, r(chip)], [2, r(space), r(words)]]]])

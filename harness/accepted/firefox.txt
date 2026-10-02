@@ -3,17 +3,31 @@ report-23cd6052bc54f415 breaks
 report-953b7e9cd05588ed breaks
 report-b980d5159851daba breaks
 
+## A CR between CJK characters at -1 px letter spacing, at 24 px and wider: Firefox keeps the CR in its text run with no advance and gives it the letter spacing, so `xx 漢字` and the CR are 43.70 px and fit at 43.72-44.18 px, where the Gecko analysis takes the CR out of the text, spacing and all, has 44.70 px and breaks before `字`; before #399 the CR had a space's room there (ENGINE_FOLLOWUPS.md, White space and controls)
+catalog-2ba906e88a826adc breaks
+catalog-b722b31aa0ce53d6 breaks
+catalog-bc37ba36eebfd65c breaks
+catalog-e01b7f79970cbc64 count
+
+## A CR or FF between letters under letter spacing, two under 24 px, one at 47.3 px and two at 63.3 px: Firefox keeps it in its text run with no advance and gives it the letter spacing, where the Gecko analysis takes it out of the text, spacing and all, so the line is one gap off Firefox's and the widths within that gap of where the text fits take the other line count; before #399 it had a space's room, and the one at 47.3 px, before Arabic at -1 px, failed then too, while the others passed and the widths beside them failed instead (ENGINE_FOLLOWUPS.md, White space and controls)
+catalog-09dfe3ce274e9031 count
+catalog-1a5d9bdd9cc59da0 count
+catalog-26d0c58f4b1a737e count
+catalog-3cf193e86082144e count
+catalog-7cf32037f7604eb3 count
+
 ## A bidi control after a space that starts a span, before white space that starts the next, at 24 px and wider: Firefox drops it from its text (IsDiscardable) and ends the line past it, where the library keeps it as text of no width, which the next line starts with (main and 0fef0023 too; ENGINE_FOLLOWUPS.md)
 rich-426a9dc0f93dbfdb breaks
-
-## A newline, soft hyphen and newline that start a span, at 24 px and wider: Firefox collapses them into one space, as it collapses white space across the characters it discards, where the library keeps a space on each side of the soft hyphen, as it does in one text (ENGINE_FOLLOWUPS.md)
-rich-90126064978ae3b0 breaks
 
 ## A soft hyphen whose hyphen doesn't fit, where rich items split its word, at 24 px and wider: Firefox breaks the word between letters, the library at the soft hyphen, as it does for the text in one node (ENGINE_FOLLOWUPS.md)
 rich-4635ddffedd43c84 breaks
 rich-8736e842495c21ea count
 rich-d232a1424826203f count
 rich-d7a1851aecf96951 breaks
+
+## A space before a CR where the line would end, at 24 px and wider: Firefox's fit trims only the run of spaces that ends the line (gfxTextRun::BreakAndMeasureText, gfxTextRun.cpp:1152-1160), and the CR after the space ends that run, so `aaaa A` with its space, 55.17 px, doesn't fit at 52-55.15 px and `A` starts the next line, where the Gecko analysis takes the CR out of the text, hangs the space and fits `aaaa A`; before #399 the CR was one more space that hung (ENGINE_FOLLOWUPS.md, White space and controls)
+catalog-28710b5f63c26c5b count
+catalog-c5e152ff1220e623 count
 
 ## A span of a soft hyphen after a word, before a span that starts with LRI, at 24 px and wider: Firefox breaks after the LRI, which it doesn't for the text in one node, where the library breaks as in one node, inside the word after the LRI (main too; ENGINE_FOLLOWUPS.md)
 rich-04d0135c57e7b691 breaks
@@ -141,6 +155,22 @@ rich-c8521a67b8b0da17 count
 rich-cd735845ca3573ac count
 rich-ed780af4f39be6f6 count
 
+## Arabic letters beside a CR or FF in a word too wide for the line, at 24 px and wider: Firefox breaks the word between joined letters, with brackets kept beside the Arabic after them, and each part has its joined width, where the library gives each letter the width it has alone; the lines are the same whether the CR or FF takes a space's room, none, or stays in the text with no advance, so it isn't the cause, which isn't traced further (the shapes of "Arabic and Hebrew beside brackets" and "Arabic words with vowel marks, too wide for the line")
+catalog-0569c851a6d3d8c2 breaks
+catalog-10ffbf5245d38007 breaks
+catalog-4179aa20b1ff64b7 count
+catalog-4aa3be0034487507 breaks
+catalog-56d2c31cd3650466 count
+catalog-702560e0797f6fc0 count
+catalog-96611e4fcb532883 breaks
+catalog-96a310142bea1297 breaks
+catalog-9adfd216c7042c6e count
+catalog-9e9983398e4c3041 breaks
+catalog-c20a663b7649bdd3 count
+catalog-d9bb15b2c6258cea breaks
+catalog-dd32b54e376716ef breaks
+catalog-f9c976d911342fe4 count
+
 ## CJK beside Latin, closing punctuation, small kana or U+FFFC, and CJK under keep-all or a changed page language, at 24 px and wider: Firefox breaks there where the library doesn't
 catalog-01c6cd1732e973a0 count
 catalog-02ca7fd9ca677cc3 count
@@ -262,7 +292,6 @@ catalog-fa37e253d5502bf0 count
 catalog-fb808032c72f7987 count
 catalog-fc543e6d51f516f1 count
 catalog-fc9a4c6d9a188f50 count
-facts-13d0f4eb240877c7 count
 old-gate-716890708b219d79 count
 old-gate-f59a86459057b5a6 count
 old-gate-f9552b36e7a9e2a0 count
@@ -827,7 +856,6 @@ catalog-633aa012b0cf7106 count
 catalog-6357f34a1644caba count
 catalog-63bdca867389a6f9 count
 catalog-63ed84f58514031f count
-catalog-645dcbd6865b7ab8 count
 catalog-649a59f1e14490b8 count
 catalog-6528758e78857f6d count
 catalog-654425d8fe55de76 breaks
@@ -972,7 +1000,6 @@ catalog-90d96bb2cd472a2d count
 catalog-9184c011cc98362e count
 catalog-91d0825688cded05 count
 catalog-91f834d584057cdd count
-catalog-92b9f2487ad12839 count
 catalog-92c0e588404686a0 count
 catalog-92c43a35b138f4f4 count
 catalog-92df2a2bb66eeb49 count
@@ -1032,7 +1059,6 @@ catalog-a40cbb73d37d7bd0 breaks
 catalog-a41fb056c275ff7f count
 catalog-a440428d57b09fd8 breaks
 catalog-a443d59fea79ba8c count
-catalog-a464bc854e5a85ea count
 catalog-a466dec4f1d7c8e1 breaks
 catalog-a4933474b771f192 breaks
 catalog-a51b2138ffc39646 count
@@ -2718,15 +2744,13 @@ sample-fe501abf645689c3 error
 sample-ff42ba37219be8db error
 sample-ffd94dbfb29c6f0c error
 
-## Pasted C0 and C1 controls (CR, FF, VT, NUL, NEL) between letters, at 24 px and wider: Firefox gives them widths and line ends the library doesn't model
+## Pasted C0 and C1 controls (VT, NUL and NEL, and CR and FF under pre-wrap) between letters, at 24 px and wider: Firefox gives them widths and line ends the library doesn't model
 catalog-0154b38964d405ff count
 catalog-036fe1be6283f402 count
-catalog-0569c851a6d3d8c2 breaks
 catalog-06425e7f5d96c42d count
 catalog-0885bc84b785d554 count
 catalog-0ee9906e1dc3eaf7 breaks
 catalog-10b04eac49740daa count
-catalog-10ffbf5245d38007 breaks
 catalog-120e49af7a6b4b73 count
 catalog-128e709fcff49ed1 breaks
 catalog-1365b1e8dfac5dbe count
@@ -2734,13 +2758,10 @@ catalog-13c877c90aaddc8b breaks
 catalog-180a5c8b2828d9cf count
 catalog-187fac98080e7a39 breaks
 catalog-19864e450690f6db count
-catalog-1a5d9bdd9cc59da0 count
 catalog-1f07e7ce8558ec61 count
-catalog-28710b5f63c26c5b count
 catalog-28e2ed8b6574716b count
 catalog-2a3fd8e6126b8f9a count
 catalog-2a99cb4421a51838 count
-catalog-2ba906e88a826adc breaks
 catalog-2d42b7a5956aa38f count
 catalog-2d79a4fc2ae2b2d0 count
 catalog-2d8340777692c08a count
@@ -2753,17 +2774,13 @@ catalog-39e9eb3339bc461a count
 catalog-3d1abb6547800ac3 breaks
 catalog-3f7017a07d458db3 count
 catalog-416aa06864624017 count
-catalog-4179aa20b1ff64b7 count
 catalog-46239743c4aceca8 count
 catalog-4a2ea3b0e4ae08e9 count
-catalog-4aa3be0034487507 breaks
 catalog-4bb1d059196d6b86 count
 catalog-50b0a3ac5ee970ee count
-catalog-56d2c31cd3650466 count
 catalog-57198da3b0934a77 count
 catalog-57887fb9af9fca8d breaks
 catalog-5947596297954521 count
-catalog-5c2a1a42737f5215 breaks
 catalog-5d9beb819d65c420 count
 catalog-5fd49258e05a7d38 count
 catalog-627fc743d52e9ff0 count
@@ -2773,9 +2790,7 @@ catalog-69d68896eaf83b7c count
 catalog-6abf850b5ee04230 breaks
 catalog-6c0cca70a369f5c6 count
 catalog-6de3182bbf064a98 count
-catalog-702560e0797f6fc0 count
 catalog-73fb6c1587d87527 count
-catalog-771f09af6c13ff57 count
 catalog-7837e2811a0b442c count
 catalog-7d6a6f3fcab2fd8c count
 catalog-7e750e48852264bf count
@@ -2785,11 +2800,7 @@ catalog-88087693db0e9e17 breaks
 catalog-8f6d46d7ce5d84c0 count
 catalog-90f8b60972e4d479 count
 catalog-91b71bc70b07d6d6 count
-catalog-96611e4fcb532883 breaks
-catalog-96a310142bea1297 breaks
-catalog-9adfd216c7042c6e count
 catalog-9e49a39dbf52bd2b count
-catalog-9e9983398e4c3041 breaks
 catalog-9f61b14f9e826dea count
 catalog-a81fbebc98a9e068 breaks
 catalog-ab0a299be780df5b count
@@ -2801,26 +2812,18 @@ catalog-b47213aeac060371 count
 catalog-b64424b8b99ec8b9 count
 catalog-b6ec3bcfb4fd8fa2 count
 catalog-b70e03561759471c breaks
-catalog-b722b31aa0ce53d6 breaks
 catalog-b96b74c1c64e0621 count
 catalog-bb68a880699cc7f4 count
-catalog-bc37ba36eebfd65c breaks
 catalog-c1d5dec91d65d477 count
-catalog-c20a663b7649bdd3 count
 catalog-c2658e4fe55b6fe0 count
 catalog-c4d0fc7c7c0738e9 breaks
-catalog-c5e152ff1220e623 count
 catalog-c7fc830af740765d count
 catalog-c96296e1f0605cf9 count
 catalog-d1ec84782fca5579 breaks
 catalog-d233b74f210cf7e1 count
 catalog-d72648c7b27b5bd7 count
 catalog-d94f0aacec15b8a4 breaks
-catalog-d9bb15b2c6258cea breaks
-catalog-db7feeb8e10b6394 breaks
-catalog-dd32b54e376716ef breaks
 catalog-dd76d084f982c580 count
-catalog-e01b7f79970cbc64 count
 catalog-e33bba36540a2683 count
 catalog-e5fc88abda777106 count
 catalog-e89322167b81f953 count
@@ -2830,12 +2833,10 @@ catalog-f43a352bf858db46 breaks
 catalog-f5fdeff0099bcf0e count
 catalog-f65820c0d78a8cc7 breaks
 catalog-f726e40884af90e0 breaks
-catalog-f9c976d911342fe4 count
 catalog-fab216e704957421 count
 catalog-fd70967c1ddf7c1f count
 facts-3c7fb53688acaebf count
 facts-41f7a911b5d592b8 count
-facts-efaeb7dbcdac540a count
 old-gate-0389719e61d4cfa7 breaks
 old-gate-04d3119da5a3931e breaks
 old-gate-398911ce17952484 breaks
@@ -2954,9 +2955,6 @@ rich-d46f633fad829104 count
 rich-ee31e728f8b9b40e count
 rich-fcc03bb8c805a9c8 count
 
-## White space and soft hyphens that start a span before a word, after a space, at 24 px and wider: Firefox collapses the white space between the soft hyphens with the space before, as it collapses white space across the characters it discards, where the library keeps both, as it does in one text (c09d264b too; ENGINE_FOLLOWUPS.md)
-rich-afb8005e2a64451d count
-
 ## White space before bidi controls at another bidi level at the end of a span, before white space that starts the next, at 24 px and wider: Firefox ends its text run at the controls and keeps both, where the Gecko analysis reads white space through bidi controls as one run whatever their levels and leaves out white space before only controls at the end of a text (#368), so the library gives the two one gap (main too; ENGINE_FOLLOWUPS.md)
 rich-27fd19a39448d520 count
 rich-4aaf3b30f4f2a014 count
@@ -2964,10 +2962,11 @@ rich-66104da5d28ab8e4 breaks
 rich-8cd941655dd7be98 count
 rich-ce7bddd0b27c873e count
 
+## White space on both sides of a right-to-left mark between Latin words in a left-to-right paragraph, at 24 px and wider: Firefox ends its white-space run at the mark, which starts a bidi level run there, and keeps both spaces, where the Gecko scan takes a text as one text frame and keeps one, as Firefox does for the same text in a right-to-left paragraph, since Pretext takes no paragraph direction (main too; ENGINE_FOLLOWUPS.md)
+facts-a93377367151561f count
+
 ## Within 1/64 px of where the browser's lines change, at 24 px and wider: the library's fit lands on the other side there, while the whole-pixel widths inside both layouts pass
 catalog-005a8fe68a67e9a2 count
-catalog-007f7a7e64a6a3b4 count
-catalog-0c1e48b240872fc5 count
 catalog-0e945d174b559d71 count
 catalog-151c1be591eb1373 breaks
 catalog-166bd57935e85a7e count
@@ -2981,7 +2980,6 @@ catalog-350d7741f618b864 count
 catalog-446da76716390160 count
 catalog-45895e248da84385 count
 catalog-50c5f25bfbde6b9b count
-catalog-594f8f14c16e7097 count
 catalog-610a8506704217f2 count
 catalog-63634335a3e74924 count
 catalog-803731846d271f04 count
