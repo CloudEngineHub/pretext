@@ -905,7 +905,7 @@ equals its words measured with the spaces beside them, less each inner space onc
 sides hold a character of a script of its own, and misses at 818 of 28,774 where one side holds none, all in Amiri
 (rebuild harness).
 
-The Chromium profile takes the kerning with spaces (#TBD; `getSpaceKerning()` in `src/measurement.ts`). Many fonts kern
+The Chromium profile takes the kerning with spaces (#408; `getSpaceKerning()` in `src/measurement.ts`). Many fonts kern
 letters against the space glyph: of the 6,000 most frequent words of the masonry demo's cards and the Gatsby opening
 (`pages/demos/masonry/shower-thoughts.json`, `corpora/en-gatsby-opening.txt`), Chrome's layout kerns 131 against a space
 beside them in 15px Arial, Helvetica and Trebuchet MS, 193 in Times New Roman, 59 in Roboto, 1,286 in Avenir Next, 1,382
@@ -986,7 +986,7 @@ against 2.23 (two sessions each, 2026-10-02, against the main before #394). With
 main as of #399, it read every row within noise in its own fonts with a fresh page's first batch at 2.77µs a unit
 against 2.63, Latin seen text 2.7% slower in Arial and 5.6% in Gill Sans, Latin new text 8.1% slower in Arial beside a
 second copy of main 5.9% and 6.3% slower than the first, and the first batch at 3.14 against 2.78 in Arial and 3.33
-against 2.91 in Gill Sans (two sessions each, 2026-10-02; #TBD has the tables).
+against 2.91 in Gill Sans (two sessions each, 2026-10-02; #408 has the tables).
 
 Canvas gives the kerning where U+2028 stands for the space: Blink draws U+2028 with the space glyph and its Canvas
 doesn't cut there. A word measured with U+2028 after it, and before it, less the word and a space, equals what the
@@ -2250,7 +2250,7 @@ repin` shows what), and a fact read in source needs reading again.
   second is 65df445712 (Chromium #473579852), in tag 149.0.7827.0 and not in 148.0.7778.288 (the tags' source, read
   2026-10-01; what the profile gets wrong on the older two is in ENGINE_FOLLOWUPS.md, Letter spacing). The Blink profile
   follows a reduced port of that iterator (#397, `readScriptRuns()` in `src/prepare.ts`, which the kerning with spaces
-  reads too since #TBD; Kerning At Line Edges): in Chrome 154 it gives 64 probe strings Chrome's gaps, and the
+  reads too since #408; Kerning At Line Edges): in Chrome 154 it gives 64 probe strings Chrome's gaps, and the
   real-usage sample's 8 failing Arabic and Urdu paragraphs under letter spacing pass (2026-09-30 and 10-01). A Common
   character right before a mark that has script extensions takes the mark's scripts (`FetchNextCharacter`, `:624-635`),
   whose lowest code leads: `1` under the Arabic vowel sign U+064B starts an Arabic run among Latin letters, and under
@@ -2258,7 +2258,7 @@ repin` shows what), and a fact read in source needs reading again.
   follows all but the last. A wide opening bracket under such a mark has the mark's scripts before its width is asked,
   so it isn't made Han (`Fetch` runs before `OpenBracket`, `:334-338`, `:431-441`). A space takes a mark's scripts as a
   digit does: `a`, a space under U+064B, a space and `12` take 3 gaps in Chrome 154, the digits in the Arabic run, and
-  an Arabic word, a space under U+0301, a space and `12` take 4, the digits out of it. Since #TBD the port reads the
+  an Arabic word, a space under U+0301, a space and `12` take 4, the digits out of it. Since #408 the port reads the
   runs over the whole text and gives 3 and 5, the fifth a gap the walkers charge a mark after a space
   (ENGINE_FOLLOWUPS.md, Letter spacing); while it was fed a text's segments, which hold no space, it gave 6 and 2
   (2026-10-02). A character several scripts share starts a run that holds them all, the lowest code leading, Latin aside
@@ -3448,7 +3448,7 @@ decisions for the maintainer.
   Firefox: three ZWJ sequences of emoji-test.txt written with no U+FE0F measure 5px wide. Such sequences turning up in
   real text would reopen it.
 - **2026-10-01: where the page's style decides a width, the Chromium profile takes the answer that can't come out a line
-  short** (on judgement, with #TBD). Chrome keeps a word's kerning with a hanging space in start-aligned text with no
+  short** (on judgement, with #408). Chrome keeps a word's kerning with a hanging space in start-aligned text with no
   decoration or background, and drops it under any other alignment, a text decoration or a background, and Pretext reads
   no style (Part 1, Limits). The profile takes the second rule for every text. Where it is wrong, a line's last word is
   wider than Chrome's, so a paragraph takes a line more in a box at least as wide as Chrome needs, as on main; the first
