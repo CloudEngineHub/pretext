@@ -2990,6 +2990,11 @@ decisions for the maintainer.
   in a run of two sessions and 3.4%, 11.2% and 1.4% in one of three (2026-10-02). In that run of three the mixed
   `walkLineRanges()` row, which pays the comparison once for a paragraph, read 1.2-1.4% slower in each session with the
   second copy of the base 0.5-1.1% slower, and in the run of two 2.4% faster and 2.8% slower; a run that reads it slower
-  in every session with the streams as on main would reopen the comparison there. Whether such a width should throw, as
-  a `letterSpacing` that isn't finite does (#356), is on the API discussion's list (TODO.md): in the six APIs a throw
-  would go in that one function, and in the streams it would cost the comparison for each line again.
+  in every session with the streams as on main would reopen the comparison there. A form not yet timed in a browser
+  would close the streams' three places with no comparison added: each line loop already clamps its width, with
+  `Math.max(0, maxWidth)` or, in rich inline, `Math.max(1, maxWidth)`, and that clamp written as two comparisons can
+  return `Infinity` for a width that fails both. Offline it changes no result at a number and leaves no line API's
+  result at `NaN` or `undefined` different from the one at `Infinity`; a bench that reads it level with main would put
+  it in `normalizeMaxWidth()`'s place. Whether such a width should throw, as a `letterSpacing` that isn't finite does
+  (#356), is on the API discussion's list (TODO.md): in the six APIs a throw would go in that one function, and in the
+  streams it would cost the comparison for each line again.
