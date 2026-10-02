@@ -5552,14 +5552,12 @@ test('the Chromium profile takes the kerning between a word and the spaces besid
   // process. A is 10px, other letters 8px, a space 4px, format characters and
   // marks 0px. Canvas cuts a string at U+0020 and kerns nothing across it. U+2028
   // draws the space glyph, 4px, without a cut: in one string A kerns -1px with a
-  // space glyph after it, past a word joiner, and a space glyph -2px with a Latin
-  // or Cyrillic T after it, and a mark after a space glyph sits on it, 3px narrower.
-  // Under fontKerning 'normal' Canvas doesn't cut at U+0020, as for a font whose GPOS
-  // has the space, but for the `Halves` fonts, whose kerning is in a kern table; under
-  // 'none' nothing kerns. The `Plain` fonts kern nothing under any, and `16px Cyrillic`
-  // only the Cyrillic T. In `16px Glyph` U+2028 has a glyph of its own, 8px. Widths are
-  // float32, as Canvas's are, and W is 253 + 1/65536 px, so W with a space glyph, past
-  // 256px, loses its last bit.
+  // space glyph after it, past a word joiner, B +1px, and a space glyph -2px with a
+  // Latin or Cyrillic T after it, and a mark after a space glyph sits on it, 3px
+  // narrower. Under fontKerning 'none' nothing kerns. The `Plain` fonts kern nothing
+  // under either, and `16px Cyrillic` only the Cyrillic T. In `16px Glyph` U+2028 has a
+  // glyph of its own, 8px. Widths are float32, as Canvas's are, and W is 253 + 1/65536
+  // px, so W with a space glyph, past 256px, loses its last bit.
   const layoutUrl = new URL('./layout.ts', import.meta.url).href
   const richInlineUrl = new URL('./rich-inline.ts', import.meta.url).href
   const script = `
@@ -5572,13 +5570,11 @@ test('the Chromium profile takes the kerning between a word and the spaces besid
       letterSpacing = '0px'
       fontKerning = 'auto'
       measureText(text) {
-        const whole = this.fontKerning === 'normal'
         measured.push(this.fontKerning === 'auto' ? text : this.fontKerning + ':' + text)
-        if (whole && !this.font.includes('Halves')) text = text.replaceAll(' ', '\\u2028')
         let width = 0
         for (const ch of text) width += ch === ' ' ? 4 : ch === '\\u2028' ? (this.font.includes('Glyph') ? 8 : 4) : /[\\u2060\\u0301]/.test(ch) ? 0 : ch === 'A' ? 10 : ch === 'W' ? 253 + 1 / 65536 : 8
-        const pairs = this.font.includes('Cyrillic') ? [/(?!)/g, /\\u2028\\u0422/g] : [/A\\u2060*\\u2028/g, /\\u2028[T\\u0422]/g]
-        const kerning = this.fontKerning === 'none' || this.font.includes('Plain') ? 0 : (text.match(pairs[0]) ?? []).length + 2 * (text.match(pairs[1]) ?? []).length
+        const pairs = this.font.includes('Cyrillic') ? [/(?!)/g, /(?!)/g, /\\u2028\\u0422/g] : [/A\\u2060*\\u2028/g, /B\\u2028/g, /\\u2028[T\\u0422]/g]
+        const kerning = this.fontKerning === 'none' || this.font.includes('Plain') ? 0 : (text.match(pairs[0]) ?? []).length - (text.match(pairs[1]) ?? []).length + 2 * (text.match(pairs[2]) ?? []).length
         return { width: Math.fround(width - kerning - 3 * (text.match(/\\u2028\\u0301/g) ?? []).length) }
       }
     }
@@ -5597,12 +5593,11 @@ test('the Chromium profile takes the kerning between a word and the spaces besid
       ['AA T\\u0301T', '16px Test', {}],
       ['TT\\u3002 TT', '16px Test', {}], ['TT \\u00B7 TT', '16px Test', {}], ['\\u03B1\\u03B1 \\u00B7 TT', '16px Test', {}],
       ['TT \\uFF08TT\\uFF09 TT', '16px Test', {}], ['TT \\uFF08 TT', '16px Test', {}], ['(\\u00B7 \\u0436\\u0436) TT', '16px Test', {}],
-      ['AA TT', '16px Halves', {}], ['AA  TT', '16px Halves', { whiteSpace: 'pre-wrap' }],
-      ['xW y', '16px Halves Wide', {}], ['y Wx', '16px Halves Wide', {}], ['AA TT', '16px Halves Wide', {}],
+      ['BB TT', '16px Test', {}], ['xW y', '16px Wide', {}], ['y Wx', '16px Wide', {}],
       ['AA TT', '16px Plain', {}], ['\\u0436\\u0436 \\u0422\\u0422', '16px Cyrillic', {}],
     ]) widths.push(prepareWithSegments(text, font, options).widths)
     const lines = []
-    for (const [text, width, font] of [['AA TT', 19.5, '16px Test'], ['AA TT', 37, '16px Test'], ['AAA TT', 10.5, '16px Test'], ['AA TT', 19.5, '16px Halves'], ['AA TT', 19.4, '16px Halves']]) {
+    for (const [text, width, font] of [['AA TT', 20, '16px Test'], ['AA TT', 37, '16px Test'], ['AAA TT', 10.5, '16px Test'], ['BB TT', 16.5, '16px Test']]) {
       const result = layoutWithLines(prepareWithSegments(text, font), width, 20)
       lines.push({ lines: result.lines.map(line => [line.text, line.width]), lineCount: layout(prepare(text, font), width, 20).lineCount })
     }
@@ -5622,18 +5617,18 @@ test('the Chromium profile takes the kerning between a word and the spaces besid
   `
   const { widths, lines, rich, asked, fontAsked, unasked, cut } = JSON.parse(runInChild(script)) as Record<'widths' | 'lines' | 'rich' | 'asked' | 'fontAsked' | 'unasked' | 'cut', unknown>
   expect(widths).toEqual([
-    // The word keeps its kerning with the space after it, and the space takes its own
-    // with the word after it.
-    [19, 2, 16],
+    // The space takes the word's kerning with it, which tightens the two, and its own with
+    // the word after it.
+    [20, 1, 16],
     [16, 4, 20],
     // The first and the last of a run of preserved spaces.
-    [19, 6, 16],
+    [20, 5, 16],
     // HarfBuzz's lookups skip a word joiner, on either side.
-    [19, 2, 16],
+    [20, 1, 16],
     // A mark after the space is the space's own cluster, no pair with it.
-    [19, 4, 8],
+    [20, 3, 8],
     // Letter spacing keeps the kerning.
-    [20, 2, 17],
+    [21, 1, 17],
     // The space is in the script run of the text before it: after Cyrillic it kerns
     // with a Cyrillic word, not with a Latin one, and a comma keeps the run's script.
     [16, 4, 16],
@@ -5661,7 +5656,7 @@ test('the Chromium profile takes the kerning between a word and the spaces besid
     [28, 4, 16],
     // A first letter with a combining mark after it may be drawn as one glyph, which the
     // bare letter's kerning with the space says nothing about.
-    [19, 4, 16],
+    [20, 3, 16],
     // Script_Extensions: an ideographic full stop is in East Asian scripts only, so it ends a
     // Latin run and the space after it is in its run. A middle dot is in Latin and Greek among
     // others: it goes on a Latin run, and after Greek it leaves the run Greek.
@@ -5676,39 +5671,34 @@ test('the Chromium profile takes the kerning between a word and the spaces besid
     // Latin is the last: after a middle dot, which Latin and Greek share, the run is Greek, so
     // the space after the closing bracket doesn't kern with a Latin word.
     [16, 4, 24, 4, 16],
-    // The kern table puts half of a word's kerning with the space on the space.
-    [19.5, 1.5, 16],
-    [19.5, 5.5, 16],
-    // What float32 rounding leaves between a pair's width and its parts' is no kerning, and
-    // doesn't decide where a font's kerning sits: the next pair, which kerns, does.
+    // A kerning that widens the two stays on the word.
+    [17, 2, 16],
+    // What float32 rounding leaves between a pair's width and its parts' is no kerning.
     [261, 4, 8],
     [8, 4, 261],
-    [19.5, 1.5, 16],
     // A font is asked once whether it kerns the printable ASCII characters with the space. One
     // that kerns none takes no kerning, with a character outside them either: the premise's gap.
     [20, 4, 16],
     [16, 4, 16],
   ])
   expect(lines).toEqual([
-    // The kerned word fits, and the space hangs with what it took.
-    { lines: [['AA ', 19], ['TT', 16]], lineCount: 2 },
+    // The space hangs with the kerning it took from both words, so a line that ends there
+    // has the word without it.
+    { lines: [['AA ', 20], ['TT', 16]], lineCount: 2 },
     { lines: [['AA TT', 37]], lineCount: 1 },
-    // A word broken between letters keeps the kerning on its last letter.
-    { lines: [['A', 10], ['A', 10], ['A ', 9], ['T', 8], ['T', 8]], lineCount: 5 },
-    // A line that ends at the space keeps only the word's half.
-    { lines: [['AA ', 19.5], ['TT', 16]], lineCount: 2 },
-    { lines: [['A', 10], ['A ', 9.5], ['TT', 16]], lineCount: 3 },
+    { lines: [['A', 10], ['A', 10], ['A ', 10], ['T', 8], ['T', 8]], lineCount: 5 },
+    // A word needs the room of a kerning that widens it, on its last letter where it breaks.
+    { lines: [['B', 8], ['B ', 9], ['TT', 16]], lineCount: 3 },
   ])
   // A space inside a rich item kerns as in plain text; the gap between two items
   // takes none (ENGINE_FOLLOWUPS.md).
   expect(rich).toEqual([37, 40])
   // The font is asked once whether it kerns the space: U+2028 between the printable ASCII
   // characters, 189 units, as the context stands and under fontKerning 'none', then U+2028
-  // alone. Then each edge letter once with U+2028, however many words share the letter. One
-  // string holds a U+0020 beside other text: the first letter that kerns with a space after
-  // it, asked once per font under fontKerning 'normal' for where that kerning sits.
+  // alone. Then each edge letter once with U+2028, however many words share the letter. No
+  // string holds a U+0020 beside other text.
   expect(asked).toEqual(['189', 'none:189', '\u2028', '\u2028A', 'A\u2028', '\u2028T', 'T\u2028'])
-  expect(cut).toEqual(['normal:A '])
+  expect(cut).toEqual([])
   // A text without a space doesn't ask the font. A font that kerns nothing is asked once and
   // its words never; one whose U+2028 isn't the space likewise.
   expect(fontAsked).toEqual([[], ['189', 'none:189'], [], ['189', 'none:189', '\u2028']])

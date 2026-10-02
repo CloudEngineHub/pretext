@@ -13,12 +13,10 @@ export type SegmentMetrics = {
   spaceKerning: SpaceKerning | null // Its kerning beside a space, once asked (getSpaceKerning)
 }
 
-// What a text segment's kerning with a U+0020 beside it adds, in the Chromium profile
-// (getSpaceKerning).
+// A text segment's kerning with a U+0020 beside it, in the Chromium profile (getSpaceKerning).
 export type SpaceKerning = {
-  after: number // To the segment, for a space after it
-  space: number // To a space after it
-  before: number // To a space before it
+  after: number // With a space after it
+  before: number // With a space before it
 }
 
 // Where a segment breaks under overflow-wrap: break-word in one fit mode (getSegmentFit),
@@ -267,9 +265,6 @@ export type FontSpaceKerning = {
   // once a segment has the character at that edge (getSpaceKerning).
   after: Map<number, number>
   before: Map<number, number>
-  // Whether a pair's kerning sits half on each glyph, once a character kerned with a space
-  // after it (splitsSpaceKerning).
-  splits: boolean | null
 }
 let cachedEngineProfile: EngineProfile | null = null
 
@@ -434,7 +429,7 @@ function addMetrics(cache: Map<string, SegmentMetrics>, seg: string, text: strin
 }
 
 // The kerning of every segment that takes none.
-export const noSpaceKerning: SpaceKerning = { after: 0, space: 0, before: 0 }
+export const noSpaceKerning: SpaceKerning = { after: 0, before: 0 }
 
 // Whether a character takes no kerning with a space, and Canvas isn't asked.
 function takesNoSpaceKerning(code: number): boolean {
@@ -449,25 +444,24 @@ function takesNoSpaceKerning(code: number): boolean {
     (code >= 0xac00 && code <= 0xd7a3)
 }
 
-// U+2028 before, between and after the printable ASCII characters.
-let spaceKerningProbe = '\u2028'
-for (let code = 0x21; code <= 0x7e; code++) spaceKerningProbe += String.fromCharCode(code) + '\u2028'
-
 // What is kept of the font's kerning with the space glyph, or null for a font that has none:
-// one whose probe is as wide with kerning off. `fontKerning = 'none'` turns the `kern` feature
-// off (FontFeatureRange::FromFontDescription, font_features.cc:39-47), and with it HarfBuzz's
+// one in which U+2028 before, between and after the printable ASCII characters is as wide with
+// kerning off. `fontKerning = 'none'` turns the `kern` feature off
+// (FontFeatureRange::FromFontDescription, font_features.cc:39-47), and with it HarfBuzz's
 // kerning from GPOS, `kern` and `kerx` (hb-ot-shape.cc:127-131, hb-ot-kern-table.hh:67). Asked
 // once per font. Premise: a font that kerns no printable ASCII character with the space kerns
 // nothing with it (RESEARCH.md, Kerning At Line Edges, has the fonts that do).
 export function getFontSpaceKerning(measurement: FontMeasurement): FontSpaceKerning | null {
   if (measurement.spaceKerning === undefined) {
     const context = measurement.state.context
-    const kerned = context.measureText(spaceKerningProbe).width
+    let probe = '\u2028'
+    for (let code = 0x21; code <= 0x7e; code++) probe += String.fromCharCode(code) + '\u2028'
+    const kerned = context.measureText(probe).width
     context.fontKerning = 'none'
-    const unkerned = context.measureText(spaceKerningProbe).width
+    const unkerned = context.measureText(probe).width
     context.fontKerning = 'auto'
     // Where U+2028 alone doesn't measure as the space, it doesn't stand for it.
-    measurement.spaceKerning = kerned !== unkerned && context.measureText('\u2028').width === getSegmentMetrics(' ', measurement).width ? { after: new Map(), before: new Map(), splits: null } : null
+    measurement.spaceKerning = kerned !== unkerned && context.measureText('\u2028').width === getSegmentMetrics(' ', measurement).width ? { after: new Map(), before: new Map() } : null
   }
   return measurement.spaceKerning
 }
@@ -492,46 +486,20 @@ function getCharacterSpaceKerning(code: number, spaceFirst: boolean, measurement
   return kerning
 }
 
-// Whether the font's kerning with the space sits half on each glyph of a pair, as HarfBuzz puts
-// it from the legacy `kern` table (hb_kern_machine_t::kern, hb-kern.hh:100-107), where GPOS puts
-// it on the first. Under `fontKerning = 'normal'` Canvas shapes a string whole, its U+0020
-// included, only where the font's GPOS covers the space glyph (font_fallback_list.cc:264-277), so
-// a font in which that shows none of a kerning that U+2028 shows has it from `kern`. Asked once
-// per font, of its first character that kerns with a space after it.
-function splitsSpaceKerning(code: number, kerning: number, measurement: FontMeasurement, font: FontSpaceKerning): boolean {
-  if (font.splits === null) {
-    const context = measurement.state.context
-    const character = String.fromCharCode(code)
-    context.fontKerning = 'normal'
-    const shown = context.measureText(character + ' ').width - getSegmentMetrics(character, measurement).width - getSegmentMetrics(' ', measurement).width
-    context.fontKerning = 'auto'
-    font.splits = Math.abs(shown) < Math.abs(kerning) / 2
-  }
-  return font.splits
-}
-
 // The kerning Blink's layout gives a text segment's edges with a U+0020 beside them
 // (EngineProfile.kernsSpacesInScriptRun), read from Canvas with U+2028 for the space: Blink
 // draws U+2028 with the space glyph (HarfBuzzGetGlyph, harfbuzz_face.cc:103-113) and its Canvas
-// doesn't cut there. Premises, with their gaps in RESEARCH.md, Kerning At Line Edges:
-// - The segment's last and first character stand for the word, past default ignorables, which
-//   HarfBuzz's lookups pass over. A first character with a combining mark after it takes none.
-// - A line that ends at the space after a word keeps the word's share of their kerning, as
-//   Blink keeps it for start-aligned text without a decoration (DontReshapeEndIfAtSpace,
-//   line_breaker.cc:1655-1659). Otherwise Blink shapes the line's end again without the space,
-//   and where the kerning tightens the two, the line's last word is narrower here than there.
-// - A space's kerning with the word after it goes on the space: a line that breaks between the
-//   two is shaped again without it (shaping_line_breaker.cc:307-324).
+// doesn't cut there. Premise: the segment's last and first character stand for the word, past
+// default ignorables, which HarfBuzz's lookups pass over, and a first character with a combining
+// mark after it takes none (RESEARCH.md, Kerning At Line Edges, has the gaps).
 export function getSpaceKerning(seg: string, metrics: SegmentMetrics, measurement: FontMeasurement, font: FontSpaceKerning): SpaceKerning {
   let first = 0
   let last = seg.length - 1
   while (first < last && hasProperty(seg.charCodeAt(first), DEFAULT_IGNORABLE)) first++
   while (last > first && hasProperty(seg.charCodeAt(last), DEFAULT_IGNORABLE)) last--
-  const lastCode = seg.charCodeAt(last)
   const before = first < last && hasProperty(seg.charCodeAt(first + 1), MARK) ? 0 : getCharacterSpaceKerning(seg.charCodeAt(first), true, measurement, font)
-  const after = getCharacterSpaceKerning(lastCode, false, measurement, font)
-  const space = after !== 0 && splitsSpaceKerning(lastCode, after, measurement, font) ? after / 2 : 0
-  return metrics.spaceKerning = after === 0 && before === 0 ? noSpaceKerning : { after: after - space, space, before }
+  const after = getCharacterSpaceKerning(seg.charCodeAt(last), false, measurement, font)
+  return metrics.spaceKerning = after === 0 && before === 0 ? noSpaceKerning : { after, before }
 }
 
 // A text's width in the font, less the emoji correction.

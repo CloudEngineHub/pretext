@@ -127,26 +127,38 @@ const CYRILLIC_SCRIPT = 2
 const GREEK_SCRIPT = 4
 const LATIN_SCRIPT = 8
 const ANY_SCRIPT = 15
-// By Script_Extensions, as Blink reads a character's scripts (:120-216): an Inherited character,
-// or a Common one without extensions, joins any run. Half of a surrogate pair counts with them
-// (ENGINE_FOLLOWUPS.md, Kerning with spaces, has where these four bits depart from Blink).
-const anyScriptRe = /[\p{sc=Zinh}\p{scx=Zyyy}\p{Cs}]/u
-const latinScriptRe = /\p{scx=Latn}/u
-const cyrillicScriptRe = /\p{scx=Cyrl}/u
-const greekScriptRe = /\p{scx=Grek}/u
-// General categories Ps and Pe hold every paired bracket and a few characters more.
-const openingBracketRe = /\p{Ps}/u
-const closingBracketRe = /\p{Pe}/u
+// The Unicode classes the script runs test, made when a word first needs its space's run and
+// not written as literals: an engine builds a \p{...} class's set where it parses the literal,
+// on every page, whether or not the page tests it (RESEARCH.md, Keeping Work Bounded).
+type ScriptClasses = { any: RegExp, latin: RegExp, cyrillic: RegExp, greek: RegExp, opening: RegExp, closing: RegExp }
+let scriptClasses: ScriptClasses | null = null
+
+function getScriptClasses(): ScriptClasses {
+  return scriptClasses ??= {
+    // By Script_Extensions, as Blink reads a character's scripts (:120-216): an Inherited
+    // character, or a Common one without extensions, joins any run. Half of a surrogate pair
+    // counts with them (ENGINE_FOLLOWUPS.md, Kerning with spaces, has where these four bits
+    // depart from Blink).
+    any: new RegExp('[\\p{sc=Zinh}\\p{scx=Zyyy}\\p{Cs}]', 'u'),
+    latin: new RegExp('\\p{scx=Latn}', 'u'),
+    cyrillic: new RegExp('\\p{scx=Cyrl}', 'u'),
+    greek: new RegExp('\\p{scx=Grek}', 'u'),
+    // General categories Ps and Pe hold every paired bracket and a few characters more.
+    opening: new RegExp('\\p{Ps}', 'u'),
+    closing: new RegExp('\\p{Pe}', 'u'),
+  }
+}
 
 function getKerningScripts(character: string): number {
   // ASCII letters are Latin and the rest of ASCII is Common.
   const code = character.charCodeAt(0)
   if (code < 0x80) return (code | 0x20) >= 0x61 && (code | 0x20) <= 0x7a ? LATIN_SCRIPT : ANY_SCRIPT
+  const classes = getScriptClasses()
   // A Common opening bracket that is East Asian wide is in the Han scripts
   // (FixScriptsByEastAsianWidth, :83-110, from OpenBracket, :431-441): those from U+FE17 up.
-  if (anyScriptRe.test(character)) return code >= 0xfe17 && openingBracketRe.test(character) ? OTHER_SCRIPT : ANY_SCRIPT
-  return (latinScriptRe.test(character) ? LATIN_SCRIPT : 0) | (cyrillicScriptRe.test(character) ? CYRILLIC_SCRIPT : 0) |
-    (greekScriptRe.test(character) ? GREEK_SCRIPT : 0) || OTHER_SCRIPT
+  if (classes.any.test(character)) return code >= 0xfe17 && classes.opening.test(character) ? OTHER_SCRIPT : ANY_SCRIPT
+  return (classes.latin.test(character) ? LATIN_SCRIPT : 0) | (classes.cyrillic.test(character) ? CYRILLIC_SCRIPT : 0) |
+    (classes.greek.test(character) ? GREEK_SCRIPT : 0) || OTHER_SCRIPT
 }
 
 // How far a text's script runs were read, the scripts the run there can be in, and the script of
@@ -168,7 +180,7 @@ function spaceSharesScriptRun(text: string, at: number, end: number, runs: Scrip
     const character = text[i]!
     const before = getKerningScripts(character)
     if (before === ANY_SCRIPT) {
-      if (character === ' ' || !closingBracketRe.test(character)) continue
+      if (character === ' ' || !getScriptClasses().closing.test(character)) continue
     } else if ((before & (before - 1)) === 0) {
       return (before & scripts) !== 0
     }
@@ -187,8 +199,8 @@ function readScriptRuns(text: string, to: number, runs: ScriptRuns): number {
     const character = text[runs.read]!
     let scripts = getKerningScripts(character)
     // Brackets are Common or, with extensions, East Asian.
-    const opens = (scripts & OTHER_SCRIPT) !== 0 && openingBracketRe.test(character)
-    if (!opens && runs.bracket > 0 && (scripts & OTHER_SCRIPT) !== 0 && closingBracketRe.test(character)) scripts = runs.bracket
+    const opens = (scripts & OTHER_SCRIPT) !== 0 && getScriptClasses().opening.test(character)
+    if (!opens && runs.bracket > 0 && (scripts & OTHER_SCRIPT) !== 0 && getScriptClasses().closing.test(character)) scripts = runs.bracket
     if ((runs.scripts & scripts) !== 0) {
       runs.scripts &= scripts
     } else {
@@ -375,7 +387,7 @@ export function measureAnalysis(
   let fontSpaceKerning = engineProfile.kernsSpacesInScriptRun && normalized.includes(' ') ? getFontSpaceKerning(fontMeasurement) : null
   if (fontSpaceKerning !== null && mixedDirectionRe.test(normalized)) fontSpaceKerning = null
   const scriptRuns: ScriptRuns = { read: 0, scripts: ANY_SCRIPT, bracket: 0 }
-  // What the word before a space adds to that space, the next segment (SpaceKerning.space).
+  // What the word before a space adds to that space, the next segment.
   let spaceShare = 0
 
   const widths: number[] = []
@@ -479,12 +491,23 @@ export function measureAnalysis(
           if (afterSpace || beforeSpace) {
             const kerning = textMetrics.spaceKerning ?? getSpaceKerning(text, textMetrics, fontMeasurement, fontSpaceKerning)
             if (beforeSpace) {
-              followingSpaceKerning = kerning.after
-              spaceShare = kerning.space
+              // A kerning that tightens the word and the space after it goes on the space, so a
+              // line that ends at the space, which hangs, has the word without it. Blink shapes
+              // such a line's end again without the space under a text-align other than start,
+              // and for text whose element has a decoration or a background
+              // (NeedsAccurateEndPosition, line_breaker.cc:255-268). Premise: every text is
+              // that; for start-aligned text without either Blink keeps the kerning, and the
+              // line's last word is wider here by it (RESEARCH.md, Kerning At Line Edges). A
+              // kerning that widens stays on the word, whose end Blink finds in the run shaped
+              // whole in every mode.
+              followingSpaceKerning = Math.max(kerning.after, 0)
+              spaceShare = Math.min(kerning.after, 0)
             }
-            // The space takes its kerning with this word, and takes it along where it hangs.
-            // Preserved spaces that start the text or follow a forced break are a Blink item of
-            // their own (inline_items_builder.cc:988-1034), which kerns with nothing.
+            // The space takes its kerning with this word, and takes it along where it hangs: a
+            // line that breaks between the two is shaped again without it
+            // (shaping_line_breaker.cc:307-324). Preserved spaces that start the text or follow
+            // a forced break are a Blink item of their own (inline_items_builder.cc:988-1034),
+            // which kerns with nothing.
             if (afterSpace && kerning.before !== 0 &&
               !((flags[mi - 1]! & KIND_BITS) === PRESERVED_SPACE && (mi === 1 || (flags[mi - 2]! & KIND_BITS) === HARD_BREAK)) &&
               spaceSharesScriptRun(normalized, starts[mi]!, starts[mi]! + text.length, scriptRuns)) {
