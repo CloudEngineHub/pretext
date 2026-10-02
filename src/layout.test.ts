@@ -380,34 +380,77 @@ describe('shared public contracts', () => {
     }
   })
 
-  test('a NaN or missing width breaks lines as an unbounded one', () => {
-    // layout() counts the first text in its own loop, the second, where the scan gives
-    // no break at NEL, with the simple stepper, and the rest with the full walker. None
-    // holds one of the three exceptions (ENGINE_FOLLOWUPS.md, Small ones): the pre-wrap
-    // text has no spaces before its newline or its end, no streamed line starts inside
-    // a segment, and the rich items hold no soft hyphen.
-    for (const [text, options, walkFastPath, countFastPath] of [
-      ['aaaa bbbb 中文字', {}, true, true],
-      ['aaaa\u0085bbbb cccc', {}, false, true],
-      ['aaaa bb­bb cccc', {}, false, false],
-      ['aaaa bbbb\ncccc', { whiteSpace: 'pre-wrap' }, false, false],
-      ['aaaa bbbb cccc', { letterSpacing: 1 }, false, false],
-    ] as const) {
-      const prepared = prepareWithSegments(text, FONT, options)
-      expect([prepared.simpleLineWalkFastPath, prepared.simpleLineCountFastPath]).toEqual([walkFastPath, countFastPath])
-      const unbounded = layoutWithLines(prepared, Infinity, LINE_HEIGHT)
-      expect(unbounded.lineCount).toBe(text.includes('\n') ? 2 : 1)
-      for (const width of [NaN, undefined as unknown as number]) {
-        expect(layout(prepare(text, FONT, options), width, LINE_HEIGHT)).toEqual({ lineCount: unbounded.lineCount, height: unbounded.height })
-        expect(layoutWithLines(prepared, width, LINE_HEIGHT)).toEqual(unbounded)
-        expect(measureLineStats(prepared, width)).toEqual(measureLineStats(prepared, Infinity))
-        expect(collectStreamedLines(prepared, width)).toEqual(unbounded.lines)
+  test('every line API lays a width that is not a number out as an unbounded one', () => {
+    // Each API passes its width through normalizeMaxWidth() once, so no line loop meets
+    // a NaN. The first three texts take layout()'s three counts: its own loop, the
+    // simple stepper, where the scan gives no break at NEL, and the full walker. Where
+    // a NaN reaches the loops, layout() counts a line per grapheme, a pre-wrap line
+    // that ends in spaces or a tab reports a NaN width, and a rich item with white
+    // space after a soft hyphen is walked, not taken whole, which the Gecko profile's
+    // two fields below lay out a space wider. It also ends a streamed line that starts
+    // inside a segment with fresh-line geometry after one grapheme, which no text here
+    // shows: this suite's Canvas takes no letter spacing, so it builds no such geometry.
+    const profile = getEngineProfile()
+    const previous = { ...profile }
+    const widths = [NaN, undefined as unknown as number]
+    try {
+      profile.spaceBeforeSoftHyphenHangs = 'line-end'
+      profile.collapsesSpaceAcrossSoftHyphens = true
+      clearCache()
+      for (const [text, options, walkFastPath, countFastPath] of [
+        ['aaaa bbbb 中文字', {}, true, true],
+        ['aaaa\u0085bbbb cccc', {}, false, true],
+        ['aaaa bb\u00ADbb cccc', {}, false, false],
+        ['aaaa bbbb cccc', { letterSpacing: 1 }, false, false],
+        ['aaaa  \nbbbb\t\ncc  ', { whiteSpace: 'pre-wrap' }, false, false],
+      ] as const) {
+        const prepared = prepareWithSegments(text, FONT, options)
+        expect([prepared.simpleLineWalkFastPath, prepared.simpleLineCountFastPath]).toEqual([walkFastPath, countFastPath])
+        // The text's start, and each start a line at a real width leaves.
+        const starts = [{ segmentIndex: 0, graphemeIndex: 0 }]
+        const narrow = collectStreamedLines(prepared, 20)
+        for (let i = 0; i < narrow.length; i++) starts.push(narrow[i]!.end)
+        const at = (width: number): unknown => {
+          const ranges: unknown[] = []
+          const rangeCount = walkLineRanges(prepared, width, line => ranges.push(line))
+          return {
+            layout: layout(prepare(text, FONT, options), width, LINE_HEIGHT),
+            layoutWithLines: layoutWithLines(prepared, width, LINE_HEIGHT),
+            walkLineRanges: [rangeCount, ranges],
+            measureLineStats: measureLineStats(prepared, width),
+            layoutNextLine: starts.map(start => layoutNextLine(prepared, start, width)),
+            layoutNextLineRange: starts.map(start => layoutNextLineRange(prepared, start, width)),
+          }
+        }
+        const unbounded = at(Infinity) as { layout: { lineCount: number } }
+        expect(unbounded.layout.lineCount).toBe(text.split('\n').length)
+        for (let i = 0; i < widths.length; i++) expect(at(widths[i]!)).toEqual(unbounded)
       }
-    }
-    const rich = prepareRichInline([{ text: 'aaaa bbbb ', font: FONT }, { text: 'cccc 中文字', font: FONT, extraWidth: 4 }])
-    for (const width of [NaN, undefined as unknown as number]) {
-      expect(measureRichInlineStats(rich, width)).toEqual(measureRichInlineStats(rich, Infinity))
-      expect(layoutNextRichInlineLineRange(rich, width)).toEqual(layoutNextRichInlineLineRange(rich, Infinity))
+      for (const [items, options] of [
+        [[{ text: 'aaaa bbbb ', font: FONT }, { text: 'cccc 中文字', font: FONT, extraWidth: 4 }], {}],
+        [[{ text: 'aaaa bbbb  ', font: FONT }], { whiteSpace: 'pre-wrap' }],
+        [[{ text: 'aaaa  ', font: FONT }, { text: '\nbbbb\t\ncc  ', font: FONT }], { whiteSpace: 'pre-wrap' }],
+        [[{ text: 'ab', font: FONT }, { text: ' \u00AD cd', font: FONT }], {}],
+      ] as const) {
+        const prepared = prepareRichInline([...items], options)
+        const starts = [{ itemIndex: 0, segmentIndex: 0, graphemeIndex: 0 }]
+        walkRichInlineLineRanges(prepared, 20, line => starts.push(line.end))
+        const at = (width: number): unknown => {
+          const lines: unknown[] = []
+          const lineCount = walkRichInlineLineRanges(prepared, width, line => lines.push(materializeRichInlineLineRange(prepared, line)))
+          return {
+            walkRichInlineLineRanges: [lineCount, lines],
+            measureRichInlineStats: measureRichInlineStats(prepared, width),
+            layoutNextRichInlineLineRange: starts.map(start => layoutNextRichInlineLineRange(prepared, width, start)),
+          }
+        }
+        const unbounded = at(Infinity) as { measureRichInlineStats: { lineCount: number } }
+        expect(unbounded.measureRichInlineStats.lineCount).toBe(items.map(item => item.text).join('').split('\n').length)
+        for (let i = 0; i < widths.length; i++) expect(at(widths[i]!)).toEqual(unbounded)
+      }
+    } finally {
+      Object.assign(profile, previous)
+      clearCache()
     }
   })
 

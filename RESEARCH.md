@@ -2562,3 +2562,16 @@ decisions for the maintainer.
   with no fragment. A box's width is final, fixed when it's prepared and at least 0, and heights stay the app's, with the
   README's `vertical-align: top` rule (Rich Inline Boundaries, Objects Inside A Line, has the evidence and what reopens
   negative widths and widths given at layout).
+- **2026-10-01: a `maxWidth` that isn't a number lays out as unbounded, made so once where each line API takes it**
+  (landed on judgement with #TBD). `NaN`, or the `undefined` of a container not measured yet, fails every comparison,
+  and the line loops ask some whether a segment fits and others whether it overflows. So since #340 `layout()` counted a
+  line per grapheme where the line APIs gave one line, and those reported a `NaN` width for a pre-wrap line ending in
+  spaces. Asking `layout()`'s count the walkers' question, its two fit tests negated into overflow tests, made the
+  counts agree and left three places where `NaN` differed from `Infinity`; with it Chrome 154.0.8037.57 read `layout()`
+  of the bench's Arabic book 3.4-4.8% slower in each of three sessions, and in a two-session run Thai at widths seen
+  before 7.7% and CJK brackets under keep-all 6.5% slower, for an argument no app should pass. `normalizeMaxWidth()`
+  (`src/line-break.ts`) instead turns such a width into `Infinity` at the entry of the nine line APIs, plain and rich,
+  with one comparison a call, and the loops stay as written for numbers: no API's result at `NaN` or `undefined` differs
+  from its result at `Infinity` (8,000 cases drawn from the sets in each profile, offline). Whether such a width should
+  throw, as a `letterSpacing` that isn't finite does (#356), is on the API discussion's list (TODO.md); a throw would go
+  in that one function.

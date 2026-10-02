@@ -185,6 +185,15 @@ function getTerminalLetterSpacing(
   return 0
 }
 
+// The width a line API lays out at: one that isn't a number, such as the `undefined` of
+// a container not measured yet, is unbounded. Every comparison fails at `NaN`, and the
+// line loops ask some whether a segment fits and others whether it overflows, so each
+// public line API passes its width through here once and the loops stay written for
+// numbers (RESEARCH.md, Decisions Log, 2026-10-01).
+export function normalizeMaxWidth(maxWidth: number): number {
+  return maxWidth <= Infinity ? maxWidth : Infinity
+}
+
 // Mutates `cursor` to the next renderable line start. False when no line remains.
 // A chunk runs to a hard break or the end of the text, and the hard break ends a
 // line however little the chunk holds: a chunk holding only its hard break, or only
@@ -286,11 +295,8 @@ export function countPreparedLines(prepared: PreparedLineBreakData, maxWidth: nu
     const endTrim = lineEndTrims === null ? 0 : lineEndTrims[i]!
     if (hasContent) {
       // A segment that fits only by its line-end trim ends the line, as the full
-      // width it adds leaves no room after it. The test is for overflow, here and
-      // for a line's first segment, as in the walkers: a width that isn't a number
-      // overflows nothing, so its lines break as an unbounded width's, but for the
-      // three places that ask whether something fits (ENGINE_FOLLOWUPS.md, Small ones).
-      if (!(lineW + w - endTrim > fitLimit)) {
+      // width it adds leaves no room after it.
+      if (lineW + w - endTrim <= fitLimit) {
         lineW += w
         continue
       }
@@ -304,7 +310,7 @@ export function countPreparedLines(prepared: PreparedLineBreakData, maxWidth: nu
 
     const startW = lineStartExtras === null ? w : w + lineStartExtras[i]!
     const advances = breakableFitAdvances[i] as number[] | null
-    if (!(startW - endTrim > fitLimit) || advances === null) {
+    if (startW - endTrim <= fitLimit || advances === null) {
       lineW += startW
       hasContent = true
       continue
