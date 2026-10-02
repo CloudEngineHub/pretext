@@ -22,13 +22,14 @@ export const DEFAULT_LINES = 3
 export const DEFAULT_TEXT_WIDTH = 300
 export const MIN_TEXT_WIDTH = 120
 const MAX_TEXT_WIDTH = 440
-const PAGE_MAX_WIDTH = 980
+const PAGE_MAX_WIDTH = 480
 const PAGE_MARGIN_X = 16
 const NARROW_PAGE_MARGIN_X = 10
 // At this width and below, the page takes the narrow margins.
 const NARROW_MAX_VIEWPORT_WIDTH = 640
-export const PANEL_PADDING_X = 18
-export const COLUMN_GAP = 20
+// A card's padding around its text.
+export const CARD_PADDING_X = 16
+export const CARD_PADDING_Y = 12
 
 export const ELLIPSIS = '…'
 export const MORE_LABEL = 'more'
@@ -64,11 +65,9 @@ export type PageGeometry = {
   textWidth: number
 }
 
-// A paragraph clamped to a number of lines. `lineCount` is the whole paragraph's; `lines`
-// are the ones shown, the last cut to leave an ellipsis room when `truncated`, which the
-// painter appends.
+// A paragraph clamped to a number of lines: the lines shown, the last cut to leave an
+// ellipsis room when `truncated`, which the painter appends.
 export type ClampLayout = {
-  lineCount: number
   truncated: boolean
   height: number
   lines: string[]
@@ -107,25 +106,18 @@ function createLabel(label: string, text: string): Label {
 }
 
 export const samples: Sample[] = [
-  createSample('Chat preview', 'ltr', 'Mina: can you look at the release notes before standup? I rewrote the migration section and I’m not sure the rollback steps still make sense 🙏 Happy to pair on it if that’s easier.'),
-  createSample('Card description', 'ltr', 'A weekend cabin on the north shore, twenty minutes from the ferry. Sleeps six, with a wood stove, no reception to speak of, and a rowing boat you’re welcome to borrow.'),
-  createSample('A link in the text', 'ltr', 'Build log: https://ci.example.com/pipelines/2026/09/27/builds/48213/artifacts/logs/integration-tests-shard-07.txt (kept for 7 days, then moved to cold storage)'),
-  createSample('Chinese', 'ltr', '周末去了一趟海边的小镇，早上在码头看渔船回港，中午吃了刚捞上来的海鲜，下午沿着防波堤一直走到灯塔，傍晚才坐最后一班车回来。'),
-  createSample('Arabic', 'rtl', 'بدأت الرحلة في الصباح الباكر، وكانت الطريق إلى الساحل طويلة، لكن المناظر على جانبيها جعلتنا ننسى التعب تماما حتى وصلنا إلى الميناء القديم.'),
+  createSample('End', 'ltr', 'A weekend cabin on the north shore, twenty minutes from the ferry. Sleeps six, with a wood stove, no reception to speak of, and a rowing boat you’re welcome to borrow. Bring boots: the path down to the water is steep, and the nearest shop is back across on the mainland.'),
+  createSample('End, right-to-left', 'rtl', 'بدأت الرحلة في الصباح الباكر، وكانت الطريق إلى الساحل طويلة، لكن المناظر على جانبيها جعلتنا ننسى التعب تماما حتى وصلنا إلى الميناء القديم. هناك جلسنا على الرصيف نشرب الشاي ونراقب القوارب وهي تعود محملة بالصيد، ثم مشينا في الأزقة الضيقة حتى غابت الشمس.'),
 ]
 
-export const labels: Label[] = [
-  createLabel('File path', '~/Projects/atlas/packages/renderer/src/text/layout/line-breaker.test.ts'),
-  createLabel('URL', 'https://example.com/reports/2026/q3/regional/emea/summary.pdf?lang=ar&mode=full'),
-]
+export const middleLabel = createLabel('Middle', '~/Projects/atlas/packages/renderer/src/text/layout/line-breaker.test.ts')
 
-export const moreSample = samples[1]!
+export const moreSample = createSample('Link after the cut', 'ltr', samples[0]!.text)
 
 export function getPageGeometry(viewportWidth: number, requestedTextWidth: number): PageGeometry {
   const marginX = viewportWidth <= NARROW_MAX_VIEWPORT_WIDTH ? NARROW_PAGE_MARGIN_X : PAGE_MARGIN_X
   const pageWidth = Math.min(PAGE_MAX_WIDTH, viewportWidth - marginX * 2)
-  // Two text columns side by side inside a panel's padding.
-  const maxTextWidth = Math.min(MAX_TEXT_WIDTH, Math.floor((pageWidth - PANEL_PADDING_X * 2 - COLUMN_GAP) / 2))
+  const maxTextWidth = Math.min(MAX_TEXT_WIDTH, pageWidth - CARD_PADDING_X * 2)
   return { pageWidth, maxTextWidth, textWidth: Math.min(requestedTextWidth, maxTextWidth) }
 }
 
@@ -185,7 +177,6 @@ function clampLines(prepared: PreparedTextWithSegments, width: number, maxLines:
 export function layoutClamp(prepared: PreparedTextWithSegments, width: number, maxLines: number): ClampLayout {
   const lineCount = layout(prepared, width, LINE_HEIGHT).lineCount
   return {
-    lineCount,
     truncated: lineCount > maxLines,
     height: Math.min(lineCount, maxLines) * LINE_HEIGHT,
     lines: clampLines(prepared, width, maxLines, ELLIPSIS_WIDTH),

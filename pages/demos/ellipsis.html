@@ -23,7 +23,6 @@
         --muted: #6e655f;
         --rule: #d8cec3;
         --accent: #955f3b;
-        --text-box: #f3ebe1;
       }
 
       body {
@@ -60,7 +59,7 @@
 
       .intro p {
         margin: 10px 0 0;
-        max-width: 64ch;
+        max-width: 58ch;
         line-height: 1.45;
         color: var(--muted);
       }
@@ -70,18 +69,14 @@
         flex-wrap: wrap;
         align-items: center;
         gap: 12px 28px;
-        margin: 24px 0 16px;
-        padding: 14px 18px;
-        border-radius: 18px;
-        background: var(--panel);
-        box-shadow: inset 0 0 0 1px var(--rule);
+        margin: 20px 0 6px;
         font: 12px/1.2 "SF Mono", ui-monospace, monospace;
         color: var(--muted);
       }
 
       .controls label {
         display: flex;
-        flex: 1 1 220px;
+        flex: 1 1 160px;
         align-items: center;
         gap: 12px;
       }
@@ -92,85 +87,31 @@
       }
 
       .controls .val {
-        min-width: 44px;
+        min-width: 40px;
         text-align: right;
         color: var(--ink);
       }
 
-      /* ellipsis.ts writes the padding, which the widest text column depends on. The ring is a
-         box-shadow, so it takes no width from the columns. */
-      .panel {
-        margin-top: 16px;
-        border-radius: 18px;
+      .row-label {
+        margin: 18px 0 6px;
+        font: 12px/1.3 "SF Mono", ui-monospace, monospace;
+        color: var(--muted);
+      }
+
+      /* ellipsis.ts writes the padding, which the widest text depends on. The card is as wide
+         as its text and padding, and its ring is a box-shadow, so it takes no width from the
+         text. */
+      .card {
+        width: fit-content;
+        border-radius: 14px;
         background: var(--panel);
         box-shadow: inset 0 0 0 1px var(--rule);
       }
 
-      .panel h2,
-      .why h2 {
-        margin: 0;
-        font: 600 17px/1.2 "Helvetica Neue", Helvetica, Arial, sans-serif;
-      }
-
-      .panel p,
-      .why p {
-        margin: 8px 0 0;
-        max-width: 78ch;
-        line-height: 1.45;
-        color: var(--muted);
-      }
-
-      /* ellipsis.ts writes the gap between two columns and each column's width. */
-      .column-titles,
-      .columns {
-        display: flex;
-        align-items: flex-start;
-      }
-
-      .column-titles {
-        margin-top: 14px;
-      }
-
-      .column-title {
-        flex: none;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        font: 12px/1.2 "SF Mono", ui-monospace, monospace;
-        letter-spacing: 0.04em;
-        white-space: nowrap;
-        color: var(--accent);
-      }
-
-      .row {
-        margin-top: 14px;
-      }
-
-      .row-head {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: baseline;
-        gap: 2px 12px;
-        margin-bottom: 6px;
-        font: 12px/1.3 "SF Mono", ui-monospace, monospace;
-      }
-
-      .row-label {
-        color: var(--ink);
-      }
-
-      .row-meta {
-        color: var(--muted);
-      }
-
-      /* A box of text. ellipsis.ts writes its font, line height and width; it has no padding or
-         border, so its width is the width the text wraps at. */
+      /* A box of Pretext's lines. ellipsis.ts writes its font, line height, width and height,
+         and each line's top and text; it has no padding or border, so its width is the width
+         the text wraps at. */
       .text {
-        flex: none;
-        background: var(--text-box);
-      }
-
-      /* Pretext's lines: ellipsis.ts writes the box's height and each line's top and text. */
-      .lines {
         position: relative;
       }
 
@@ -178,22 +119,6 @@
         position: absolute;
         left: 0;
         width: 100%;
-        white-space: nowrap;
-      }
-
-      /* The browser's own clamp, to compare; ellipsis.ts writes the number of lines.
-         overflow-wrap is Pretext's wrapping mode. */
-      .css-clamp {
-        display: -webkit-box;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-        overflow-wrap: break-word;
-      }
-
-      /* The closest CSS has to a middle ellipsis: one at the end. */
-      .css-end {
-        overflow: hidden;
-        text-overflow: ellipsis;
         white-space: nowrap;
       }
 
@@ -210,18 +135,6 @@
         text-decoration: underline;
         cursor: pointer;
       }
-
-      .why {
-        margin-top: 16px;
-        padding: 18px;
-        border-radius: 18px;
-        background: var(--panel);
-        box-shadow: inset 0 0 0 1px var(--rule);
-      }
-
-      code {
-        font: 12px/1.3 "SF Mono", ui-monospace, monospace;
-      }
     </style>
   </head>
   <body>
@@ -229,11 +142,7 @@
       <section class="intro">
         <p class="eyebrow">Demo</p>
         <h1>Ellipsis</h1>
-        <p>
-          Text cut to fit, with the cut worked out before anything is painted:
-          how many lines a paragraph takes, whether it is truncated, how tall
-          it is, and where its last line stops.
-        </p>
+        <p>Text cut to fit, with the cut worked out before anything is painted.</p>
       </section>
 
       <section class="controls" aria-label="Width and line count">
@@ -249,75 +158,7 @@
         </label>
       </section>
 
-      <section class="panel">
-        <h2>Clamp to a number of lines</h2>
-        <p>
-          Left, Pretext's lines, each painted as its own element, with the
-          ellipsis added to the last one. Right, the same text under CSS
-          <code>-webkit-line-clamp</code>. The numbers come from
-          <code>layout()</code> alone, before any line is built.
-        </p>
-        <div class="column-titles">
-          <div class="column-title">Pretext</div>
-          <div class="column-title">CSS -webkit-line-clamp</div>
-        </div>
-        <div id="clamp-rows"></div>
-      </section>
-
-      <section class="panel">
-        <h2>Ellipsis in the middle</h2>
-        <p>
-          One line that keeps both ends of a path or a URL. CSS can only cut
-          the end.
-        </p>
-        <div class="column-titles">
-          <div class="column-title">Pretext</div>
-          <div class="column-title">CSS text-overflow</div>
-        </div>
-        <div id="middle-rows"></div>
-      </section>
-
-      <section class="panel">
-        <h2>A link after the cut</h2>
-        <p>
-          The last line leaves room for “… more”, measured in the paragraph's
-          font. Open, the paragraph ends with “less”, on the last line if it
-          fits there. Both heights are known before the click.
-        </p>
-        <div id="more-rows"></div>
-      </section>
-
-      <section class="why">
-        <h2>Where the cut goes</h2>
-        <p>
-          Chrome, Safari and Firefox end a clamped box the same way. The last
-          line breaks where it would without the clamp. If the ellipsis fits
-          after it, it goes there; if not, the line is cut after the last
-          character that leaves the ellipsis room, inside a word if need be.
-          The ellipsis is drawn in the paragraph's first font. The demo does
-          the same with <code>layoutNextLine()</code>: once per line at the
-          full width, then for the last line again at the width less the
-          ellipsis, which takes the words that fit, and once more from there,
-          which cuts into the next word as
-          <code>overflow-wrap: break-word</code> would.
-        </p>
-        <p>
-          Where the two columns differ, it is inside a word. Pretext knows how
-          wide a word's letters are when the word is broken across two lines,
-          not where each letter sits in the whole word, which is what a
-          browser cuts by. In Latin text the cut lands one letter early at a
-          rare width. In Arabic, whose letters change shape with their
-          neighbours, Chrome and Firefox show one to three more letters than
-          Pretext in two cuts out of three; narrow the Arabic paragraph to
-          see it. A line that mixes directions differs too: browsers cut the
-          end of the line as painted, and Pretext, which keeps no painted
-          order, cuts the end of the text.
-        </p>
-        <p>
-          The line stream only walks forward, so the middle ellipsis measures
-          each end it could keep as the line that starts there.
-        </p>
-      </section>
+      <section id="rows"></section>
     </main>
 
     <script type="module" src="./ellipsis.ts"></script>

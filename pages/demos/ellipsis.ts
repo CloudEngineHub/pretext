@@ -1,21 +1,21 @@
 import {
-  COLUMN_GAP,
+  CARD_PADDING_X,
+  CARD_PADDING_Y,
   DEFAULT_LINES,
   DEFAULT_TEXT_WIDTH,
   ELLIPSIS,
   FONT,
   getPageGeometry,
-  labels,
   layoutClamp,
   layoutMiddle,
   layoutMore,
   LESS_LABEL,
   LINE_HEIGHT,
   MAX_LINES,
+  middleLabel,
   MIN_TEXT_WIDTH,
   MORE_LABEL,
   moreSample,
-  PANEL_PADDING_X,
   samples,
   type ClampLayout,
 } from './ellipsis.model.ts'
@@ -43,18 +43,6 @@ type LinesDom = {
   lines: LineDom[]
 }
 
-type ClampRowDom = {
-  meta: HTMLSpanElement
-  pretext: LinesDom
-  css: HTMLDivElement
-}
-
-type MiddleRowDom = {
-  meta: HTMLSpanElement
-  pretext: LineDom
-  css: HTMLDivElement
-}
-
 // cache lifetime: page, for every node.
 type DomCache = {
   page: HTMLElement
@@ -62,10 +50,9 @@ type DomCache = {
   widthValue: HTMLSpanElement
   linesSlider: HTMLInputElement
   linesValue: HTMLSpanElement
-  columns: HTMLElement[]
-  clampRows: ClampRowDom[]
-  middleRows: MiddleRowDom[]
-  moreMeta: HTMLSpanElement
+  boxes: HTMLDivElement[]
+  clamps: LinesDom[]
+  middle: LineDom
   more: LinesDom
   moreLink: HTMLButtonElement
   moreLinkLine: number // the line the link is attached to, -1 while detached
@@ -123,15 +110,6 @@ function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, className:
   return element
 }
 
-// A box of text in the font and line height Pretext measured.
-function createTextBox(className: string, direction: 'ltr' | 'rtl', parent: Element): HTMLDivElement {
-  const box = createElement('div', className, parent)
-  box.dir = direction
-  box.style.font = FONT
-  box.style.lineHeight = `${LINE_HEIGHT}px`
-  return box
-}
-
 function createLine(box: HTMLDivElement, index: number): LineDom {
   const root = createElement('div', 'line', box)
   root.style.top = `${index * LINE_HEIGHT}px`
@@ -140,52 +118,37 @@ function createLine(box: HTMLDivElement, index: number): LineDom {
   return { root, text }
 }
 
-// A row's label and numbers, then its columns.
-function createRow(label: string, parent: Element): { meta: HTMLSpanElement; columns: HTMLDivElement } {
-  const row = createElement('div', 'row', parent)
-  const head = createElement('div', 'row-head', row)
-  createElement('span', 'row-label', head).textContent = label
-  const meta = createElement('span', 'row-meta', head)
-  const columns = createElement('div', 'columns', row)
-  columns.style.columnGap = `${COLUMN_GAP}px`
-  return { meta, columns }
+// A row: its label, then a card that holds a box of text in the font and line height Pretext
+// measured. The card takes its width from the box and its own padding.
+function createRow(label: string, direction: 'ltr' | 'rtl', parent: Element): HTMLDivElement {
+  createElement('div', 'row-label', parent).textContent = label
+  const card = createElement('div', 'card', parent)
+  card.style.padding = `${CARD_PADDING_Y}px ${CARD_PADDING_X}px`
+  const box = createElement('div', 'text', card)
+  box.dir = direction
+  box.style.font = FONT
+  box.style.lineHeight = `${LINE_HEIGHT}px`
+  return box
 }
 
 function createDom(): DomCache {
-  const columns = Array.from(document.querySelectorAll<HTMLElement>('.column-title'))
-  const panels = Array.from(document.querySelectorAll<HTMLElement>('.panel'))
-  for (let i = 0; i < panels.length; i++) panels[i]!.style.padding = `18px ${PANEL_PADDING_X}px`
-  const titles = Array.from(document.querySelectorAll<HTMLElement>('.column-titles'))
-  for (let i = 0; i < titles.length; i++) titles[i]!.style.columnGap = `${COLUMN_GAP}px`
+  const rows = getRequiredElement('rows', HTMLElement)
 
-  const clampRows: ClampRowDom[] = []
-  const clampParent = getRequiredElement('clamp-rows', HTMLDivElement)
+  const boxes: HTMLDivElement[] = []
+  const clamps: LinesDom[] = []
   for (let i = 0; i < samples.length; i++) {
     const sample = samples[i]!
-    const row = createRow(sample.label, clampParent)
-    const box = createTextBox('text lines', sample.direction, row.columns)
-    const css = createTextBox('text css-clamp', sample.direction, row.columns)
-    css.textContent = sample.text
-    columns.push(box, css)
-    clampRows.push({ meta: row.meta, pretext: { box, lines: [] }, css })
+    const box = createRow(sample.label, sample.direction, rows)
+    boxes.push(box)
+    clamps.push({ box, lines: [] })
   }
 
-  const middleRows: MiddleRowDom[] = []
-  const middleParent = getRequiredElement('middle-rows', HTMLDivElement)
-  for (let i = 0; i < labels.length; i++) {
-    const label = labels[i]!
-    const row = createRow(label.label, middleParent)
-    const box = createTextBox('text lines', 'ltr', row.columns)
-    box.style.height = `${LINE_HEIGHT}px`
-    const css = createTextBox('text css-end', 'ltr', row.columns)
-    css.textContent = label.text
-    columns.push(box, css)
-    middleRows.push({ meta: row.meta, pretext: createLine(box, 0), css })
-  }
+  const middleBox = createRow(middleLabel.label, 'ltr', rows)
+  middleBox.style.height = `${LINE_HEIGHT}px`
+  boxes.push(middleBox)
 
-  const moreRow = createRow(moreSample.label, getRequiredElement('more-rows', HTMLDivElement))
-  const moreBox = createTextBox('text lines', moreSample.direction, moreRow.columns)
-  columns.push(moreBox)
+  const moreBox = createRow(moreSample.label, moreSample.direction, rows)
+  boxes.push(moreBox)
   const moreLink = document.createElement('button')
   moreLink.type = 'button'
   moreLink.className = 'more-link'
@@ -196,10 +159,9 @@ function createDom(): DomCache {
     widthValue: getRequiredElement('width-value', HTMLSpanElement),
     linesSlider: getRequiredElement('lines-slider', HTMLInputElement),
     linesValue: getRequiredElement('lines-value', HTMLSpanElement),
-    columns,
-    clampRows,
-    middleRows,
-    moreMeta: moreRow.meta,
+    boxes,
+    clamps,
+    middle: createLine(middleBox, 0),
     more: { box: moreBox, lines: [] },
     moreLink,
     moreLinkLine: -1,
@@ -246,8 +208,7 @@ function render(): void {
   const textWidth = geometry.textWidth
   const clamps: ClampLayout[] = []
   for (let i = 0; i < samples.length; i++) clamps.push(layoutClamp(samples[i]!.prepared, textWidth, maxLines))
-  const middles: string[] = []
-  for (let i = 0; i < labels.length; i++) middles.push(layoutMiddle(labels[i]!, textWidth))
+  const middle = layoutMiddle(middleLabel, textWidth)
   const more = layoutMore(moreSample.prepared, textWidth, maxLines, moreOpen)
 
   st.requestedTextWidth = requestedTextWidth
@@ -267,25 +228,17 @@ function render(): void {
   domCache.linesSlider.max = String(MAX_LINES)
   domCache.linesSlider.value = String(maxLines)
   domCache.linesValue.textContent = String(maxLines)
-  for (let i = 0; i < domCache.columns.length; i++) domCache.columns[i]!.style.width = `${textWidth}px`
+  for (let i = 0; i < domCache.boxes.length; i++) domCache.boxes[i]!.style.width = `${textWidth}px`
 
   for (let i = 0; i < samples.length; i++) {
     const clamp = clamps[i]!
-    const row = domCache.clampRows[i]!
-    row.meta.textContent = `${clamp.lineCount} lines, ${clamp.truncated ? `${maxLines} shown` : 'all shown'} · ${clamp.height}px`
-    row.pretext.box.style.height = `${clamp.height}px`
-    paintLines(row.pretext, clamp.lines, clamp.truncated ? ELLIPSIS : '')
-    row.css.style.webkitLineClamp = String(maxLines)
+    const dom = domCache.clamps[i]!
+    dom.box.style.height = `${clamp.height}px`
+    paintLines(dom, clamp.lines, clamp.truncated ? ELLIPSIS : '')
   }
 
-  for (let i = 0; i < labels.length; i++) {
-    const row = domCache.middleRows[i]!
-    const text = middles[i]!
-    row.meta.textContent = text === labels[i]!.text ? 'fits' : 'cut'
-    if (row.pretext.text.data !== text) row.pretext.text.data = text
-  }
+  if (domCache.middle.text.data !== middle) domCache.middle.text.data = middle
 
-  domCache.moreMeta.textContent = `${more.lines.length} lines · ${more.height}px`
   domCache.more.box.style.height = `${more.height}px`
   paintLines(domCache.more, more.lines, more.linkLine < 0 ? '' : moreOpen ? ' ' : `${ELLIPSIS} `)
   const linkLabel = moreOpen ? LESS_LABEL : MORE_LABEL
