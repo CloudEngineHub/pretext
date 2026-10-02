@@ -982,7 +982,11 @@ question. With its Latin rows in Arial it read seen text 3.4% slower than main a
 kerning left on the word, which copies the word's fit advances wherever it kerns (two sessions each, 2026-10-01; the PR
 has the tables). With the placement the profile takes, it read every new and seen row within noise in its own fonts,
 Latin seen text 3.0% slower in Arial and 4.3% in Gill Sans, and a fresh page's first batch in Arial at 2.60µs a unit
-against 2.23 (two sessions each, 2026-10-02, against the main before #394).
+against 2.23 (two sessions each, 2026-10-02, against the main before #394). With the one reader of script runs, against
+main as of #399, it read every row within noise in its own fonts with a fresh page's first batch at 2.77µs a unit
+against 2.63, Latin seen text 2.7% slower in Arial and 5.6% in Gill Sans, Latin new text 8.1% slower in Arial beside a
+second copy of main 5.9% and 6.3% slower than the first, and the first batch at 3.14 against 2.78 in Arial and 3.33
+against 2.91 in Gill Sans (two sessions each, 2026-10-02; #TBD has the tables).
 
 Canvas gives the kerning where U+2028 stands for the space: Blink draws U+2028 with the space glyph and its Canvas
 doesn't cut there. A word measured with U+2028 after it, and before it, less the word and a space, equals what the
@@ -2016,7 +2020,9 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   (`getScriptClasses()` in `src/prepare.ts`), the bundle took 3.17ms in Node. Chrome 154's bench then read a fresh
   page's compile at 1.63ms against 1.56 for the main before #394, 0.07ms more where the literals had read 0.2 (two
   sessions, 2026-10-02), so the literals were most of it. The reader of script runs that the kerning and the
-  letter-spacing rule now share makes its seven classes so, #397's among them. Main's own such literals weren't touched:
+  letter-spacing rule now share makes its seven classes so, #397's among them, which main as of #399 has as literals:
+  against it Chrome 154 read a fresh page's compile at 1.59ms against 1.73, and Firefox 156 the bundle's first run at
+  0.08ms against 0.26-0.28 (two sessions, 2026-10-02). Main's other such literals weren't touched:
   with the 17 a script found written as constructor calls, its bundle compiled in 2.36ms of 3.18 in Node, so about a
   quarter of a fresh page's compile may be theirs, an open saving (ENGINE_FOLLOWUPS.md, Cost).
 - **Class fields in Firefox**: with any class field in the bundle, Firefox 156 took 4.5-4.8ms to evaluate it on a fresh
