@@ -128,8 +128,8 @@ const GREEK_SCRIPT = 4
 const LATIN_SCRIPT = 8
 const ANY_SCRIPT = 15
 // The Unicode classes the script runs test, made when a word first needs its space's run and
-// not written as literals: an engine builds a \p{...} class's set where it parses the literal,
-// on every page, whether or not the page tests it (RESEARCH.md, Keeping Work Bounded).
+// not written as literals: V8 builds a \p{...} class's set where it parses the literal, on
+// every page, whether or not the page tests it (RESEARCH.md, Keeping Work Bounded).
 type ScriptClasses = { any: RegExp, latin: RegExp, cyrillic: RegExp, greek: RegExp, opening: RegExp, closing: RegExp }
 let scriptClasses: ScriptClasses | null = null
 
@@ -491,15 +491,13 @@ export function measureAnalysis(
           if (afterSpace || beforeSpace) {
             const kerning = textMetrics.spaceKerning ?? getSpaceKerning(text, textMetrics, fontMeasurement, fontSpaceKerning)
             if (beforeSpace) {
-              // A kerning that tightens the word and the space after it goes on the space, so a
-              // line that ends at the space, which hangs, has the word without it. Blink shapes
-              // such a line's end again without the space under a text-align other than start,
-              // and for text whose element has a decoration or a background
-              // (NeedsAccurateEndPosition, line_breaker.cc:255-268). Premise: every text is
-              // that; for start-aligned text without either Blink keeps the kerning, and the
-              // line's last word is wider here by it (RESEARCH.md, Kerning At Line Edges). A
-              // kerning that widens stays on the word, whose end Blink finds in the run shaped
-              // whole in every mode.
+              // Premise: a kerning that tightens the word and the space after it goes on the
+              // space, which hangs, so a line that ends there has the word without it, as in
+              // Blink under a text-align other than start and for text whose element has a
+              // decoration or a background (NeedsAccurateEndPosition, line_breaker.cc:255-268).
+              // One that widens stays on the word, whose end Blink finds in the run shaped
+              // whole. In other text a line's last word is wider here than there by the
+              // kerning, never narrower (RESEARCH.md, Kerning At Line Edges).
               followingSpaceKerning = Math.max(kerning.after, 0)
               spaceShare = Math.min(kerning.after, 0)
             }

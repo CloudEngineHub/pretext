@@ -33,7 +33,10 @@ builds widths are compared exactly: to `equal <ref>` a line width that differs a
 `measureLineStats()`, `walkLineRanges()`, `layoutNextLineRange()`, `layoutNextLine()`, `layoutWithLines()`,
 `materializeLineRange()` and their rich-inline counterparts) must agree on lines, widths and text, and none may call
 `measureText` after preparing. A rich fragment's text is `materializeLineRange()`'s over its cursors in its item's own
-prepared text, but for the hyphen of a soft hyphen it ends at, which the text the items join decides.
+prepared text, but for the hyphen of a soft hyphen it ends at, which the text the items join decides. Every case is laid
+out start-aligned in an element with no text decoration or background, so a browser rule that depends on those is
+recorded on one side only: Chrome keeps a word's kerning with a hanging space in such text and drops it in the others
+(`RESEARCH.md`, Kerning At Line Edges).
 
 A recording counts only under the environment that made it, the key in its file's first line: browser build, OS build,
 OS languages, page languages, device pixel ratio and a hash of the served fonts. `check` refuses to score under any
