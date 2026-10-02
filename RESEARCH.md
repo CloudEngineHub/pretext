@@ -417,7 +417,7 @@ fallback supplies U+2010, only measuring under two fallbacks whose U+2010 differ
 harness), and the Chromium and WebKit profiles ask that way where the two hyphens measure differently in the font
 (`getHyphenText()` in `src/measurement.ts`; 17px Inter's U+2010 is 6.09px and its `-` 7.82px). Firefox asks the first
 listed font that has one, else its default font, and paints what Canvas measures for U+2010, so the Gecko profile
-measures that (`hyphenFromPrimaryFont`; Engine Facts, Firefox). Every profile measured `-` before #TBD.
+measures that (`hyphenFromPrimaryFont`; Engine Facts, Firefox). Every profile measured `-` before #396.
 ENGINE_FOLLOWUPS.md, Line edges, has what the check's premises get wrong. Only Safari letter-spaces the hyphen.
 
 Safari's page turns off `liga`, `clig`, `dlig` and `hlig` under any non-zero letter spacing and its Canvas
@@ -1112,7 +1112,7 @@ lines as the width grows from 43-60 to 7-14 per profile (#327, 2026-09-15; ENGIN
 that continues the line decides whether the text before the hyphen fits, and which earlier breaks a return may take is
 at the rich stepper's return in `src/rich-inline.ts`. A run that continues across items moves to the next line whole in
 every profile where its first break is a soft hyphen whose hyphen doesn't fit, as it does in Safari 27 (`the `, `inter`,
-`na\u00ADtion\u00ADal` at 84px in 16px Arial, #323's cases). Until #TBD the WebKit profile made that return only, and
+`na\u00ADtion\u00ADal` at 84px in 16px Arial, #323's cases). Until #396 the WebKit profile made that return only, and
 kept an unfit hyphen in one text and in an item that a break comes before, as after a space or an atomic item, where
 WebKit returns as well (Engine Facts, Safari). Fit with the width you report, or text laid out at its widest line wraps
 differently (#308, 2026-09-15).
@@ -1786,7 +1786,7 @@ repin` shows what), and a fact read in source needs reading again.
   at 76-80px, and `trans\u00ADi\u00ADt\u00ADlantic` starts with `trans-`, 40.9px wide, at 39.5-40.5px, where Chrome and
   Firefox break inside the word. A soft hyphen is discretionary only at a WebKit item's end. WebKit fits the text on
   each side of a soft hyphen as measured alone (`TextUtil.cpp:62-100`), and the hyphen as U+2010 where the primary font
-  has one (`StyleComputedStyle.cpp:419-431`). The WebKit profile ports the three since #TBD (`unfitHyphenRetreat`'s
+  has one (`StyleComputedStyle.cpp:419-431`). The WebKit profile ports the three since #396 (`unfitHyphenRetreat`'s
   `'full-width-or-first'`, `hyphenFromPrimaryFont`), where it kept every unfit hyphen before: on 3,092 fresh cases of
   soft-hyphenated text (120-600px, 25 font lists, letter spacing, marks after the soft hyphen, pre-wrap, rich items)
   main passed 2,308 and the port 3,087, all but one that main passed, a padded span's first syllable; the harness's
@@ -1862,7 +1862,7 @@ repin` shows what), and a fact read in source needs reading again.
   listed font or Helvetica has one, and shapes it as any other text, in a later family or a fallback font where the
   first lacks it: `"Geeza Pro", Inter` paints Inter's, where Chrome and Safari paint `-`, and Geeza Pro alone a
   fallback font's, 0.73px wider than its `-` under an Arabic or Persian page language. Canvas measures the same
-  glyph, so the Gecko profile measures U+2010 with no check (`hyphenFromPrimaryFont`, #TBD). The facts set holds it
+  glyph, so the Gecko profile measures U+2010 with no check (`hyphenFromPrimaryFont`, #396). The facts set holds it
   in `"Geeza Pro", "Songti SC"`, whose hyphen is Songti SC's in Firefox, an em wide, and Geeza Pro's `-` in Chrome
   and Safari. (Firefox 156.0.1, 2026-10-01.)
 - **Breaks.** The Gecko scan ports Gecko's rules (Break Opportunities From Engine Data), such as `-` kept with a digit

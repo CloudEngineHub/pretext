@@ -151,7 +151,7 @@ grew.
 
 `sets/data/engine-facts.json`'s `layout.test.ts` line numbers, the facts set's case origins and the four accepted-list
 reasons that cite a `layout.test.ts` line point at the files of main before #340 (6d1d2106), not today's; read them with
-`git show 6d1d2106:<path>`. The two facts #TBD added (lines 1948 and 2015) point at that pull request's `layout.test.ts`, and
+`git show 6d1d2106:<path>`. The two facts #396 added (lines 1948 and 2015) point at that pull request's `layout.test.ts`, and
 name the fonts they run in where that isn't 16px Arial. ENGINE_FOLLOWUPS.md, Harness debt, has what to prune when the sets are made again.
 
 ## Commands
