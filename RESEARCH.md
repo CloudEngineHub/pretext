@@ -276,8 +276,13 @@ a rule by reading it and its unit tests (`rebuild/src/engines/<engine>/`) agains
   the project is closed (Decisions Log, 2026-09-23 and 2026-09-26).
 - **`\p{…}`** follows the JavaScript engine's Unicode tables, not layout's, so the rebuild takes no engine decision from
   it. Main's scans do, through `hasProperty()` (`src/line-breaks.ts`: letters and numbers, marks, punctuation,
-  default-ignorables, emoji, Hangul), on the premise that a browser's JavaScript engine and its layout use the same
-  Unicode version, which nothing checks.
+  default-ignorables, emoji, Hangul), and so does the cursive rule for letter spacing, which reads scripts and script
+  extensions (`src/prepare.ts`), on the premise that a browser's JavaScript engine and its layout use the same Unicode
+  version, which nothing checks. Script extensions are revised in most Unicode versions, more than those classes are,
+  so the premise carries more there: where the two differ, a punctuation mark or a combining mark that scripts share
+  is spaced otherwise than the browser spaces it. What no property says is listed by hand in the code with how it was
+  derived, as the eight wide opening brackets Blink makes Han are, and the unit tests of these rules read Bun's
+  tables (Unicode 17 in Bun 1.4.2).
 - **`Intl.Segmenter`** stays for Southeast Asian words (Dead Ends, Tables, Bundles And Data, has the alternatives)
   because Pretext needs the browser's split, not the right one. Firefox's slow Thai segmentation is its own trade for
   download size, so no bug was filed.
@@ -420,12 +425,27 @@ listed font that has one, else its default font, and paints what Canvas measures
 measures that (`hyphenFromPrimaryFont`; Engine Facts, Firefox). Every profile measured `-` before #396.
 ENGINE_FOLLOWUPS.md, Line edges, has what the check's premises get wrong. Only Safari letter-spaces the hyphen.
 
-Safari's page turns off `liga`, `clig`, `dlig` and `hlig` under any non-zero letter spacing and its Canvas
-`letterSpacing` doesn't (WebKit #283408 lacks WebKit #176215's fix): 32px Hoefler Text `ffi fl` at 0.001px is 54.403px
-in Canvas, 57.414px on the page (webkit-host and Safari 27, 2026-09-16 to 19); Chrome's agree. Pretext's model, the
-unspaced width plus the spacing per grapheme after the first, is 2-3px off Safari in Amiri, Hoefler Text and Futura, and
-no Canvas string gets two letters unligated into one Safari shaping call (1,596 strings in 15 fonts; Dead Ends,
-Kerning). A WebKit fix would make it exact.
+Every page shapes text under any non-zero letter spacing without its optional ligatures: Blink turns off `liga`, `clig`
+and `calt` (`font_features.cc:52-86`), Gecko and WebKit `liga`, `clig`, `dlig` and `hlig` (`gfxFont.cpp:672-685`;
+`UnrealizedCoreTextFont.cpp:258-264`), so a word is as wide as its letters plus the spacing: 16px Roboto `difficult` is
+52.87px wide, and 54.20px plus nine gaps under any spacing, in all three. Chrome's and Firefox's Canvas `letterSpacing`
+turns them off too, and adds nothing at `0.000001px`, under Blink's unit of 1/65536 px and Gecko's app unit
+(`shape_result_spacing.cc:14-33`; `CanvasRenderingContext2D.cpp:4771-4774`): that Canvas width is the page's with
+`font-variant-ligatures: none`, the same in Firefox and within 0.007px in Chrome, where the page rounds an item up to
+1/64 px (five words in 16px Roboto, Futura, Georgia and Helvetica Neue and 32px Hoefler Text). So the Blink and Gecko
+profiles measure letter-spaced text through a context set to that spacing, kept apart per font from what unspaced text
+measures, and add the spacing per grapheme themselves; a word's prefixes and its widths at line edges come from the same
+shaping (#397; Chrome 154.0.8037.57 and Firefox 156.0.1, 2026-09-30). On the masonry demo's 1,904 paragraphs at 22
+widths in 15px Roboto at 0.15px, that took wrong line counts from 33 to 9 in Chrome, where 10 are wrong without spacing,
+and from 28 to 0 in Firefox, and the paragraphs that wrap again when sized to their predicted widest line from 16 and 18
+to 0. Firefox's page turns them off only where the spacing is at least half an app unit (Engine Facts, Firefox).
+
+Safari's Canvas `letterSpacing` keeps them (WebKit #283408 lacks WebKit #176215's fix): 32px Hoefler Text `ffi fl` at
+0.001px is 54.403px in Canvas, 57.414px on the page (webkit-host and Safari 27, 2026-09-16 to 19). The WebKit profile's
+model, the unspaced width plus the spacing per grapheme after the first, is 2-3px off Safari in Amiri, Hoefler Text and
+Futura and up to 1.3px a word in 16px Roboto, and no Canvas string gets two letters unligated into one Safari shaping
+call (1,596 strings in 15 fonts; Dead Ends, Kerning): on those Roboto paragraphs webkit-host has 26 wrong line counts of
+41,888, and 15 of 1,904 wrap again (ENGINE_FOLLOWUPS.md). A WebKit fix would make it exact.
 
 Contexts read language their own ways (Content Language And Fonts). Safari's has no `lang`, `fontKerning` or
 `textRendering` (WebKit #285993), and an attribute a browser lacks, once set, is silently a plain JavaScript property:
@@ -1407,6 +1427,16 @@ runs (Firefox 156.0.1, bench sessions of 2026-09-27 and 28, unless noted):
   and 25% slower than main, and made only where an item holds a soft hyphen or bidi control 5% and 3%, where on first
   need they read within 2% (Bun's JavaScriptCore on the stand-in Canvas, warm caches, medians of 5 or 6 processes;
   hypotheses until a browser shows them).
+- **The cursive rule's pretest** (#397): a letter-spaced text is asked once, by a regular expression of the cursive
+  scripts' properties, whether it holds a character of a cursive run, and only then takes the script tests per
+  grapheme. In Node 23's V8 that expression takes 6-19 ns per UTF-16 unit of CJK text, about ten times a class of
+  plain ranges: a warm letter-spaced prepare of 1,140 units of Japanese read 201 µs with it and 180 µs with a class of
+  the blocks that hold those scripts in its place, and Latin text and Bun's JavaScriptCore read no difference (the
+  stand-in Canvas on a loaded machine, best of 40 rounds, 2026-10-01; hypotheses until a browser shows them). The
+  block class wasn't kept: it is a second answer to the same question, there for one engine's regular expressions
+  (Part 1, Engineering, JIT tuning), and it missed the punctuation Arabic shares outside those blocks, so `abc`,
+  U+204F, `def` took 7 gaps where Chrome 154 gives 6. Reopens if the bench's letter-spaced CJK prepare row shows the
+  test.
 
 #### The Walkers' Shapes
 
@@ -1698,9 +1728,32 @@ repin` shows what), and a fact read in source needs reading again.
   no word spacing. Canvas shapes each ICU level run in its own direction, the DOM a group in one; a two-byte RTL group
   in U+202E … U+202C is one level run. U+FFFC becomes U+200B (`character.h:167-175`): zero where the DOM draws a 1 em
   fallback glyph. (Chrome 153, 2026-09-16 to 09-23.)
-- **Letter spacing and tabs.** Blink spaces cursive-script runs only at spaces (`shape_result.cc:977-990`), spaces a
-  glyph cluster once, and turns off liga, clig and calt under any spacing (`font_features.cc:54-86`). A tab stop is
-  eight Canvas spaces plus letter and word spacing (`font.cc:303-317`), rounded up to 1/128 px at DPR 2
+- **Letter spacing and tabs.** Blink spaces cursive-script runs only at spaces (`shape_result.cc:977-990`,
+  `shape_result_spacing.cc:103-131`), spaces a glyph cluster once, and turns off liga, clig and calt under any spacing
+  (`font_features.cc:54-86`). The run is the shaping run's script, so digits, brackets and punctuation after Arabic, or
+  before it at the start of the text, take none either, and a closing bracket goes back to its opening bracket's run
+  (`script_run_iterator.cc`): of an Arabic word, a space and `123.`, only the space is spaced. The rule sits behind the
+  runtime flag `IgnoreLetterSpacingInCursiveScripts` and came in two steps. Before Chrome 138 every letter is spaced;
+  from 138 to 148 a cursive run takes no letter spacing at all, its spaces included; from 149 its spaces and no-break
+  spaces are spaced, the rule above. The first step's code is in 137 (Chromium 77ab8bb837), where Chrome's release notes
+  list it, but release tags 137.0.7151.55 and .119 have the flag experimental and 138.0.7204.49 stable (97e135f47a); the
+  second is 65df445712 (Chromium #473579852), in tag 149.0.7827.0 and not in 148.0.7778.288 (the tags' source, read
+  2026-10-01; what the profile gets wrong on the older two is in ENGINE_FOLLOWUPS.md, Letter spacing). The Blink profile
+  follows a reduced port of that iterator (#397, `src/prepare.ts`): in Chrome 154 it gives 64 probe strings Chrome's
+  gaps, and the real-usage sample's 8 failing Arabic and Urdu paragraphs under letter spacing pass (2026-09-30 and
+  10-01). A Common character right before a mark that has script extensions takes the mark's scripts
+  (`FetchNextCharacter`, `:624-635`), whose lowest code leads: `1` under the Arabic vowel sign U+064B starts an Arabic
+  run among Latin letters, and under U+0303, which Latin, Syriac and three more scripts share, it leaves an Arabic run
+  and stays in a Syriac one; the port follows all but the last. A wide opening bracket under such a mark has the mark's
+  scripts before its width is asked, so it isn't made Han (`Fetch` runs before `OpenBracket`, `:334-338`, `:431-441`). A
+  character several scripts share starts a run that holds them all, the lowest code leading, Latin aside for a Common
+  character, which the next character with a script narrows, and it stays in a run of any of them (`GetScripts`,
+  `MergeSets`, `script_run_iterator.cc:118-215`, `:491-565`); a Common character that only one script lists stays in
+  whatever run it is in. The port gives a shared character its leading script wherever it stands and leaves the rest
+  out: U+202F, which Latin, Mongolian and Phags-pa share, takes no gap alone, after Arabic or between Han characters,
+  and one among Latin letters, and its Mongolian run takes in the digits around it, so `10`, U+202F, `000` in a text of
+  its own takes none of its 6 gaps (Chrome 154, 2026-10-01; ENGINE_FOLLOWUPS.md, Letter spacing). A tab stop is eight
+  Canvas spaces plus letter and word spacing (`font.cc:303-317`), rounded up to 1/128 px at DPR 2
   (`simple_font_data.cc:225-240`), and a tab skips a stop under half a space away (`font.cc:333-337`). The spacing is in
   a stop only under the runtime flag `TabSizeWithSpacing` (`TabSize::GetPixelSize`, `tab_size.h:24-33`), on by default
   since Chromium 140 (Chromium commit 74fb9bb2, 2025-07-11) and no longer a flag from 155 (c8a9ba0b): a Chromium before
@@ -1713,8 +1766,7 @@ repin` shows what), and a fact read in source needs reading again.
   in 16px Arial is 27.563px at −1px letter spacing and 35.563px at 0 (harness recordings at commit b1fd05fc, Chrome
   154), and no tab advances under such spacing in 792 probe inputs of tab runs (Chrome 154.0.8037.57, 2026-09-30). The
   profile counts stops so since #395 (`letterSpaceTabStops`, `letterSpaceTabs` and `tabMinimumCharacter`,
-  `src/measurement.ts`) and doesn't model the cursive rule (ENGINE_FOLLOWUPS.md). (Chrome 153 source, 2026-09-16 and
-  09-27, and 10-01 for the flag and the clamp.)
+  `src/measurement.ts`). (Chrome 153 source, 2026-09-16 to 10-01.)
 - **Line breaking.** ICU restarts at each line start without context, so LB20a applies there (`a‐b`, break-all, loose:
   `a` / `‐b`); the Blink scan makes one pass per text (Break Opportunities From Engine Data). Blink takes the last
   offset that fits from glyph positions, then the break at or before it, so a line ends before a ligature unless its
@@ -1847,14 +1899,27 @@ repin` shows what), and a fact read in source needs reading again.
   Hiragino Sans). Unfiled: `ComputeLigatureData` divides a signed advance by an unsigned count (`:249-289`), so a span
   starting between two marks of one cluster makes a frame about 17.9 million px wide. (Firefox 156, 2026-09-17 to
   09-23.)
-- **Letter spacing.** A run's last character is always spaced, others only if not a tab or formatting character and a
-  cluster starts after them (`CanAddSpacingAfter`, `nsTextFrame.cpp:3860-3873`): a lone pre-wrap tab at 1px is 43.6 px
-  natively, 44.6 px painted alone. A tab before a change of direction also ends a left-to-right run and gets a gap
-  (`a\tبِبِ((tail`), unseen by the Gecko profile where it resolves no levels (Bidi Levels). After a removed soft hyphen,
-  a mark is spaced as its own base. From Firefox 153, `letterSpacing = '0.001px'` turns ligatures off as the DOM's
-  non-zero spacing does and adds nothing, so a port can add spacing in JavaScript; 140 ESR adds 0.00104 px a character
-  and has no `ctx.lang`, and ESR is dropped where it costs complexity (Part 1, Limits). (Firefox 156, 2026-09-17 to
-  09-27.)
+- **Letter spacing.** The page resolves it to whole app units, 1/60 px, from a float32, rounding half away from zero
+  (`ResolveLetterSpacing`, `nsTextFrame.cpp:1949-1962`; `DefaultLengthToAppUnits`, `ServoStyleConstsInlines.h:584-595`):
+  each letter takes -5 units at -0.08px, as Signal Desktop sets Inter, -10 at -0.17px, 23 and -23 at ±0.375px, 1 at
+  0.0084px and none at 0.0083px, where the text also keeps its ligatures. The Gecko profile rounds the same way (#397):
+  6 of its accepted failures at -0.08px passed, 3 of them real-usage paragraphs, and no pass was lost. The Canvas rounds
+  half up, -22 units at -0.375px (`CanvasRenderingContext2D.cpp:4771-4774`). A cluster whose first character's script is
+  cursive (Arabic, Syriac, N'Ko, Mandaic, Mongolian, Phags-pa, Hanifi Rohingya) takes none (`GetSpacingInternal`,
+  `nsTextFrame.cpp:4202-4213`; `UnicodeProperties.h:350-355`), joined or not, while digits, brackets and punctuation
+  among them keep theirs, tatweel and U+060C too; the Gecko profile follows it (#397), and the sample's 7 failing Arabic
+  and Urdu paragraphs under letter spacing pass. A run's last character is always spaced, others only if not a tab or
+  formatting character and a cluster starts after them (`CanAddSpacingAfter`, `nsTextFrame.cpp:3860-3873`): a lone
+  pre-wrap tab at 1px is 43.6 px natively, 44.6 px painted alone. A tab before a change of direction also ends a
+  left-to-right run and gets a gap (`a\tبِبِ((tail`), unseen by the Gecko profile where it resolves no levels (Bidi
+  Levels). After a removed soft hyphen, a mark is spaced as its own base. From Firefox 153, a Canvas `letterSpacing`
+  under half an app unit turns ligatures off and adds nothing, which the Gecko profile measures letter-spaced text under
+  (Measurement Model); 140 ESR adds 0.00104 px a character at `0.001px` and has no `ctx.lang`, and ESR is dropped where
+  it costs complexity (Part 1, Limits); at the `0.000001px` the profile sets, that rate would add a millionth of a px a
+  character, far under the line fit's 0.005 px for any line, which is inferred from the 0.001px reading and wasn't
+  measured. The page decides on the spacing in whole app units (`nsLayoutUtils.cpp:6896-6904`), so its text at 0.001px
+  keeps its ligatures, where the Canvas decides on the float (`CanvasRenderingContext2D.cpp:5233-5241`). (Firefox 156,
+  2026-09-17 to 09-30.)
 - **The hyphen of a soft hyphen.** `MakeHyphenTextRun` (`gfxTextRun.cpp:2458-2473`) paints U+2010 where the font
   `GetFirstValidFont(U+2010)` returns has it, else `-`. Its comment says the first font in the group, but given a
   character that function returns the first listed font that has the character, else the default font (`2277-2360`),
@@ -2106,8 +2171,16 @@ below 256 px, Canvas totals are exact (Engine Facts, Chrome).
 - **A float32 error bound**, cutting exactly only near it (2026-09-20): 1.16× slower, and a 512 px target made resizes
   47-60% slower. Reopens with a representation handling both precision and the cold-prefix cost.
 - **Admission and fit rules** (no reopen recorded): emergency-prefix differences for every admission; choosing by
-  prefix-measurement mode; Canvas's letter-spaced widths everywhere (breaks ligatures); Safari's inferred carried
-  adjustment on every prefix; Firefox's 1/60 px box rounding in line fits (regressed unrelated cases).
+  prefix-measurement mode; Safari's inferred carried adjustment on every prefix; Firefox's 1/60 px box rounding in line
+  fits (regressed unrelated cases). Canvas's letter-spaced widths everywhere were on this list for losing ligatures,
+  which the pages lose too: #397 measures letter-spaced text under a Canvas spacing too small to add width in the
+  Blink and Gecko profiles (Measurement Model).
+- **Canvas widths at the text's own letter spacing** (2026-09-30): they would need a cache per spacing, and each Canvas
+  spaces otherwise than its page. Chrome's gives digits and brackets beside an Arabic word the gaps the page's Arabic
+  run leaves out (`123` right after an Arabic word at 4px: 3 gaps in Canvas, none on the page, Chrome 154); Firefox's
+  spaces joined Arabic letters and rounds half an app unit up (PLATFORM_BUGS.md); Safari's keeps ligatures. So the
+  spacing is added in JavaScript by each engine's rule (`src/prepare.ts`). Reopens if the Canvases come to agree with
+  their pages.
 - **A Canvas check in `layout()`** near the width gained one case and lost one, and `layout()` makes no Canvas calls
   (AGENTS.md, Implementation notes), which a cheaper Chrome recipe from the emulation study would need too.
 - **Gecko prefix fits from 24px, or everywhere** (2026-09-27): the 24-80px lines they fix cost too much in preparing new
@@ -2682,3 +2755,13 @@ decisions for the maintainer.
   slower, read no slower (Break Opportunities From Engine Data has the numbers). What was ruled out stays out: Firefox's
   classes through Chrome's lookup, tables computed at runtime and a bundle per engine (Dead Ends, Tables, Bundles And
   Data).
+- **2026-10-01: older Chromium takes no version gate for letter spacing in cursive scripts** (#397). The Blink profile
+  gives every Chromium the rule Chrome has had since 149: the letters of a cursive run take no letter spacing and its
+  spaces do. Chromium before 138 spaces every letter, as Pretext did before #397, so there letter-spaced Arabic, Persian
+  or Urdu went from right to too narrow, by the spacing times its letters; 138 to 148 space nothing in such a run, so
+  there it went from too wide by its letters and spaces to too wide by its spaces alone. Such text is 0.54% of the
+  real-usage sample's weight, and laid out as 138 to 148 would, 3 of its 44 paragraphs of only cursive letters put a
+  word on another line, 0.03% (ENGINE_FOLLOWUPS.md, Letter spacing, has the sources and how that was measured). A gate
+  would be the engine profile's first read of a browser's version, with two cutoffs, for builds that no longer update:
+  old Chrome, and the Electron apps and Android WebViews still on such a Chromium, whose developers the changelog entry
+  tells what to expect. The README says nothing of it. A report from such an app reopens it.

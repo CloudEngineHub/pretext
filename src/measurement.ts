@@ -68,6 +68,28 @@ export type EngineProfile = {
   // WebKit and Gecko letter-space the visible discretionary hyphen itself.
   // Blink shapes it separately, without spacing.
   letterSpaceDiscretionaryHyphen: boolean
+  // Gecko resolves letter spacing to whole app units, 1/60 px (ResolveLetterSpacing,
+  // nsTextFrame.cpp:1949-1962): at -0.08px each character takes -5/60 px, and a spacing
+  // under half a unit is none. Blink keeps 1/65536 px and WebKit a float, which
+  // preparation takes as given (readLetterSpacing).
+  letterSpacingInAppUnits: boolean
+  // Under any letter spacing but 0 the engines shape text without its optional ligatures:
+  // Blink turns off liga, clig and calt (font_features.cc:52-86), Gecko and WebKit liga,
+  // clig, dlig and hlig (gfxFont.cpp:672-685 under nsLayoutUtils.cpp:6896-6904;
+  // UnrealizedCoreTextFont.cpp:258-264 under StyleComputedStyleBase.cpp:318-333), so `fi`,
+  // `fl` and `ffi` take their letters' own advances: 16px Roboto `difficult` is 52.87px
+  // wide, and 54.20px plus the spacing under any. Blink's and Gecko's Canvas letterSpacing
+  // turns them off as their pages do (canvas_rendering_context_2d_state.cc:871-907;
+  // CanvasRenderingContext2D.cpp:5233-5241). WebKit's keeps them (FontCascade.cpp:81;
+  // PLATFORM_BUGS.md), so the WebKit profile measures letter-spaced text with its ligatures
+  // and comes out that much narrower than Safari (ENGINE_FOLLOWUPS.md, Letter spacing).
+  canvasLetterSpacingDropsLigatures: boolean
+  // Which text of the scripts whose letters join takes no letter spacing
+  // (getUnspacedGraphemes in src/prepare.ts): in Blink a script run of one of them, but
+  // for its spaces ('run'); in Gecko a cluster whose first character is of one of them
+  // ('cluster'); in WebKit none, which spaces every glyph that has an advance
+  // (ComplexTextController.cpp:793-796, WidthIterator.cpp:511-516).
+  unspacedCursive: 'run' | 'cluster' | 'none'
   // Blink's page shapes a soft hyphen inside its text, so nonspacing marks after
   // one shape with the text before it and take no advance. Its Canvas turns the soft
   // hyphen into a ZWSP and shapes each word alone, where such a mark can take a
@@ -273,13 +295,21 @@ type MeasureState = {
   context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
   genericFamilies: string[] | null // The families the language gives the generic keywords, or null
   takesLetterSpacing: boolean // As Chrome's and Firefox's contexts do, as a string of CSS px
+  // Whether the context shapes text under LETTER_SPACED_SHAPING as the page shapes text
+  // under letter spacing, without its optional ligatures: it takes a letterSpacing and
+  // the engine's Canvas turns them off under one (canvasLetterSpacingDropsLigatures).
+  shapesLetterSpaced: boolean
+  letterSpaced: boolean // Whether the context is set to LETTER_SPACED_SHAPING, by getFontMeasurement()
   fonts: Map<string, FontMeasurement>
+  // What letter-spaced text measures in each font where shapesLetterSpaced: the same text
+  // shaped without its optional ligatures.
+  letterSpacedFonts: Map<string, FontMeasurement>
 }
 let measureState: MeasureState | null = null
 // What preparation keeps per font. It all goes together, when the caches clear or the
 // language changes.
 export type FontMeasurement = {
-  state: MeasureState // Its context, which getFontMeasurement() sets to the font
+  state: MeasureState // Its context, which getFontMeasurement() sets to the font and its shaping
   // The font Canvas is given: the declared font, with the generic keywords the context's
   // language names replaced by their families.
   canvasFont: string
@@ -299,6 +329,16 @@ let cachedEngineProfile: EngineProfile | null = null
 // that grows with the square of its length. Past this size, the cheaper
 // pair-context model keeps preparation linear.
 const MAX_PREFIX_FIT_GRAPHEMES = 96
+
+// The Canvas letterSpacing a context measures letter-spaced text under: not 0, so the
+// engine shapes the text as its page does under letter spacing, and too small to add any
+// width, so one measurement serves every spacing and preparation adds the spacing itself.
+// Blink adds spacing in units of 1/65536 px (ShapeResultSpacing::SetSpacing,
+// shape_result_spacing.cc:14-33) and Gecko's Canvas in whole app units, 1/60 px
+// (CanvasRenderingContext2D.cpp:4771-4774), and both read 0 here: 16px Roboto `difficult`
+// measures 54.2031px in Chrome 154 and 54.2px in Firefox 156, their pages' widths with
+// `font-variant-ligatures: none` (2026-09-30).
+const LETTER_SPACED_SHAPING = '0.000001px'
 
 // Graphemes drawn from the emoji font: those holding an emoji-presentation
 // character, or an emoji character followed by U+FE0F, such as U+2764 or a
@@ -454,12 +494,20 @@ export function getPreparationLanguage(profile: EngineProfile): string | null {
   return language === '' && profile.laysOutUnderDefaultLocale ? getBlinkDefaultLocale() : language
 }
 
-// A text's letter spacing in CSS px, 0 by default. CSS and Canvas ignore a
-// non-finite one, which Pretext refuses rather than guess at.
-export function readLetterSpacing(letterSpacing: number | undefined): number {
+// The most app units a Gecko length holds (nscoord_MAX, nsCoord.h:28).
+const MAX_APP_UNITS = (1 << 30) - 1
+
+// A text's letter spacing in CSS px as the engine lays it out, 0 by default. CSS and
+// Canvas ignore a non-finite one, which Pretext refuses rather than guess at. Gecko's
+// whole app units are the float32 times 60, rounded half away from zero and clamped
+// (DefaultLengthToAppUnits, ServoStyleConstsInlines.h:584-595), and a spacing that
+// rounds to none keeps the text's ligatures (nsLayoutUtils.cpp:6896-6904).
+export function readLetterSpacing(letterSpacing: number | undefined, profile: EngineProfile): number {
   const value = letterSpacing ?? 0
   if (!Number.isFinite(value)) throw new RangeError(`letterSpacing must be a finite number of CSS px, not ${value}`)
-  return value
+  if (!profile.letterSpacingInAppUnits) return value
+  const units = Math.fround(Math.fround(value) * 60)
+  return Math.min(Math.round(Math.abs(units)), MAX_APP_UNITS) * Math.sign(units) / 60
 }
 
 // A zero per segment, where per-segment widths start, pushed in a loop: Array.from over
@@ -471,9 +519,9 @@ export function zeros(count: number): number[] {
 }
 
 // A direct measurement under letter spacing, borrowing the font's context for the
-// synchronous call. It never enters the unspaced segment cache, and letterSpacing
-// is restored even when assignment or measurement fails. Null where the context
-// can't take the spacing.
+// synchronous call. It never enters a segment cache, and letterSpacing is restored
+// even when assignment or measurement fails. Null where the context can't take the
+// spacing.
 export function measureWithLetterSpacing(text: string, letterSpacing: number, emojiCorrection: number, measurement: FontMeasurement): number | null {
   const { context, takesLetterSpacing } = measurement.state
   if (!takesLetterSpacing) return null
@@ -555,6 +603,9 @@ function buildEngineProfile(): EngineProfile {
     prefixFitMinWidth: engine === 'webkit' ? 0 : engine === 'gecko' ? 80 : Infinity,
     measureTextWithFollowingSpace: engine === 'webkit',
     letterSpaceDiscretionaryHyphen: engine !== 'blink',
+    letterSpacingInAppUnits: engine === 'gecko',
+    canvasLetterSpacingDropsLigatures: engine !== 'webkit',
+    unspacedCursive: engine === 'blink' ? 'run' : engine === 'gecko' ? 'cluster' : 'none',
     shapesMarksAcrossSoftHyphen: engine === 'blink',
     unfitHyphenRetreat: engine === 'blink' ? 'reduced-width' : engine === 'gecko' ? 'full-width' : 'full-width-or-first',
     hyphenFromPrimaryFont: engine !== 'gecko',
@@ -691,19 +742,28 @@ export function getSegmentFit(
   return metrics.fit = { mode, advances, lineStartProhibitions: prohibitions, entryGeometry: null }
 }
 
-export function getFontMeasurement(font: string, language: string | null): FontMeasurement {
+// What preparation measures a font's text through, with the context set to measure it.
+// Text under letter spacing has a measurement of its own where the context shapes it as
+// the page does: its widths, prefixes and line-edge facts all come from that shaping.
+export function getFontMeasurement(font: string, language: string | null, letterSpaced: boolean): FontMeasurement {
   // Preparation starts here, with the language it resolved. After that language
   // changes, start again with a new context and empty caches; clearing the caches
   // alone would re-measure with fonts resolved under the old language.
   if (measureState === null || measureState.language !== language) measureState = createMeasureState(language)
   const state = measureState
-  let measurement = state.fonts.get(font)
+  const shaped = letterSpaced && state.shapesLetterSpaced
+  const fonts = shaped ? state.letterSpacedFonts : state.fonts
+  let measurement = fonts.get(font)
   if (measurement === undefined) {
     const canvasFont = state.genericFamilies === null ? font : getCanvasFont(font, state.genericFamilies)
     measurement = { state, canvasFont, metrics: new Map(), followingSpaceMetrics: new Map(), emojiCorrection: null, hyphenText: null, hanKerning: undefined }
-    state.fonts.set(font, measurement)
+    fonts.set(font, measurement)
   }
   state.context.font = measurement.canvasFont
+  if (state.letterSpaced !== shaped) {
+    state.context.letterSpacing = shaped ? LETTER_SPACED_SHAPING : '0px'
+    state.letterSpaced = shaped
+  }
   return measurement
 }
 
@@ -719,15 +779,21 @@ function createMeasureState(language: string | null): MeasureState {
   // A context's `lang` follows the page's, and preparation's can be setLocale()'s or
   // Blink's default locale instead.
   if (language !== null && 'lang' in context) context.lang = language
+  const profile = getEngineProfile()
+  const takesLetterSpacing = typeof context.letterSpacing === 'string'
   return {
     language,
     context,
-    genericFamilies: language !== null && getEngineProfile().namesGenericFamiliesByLanguage ? getWebKitGenericFamilies(language, context) : null,
-    takesLetterSpacing: typeof context.letterSpacing === 'string',
+    genericFamilies: language !== null && profile.namesGenericFamiliesByLanguage ? getWebKitGenericFamilies(language, context) : null,
+    takesLetterSpacing,
+    shapesLetterSpaced: takesLetterSpacing && profile.canvasLetterSpacingDropsLigatures,
+    letterSpaced: false,
     fonts: new Map(),
+    letterSpacedFonts: new Map(),
   }
 }
 
 export function clearMeasurementCaches(): void {
   measureState?.fonts.clear()
+  measureState?.letterSpacedFonts.clear()
 }

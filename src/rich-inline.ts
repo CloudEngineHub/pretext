@@ -208,7 +208,7 @@ function isLineStartCursor(cursor: LayoutCursor): boolean {
 }
 
 function getCollapsedSpaceWidth(font: string, letterSpacing: number, language: string | null): number {
-  return getSegmentMetrics(' ', getFontMeasurement(font, language)).width + letterSpacing
+  return getSegmentMetrics(' ', getFontMeasurement(font, language, letterSpacing !== 0)).width + letterSpacing
 }
 
 // A zero-width break the Gecko profile makes of a soft hyphen after white space, which
@@ -520,7 +520,7 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
       whitespaceRunOpen = false
       continue
     }
-    const letterSpacing = readLetterSpacing(item.letterSpacing)
+    const letterSpacing = readLetterSpacing(item.letterSpacing, profile)
     const text = texts[index]!
     let start = 0
     while (!preserve && start < text.length && isCollapsibleSpaceCode(text.charCodeAt(start))) start++

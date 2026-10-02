@@ -1271,10 +1271,11 @@ describe('boundary-policy regressions', () => {
 
   test('the WebKit profile keeps NEL with the content before it, breaks after it and gives it no letter spacing', () => {
     const profile = getEngineProfile()
-    const previous = profile.lineBreakScan
+    const previous = [profile.lineBreakScan, profile.unspacedCursive] as const
     // Blink and Gecko keep NEL as ordinary text.
     expect(prepareWithSegments('zz ab\u0085cd', FONT).kinds).not.toContain('control')
     profile.lineBreakScan = 'webkit'
+    profile.unspacedCursive = 'none'
     try {
       const lines = (text: string, width: number, options?: { whiteSpace?: 'pre-wrap', letterSpacing?: number }) => {
         const prepared = prepareWithSegments(text, FONT, options)
@@ -1345,7 +1346,7 @@ describe('boundary-policy regressions', () => {
       // A preserved space does not hang after a NEL that already overflows.
       expect(lines('a\u0085 b', nel - 0.5, { whiteSpace: 'pre-wrap', letterSpacing: 1 }).map(line => line.text)).toEqual(['a', '\u0085', ' ', 'b'])
     } finally {
-      profile.lineBreakScan = previous
+      [profile.lineBreakScan, profile.unspacedCursive] = previous
     }
   })
 
@@ -1826,7 +1827,7 @@ describe('measurement invariants', () => {
   })
 
   test('breakable fit cache distinguishes fit modes', () => {
-    const measurement = getFontMeasurement('16px Fit Mode Test', null)
+    const measurement = getFontMeasurement('16px Fit Mode Test', null, false)
     const metrics: SegmentMetrics = { width: 80, emojiCount: -1, fit: null }
     for (const [text, width] of [['a', 10], ['b', 20], ['c', 30], ['ab', 35], ['bc', 60]] as const) {
       measurement.metrics.set(text, { width, emojiCount: -1, fit: null })
@@ -2735,6 +2736,9 @@ describe('prepare invariants', () => {
       ['prefixFitMinWidth', Infinity, 0, 80],
       ['measureTextWithFollowingSpace', false, true, false],
       ['letterSpaceDiscretionaryHyphen', false, true, true],
+      ['letterSpacingInAppUnits', false, false, true],
+      ['canvasLetterSpacingDropsLigatures', true, false, true],
+      ['unspacedCursive', 'run', 'none', 'cluster'],
       ['shapesMarksAcrossSoftHyphen', true, false, false],
       ['unfitHyphenRetreat', 'reduced-width', 'full-width-or-first', 'full-width'],
       ['hyphenFromPrimaryFont', true, true, false],
@@ -4670,7 +4674,7 @@ describe('layout invariants', () => {
     expect(line.width).toBeCloseTo(measureWidth(text, FONT) + spacing * gapCount, 5)
   })
 
-  test('letterSpacing applies through RTL punctuation runs', () => {
+  test('letterSpacing leaves an Arabic run unspaced but for its space, as Chrome does', () => {
     const spacing = 2
     const text = 'مرحبا، عالم؟'
     const line = layoutWithLines(
@@ -4678,9 +4682,8 @@ describe('layout invariants', () => {
       300,
       LINE_HEIGHT,
     ).lines[0]!
-    const gapCount = getSegmentGraphemes(text).length
 
-    expect(line.width).toBeCloseTo(measureWidth(text, FONT) + spacing * gapCount, 5)
+    expect(line.width).toBeCloseTo(measureWidth(text, FONT) + spacing, 5)
   })
 
   test('letterSpacing applies across emoji graphemes', () => {
@@ -5909,4 +5912,209 @@ test('the Chromium profile measures a page without a language under Intl\'s defa
   `
   const { rows, intl } = JSON.parse(runInChild(script)) as { rows: Record<string, string[]>; intl: string }
   expect(rows).toEqual({ '': [intl], en: ['en'] })
+})
+
+test('letter-spaced text is measured as each engine\'s Canvas shapes it', () => {
+  // The engine profile is computed once per process, so each engine runs in a child
+  // process. Every character is 8px and `fi` ligates, 3px narrower. Like Chrome's and
+  // Firefox's, the context shapes without the ligature under any letterSpacing but 0, and
+  // adds a spacing only from 1/65536 px. Safari's keeps the ligature under letterSpacing,
+  // so the WebKit profile leaves the context's alone and measures the ligature.
+  const layoutUrl = new URL('./layout.ts', import.meta.url).href
+  const richInlineUrl = new URL('./rich-inline.ts', import.meta.url).href
+  const rowsOf = (userAgent: string): unknown => JSON.parse(runInChild(`
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { userAgent: ${JSON.stringify(userAgent)} } })
+    const log = []
+    class Context {
+      font = ''
+      letterSpacing = '0px'
+      measureText(text) {
+        log.push(this.letterSpacing)
+        const spacing = Number.parseFloat(this.letterSpacing)
+        const count = [...text].length
+        const ligatures = spacing === 0 ? text.split('fi').length - 1 : 0
+        return { width: count * 8 - ligatures * 3 + (Math.abs(spacing) >= 1 / 65536 ? count * spacing : 0) }
+      }
+    }
+    globalThis.OffscreenCanvas = class { getContext() { return new Context() } }
+    const { prepareWithSegments, layoutWithLines } = await import(${JSON.stringify(layoutUrl)})
+    const { prepareRichInline, measureRichInlineStats } = await import(${JSON.stringify(richInlineUrl)})
+    const font = '16px Test'
+    const row = letterSpacing => {
+      const before = log.length
+      const prepared = prepareWithSegments('fig find', font, { letterSpacing })
+      return [prepared.widths, prepared.breakableFitAdvances[2], layoutWithLines(prepared, 76, 20).lineCount, [...new Set(log.slice(before))], log.length - before]
+    }
+    // Without spacing, under two spacings, which share their measurements, and without again.
+    const rows = [row(0), row(2), row(-1), row(0)]
+    // A letter-spaced item between items that aren't.
+    const rich = prepareRichInline([{ text: 'fig ', font }, { text: 'fig', font, letterSpacing: 2 }, { text: ' fig', font }])
+    console.log(JSON.stringify([...rows, measureRichInlineStats(rich, 1000).maxLineWidth]))
+  `))
+  // Each row: the segments' widths, the advances a break inside `find` falls by, the lines
+  // at 76px, the letterSpacing the context measured under, and its measureText calls.
+  const shaped = [
+    [[21, 8, 29], [8, 8, 8, 8], 1, ['0px'], 9],
+    [[28, 8, 38], [8, 8, 8, 8], 2, ['0.000001px'], 7],
+    [[22, 8, 29], [8, 8, 8, 8], 1, [], 0],
+    [[21, 8, 29], [8, 8, 8, 8], 1, [], 0],
+    88,
+  ]
+  expect(rowsOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36')).toEqual(shaped)
+  expect(rowsOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:156.0) Gecko/20100101 Firefox/156.0')).toEqual(shaped)
+  expect(rowsOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Safari/605.1.15')).toEqual([
+    [[21, 8, 29], [8, 5, 8, 8], 1, ['0px'], 7],
+    [[25, 8, 35], [8, 5, 8, 8], 1, ['0px'], 1],
+    [[19, 8, 26], [8, 5, 8, 8], 1, [], 0],
+    [[21, 8, 29], [8, 5, 8, 8], 1, [], 0],
+    85,
+  ])
+})
+
+test('the Firefox profile resolves letter spacing to whole app units', () => {
+  // The engine profile is computed once per process, so each engine runs in a child
+  // process. Every character is 8px and `fi` ligates, 3px narrower, unless the context has
+  // a letterSpacing. Firefox 156 gives each letter these app units, 1/60 px, at these
+  // spacings, rounding half away from zero, and keeps ligatures where the spacing rounds to 0.
+  const layoutUrl = new URL('./layout.ts', import.meta.url).href
+  const spacings: Array<[number, number]> = [
+    [-0.08, -5], [-0.17, -10], [0.15, 9], [0.2, 12], [-0.2, -12], [0.375, 23], [-0.375, -23], [0.125, 8], [-0.125, -8],
+    [0.025, 2], [-0.025, -2], [1 / 120, 1], [-1 / 120, -1], [0.0084, 1], [0.0083, 0], [-0.008, 0], [1e300, 2 ** 30 - 1],
+  ]
+  const rowsOf = (userAgent: string): Array<[number, number, number]> => JSON.parse(runInChild(`
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { userAgent: ${JSON.stringify(userAgent)} } })
+    class Context {
+      font = ''
+      letterSpacing = '0px'
+      measureText(text) {
+        return { width: [...text].length * 8 - (this.letterSpacing === '0px' ? 3 * (text.split('fi').length - 1) : 0) }
+      }
+    }
+    globalThis.OffscreenCanvas = class { getContext() { return new Context() } }
+    const { prepareWithSegments, measureNaturalWidth } = await import(${JSON.stringify(layoutUrl)})
+    // Each letter's spacing in app units, and the width of \`fi\` without its two gaps.
+    console.log(JSON.stringify(${JSON.stringify(spacings)}.map(([spacing]) => {
+      const gap = measureNaturalWidth(prepareWithSegments('ab', '16px Test', { letterSpacing: spacing })) - 16
+      return [spacing, gap * 30, measureNaturalWidth(prepareWithSegments('fi', '16px Test', { letterSpacing: spacing })) - gap]
+    })))
+  `)) as Array<[number, number, number]>
+  const firefox = rowsOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:156.0) Gecko/20100101 Firefox/156.0')
+  for (let i = 0; i < spacings.length; i++) {
+    const [spacing, units] = spacings[i]!
+    expect({ spacing, units: Math.round(firefox[i]![1] * 1e6) / 1e6, fi: Math.round(firefox[i]![2]) }).toEqual({ spacing, units, fi: units === 0 ? 13 : 16 })
+  }
+  // Chrome keeps the spacing as given.
+  const chrome = rowsOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36')
+  for (let i = 0; i < spacings.length - 1; i++) expect(chrome[i]![1]).toBeCloseTo(spacings[i]![0] * 60, 9)
+})
+
+test('letter spacing leaves out cursive scripts as Chrome and Firefox do', () => {
+  // The engine profile is computed once per process, so each engine runs in a child
+  // process. Each row: what the string shows, the string, and the letter-spacing gaps
+  // Chrome 154, Firefox 156 and webkit-host gave it in 16px Arial, read from the page's
+  // widths at 4px and 8px (2026-09-30; the last thirteen rows at 0 and 10px, 2026-10-01). Every
+  // code point is 8px here, so the profile's gaps are its widths at 4px and 8px, less each
+  // other, over 4.
+  const strings: Array<[string, string, number, number, number]> = [
+    ['latin', 'abc', 3, 3, 3],
+    ['hebrew', '\u05D0\u05D1\u05D2', 3, 3, 3],
+    ['arabic joined', '\u0628\u064A\u062A', 0, 0, 3],
+    ['arabic unjoined dal-alef-reh', '\u062F\u0627\u0631', 0, 0, 3],
+    ['arabic one letter', '\u0628', 0, 0, 1],
+    ['two words', '\u0628\u064A\u062A \u0628\u064A\u062A', 1, 1, 7],
+    ['letter space letter', '\u0628 \u0628', 1, 1, 3],
+    ['harakat', '\u0628\u0650\u0628\u0650', 0, 0, 2],
+    ['lam-alef', '\u0644\u0627', 0, 0, 1],
+    ['tatweel', '\u0628\u0640\u0628', 0, 1, 3],
+    ['tatweel alone', '\u0640', 0, 1, 1],
+    ['arabic+ascii digits', '\u0628\u064A\u062A123', 0, 3, 6],
+    ['arabic space digits', '\u0628\u064A\u062A 123', 1, 4, 7],
+    ['digits space arabic', '123 \u0628\u064A\u062A', 1, 4, 7],
+    ['digits only', '123', 3, 3, 3],
+    ['arabic-indic digits', '\u0661\u0662\u0663', 0, 0, 3],
+    ['arabic then arabic-indic', '\u0628\u064A\u062A\u0661\u0662\u0663', 0, 0, 6],
+    ['ext arabic-indic (persian)', '\u06F1\u06F2\u06F3', 0, 0, 3],
+    ['arabic period', '\u0628\u064A\u062A.', 0, 1, 4],
+    ['arabic excl', '\u0628\u064A\u062A!', 0, 1, 4],
+    ['arabic comma', '\u0628\u064A\u062A\u060C', 0, 1, 4],
+    ['arabic comma alone', '\u060C', 0, 1, 1],
+    ['arabic question', '\u0628\u064A\u062A\u061F', 0, 1, 4],
+    ['latin then arabic comma', 'abc\u060C', 3, 4, 4],
+    ['paren arabic', '(\u0628\u064A\u062A)', 0, 2, 5],
+    ['latin paren arabic', 'abc (\u0628\u064A\u062A)', 6, 6, 9],
+    ['arabic paren latin', '\u0628\u064A\u062A (abc)', 4, 6, 9],
+    ['arabic paren latin arabic', '\u0628\u064A\u062A (abc) \u0628\u064A\u062A', 5, 7, 13],
+    ['han fullwidth paren arabic', '\u4E2D\uFF08\u0627\u0628\u0628\uFF09', 3, 3, 6],
+    ['arabic ideographic comma', '\u0628\u064A\u062A\u3001', 1, 1, 4],
+    ['arabic fullwidth comma', '\u0628\u064A\u062A\uFF0C', 0, 1, 4],
+    ['arabic latin', '\u0628\u064A\u062Aabc', 3, 3, 6],
+    ['latin arabic', 'abc\u0628\u064A\u062A', 3, 3, 6],
+    ['arabic space latin', '\u0628\u064A\u062A abc', 4, 4, 7],
+    ['latin space arabic', 'abc \u0628\u064A\u062A', 4, 4, 7],
+    ['nbsp', '\u0628\u064A\u062A\u00A0\u0628\u064A\u062A', 1, 1, 7],
+    ['zwnj persian', '\u0645\u06CC\u200C\u062E\u0648\u0627\u0647\u0645', 0, 0, 7],
+    ['urdu', '\u0627\u0631\u062F\u0648 \u0632\u0628\u0627\u0646', 1, 1, 9],
+    ['syriac', '\u0710\u0712\u0713', 0, 0, 3],
+    ['nko', '\u07CA\u07CB\u07CC', 0, 0, 3],
+    ['mongolian', '\u182E\u1823\u1829', 0, 0, 3],
+    ['thaana', '\u078B\u07A8\u0788\u07AC', 2, 2, 2],
+    ['adlam', '\u{1E900}\u{1E901}\u{1E902}', 3, 3, 3],
+    ['emoji after arabic', '\u0628\u064A\u062A\u{1F600}', 0, 1, 4],
+    ['arabic hyphen arabic', '\u0628\u064A\u062A-\u0628\u064A\u062A', 0, 1, 7],
+    ['arabic slash', '\u0628\u064A\u062A/\u0628\u064A\u062A', 0, 1, 7],
+    ['quote arabic', '"\u0628\u064A\u062A"', 0, 2, 5],
+    ['leading digits arabic nospace', '123\u0628\u064A\u062A', 0, 3, 6],
+    ['leading punct', '.\u0628\u064A\u062A', 0, 1, 4],
+    ['latin digits arabic', 'abc 123 \u0628\u064A\u062A', 8, 8, 11],
+    ['arabic colon digits', '\u0628\u064A\u062A: 123', 1, 5, 8],
+    ['mongolian comma in latin', 'abc\u1802def', 6, 7, 7],
+    ['mongolian comma in arabic', '\u0628\u064A\u062A\u1802\u0628\u064A\u062A', 0, 1, 7],
+    ['reversed semicolon in latin', 'abc\u204Fdef', 6, 7, 7],
+    ['ideographic space in arabic', '\u0645\u0631\u062D\u0628\u0627\u3000\u0628\u0643\u0645', 0, 1, 9],
+    ['second closing bracket, latin inside', '\u0628\u064A\u062A (abc) def) ghi', 12, 15, 18],
+    ['second closing bracket, arabic inside', 'abc (\u0628\u064A\u062A) \u0628\u064A\u062A) \u0628\u064A\u062A', 9, 9, 18],
+    ['digits, then a fullwidth bracket around arabic', '12\uFF08\u0628\u064A\u062A\uFF09', 4, 4, 7],
+    ['digits and a fullwidth comma before arabic', '1\uFF0C2\u0628\u064A\u062A', 0, 3, 6],
+    ['digit under an arabic vowel sign among latin', 'ab 1\u064B2 cd', 6, 8, 8],
+    ['dotted circle under a vowel sign starts the text', '\u25CC\u064B abc', 4, 5, 5],
+    ['digit under a devanagari stress mark after arabic', '\u0628\u064A\u062A 1\u0951 2', 4, 4, 7],
+    ['digit under a tilde after arabic', '\u0628\u064A\u062A 5\u0303 6', 4, 4, 7],
+    ['fullwidth bracket under an arabic vowel sign among latin', 'abc \uFF08\u064B12', 4, 7, 7],
+  ]
+  const layoutUrl = new URL('./layout.ts', import.meta.url).href
+  const richInlineUrl = new URL('./rich-inline.ts', import.meta.url).href
+  const rowsOf = (userAgent: string): { gaps: number[]; lines: string[]; rich: number } => JSON.parse(runInChild(`
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { userAgent: ${JSON.stringify(userAgent)} } })
+    class Context {
+      font = ''
+      letterSpacing = '0px'
+      measureText(text) { return { width: [...text].length * 8 } }
+    }
+    globalThis.OffscreenCanvas = class { getContext() { return new Context() } }
+    const { prepareWithSegments, measureNaturalWidth, layoutWithLines } = await import(${JSON.stringify(layoutUrl)})
+    const { prepareRichInline, measureRichInlineStats } = await import(${JSON.stringify(richInlineUrl)})
+    const font = '16px Test'
+    const width = (text, letterSpacing) => measureNaturalWidth(prepareWithSegments(text, font, { letterSpacing }))
+    console.log(JSON.stringify({
+      gaps: ${JSON.stringify(strings.map(row => row[1]))}.map(text => (width(text, 8) - width(text, 4)) / 4),
+      // Four 8px letters too long for a 20px line, at 4px.
+      lines: layoutWithLines(prepareWithSegments('\\u0628\\u0628\\u0628\\u0628', font, { letterSpacing: 4 }), 20, 20).lines.map(line => line.text),
+      // A letter-spaced Arabic item after a Latin one.
+      rich: measureRichInlineStats(prepareRichInline([{ text: 'ab ', font }, { text: '\\u0628\\u0628', font, letterSpacing: 4 }]), 1000).maxLineWidth,
+    }))
+  `)) as { gaps: number[]; lines: string[]; rich: number }
+  const chrome = rowsOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36')
+  const firefox = rowsOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:156.0) Gecko/20100101 Firefox/156.0')
+  const safari = rowsOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Safari/605.1.15')
+  for (let i = 0; i < strings.length; i++) {
+    const [shows, , inChrome, inFirefox, inSafari] = strings[i]!
+    // Safari draws lam and alef as one glyph with one gap, where the profile spaces both
+    // graphemes (ENGINE_FOLLOWUPS.md, Letter spacing).
+    expect({ shows, chrome: chrome.gaps[i], firefox: firefox.gaps[i], safari: safari.gaps[i] })
+      .toEqual({ shows, chrome: inChrome, firefox: inFirefox, safari: shows === 'lam-alef' ? 2 : inSafari })
+  }
+  const pairs = ['\u0628\u0628', '\u0628\u0628']
+  const letters = ['\u0628', '\u0628', '\u0628', '\u0628']
+  expect([chrome.lines, firefox.lines, safari.lines]).toEqual([pairs, pairs, letters])
+  expect([chrome.rich, firefox.rich, safari.rich]).toEqual([40, 40, 48])
 })
