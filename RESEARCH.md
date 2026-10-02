@@ -947,7 +947,7 @@ vocabulary. The premises and their gaps:
   Bold (1.79 and 0.90px), the 2 of the 46,400 interface layouts above. The first builds asked each font once where its
   kerning sits: under `fontKerning = 'normal'` Canvas shapes a string whole, its U+0020 included, only where the font's
   GPOS covers the space glyph (`font_fallback_list.cc:264-277`, `harfbuzz_face.cc:341-385`), so a font in which that
-  shows none of a kerning that U+2028 shows has it from `kern`. That answer, one Canvas call per font and 14 lines,
+  shows none of a kerning that U+2028 shows has it from `kern`. That answer, one Canvas call per font and 15 lines,
   would give such a word Chrome's half. Reopens with a common font whose `kern` table moves a word's last letter away
   from the space.
 - **A space is in the script run of the text before it**, as a Common character is, and Blink shapes each run apart, so
