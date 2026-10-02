@@ -20,7 +20,7 @@ import {
   type TextAnalysis,
   type WhiteSpaceMode,
 } from './analysis.js'
-import { isDiscardable } from './gecko-line-breaks.js'
+import { isDiscardable, isSpaceOrTabOrSegmentBreak } from './gecko-line-breaks.js'
 import { getWebKitBreakBetweenItems } from './line-breaks.js'
 import { buildLineTextFromRange, getGraphemeEnds, type PreparedSegments } from './line-text.js'
 import {
@@ -208,7 +208,7 @@ function isLineStartCursor(cursor: LayoutCursor): boolean {
 }
 
 function getCollapsedSpaceWidth(font: string, letterSpacing: number, language: string | null): number {
-  return getSegmentMetrics(' ', getFontMeasurement(font, language)).width + letterSpacing
+  return getSegmentMetrics(' ', getFontMeasurement(font, language, letterSpacing !== 0)).width + letterSpacing
 }
 
 // A zero-width break the Gecko profile makes of a soft hyphen after white space, which
@@ -361,7 +361,7 @@ function getWalkedHandle(prepared: PreparedSegments, flags: Uint8Array): Prepare
 const BOX_HANDLE: PreparedSegments = {
   segments: [''], widths: [0], segmentFlags: Uint8Array.of(TEXT), simpleLineWalkFastPath: false, simpleLineCountFastPath: false,
   breakableFitAdvances: [null], entryGeometry: null, lineStartProhibitions: null, lineStartExtras: null, lineEndTrims: null,
-  overflowLineEndTrims: null, letterSpacing: 0, discretionaryHyphenWidth: 0, discretionaryHyphenContexts: null, tabStopAdvance: 0,
+  overflowLineEndTrims: null, letterSpacing: 0, discretionaryHyphenWidth: 0, discretionaryHyphenContexts: null, tabStopAdvance: 0, minimumTabAdvance: 0,
 }
 
 export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, options?: RichInlineOptions): PreparedRichInline {
@@ -391,18 +391,27 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
   // (nsTextFrameUtils.cpp:286-386), and so does an atomic inline
   // (BuildTextRunsScanner::ScanFrame). In 16px Arial at 56px, Firefox fits `see this` of items
   // `see`, ` \u00AD`, ` this word` on a 55.15px line, and not of `see `, `\u00AD `, `this word`,
-  // whose text in one node it fits. Bidi resolution splits text frames where the embedding level
-  // changes, and a text run doesn't go on across that split (ContinueTextRunAcrossFrames,
-  // nsTextFrame.cpp:2023-2030), so one of those characters at another level than the white space
-  // before it ends the run too. Pretext resolves no levels and takes each such character at that
-  // white space's level, where a soft hyphen and an embedding or override control always are
-  // (unicode-bidi lib.rs:1264-1270). A direction mark isn't where it goes against the direction
-  // of its paragraph, which Pretext isn't given, after white space that follows text of that
-  // direction: in a left-to-right paragraph Firefox's first line of items `see \u200F\u00AD`,
-  // ` this more` at 60px is 59.60px, two spaces wide, where rich lines give one, as Firefox does
-  // under direction: rtl. Nor, in either direction, is a mark inside an embedding or isolate of
-  // the other direction, or the PDI that closes an isolate after white space inside it
-  // (ENGINE_FOLLOWUPS.md, Rich-inline item edges).
+  // whose text in one node it fits. Where Firefox resolves bidi levels, in a right-to-left block
+  // or one with a right-to-left character in 16-bit text (nsBidiPresUtils.cpp:311-320, :790-828,
+  // :1453-1476), it splits a text frame where the level changes (:1037-1053), and a text run
+  // doesn't go on across that split (ContinueTextRunAcrossFrames, nsTextFrame.cpp:2023-2030), so
+  // one of those characters at another level than the white space before it ends the run too.
+  // Pretext resolves no levels and takes each such character at that white space's level. In the
+  // levels Firefox reads, those after rule L1 (unicode-bidi-ffi lib.rs:52-57), a soft hyphen and
+  // an embedding or override control always are, taking the level of the character before them
+  // (unicode-bidi lib.rs:1264-1270, and again in L1, :1175-1182), and so is an isolate initiator,
+  // a neutral that resolves with the white space before it (UAX #9 N1 and N2, implicit.rs:429-465).
+  // A direction mark, which is a strong character, and a PDI aren't always. A mark isn't where it
+  // goes against the direction of its paragraph, which Pretext isn't given, after white space
+  // that follows text of that direction: in a left-to-right paragraph Firefox's first line of
+  // items `see \u200F\u00AD`, ` this more` at 60px is 59.60px, two spaces wide, where rich lines
+  // give one, as Firefox does under direction: rtl. Nor is a mark that goes against the direction
+  // of its embedding or isolate, or one with an opening or closing control between it and the
+  // white space, even a control of the paragraph's direction, since an embedding or isolate is
+  // a level of its own (`see `, LRE, LRM in a left-to-right paragraph: the space at level 0, the
+  // mark at 2); or the PDI that closes an isolate after white space inside it that is at another
+  // level than the text around the isolate (ENGINE_FOLLOWUPS.md, Rich-inline item edges, has
+  // these and Firefox's results).
   let whitespaceRunOpen = false
   let previousItem: PreparedRichInlineItem | null = null
   // The previous item's source text and break, which a line feed that starts this item can
@@ -496,7 +505,7 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
       whitespaceRunOpen = false
       continue
     }
-    const letterSpacing = readLetterSpacing(item.letterSpacing)
+    const letterSpacing = readLetterSpacing(item.letterSpacing, profile)
     const text = texts[index]!
     let start = 0
     while (!preserve && start < text.length && isCollapsibleSpaceCode(text.charCodeAt(start))) start++
@@ -709,7 +718,7 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
     // item's white space collapses into that (ENGINE_FOLLOWUPS.md).
     let runEnd = end
     while (runEnd > 0 && isDiscardable(text.charCodeAt(runEnd - 1), false)) runEnd--
-    const runGoesOn = profile.collapsesSpaceAcrossSoftHyphens && itemBreak !== 'never' && runEnd > 0 && isCollapsibleSpaceCode(text.charCodeAt(runEnd - 1))
+    const runGoesOn = profile.collapsesSpaceAcrossSoftHyphens && itemBreak !== 'never' && runEnd > 0 && isSpaceOrTabOrSegmentBreak(text.charCodeAt(runEnd - 1))
     const gapsTrailingWhitespace = hasTrailingWhitespace && ownsWhiteSpace
     pendingGapWidth = !gapsTrailingWhitespace
       ? null
@@ -954,7 +963,7 @@ function stepRichInlineLine(
   fragments: RichInlineFragmentRange[] | null,
 ): number | null {
   const safeWidth = Math.max(1, maxWidth)
-  const { hangTabs, hardBreakItemRetreat, lineFitEpsilon, paddedOpeningFit, spaceBeforeSoftHyphenHangs, unfitHyphenRetreat } = getEngineProfile()
+  const { emptyAtomicAlwaysFits, hangTabs, hardBreakItemRetreat, lineFitEpsilon, paddedOpeningFit, spaceBeforeSoftHyphenHangs, unfitHyphenRetreat } = getEngineProfile()
   let hasContent = false
   let lineWidth = 0
   let remainingWidth = safeWidth
@@ -1051,9 +1060,9 @@ function stepRichInlineLine(
 
       const occupiedWidth = item.naturalWidth + item.extraWidth
       const totalWidth = gapBefore + occupiedWidth
-      // Gecko places an empty frame wherever it falls (CanPlaceFrame, which 'both' ports), where
-      // Blink and WebKit move an atomic item of width 0 to the next line as any other.
-      if (hasContent && totalWidth > remainingWidth + lineFitEpsilon && !(paddedOpeningFit === 'both' && occupiedWidth === 0)) break
+      // Gecko places an empty frame wherever it falls (CanPlaceFrame, nsLineLayout.cpp:1264-1269),
+      // where Blink and WebKit move an atomic item of width 0 to the next line as any other.
+      if (hasContent && totalWidth > remainingWidth + lineFitEpsilon && !(emptyAtomicAlwaysFits && occupiedWidth === 0)) break
 
       collectItemRest(fragments, itemIndex, item, EMPTY_LAYOUT_CURSOR, gapBefore, gapItemIndex, occupiedWidth)
       hasContent = true
@@ -1161,10 +1170,8 @@ function stepRichInlineLine(
     }
     itemLine.continues = hasContent
     itemLine.breakBefore = hasContent && (item.breakBefore || breakItemIndex >= 0)
-    // An engine that keeps an unfit hyphen returns only to a break before a run that
-    // continues from an earlier item.
     itemLine.fitsBreakBefore = hasContent && (item.breakBefore
-      ? unfitHyphenRetreat !== 'none' && fitsBreakBefore(item, lineWidth - lineHangWidth, safeWidth + lineFitEpsilon, unfitHyphenRetreat)
+      ? fitsBreakBefore(item, lineWidth - lineHangWidth, safeWidth + lineFitEpsilon, unfitHyphenRetreat)
       : breakFits)
     itemLine.innerBreaks = item.innerBreaks
     // The item's text starts after its gap and its start edge, which every fragment paints, as
