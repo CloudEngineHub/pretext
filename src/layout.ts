@@ -100,8 +100,8 @@ function prepareInternal(
   options?: PrepareOptions,
 ): InternalPreparedText {
   const wordBreak = options?.wordBreak ?? 'normal'
-  const letterSpacing = readLetterSpacing(options?.letterSpacing)
   const engineProfile = getEngineProfile()
+  const letterSpacing = readLetterSpacing(options?.letterSpacing, engineProfile)
   // One language read: break rules and measurement both follow it.
   const language = getPreparationLanguage(engineProfile)
   const analysis = analyzeText(text, engineProfile, options?.whiteSpace, wordBreak, language)

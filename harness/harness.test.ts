@@ -932,6 +932,14 @@ describe('the library through the adapter', () => {
     expect(score(oneLine, adapter.predict(paragraph(text, fit - 1 / 64))).status).toBe('count')
   })
 
+  test('white space the library leaves out inside a text is in the line of the unit before it: a line the browser ends at a collapsed space would fail with the browser\'s own breaks', () => {
+    // Firefox drops the second space of `ab`, space, U+00AD, space, `cd` from its text run, and so does the Gecko profile.
+    const aligned = adapter.alignStream('ab \u00AD cd', 'ab \u00ADcd', 'normal')!
+    expect(Array.from(aligned.ends)).toEqual([1, 2, 3, 5, 6, 7])
+    const edges = adapter.alignStream(' ab ', 'ab', 'normal')!
+    expect([edges.starts[0], edges.ends[1]]).toEqual([1, 3])
+  })
+
   test('layout() counting other lines than the walk blocks: a virtualized list would size a row for lines it doesn\'t paint (the review\'s D1: an overflowing space starts the next line in layout()\'s counter)', async () => {
     const text = 'aaaa bbbb cccc'
     // "aaaa" fits exactly, so each space overflows and must hang.
