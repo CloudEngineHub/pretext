@@ -9,13 +9,14 @@
 // doesn't hang has a second row too: a word, a tab, a space and a tab after a break, where Firefox ends no line inside
 // the run of white space, so its line returns to the break or, on a line without one, wraps before the second tab.
 // The ones that lay out rich items are in rich.ts, and three read only the user agent. Here each text runs in 16px
-// Arial, and widths.ts finds where each browser's lines change.
+// Arial, or in each family its fact names where the fact is a font's, and widths.ts finds where each browser's lines
+// change.
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { font, paragraph } from './build.ts'
 import type { Template } from './widths.ts'
 
-type Fact = { test: string; texts: string[]; modes: Array<'normal' | 'pre-wrap' | 'keep-all'>; pageLangs: string[] }
+type Fact = { test: string; texts: string[]; modes: Array<'normal' | 'pre-wrap' | 'keep-all'>; pageLangs: string[]; families?: string[] }
 
 export function factTemplates(): Template[] {
   const facts = JSON.parse(readFileSync(join(import.meta.dir, 'data/engine-facts.json'), 'utf8')) as Fact[]
@@ -23,12 +24,13 @@ export function factTemplates(): Template[] {
   for (let f = 0; f < facts.length; f++) {
     const fact = facts[f]!
     const line = /:(\d+) /.exec(fact.test)![1]!
-    for (let t = 0; t < fact.texts.length; t++) for (let m = 0; m < fact.modes.length; m++) for (let l = 0; l < fact.pageLangs.length; l++) {
+    const families = fact.families ?? ['Arial']
+    for (let t = 0; t < fact.texts.length; t++) for (let m = 0; m < fact.modes.length; m++) for (let l = 0; l < fact.pageLangs.length; l++) for (let k = 0; k < families.length; k++) {
       const mode = fact.modes[m]!
       const lang = fact.pageLangs[l]!
       out.push({
         family: `facts/layout.test.ts:${line}`, origin: fact.test, pageLang: lang, widths: [], grid: true,
-        paragraph: paragraph({ font: font('Arial', 16), lang, whiteSpace: mode === 'pre-wrap' ? 'pre-wrap' : 'normal', wordBreak: mode === 'keep-all' ? 'keep-all' : 'normal' }, [fact.texts[t]!]),
+        paragraph: paragraph({ font: font(families[k]!, 16), lang, whiteSpace: mode === 'pre-wrap' ? 'pre-wrap' : 'normal', wordBreak: mode === 'keep-all' ? 'keep-all' : 'normal' }, [fact.texts[t]!]),
       })
     }
   }

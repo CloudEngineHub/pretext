@@ -83,6 +83,12 @@ rich-bf66fbd64988de97 breaks
 rich-d91958dcd0c9e964 breaks
 rich-fb40dedd1c6e8356 breaks
 
+## A word whose first syllable doesn't fit with its hyphen ("trans", "i", "t" and "lantic" between soft hyphens, or "cd", U+0001 and "ef" before one, in 16 px Arial), at 31-41 px: Firefox breaks the word between letters, the library at a soft hyphen whose hyphen overflows, as in #323's cases (main too; RESEARCH.md, Dead Ends, Invisible Characters, Controls And Soft Hyphens)
+facts-33b7189919355411 breaks
+facts-5f171106bebb3c50 breaks
+facts-fd3b41e1c87fb019 breaks
+facts-ff6f418a79683c65 breaks
+
 ## Arabic and Hebrew beside brackets, controls, U+FFFC or rich-item edges, at 24 px and wider: Firefox breaks there where the library doesn't
 catalog-0bbc041b22a8eb25 count
 catalog-17b324c3ade315fe breaks
@@ -2066,6 +2072,7 @@ rich-9caad05a8d6ec08d count
 rich-a560650dfbeafe72 count
 rich-ab169565a9c0a88b count
 rich-af536739c810f600 count
+rich-b24c8a1759a7f9cb breaks
 rich-c4a883b30ad5ddaf count
 rich-c604ab44311a3b58 breaks
 rich-cd0ee47c06b6cf6d count
