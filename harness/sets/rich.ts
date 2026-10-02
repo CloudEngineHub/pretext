@@ -24,8 +24,9 @@
 //   starts; and, cut on their own too, a run that a right-to-left mark after its white space ends where one at the white
 //   space's bidi level doesn't, one that text after it ends, an atomic item whose leading white space collapses into
 //   one, a soft hyphen after no white space, which opens none, and a ZWSP after soft hyphens where a line starts after
-//   a wrap; and, cut on their own too, the levels that rule reads: the paragraph's, at each item's offset, of every
-//   character the run goes past against the white space before them, with a newline as a space; and, cut on their own
+//   a wrap; and, cut on their own too, the levels Firefox reads there, which rich inline doesn't resolve
+//   (ENGINE_FOLLOWUPS.md): the paragraph's, at each item's offset, of every character the run goes past against the
+//   white space before them, with a newline as a space; and, cut on their own
 //   too, a soft hyphen that ends an item before a bidi control that starts the next, at the paragraph's start, after a
 //   space in the item or a collapsed one before it, which Firefox's scan of the joined text takes as text, and after
 //   other text; and, cut on its own too, a padded span that starts with a line separator after a word, before which

@@ -36,7 +36,6 @@ let countPreparedLines: LineBreakModule['countPreparedLines']
 let walkPreparedLinesRaw: LineBreakModule['walkPreparedLinesRaw']
 let SPACED: AnalysisModule['SPACED']
 let ONE_CLUSTER: AnalysisModule['ONE_CLUSTER']
-let UNBROKEN: AnalysisModule['UNBROKEN']
 let getSegmentFit: MeasurementModule['getSegmentFit']
 let getFontMeasurement: MeasurementModule['getFontMeasurement']
 let getPreparationLanguage: MeasurementModule['getPreparationLanguage']
@@ -45,7 +44,6 @@ let analyzeText: AnalysisModule['analyzeText']
 let SEGMENT_KINDS: AnalysisModule['SEGMENT_KINDS']
 let KIND_BITS: AnalysisModule['KIND_BITS']
 let getBlinkLineBreaks: LineBreaksModule['getBlinkLineBreaks']
-let CLUSTER_START: LineBreaksModule['CLUSTER_START']
 let getGeckoLineBreaks: GeckoLineBreaksModule['getGeckoLineBreaks']
 let prepareRichInline: RichInlineModule['prepareRichInline']
 let layoutNextRichInlineLineRange: RichInlineModule['layoutNextRichInlineLineRange']
@@ -306,8 +304,8 @@ beforeAll(async () => {
   } = mod)
   ;({ countPreparedLines, walkPreparedLinesRaw } = lineBreakMod)
   ;({ getSegmentFit, getFontMeasurement, getPreparationLanguage, getEngineProfile } = measurementMod)
-  ;({ analyzeText, SEGMENT_KINDS, KIND_BITS, SPACED, ONE_CLUSTER, UNBROKEN } = analysisMod)
-  ;({ getBlinkLineBreaks, CLUSTER_START } = lineBreaksMod)
+  ;({ analyzeText, SEGMENT_KINDS, KIND_BITS, SPACED, ONE_CLUSTER } = analysisMod)
+  ;({ getBlinkLineBreaks } = lineBreaksMod)
   ;({ getGeckoLineBreaks } = geckoLineBreaksMod)
   ;({ prepareRichInline, layoutNextRichInlineLineRange, materializeRichInlineLineRange, measureRichInlineStats, walkRichInlineLineRanges } = richInlineMod)
 })
@@ -647,42 +645,20 @@ describe('boundary-policy regressions', () => {
     const khmer = 'a ខ\u17D2ម\u17C2រ，b'
     expect(analyzeText(khmer, baseProfile).texts).toEqual(['a', ' ', 'ខ\u17D2ម\u17C2រ，', 'b'])
     expect(analyzeText(khmer, geckoProfile).texts).toEqual(['a', ' ', 'ខ\u17D2ម\u17C2រ', '，', 'b'])
-    // Firefox splits text runs where the script changes, which would break before the
-    // Bengali letter here. The Gecko scan doesn't, on purpose (RESEARCH.md, Decisions Log).
+    // Firefox splits text runs where the script changes, which would break before the Bengali
+    // letter here, and where the bidi level changes, which would start a cluster at a Balinese
+    // vowel killer after Arabic letters and at a skin-tone modifier after a Hebrew letter. The
+    // Gecko scan splits at neither, on purpose (RESEARCH.md, Decisions Log).
     expect(analyzeText('\u1019\u17D2\u09AF', geckoProfile).texts).toEqual(['\u1019\u17D2\u09AF'])
-    // It does split them where bidi levels change, and a text run starts a cluster, so a Balinese
-    // vowel killer after Arabic letters, or a skin-tone modifier after a Hebrew letter, a closing
-    // bracket that resolves right-to-left or a vowel mark on an Arabic letter, starts one, and the
-    // modifier stays one cluster.
-    expect(analyzeText('\u0628\u0628\u1B44\u0628\u0628', geckoProfile).texts).toEqual(['\u0628\u0628', '\u1B44', '\u0628\u0628'])
-    for (const text of ['\u05D0', '\u05D0(\u05D1)', '\u0628\u064E']) {
-      const { texts, flags } = analyzeText(`${text}\uD83C\uDFFB`, geckoProfile)
-      expect(texts).toEqual([text, '\uD83C\uDFFB'])
-      expect(flags[1]! & ONE_CLUSTER).toBe(ONE_CLUSTER)
-    }
-    // So does a Hebrew letter after U+0D4E, a Prepend character that resolves to level 0.
-    expect(analyzeText('\u0D4E\u05D0', geckoProfile).flags[0]! & ONE_CLUSTER).toBe(0)
-    // A word a level run cuts finds its clusters again in each piece: after the ALM, which the text
-    // run leaves out, the vowel killer starts a level run, and the Bengali letter after it a cluster.
-    expect(analyzeText('\u0937\u061C\u1B44\u09B0', geckoProfile).texts).toEqual(['\u0937\u061C', '\u1B44', '\u09B0'])
+    expect(analyzeText('\u0628\u0628\u1B44\u0628\u0628', geckoProfile).texts).toEqual(['\u0628\u0628\u1B44', '\u0628\u0628'])
+    expect(analyzeText('\u05D0\uD83C\uDFFB', geckoProfile).flags[0]! & ONE_CLUSTER).toBe(ONE_CLUSTER)
     // The profile's graphemes look past a bidi control, so a mark after one joins the cluster
-    // before it, unless a level run starts there: after an LRM between Arabic letters the kasra
-    // starts a cluster, and a segment.
-    expect(analyzeText('\u0628\u200E\u0650\u0628', geckoProfile).texts).toEqual(['\u0628\u200E', '\u0650\u0628'])
+    // before it. One that starts a cluster, as a Myanmar visarga does, goes on in the segment as
+    // it does without the control, and Firefox breaks before each where nothing fits.
     expect(analyzeText('a\u200E\u0301b', geckoProfile).texts).toEqual(['a\u200E\u0301b'])
-    // A ZWJ that ends the paragraph resolves to level 0 (UAX #9 L1), so after a Hebrew letter it
-    // starts one too, and its segment is no longer one cluster. Before more text it keeps the
-    // letter's level.
-    expect(analyzeText('\u05D0\u200D', geckoProfile).flags[0]! & ONE_CLUSTER).toBe(0)
-    expect(analyzeText('\u05D0\u200D \u05D1', geckoProfile).flags[0]! & ONE_CLUSTER).toBe(ONE_CLUSTER)
-    // A level run can start at white space the scan drops, here the space before the LF, and then
-    // splits the text run at the LF, kept as a space inside U+0600's cluster, before the mark.
-    expect(analyzeText('\u0600 \n\u0301', geckoProfile).flags[2]! & UNBROKEN).toBe(0)
-    // In pre-wrap each line is resolved apart and starts a text run, so a mark right after a line
-    // feed starts a cluster where Firefox resolves levels. Only the scan's cluster starts show
-    // it, as a hard break ends the segment before the mark either way.
-    expect(getGeckoLineBreaks('\u05D0\n\u0301', true, false, 'gecko/char').breaks[2]).toBe(CLUSTER_START)
-    expect(getGeckoLineBreaks('a\n\u0301', true, false, 'gecko/char').breaks[2]).toBe(0)
+    const visargas = analyzeText('a\u200E\u1038\u1038', geckoProfile)
+    expect(visargas.texts).toEqual(['a\u200E\u1038\u1038'])
+    expect(visargas.flags[0]! & ONE_CLUSTER).toBe(0)
   })
 
   test('small kana and U+30FC stay with the text before them where the profile resolves them to NS', () => {
@@ -3725,54 +3701,29 @@ describe('rich-inline invariants', () => {
         // Where a line starts, a ZWSP after white space and soft hyphens holds the line.
         expect(walk([' \u00AD \u00AD\u200B', 'textword'], words / 2)[0]).toEqual([0, [[0, 0, 0]]])
         expect(walk([' \u00AD', ' \u00AD\u200B', 'textword'], words / 2)[0]).toEqual([0, [[0, 0, 0], [1, 0, 0]]])
-        // A run carries past characters Gecko drops only at the white space's bidi level: after
-        // a space in left-to-right text, U+200F starts a text run of its own, where U+202B takes
-        // the space's level, as U+200F does between Hebrew letters.
-        expect(walk(['see \u200F\u00AD', ' this word'], Infinity)).toEqual([[r(see + space + control + space + words), [[0, 0, r(see + space + control)], [1, r(space), r(words)]]]])
+        // A run carries past the characters Gecko drops at any bidi level, as Pretext resolves
+        // none: past U+202B, which takes the level of the space before it, and U+200F between
+        // Hebrew letters, as in Firefox, and past U+200F after a space in left-to-right text, where
+        // Firefox starts a text run and keeps the next space (ENGINE_FOLLOWUPS.md).
         expect(walk(['see \u202B\u00AD', ' this word'], Infinity)).toEqual([[r(see + space + control + second + words), [[0, 0, r(see + space + control)], [1, r(second), r(words)]]]])
         expect(walk(['\u05D0\u05D1 \u200F\u00AD', ' \u05D2\u05D3'], Infinity)).toEqual([[r(hebrew + space + control + second + hebrew), [[0, 0, r(hebrew + space + control)], [1, r(second), r(hebrew)]]]])
-        // So do bidi controls after an item's trailing white space. Gecko's analysis leaves that
-        // white space out with them, so it is the gap before the next item, whose white space
-        // collapses into it whatever their level (ENGINE_FOLLOWUPS.md), and after a soft hyphen
-        // it collapses into the run before it, where white space after the controls takes room
-        // again at another level.
+        expect(walk(['see \u200F\u00AD', ' this word'], Infinity)).toEqual([[r(see + space + control + second + words), [[0, 0, r(see + space + control)], [1, r(second), r(words)]]]])
+        // Bidi controls after an item's trailing white space: Gecko's analysis leaves that white
+        // space out with them, so it is the gap before the next item, whose white space collapses
+        // into it, and after a soft hyphen it collapses into the run before it, which goes on.
         const inner = collapses ? 0 : space
         expect(walk(['see \u200F', ' this word'], Infinity)).toEqual([[r(see + inner + control + space + words), [[0, 0, r(see + inner + control)], [1, r(space), r(words)]]]])
-        // The Gecko analysis gives the soft hyphen and U+200F to the space before them, which this
+        // The Gecko analysis gives the soft hyphen and U+202B to the space before them, which this
         // Canvas measures with the soft hyphen's advance.
         const spaceRun = collapses ? measureWidth(' \u00AD', FONT) : 2 * space
-        expect(walk(['see \u00AD \u200F', ' this word'], Infinity)).toEqual([[r(see + spaceRun + control + space + words), [[0, 0, r(see + spaceRun + control)], [1, r(space), r(words)]]]])
         expect(walk(['see \u00AD \u202B', ' this word'], Infinity)).toEqual([[r(see + spaceRun + control + second + words), [[0, 0, r(see + spaceRun + control)], [1, r(second), r(words)]]]])
         expect(walk(['see \u202A \u202B', ' this word'], Infinity)).toEqual([[r(see + 2 * (inner + control) + space + words), [[0, 0, r(see + 2 * (inner + control))], [1, r(space), r(words)]]]])
-        // An item that starts with white space and ends in bidi controls at its level leaves the run open.
+        // An item that starts with white space and ends in bidi controls leaves the run open.
         expect(walk(['see', ' \u202B', ' this word'], Infinity)).toEqual([[r(see + space + control + second + words), [[0, 0, r(see)], [1, r(space), r(control)], [2, r(second), r(words)]]]])
         // The run goes on past them into the item's trailing white space too, and past bidi
-        // controls among that white space at its level, where U+200F ends it.
+        // controls among that white space.
         expect(walk(['see', ' \u200E ', 'this word'], Infinity)).toEqual([[r(see + space + mark + second + words), [[0, 0, r(see)], [1, r(space), r(mark)], [2, r(second), r(words)]]]])
-        expect(walk(['see', ' \u200F ', 'this word'], Infinity)).toEqual([[r(see + space + control + space + words), [[0, 0, r(see)], [1, r(space), r(control)], [2, r(space), r(words)]]]])
         expect(walk(['see \u00AD \u200E ', 'this word'], Infinity)).toEqual([[r(see + spaceRun + mark + second + words), [[0, 0, r(see + spaceRun + mark)], [1, r(second), r(words)]]]])
-        expect(walk(['see \u00AD \u200F ', 'this word'], Infinity)).toEqual([[r(see + spaceRun + control + space + words), [[0, 0, r(see + spaceRun + control)], [1, r(space), r(words)]]]])
-        // White space among them collapses into the run at any level: U+2067 keeps the level of
-        // the space before it, and the space after it takes the isolate's.
-        expect(walk(['see', ' \u2067 ', 'this word'], Infinity)).toEqual([[r(see + space + control + second + words), [[0, 0, r(see)], [1, r(space), r(control)], [2, r(second), r(words)]]]])
-        // The levels are the paragraph's, which the items make together, each at its own offset
-        // there, with an atomic item as U+FFFC and a newline as a space, and every character the
-        // run goes past takes that of the white space before it: U+200F between Hebrew letters and
-        // a number, U+200E after Hebrew and a space, which takes the level of U+200E, U+200F after
-        // an item that comes after others, both marks after a soft hyphen, and U+061C after a
-        // newline between Arabic letters, which is a space there.
-        const gaps = (texts: Parameters<typeof walk>[0]) => walk(texts, Infinity)[0]![1].map(fragment => fragment[1])
-        expect(gaps(['\u05E9\u05DC\u05D5\u05DD \u200F\u00AD', ' 42 more'])).toEqual([0, r(second)])
-        expect(gaps(['\u05E9\u05DC\u05D5\u05DD \u200E\u00AD', ' this more'])).toEqual([0, r(second)])
-        expect(gaps(['ab ', 'see \u200F\u00AD', ' this more'])).toEqual([0, r(space), r(space)])
-        expect(gaps(['(q) \u00AD\u200F\u00AD', ' this more'])).toEqual([0, r(space)])
-        expect(gaps(['(q) \u00AD\u202B\u00AD', ' this more'])).toEqual([0, r(second)])
-        expect(gaps(['ab', '\u0628\u0628\n\u061C\u00AD', ' \u00ADmore'])).toEqual([0, 0, r(second)])
-        // An atomic item's Hebrew letters aren't in the paragraph, so the space after it stays
-        // left-to-right and U+200F ends the run: Firefox 156.0.1 draws these items 114.63px wide
-        // in 16px Arial, with both spaces after the chip (2026-09-30). The row tells the item's
-        // text from a placeholder for it, not U+FFFC from another neutral.
-        expect(gaps(['ab ', { text: '\u05D0\u05D1', break: 'never' }, ' \u200F\u00AD', ' this more'])).toEqual([0, r(space), r(space), r(space)])
         // A soft hyphen after no white space opens no run, and text after one closes it. A CR or
         // FF is no white space of Gecko's run, which takes no room there (analyzeText).
         expect(walk(['see\u00AD', ' this word'], Infinity)).toEqual([[r(see + space + words), [[0, 0, r(see)], [1, r(space), r(words)]]]])
