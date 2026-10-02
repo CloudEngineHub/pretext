@@ -1756,7 +1756,7 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   page, against 1.9-2.2ms with plain objects, or with the fields emptied or set in constructors, seemingly because it
   then compiles the whole bundle up front (the doubling is measured, the cause a guess); V8 and JavaScriptCore didn't
   care (#340, 2026-09-23).
-- **Property classes in regular-expression literals** (#TBD, 2026-10-02). Where V8 and SpiderMonkey parse a literal with
+- **Property classes in regular-expression literals** (#407, 2026-10-02). Where V8 and SpiderMonkey parse a literal with
   a `\p{...}` class of a general category or a script, they build the class's set, in a function that never runs too. V8
   builds it again when the script runs and makes the expression, and at the expression's first and second tests;
   `new RegExp()` builds it where it's called; JavaScriptCore builds nothing while it parses. One such literal of
