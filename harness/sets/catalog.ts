@@ -1,4 +1,4 @@
-// The behaviour catalog's templates, before widths.ts cuts them. Eight sources:
+// The behaviour catalog's templates, before widths.ts cuts them. Ten sources:
 // - the per-engine rebuild's rule families (data/rule-families.ndjson), the flat ones within what the library takes;
 // - filed reports whose reporter measured the width with their own Canvas;
 // - a matrix of every UAX #14 line-break class between the scripts apps mix, under the CSS settings the library takes,
@@ -11,6 +11,7 @@
 // - bidi controls where Firefox's line breaker, which never sees them, starts or ends a line, each shape a family of its
 //   own;
 // - CJK marks Chrome halts next to other punctuation;
+// - letter-spaced text in a font with `fi`, `fl` and `ffi` ligatures, which the browsers turn off under letter spacing;
 // - emoji characters a named font draws itself, beside one the emoji font draws.
 // main's adversarial families were taken once from the old harness's generator, which is gone: their cases,
 // `catalog/main/*` and `rich/main/*`, stay in the case files as they were cut, and `make.ts cut` keeps them.
@@ -278,6 +279,18 @@ export function hanKerningPairTemplates(): Template[] {
   return out
 }
 
+// Words with `fi`, `fl`, `ff` and `ffi` in Roboto, whose optional ligatures Chrome, Firefox and Safari turn off under any
+// letter spacing (shapesLetterSpaced in src/measurement.ts): each word is as wide as its letters, 0.35-1.34 px more
+// than with its ligatures at 16 px. One paragraph: the cover tells a line break by its classes and the spacing's sign,
+// not by its font, so it keeps no second one. Which contexts measure which shaping, and a break inside a word by the
+// same advances, are src/layout.test.ts's; the sample holds Roboto under negative spacing.
+export function letterSpacedLigatureTemplates(): Template[] {
+  return [{
+    family: 'letter-spaced-ligatures', origin: 'src/measurement.ts: letter spacing turns optional ligatures off', pageLang: 'en', widths: [], grid: true,
+    paragraph: paragraph({ font: font('Roboto, Arial, sans-serif', 16), lang: 'en', letterSpacing: 0.5 }, ['a difficult office workflow: fluffy waffles, five official offers']),
+  }]
+}
+
 // Emoji characters a named font draws with a glyph of its own, which Canvas measures as the page draws them, beside one
 // the emoji font draws, which Chrome's and Firefox's Canvas measure too wide at small sizes (countEmojiGlyphs in
 // src/measurement.ts): Hiragino Sans's U+26AA and U+26AB around U+1F44D. Which graphemes take the correction, font by
@@ -294,9 +307,9 @@ export function catalogTemplates(): Template[] {
   const seen = new Set<string>()
   // The order decides which template shows a line break first, which the cover keeps (widths.ts): filed reports, the
   // rebuild's rule families, the class matrix, the follow-ups' shapes, the mark chains, the line-end marks, the bidi
-  // controls, the pairs Chrome halts, then the emoji glyphs. main's families came before the class matrix when they
-  // were cut.
-  const lists = [reportedTemplates(), ruleFamilyTemplates(), classMatrixTemplates(), followupTemplates(), markChainTemplates(), lineEndMarkTemplates(), bidiControlTemplates(), hanKerningPairTemplates(), emojiGlyphTemplates()]
+  // controls, the pairs Chrome halts, the letter-spaced ligatures, then the emoji glyphs. main's families came before
+  // the class matrix when they were cut.
+  const lists = [reportedTemplates(), ruleFamilyTemplates(), classMatrixTemplates(), followupTemplates(), markChainTemplates(), lineEndMarkTemplates(), bidiControlTemplates(), hanKerningPairTemplates(), letterSpacedLigatureTemplates(), emojiGlyphTemplates()]
   for (let l = 0; l < lists.length; l++) {
     for (let i = 0; i < lists[l]!.length; i++) {
       const t = lists[l]![i]!
