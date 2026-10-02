@@ -22,8 +22,57 @@ rich-2d085f35ed051005 breaks
 rich-50652eb4b3208acb count
 rich-9e0c6d33ecb015ae breaks
 
-## A tab before Arabic under -1 px letter-spacing, at 24 px and wider: Firefox spaces the last character of a left-to-right run, a tab too, so its tab is 1 px narrower than the library's and stays on the first line, where the library's moves down; main kept it there with a tab 8 px too wide for the line (ENGINE_FOLLOWUPS.md, Letter spacing)
+## A tab before Arabic under -1 px letter-spacing, at 24 px and wider: Firefox spaces the last character of a left-to-right run, a tab too, so its tab is 1 px narrower than the library's and stays on the first line, where the library's moves down; before its tab stops followed Firefox's the library kept it there with a tab 8 px too wide for the line (ENGINE_FOLLOWUPS.md, Letter spacing)
 catalog-519b16cfda41b813 count
+
+## A tab beside Arabic with vowel marks or Hebrew, and brackets, at 24 px and wider: Firefox's breaks inside the Arabic, the Hebrew and the brackets differ from the library's, not traced; the tab is on Firefox's line, except in two cases at 1 px letter-spacing, where Firefox's tab, spaced as the last character of its run, is 1 px wider and moves down alone (ENGINE_FOLLOWUPS.md, Letter spacing)
+catalog-043ae7a3086a6756 count
+catalog-08403c5e289485bc breaks
+catalog-10e16dcfe9734e25 count
+catalog-152b46fa18dee247 breaks
+catalog-1d64c4104a386e41 breaks
+catalog-21b5f447165acd23 breaks
+catalog-23de5c5b576629bc breaks
+catalog-2baf61dba71268f1 breaks
+catalog-2cf1e13def91e172 count
+catalog-375d77e90ec5b72e breaks
+catalog-381490d2302f02f0 breaks
+catalog-3ca7bbb1377aa41c breaks
+catalog-40bf14c4897f5114 breaks
+catalog-43d139ce5828f618 breaks
+catalog-462e2d233acfd39f breaks
+catalog-46fc44d94c8395dc breaks
+catalog-47d10e1cda98e263 breaks
+catalog-4a94f380cfa2c08f count
+catalog-54457001d1ea8ae1 breaks
+catalog-5a8fdc4762dd5a87 count
+catalog-60c02b2780995409 breaks
+catalog-64d823db2b058ccd breaks
+catalog-662edfd3f4a7f879 breaks
+catalog-6a02041e842ae89b breaks
+catalog-6b7afd9f92e3d3c2 breaks
+catalog-7275a8bdcb46654a breaks
+catalog-75f159b3fca0c212 breaks
+catalog-7b83824b1914305a count
+catalog-7dd7f85f5f9f57e9 breaks
+catalog-816a777803fdd550 breaks
+catalog-853492b81baa1437 breaks
+catalog-9f581afb8efc4db3 count
+catalog-a689f55a235eaf36 breaks
+catalog-b61c54561860b37a count
+catalog-c296224f9c5ffe72 count
+catalog-c5739319db7a739e breaks
+catalog-cec1fbfbc17e554d count
+catalog-deca4dad01f8fae7 count
+catalog-e607e97f3c57073b breaks
+catalog-e7c97d66eec775aa breaks
+catalog-f0e91fdfd94db17a breaks
+catalog-f21e8227242ddd1a count
+catalog-f3de949f97d19457 breaks
+catalog-f751c4d624a57d1a breaks
+catalog-ff1366470003835a count
+old-gate-8ffb745938355ad2 count
+old-gate-def83f569a9e7220 count
 
 ## A tab inside a rich pre-wrap span whose font isn't the paragraph's, at 24 px and wider: Firefox counts its tab stops in the paragraph's font, the library in the span's own, as Safari does (ENGINE_FOLLOWUPS.md)
 rich-1556eb846893cc6c count
@@ -3112,55 +3161,6 @@ old-gate-e5a9cfde5fe0975d breaks
 old-gate-ebac9380591c23ec count
 old-gate-ebbad3ec75222375 breaks
 old-gate-eda49d3d069323a9 count
-
-## Tabs beside other spaces, brackets or other scripts, at 24 px and wider: Firefox's tab stops and breaks around tabs differ from the library's
-catalog-043ae7a3086a6756 count
-catalog-08403c5e289485bc breaks
-catalog-10e16dcfe9734e25 count
-catalog-152b46fa18dee247 breaks
-catalog-1d64c4104a386e41 breaks
-catalog-21b5f447165acd23 breaks
-catalog-23de5c5b576629bc breaks
-catalog-2baf61dba71268f1 breaks
-catalog-2cf1e13def91e172 count
-catalog-375d77e90ec5b72e breaks
-catalog-381490d2302f02f0 breaks
-catalog-3ca7bbb1377aa41c breaks
-catalog-40bf14c4897f5114 breaks
-catalog-43d139ce5828f618 breaks
-catalog-462e2d233acfd39f breaks
-catalog-46fc44d94c8395dc breaks
-catalog-47d10e1cda98e263 breaks
-catalog-4a94f380cfa2c08f count
-catalog-54457001d1ea8ae1 breaks
-catalog-5a8fdc4762dd5a87 count
-catalog-60c02b2780995409 breaks
-catalog-64d823db2b058ccd breaks
-catalog-662edfd3f4a7f879 breaks
-catalog-6a02041e842ae89b breaks
-catalog-6b7afd9f92e3d3c2 breaks
-catalog-7275a8bdcb46654a breaks
-catalog-75f159b3fca0c212 breaks
-catalog-7b83824b1914305a count
-catalog-7dd7f85f5f9f57e9 breaks
-catalog-816a777803fdd550 breaks
-catalog-853492b81baa1437 breaks
-catalog-9f581afb8efc4db3 count
-catalog-a689f55a235eaf36 breaks
-catalog-b61c54561860b37a count
-catalog-c296224f9c5ffe72 count
-catalog-c5739319db7a739e breaks
-catalog-cec1fbfbc17e554d count
-catalog-deca4dad01f8fae7 count
-catalog-e607e97f3c57073b breaks
-catalog-e7c97d66eec775aa breaks
-catalog-f0e91fdfd94db17a breaks
-catalog-f21e8227242ddd1a count
-catalog-f3de949f97d19457 breaks
-catalog-f751c4d624a57d1a breaks
-catalog-ff1366470003835a count
-old-gate-8ffb745938355ad2 count
-old-gate-def83f569a9e7220 count
 
 ## Thai, Lao, Khmer and Myanmar beside brackets, U+FFFC or other scripts, at 24 px and wider: Firefox's breaks there differ from the library's
 catalog-0c6e49572c0332f9 count

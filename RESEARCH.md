@@ -1904,7 +1904,7 @@ repin` shows what), and a fact read in source needs reading again.
   and 13px Menlo at 24-300px, 980 inputs) at 301 in Firefox; with it none of those fails. One of the 980 fails in Chrome
   before and after, on no tab rule: tab, space, tab, `indented with mixed white space` in 16px Arial at 24px, where
   Chrome keeps `whi`, 24.008px wide, on a line; none of them fails in webkit-host (2026-09-30 and 10-01). (Firefox 156.0
-  source, 2026-09-16 and 09-27.)
+  source, 2026-09-16 and 09-27, and 10-01 for the first font's `0` and Canvas's app units.)
 
 Elsewhere: a context used before Firefox reads its late family names keeps the fallback (PLATFORM_BUGS.md, the late
 family names), and the joined Arabic study is under Content Language And Fonts, Widths That Depend On Context.
