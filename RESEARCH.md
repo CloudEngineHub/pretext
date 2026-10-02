@@ -1696,11 +1696,20 @@ repin` shows what), and a fact read in source needs reading again.
 - **Letter spacing and tabs.** Blink spaces cursive-script runs only at spaces (`shape_result.cc:977-990`), spaces a
   glyph cluster once, and turns off liga, clig and calt under any spacing (`font_features.cc:54-86`). A tab stop is
   eight Canvas spaces plus letter and word spacing (`font.cc:303-317`), rounded up to 1/128 px at DPR 2
-  (`simple_font_data.cc:225-240`), and a tab skips a stop under half a space away (`font.cc:333-337`). Recordings agree:
-  a tab-only line in 16px Arial is 27.563px at −1px letter spacing and 35.563px at 0 (harness recordings at commit
-  b1fd05fc, Chrome 154). The profile models neither the cursive rule nor the spacing and skip in stops, and a unit test
-  pins its stops of spaces alone ("letterSpacing participates in pre-wrap tab positioning", `src/layout.test.ts`), so a
-  port changes that test (ENGINE_FOLLOWUPS.md). (Chrome 153 source, 2026-09-16 and 09-27.)
+  (`simple_font_data.cc:225-240`), and a tab skips a stop under half a space away (`font.cc:333-337`). The spacing is in
+  a stop only under the runtime flag `TabSizeWithSpacing` (`TabSize::GetPixelSize`, `tab_size.h:24-33`), on by default
+  since Chromium 140 (Chromium commit 74fb9bb2, 2025-07-11) and no longer a flag from 155 (c8a9ba0b): a Chromium before
+  140, or an embedder with the flag off, puts a stop every eight plain spaces, which the Blink profile doesn't model
+  (ENGINE_FOLLOWUPS.md). A run of tabs is an item shaped apart from text, with no spacing of its own, whose later tabs
+  take a whole stop (`shape_result.cc:1898-1944`), which a tab on a stop takes anyway. Where letter spacing is minus a
+  space or less, so that stops are no wider than 0, `Font::TabWidth` returns a negative advance, or the letter spacing
+  at a stop of exactly 0 (`font.cc:302-340`), and the line breaker clamps the item's width to 0 where it places it
+  (`ClampNegativeToZero`, `line_breaker.cc:1486, 1703`), so such tabs take no advance. Recordings agree: a tab-only line
+  in 16px Arial is 27.563px at −1px letter spacing and 35.563px at 0 (harness recordings at commit b1fd05fc, Chrome
+  154), and no tab advances under such spacing in 792 probe inputs of tab runs (Chrome 154.0.8037.57, 2026-09-30). The
+  profile counts stops so since #395 (`letterSpaceTabStops`, `letterSpaceTabs` and `tabMinimumCharacter`,
+  `src/measurement.ts`) and doesn't model the cursive rule (ENGINE_FOLLOWUPS.md). (Chrome 153 source, 2026-09-16 and
+  09-27, and 10-01 for the flag and the clamp.)
 - **Line breaking.** ICU restarts at each line start without context, so LB20a applies there (`a‐b`, break-all, loose:
   `a` / `‐b`); the Blink scan makes one pass per text (Break Opportunities From Engine Data). Blink takes the last
   offset that fits from glyph positions, then the break at or before it, so a line ends before a ligature unless its
@@ -1867,12 +1876,35 @@ repin` shows what), and a fact read in source needs reading again.
   2026-09-19.)
 - **Tabs.** A stop falls every `tab-size` (the text frame's) × (the block's space advance in app units plus its letter
   and word spacing) (`ComputeTabWidthAppUnits`, `nsTextFrame.cpp:3875-3906`); WebKit takes both from the span, Blink the
-  span's `tab-size` with the block's font. The next stop is at least half the first font's `0` away (`AdvanceToNextTab`,
-  :4298-4304; `GetMinTabAdvanceAppUnits`, :1931-1937). A tab's position counts advances only at cluster starts, plus
-  each character's spacing (`CalcTabWidths`, :4306-4378). Recordings agree (harness recordings at commit b1fd05fc,
-  Firefox 156.0.1): a tab-only line is 8 × (space + letter spacing) unless the tab is the text's last character, as in
-  16px Arial at −1, 0 and 1px: 27.6, 35.6 and 43.6px. The profile follows none of this (ENGINE_FOLLOWUPS.md). (Firefox
-  156.0 source, 2026-09-16 and 09-27.)
+  span's `tab-size` with the block's font. The next stop is at least half a `0` away, the `0` of the first font of the
+  tab's own text run, not the block's (`AdvanceToNextTab`, :4298-4304; `MinTabAdvance`, :3539-3544;
+  `GetMinTabAdvanceAppUnits`, :1931-1937), where Blink's half space is the block's font's (`FontForTab`,
+  `inline_node.cc:2137-2143`): before a span of a tab and `b`, half the span's `0` gives Firefox 156.0.1's stop for 192
+  of 192 prefixes with each of six spans, and half the block's misses 5 with a bold span in 16px Georgia and 15 with a
+  24px one (2026-10-01). That font is the list's first available one, whether or not it has a `0`, and without one Gecko
+  takes its average character width (`GetFirstValidFont`, `gfxTextRun.cpp:2277-2296`; `ZeroOrAveCharWidth`,
+  `gfxFont.h:1698-1700`); the Gecko profile takes Canvas's width of `0`, which a later font of the list draws there, a
+  named gap (ENGINE_FOLLOWUPS.md). A tab's position counts advances only at cluster starts, plus each character's
+  spacing (`CalcTabWidths`, :4306-4378). Recordings agree (harness recordings at commit b1fd05fc, Firefox 156.0.1): a
+  tab-only line is 8 × (space + letter spacing) unless the tab is the text's last character, as in 16px Arial at −1, 0
+  and 1px: 27.6, 35.6 and 43.6px. All of it is in whole app units, so a tab exactly the minimum from its stop takes it,
+  and in Arial and Helvetica, where a space is half a `0`, a tab one space before a stop is one. Firefox's Canvas gives
+  a width as a whole number of app units too, 60 to the pixel (`CanvasRenderingContext2D.cpp:5277, 7135-7140`), so the
+  profile's position, rounded to app units, is Firefox's wherever Canvas's segment widths add up to the line's advances.
+  A break comes only after a whole run of spaces and tabs (`nsLineBreaker.cpp:318-330`) and Firefox doesn't hang a tab,
+  so a tab that doesn't fit goes to the next line with the word before it, from the last break whose line fits
+  (`BreakAndMeasureText`, `gfxTextRun.cpp:1086-1101`), or, without one, alone, as break-word wraps before any cluster
+  (:1069-1072): a later tab of the run too, while the spaces before it hang. The Gecko profile follows the stops, the
+  minimum, the app units and the tab that doesn't fit since #395 (`letterSpaceTabStops`, `tabMinimumCharacter`,
+  `tabsInAppUnits` and `hangTabs`, `src/measurement.ts`; `segmentAtLineBreaks()`, `src/analysis.ts`), not the spacing
+  after a run's last character (ENGINE_FOLLOWUPS.md). Before it, tab-separated text without letter spacing (six texts
+  such as `col1`, tab, `col2`, tab, `col3` in four fonts at 30-400px, 1,272 probe inputs recorded fresh) failed at 367
+  widths in Firefox 156.0.1 and 39 in Chrome 154.0.8037.57, which skips a stop under half a space away, and at none in
+  webkit-host, and runs of a tab, spaces and a tab (seven texts such as `ab`, tab, space, tab, space, `cd` in 16px Arial
+  and 13px Menlo at 24-300px, 980 inputs) at 301 in Firefox; with it none of those fails. One of the 980 fails in Chrome
+  before and after, on no tab rule: tab, space, tab, `indented with mixed white space` in 16px Arial at 24px, where
+  Chrome keeps `whi`, 24.008px wide, on a line; none of them fails in webkit-host (2026-09-30 and 10-01). (Firefox 156.0
+  source, 2026-09-16 and 09-27, and 10-01 for the first font's `0` and Canvas's app units.)
 
 Elsewhere: a context used before Firefox reads its late family names keeps the fallback (PLATFORM_BUGS.md, the late
 family names), and the joined Arabic study is under Content Language And Fonts, Widths That Depend On Context.

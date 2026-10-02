@@ -1,9 +1,15 @@
 // main's engine facts as browser cases. src/layout.test.ts pins 36 rules main learned about the engines (research/TESTS.md
 // §1c in the rebuild), each against a fake Canvas and one engine profile, and 33 of them use texts no browser case holds.
 // data/engine-facts.json keeps the texts of the 28 whose tests lay out plain text, taken from the tests once, with the
-// white-space and word-break modes and page languages each test names. The ones that lay out rich items are in rich.ts,
-// and three read only the user agent. Here each text runs in 16px Arial, and widths.ts finds where each browser's lines
-// change.
+// white-space and word-break modes and page languages each test names. Each fact's test name and line number are
+// those of main before #340 (harness/README.md, Adding a case), and the number names its family, so both stay as the
+// tests change. The tab-stop fact has a second row, in pre-wrap alone, under the same name: tabs under half a space,
+// under half a `0` and exactly half a `0` before a stop, which its own text, `a`, tab, `b`, never reaches; its rule's
+// test is now "a tab nearer its stop than the engine's minimum takes the stop after". The fact of Firefox's tab that
+// doesn't hang has a second row too: a word, a tab, a space and a tab after a break, where Firefox ends no line inside
+// the run of white space, so its line returns to the break or, on a line without one, wraps before the second tab.
+// The ones that lay out rich items are in rich.ts, and three read only the user agent. Here each text runs in 16px
+// Arial, and widths.ts finds where each browser's lines change.
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { font, paragraph } from './build.ts'

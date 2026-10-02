@@ -133,7 +133,16 @@ export function measureAnalysis(
   const discretionaryHyphenWidth = getTextWidth('-', fontMeasurement, emojiCorrection) +
     (letterSpacing === 0 ? 0 : letterSpacing * (engineProfile.letterSpaceDiscretionaryHyphen ? 2 : 1))
   const spaceWidth = getTextWidth(' ', fontMeasurement, emojiCorrection)
-  const tabStopAdvance = spaceWidth * 8
+  // The advance between tab stops: eight spaces, each with its letter spacing where the
+  // engine counts it (EngineProfile's letterSpaceTabStops). Gecko rounds the space and the
+  // letter spacing to app units, sixtieths of a pixel, each on its own
+  // (ComputeTabWidthAppUnits, nsTextFrame.cpp:3875-3906).
+  const tabStopSpacing = engineProfile.letterSpaceTabStops ? letterSpacing : 0
+  const tabStopAdvance = engineProfile.tabsInAppUnits
+    ? (Math.round(spaceWidth * 60) + Math.round(tabStopSpacing * 60)) * 8 / 60
+    : (spaceWidth + tabStopSpacing) * 8
+  // The least a tab advances, measured at a text's first tab (EngineProfile's tabMinimumCharacter).
+  let minimumTabAdvance = 0
   const hasLetterSpacing = letterSpacing !== 0
   // Only a segment holding a default-ignorable code point has entry geometry, so text
   // without one doesn't look for it.
@@ -402,7 +411,8 @@ export function measureAnalysis(
         if (hasLetterSpacing) spacingGraphemeCount = countRenderedSpacingGraphemes(text, kind, engineProfile.graphemeTable)
         break
       case TAB:
-        spacingGraphemeCount = 1
+        if (engineProfile.letterSpaceTabs) spacingGraphemeCount = 1
+        if (minimumTabAdvance === 0) minimumTabAdvance = getTextWidth(engineProfile.tabMinimumCharacter, fontMeasurement, emojiCorrection) / 2
         break
       case CONTROL: {
         width = getTextWidth(text, fontMeasurement, emojiCorrection)
@@ -467,6 +477,7 @@ export function measureAnalysis(
     lineEndTrims,
     overflowLineEndTrims: hanKerning.overflowLineEndTrims,
     tabStopAdvance,
+    minimumTabAdvance,
   } as unknown as PreparedText & PreparedSegments
   if (segments !== null) prepared.segments = segments
   return prepared
