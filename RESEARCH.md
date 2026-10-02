@@ -835,14 +835,15 @@ The cost is Canvas calls while a font is new. A font is first asked once whether
 (`getFontSpaceKerning()` in `src/measurement.ts`; the premise is below): one string, U+2028 before, between and after
 the 94 printable ASCII characters, measured as the context stands and again under `fontKerning = 'none'`. A font whose
 two widths are equal takes no kerning with spaces: none of its words is looked at and its texts aren't scanned for
-direction. That is 695 of the 819 faces measured below, Helvetica Neue, Georgia, Verdana and Inter among them. In a font that kerns, each distinct first and last character of its words is then asked about. Each of the 1,904
-cards prepared alone in a new font, 15px Arial, makes 1.51 times main's `measureText` calls (97,271 to 147,169 in all;
-the median card 1.53 times, from 1.23 to 1.75) and 1.39 times its submitted units. The first 10 prepared in order make
-24% more calls (287 to 355), the first 100 9% more and all of them 1.4% more (11,810 to 11,981). Those were counted
-before the font's question, which adds its two calls of 189 units to each. Alone in a new font that kerns, Gatsby
-paragraphs make 1.37 times the calls, Hindi ones 1.21 and Thai ones 1.14; Chinese, Japanese and Korean ones stay within
-2% in order and 6% alone, since ideographs, kana and Hangul syllables aren't asked about. Korean's figure rests on a
-premise (below): asked about, its syllables made 2.30 times main's calls in order and 3.16 times the units.
+direction. That is 695 of the 819 faces measured below, Helvetica Neue, Georgia, Verdana and Inter among them. In a font
+that kerns, each distinct first and last character of its words is then asked about. Each of the 1,904 cards prepared
+alone in a new font, 15px Arial, makes 1.51 times main's `measureText` calls (97,271 to 147,169 in all; the median card
+1.53 times, from 1.23 to 1.75) and 1.39 times its submitted units. The first 10 prepared in order make 24% more calls
+(287 to 355), the first 100 9% more and all of them 1.4% more (11,810 to 11,981). Those were counted before the font's
+question, which adds its two calls of 189 units to each. Alone in a new font that kerns, Gatsby paragraphs make 1.37
+times the calls, Hindi ones 1.21 and Thai ones 1.14; Chinese, Japanese and Korean ones stay within 2% in order and 6%
+alone, since ideographs, kana and Hangul syllables aren't asked about. Korean's figure rests on a premise (below): asked
+about, its syllables made 2.30 times main's calls in order and 3.16 times the units.
 
 The harness predicts its sample's 11,901 paragraphs in 72 documents, where their 331 font strings are new 1,764 times,
 1,508 of them with a text that holds a space: 6.7 paragraphs to a new font. There the calls grow 8.9% (232,950 to
@@ -991,8 +992,11 @@ vocabulary. The premises and their gaps:
   space joins the space's cluster, so `ไทย ำ ไทย ำ` is 0.89px wide in 16px Arial without it, which Arial takes, and
   0.28px narrow in Georgia, which doesn't. Text in Amiri, Noto Naskh Arabic or Waseem mostly holds Arabic letters and
   takes no kerning either way.
-- **U+2028 measures as the space.** Where it doesn't, no kerning is taken: Euphemia UCAS has a glyph of its own for it,
-  8.05px against the space's 4.75px at 16px. A font is asked this once, after its question found kerning.
+- **U+2028 measures as the space.** Where it doesn't, no kerning is taken, which a font is asked once, after its
+  question found kerning. In 16px Euphemia UCAS U+2028 alone is 8.05px and a space alone 4.75px: Blink draws both with
+  the space glyph, which is that wide outside Latin text. The page shows none of the kerning its question finds in
+  `Tom Avenue Yes, no. x`, and none is taken. (Its space is 8.05px in a run of syllabics on the page too, so
+  `ᐃᓄᒃᑎᑐᑦ ᐊᒻᒪ ᑕᒪᓐᓇ` measures 6.59px narrow, on main as here.)
 - **A difference no larger than float32 rounding is no kerning.** Blink adds a run's advances up in 1/65536 px and
   keeps the sum as a float32 (`ShapeResult::ComputeGlyphPositions`, `shape_result.cc:1539-1576`), which from 256px up
   is coarser than that, so a pair's width and its parts' can differ where the font kerns nothing: from 160px up, for
@@ -2177,13 +2181,13 @@ Mostly on main as it was then, measured with the old suite in installed browsers
   font, whether it kerns with the space and where that kerning sits.
 - **A word measured whole with its spaces in Chrome**, U+2028 standing for them, as the WebKit profile measures a word
   with its U+0020: exact for the word, and it fixed 10 of the sample's 11 kerning failures, but every distinct word
-  costs a second Canvas call for the space after it and a third for the space before it, 67% more calls and 118%
-  more submitted units on the harness's sample and 183% more calls on the masonry cards in one font, where the edge
-  characters cost 18%, 10% and 1.4% (8.9% and 70% on the sample since each font is asked first). With only the space after the word, the WebKit profile's rule, it fixed 2 of the
-  11: in Arial and its like the kerning is nearly all between a space and the capital after it (pinned Chrome 154,
-  2026-09-30). Reopens if a font's kerning with the space is found to depend on more than the edge character, as it
-  does for a comma or a full stop in a run of a script the font shapes otherwise (Kerning At Line Edges): there only
-  the mark's word shows the run it is shaped in.
+  costs a second Canvas call for the space after it and a third for the space before it, 67% more calls and 118% more
+  submitted units on the harness's sample and 183% more calls on the masonry cards in one font, where the edge
+  characters cost 18%, 10% and 1.4% (8.9% and 70% on the sample since each font is asked first). With only the space
+  after the word, the WebKit profile's rule, it fixed 2 of the 11: in Arial and its like the kerning is nearly all
+  between a space and the capital after it (pinned Chrome 154, 2026-09-30). Reopens if a font's kerning with the space
+  is found to depend on more than the edge character, as it does for a comma or a full stop in a run of a script the
+  font shapes otherwise (Kerning At Line Edges): there only the mark's word shows the run it is shaped in.
 - **WebKit letter-spaced ligatures** (in the rebuild, from 2026-09-17; Measurement Model): no separator sets two letters
   unligated in one shaping call (U+200C ends the simple path's call, U+034F doesn't stop the ligature, U+180B brings a
   fallback glyph), and a group heuristic was 1.9 px off; a styled connected `<canvas>` would fix about 721 cases but is

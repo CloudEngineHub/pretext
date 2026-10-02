@@ -466,8 +466,7 @@ export function getFontSpaceKerning(measurement: FontMeasurement): FontSpaceKern
     context.fontKerning = 'none'
     const unkerned = context.measureText(spaceKerningProbe).width
     context.fontKerning = 'auto'
-    // Where U+2028 doesn't measure as the space, as in a font with a glyph for it, nothing
-    // pairs with it.
+    // Where U+2028 alone doesn't measure as the space, it doesn't stand for it.
     measurement.spaceKerning = kerned !== unkerned && context.measureText('\u2028').width === getSegmentMetrics(' ', measurement).width ? { after: new Map(), before: new Map(), splits: null } : null
   }
   return measurement.spaceKerning
