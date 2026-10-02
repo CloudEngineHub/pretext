@@ -90,7 +90,7 @@ layouts" (the narrowest real-usage draw is 25 px).
 |---|---|---|
 | `sample.ndjson` | The real-usage sample | `make.ts write` |
 | `reports.ndjson` | Filed reports with the text, font and width as filed (`sets/exact.ts`) | `make.ts write` |
-| `catalog.ndjson` | Families of templates, from the engines' rules, the UAX #14 classes between the scripts apps mix, the shapes `ENGINE_FOLLOWUPS.md` names, bidi controls where Firefox's line breaking looks past them and CJK marks Chrome halts next to other punctuation, plus adversarial `main/*` cases taken from the old test suite | the width search |
+| `catalog.ndjson` | Families of templates, from the engines' rules, the UAX #14 classes between the scripts apps mix, the shapes `ENGINE_FOLLOWUPS.md` names, bidi controls where Firefox's line breaking looks past them, CJK marks Chrome halts next to other punctuation, letter-spaced words whose ligatures the browsers turn off and emoji characters a named font draws itself, plus adversarial `main/*` cases taken from the old test suite | the width search |
 | `facts.ndjson` | The engine facts `src/layout.test.ts` checks on plain text, in a browser | the width search |
 | `rich.ndjson` | Rich-inline paragraphs: styled runs, span edges, chips, padded code spans, boxes (an empty inline-block of a width and a height, top-aligned), the shapes whose lines changed when items began to continue the line (#369), keep-all and pre-wrap paragraphs, plus `main/*` cases | the width search |
 | `census.ndjson`, `books.ndjson`, `smoke.ndjson` | Real paragraphs of `corpora/` at several widths, and whole books, from the per-engine rebuild | taken once |
@@ -162,12 +162,14 @@ grew.
 
 `sets/data/engine-facts.json`'s `layout.test.ts` line numbers, the facts set's case origins and the four accepted-list
 reasons that cite a `layout.test.ts` line point at the files of main before #340 (6d1d2106), not today's; read them with
-`git show 6d1d2106:<path>`. A fact added since names its test's line as of the commit that added or last changed the
-fact, which this paragraph names, since a later merge moves the test and a case's family and origin keep the line: line
-1000 at dbfab0de (#TBD), Firefox's white space around bidi controls. Such a fact also names the paragraph directions it
-runs in where a browser's lines turn on them (that one, both). The facts set has no cover, so it keeps the width where a template's words join, which the
-catalog's cover drops once a narrower change has shown that kind of break: a fact that rests on a line's width, such as
-one space against two, goes there. ENGINE_FOLLOWUPS.md, Harness debt, has what to prune when the sets are made again.
+`git show 6d1d2106:<path>`. The two facts #396 added (lines 1948 and 2015) point at that pull request's `layout.test.ts`, and
+name the fonts they run in where that isn't 16px Arial. A fact added after them names its test's line as of the commit
+that added or last changed the fact, which this paragraph names, since a later merge moves the test and a case's family
+and origin keep the line: line 1000 at dbfab0de (#TBD), Firefox's white space around bidi controls. Such a fact also
+names the paragraph directions it runs in where a browser's lines turn on them (that one, both). The facts set has no
+cover, so it keeps the width where a template's words join, which the catalog's cover drops once a narrower change has
+shown that kind of break: a fact that rests on a line's width, such as one space against two, goes there.
+ENGINE_FOLLOWUPS.md, Harness debt, has what to prune when the sets are made again.
 
 ## Commands
 
