@@ -617,15 +617,23 @@ against 103 in the Blink profile, 199 against 104 in the WebKit profile, and 151
 against 106 once it has resolved bidi levels and tested a newline between East Asian characters; 37 KB of each is the
 decoded run list. A second line table on a page, Chrome's Chinese one or another of Safari's, adds about 105 KB against
 77. (Counted offline as the typed arrays still held after preparing text and `clearCache()`, leaving out the 131 KB of
-Unicode-property bits `hasProperty()` keeps in either form.) The first `prepare()` on a page unpacks them: offline it
-took 0.5-1.3 ms longer in Bun 1.4 and 0.2-0.9 ms in Node 23 than the 2.9-6.4 ms it took before (the lower quartile of 40
-fresh processes per profile, on a Latin sentence and on a mixed one, on a machine busy with browser jobs, where two
-copies of the earlier bundle differed by up to 0.5 ms), a hypothesis until the bench's `fresh` rows time it in the
-browsers; its table is in #TBD. The scans after that weren't timed in a browser either. Firefox's bidi resolution, the
-one reader whose lookup gained a load, ran offline on Arabic and Hebrew paragraphs 1-3% slower in Node 23 and from as
-fast to 11% slower in Bun 1.4 (the fastest of 15 rounds a process, eleven pairs of processes while the machine was
-quiet; pairs taken while it was busy differed either way by more), also a hypothesis: the bench's Firefox `new` rows on
-Arabic and on mixed text measure it.
+Unicode-property bits `hasProperty()` keeps in either form.) The first `prepare()` on a page unpacks them, which the
+bench's `fresh` rows time: a page that has compiled the bundle and prepared nothing lays out its first 200 to 1,000
+UTF-16 units of chat messages, then as many again. The first batch took 0.3-0.45 ms longer in Chrome than the 2.0-2.8 ms
+it took before, 0.15-0.4 ms longer in Safari than 2.6-4.5 ms, and 0.1 ms or less longer in Firefox than 2.1-4.1 ms,
+where two copies of the earlier bundle differed by 0.08 ms or less; compiling the bundle took as long as before (medians
+of 18 pages a bundle for each of Latin, CJK, Arabic, Thai and mixed text; Chrome 154.0.8037.57, Firefox 156.0.1 and
+Safari 27.0, 2026-10-01; the tables are in #TBD). Offline it had read 0.5-1.3 ms longer in Bun 1.4 and 0.2-0.9 ms in
+Node 23. The second batch read no further from the earlier bundle's than its two copies did from each other, 0.16 ms at
+most, except on Safari's Thai page: 0.26 and 0.08 ms more in the two sessions, where the copies differed by 0.04 and
+0.06. No table is unpacked in a second batch in the Blink and WebKit profiles (checked offline on the bench's texts) and
+each page reads text of its own, so that reading stays unexplained. The scans after that are no slower in the same
+bench: no row that prepares text read slower in any browser, and in Firefox the rows that prepare text again, its widths
+cached, read 3-12% faster (9% on CJK, 4% on Arabic and on mixed text, 3-12% on five of the nine worst-case texts);
+nothing was run to say which lookup that comes from. Firefox's bidi resolution, the one reader whose lookup gained a
+load, doesn't show: Firefox's `new` rows on Arabic and on mixed text read within noise (-2% and +5%, then +2% and +3%,
+in the two sessions, the control copy between -7% and +3%), and its `seen` rows on both 4% faster in each session.
+Offline it had read 1-3% slower in Node 23 and from as fast to 11% slower in Bun 1.4.
 
 Not taken: an LZ pass over these lists, which saved nothing once the bundle is gzipped and cost a decoding pass. A table
 per code unit with a search above U+FFFF, the form Bidi_Class had, is one load below U+10000 and 64 KB a map, where the
@@ -2610,8 +2618,9 @@ decisions for the maintainer.
   `fresh` is slower; what unpacking adds to a page's first `prepare()`, which `fresh` times, and to memory is a trade
   for the maintainer, with its numbers. #TBD is such a change: the classes as one run list and the state tables as row
   differences, 13.3 KB less gzipped, for about 95 KB more typed arrays on a page in one language (110 in the Gecko
-  profile) and a first `prepare()` that unpacks more. A class costs the scans as many loads as before or fewer in nine
-  of the ten maps and one more in Firefox's Bidi_Class below U+10000, so Firefox's `new` rows on Arabic and mixed text
-  are the ones that could have been slower (Break Opportunities From Engine Data has the numbers). What was ruled out
-  stays out: Firefox's classes through Chrome's lookup, tables computed at runtime and a bundle per engine (Dead Ends,
-  Tables, Bundles And Data).
+  profile) and a first `prepare()` on a page that takes 0.45 ms longer or less in Chrome, Firefox and Safari, a trade
+  the maintainer took that day. A class costs the scans as many loads as before or fewer in nine of the ten maps and one
+  more in Firefox's Bidi_Class below U+10000, and Firefox's rows on Arabic and mixed text, the ones that could have been
+  slower, read no slower (Break Opportunities From Engine Data has the numbers). What was ruled out stays out: Firefox's
+  classes through Chrome's lookup, tables computed at runtime and a bundle per engine (Dead Ends, Tables, Bundles And
+  Data).
