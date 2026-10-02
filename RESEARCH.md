@@ -1707,7 +1707,7 @@ repin` shows what), and a fact read in source needs reading again.
   (`ClampNegativeToZero`, `line_breaker.cc:1486, 1703`), so such tabs take no advance. Recordings agree: a tab-only line
   in 16px Arial is 27.563px at −1px letter spacing and 35.563px at 0 (harness recordings at commit b1fd05fc, Chrome
   154), and no tab advances under such spacing in 792 probe inputs of tab runs (Chrome 154.0.8037.57, 2026-09-30). The
-  profile counts stops so since #TBD (`letterSpaceTabStops`, `letterSpaceTabs` and `tabMinimumCharacter`,
+  profile counts stops so since #395 (`letterSpaceTabStops`, `letterSpaceTabs` and `tabMinimumCharacter`,
   `src/measurement.ts`) and doesn't model the cursive rule (ENGINE_FOLLOWUPS.md). (Chrome 153 source, 2026-09-16 and
   09-27, and 10-01 for the flag and the clamp.)
 - **Line breaking.** ICU restarts at each line start without context, so LB20a applies there (`a‐b`, break-all, loose:
@@ -1895,7 +1895,7 @@ repin` shows what), and a fact read in source needs reading again.
   so a tab that doesn't fit goes to the next line with the word before it, from the last break whose line fits
   (`BreakAndMeasureText`, `gfxTextRun.cpp:1086-1101`), or, without one, alone, as break-word wraps before any cluster
   (:1069-1072): a later tab of the run too, while the spaces before it hang. The Gecko profile follows the stops, the
-  minimum, the app units and the tab that doesn't fit since #TBD (`letterSpaceTabStops`, `tabMinimumCharacter`,
+  minimum, the app units and the tab that doesn't fit since #395 (`letterSpaceTabStops`, `tabMinimumCharacter`,
   `tabsInAppUnits` and `hangTabs`, `src/measurement.ts`; `segmentAtLineBreaks()`, `src/analysis.ts`), not the spacing
   after a run's last character (ENGINE_FOLLOWUPS.md). Before it, tab-separated text without letter spacing (six texts
   such as `col1`, tab, `col2`, tab, `col3` in four fonts at 30-400px, 1,272 probe inputs recorded fresh) failed at 367
