@@ -5,6 +5,7 @@
 import { observeSegmentEntries, textMayHaveEntryGeometry, type SegmentEntryGeometry } from './entry-geometry.js'
 import { getHanKerningTrims, textMayHanKern, type HanKerningTrims } from './han-kerning.js'
 import { findGraphemeEnds, type GraphemeTable } from './graphemes.js'
+import { lazyRegExp } from './line-breaks.js'
 import {
   CONTROL,
   HARD_BREAK,
@@ -69,7 +70,7 @@ function addInternalLetterSpacing(width: number, graphemeCount: number, letterSp
 // Chrome 154, Firefox 156 and webkit-host lay 64 strings out so (2026-10-01). The
 // profile's unspacedCursive names the engine's rule, and the scripts and script
 // extensions are the JavaScript engine's (RESEARCH.md, Tables Against Canvas).
-const cursiveScriptRe = /[\p{Script=Arabic}\p{Script=Syriac}\p{Script=Nko}\p{Script=Mandaic}\p{Script=Mongolian}\p{Script=Phags_Pa}\p{Script=Hanifi_Rohingya}]/uy
+const cursiveScriptRe = lazyRegExp(String.raw`[\p{Script=Arabic}\p{Script=Syriac}\p{Script=Nko}\p{Script=Mandaic}\p{Script=Mongolian}\p{Script=Phags_Pa}\p{Script=Hanifi_Rohingya}]`, 'uy')
 // What starts or goes on with a cursive run in Blink: the letters; the Common characters
 // and marks whose scripts include Arabic, such as U+060C, U+0640 and the vowel signs,
 // since a shared character's run starts with the lowest code of its scripts, Latin aside
@@ -81,19 +82,20 @@ const cursiveScriptRe = /[\p{Script=Arabic}\p{Script=Syriac}\p{Script=Nko}\p{Scr
 // next to Thaana it spaces U+060C, and next to Mongolian it doesn't space the CJK
 // punctuation Mongolian shares, nor U+202F outside Latin (ENGINE_FOLLOWUPS.md, Letter
 // spacing).
-const cursiveRunRe = /[\p{scx=Arabic}\p{Script=Syriac}\u1DFA\p{Script=Nko}\p{Script=Mandaic}\p{Script=Mongolian}\p{Script=Phags_Pa}\p{Script=Hanifi_Rohingya}\u1802\u1803\u1805]/uy
-const mayBeCursiveRe = new RegExp(cursiveRunRe.source, 'u')
+const cursiveRunSource = String.raw`[\p{scx=Arabic}\p{Script=Syriac}\u1DFA\p{Script=Nko}\p{Script=Mandaic}\p{Script=Mongolian}\p{Script=Phags_Pa}\p{Script=Hanifi_Rohingya}\u1802\u1803\u1805]`
+const cursiveRunRe = lazyRegExp(cursiveRunSource, 'uy')
+const mayBeCursiveRe = lazyRegExp(cursiveRunSource, 'u')
 // Characters that stay in the run before them in Blink: Common ones that no script lists,
 // and marks, which inherit. Gap: so does a Common character that one script lists, such as
 // the circled ideographs, which here ends a cursive run (ENGINE_FOLLOWUPS.md, Letter
 // spacing).
-const scriptNeutralRe = /[\p{scx=Common}\p{Script=Inherited}]/uy
+const scriptNeutralRe = lazyRegExp(String.raw`[\p{scx=Common}\p{Script=Inherited}]`, 'uy')
 // A Common character right before a mark that has script extensions, as the Arabic vowel
 // signs do, doesn't stay: it takes the mark's scripts (FetchNextCharacter,
 // script_run_iterator.cc:624-635), so a digit or a dotted circle that carries a fatha
 // starts an Arabic run. A match ends where the mark starts; the mark is the first group.
 const markedCommonSource = '\\p{scx=Common}(?=((?=\\p{Script=Inherited})\\P{scx=Inherited}))'
-const markedCommonRe = new RegExp(markedCommonSource, 'uy')
+const markedCommonRe = lazyRegExp(markedCommonSource, 'uy')
 // The opening brackets of no script that Blink makes Han, those whose East Asian Width is
 // wide, fullwidth or halfwidth (FixScriptsByEastAsianWidth, script_run_iterator.cc:83-110).
 // Regular expressions have no property for that width, so these are listed: of Unicode
@@ -103,7 +105,7 @@ const markedCommonRe = new RegExp(markedCommonSource, 'uy')
 const wideOpeningBrackets = '\u2329\uFE59\uFE5B\uFE5D\uFF08\uFF3B\uFF5B\uFF5F'
 // What gives a text's first run its script: a character that has one, the mark a Common
 // character takes its scripts from, or a wide opening bracket.
-const firstScriptRe = new RegExp(`[^\\p{scx=Common}\\p{Script=Inherited}]|${markedCommonSource}|[${wideOpeningBrackets}]`, 'u')
+const firstScriptRe = lazyRegExp(`[^\\p{scx=Common}\\p{Script=Inherited}]|${markedCommonSource}|[${wideOpeningBrackets}]`, 'u')
 
 // Unicode 15's bracket pairs, each an opening bracket and then its closing one (BidiBrackets.txt,
 // as servo/unicode-bidi ca612daf lists them, src/char_data/tables.rs:519-535).
@@ -137,8 +139,8 @@ type ScriptRun = { cursive: boolean; openBrackets: number[] }
 // The run a text starts in: that of its first character that has a script, which takes in
 // the characters of no script before it.
 function startScriptRun(text: string): ScriptRun {
-  const first = firstScriptRe.exec(text)
-  return { cursive: first !== null && mayBeCursiveRe.test(first[1] ?? first[0]), openBrackets: [] }
+  const first = firstScriptRe().exec(text)
+  return { cursive: first !== null && mayBeCursiveRe().test(first[1] ?? first[0]), openBrackets: [] }
 }
 
 // Takes the code point c at text[i] into the run. A closing bracket goes back to its
@@ -157,11 +159,11 @@ function enterScriptRun(run: ScriptRun, text: string, i: number, c: number): voi
     openBrackets.length = opened + 2
     return
   }
-  markedCommonRe.lastIndex = scriptNeutralRe.lastIndex = i
-  const marked = markedCommonRe.test(text)
-  if (marked || !scriptNeutralRe.test(text)) {
-    cursiveRunRe.lastIndex = marked ? markedCommonRe.lastIndex : i
-    run.cursive = cursiveRunRe.test(text)
+  markedCommonRe().lastIndex = scriptNeutralRe().lastIndex = i
+  const marked = markedCommonRe().test(text)
+  if (marked || !scriptNeutralRe().test(text)) {
+    cursiveRunRe().lastIndex = marked ? markedCommonRe().lastIndex : i
+    run.cursive = cursiveRunRe().test(text)
   }
   if (bracket === undefined || (bracket & 1) === 0) return
   if (!marked && wideOpeningBrackets.includes(text.charAt(i))) run.cursive = false
@@ -181,8 +183,8 @@ function getUnspacedGraphemes(text: string, graphemeTable: GraphemeTable, run: S
   for (let g = 0, start = 0; g < count; start = ends[g++]!) {
     let joins = false
     if (run === null) {
-      cursiveScriptRe.lastIndex = start
-      joins = cursiveScriptRe.test(text)
+      cursiveScriptRe().lastIndex = start
+      joins = cursiveScriptRe().test(text)
     } else {
       for (let i = start; i < ends[g]!;) {
         const c = text.codePointAt(i)!
@@ -210,7 +212,7 @@ const complexTextPathRanges = [
 ] as const
 
 const extendedPictographicRe = /\p{Extended_Pictographic}/u
-const leadingCombiningMarkRe = /^\p{M}/u
+const leadingCombiningMarkRe = lazyRegExp(String.raw`^\p{M}`, 'u')
 // Decimal digits and the joiners of numbers, times and dates.
 const numericRunRe = /^[\p{Nd}:\-/×,.+\u2013\u2014]+$/u
 const markRunRe = /^\p{M}+$/u
@@ -249,8 +251,8 @@ const rightToLeftLetterRe = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF\u200F\u{10
 // The last letter or direction mark before format characters other than a soft
 // hyphen, and the first letter, direction mark or ASCII digit after the space,
 // past spaces and format characters.
-const letterBeforeFormatTailRe = /([\p{Lu}\p{Ll}\p{Lt}\p{Lo}\u200E\u200F\u061C])\p{M}*(?:(?![\u00AD\u200E\u200F\u061C])\p{Cf})+$/u
-const letterAfterSpacesRe = / (?: |(?![\u200E\u200F\u061C])\p{Cf})*([0-9\p{Lu}\p{Ll}\p{Lt}\p{Lo}\u200E\u200F\u061C])/uy
+const letterBeforeFormatTailRe = lazyRegExp(String.raw`([\p{Lu}\p{Ll}\p{Lt}\p{Lo}\u200E\u200F\u061C])\p{M}*(?:(?![\u00AD\u200E\u200F\u061C])\p{Cf})+$`, 'u')
+const letterAfterSpacesRe = lazyRegExp(String.raw` (?: |(?![\u200E\u200F\u061C])\p{Cf})*([0-9\p{Lu}\p{Ll}\p{Lt}\p{Lo}\u200E\u200F\u061C])`, 'uy')
 
 // Bidi class B: the characters that end a bidi paragraph.
 function isParagraphSeparatorCode(code: number): boolean {
@@ -356,10 +358,10 @@ export function measureAnalysis(
   }
   function formatTailStaysWithWord(item: string, spaceStart: number): boolean {
     if (!trailingFormatCharacterRe.test(item)) return true
-    const before = letterBeforeFormatTailRe.exec(item)
+    const before = letterBeforeFormatTailRe().exec(item)
     if (before === null) return false
-    letterAfterSpacesRe.lastIndex = spaceStart
-    const after = letterAfterSpacesRe.exec(normalized)
+    letterAfterSpacesRe().lastIndex = spaceStart
+    const after = letterAfterSpacesRe().exec(normalized)
     if (after === null) return false
     // An ASCII digit takes the direction of the text before it (UAX #9 W7 and N1).
     const next = after[1]!
@@ -425,7 +427,7 @@ export function measureAnalysis(
 
   // Whether the text may hold graphemes that take no letter spacing in this engine, and
   // Blink's script run over it.
-  const cursiveSpacing = hasLetterSpacing && engineProfile.unspacedCursive !== 'none' && mayBeCursiveRe.test(normalized)
+  const cursiveSpacing = hasLetterSpacing && engineProfile.unspacedCursive !== 'none' && mayBeCursiveRe().test(normalized)
   const scriptRun = cursiveSpacing && engineProfile.unspacedCursive === 'run' ? startScriptRun(normalized) : null
 
   const widths: number[] = []
@@ -580,7 +582,7 @@ export function measureAnalysis(
         const nextText = mi + 1 < segmentCount ? texts[mi + 1]! : ''
         if (hasLetterSpacing && (
           (mi > 0 && (flags[mi - 1]! & KIND_BITS) === TEXT && needsComplexTextPath(texts[mi - 1]!)) ||
-          (leadingCombiningMarkRe.test(nextText) && needsComplexTextPath(nextText))
+          (leadingCombiningMarkRe().test(nextText) && needsComplexTextPath(nextText))
         )) spacingGraphemeCount = 1
         break
       }
