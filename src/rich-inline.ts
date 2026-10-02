@@ -374,7 +374,7 @@ function getWalkedHandle(prepared: PreparedSegments, flags: Uint8Array): Prepare
 const BOX_HANDLE: PreparedSegments = {
   segments: [''], widths: [0], segmentFlags: Uint8Array.of(TEXT), simpleLineWalkFastPath: false, simpleLineCountFastPath: false,
   breakableFitAdvances: [null], entryGeometry: null, lineStartProhibitions: null, lineStartExtras: null, lineEndTrims: null,
-  overflowLineEndTrims: null, letterSpacing: 0, discretionaryHyphenWidth: 0, discretionaryHyphenContexts: null, tabStopAdvance: 0,
+  overflowLineEndTrims: null, letterSpacing: 0, discretionaryHyphenWidth: 0, discretionaryHyphenContexts: null, tabStopAdvance: 0, minimumTabAdvance: 0,
 }
 
 export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, options?: RichInlineOptions): PreparedRichInline {
@@ -1191,10 +1191,8 @@ function stepRichInlineLine(
     }
     itemLine.continues = hasContent
     itemLine.breakBefore = hasContent && (item.breakBefore || breakItemIndex >= 0)
-    // An engine that keeps an unfit hyphen returns only to a break before a run that
-    // continues from an earlier item.
     itemLine.fitsBreakBefore = hasContent && (item.breakBefore
-      ? unfitHyphenRetreat !== 'none' && fitsBreakBefore(item, lineWidth - lineHangWidth, safeWidth + lineFitEpsilon, unfitHyphenRetreat)
+      ? fitsBreakBefore(item, lineWidth - lineHangWidth, safeWidth + lineFitEpsilon, unfitHyphenRetreat)
       : breakFits)
     itemLine.innerBreaks = item.innerBreaks
     // The item's text starts after its gap and its start edge, which every fragment paints, as

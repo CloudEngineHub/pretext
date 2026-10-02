@@ -73,6 +73,12 @@ rich-7f90cee66af55112 breaks
 rich-ab7c458af6c93dbc count
 rich-d1948dbaa742e085 count
 
+## A word whose first syllable doesn't fit with its hyphen ("trans", "i", "t" and "lantic" between soft hyphens, or "cd", U+0001 and "ef" before one, in 16 px Arial), at 36-41 px: Chrome breaks the word between letters, the library at a soft hyphen whose hyphen overflows, as in #323's cases (main too; RESEARCH.md, Dead Ends, Invisible Characters, Controls And Soft Hyphens)
+facts-1cf21b0ce4551627 breaks
+facts-5f171106bebb3c50 breaks
+facts-6303e3c34fadf40e breaks
+facts-ce8695e6d4a1e1d2 breaks
+
 ## Arabic and Hebrew beside brackets, controls, U+FFFC or rich-item edges, at 24 px and wider: Chrome breaks there where the library doesn't
 catalog-01ed9a531b7a32b4 count
 catalog-2c2c30ca491d04db breaks
@@ -317,7 +323,6 @@ catalog-1ba815171eef71f3 count
 catalog-1ccdac99777d3205 count
 catalog-1edd1ccc60d9d05f count
 catalog-20d1f7f6a3ecbd2a count
-catalog-212037b8ba273146 breaks
 catalog-21a8338b4401508b breaks
 catalog-23df1e89a9667598 breaks
 catalog-25d9b222a86d952e breaks
@@ -329,12 +334,10 @@ catalog-35929ec35a7482a3 count
 catalog-36dc59ac929495fb count
 catalog-37575dc603004949 count
 catalog-38ec907cfcb1b1c5 count
-catalog-3981f981eb94d660 count
 catalog-39a2690f535ee13f count
 catalog-3e053575caaec98b count
 catalog-3fcddde286f9fea4 breaks
 catalog-418f17906c355e96 count
-catalog-41faa2b9e2762278 count
 catalog-42a916d1280c597c count
 catalog-433d3cb68a016c07 count
 catalog-460122ab22e663f3 count
@@ -359,7 +362,6 @@ catalog-5cb3e03e1d06ca38 breaks
 catalog-60c679764204e5cd count
 catalog-62c8def027cea88d count
 catalog-64c570254f8e6165 count
-catalog-6cad4e9b7698e491 count
 catalog-6cf2945f5f30c03f breaks
 catalog-6f192a5c68cec80c count
 catalog-6f58351fa9263478 count
@@ -379,7 +381,6 @@ catalog-8ac592960d1f1e4c count
 catalog-8e2ebb609fdc3d3e breaks
 catalog-902249566827bc0e count
 catalog-90a98ce1013c9464 breaks
-catalog-9698355568d17546 count
 catalog-98e85959101b93f6 count
 catalog-9a1e950866be9044 count
 catalog-9b5a03f83ff21a2e count
@@ -388,13 +389,12 @@ catalog-9beb0f209b0ee4ab count
 catalog-9da03e329a843fa8 count
 catalog-9dd9655e28ac3c5e count
 catalog-9e66b5c2df4dcc08 breaks
-catalog-9e8e1f8b2ac76712 count
 catalog-9f83c2a2e02cee78 breaks
 catalog-a08c753dd921b994 count
 catalog-a1005b2c937164b5 count
 catalog-a2b9f462bdac559e count
 catalog-a32fc433dbc08e2e count
-catalog-a4a61e0c1f2333df count
+catalog-a4a61e0c1f2333df breaks
 catalog-a62e084186db292f count
 catalog-a9738dfe876d832e count
 catalog-aa28e08a4a786cb4 count
@@ -409,7 +409,6 @@ catalog-b9578d7f8f6e7037 count
 catalog-bcdab9cd3d475575 count
 catalog-bf36328191fcb978 count
 catalog-c1e44e7907be4da7 count
-catalog-c4da5fca88e98c5d breaks
 catalog-c53f15c186ba471a count
 catalog-c548721b0c1b5353 breaks
 catalog-cb4097d178590a31 count
@@ -659,7 +658,6 @@ catalog-11efb1116c51f8e4 breaks
 catalog-120ebad987701d62 count
 catalog-122fa2011fad21a6 count
 catalog-129613e34fea2467 count
-catalog-130faf7036c41f0d count
 catalog-133488d80035f170 count
 catalog-135e2c218675d651 count
 catalog-137f22f944915b23 count
@@ -1167,7 +1165,6 @@ catalog-7bb7e9c4dbee526f count
 catalog-7c2802fc1345f0e1 breaks
 catalog-7c57b17d97be0c0f breaks
 catalog-7c5dd2da22282352 count
-catalog-7ccc1d5c499befb7 count
 catalog-7d08faa8f3323a10 count
 catalog-7d215c45e9f378e6 count
 catalog-7d36fd17a0084f29 count
@@ -1370,7 +1367,6 @@ catalog-a41fb056c275ff7f count
 catalog-a4299d4c3f87463b breaks
 catalog-a4f5423bfae07b31 count
 catalog-a514323ef66d9e61 breaks
-catalog-a542628623c58de4 count
 catalog-a5e401501c99988c count
 catalog-a61831f181f0b141 count
 catalog-a62a9958892c140a count
@@ -1693,7 +1689,6 @@ catalog-eba8f0d076b15c1d count
 catalog-ebdec95dc376f916 count
 catalog-ebfc8a3bdd5f9c33 count
 catalog-ec678f4134e0ffd2 breaks
-catalog-ec6bff47eafee4fd count
 catalog-ecb3bf5b3d41af43 count
 catalog-ecf8e2b2593852f6 breaks
 catalog-ed324f0188c8c528 breaks
@@ -1796,6 +1791,7 @@ facts-157604473b495628 count
 facts-160dd589a58b5910 count
 facts-1ea1b28ea2d577e6 count
 facts-22d5f3bb615ed150 count
+facts-2466e49d22b539c0 count
 facts-251fd9e43385454b count
 facts-26c73d64fd8234e5 count
 facts-284ef93147c3b33f breaks
@@ -1824,6 +1820,7 @@ facts-56c706b53d2c0717 count
 facts-56e5ccb8b18be1d3 count
 facts-5951e51a97fe93c4 count
 facts-5a92dcda3a2e240d count
+facts-5ad2ca5d51cd4b23 breaks
 facts-5fb06c507d1460d0 count
 facts-604cc0176fb1a993 count
 facts-606f9c1b450015b3 count
@@ -1845,6 +1842,7 @@ facts-7dedb53730ee948c count
 facts-7e94694baede319a count
 facts-7fda710ef2fb144b count
 facts-803ccc31d713baf3 count
+facts-804fbc276574bdfd count
 facts-8a7cf78ec728fb1f count
 facts-8df017adac178600 count
 facts-8fb5b2ef47136afe count
@@ -3011,6 +3009,8 @@ catalog-fe6028d1180363db count
 catalog-fea9ee402e4e8f62 count
 catalog-ff47daf5a0938642 count
 catalog-ffa9651fd6cd2369 count
+facts-010cd794346e04fc count
+facts-035bbb35c6e81dba count
 facts-0ddf325bd8abfccc count
 facts-0ed74272b2fa2c74 count
 facts-1564387085f2ca33 count
@@ -3023,7 +3023,9 @@ facts-22ff97fd5b10e487 count
 facts-2e8961396fa3d106 count
 facts-2f3f8f045fea2b6d count
 facts-37efffeed98098ad count
+facts-398b4262c477cb23 count
 facts-39c40ec8fae8269f count
+facts-3a7907b3382796e7 count
 facts-3df9f70dbbc027ec count
 facts-3e1966fbcb178ff5 count
 facts-3e78dd044ebb2381 count
@@ -3033,13 +3035,16 @@ facts-46e103bf142a6b39 count
 facts-4824eaef1a6a9cda count
 facts-4859e8de92154112 count
 facts-4bd70c5097dd6770 count
+facts-55baf946aff1af58 count
 facts-57cd75abe3cabcaf count
 facts-59d5120a908a1400 count
 facts-64a2b8368fd1bf39 count
 facts-66523fa8da148ed6 count
 facts-6a07afc638d6fe5c breaks
 facts-6bd9acbfe41475f2 count
+facts-6d6ab8922de21ded count
 facts-6d724e4cf4b8f113 count
+facts-6d87c41da81a4275 count
 facts-6f5dcfc72b0c443c count
 facts-71952042d8554cf0 count
 facts-71aeb6c8e04ba54d count
@@ -3085,7 +3090,9 @@ facts-e7631af2585a10a2 count
 facts-f038a833918e39d7 count
 facts-f090c7ec57a59e87 count
 facts-f13d0fd190f3d60a count
+facts-f174326e6aba5a55 count
 facts-f3a4b8f25d411b8d count
+facts-fbc4877098596c87 count
 facts-fc3ae276c1724213 count
 facts-fc69084749bc97f4 count
 rich-02422502faa37ede count
@@ -3141,6 +3148,7 @@ rich-a560650dfbeafe72 count
 rich-a5ad960782eb9128 count
 rich-ab169565a9c0a88b count
 rich-af536739c810f600 count
+rich-b24c8a1759a7f9cb count
 rich-c4a883b30ad5ddaf count
 rich-c604ab44311a3b58 count
 rich-c7cfa88d8a212348 count
@@ -3948,7 +3956,6 @@ catalog-2d9e2dd6d5a82fb1 count
 catalog-381490d2302f02f0 breaks
 catalog-47d10e1cda98e263 breaks
 catalog-4997de26b5863317 breaks
-catalog-4cae8d81de94e02b count
 catalog-5382f0857fbd8731 count
 catalog-54457001d1ea8ae1 breaks
 catalog-56511ecbf8ebe44e count
@@ -3968,7 +3975,6 @@ catalog-804a49861cffad48 breaks
 catalog-82490f5400390da1 count
 catalog-874aa1a291a1e15a count
 catalog-87ef5c9e36500d71 breaks
-catalog-8a791bd67b57f995 count
 catalog-90a71986b2754237 count
 catalog-96312710ee8bc5d1 count
 catalog-a6e15932b0df6950 breaks
@@ -3984,7 +3990,6 @@ catalog-c5504c8d91f34696 count
 catalog-c81dcdfc4d90df9f count
 catalog-dce2bb75c64098d0 breaks
 catalog-e149b88f31c14810 count
-catalog-e26627970a40d003 count
 catalog-e615a3a1d148a3e6 count
 catalog-e7c97d66eec775aa breaks
 catalog-f0173eb1a9000b2a breaks

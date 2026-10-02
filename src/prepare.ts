@@ -31,6 +31,7 @@ import {
   getEmojiCorrection,
   getFollowingSpaceMetrics,
   getFontMeasurement,
+  getHyphenText,
   getSegmentFit,
   getSegmentMetrics,
   getTextWidth,
@@ -250,12 +251,17 @@ export function measureAnalysis(
   const hasLetterSpacing = letterSpacing !== 0
   const fontMeasurement = getFontMeasurement(font, language, hasLetterSpacing)
   const emojiCorrection = textMayContainEmoji(normalized) ? getEmojiCorrection(font, fontMeasurement) : 0
-  // The gap before the hyphen, plus the hyphen's own spacing where the engine
-  // letter-spaces it.
-  const discretionaryHyphenWidth = getTextWidth('-', fontMeasurement, emojiCorrection) +
-    (letterSpacing === 0 ? 0 : letterSpacing * (engineProfile.letterSpaceDiscretionaryHyphen ? 2 : 1))
   const spaceWidth = getTextWidth(' ', fontMeasurement, emojiCorrection)
-  const tabStopAdvance = spaceWidth * 8
+  // The advance between tab stops: eight spaces, each with its letter spacing where the
+  // engine counts it (EngineProfile's letterSpaceTabStops). Gecko rounds the space and the
+  // letter spacing to app units, sixtieths of a pixel, each on its own
+  // (ComputeTabWidthAppUnits, nsTextFrame.cpp:3875-3906).
+  const tabStopSpacing = engineProfile.letterSpaceTabStops ? letterSpacing : 0
+  const tabStopAdvance = engineProfile.tabsInAppUnits
+    ? (Math.round(spaceWidth * 60) + Math.round(tabStopSpacing * 60)) * 8 / 60
+    : (spaceWidth + tabStopSpacing) * 8
+  // The least a tab advances, measured at a text's first tab (EngineProfile's tabMinimumCharacter).
+  let minimumTabAdvance = 0
   // Only a segment holding a default-ignorable code point has entry geometry, so text
   // without one doesn't look for it.
   const entryFitBasis = engineProfile.entryFitBasis !== 'disabled' && textMayHaveEntryGeometry(normalized) ? engineProfile.entryFitBasis : 'disabled'
@@ -418,7 +424,6 @@ export function measureAnalysis(
   // first grapheme.
   const keepsLineStartPunctuation = engineProfile.lineBreakScan === 'webkit' && /[\u0100-\uFFFF]/.test(normalized)
   const segments = includeSegments ? [] as string[] : null
-  const retreatsFromUnfitHyphen = engineProfile.unfitHyphenRetreat !== 'none'
   let discretionaryHyphenContexts: number[] | null = null
   let previousJoinablePiece: string | null = null
   let previousJoinableMetrics: SegmentMetrics | null = null
@@ -427,6 +432,8 @@ export function measureAnalysis(
   // the unbroken text together: cursive joins, marks and kerning across the soft
   // hyphen. Canvas shows how much narrower the neighbors measure joined than
   // apart, which isolated widths can't show when proving that a hyphen overflows.
+  // WebKit's return fits each side as measured alone and takes none (unfitHyphenRetreat).
+  const returnFitsEachSideAlone = engineProfile.unfitHyphenRetreat === 'full-width-or-first'
   function getJoinedNarrowing(analysisIndex: number, before: string | null, beforeMetrics: SegmentMetrics | null): number {
     if (before === null) return 0
     let next = analysisIndex + 1
@@ -543,7 +550,8 @@ export function measureAnalysis(
         if (hasLetterSpacing) spacingGraphemeCount = countRenderedSpacingGraphemes(text, kind, engineProfile.graphemeTable)
         break
       case TAB:
-        spacingGraphemeCount = 1
+        if (engineProfile.letterSpaceTabs) spacingGraphemeCount = 1
+        if (minimumTabAdvance === 0) minimumTabAdvance = getTextWidth(engineProfile.tabMinimumCharacter, fontMeasurement, emojiCorrection) / 2
         break
       case CONTROL: {
         width = getTextWidth(text, fontMeasurement, emojiCorrection)
@@ -573,13 +581,23 @@ export function measureAnalysis(
     if (prohibitions !== null && lineStartProhibitions === null) lineStartProhibitions = Array.from({ length: mi }, () => null)
     lineStartProhibitions?.push(prohibitions)
     if (segments !== null) segments.push(text)
-    if (kind === SOFT_HYPHEN && retreatsFromUnfitHyphen) {
+    // Contexts for every segment of soft hyphens, whatever its kind here: one that is glue,
+    // where this text's scan gives no break after it, as at the start of a Gecko text, can
+    // be a soft hyphen in the text rich inline joins (recordJoinedBreaks), where a line ends
+    // with the hyphen measured below.
+    if (kind !== TEXT && text.charCodeAt(0) === 0xAD) {
       discretionaryHyphenContexts ??= zeros(mi)
-      discretionaryHyphenContexts.push(getJoinedNarrowing(mi, previousJoinablePiece, previousJoinableMetrics))
+      discretionaryHyphenContexts.push(returnFitsEachSideAlone ? 0 : getJoinedNarrowing(mi, previousJoinablePiece, previousJoinableMetrics))
     } else {
       discretionaryHyphenContexts?.push(0)
     }
   }
+
+  // The hyphen a chosen soft hyphen paints, which only a text that holds one asks for, with
+  // the gap before it, plus the hyphen's own spacing where the engine letter-spaces it.
+  const hyphenText = discretionaryHyphenContexts === null ? '-' : engineProfile.hyphenFromPrimaryFont ? getHyphenText(fontMeasurement) : '\u2010'
+  const discretionaryHyphenWidth = getTextWidth(hyphenText, fontMeasurement, emojiCorrection) +
+    (letterSpacing === 0 ? 0 : letterSpacing * (engineProfile.letterSpaceDiscretionaryHyphen ? 2 : 1))
 
   // A segment's width is its width between the text before and after it; one that starts
   // a line takes back the halt Blink gives its first character there.
@@ -608,6 +626,7 @@ export function measureAnalysis(
     lineEndTrims,
     overflowLineEndTrims: hanKerning.overflowLineEndTrims,
     tabStopAdvance,
+    minimumTabAdvance,
   } as unknown as PreparedText & PreparedSegments
   if (segments !== null) prepared.segments = segments
   return prepared

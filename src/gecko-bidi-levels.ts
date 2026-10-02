@@ -10,17 +10,16 @@
 // Pretext takes no paragraph direction, so the paragraph level is always 0. Classes use
 // ICU4C numbering (icu_properties BidiClass::to_icu4c_value).
 
-import { geckoBidiClassRangesPacked, geckoBidiPairsPacked } from './generated/engine-break-data.js'
-import { getRangeValue, readValues, unpackRanges, unpackTable, type RangeTable } from './line-breaks.js'
+import { geckoBidiPairsVarints } from './generated/engine-break-data.js'
+import { getClass, unpackClasses, unpackVarints, type ClassTable } from './line-breaks.js'
 
 const L = 0, R = 1, EN = 2, ES = 3, ET = 4, AN = 5, CS = 6, B = 7, S = 8, WS = 9, ON = 10, LRE = 11,
   LRO = 12, AL = 13, RLE = 14, RLO = 15, PDF = 16, NSM = 17, BN = 18, FSI = 19, LRI = 20, RLI = 21, PDI = 22
 
 const MAX_DEPTH = 125 // level.rs:42-46
 
-// Bidi_Class, from ranges of classes other than L, and unicode-bidi's bracket pairs by bracket, unpacked
-// by the first paragraph resolved.
-let bidiClasses: RangeTable | null = null
+// Bidi_Class and unicode-bidi's bracket pairs by bracket, unpacked by the first paragraph resolved.
+let bidiClasses: ClassTable | null = null
 let bidiBrackets: Map<number, number> | null = null
 
 // char_data::bidi_matched_opening_bracket (char_data/mod.rs:44-56) for every bracket: its pair's opening
@@ -31,7 +30,7 @@ export function getBidiBrackets(): Map<number, number> {
 }
 
 function unpackBrackets(): Map<number, number> {
-  const triples = readValues(Uint32Array, unpackTable(geckoBidiPairsPacked))
+  const triples = unpackVarints(geckoBidiPairsVarints)
   const brackets = new Map<number, number>()
   for (let k = 0; k < triples.length; k += 3) {
     const opening = triples[k + 2] !== 0 ? triples[k + 2]! : triples[k]!
@@ -110,7 +109,7 @@ export function getParagraphLevels(text: Uint16Array): Uint8Array {
   const original = new Uint8Array(n)
   const levels = new Uint8Array(n)
   if (n === 0) return levels
-  const classes = bidiClasses ??= unpackRanges(geckoBidiClassRangesPacked, true)
+  const classes = bidiClasses ??= unpackClasses('gecko/bidi_class')
   const brackets = getBidiBrackets()
 
   // compute_initial_info with split_paragraphs None and a given paragraph level (lib.rs:304-452).
@@ -120,7 +119,7 @@ export function getParagraphLevels(text: Uint16Array): Uint8Array {
   for (let i = 0; i < n;) {
     const packed = charAt(text, i)
     const len = lenOf(packed)
-    const cls = getRangeValue(classes, charOf(packed))
+    const cls = getClass(classes, charOf(packed))
     for (let j = 0; j < len; j++) original[i + j] = cls
     if (cls === L || cls === R || cls === AL) {
       if (cls !== L) isPureLtr = false
@@ -300,7 +299,7 @@ export function getParagraphLevels(text: Uint16Array): Uint8Array {
 // its level. A bracket is inside a cluster only right after a Prepend character (UAX #29 GB9b),
 // which is L, AN or AL, and after L it resolves to L.
 export function keepsClusterLevel(text: string, at: number, from: number, trailingFrom: number): boolean {
-  const classes = bidiClasses ??= unpackRanges(geckoBidiClassRangesPacked, true)
+  const classes = bidiClasses ??= unpackClasses('gecko/bidi_class')
   const brackets = getBidiBrackets()
   const cls = getParagraphClass(classes, text, at)
   if (cls === NSM || (cls === BN && at < trailingFrom)) return true
@@ -317,7 +316,7 @@ export function keepsClusterLevel(text: string, at: number, from: number, traili
 
 // Where the white space and BN that end the paragraph text[from, to) start.
 export function getTrailingWhiteSpaceStart(text: string, from: number, to: number): number {
-  const classes = bidiClasses ??= unpackRanges(geckoBidiClassRangesPacked, true)
+  const classes = bidiClasses ??= unpackClasses('gecko/bidi_class')
   let i = to
   while (i > from) {
     const j = i - 2 >= from && (text.charCodeAt(i - 1) & 0xfc00) === 0xdc00 && (text.charCodeAt(i - 2) & 0xfc00) === 0xd800 ? i - 2 : i - 1
@@ -330,9 +329,9 @@ export function getTrailingWhiteSpaceStart(text: string, from: number, to: numbe
 
 // The class of the code point at text[i] in a paragraph: a lone surrogate reads as U+FFFD, as
 // charAt reads it, and a separator as a space (nsBidiPresUtils.cpp:861-875).
-function getParagraphClass(classes: RangeTable, text: string, i: number): number {
+function getParagraphClass(classes: ClassTable, text: string, i: number): number {
   const cp = text.codePointAt(i)!
-  const cls = getRangeValue(classes, (cp & 0xfff800) === 0xd800 ? 0xfffd : cp)
+  const cls = getClass(classes, (cp & 0xfff800) === 0xd800 ? 0xfffd : cp)
   return cls === B || cls === S ? WS : cls
 }
 
