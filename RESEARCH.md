@@ -1068,7 +1068,7 @@ vocabulary. The premises and their gaps:
   spacing and tabs), since one library holds one port of an engine's rule. The first builds gave the kerning a reader of
   its own, with any opening bracket the pair of any closing one, only the last one opened remembered, half of a
   surrogate pair read as Common and no rule for a Common character under a mark. With the letter-spacing rule's bracket
-  pairs, bracket stack and mark rule, and a character's scripts as bits for both, the two rules take 21 code lines fewer
+  pairs, bracket stack and mark rule, and a character's scripts as bits for both, the two rules take 20 code lines fewer
   than side by side, and the kerning is Chrome's where its own reader wasn't: of 25 strings, the reader of its own had
   10 a kerning off in 16px Arial, 0.88px, and 9 in 16px Gill Sans, 1.60px, 6 of them narrower than the page (`жж (All
   [All] All) All`, where the last bracket goes back to the Cyrillic run past the inner pair; `All (жж] All`, where `]`
