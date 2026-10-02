@@ -1662,8 +1662,7 @@ describe('engine break scans', () => {
 
   test('grapheme clusters end where ICU ends them, in one pass', async () => {
     const { findGraphemeEnds } = await import('./graphemes.ts')
-    const { charTablesPacked } = await import('./generated/engine-break-data.ts')
-    const { markRuleBoundaries, parseBreakRules, unpackTableFrom } = await import('./line-breaks.ts')
+    const { getBreakRules, markRuleBoundaries } = await import('./line-breaks.ts')
     const ends = (table: 'chromium/char' | 'apple/char', text: string) => {
       const out = new Int32Array(text.length)
       return Array.from(out.subarray(0, findGraphemeEnds(table, text, 0, text.length, out)))
@@ -1694,7 +1693,7 @@ describe('engine break scans', () => {
     let seed = 7
     const random = (n: number) => { seed = (seed * 48271) % 0x7fffffff; return seed % n }
     for (const table of ['chromium/char', 'apple/char'] as const) {
-      const rules = parseBreakRules(unpackTableFrom(charTablesPacked, table))
+      const rules = getBreakRules(table)
       for (let t = 0; t < 20_000; t++) {
         const alphabet = Array.from({ length: 2 + random(4) }, () => samples[random(samples.length)]!)
         let text = ''
