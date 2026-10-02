@@ -293,4 +293,4 @@ What each blind spot in harness/README.md, "Bounds and blind spots", would take,
 
 ## External actions
 
-- At the end of the project, file the collected browser bugs (TODO.md): PLATFORM_BUGS.md's unfiled rows, the per-engine rebuild's pages for unfiled bugs (`rebuild/platform-bugs/pages/` on branch `rebuild-20260916`), and the candidate upstream patches for engine hot spots (RESEARCH.md, Dead Ends, Simplifications Held Back). Leave out anything reported privately. PLATFORM_BUGS.md's header says how to file and how to recheck statuses.
+- At the end of the project, file the collected browser bugs (TODO.md): PLATFORM_BUGS.md's unfiled rows, the per-engine rebuild's pages for unfiled bugs (`rebuild/platform-bugs/pages/` on branch `rebuild-20260916`), and the candidate upstream patches for engine hot spots (RESEARCH.md, Dead Ends, Simplifications Held Back). Leave out anything reported privately and not yet triaged. PLATFORM_BUGS.md's header says how to file and how to recheck statuses.

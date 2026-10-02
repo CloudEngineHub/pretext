@@ -364,11 +364,11 @@ a rule by reading it and its unit tests (`rebuild/src/engines/<engine>/`) agains
   feature too hard for now is parked in an issue with the findings and what support would take; a stale public issue
   gets a new comment and a one-line status at the top.
 - **Browser bugs** are recorded and filed as PLATFORM_BUGS.md says. A crash or hang found while probing stays out of
-  public issues, branches and docs until triaged. The rule came a day late for the one case so far: a Chrome hang went
-  in as a restricted security report on 2026-09-19, after its page had been pushed with the rebuild's branch on
-  2026-09-18. The page came off that branch's tip, and public history still holds it, a cost the maintainer was told
-  of and accepted that day; main never held it. Whether a ref cut from the rebuild before then still holds the page
-  at its own tip is an open check (TODO.md).
+  public issues, branches and docs until triaged. The rule came a day late for the one case so far: a Chrome crash
+  went in as a restricted security report on 2026-09-19, after its page had been pushed with the rebuild's branch on
+  2026-09-18, and came off that branch's tip. Triage closed the report that day as a stability issue without security
+  impact, so nothing about it is withheld any more: PLATFORM_BUGS.md describes it, and the page stays in the rebuild
+  branch's history.
 - **License notices** for the ported engine code and data are deferred until the end of the project (TODO.md, End of
   project).
 
@@ -554,11 +554,13 @@ fitting lines so regressed unrelated cases: box resolution isn't the fit rule.
 
 Probes change what they measure. Text-presentation requests and Firefox's per-process font state let earlier strings
 move later results, so each standalone repro page for a browser bug (PLATFORM_BUGS.md) runs in a fresh browser process
-and profile and finishes from promises, not timers, which a hidden window stalls; a page whose bug is a call that never
-returns first sets its title to `STEP ...`, so a driver records a hang after 30 s. Chrome's `Range.getClientRects()` can
-hang forever on one narrow constructed case, reported to Chromium with restricted access, so jobs drawing generated
-cases need a stall limit and a way to skip; main's docs leave the trigger out, though the rebuild's public history
-holds its page (Part 1, Merge Bars And Landing). Read
+and profile and finishes from promises, not timers, which a hidden window stalls; a page whose bug may stop it first
+sets its title to `STEP ...`, so a driver records the step it never got past after 30 s. A title that stays doesn't
+tell a call that never returns from a crashed tab, which keeps its last title too: Chrome's `Range.getClientRects()` on
+one narrow constructed case was recorded and reported as a hang, and is a renderer crash (PLATFORM_BUGS.md, Filed, and
+not reaching Pretext; Chrome 153 and 154, 2026-10-02). After a crash the DevTools protocol sends
+`Target.targetCrashed` on the browser's socket and the renderer's process is gone. Jobs drawing generated cases need a
+stall limit and a way to skip either way. Read
 engine source at the revision the browser ships. Setting `font` after `line-height` resets the line height. Nothing
 independent checks Safari's line placement: webkit-host reads the same rects, where Chrome's and Firefox's were also
 checked against the emulation study.
@@ -2730,7 +2732,7 @@ widths: both measure Pretext, not a browser.
   operation's handles in a shuffled order, so its control copy shows where that order moves a row.
 - **Headless Chrome isn't installed Chrome.** With `deviceScaleFactor: 2` it most likely lays out at zoom 1 while
   reporting DPR 2, as its measurements show, and headless Chrome 153 crashed or hung on one input installed Chrome
-  handled (reported privately; Part 1, Merge Bars And Landing).
+  handled (the report in Part 1, Merge Bars And Landing, whose own page crashes headed Chrome too).
 
 #### Checking Demos
 
