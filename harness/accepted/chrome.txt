@@ -73,9 +73,11 @@ rich-7f90cee66af55112 breaks
 rich-ab7c458af6c93dbc count
 rich-d1948dbaa742e085 count
 
-## A word whose first syllable doesn't fit with its hyphen ("trans", "i", "t" and "lantic" between soft hyphens in 16 px Arial), at 39-41 px: Chrome breaks the word between letters, the library at a soft hyphen whose hyphen overflows, as in #323's cases (main too; RESEARCH.md, Dead Ends, Invisible Characters, Controls And Soft Hyphens)
+## A word whose first syllable doesn't fit with its hyphen ("trans", "i", "t" and "lantic" between soft hyphens, or "cd", U+0001 and "ef" before one, in 16 px Arial), at 36-41 px: Chrome breaks the word between letters, the library at a soft hyphen whose hyphen overflows, as in #323's cases (main too; RESEARCH.md, Dead Ends, Invisible Characters, Controls And Soft Hyphens)
 facts-1cf21b0ce4551627 breaks
 facts-5f171106bebb3c50 breaks
+facts-6303e3c34fadf40e breaks
+facts-ce8695e6d4a1e1d2 breaks
 
 ## Arabic and Hebrew beside brackets, controls, U+FFFC or rich-item edges, at 24 px and wider: Chrome breaks there where the library doesn't
 catalog-01ed9a531b7a32b4 count
@@ -3193,6 +3195,7 @@ facts-6a07afc638d6fe5c breaks
 facts-6bd9acbfe41475f2 count
 facts-6d6ab8922de21ded count
 facts-6d724e4cf4b8f113 count
+facts-6d87c41da81a4275 count
 facts-6f5dcfc72b0c443c count
 facts-71952042d8554cf0 count
 facts-71aeb6c8e04ba54d count
@@ -3238,6 +3241,7 @@ facts-e7631af2585a10a2 count
 facts-f038a833918e39d7 count
 facts-f090c7ec57a59e87 count
 facts-f13d0fd190f3d60a count
+facts-f174326e6aba5a55 count
 facts-f3a4b8f25d411b8d count
 facts-fc3ae276c1724213 count
 facts-fc69084749bc97f4 count
@@ -3294,6 +3298,7 @@ rich-a560650dfbeafe72 count
 rich-a5ad960782eb9128 count
 rich-ab169565a9c0a88b count
 rich-af536739c810f600 count
+rich-b24c8a1759a7f9cb count
 rich-c4a883b30ad5ddaf count
 rich-c604ab44311a3b58 count
 rich-c7cfa88d8a212348 count

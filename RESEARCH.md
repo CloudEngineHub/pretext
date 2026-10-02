@@ -1796,8 +1796,9 @@ repin` shows what), and a fact read in source needs reading again.
   listed font or Helvetica has one, and shapes it as any other text, in a later family or a fallback font where the
   first lacks it: `"Geeza Pro", Inter` paints Inter's, where Chrome and Safari paint `-`, and Geeza Pro alone a
   fallback font's, 0.73px wider than its `-` under an Arabic or Persian page language. Canvas measures the same
-  glyph, so the Gecko profile measures U+2010 with no check (`hyphenFromPrimaryFont`, #TBD). (Firefox 156.0.1,
-  2026-10-01.)
+  glyph, so the Gecko profile measures U+2010 with no check (`hyphenFromPrimaryFont`, #TBD). The facts set holds it
+  in `"Geeza Pro", "Songti SC"`, whose hyphen is Songti SC's in Firefox, an em wide, and Geeza Pro's `-` in Chrome
+  and Safari. (Firefox 156.0.1, 2026-10-01.)
 - **Breaks.** The Gecko scan ports Gecko's rules (Break Opportunities From Engine Data), such as `-` kept with a digit
   (`COVID-19`) and a break after `/` before an ASCII letter, the opposite of Chrome and Safari. Not carried:
   - An emergency wrap after a hyphen between alphanumerics (`SetupClusterBoundaries`), taken only when nothing else
