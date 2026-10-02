@@ -6389,7 +6389,7 @@ test('letter spacing leaves out cursive scripts as Chrome and Firefox do', () =>
   ]
   const layoutUrl = new URL('./layout.ts', import.meta.url).href
   const richInlineUrl = new URL('./rich-inline.ts', import.meta.url).href
-  const rowsOf = (userAgent: string): { gaps: number[]; lines: string[]; rich: number } => JSON.parse(runInChild(`
+  const rowsOf = (userAgent: string): { gaps: number[]; spaceUnderMark: number; lines: string[]; rich: number } => JSON.parse(runInChild(`
     Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { userAgent: ${JSON.stringify(userAgent)} } })
     class Context {
       font = ''
@@ -6403,12 +6403,13 @@ test('letter spacing leaves out cursive scripts as Chrome and Firefox do', () =>
     const width = (text, letterSpacing) => measureNaturalWidth(prepareWithSegments(text, font, { letterSpacing }))
     console.log(JSON.stringify({
       gaps: ${JSON.stringify(strings.map(row => row[1]))}.map(text => (width(text, 8) - width(text, 4)) / 4),
+      spaceUnderMark: (width('a \\u064B 12', 8) - width('a \\u064B 12', 4)) / 4,
       // Four 8px letters too long for a 20px line, at 4px.
       lines: layoutWithLines(prepareWithSegments('\\u0628\\u0628\\u0628\\u0628', font, { letterSpacing: 4 }), 20, 20).lines.map(line => line.text),
       // A letter-spaced Arabic item after a Latin one.
       rich: measureRichInlineStats(prepareRichInline([{ text: 'ab ', font }, { text: '\\u0628\\u0628', font, letterSpacing: 4 }]), 1000).maxLineWidth,
     }))
-  `)) as { gaps: number[]; lines: string[]; rich: number }
+  `)) as { gaps: number[]; spaceUnderMark: number; lines: string[]; rich: number }
   const chrome = rowsOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36')
   const firefox = rowsOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:156.0) Gecko/20100101 Firefox/156.0')
   const safari = rowsOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Safari/605.1.15')
@@ -6419,6 +6420,12 @@ test('letter spacing leaves out cursive scripts as Chrome and Firefox do', () =>
     expect({ shows, chrome: chrome.gaps[i], firefox: firefox.gaps[i], safari: safari.gaps[i] })
       .toEqual({ shows, chrome: inChrome, firefox: inFirefox, safari: shows === 'lam-alef' ? 2 : inSafari })
   }
+  // A space takes the scripts of a mark right after it as a digit does, though the two are
+  // segments apart: of `a`, a space under U+064B, a space and `12`, Chrome 154 spaces `a` and
+  // the two spaces, and the digits are in the Arabic run (2026-10-02). Firefox and Safari
+  // give the space and its mark one gap and the profiles two (ENGINE_FOLLOWUPS.md, Letter
+  // spacing), so only Chrome's row is checked.
+  expect(chrome.spaceUnderMark).toBe(3)
   const pairs = ['\u0628\u0628', '\u0628\u0628']
   const letters = ['\u0628', '\u0628', '\u0628', '\u0628']
   expect([chrome.lines, firefox.lines, safari.lines]).toEqual([pairs, pairs, letters])

@@ -4153,6 +4153,9 @@ rich-f46ee7a612bd5a14 breaks
 rich-fbe661d1631325b5 count
 rich-ffca6282fca44ec7 count
 
+## `a`, a space under the Arabic vowel sign U+064B, a space and `b` at 1.5 px letter-spacing in pre-wrap, at 16.32 px, where `a` and the space under the mark overflow by 0.02 px: Chrome moves the second space to a line of its own, the library hangs it on the first; the library gives the mark no gap, as Chrome does since the space is in an Arabic run, and admits text with no advance and no gap wherever the line before it fit, which the space, hanging, did (main passed while it charged the mark a gap, 1.5 px too wide at any width; ENGINE_FOLLOWUPS.md, Letter spacing)
+catalog-0506555f8d35bd12 count
+
 ## pre-wrap spaces before U+FFFC or brackets, and kerning before a space, at 24 px and wider: Chrome breaks there where the library doesn't
 catalog-13dd55803a1a2260 count
 catalog-22250f0f6a130df3 count
