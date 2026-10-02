@@ -2613,6 +2613,13 @@ Mostly on main as it was then, measured with the old suite in installed browsers
   level with the profile in Arial (two sessions, 2026-10-01), so they buy lines only. Since letter spacing reads the
   runs through the same reader (2026-10-02), the first premise deletes nothing: `readScriptRuns()` stays for the cursive
   rule.
+- **A reader of script runs for each rule, and the space's run read with no search back.** The kerning's own reader,
+  beside the letter-spacing rule's (#397), took 20 code lines more than one for both and had a kerning off in 10 of 25
+  probe strings in 16px Arial (Kerning At Line Edges). With one reader, a build that reads the runs up to every word
+  asked about, without the search back for the nearest character of one script, is 9 code lines shorter and predicts
+  alike, but then reads every text with such a word whole: offline it prepared seen Latin text 4% slower in a font like
+  Arial, 14% slower where a quarter of the characters kern with the space, and Cyrillic text 68% slower there (Node 23
+  on a stand-in Canvas, one run of 30 rounds each, a hypothesis for the browsers and not benched, 2026-10-02).
 - **WebKit letter-spaced ligatures** (in the rebuild, from 2026-09-17; Measurement Model): no separator sets two letters
   unligated in one shaping call (U+200C ends the simple path's call, U+034F doesn't stop the ligature, U+180B brings a
   fallback glyph), and a group heuristic was 1.9 px off; a styled connected `<canvas>` would fix about 721 cases but is
