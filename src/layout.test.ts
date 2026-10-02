@@ -6010,6 +6010,8 @@ test('the Chromium profile takes the kerning between a word and the spaces besid
       ['AA T\\u0301T', '16px Test', {}],
       ['TT\\u3002 TT', '16px Test', {}], ['TT \\u00B7 TT', '16px Test', {}], ['\\u03B1\\u03B1 \\u00B7 TT', '16px Test', {}],
       ['TT \\uFF08TT\\uFF09 TT', '16px Test', {}], ['TT \\uFF08 TT', '16px Test', {}], ['(\\u00B7 \\u0436\\u0436) TT', '16px Test', {}],
+      ['\\u0436\\u0436 (TT [TT] TT) TT', '16px Test', {}], ['\\u0436\\u0436 (TT] TT', '16px Test', {}], ['TT \\uFE35 TT', '16px Test', {}],
+      ['TT 1\\u0342 TT', '16px Test', {}], ['\\u{10400}\\u{10401} TT', '16px Test', {}],
       ['BB TT', '16px Test', {}], ['xW y', '16px Wide', {}], ['y Wx', '16px Wide', {}],
       ['AA TT', '16px Plain', {}], ['\\u0436\\u0436 \\u0422\\u0422', '16px Cyrillic', {}],
     ]) widths.push(prepareWithSegments(text, font, options).widths)
@@ -6088,6 +6090,17 @@ test('the Chromium profile takes the kerning between a word and the spaces besid
     // Latin is the last: after a middle dot, which Latin and Greek share, the run is Greek, so
     // the space after the closing bracket doesn't kern with a Latin word.
     [16, 4, 24, 4, 16],
+    // Brackets pair as Unicode pairs them, the ones opened since closing with theirs: the
+    // outer closing bracket goes back to the Cyrillic run past an inner pair, a closing
+    // bracket that pairs with none stays in its run, and a bracket Unicode gives no pair, as
+    // a vertical form, is no bracket.
+    [16, 4, 24, 4, 32, 2, 24, 4, 16],
+    [16, 4, 32, 2, 16],
+    [16, 4, 8, 2, 16],
+    // A digit under a mark that only Greek lists is Greek, so the space after it is.
+    [16, 4, 16, 4, 16],
+    // A letter outside the Basic Multilingual Plane has its script like any other.
+    [16, 4, 16],
     // A kerning that widens the two stays on the word.
     [17, 2, 16],
     // What float32 rounding leaves between a pair's width and its parts' is no kerning.
