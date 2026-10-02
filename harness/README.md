@@ -38,7 +38,7 @@ prepared text, but for the hyphen of a soft hyphen it ends at, which the text th
 A predicted line's range runs over the source, so white space the library leaves out inside a text is in the line of the
 unit before it (`alignStream`, `predict.ts`), as white space that ends a line is in its line: Firefox gives such a
 space, or a CR, a box at the end of a line it doesn't trim, where it is the line's last visible character. A text's
-leading and trailing white space is in no line's range. That rule came with #TBD, whose fix it also scores, so each
+leading and trailing white space is in no line's range. That rule came with #399, whose fix it also scores, so each
 recorded case was predicted with and without it by one build of the library (2026-10-01; Chrome 154.0.8037.57,
 Firefox 156.0.1, webkit-host): no verdict moves in webkit-host, none in Chrome but that of the case listed as varying
 between runs, and 4 in Firefox, `a`, two CRs or FFs, `b` at 7.9px under -1px letter spacing, where Firefox's first line
@@ -165,7 +165,7 @@ reasons that cite a `layout.test.ts` line point at the files of main before #340
 `git show 6d1d2106:<path>`. The two facts #396 added (lines 1948 and 2015) point at that pull request's `layout.test.ts`, and
 name the fonts they run in where that isn't 16px Arial. A fact added after them names its test's line as of the commit
 that added or last changed the fact, which this paragraph names, since a later merge moves the test and a case's family
-and origin keep the line: line 1000 at dbfab0de (#TBD), Firefox's white space around bidi controls. Such a fact also
+and origin keep the line: line 1000 at dbfab0de (#399), Firefox's white space around bidi controls. Such a fact also
 names the paragraph directions it runs in where a browser's lines turn on them (that one, both). The facts set has no
 cover, so it keeps the width where a template's words join, which the catalog's cover drops once a narrower change has
 shown that kind of break: a fact that rests on a line's width, such as one space against two, goes there.

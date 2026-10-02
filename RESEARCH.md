@@ -705,7 +705,7 @@ dropped (`nsTextFrame.cpp:11161-11170`), so a line never ends before a control, 
 inside a word at one. Since #368 (2026-09-27) the Gecko profile's analysis does the same, with no segment kind of its
 own, so neither the walkers nor `layout()`'s count know of controls (Decisions Log, 2026-09-27): a run of soft hyphens
 and bidi controls holding a control joins the segment before it, and the white-space collapse and the graphemes
-(Grapheme Clusters From Engine Data) read past such characters. Since #TBD (2026-10-01) the collapse is the scan's own:
+(Grapheme Clusters From Engine Data) read past such characters. Since #399 (2026-10-01) the collapse is the scan's own:
 the analysis leaves out the white space that the scan's port of `TransformText` dropped from a run that read past a soft
 hyphen or bidi control, where #368 collapsed through bidi controls with a regular expression, kept a space on each side
 of a soft hyphen, and scanned the text again. The scan takes a text as one of Firefox's text frames, as #368's collapse
@@ -1469,7 +1469,7 @@ runs (Firefox 156.0.1, bench sessions of 2026-09-27 and 28, unless noted):
   the text for a control before the scan instead, so the scan runs once, costs a pass over every text: a regular
   expression or a loop read one to four `seen` rows 1.0-3.6% slower in both sessions of every run, skipping 8-bit text
   saved little, since a curly quote or a dash makes English 16-bit, and the controls `worst` row, whose second scan the
-  test saves, read no faster. Since #TBD (2026-10-01) the scan runs once for every text: it marks the white space a run
+  test saves, read no faster. Since #399 (2026-10-01) the scan runs once for every text: it marks the white space a run
   left out past a dropped character as it collapses the run, and the analysis takes that out of the source, where #368
   collapsed the source with a regular expression and scanned the result again. Offline, as a share of main's analysis
   time for the same text (Bun's JavaScriptCore, a hypothesis for Firefox; two sessions): 60 words with LRM or RLM
@@ -2027,7 +2027,7 @@ repin` shows what), and a fact read in source needs reading again.
   (`gfxTextRun::BreakAndMeasureText`, `gfxTextRun.cpp:1152-1160`). A line can end after one because a CR is one of
   `nsLineBreaker`'s breakable spaces, whose run gives the unit after it a break (`IsSegmentSpace`,
   `nsLineBreaker.h:260-264`; `nsLineBreaker.cpp:318-327`), and an FF is UAX #14's BK. Every Canvas measures CR and FF as
-  a space (Measurement Model; Firefox's at `CanvasRenderingContext2D.cpp:4634-4637`), so since #TBD the Gecko profile's
+  a space (Measurement Model; Firefox's at `CanvasRenderingContext2D.cpp:4634-4637`), so since #399 the Gecko profile's
   analysis takes them out of the text, as the scan marks one as it marks the white space a run left out; before, each
   became a space, as it still does in the other profiles. The CR of a CRLF stays unmarked and collapses into the line
   feed's space, which gives the same text (Work Done Only Where A Rule Applies). Keeping one as a control of no advance
@@ -2204,7 +2204,7 @@ Mostly on main as it was then, measured with the old suite in installed browsers
 - **Lone CR, FF and VT per engine in pre-wrap** (2026-09-11): two prototypes lost 150-228 results each, as did deleting
   CR or making it a zero-width break; CR reaches every layer, so apps normalize line endings (README). Reopens with a
   model traced from the engines' line builders. In normal white space, where no engine breaks a line at one, the Gecko
-  profile takes CR and FF out since #TBD (Engine Facts, Firefox, CR and FF).
+  profile takes CR and FF out since #399 (Engine Facts, Firefox, CR and FF).
 - **Folding invisibles into their neighbors** (2026-09-15/16) lost 776 real rows in an offline replay, as controls got
   zero width where browsers give them width and soft hyphens and ZWSPs took spacing and width the page doesn't give
   them, and 1,887 Chrome and Safari rows in the old suite run in installed browsers, such as `a`, U+00AD, U+0301,
@@ -2234,10 +2234,10 @@ Mostly on main as it was then, measured with the old suite in installed browsers
   numbers). It would reopen only with a glue test the shared walkers pay nothing for.
 - **A `glue` kind for no-break runs** (not zero-width glue, which stays) was a label, and a wrong one (Decisions Log,
   2026-09-24).
-- **Firefox's white-space run ended at each bidi level run of one text** (fdacfde2 in #TBD's history, 2026-10-01;
+- **Firefox's white-space run ended at each bidi level run of one text** (fdacfde2 in #399's history, 2026-10-01;
   Firefox 156.0.1): the Gecko scan resolved levels where a white-space run met a bidi control before white space or a
   combining mark, ended the run where a level run starts there, and trimmed the first line's start after dropped
-  characters, in 30 more runtime lines than the scan #TBD landed (Engine Facts, Firefox, Text frames, has Firefox's
+  characters, in 30 more runtime lines than the scan #399 landed (Engine Facts, Firefox, Text frames, has Firefox's
   rule). The scan resolves every paragraph as left-to-right, so of 62,132 probe cases it passed 2,298 that main failed
   and failed 771 that main passed. Of those, 242 were plain text in right-to-left paragraphs, all its plain-text losses
   but one: there RLM or ALM after Latin text or digits keeps the level of the white space before it, so `see`, space,
@@ -2250,23 +2250,23 @@ Mostly on main as it was then, measured with the old suite in installed browsers
   the gap of its leading white space left 49. The level pass also made the analysis of text that starts with RLM and a
   space 1.5-1.7 times main's (Bun's JavaScriptCore). It reopens with a `direction` option (TODO.md) and a rich item's
   analysis that knows it follows content.
-- **A CR or FF kept as a control of no advance in the Gecko profile's normal white space** (a trial beside #TBD,
+- **A CR or FF kept as a control of no advance in the Gecko profile's normal white space** (a trial beside #399,
   2026-10-01; Firefox 156.0.1). Firefox keeps a CR or FF in its text run with no advance (Engine Facts, Firefox, CR and
   FF), and the Gecko profile already gives the other controls Firefox hides no advance and their letter spacing
   (`hidesControlCharacters`). The trial did the same for CR and FF: the profile's normal white space collapsed spaces,
   tabs and line feeds only, a CR or FF stayed in the text as a control segment, and the text's start still dropped one
-  with the white space around it. It is Firefox's model where #TBD's, which takes the character out, is a premise with
+  with the white space around it. It is Firefox's model where #399's, which takes the character out, is a premise with
   gaps: the trial gives a CR its letter spacing, keeps a space on each side of one, as in a sentence whose lines end in
   a space and CRLF, and keeps the break before a combining mark after one. But a control segment is text to the line
   walkers, where Firefox trims a CR or FF with the white space around it at a line's start and end: at a narrow width it
   took a line of its own that Firefox doesn't give it, and after a space that ends a line it kept that space from
-  hanging at every width, where Firefox does only while the CR is on that line. Against #TBD, of 124,283 probe cases
-  recorded in Firefox (35,935 with a CR or FF in normal white space) it passed 818 that #TBD fails and failed 791 that
-  #TBD passes; at 24px and wider 582 and 208, the 582 holding 98 of such sentences. Of the pinned cases it passed 19 and
+  hanging at every width, where Firefox does only while the CR is on that line. Against #399, of 124,283 probe cases
+  recorded in Firefox (35,935 with a CR or FF in normal white space) it passed 818 that #399 fails and failed 791 that
+  #399 passes; at 24px and wider 582 and 208, the 582 holding 98 of such sentences. Of the pinned cases it passed 19 and
   failed 94, all 94 under 24px. It took 2 more runtime lines, before the profile field and the comment it would need,
   and a control segment has no break before it, so text with a CR leaves the simple line walk: offline in Bun, 60 words
-  with CRLF at every sixth took 1.3 times #TBD's `layout()` time and 2.3-2.4 times its `walkLineRanges()` time, a
-  hypothesis for Firefox. So #TBD takes the character out: fewer lines, no case lost to a line of its own, and text with
+  with CRLF at every sixth took 1.3 times #399's `layout()` time and 2.3-2.4 times its `walkLineRanges()` time, a
+  hypothesis for Firefox. So #399 takes the character out: fewer lines, no case lost to a line of its own, and text with
   CRLF on the simple walk. It reopens with a segment kind that hangs and trims at line edges without collapsing into the
   white space beside it, or with a report where Firefox's two spaces around a CR matter.
 
@@ -2890,7 +2890,7 @@ decisions for the maintainer.
   cases the analysis fixes, in 23 fewer lines, but slowed Firefox's `layout()` of invisible tails 12-13% and some of
   Chrome's and Firefox's worst-case rows 5-11% (Dead Ends, Invisible Characters, Controls And Soft Hyphens). The
   analysis also fixes the other four, `a`, LRI, U+0301, PDI, `b` at 1px, whose mark Firefox keeps with the `a`, and makes
-  the white space on both sides of a control take the room of one space, about 22 of its 68 runtime lines. Since #TBD
+  the white space on both sides of a control take the room of one space, about 22 of its 68 runtime lines. Since #399
   (2026-10-01) the collapse reads through soft hyphens too and comes from the scan's own text run. It still takes a text
   as one of Firefox's text frames: where a frame ends turns on the paragraph's direction, which Pretext doesn't take
   (Engine Facts, Firefox, Text frames).
