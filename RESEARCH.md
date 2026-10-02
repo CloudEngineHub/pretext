@@ -2839,3 +2839,12 @@ decisions for the maintainer.
   with no fragment. A box's width is final, fixed when it's prepared and at least 0, and heights stay the app's, with the
   README's `vertical-align: top` rule (Rich Inline Boundaries, Objects Inside A Line, has the evidence and what reopens
   negative widths and widths given at layout).
+- **2026-10-01: where the page's style decides a width, the Chromium profile takes the answer that can't come out a line
+  short** (on judgement, with #TBD). Chrome keeps a word's kerning with a hanging space in start-aligned text with no
+  decoration or background, and drops it under any other alignment, a text decoration or a background, and Pretext reads
+  no style (Part 1, Limits). The profile takes the second rule for every text. Where it is wrong, a line's last word is
+  wider than Chrome's, so a paragraph takes a line more in a box at least as wide as Chrome needs, as on main; the first
+  rule, where it is wrong, takes a line fewer, which clips text in a list of predicted heights, and its shrink-wrapped
+  box makes Chrome wrap again (Kerning At Line Edges has the counts for both). The price is 21 harness cases, which are
+  all of the first kind of text, and 43 of 41,888 card layouts in Gill Sans. An option on `prepare()` that says which
+  kind a text is would replace it.
