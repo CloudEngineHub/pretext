@@ -390,6 +390,58 @@ describe('shared public contracts', () => {
     }
   })
 
+  test('a line API called once for a paragraph lays a width that is not a number out as an unbounded one', () => {
+    // layout(), layoutWithLines(), walkLineRanges(), measureLineStats() and the two rich
+    // walks pass their width through normalizeMaxWidth() once, so their loops meet no
+    // NaN. The first three texts take layout()'s three counts: its own loop, the simple
+    // stepper, where the scan gives no break at NEL, and the full walker. Where a NaN
+    // reaches the loops, layout() counts a line per grapheme, and a pre-wrap line that
+    // ends in spaces or a tab reports a NaN width. The streams, called once for each
+    // line, take their width as given (ENGINE_FOLLOWUPS.md, Small ones).
+    const widths = [NaN, undefined as unknown as number]
+    for (const [text, options, walkFastPath, countFastPath] of [
+      ['aaaa bbbb 中文字', {}, true, true],
+      ['aaaa\u0085bbbb cccc', {}, false, true],
+      ['aaaa bb­bb cccc', {}, false, false],
+      ['aaaa bbbb cccc', { letterSpacing: 1 }, false, false],
+      ['aaaa  \nbbbb\t\ncc  ', { whiteSpace: 'pre-wrap' }, false, false],
+    ] as const) {
+      const prepared = prepareWithSegments(text, FONT, options)
+      expect([prepared.simpleLineWalkFastPath, prepared.simpleLineCountFastPath]).toEqual([walkFastPath, countFastPath])
+      const at = (width: number): unknown => {
+        const ranges: unknown[] = []
+        const rangeCount = walkLineRanges(prepared, width, line => ranges.push(line))
+        return {
+          layout: layout(prepare(text, FONT, options), width, LINE_HEIGHT),
+          layoutWithLines: layoutWithLines(prepared, width, LINE_HEIGHT),
+          walkLineRanges: [rangeCount, ranges],
+          measureLineStats: measureLineStats(prepared, width),
+        }
+      }
+      const unbounded = at(Infinity) as { layout: { lineCount: number } }
+      expect(unbounded.layout.lineCount).toBe(text.split('\n').length)
+      for (let i = 0; i < widths.length; i++) expect(at(widths[i]!)).toEqual(unbounded)
+    }
+    for (const [items, options] of [
+      [[{ text: 'aaaa bbbb ', font: FONT }, { text: 'cccc 中文字', font: FONT, extraWidth: 4 }], {}],
+      [[{ text: 'aaaa bbbb  ', font: FONT }], { whiteSpace: 'pre-wrap' }],
+      [[{ text: 'aaaa  ', font: FONT }, { text: '\nbbbb\t\ncc  ', font: FONT }], { whiteSpace: 'pre-wrap' }],
+    ] as const) {
+      const prepared = prepareRichInline([...items], options)
+      const at = (width: number): unknown => {
+        const lines: unknown[] = []
+        const lineCount = walkRichInlineLineRanges(prepared, width, line => lines.push(materializeRichInlineLineRange(prepared, line)))
+        return {
+          walkRichInlineLineRanges: [lineCount, lines],
+          measureRichInlineStats: measureRichInlineStats(prepared, width),
+        }
+      }
+      const unbounded = at(Infinity) as { measureRichInlineStats: { lineCount: number } }
+      expect(unbounded.measureRichInlineStats.lineCount).toBe(items.map(item => item.text).join('').split('\n').length)
+      for (let i = 0; i < widths.length; i++) expect(at(widths[i]!)).toEqual(unbounded)
+    }
+  })
+
   test('numeric layout APIs do not measure text after preparation', () => {
     const text = 'foo trans­atlantic 世界\n\tbar'
     const options = { whiteSpace: 'pre-wrap' } as const
@@ -912,10 +964,11 @@ describe('boundary-policy regressions', () => {
 
   test('every text segment of an engine scan takes emergency grapheme breaks', () => {
     const profile = getEngineProfile()
-    const previous = profile.lineBreakScan
+    const previous = { lineBreakScan: profile.lineBreakScan, keepsLineStartPunctuation: profile.keepsLineStartPunctuation }
     try {
       for (const scan of ['blink', 'webkit', 'gecko'] as const) {
         profile.lineBreakScan = scan
+        profile.keepsLineStartPunctuation = scan === 'webkit'
         // Segment metrics belong to one engine profile.
         clearCache()
         // Digits, which Safari's JavaScriptCore doesn't mark word-like, symbols and emoji.
@@ -937,7 +990,7 @@ describe('boundary-policy regressions', () => {
         }
       }
     } finally {
-      profile.lineBreakScan = previous
+      Object.assign(profile, previous)
     }
   })
 
@@ -2598,6 +2651,18 @@ describe('prepare invariants', () => {
     expect(profileOf(`${system} Safari/537.36`)).toEqual(profileOf(`${system} Chrome/153.0.0.0 Safari/537.36`))
   })
 
+  test('the library has no regex lookbehind, which a JavaScriptCore without it refuses to load', async () => {
+    // JavaScriptCore checks every regex literal when it parses a module, so where it can't
+    // parse a lookbehind, one stops the whole library from loading, whichever engine's path
+    // it is on: Safari before 16.4, by its release notes (RESEARCH.md, Engine Facts, Safari).
+    // No browser the harness runs would show it.
+    const directory = new URL('.', import.meta.url).pathname
+    for (const file of new Bun.Glob('**/*.ts').scanSync(directory)) {
+      if (file === 'layout.test.ts' || file === 'test-data.ts') continue
+      expect({ file, lookbehind: /\(\?<[=!]/.test(await Bun.file(directory + file).text()) }).toEqual({ file, lookbehind: false })
+    }
+  })
+
   test('Chromium breaks after closing brackets before CJK text, not after a closing quote before Hangul', () => {
     // Fullwidth closing brackets are UAX #14 CL, and Chromium breaks between CL and ID.
     for (const close of ['\u300D', '\u300F', '\u3011', '\u300B', '\u3009', '\u3015', '\uFF09']) {
@@ -2849,6 +2914,7 @@ describe('prepare invariants', () => {
       ['tabsInAppUnits', false, false, true],
       ['hangTabs', true, true, false],
       ['zeroWidthGlueTakesLine', true, true, false],
+      ['keepsLineStartPunctuation', false, true, false],
       ['hidesControlCharacters', false, false, true],
       ['hanKerning', true, false, false],
       ['hangsIdeographicSpace', true, false, true],
@@ -2983,6 +3049,7 @@ describe('prepare invariants', () => {
     }
     try {
       profile.lineBreakScan = 'webkit'
+      profile.keepsLineStartPunctuation = true
       // Safari 27 paints these at a width below one character; 8-bit `xb((c` takes one
       // character per line.
       expect(lines('xb((cā')).toEqual(['x', 'b((', 'c', 'ā'])
@@ -2990,6 +3057,7 @@ describe('prepare invariants', () => {
       expect(lines('xb((c')).toEqual(['x', 'b', '(', '(', 'c'])
       // Blink and Gecko end the line after the first grapheme.
       profile.lineBreakScan = 'blink'
+      profile.keepsLineStartPunctuation = false
       expect(lines('xb((cā')).toEqual(['x', 'b', '(', '(', 'c', 'ā'])
     } finally {
       Object.assign(profile, previous)

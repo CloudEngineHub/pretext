@@ -27,6 +27,7 @@ import {
   breaksAfterKind,
   endsLineBefore,
   isDiscretionaryLineEnd,
+  normalizeMaxWidth,
   normalizePreparedLineStart,
   stepPreparedLineGeometryFromStart,
   walkPreparedLinesRaw,
@@ -1438,6 +1439,7 @@ export function walkRichInlineLineRanges(
   maxWidth: number,
   onLine: (line: RichInlineLineRange) => void,
 ): number {
+  maxWidth = normalizeMaxWidth(maxWidth)
   const only = getInternalPreparedRichInline(prepared).onlyItem
   if (only !== null) {
     const safeWidth = Math.max(1, maxWidth)
@@ -1467,6 +1469,7 @@ export function measureRichInlineStats(
   prepared: PreparedRichInline,
   maxWidth: number,
 ): RichInlineStats {
+  maxWidth = normalizeMaxWidth(maxWidth)
   const flow = getInternalPreparedRichInline(prepared)
   const only = flow.onlyItem
   if (only !== null) {
