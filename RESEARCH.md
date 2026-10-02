@@ -1093,17 +1093,71 @@ invariants check, and the empty-text spelling floated in #201 needs a `font` and
 `extraWidth`, which no line hangs: U+FFFC in the paragraph's text, as Blink and Gecko take an atomic inline there
 (`src/rich-inline.ts` cites them), with a break on both sides and preserved white space after it kept on its line as
 after a chip, so it needs no rule of its own. Apps stood in for one with an atomic NBSP whose `extraWidth` made up the
-rest of the object's width (#201), which lays out as the box does in every engine's profile (`src/layout.test.ts`; a
-stand-in Canvas fuzz of 220,000 layouts found no difference, 2026-09-30). A box of width 0 is a box, with a break on
-both sides, as an empty inline-block of width 0 is; Firefox places one wherever it falls, even on a line that already
-overflows (`CanPlaceFrame`, `nsLineLayout.cpp:1264-1269`), as the Gecko profile does for any atomic item of width 0
-(`emptyAtomicAlwaysFits`), where Chrome and Safari move it to the next line. A negative width is refused, as one that isn't finite is. An
-inline-block of width 0 with a negative right margin lays out as a negative `extraWidth` does in Firefox 156.0.1 and
-webkit-host, but Chrome 154.0.8037.57 ends a line at a space that overflows before it and starts the next line with the
-box, where the negative width would bring the line back within its width, and fits a word after it that rich inline
-moves to the next line (`one two`, a -15px box, `three four five` in 16px Arial, `one two three` at 77.5px): 51 of 884
-layouts of four shapes at 10-120px differ in Chrome and none in the others (2026-09-30). No app was found that needs
-one; the negative values apps pass are `extraWidth`s relative to a stand-in character. That reopens if one does.
+rest of the object's width (#201), which takes the box's lines and line widths in every engine's profile
+(`src/layout.test.ts`; a stand-in Canvas fuzz of 220,000 layouts found no difference, 2026-09-30), though not always its
+fragment widths: white space that hangs comes out of a stand-in's text width and never out of a box
+(ENGINE_FOLLOWUPS.md, Rich-inline item edges). A box of width 0 is a box, with a break on both sides, as an empty
+inline-block of width 0 is. One that falls past a line's end, after a space that doesn't fit or an atomic item wider
+than the line, moves to the next line in Chrome and Safari, as any atomic item does. Firefox places an empty frame there
+(`CanPlaceFrame`, `nsLineLayout.cpp:1264-1269`; the profile's `emptyAtomicAlwaysFits`) without counting the break after
+it as one that fits (`:1260`, `:1506-1513`), so a frame with a width that comes next, text, a span with padding or white
+space in a text node of its own, sends the line back to its last break that fit, and the empty frame starts the next
+line with it; it stays where the line ends without that (`getKeptEmptyEnd()` in `src/rich-inline.ts` has the cases). `ab
+`, a 0px box and `cd` in 16px Arial at 20.25px are `ab` and then the box with `cd`, and with ` cd` the box stays after
+`ab`. The break before the frame comes after white space, an atomic item or a soft hyphen, each read from the text,
+never from a width, which letter spacing takes below nothing. A text frame that ends in a soft hyphen leaves a break
+after itself whatever the hyphen's width (`HasSoftHyphenBefore`, `nsTextFrame.cpp:11432-11439`). Gecko's line breaker
+leaves a break after a text run that ends in a space or a tab whatever its advance, once soft hyphens are discarded, in
+however many nodes they are, and the run's last frame breaks the line there where it ends past the line's end without
+its own trailing spaces (`nsLineBreaker::Reset`, `nsLineBreaker.cpp:710-719`; `nsTextFrame.cpp:11443-11456`;
+`getFrameEndSpace()`), so the frame then starts the next line. Under pre-wrap the space hangs, and Gecko's text frame
+leaves out of its width the spaces that overflow the line, whatever follows the frame (`nsTextFrame.cpp:11216-11229`;
+the profile's `hangsSpacesPerTextFrame`), so the box is inside the line, at its end, and stays, as does a second box, a
+space or a node of a soft hyphen after it, while a span with padding after it starts the next line: in the Gecko profile
+the line's run of hanging spaces goes on past an item that takes no room with the spaces that overflow, where Blink's
+and WebKit's ends at one (`ComputeTrailingSpaceWidth`, `line_info.cc:289-415`; `ContinuousContent::append`,
+`InlineContentBreaker.cpp:943-947`). The spaces that fit keep their width, so the box is at the line's end or right
+after them (`ab `, a 0px box and a tab with `cd` in pre-wrap 16px Arial make a first line as wide as the paragraph at
+18-22px in Firefox 156.0.1, and 22.25px wide above that). The Gecko profile ports this for any atomic item of width 0, a
+chip of only a ZWSP too. The empty frame's placement and the text frame's hang each read a profile field of their own,
+named for the rule; a field costs nothing by itself (JavaScript Engines). Of 95,507 layouts in Firefox 156.0.1
+(sentences with a 0px box, or two, after every space at 120-600px in seven fonts, in normal white space and pre-wrap and
+at eleven letter spacings, two-word shapes at 2-80px, Japanese, Arabic, Hebrew and keep-all Korean), 8,599 pass that
+failed and 124 fail that passed, and the line count is right in 1,458 where it was wrong and wrong in 56 where it was
+right. In each of the 124 Firefox has the box inside a line and Pretext's widths put it past the line's end, and they
+passed only while the profile kept the box wherever it fell: 59 under letter spacing off Firefox's 1/60px grid, 31 after
+a pre-wrap space that a soft hyphen follows in its item, 31 before a span with 0.004px of padding and 3 after a
+synthetic bold span. The 56 are 28 of those before that padding, 14 of those after that soft hyphen, and 14 before a
+chip of only a space, which had the right count with the box on the wrong line. With 56,928 more layouts of other
+sentences, padded spans and soft-hyphen items, 8,175 lines changed their width in layouts that pass before and after:
+7,898 are within 0.1px of Firefox's width, where 168 were, and none was that isn't now. Those counts are from before the
+white space was read from the text. Reading it there moved 9,979 further layouts so: of 7,624 of a 0px box after a chip,
+two letters or a sentence in 16px Arial, with a collapsed space at 0 to −6px letter spacing, soft hyphens among the
+white space, a pre-wrap tab, or a last item of soft hyphens and white space, 394 pass that failed and none fails that
+passed; of 858 random item sequences with tabs, soft hyphens or such spacing that it moves, 226 pass that failed and 53
+fail that passed, each a tab under negative letter spacing, where Firefox's tab stops count the spacing and the
+profile's didn't yet; and 1,497 it doesn't move on a stand-in Canvas don't move in Firefox. Reading the soft hyphen
+before the box from the text too, and the white space through any number of items of soft hyphens, moved more: of 556
+layouts of those shapes at 0, 2, −2, −3 and −6px letter spacing, 95 pass that failed and 10 fail that passed; of 23,972
+random item sequences it moves 85 on a stand-in Canvas, of which 39 pass that failed and 9 fail that passed in Firefox,
+and 600 of the others don't move there. The 19 are under negative letter spacing, in layouts where Firefox has the box
+inside the line and Pretext's widths put it past the line's end, which the older reading hid: 16 a tab before items of
+soft hyphens, 2 a pre-wrap space before the soft hyphen that ends its item, 1 a padded span's last piece (2026-10-01,
+#405; ENGINE_FOLLOWUPS.md, Rich-inline item edges, has them and the gaps left; the harness now records a box of width 0
+by its top). All of those counts are from before #394 to #403, and two of their causes are closed since: letter spacing
+off Firefox's grid by #397 and tab stops under letter spacing by #395. With them in, of 18,675 layouts in Firefox
+156.0.1 (the 9,979 and the later 1,253 recorded again, unchanged; the unit test's rows at their widths; and 7,215 of a
+sentence with a 0px box after every space at five letter spacings on and off the grid), 3,418 pass that fail on main at
+#403 and 41 fail that pass there: 39 a pre-wrap space before the soft hyphen that ends its item, 1 a space narrower than
+nothing at −6px and 1 a tab that ends its text run at −2px (2026-10-02). That reopens if a Firefox build changes
+`CanPlaceFrame`, how a text frame trims the white space it breaks after or where it ends the white space that hangs
+(`nsTextFrame.cpp:11202-11229`). A negative width is refused, as one that isn't finite is. An inline-block of width 0
+with a negative right margin lays out as a negative `extraWidth` does in Firefox 156.0.1 and webkit-host, but Chrome
+154.0.8037.57 ends a line at a space that overflows before it and starts the next line with the box, where the negative
+width would bring the line back within its width, and fits a word after it that rich inline moves to the next line (`one
+two`, a -15px box, `three four five` in 16px Arial, `one two three` at 77.5px): 51 of 884 layouts of four shapes at
+10-120px differ in Chrome and none in the others (2026-09-30). No app was found that needs one; the negative values apps
+pass are `extraWidth`s relative to a stand-in character. That reopens if one does.
 
 Heights stay the app's (Limits), and with `vertical-align: top` or `bottom` on every box a line is as tall as the
 paragraph's line-height or its tallest box, whichever is taller, to within one layout unit: about 13,000 lines with
@@ -1441,7 +1495,8 @@ are in #403). Latin and CJK text, which resolved no levels, gains as much as Ara
 word's end, which the scan made for every character through a helper the splits shared, with nothing run to confirm it.
 Firefox's Latin `layout()` at new widths read 14.8% faster in the same table, and that isn't this change's doing, as
 `layout()` runs none of its code: main after #394 to #399 had read the row 17.6% slower than main before them, and one
-build read it 13.5% slower or level by the names the bench's minifier gave its top-level bindings.
+build read it 13.5% slower or level by the names the bench's minifier gave its top-level bindings (Keeping Work
+Bounded, JavaScript Engines).
 
 With that the Gecko analysis reads 7 of the harness's texts otherwise, all generated: Balinese and Batak vowel killers
 after Arabic or Hebrew letters, U+0600 before an ideographic space, a kasra after U+200E between Arabic letters and one
@@ -1724,6 +1779,36 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   still read 7-11% slower, and with the line's start, which only the rare pre-wrap paths read, made a constant, 4-5%;
   main with those three values kept alive read 2% slower. So it's how the JITs allocate the bigger loop's state, not
   work, and it was accepted as a regression JIT placement alone explains in live code (#381, 2026-09-29).
+- **The names a minifier picks, in Firefox**: Firefox 156 reads one bench row, `resize: latin layout at new widths`,
+  about 16% slower or faster by nothing but the names the bench's minifier gives the bundle's top-level bindings. It is
+  the one resize text whose lines hold words longer than the line (two rules of 72 hyphens, each 448px in 16px Helvetica
+  Neue, against widths of 240-460px), so the one where `countPreparedLines()` runs its grapheme loop. The row first read
+  slower on #405, whose code `layout()` never runs. Each build below was timed against main before #394 (29562782), in
+  three sessions of Firefox 156.0.1's resize rows (2026-10-02), and every other resize row read within noise in each:
+
+  | Build | Names of the shared top-level bindings | The row, per session |
+  | --- | --- | --- |
+  | #405's branch before it took #394 to #403 (b9c9d758) | its own | +15.6%, +17.0%, +16.3% |
+  | That main plus only the branch's new profile field, read by nothing | main's, all 410 | -3.5%, -0.5%, -4.3% |
+  | The branch without that field | others than the branch's | -3.2%, +3.7%, +3.5% |
+  | That build plus one unused local in the rich stepper | the branch's, all 412 | +13.2%, +12.3%, +17.6% |
+  | The whole branch, the field read off the profile at its two uses | 14 differ from the branch's | -0.1%, -0.2%, -1.7% |
+
+  So neither the field nor the rich code does it, and one local that nothing reads does. Main after #394 to #399 read
+  the row +15.7%, +17.4% and +21.0% against that same main, and #403 read it -14.7% and -15.2% against main after #399,
+  each with every other `layout()` row of Firefox within noise and no change to code `layout()` runs. The reading, from
+  SpiderMonkey's source at the 156.0 tag and not from a run of Firefox: the bench bundles both entries into one
+  function, whose some 410 top-level bindings are that function's variables; past 24 names a scope orders its variables
+  by a hash of their names (`newFunctionScopeData`, `Parser.cpp`), only the first 14 get a fixed slot on the environment
+  object, and Warp compiles a read of a fixed slot and of a dynamic one differently
+  (`WarpBuilder::build_GetAliasedVar`). `countPreparedLines()` reads four module-level constants in its loop
+  (`KIND_BITS`, `TEXT`, `SPACE`, `ZERO_WIDTH_BREAK`); in main's bundle all four fall in dynamic slots, and in the
+  branch's `SPACE` falls in a fixed one. Why that would compile a slower loop isn't known, as a fixed slot is one load
+  fewer. An app's bundler picks its own names, so the same source can read either way there. So a verdict on this row
+  alone says nothing about a change whose code `layout()` doesn't run (`harness/README.md`, Bench). Making those
+  constants literals in the emitted code would take the names out of it, and is being tried apart from #405. Reopen on a
+  Firefox whose scopes give every binding one kind of slot, or if the row moves between two builds whose minified names
+  are the same.
 - **`%` on numbers that aren't whole** is a call: V8 works a remainder out inline only for two positive whole numbers
   and otherwise calls the C library's `fmod` (`MacroAssembler::Float64Mod`, `macro-assembler-arm64.cc:3028-3081`, V8
   15.3). A tab's advance took one, and it was what a tab's arithmetic cost. With the remainder from a division and a

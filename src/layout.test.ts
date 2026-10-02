@@ -2926,6 +2926,7 @@ describe('prepare invariants', () => {
       ['hardBreakItemRetreat', 'item', 'fit', 'last-grapheme'],
       ['paddedOpeningFit', 'start', 'placed', 'both'],
       ['emptyAtomicAlwaysFits', false, false, true],
+      ['hangsSpacesPerTextFrame', false, false, true],
       ['transformsSegmentBreaksAcrossItems', true, false, false],
     ]
     const profileOf = (engine: 1 | 2 | 3, entryFitBasis?: Profile['entryFitBasis']): Record<string, unknown> => {
@@ -4385,12 +4386,17 @@ describe('rich-inline invariants', () => {
     // After preserved spaces, which hang, Chrome keeps the line feed where the text before them
     // fits; Safari fits the span's start edge without them, else keeps the spaces that fit but
     // for the last, and Firefox fits both edges with them, else moves the last space.
-    const previousEngine = { hardBreakItemRetreat: profile.hardBreakItemRetreat, paddedOpeningFit: profile.paddedOpeningFit }
+    const previousEngine = {
+      hardBreakItemRetreat: profile.hardBreakItemRetreat, paddedOpeningFit: profile.paddedOpeningFit,
+      emptyAtomicAlwaysFits: profile.emptyAtomicAlwaysFits, hangsSpacesPerTextFrame: profile.hangsSpacesPerTextFrame,
+    }
     try {
       const space = measureWidth(' ', FONT)
       for (const [retreat, fit] of [['item', 'start'], ['fit', 'placed'], ['last-grapheme', 'both']] as const) {
         profile.hardBreakItemRetreat = retreat
         profile.paddedOpeningFit = fit
+        profile.emptyAtomicAlwaysFits = fit === 'both'
+        profile.hangsSpacesPerTextFrame = fit === 'both'
         // The lines up to the one the padded span's line feed ends; `bar`, whose padding every piece
         // pays, follows.
         const head = (items: Parameters<typeof prepareRichInline>[0], width: number) => {
@@ -4422,6 +4428,11 @@ describe('rich-inline invariants', () => {
         // Firefox fit both edges.
         const first = (items: Parameters<typeof prepareRichInline>[0], width: number) => lines(items, width)[0]!.fragments.map(f => f[3]).join('|')
         expect(first([{ text: 'foo   ', font: FONT }, { text: '  bar', font: FONT, extraWidth: 40 }], foo + 1)).toBe(fit === 'start' ? 'foo   |  ' : 'foo   ')
+        // Where the padding fits after the text but not after its spaces, the line keeps the span's
+        // spaces in every profile, as Safari leaves spaces that hang out of the fit. Firefox counts
+        // them and goes back to the break before the text's last word, which the Gecko profile
+        // doesn't (ENGINE_FOLLOWUPS.md, Rich-inline item edges).
+        expect(first([{ text: 'foo   ', font: FONT }, { text: '  bar', font: FONT, extraWidth: 40 }], foo + 41)).toBe('foo   |  ')
         expect(first([{ text: 'foo', font: FONT }, { text: '  bar', font: FONT, extraWidth: 40 }], foo + 21)).toBe(fit === 'start' ? 'foo|  ' : 'foo')
         expect(first([{ text: 'foo', font: FONT }, { text: '  bar', font: FONT, extraWidth: 40 }], foo + 19)).toBe('foo')
       }
@@ -4466,6 +4477,7 @@ describe('rich-inline invariants', () => {
     const previous = {
       lineBreakScan: profile.lineBreakScan, breaksFromItemText: profile.breaksFromItemText, hangTabs: profile.hangTabs,
       hardBreakItemRetreat: profile.hardBreakItemRetreat, paddedOpeningFit: profile.paddedOpeningFit,
+      emptyAtomicAlwaysFits: profile.emptyAtomicAlwaysFits, hangsSpacesPerTextFrame: profile.hangsSpacesPerTextFrame,
     }
     try {
       for (const scan of ['blink', 'webkit', 'gecko'] as const) {
@@ -4474,6 +4486,8 @@ describe('rich-inline invariants', () => {
         profile.hangTabs = scan !== 'gecko'
         profile.hardBreakItemRetreat = scan === 'blink' ? 'item' : scan === 'webkit' ? 'fit' : 'last-grapheme'
         profile.paddedOpeningFit = scan === 'blink' ? 'start' : scan === 'webkit' ? 'placed' : 'both'
+        profile.emptyAtomicAlwaysFits = scan === 'gecko'
+        profile.hangsSpacesPerTextFrame = scan === 'gecko'
         clearCache()
         // No break comes before them (UAX #14 LB6, LB7), and the break after a chip takes them
         // onto its line, as Blink takes trailing items.
@@ -4592,12 +4606,136 @@ describe('rich-inline invariants', () => {
             }
           }
         }
-        // Firefox places a box of width 0 where it falls, even after a space that doesn't fit, where
-        // Chrome and Safari move it to the next line (emptyAtomicAlwaysFits, Gecko's CanPlaceFrame).
-        const prepared = prepareRichInline([text('ab '), { width: 0 }, text('cd')])
-        const fragments: number[] = []
-        walkRichInlineLineRanges(prepared, measureWidth('ab', FONT) + 1, range => { fragments.push(range.fragments.length) })
-        expect({ engine: profile.lineBreakScan, fragments }).toEqual({ engine: profile.lineBreakScan, fragments: e === 2 ? [2, 1] : [1, 2] })
+        // A box of width 0 that sticks out of the line, after a space that doesn't fit or an atomic
+        // item wider than the line. Chrome and Safari move it to the next line as any other.
+        // Firefox places it there (emptyAtomicAlwaysFits, Gecko's CanPlaceFrame) and keeps it,
+        // unless a frame with a width comes next, which sends the line back to its last break that
+        // fit, before the box (getKeptEmptyEnd). Each row matches Firefox 156.0.1 (2026-10-02):
+        // the items, the options, each line's items in Firefox, and whether the line is narrower
+        // than `a` (else `ab` and a pixel wide). A line's items are those with a fragment on it,
+        // so a space the line's end consumes is on none; Firefox still paints two of them at the
+        // end of the first line, the space at -6px and the second space of `ab`, a space, a soft
+        // hyphen and a space before `cd` (ENGINE_FOLLOWUPS.md, Rich-inline item edges).
+        const zero = { width: 0 }
+        const chip: RichInlineItem = { text: 'abcdef', font: FONT, break: 'never' }
+        const padded = (value: string): RichInlineItem => ({ text: value, font: FONT, extraWidth: 1 })
+        const preWrap = { whiteSpace: 'pre-wrap' } as const
+        type Row = [items: Array<RichInlineItem | RichInlineBox>, options: Parameters<typeof prepareRichInline>[1], lines: number[][], narrow?: true]
+        const emptyBoxRows: Row[] = [
+          // Text right after it, a second empty box between them, a soft hyphen or a tab: the box moves
+          // down. A tab that doesn't fit after it takes the next line (hangTabs): a line that holds
+          // an empty box can break before the text that follows it.
+          [[text('ab '), zero, text('cd')], {}, [[0], [1, 2]]],
+          [[text('ab '), zero, zero, text('cd')], {}, [[0], [1, 2, 3]]],
+          [[text('ab '), zero, text('\u00ADcd')], {}, [[0], [1, 2]]],
+          [[chip, zero, text('cd')], {}, [[0], [1, 2]]],
+          [[chip, zero, text('\tcd')], preWrap, [[0], [1], [2], [2]]],
+          // The paragraph's end, white space that ends it in a text node of the paragraph's own, an
+          // atomic item with a width, or text that starts with a space of its own node, a ZWSP, a
+          // line feed or preserved spaces: the box stays. An item of a soft hyphen alone between
+          // takes no room.
+          [[text('ab '), zero], {}, [[0, 1]]],
+          [[text('ab '), zero, text(' ')], {}, [[0, 1]]],
+          [[text('ab '), zero, { text: 'cd', font: FONT, break: 'never' }], {}, [[0, 1], [2]]],
+          [[text('ab '), zero, text(' cd')], {}, [[0, 1], [2]]],
+          [[text('ab '), zero, text('\u200Bcd')], {}, [[0, 1], [2]]],
+          [[text('ab '), zero, text('\u00AD')], {}, [[0, 1, 2]]],
+          [[text('ab '), zero, text('\u00AD'), text(' ')], {}, [[0, 1, 2]]],
+          [[text('ab '), zero, text('\u00AD'), text(' cd')], {}, [[0, 1, 2], [3]]],
+          [[chip, zero, text(' cd')], {}, [[0, 1], [2]]],
+          [[chip, zero, text('\ncd')], preWrap, [[0, 1, 2], [2]]],
+          [[chip, zero, text('  cd')], preWrap, [[0, 1, 2], [2]]],
+          // A span with padding after it is a frame with a width whatever its text starts with: the
+          // box moves down.
+          [[text('ab '), zero, padded(' cd')], {}, [[0], [1], [2]]],
+          [[text('ab '), zero, padded('\u200Bcd')], {}, [[0], [1, 2]]],
+          // So is white space in a node of its own after it, with soft hyphens or without, and
+          // the white space that ends the paragraph after soft hyphens in their node.
+          [[text('ab '), zero, text(' '), text('cd')], {}, [[0], [1], [3]]],
+          [[text('ab '), zero, text(' '), zero], {}, [[0], [1, 3]]],
+          [[text('ab '), zero, text(' '), { width: 5 }], {}, [[0], [1, 3]]],
+          [[text('ab '), zero, text(' \u00AD'), text('cd')], {}, [[0], [1, 2], [3]]],
+          [[text('ab '), zero, text(' \u00AD')], {}, [[0], [1, 2]]],
+          [[text('ab '), zero, text('\u00AD ')], {}, [[0], [1, 2]]],
+          // White space before it after content already past the line's end breaks the line itself.
+          [[chip, text(' '), zero], {}, [[0], [2]]],
+          [[chip, text(' '), zero], preWrap, [[0, 1], [2]]],
+          [[chip, zero, text(' '), zero, text('cd')], preWrap, [[0, 1, 2], [3, 4]]],
+          // White space is read from the text, not from a width: a space narrower than nothing
+          // under letter spacing, and a tab, which Firefox doesn't hang, break the line after
+          // themselves too.
+          [[chip, { text: ' ', font: FONT, letterSpacing: -6 }, zero], {}, [[0], [2]]],
+          [[chip, text('\t'), zero], preWrap, [[0], [1], [2]]],
+          // Firefox drops soft hyphens before it reads the white space. A space before the soft
+          // hyphens that end its node is that frame's own, so the frame ends before it and the
+          // line has a break there; an item of soft hyphens after the space of another node is
+          // an empty frame past the line's end, after which the line breaks.
+          [[text('ab \u00AD '), zero], {}, [[0, 1]]],
+          [[text('ab \u00AD '), zero, text('cd')], {}, [[0], [1, 2]]],
+          [[text('ab '), text('\u00AD'), zero], {}, [[0, 1], [2]]],
+          [[chip, text(' \u00AD '), zero], {}, [[0, 1], [2]]],
+          // The white space may be any number of such items back: before a second item of soft
+          // hyphens, in a node that ends in a space and a soft hyphen before one, or a tab.
+          [[text('ab '), text('\u00AD'), text('\u00AD'), zero], {}, [[0, 1, 2], [3]]],
+          [[text('ab \u00AD'), text('\u00AD'), zero], {}, [[0, 1], [2]]],
+          [[chip, text('\t'), text('\u00AD'), zero], preWrap, [[0], [1, 2], [3]]],
+          // After text wider than the line the first break is the one after the box, which stays,
+          // unless a soft hyphen ends that text, in its item or one of its own, which gives a break
+          // before the box, as an atomic item before the soft hyphen does.
+          [[text('a'), zero, text('b')], {}, [[0, 1], [2]], true],
+          [[text('a\u00AD'), zero, text('b')], {}, [[0], [1], [2]], true],
+          [[text('a'), text('\u00AD'), zero, text('b')], {}, [[0, 1], [2], [3]], true],
+          [[chip, text('\u00AD'), zero, text('cd')], {}, [[0, 1], [2, 3]]],
+          // The soft hyphen is read from the text too, not from its hyphen's width, which letter
+          // spacing takes below nothing.
+          [[chip, { text: '\u00AD', font: FONT, letterSpacing: -6 }, zero, text('cd')], {}, [[0, 1], [2, 3]]],
+          // Preserved spaces that hang end their frame at the line's end, so the box is inside the
+          // line, and so is what follows it without a width: a second box, a space, which hangs too,
+          // and a box after an item of a soft hyphen.
+          [[text('ab '), zero, text('cd')], preWrap, [[0, 1], [2]]],
+          [[text('ab '), zero, zero, text('cd')], preWrap, [[0, 1, 2], [3]]],
+          [[text('ab '), zero, text(' '), zero, text('cd')], preWrap, [[0, 1, 2, 3], [4]]],
+          [[text('ab '), zero, text(' '), zero], preWrap, [[0, 1, 2, 3]]],
+          [[text('ab '), text('\u00AD'), zero, text('cd')], preWrap, [[0, 1, 2], [3]]],
+          // A span with padding after it has a width and starts the next line, its spaces too, as
+          // after an item of a soft hyphen there.
+          [[text('ab '), zero, padded(' cd')], preWrap, [[0, 1], [2], [2]]],
+          [[text('ab '), text('\u00AD'), padded(' cd')], preWrap, [[0, 1], [2], [2]]],
+        ]
+        for (const [items, options, gecko, narrow] of emptyBoxRows) {
+          const prepared = prepareRichInline(items, options)
+          const lines: number[][] = []
+          const width = narrow === true ? measureWidth('a', FONT) - 1 : measureWidth('ab', FONT) + 1
+          walkRichInlineLineRanges(prepared, width, range => { lines.push(range.fragments.map(f => f.itemIndex)) })
+          const shown = { engine: profile.lineBreakScan, items, options }
+          if (e === 2) expect({ ...shown, lines }).toEqual({ ...shown, lines: gecko })
+          else expect({ ...shown, firstLineHasBox: lines[0]!.includes(items.indexOf(zero)) }).toEqual({ ...shown, firstLineHasBox: false })
+        }
+        // Firefox's line keeps a run of such boxes after one look at what follows the run. Looking
+        // again from every box made a line of N of them N²/2 steps (RESEARCH.md, Keeping Work
+        // Bounded), so the walk may read each box's prepared item only a few times.
+        if (e === 2) {
+          const run = 2000
+          const prepared = prepareRichInline([text('ab '), ...Array.from({ length: run }, () => zero)])
+          const { items } = prepared as unknown as { items: object[] }
+          let reads = 0
+          for (let i = 1; i < items.length; i++) items[i] = new Proxy(items[i]!, { get: (item, key): unknown => { reads++; return Reflect.get(item, key) } })
+          expect(measureRichInlineStats(prepared, measureWidth('ab', FONT) + 1).lineCount).toBe(1)
+          expect(reads).toBeGreaterThan(run)
+          expect(reads).toBeLessThan(40 * run)
+        }
+        // Firefox's text frame leaves out the preserved spaces that overflow the line and keeps
+        // those that fit, so the box after them is at the line's end, or right after the spaces,
+        // and the line is that wide.
+        const ab = measureWidth('ab', FONT)
+        const space = measureWidth(' ', FONT)
+        const firstWidth = (width: number) => {
+          let first = -1
+          walkRichInlineLineRanges(prepareRichInline([text('ab  '), zero, text('cd')], preWrap), width, range => { if (first < 0) first = range.width })
+          return first
+        }
+        expect(firstWidth(ab + space + 1)).toBe(e === 2 ? ab + space + 1 : ab)
+        expect(firstWidth(ab + 2 * space + 1)).toBe(ab + 2 * space)
       }
     } finally {
       Object.assign(profile, previous)
