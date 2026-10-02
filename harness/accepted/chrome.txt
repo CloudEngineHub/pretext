@@ -73,6 +73,29 @@ rich-7f90cee66af55112 breaks
 rich-ab7c458af6c93dbc count
 rich-d1948dbaa742e085 count
 
+## A word whose kerning with the space after it tightens the two, ending a line in a box under 80 px that is narrower than the word without that kerning: for start-aligned text whose element has no decoration or background, which is all the harness records, Chrome keeps the kerning where the space hangs (DontReshapeEndIfAtSpace, line_breaker.cc:1655-1659); the library puts it on the space, as Chrome does for every other text (NeedsAccurateEndPosition, line_breaker.cc:255-268), so the word is 0.88 px wider than Chrome's in 16 px Arial and the line breaks before or inside it, as on main (RESEARCH.md, Kerning At Line Edges)
+catalog-2f4ebb6506c667ed breaks
+catalog-59d0b63cce759851 breaks
+catalog-80b868bf7866519c count
+catalog-c2416bd3c18812de breaks
+catalog-d7b47eb82c8f1b36 count
+facts-03d87908da20bfa7 count
+facts-2d32f5275e5027a1 count
+facts-32536d16819b70eb count
+facts-3c1eb0f3280752c6 count
+facts-73a84536ac9d980a count
+facts-8df017adac178600 count
+facts-96a6f69654496c6e count
+facts-bd4c1379d884d263 count
+facts-bea354df8d8a2f21 count
+facts-c91a6bbba8b4c021 count
+facts-d5d196fb5a389f8a count
+facts-d5e8b14aab4ec75d count
+facts-ddf4f0f9ee9692b3 count
+facts-dfa5e78095c19924 count
+facts-f64760b85dd20bb7 count
+facts-f83e3df5862ba1c5 count
+
 ## Arabic and Hebrew beside brackets, controls, U+FFFC or rich-item edges, at 24 px and wider: Chrome breaks there where the library doesn't
 catalog-01ed9a531b7a32b4 count
 catalog-2c2c30ca491d04db breaks
@@ -2236,7 +2259,7 @@ catalog-2d091e67a2645265 count
 catalog-2d352d4caf5f44ae count
 catalog-2d3b14c15fdbafe0 breaks
 catalog-2d62fdc3475ea145 count
-catalog-2dabec7608a77c60 count
+catalog-2dabec7608a77c60 breaks
 catalog-2dce931ffebb5f74 count
 catalog-2dd0c34e42ef0c85 breaks
 catalog-2dfcbafe80567013 count
