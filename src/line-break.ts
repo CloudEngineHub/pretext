@@ -204,11 +204,12 @@ function getTerminalLetterSpacing(
   return 0
 }
 
-// The width a line API lays out at: one that isn't a number, such as the `undefined` of
-// a container not measured yet, is unbounded. Every comparison fails at `NaN`, and the
-// line loops ask some whether a segment fits and others whether it overflows, so each
-// public line API passes its width through here once and the loops stay written for
-// numbers (RESEARCH.md, Decisions Log, 2026-10-01).
+// The width a paragraph is laid out at: one that isn't a number, such as the `undefined`
+// of a container not measured yet, is unbounded. Every comparison fails at `NaN`, and the
+// line loops ask some whether a segment fits and others whether it overflows, so the line
+// APIs called once for a paragraph pass their width through here and the loops stay
+// written for numbers. The streams, called once for each line, take their width as given
+// (RESEARCH.md, Decisions Log, 2026-10-02).
 export function normalizeMaxWidth(maxWidth: number): number {
   return maxWidth <= Infinity ? maxWidth : Infinity
 }

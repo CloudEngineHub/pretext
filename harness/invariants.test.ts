@@ -84,7 +84,7 @@ const PLANTS: ReadonlyArray<readonly [string, Profile, string, string, ReadonlyA
   ['a list that keeps the cursor it passed to layoutNextLine would find it moved to the line end', 'unknown', 'cursor-moved', 'layout.ts',
     [[/return \{ text, width, start: lineStart, end \}/, 'start.segmentIndex = end.segmentIndex\n  start.graphemeIndex = end.graphemeIndex\n  return { text, width, start: lineStart, end }']], 'cursors'],
   ['a last line ending at segment Infinity would name no place in its text, and a JSON copy of that end start the paragraph again', 'unknown', 'infinite-end', 'layout.ts',
-    [[/(const width = stepPreparedLineGeometryFromStart\(internal, lineEnd, normalizeMaxWidth\(maxWidth\)\)\n)/, '$1  if (width !== null && lineEnd.segmentIndex >= internal.widths.length) lineEnd.segmentIndex = Infinity\n']], 'agreement'],
+    [[/(const width = stepPreparedLineGeometryFromStart\(internal, lineEnd, maxWidth\)\n)/, '$1  if (width !== null && lineEnd.segmentIndex >= internal.widths.length) lineEnd.segmentIndex = Infinity\n']], 'agreement'],
   ['a virtualized list keeping the ranges layoutNextLineRange gives would find every start moved to the last line\'s', 'unknown', 'range-start-shared', 'layout.ts',
     [[/return width === null \? null : \{ width, start: lineStart, end \}/, 'return width === null ? null : { width, start: Object.assign(sharedRangeStart, lineStart), end }'],
       [/(export function layoutNextLineRange\()/, 'const sharedRangeStart = { segmentIndex: 0, graphemeIndex: 0 }\n$1']], 'cursors'],

@@ -1379,7 +1379,6 @@ export function layoutNextRichInlineLineRange(
   maxWidth: number,
   start: RichInlineCursor = RICH_INLINE_START_CURSOR,
 ): RichInlineLineRange | null {
-  maxWidth = normalizeMaxWidth(maxWidth)
   const flow = getInternalPreparedRichInline(prepared)
   const only = flow.onlyItem
   if (only !== null && start.itemIndex === 0) {

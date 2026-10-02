@@ -1947,15 +1947,16 @@ repin` shows what), and a fact read in source needs reading again.
   `tests/wrapping`, removed 2026-09-25 in favour of the harness). Making a segmenter costs about 7.8 µs, segmenting a
   short range 1.9 µs, so the scans keep one; its `containing()` bug is WebKit #324036 (PLATFORM_BUGS.md). (webkit-host,
   Safari 26.5.2 and 27.0, 2026-09-15 to 09-20.)
-- **Regex literals are checked when the code is parsed.** JavaScriptCore checks each regex literal's syntax as it
-  parses the code holding it (`parsePrimaryExpression`, `Parser.cpp:5284-5302`, WebKit 7625.1.29), so a literal it
-  can't parse stops the whole module from loading, whichever engine's path the literal is on. The regex that collapses
-  white space through bidi controls for the Gecko profile (#368) began with a lookbehind until #TBD. In the
+- **Regex literals are checked when the code is parsed.** JavaScriptCore checks each regex literal's syntax as it parses
+  the code holding it (`parsePrimaryExpression`, `Parser.cpp:5284-5302`, WebKit 7625.1.29), so a literal it can't parse
+  stops the whole module from loading, whichever engine's path the literal is on. The regex that collapsed white space
+  through bidi controls for the Gecko profile began with a lookbehind from #368 until #399 removed that regex. In the
   JavaScriptCore of Bun 0.2.0 (built 2022-10-13), which has no lookbehind, a bundle of `src/layout.ts` with that regex
   fails to load with `SyntaxError: Invalid regular expression: invalid group specifier name`, and the bundle without it
   loads and lays text out; Bun 0.4.0's (2022-12-23) parses a lookbehind. Safari parses one from 16.4, by its release
   notes: no Safari before 16.4 was run, and loading the library in one would confirm the version. `src/` holds no
-  lookbehind now, which a unit test checks, since no browser the harness runs would show one. (2026-10-01.)
+  lookbehind now, which a unit test checks since #TBD, as no browser the harness runs would show one. (2026-10-01; main
+  at #399 loaded in Bun 0.2.0, 2026-10-02.)
 - **Kept contexts and loaded fonts.** A kept context misses a `FontFace` already loaded when it joins an empty
   `document.fonts` (PLATFORM_BUGS.md): the font cache keys without the font set while it's empty
   (`FontCascadeCache.cpp:104-115`), and the set tells observers before inserting (`CSSFontFaceSet.cpp:203-209`).
@@ -2971,16 +2972,24 @@ decisions for the maintainer.
   named gaps in ENGINE_FOLLOWUPS.md, Emoji correction. Leaving it out costs one thing in text an app may hold, in
   Firefox: three ZWJ sequences of emoji-test.txt written with no U+FE0F measure 5px wide. Such sequences turning up in
   real text would reopen it.
-- **2026-10-01: a `maxWidth` that isn't a number lays out as unbounded, made so once where each line API takes it**
-  (landed on judgement with #TBD). `NaN`, or the `undefined` of a container not measured yet, fails every comparison,
-  and the line loops ask some whether a segment fits and others whether it overflows. So since #340 `layout()` counted a
-  line per grapheme where the line APIs gave one line, and those reported a `NaN` width for a pre-wrap line ending in
-  spaces. Asking `layout()`'s count the walkers' question, its two fit tests negated into overflow tests, made the
-  counts agree and left three places where `NaN` differed from `Infinity`; with it Chrome 154.0.8037.57 read `layout()`
-  of the bench's Arabic book 3.4-4.8% slower in each of three sessions, and in a two-session run Thai at widths seen
-  before 7.7% and CJK brackets under keep-all 6.5% slower, for an argument no app should pass. `normalizeMaxWidth()`
-  (`src/line-break.ts`) instead turns such a width into `Infinity` at the entry of the nine line APIs, plain and rich,
-  with one comparison a call, and the loops stay as written for numbers: no API's result at `NaN` or `undefined` differs
-  from its result at `Infinity` (8,000 cases drawn from the sets in each profile, offline). Whether such a width should
-  throw, as a `letterSpacing` that isn't finite does (#356), is on the API discussion's list (TODO.md); a throw would go
-  in that one function.
+- **2026-10-02: a `maxWidth` that isn't a number lays out as unbounded in the line APIs called once for a paragraph, and
+  the streams take it as given** (landed on judgement with #TBD). `NaN`, or the `undefined` of a container not measured
+  yet, fails every comparison, and the line loops ask some whether a segment fits and others whether it overflows. So
+  since #340 `layout()` counted a line per grapheme where the other line APIs gave one line, and those reported a `NaN`
+  width for a pre-wrap line ending in spaces. `normalizeMaxWidth()` (`src/line-break.ts`) turns such a width into
+  `Infinity` with one comparison, once a call, in `layout()`, `layoutWithLines()`, `walkLineRanges()`,
+  `measureLineStats()`, `walkRichInlineLineRanges()` and `measureRichInlineStats()`, whose loops stay as written for
+  numbers: none of their results at `NaN` or `undefined` differs from the one at `Infinity` (8,000 cases drawn from the
+  sets in each profile, offline). `layoutNextLine()`, `layoutNextLineRange()` and `layoutNextRichInlineLineRange()` are
+  called once for each line and don't check: they return, break as at an unbounded width, and differ from `Infinity` in
+  three places (ENGINE_FOLLOWUPS.md, Small ones). Two wider forms were timed in Chrome 154.0.8037.57 and dropped, as
+  valid input paid in each for an argument no app should pass. With `layout()`'s two fit tests negated into overflow
+  tests, so that its count asked the walkers' question, `layout()` of the bench's Arabic book read 3.4-4.8% slower in
+  each of three sessions (2026-10-01). With the function in the three streams too, those rows read within noise again
+  over three sessions, and the mixed stream row, which then paid the comparison for each line, read 1.7% and 3.4% slower
+  in a run of two sessions and 3.4%, 11.2% and 1.4% in one of three (2026-10-02). In that run of three the mixed
+  `walkLineRanges()` row, which pays the comparison once for a paragraph, read 1.2-1.4% slower in each session with the
+  second copy of the base 0.5-1.1% slower, and in the run of two 2.4% faster and 2.8% slower; a run that reads it slower
+  in every session with the streams as on main would reopen the comparison there. Whether such a width should throw, as
+  a `letterSpacing` that isn't finite does (#356), is on the API discussion's list (TODO.md): in the six APIs a throw
+  would go in that one function, and in the streams it would cost the comparison for each line again.

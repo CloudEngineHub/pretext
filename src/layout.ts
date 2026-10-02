@@ -280,7 +280,7 @@ function stepNextLine(
 
   lineStart.segmentIndex = lineEnd.segmentIndex
   lineStart.graphemeIndex = lineEnd.graphemeIndex
-  const width = stepPreparedLineGeometryFromStart(internal, lineEnd, normalizeMaxWidth(maxWidth))
+  const width = stepPreparedLineGeometryFromStart(internal, lineEnd, maxWidth)
   return width === null ? null : Math.max(0, width)
 }
 
