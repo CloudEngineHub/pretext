@@ -3,13 +3,13 @@ report-23cd6052bc54f415 breaks
 report-953b7e9cd05588ed breaks
 report-b980d5159851daba breaks
 
-## A CR between CJK characters at -1 px letter spacing, at 24 px and wider: Firefox keeps the CR in its text run with no advance and gives it the letter spacing, so `xx 漢字` and the CR are 43.70 px and fit at 43.72-44.18 px, where the Gecko analysis takes the CR out of the text, spacing and all, has 44.70 px and breaks before `字`; before #TBD the CR had a space's room there (ENGINE_FOLLOWUPS.md, White space and controls)
+## A CR between CJK characters at -1 px letter spacing, at 24 px and wider: Firefox keeps the CR in its text run with no advance and gives it the letter spacing, so `xx 漢字` and the CR are 43.70 px and fit at 43.72-44.18 px, where the Gecko analysis takes the CR out of the text, spacing and all, has 44.70 px and breaks before `字`; before #399 the CR had a space's room there (ENGINE_FOLLOWUPS.md, White space and controls)
 catalog-2ba906e88a826adc breaks
 catalog-b722b31aa0ce53d6 breaks
 catalog-bc37ba36eebfd65c breaks
 catalog-e01b7f79970cbc64 count
 
-## A CR or FF between letters under letter spacing, two under 24 px, one at 47.3 px and two at 63.3 px: Firefox keeps it in its text run with no advance and gives it the letter spacing, where the Gecko analysis takes it out of the text, spacing and all, so the line is one gap off Firefox's and the widths within that gap of where the text fits take the other line count; before #TBD it had a space's room, and the one at 47.3 px, before Arabic at -1 px, failed then too, while the others passed and the widths beside them failed instead (ENGINE_FOLLOWUPS.md, White space and controls)
+## A CR or FF between letters under letter spacing, two under 24 px, one at 47.3 px and two at 63.3 px: Firefox keeps it in its text run with no advance and gives it the letter spacing, where the Gecko analysis takes it out of the text, spacing and all, so the line is one gap off Firefox's and the widths within that gap of where the text fits take the other line count; before #399 it had a space's room, and the one at 47.3 px, before Arabic at -1 px, failed then too, while the others passed and the widths beside them failed instead (ENGINE_FOLLOWUPS.md, White space and controls)
 catalog-09dfe3ce274e9031 count
 catalog-1a5d9bdd9cc59da0 count
 catalog-26d0c58f4b1a737e count
@@ -25,7 +25,7 @@ rich-8736e842495c21ea count
 rich-d232a1424826203f count
 rich-d7a1851aecf96951 breaks
 
-## A space before a CR where the line would end, at 24 px and wider: Firefox's fit trims only the run of spaces that ends the line (gfxTextRun::BreakAndMeasureText, gfxTextRun.cpp:1152-1160), and the CR after the space ends that run, so `aaaa A` with its space, 55.17 px, doesn't fit at 52-55.15 px and `A` starts the next line, where the Gecko analysis takes the CR out of the text, hangs the space and fits `aaaa A`; before #TBD the CR was one more space that hung (ENGINE_FOLLOWUPS.md, White space and controls)
+## A space before a CR where the line would end, at 24 px and wider: Firefox's fit trims only the run of spaces that ends the line (gfxTextRun::BreakAndMeasureText, gfxTextRun.cpp:1152-1160), and the CR after the space ends that run, so `aaaa A` with its space, 55.17 px, doesn't fit at 52-55.15 px and `A` starts the next line, where the Gecko analysis takes the CR out of the text, hangs the space and fits `aaaa A`; before #399 the CR was one more space that hung (ENGINE_FOLLOWUPS.md, White space and controls)
 catalog-28710b5f63c26c5b count
 catalog-c5e152ff1220e623 count
 
