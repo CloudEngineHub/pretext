@@ -1920,7 +1920,7 @@ Firefox profile with `ui.useOverlayScrollbars = 0`; an injected `::-webkit-scrol
 
 ### Line Clamp And Ellipsis
 
-The ellipsis demo (`pages/demos/ellipsis.html`, #TBD) ends a paragraph clamped to a number of lines the way browsers end
+The ellipsis demo (`pages/demos/ellipsis.html`, #410) ends a paragraph clamped to a number of lines the way browsers end
 a `-webkit-line-clamp` box, from the public API alone, and cuts a one-line label in its middle. Chrome 154.0.8037.57,
 Firefox 156.0.1 and webkit-host, 2026-10-02.
 
