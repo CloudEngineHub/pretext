@@ -1440,7 +1440,7 @@ start for every streamed line (`2c52171`); retrying white-space and font-size su
 preferred-hyphen searches (#221); measuring each run of a combining-mark chain after the whole chain before it (#351);
 looking for a bidi control after each soft hyphen of a run, which made Firefox prepare the bench's invisible tails 44%
 slower until each run was scanned once, at its start (#368); searching a segment's list of the graphemes WebKit doesn't
-start a line with once per grapheme, where a flag per grapheme is one read (#TBD).
+start a line with once per grapheme, where a flag per grapheme is one read (#401).
 
 The regex traps needed internal white space before content, or digit runs without `px`; the hyphen one, a long
 hyphenated run over many lines. A continuation from anywhere must seek its starting boundary; a positioned scan can
@@ -1955,7 +1955,7 @@ repin` shows what), and a fact read in source needs reading again.
   fails to load with `SyntaxError: Invalid regular expression: invalid group specifier name`, and the bundle without it
   loads and lays text out; Bun 0.4.0's (2022-12-23) parses a lookbehind. Safari parses one from 16.4, by its release
   notes: no Safari before 16.4 was run, and loading the library in one would confirm the version. `src/` holds no
-  lookbehind now, which a unit test checks since #TBD, as no browser the harness runs would show one. (2026-10-01; main
+  lookbehind now, which a unit test checks since #401, as no browser the harness runs would show one. (2026-10-01; main
   at #399 loaded in Bun 0.2.0, 2026-10-02.)
 - **Kept contexts and loaded fonts.** A kept context misses a `FontFace` already loaded when it joins an empty
   `document.fonts` (PLATFORM_BUGS.md): the font cache keys without the font set while it's empty
@@ -2973,7 +2973,7 @@ decisions for the maintainer.
   Firefox: three ZWJ sequences of emoji-test.txt written with no U+FE0F measure 5px wide. Such sequences turning up in
   real text would reopen it.
 - **2026-10-02: a `maxWidth` that isn't a number lays out as unbounded in the line APIs called once for a paragraph, and
-  the streams take it as given** (landed on judgement with #TBD). `NaN`, or the `undefined` of a container not measured
+  the streams take it as given** (landed on judgement with #401). `NaN`, or the `undefined` of a container not measured
   yet, fails every comparison, and the line loops ask some whether a segment fits and others whether it overflows. So
   since #340 `layout()` counted a line per grapheme where the other line APIs gave one line, and those reported a `NaN`
   width for a pre-wrap line ending in spaces. `normalizeMaxWidth()` (`src/line-break.ts`) turns such a width into
