@@ -1662,7 +1662,7 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
 - **`%` on numbers that aren't whole** is a call: V8 works a remainder out inline only for two positive whole numbers
   and otherwise calls the C library's `fmod` (`MacroAssembler::Float64Mod`, `macro-assembler-arm64.cc:3028-3081`, V8
   15.3). A tab's advance took one, and it was what a tab's arithmetic cost. With the remainder from a division and a
-  floor (`getTabAdvance()`, #TBD), the bench's pre-wrap chunks, three tabs in every six lines, read `layout()` 15%
+  floor (`getTabAdvance()`, #400), the bench's pre-wrap chunks, three tabs in every six lines, read `layout()` 15%
   faster and `walkLineRanges()` 13-14% in Chrome 154, and 10-11% and 8-10% in Safari 27, than the commit before, in
   every one of five sessions; Firefox 156, whose path has no `%`, read level (2026-10-02). Offline, the d8 shell of
   Chrome 154's V8 (15.4.80) had read both 11-12% faster than main before #395, as fast as with every tab's advance a
