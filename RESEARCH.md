@@ -435,7 +435,7 @@ turns them off too, and adds nothing at `0.000001px`, under Blink's unit of 1/65
 1/64 px (five words in 16px Roboto, Futura, Georgia and Helvetica Neue and 32px Hoefler Text). So the Blink and Gecko
 profiles measure letter-spaced text through a context set to that spacing, kept apart per font from what unspaced text
 measures, and add the spacing per grapheme themselves; a word's prefixes and its widths at line edges come from the same
-shaping (#TBD; Chrome 154.0.8037.57 and Firefox 156.0.1, 2026-09-30). On the masonry demo's 1,904 paragraphs at 22
+shaping (#397; Chrome 154.0.8037.57 and Firefox 156.0.1, 2026-09-30). On the masonry demo's 1,904 paragraphs at 22
 widths in 15px Roboto at 0.15px, that took wrong line counts from 33 to 9 in Chrome, where 10 are wrong without spacing,
 and from 28 to 0 in Firefox, and the paragraphs that wrap again when sized to their predicted widest line from 16 and 18
 to 0. Firefox's page turns them off only where the spacing is at least half an app unit (Engine Facts, Firefox).
@@ -1427,7 +1427,7 @@ runs (Firefox 156.0.1, bench sessions of 2026-09-27 and 28, unless noted):
   and 25% slower than main, and made only where an item holds a soft hyphen or bidi control 5% and 3%, where on first
   need they read within 2% (Bun's JavaScriptCore on the stand-in Canvas, warm caches, medians of 5 or 6 processes;
   hypotheses until a browser shows them).
-- **The cursive rule's pretest** (#TBD): a letter-spaced text is asked once, by a regular expression of the cursive
+- **The cursive rule's pretest** (#397): a letter-spaced text is asked once, by a regular expression of the cursive
   scripts' properties, whether it holds a character of a cursive run, and only then takes the script tests per
   grapheme. In Node 23's V8 that expression takes 6-19 ns per UTF-16 unit of CJK text, about ten times a class of
   plain ranges: a warm letter-spaced prepare of 1,140 units of Japanese read 201 µs with it and 180 µs with a class of
@@ -1739,7 +1739,7 @@ repin` shows what), and a fact read in source needs reading again.
   list it, but release tags 137.0.7151.55 and .119 have the flag experimental and 138.0.7204.49 stable (97e135f47a); the
   second is 65df445712 (Chromium #473579852), in tag 149.0.7827.0 and not in 148.0.7778.288 (the tags' source, read
   2026-10-01; what the profile gets wrong on the older two is in ENGINE_FOLLOWUPS.md, Letter spacing). The Blink profile
-  follows a reduced port of that iterator (#TBD, `src/prepare.ts`): in Chrome 154 it gives 64 probe strings Chrome's
+  follows a reduced port of that iterator (#397, `src/prepare.ts`): in Chrome 154 it gives 64 probe strings Chrome's
   gaps, and the real-usage sample's 8 failing Arabic and Urdu paragraphs under letter spacing pass (2026-09-30 and
   10-01). A Common character right before a mark that has script extensions takes the mark's scripts
   (`FetchNextCharacter`, `:624-635`), whose lowest code leads: `1` under the Arabic vowel sign U+064B starts an Arabic
@@ -1902,12 +1902,12 @@ repin` shows what), and a fact read in source needs reading again.
 - **Letter spacing.** The page resolves it to whole app units, 1/60 px, from a float32, rounding half away from zero
   (`ResolveLetterSpacing`, `nsTextFrame.cpp:1949-1962`; `DefaultLengthToAppUnits`, `ServoStyleConstsInlines.h:584-595`):
   each letter takes -5 units at -0.08px, as Signal Desktop sets Inter, -10 at -0.17px, 23 and -23 at ±0.375px, 1 at
-  0.0084px and none at 0.0083px, where the text also keeps its ligatures. The Gecko profile rounds the same way (#TBD):
+  0.0084px and none at 0.0083px, where the text also keeps its ligatures. The Gecko profile rounds the same way (#397):
   6 of its accepted failures at -0.08px passed, 3 of them real-usage paragraphs, and no pass was lost. The Canvas rounds
   half up, -22 units at -0.375px (`CanvasRenderingContext2D.cpp:4771-4774`). A cluster whose first character's script is
   cursive (Arabic, Syriac, N'Ko, Mandaic, Mongolian, Phags-pa, Hanifi Rohingya) takes none (`GetSpacingInternal`,
   `nsTextFrame.cpp:4202-4213`; `UnicodeProperties.h:350-355`), joined or not, while digits, brackets and punctuation
-  among them keep theirs, tatweel and U+060C too; the Gecko profile follows it (#TBD), and the sample's 7 failing Arabic
+  among them keep theirs, tatweel and U+060C too; the Gecko profile follows it (#397), and the sample's 7 failing Arabic
   and Urdu paragraphs under letter spacing pass. A run's last character is always spaced, others only if not a tab or
   formatting character and a cluster starts after them (`CanAddSpacingAfter`, `nsTextFrame.cpp:3860-3873`): a lone
   pre-wrap tab at 1px is 43.6 px natively, 44.6 px painted alone. A tab before a change of direction also ends a
@@ -2173,7 +2173,7 @@ below 256 px, Canvas totals are exact (Engine Facts, Chrome).
 - **Admission and fit rules** (no reopen recorded): emergency-prefix differences for every admission; choosing by
   prefix-measurement mode; Safari's inferred carried adjustment on every prefix; Firefox's 1/60 px box rounding in line
   fits (regressed unrelated cases). Canvas's letter-spaced widths everywhere were on this list for losing ligatures,
-  which the pages lose too: #TBD measures letter-spaced text under a Canvas spacing too small to add width in the
+  which the pages lose too: #397 measures letter-spaced text under a Canvas spacing too small to add width in the
   Blink and Gecko profiles (Measurement Model).
 - **Canvas widths at the text's own letter spacing** (2026-09-30): they would need a cache per spacing, and each Canvas
   spaces otherwise than its page. Chrome's gives digits and brackets beside an Arabic word the gaps the page's Arabic
@@ -2755,9 +2755,9 @@ decisions for the maintainer.
   slower, read no slower (Break Opportunities From Engine Data has the numbers). What was ruled out stays out: Firefox's
   classes through Chrome's lookup, tables computed at runtime and a bundle per engine (Dead Ends, Tables, Bundles And
   Data).
-- **2026-10-01: older Chromium takes no version gate for letter spacing in cursive scripts** (#TBD). The Blink profile
+- **2026-10-01: older Chromium takes no version gate for letter spacing in cursive scripts** (#397). The Blink profile
   gives every Chromium the rule Chrome has had since 149: the letters of a cursive run take no letter spacing and its
-  spaces do. Chromium before 138 spaces every letter, as Pretext did before #TBD, so there letter-spaced Arabic, Persian
+  spaces do. Chromium before 138 spaces every letter, as Pretext did before #397, so there letter-spaced Arabic, Persian
   or Urdu went from right to too narrow, by the spacing times its letters; 138 to 148 space nothing in such a run, so
   there it went from too wide by its letters and spaces to too wide by its spaces alone. Such text is 0.54% of the
   real-usage sample's weight, and laid out as 138 to 148 would, 3 of its 44 paragraphs of only cursive letters put a
