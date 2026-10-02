@@ -1134,22 +1134,28 @@ two letters or a sentence in 16px Arial, with a collapsed space at 0 to −6px l
 white space, a pre-wrap tab, or a last item of soft hyphens and white space, 394 pass that failed and none fails that
 passed; of 858 random item sequences with tabs, soft hyphens or such spacing that it moves, 226 pass that failed and 53
 fail that passed, each a tab under negative letter spacing, where Firefox's tab stops count the spacing and the
-profile's don't; and 1,497 it doesn't move on a stand-in Canvas don't move in Firefox. Reading the soft hyphen before
-the box from the text too, and the white space through any number of items of soft hyphens, moved more: of 556 layouts
-of those shapes at 0, 2, −2, −3 and −6px letter spacing, 95 pass that failed and 10 fail that passed; of 23,972 random
-item sequences it moves 85 on a stand-in Canvas, of which 39 pass that failed and 9 fail that passed in Firefox, and 600
-of the others don't move there. The 19 are under negative letter spacing, in layouts where Firefox has the box inside
-the line and Pretext's widths put it past the line's end, which the older reading hid: 16 a tab before items of soft
-hyphens, 2 a pre-wrap space before the soft hyphen that ends its item, 1 a padded span's last piece (2026-10-01, #TBD;
-ENGINE_FOLLOWUPS.md, Rich-inline item edges, has them and the gaps left; the harness now records a box of width 0 by its
-top). That reopens if a Firefox build changes `CanPlaceFrame`, how a text frame trims the white space it breaks after or
-where it ends the white space that hangs (`nsTextFrame.cpp:11202-11229`). A negative width is refused, as one that isn't
-finite is. An inline-block of width 0 with a negative right margin lays out as a negative `extraWidth` does in Firefox
-156.0.1 and webkit-host, but Chrome 154.0.8037.57 ends a line at a space that overflows before it and starts the next
-line with the box, where the negative width would bring the line back within its width, and fits a word after it that
-rich inline moves to the next line (`one two`, a -15px box, `three four five` in 16px Arial, `one two three` at 77.5px):
-51 of 884 layouts of four shapes at 10-120px differ in Chrome and none in the others (2026-09-30). No app was found that
-needs one; the negative values apps pass are `extraWidth`s relative to a stand-in character. That reopens if one does.
+profile's didn't yet; and 1,497 it doesn't move on a stand-in Canvas don't move in Firefox. Reading the soft hyphen
+before the box from the text too, and the white space through any number of items of soft hyphens, moved more: of 556
+layouts of those shapes at 0, 2, −2, −3 and −6px letter spacing, 95 pass that failed and 10 fail that passed; of 23,972
+random item sequences it moves 85 on a stand-in Canvas, of which 39 pass that failed and 9 fail that passed in Firefox,
+and 600 of the others don't move there. The 19 are under negative letter spacing, in layouts where Firefox has the box
+inside the line and Pretext's widths put it past the line's end, which the older reading hid: 16 a tab before items of
+soft hyphens, 2 a pre-wrap space before the soft hyphen that ends its item, 1 a padded span's last piece (2026-10-01,
+#TBD; ENGINE_FOLLOWUPS.md, Rich-inline item edges, has them and the gaps left; the harness now records a box of width 0
+by its top). All of those counts are from before #394 to #403, and two of their causes are closed since: letter spacing
+off Firefox's grid by #397 and tab stops under letter spacing by #395. With them in, of 18,675 layouts in Firefox
+156.0.1 (the 9,979 and the later 1,253 recorded again, unchanged; the unit test's rows at their widths; and 7,215 of a
+sentence with a 0px box after every space at five letter spacings on and off the grid), 3,418 pass that fail on main at
+#403 and 41 fail that pass there: 39 a pre-wrap space before the soft hyphen that ends its item, 1 a space narrower than
+nothing at −6px and 1 a tab that ends its text run at −2px (2026-10-02). That reopens if a Firefox build changes
+`CanPlaceFrame`, how a text frame trims the white space it breaks after or where it ends the white space that hangs
+(`nsTextFrame.cpp:11202-11229`). A negative width is refused, as one that isn't finite is. An inline-block of width 0
+with a negative right margin lays out as a negative `extraWidth` does in Firefox 156.0.1 and webkit-host, but Chrome
+154.0.8037.57 ends a line at a space that overflows before it and starts the next line with the box, where the negative
+width would bring the line back within its width, and fits a word after it that rich inline moves to the next line (`one
+two`, a -15px box, `three four five` in 16px Arial, `one two three` at 77.5px): 51 of 884 layouts of four shapes at
+10-120px differ in Chrome and none in the others (2026-09-30). No app was found that needs one; the negative values apps
+pass are `extraWidth`s relative to a stand-in character. That reopens if one does.
 
 Heights stay the app's (Limits), and with `vertical-align: top` or `bottom` on every box a line is as tall as the
 paragraph's line-height or its tallest box, whichever is taller, to within one layout unit: about 13,000 lines with
