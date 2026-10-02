@@ -58,7 +58,6 @@ function addInternalLetterSpacing(width: number, graphemeCount: number, letterSp
   return graphemeCount > 1 ? width + (graphemeCount - 1) * letterSpacing : width
 }
 
-
 // Code points that WebKit's FontCascade::characterRangeCodePath sends to the
 // complex text path, stored as start/end pairs. So does a ZWJ after an emoji.
 const complexTextPathRanges = [
@@ -176,6 +175,7 @@ function getScriptClasses(): ScriptClasses {
     cursiveLetter: new RegExp('[\\p{Script=Arabic}\\p{Script=Syriac}\\p{Script=Nko}\\p{Script=Mandaic}\\p{Script=Mongolian}\\p{Script=Phags_Pa}\\p{Script=Hanifi_Rohingya}]', 'uy'),
   }
 }
+
 // The opening brackets of no script that Blink makes Han, those whose East Asian Width is
 // wide, fullwidth or halfwidth (FixScriptsByEastAsianWidth, script_run_iterator.cc:83-110).
 // Regular expressions have no property for that width, so these are listed: of Unicode
@@ -283,9 +283,8 @@ function spaceSharesScriptRun(runs: ScriptRuns, text: string, at: number, end: n
 // don't space the run's spaces either, and before 138 every letter is spaced, which no
 // version check here follows (ENGINE_FOLLOWUPS.md, Letter spacing). WebKit spaces every
 // glyph with an advance. Chrome 154, Firefox 156 and webkit-host lay 64 strings out so
-// (2026-10-01). The profile's unspacedCursive names the engine's rule.
-//
-// Which graphemes of the text segment text[start..end) take no letter spacing, as ascending
+// (2026-10-01). The profile's unspacedCursive names the engine's rule. This gives the
+// graphemes of the text segment text[start..end) that take no letter spacing, as ascending
 // indices, or null without any: in Gecko, which is given no runs, those whose first
 // character is a letter of a cursive script; in Blink those whose first character is in a
 // run that resolves to one and isn't a no-break space. A rich item's text starts a run of
