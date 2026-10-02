@@ -1661,6 +1661,26 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   still read 7-11% slower, and with the line's start, which only the rare pre-wrap paths read, made a constant, 4-5%;
   main with those three values kept alive read 2% slower. So it's how the JITs allocate the bigger loop's state, not
   work, and it was accepted as a regression JIT placement alone explains in live code (#381, 2026-09-29).
+- **`%` on numbers that aren't whole** is a call: V8 works a remainder out inline only for two positive whole numbers
+  and otherwise calls the C library's `fmod` (`MacroAssembler::Float64Mod`, `macro-assembler-arm64.cc:3028-3081`, V8
+  15.3). A tab's advance took one, and it was what a tab's arithmetic cost. With the remainder from a division and a
+  floor (`getTabAdvance()`, #400), the bench's pre-wrap chunks, three tabs in every six lines, read `layout()` 15%
+  faster and `walkLineRanges()` 13-14% in Chrome 154, and 10-11% and 8-10% in Safari 27, than the commit before, in
+  every one of five sessions; Firefox 156, whose path has no `%`, read level (2026-10-02). Offline, the d8 shell of
+  Chrome 154's V8 (15.4.80) had read both 11-12% faster than main before #395, as fast as with every tab's advance a
+  constant, Bun's JavaScriptCore 10-14% and Node 23 16-18% (a stand-in Canvas with Helvetica's advances, medians of
+  three to eight processes, 2026-10-01). The call's time also moves with code that does no work. When tab stops began
+  to follow each engine (#395), Chrome 154 read that row's `layout()` 5.9% slower than main before it in three
+  sessions, with `prepare()` and the walk level and six operations a tab before and after. d8 read the same, and there
+  the earlier check for a remainder near 0, put back, read level, the minimum as a constant 0 read 9% slower, and the
+  tab function alone took about 3ns or 5.5-7ns a call from one process to the next, with #395's code and with the code
+  before it alike. The Gecko profile's path counts in whole app units, with no `%`; rounding its stop and its minimum
+  once per handle instead of at every tab read level in Firefox 156.0.1's SpiderMonkey shell, so the handle keeps both
+  in pixels. The division's remainder is `fmod`'s to the bit while the stop times the count of stops before the tab is
+  exact: always in the WebKit profile, whose stop is eight Canvas spaces, a float, and in the Blink profile without
+  letter spacing or under one that is a short binary fraction, such as 0.5px. Under another, such as 0.3px, the width
+  of a line with a tab past its third stop can differ in its last bits: by up to 1.1e-13px, in under a tenth of 44,000
+  generated lines for each of four such spacings, none of which broke elsewhere.
 - **Inline caches**: once `layout()` has stepped such text, Chrome's `walkLineRanges()` of simple text, sharing the
   simple stepper, takes 2-4% longer than a second copy of main, by a mechanism not found. V8's caches turn polymorphic
   over the two handle kinds (`--log-ic`), but one shape for both didn't help Chrome and cost Firefox up to 14%; a

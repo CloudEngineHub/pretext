@@ -138,9 +138,12 @@ function getTabAdvance(position: number, tabStopAdvance: number, minimumAdvance:
   }
   if (tabStopAdvance <= 0) return 0
 
-  let remainder = position % tabStopAdvance
-  if (remainder < 0) remainder += tabStopAdvance
-  const advance = tabStopAdvance - remainder
+  // How far the tab is past the stop before it, by a division and a floor, which counts back
+  // from a negative position too. `%` gives the same, within float error, but on numbers that
+  // aren't whole it is a call to the C library's fmod, which was nearly all a tab's arithmetic
+  // cost (RESEARCH.md, JavaScript Engines).
+  const pastStop = position - Math.floor(position / tabStopAdvance) * tabStopAdvance
+  const advance = tabStopAdvance - pastStop
   return advance < minimumAdvance ? advance + tabStopAdvance : advance
 }
 
