@@ -5,8 +5,7 @@
 //
 // Sources, cited as file:line:
 // - Gecko in mozilla-firefox at Firefox 156.0 (3bf8f4682).
-// - icu_segmenter 2.1.2 src/line.rs, byte-identical to Firefox's third_party/rust copy, and
-//   icu_collections 2.1.1 src/codepointtrie/cptrie.rs.
+// - icu_segmenter 2.1.2 src/line.rs, byte-identical to Firefox's third_party/rust copy.
 //
 // Deliberate differences:
 // - Grapheme clusters come from the profile's ICU character rules (src/graphemes.ts), Chrome's,
@@ -23,14 +22,10 @@
 //   (intl/lwbrk/LineBreaker.cpp:26-31).
 
 import {
-  geckoEastAsianWidthRangesPacked,
   geckoLineBreakStatesPacked,
   geckoLineEotProperty,
   geckoLineLastCodepointProperty,
   geckoLinePropertyCount,
-  geckoLineTrieDataPacked,
-  geckoLineTrieHighStart,
-  geckoLineTrieIndexPacked,
 } from './generated/engine-break-data.js'
 import { getParagraphLevels, getTrailingWhiteSpaceStart, keepsClusterLevel } from './gecko-bidi-levels.js'
 import { findGraphemeEnds, isBidiControl, type GraphemeTable } from './graphemes.js'
@@ -44,14 +39,12 @@ import {
   PUNCTUATION,
   SOFT_HYPHEN_BREAK,
   getBreakLanguage,
-  getRangeValue,
-  getSmallTrieValue,
+  getClass,
   getWordSegmenter,
   hasProperty,
-  readValues,
-  unpackRanges,
+  unpackClasses,
   unpackTable,
-  type RangeTable,
+  type ClassTable,
 } from './line-breaks.js'
 
 const CH_SHY = 0x00ad
@@ -59,10 +52,9 @@ const CH_SHY = 0x00ad
 const isSurrogatePair = (a: number, b: number) => (a & 0xfc00) === 0xd800 && (b & 0xfc00) === 0xdc00
 const combine = (a: number, b: number) => 0x10000 + ((a - 0xd800) << 10) + (b - 0xdc00)
 
-// East_Asian_Width H (2), F (3) or W (5), and 0 for any other value, in ranges, which the first East
-// Asian segment break test unpacks (isEastAsianSegmentBreak). A binary search over the few ranges
-// saves a table per code unit.
-let eastAsianWidths: RangeTable | null = null
+// East_Asian_Width H (2), F (3) or W (5), and 0 for any other value, which the first East Asian
+// segment break test unpacks (isEastAsianSegmentBreak).
+let eastAsianWidths: ClassTable | null = null
 
 // --- Character classes ---
 
@@ -79,19 +71,19 @@ function isClusterExtenderExcludingJoiners(cp: number): boolean {
 }
 
 // UnicodeProperties.h:205-218
-function isEastAsianWidthFHWExcludingEmoji(widths: RangeTable, cp: number): boolean {
-  const width = getRangeValue(widths, cp)
+function isEastAsianWidthFHWExcludingEmoji(widths: ClassTable, cp: number): boolean {
+  const width = getClass(widths, cp)
   return width === 2 || width === 3 || (width === 5 && !hasProperty(cp, EMOJI))
 }
 
 // nsUnicharUtils.cpp:500-504
-function isSegmentBreakSkipChar(widths: RangeTable, cp: number): boolean {
+function isSegmentBreakSkipChar(widths: ClassTable, cp: number): boolean {
   return isEastAsianWidthFHWExcludingEmoji(widths, cp) && !hasProperty(cp, HANGUL) && cp !== 0x20a9
 }
 
 // nsUnicharUtils.cpp:506-527, with UnicodeProperties.h:187-199
-function isEastAsianPunctuation(widths: RangeTable, cp: number): boolean {
-  return getRangeValue(widths, cp) !== 0 && ((hasProperty(cp, PUNCTUATION) && cp !== 0x20a9) || cp === 0xff5e || cp === 0x3000)
+function isEastAsianPunctuation(widths: ClassTable, cp: number): boolean {
+  return getClass(widths, cp) !== 0 && ((hasProperty(cp, PUNCTUATION) && cp !== 0x20a9) || cp === 0xff5e || cp === 0x3000)
 }
 
 // gfxFontGroup::IsInvalidChar(char16_t), gfxTextRun.h:975-992. Below U+0100 it answers as
@@ -139,7 +131,7 @@ export function isJapaneseOrChinese(language: string | null): boolean {
 // punctuation. Only an interior run qualifies.
 export function isEastAsianSegmentBreak(text: string, start: number, end: number, japaneseOrChinese: boolean): boolean {
   if (start === 0 || end >= text.length) return false
-  const widths = eastAsianWidths ??= unpackRanges(geckoEastAsianWidthRangesPacked, false)
+  const widths = eastAsianWidths ??= unpackClasses('gecko/east_asian_width')
   let before: number
   let pos = start
   do {
@@ -416,12 +408,12 @@ function splitAndInitTextRun(g: Glyphs, text: string, start: number, end: number
 // --- 4. ICU4X 2.1.2's line iterator for one word (icu_segmenter src/line.rs) ---
 
 // Firefox's line data, which the first scan unpacks (getGeckoLineBreaks).
-type LineData = { readonly trieIndex: Uint16Array, readonly trieData: Uint8Array, readonly states: Uint8Array }
+type LineData = { readonly classes: ClassTable, readonly states: Uint8Array }
 let lineData: LineData | null = null
 
 // The Line_Break value, with error value 0 above U+10FFFF.
 function getLineBreakClass(line: LineData, c: number): number {
-  return c > 0x10ffff ? 0 : getSmallTrieValue(line.trieIndex, line.trieData, geckoLineTrieHighStart, c)
+  return c > 0x10ffff ? 0 : getClass(line.classes, c)
 }
 
 // Line_Break property values of the data (line.rs:18-128).
@@ -730,11 +722,7 @@ export function getGeckoLineBreaks(
   }
   for (let k = 0; k < runStarts.length; k++) g.clusterStart[runStarts[k]!] = 1 // gfxTextRun.cpp:2828-2835
 
-  const line = lineData ??= {
-    trieIndex: readValues(Uint16Array, unpackTable(geckoLineTrieIndexPacked)),
-    trieData: unpackTable(geckoLineTrieDataPacked),
-    states: unpackTable(geckoLineBreakStatesPacked),
-  }
+  const line = lineData ??= { classes: unpackClasses('gecko/line'), states: unpackTable(geckoLineBreakStatesPacked) }
   const state = getBreakStates(line, tr.text, is8bit, hasCompressedLeadingWhitespace(source, tr.skipped, is8bit, preserveWhiteSpace), keepAll)
   for (let t = 1; t < n; t++) {
     const rawPos = tr.orig[t]!

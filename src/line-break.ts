@@ -52,7 +52,8 @@ export type PreparedLineBreakData = {
   // Per segment, how much narrower a soft hyphen's neighboring text measures
   // joined than apart, else 0. Null when the text has no soft hyphen.
   discretionaryHyphenContexts: number[] | null
-  tabStopAdvance: number // Absolute advance between tab stops for pre-wrap tab segments
+  tabStopAdvance: number // Advance between tab stops for pre-wrap tab segments
+  minimumTabAdvance: number // The least a tab advances: one nearer its stop takes the stop after
 }
 
 // A rich-inline item's line (src/rich-inline.ts). In: whether the walk continues a line
@@ -119,11 +120,26 @@ function consumesAtLineStart(kind: number, atChunkStart: boolean): boolean {
   return kind === SPACE || kind === SOFT_HYPHEN || (kind === ZERO_WIDTH_BREAK && !atChunkStart)
 }
 
-function getTabAdvance(lineWidth: number, tabStopAdvance: number, minimumAdvance: number): number {
+// A tab's advance from `position` on the line: to the next stop, or to the one after where
+// the next is under the minimum away. A tab on a stop is a whole stop from the next, so each
+// tab of a run takes one. Stops no wider than 0, under a letter spacing of minus a space or
+// less, leave a tab no advance: Gecko gives tabs no width there (GetSpacingInternal,
+// nsTextFrame.cpp:4262-4264), and Blink's, negative by Font::TabWidth, is clamped to 0 where
+// the tab's item is placed (ClampNegativeToZero, line_breaker.cc:1486, 1703). Gecko counts in
+// whole app units (EngineProfile's tabsInAppUnits), so a tab exactly the minimum from its
+// stop takes it, as many do: in Arial and Helvetica a space is half a `0`. Canvas sums come
+// within float error of such a tie.
+function getTabAdvance(position: number, tabStopAdvance: number, minimumAdvance: number, appUnits: boolean): number {
+  if (appUnits) {
+    const stop = Math.round(tabStopAdvance * 60)
+    if (stop <= 0) return 0
+    const x = Math.round(position * 60)
+    return (Math.ceil((x + Math.round(minimumAdvance * 120) / 2) / stop) * stop - x) / 60
+  }
   if (tabStopAdvance <= 0) return 0
 
-  const remainder = lineWidth % tabStopAdvance
-  if (Math.abs(remainder) <= 1e-6) return tabStopAdvance
+  let remainder = position % tabStopAdvance
+  if (remainder < 0) remainder += tabStopAdvance
   const advance = tabStopAdvance - remainder
   return advance < minimumAdvance ? advance + tabStopAdvance : advance
 }
@@ -173,8 +189,9 @@ function getTerminalLetterSpacing(
     const flags = segmentFlags[i]!
     const kind = flags & KIND_BITS
     // Segments that take no letter spacing, such as zero-width glue or marks
-    // shaped on the grapheme before them, leave that grapheme's gap last.
-    if (kind === SPACE || (kind !== CONTROL && (flags & SPACED) === 0)) continue
+    // shaped on the grapheme before them, leave that grapheme's gap last. A tab
+    // that takes none follows that gap, which its stop counts from.
+    if (kind === SPACE || (kind !== CONTROL && kind !== TAB && (flags & SPACED) === 0)) continue
 
     if (i === startSegmentIndex && startGraphemeIndex > 0) return letterSpacing
 
@@ -432,6 +449,7 @@ function walkPreparedComplexLines(
     lineEndTrims,
     overflowLineEndTrims,
     tabStopAdvance,
+    minimumTabAdvance,
   } = prepared
   const segmentCount = segmentFlags.length
   const engineProfile = getEngineProfile()
@@ -440,8 +458,7 @@ function walkPreparedComplexLines(
   // Gecko doesn't hang tabs.
   const hangingKinds = 1 << PRESERVED_SPACE | (engineProfile.hangTabs ? 1 << TAB : 0)
   const zeroWidthGlueTakesLine = engineProfile.zeroWidthGlueTakesLine
-  // Tab stops are eight spaces apart, so half a space is a sixteenth of one.
-  const minimumTabAdvance = engineProfile.skipNarrowTabStops ? tabStopAdvance / 16 : 0
+  const tabsInAppUnits = engineProfile.tabsInAppUnits
   // A rich item's line starts after the line's content before the item, which can
   // leave it a negative width, and its break before the item is the line's pending
   // break (ItemLine). Any other negative width lays out as 0, as in the simple stepper.
@@ -547,18 +564,18 @@ function walkPreparedComplexLines(
           const spaced = (flags & SPACED) !== 0
           const breakAfter = (1 << kind & BREAK_AFTER_KINDS) !== 0
           const startGraphemeIndex = i === lineStartSegmentIndex ? lineStartGraphemeIndex : 0
-          // The gap before a segment belongs to the grapheme before it. A control
-          // that takes no letter spacing still follows that gap but adds none
+          // The gap before a segment belongs to the grapheme before it. A control or
+          // a tab that takes no letter spacing still follows that gap but adds none
           // after itself; other segments that take none leave it as it was.
           const gap = letterSpacing !== 0 && hasContent && !zeroWidthPrefix && !afterUnspacedControl ? letterSpacing : 0
           let leadingSpacing = 0
-          if (letterSpacing !== 0 && (spaced || kind === CONTROL)) {
+          if (letterSpacing !== 0 && (spaced || kind === CONTROL || kind === TAB)) {
             leadingSpacing = gap
             afterUnspacedControl = !spaced
           }
           if (kind !== ZERO_WIDTH_BREAK && kind !== ZERO_WIDTH_GLUE) zeroWidthPrefix = false
           const w = kind === TAB
-            ? getTabAdvance(lineOffset + lineW + leadingSpacing, tabStopAdvance, minimumTabAdvance)
+            ? getTabAdvance(lineOffset + lineW + leadingSpacing, tabStopAdvance, minimumTabAdvance, tabsInAppUnits)
             : widths[i]!
           const advance = leadingSpacing + w
           const endTrim = lineEndTrims === null ? 0 : lineEndTrims[i]!
@@ -657,14 +674,25 @@ function walkPreparedComplexLines(
               // A break segment hangs with the gap before it, after the content before
               // it, which fits without its line-end trim. A collapsible space or ZWSP
               // hangs even after overflowing content that started the line, as the
-              // simple stepper does; a preserved space there starts the next line.
+              // simple stepper does; a preserved space there starts the next line. A
+              // tab that doesn't hang goes to the next line, as text does.
               const contentW = lineW - lineEndTrimmed
-              if (breakAfter && (contentW <= fitLimit ||
+              if (breakAfter && (hangs || kind !== TAB) && (contentW <= fitLimit ||
                 (pendingBreakSegmentIndex < 0 && (kind === SPACE || kind === ZERO_WIDTH_BREAK)))) {
-                endWidth = hangs ? hangStartWidth : kind === TAB ? lineW + advance : contentW
+                endWidth = hangs ? hangStartWidth : contentW
                 lineW += advance
                 endSegmentIndex = i + 1
                 endGraphemeIndex = 0
+                break decided
+              }
+              // Gecko's line returns from a tab that doesn't fit to its latest break (below), as
+              // BreakAndMeasureText keeps the last break whose line fits (gfxTextRun.cpp:1086-1101).
+              // Without one it wraps before the tab, as break-word lets it before any cluster
+              // (:1069-1072), and the spaces before the tab hang.
+              if (kind === TAB && !hangs && pendingBreakSegmentIndex < 0 && innerBreakSegmentIndex < 0) {
+                endSegmentIndex = i
+                endGraphemeIndex = 0
+                endWidth = hangEndSegmentIndex === i && i > lineStartSegmentIndex ? hangStartWidth : contentW
                 break decided
               }
 

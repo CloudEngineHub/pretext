@@ -581,22 +581,79 @@ to the HH class, unambiguous hyphens, beside U+2010; LB20a; LB21a), so headless 
 lines gets Cn for U+3400.
 
 The tables are ICU's compiled state machines, whose states a small rule change renumbers. As 480 KB of base64 they cost
-a fresh Firefox page 5.2 ms evaluating the bundle, against 1.2 ms before #340, so each is stored as byte ranges of an
-earlier table plus literal bytes. The earlier table is the one that packs it shortest, across engines: Chrome's
-`line_normal` alone, Chrome's Chinese table and Safari's `line_normal` against it, Safari's `line` against that and its
-`line_cj` against `line`, and Safari's grapheme table against Chrome's. So a browser unpacks the tables its own are
-packed against too, Safari three for `line`, about 0.6 ms once per page. That gave a 120 KB minified layout bundle, 57
-KB gzipped, on the branch then, where packing each engine's tables only against its own gave 133 KB and 64 KB, and
+a fresh Firefox page 5.2 ms evaluating the bundle, against 1.2 ms before #340, so until #394 each was stored as byte
+ranges of an earlier table plus literal bytes. The earlier table was the one that packed it shortest, across engines:
+Chrome's `line_normal` alone, Chrome's Chinese table and Safari's `line_normal` against it, Safari's `line` against that
+and its `line_cj` against `line`, and Safari's grapheme table against Chrome's. So a browser unpacked the tables its own
+were packed against too, Safari three for `line`, about 0.6 ms once per page. That gave a 120 KB minified layout bundle,
+57 KB gzipped, on the branch then, where packing each engine's tables only against its own gave 133 KB and 64 KB, and
 keeping Chrome's root table whole with the other line tables as copies from it and every other table unpacked gave 238
-KB and 57 KB and took 3.6 ms in Firefox (2026-09-24). Measured from main (`bun build src/layout.ts --minify`, then
-`gzip -9`): 80 KB and 21 KB before #340, 108 KB and 52 KB at its merge (f26640eb), and 115 KB and 56 KB on 2026-09-30
-(8e88756b), of which the packed tables are 47 KB of base64 and about 30 KB of the gzipped size. Taking one table's
-string out of that bundle shrinks the gzipped size by 9.5 KB for Chrome's root line table, 4.2 KB for its Chinese
-table, 7.0 KB for Firefox's line data, 2.8 KB for Firefox's bidi classes, 3.0 KB for Chrome's grapheme table and 2.5 KB
-for all four of Safari's.  The generator's packer then came to
-look for the longest copy from any earlier position and to match lazily, which took the layout entry from 56.2 to 53.6
-KB gzipped with the same unpacker and the same unpacked bytes (#392, 2026-09-30); the parse with the fewest bytes would
-save 0.5 KB more and take the generator from 2 s to 10 or more, so it wasn't taken. The tables stay as they are, and one bundle serves every engine (Decisions Log, 2026-09-26).
+KB and 57 KB and took 3.6 ms in Firefox (2026-09-24). Measured from main (`bun build src/layout.ts --minify`, then `gzip
+-9`): 80 KB and 21 KB before #340, 108 KB and 52 KB at its merge (f26640eb), and 115 KB and 56 KB on 2026-09-30
+(8e88756b), of which the packed tables were 47 KB of base64 and about 30 KB of the gzipped size. Taking one table's
+string out of that bundle shrank the gzipped size by 9.5 KB for Chrome's root line table, 4.2 KB for its Chinese table,
+7.0 KB for Firefox's line data, 2.8 KB for Firefox's bidi classes, 3.0 KB for Chrome's grapheme table and 2.5 KB for all
+four of Safari's. The generator's packer then came to look for the longest copy from any earlier position and to match
+lazily, which took the layout entry from 56.2 to 53.6 KB gzipped with the same unpacker and the same unpacked bytes
+(#392, 2026-09-30); the parse with the fewest bytes would save 0.5 KB more and take the generator from 2 s to 10 or
+more, so it wasn't taken.
+
+Since #394 (2026-10-01) the module holds what the tables say in place of their bytes, and the layout entry is 40.4 KB
+gzipped and 95.4 KB minified, 13.3 KB less of each than under #392's packing. Every code point's class in the ten maps
+the scans read (the categories of ICU's five line and two character tables, and Firefox's Line_Break, Bidi_Class and
+East_Asian_Width) ships as one list of 4,487 runs of joint classes, the 250 classes the maps together tell apart, with a
+byte per joint class for each map: engines class most code points alike, and so do one engine's tables. From the list
+the library builds a table for each map its engine reads, blocks of 256 code points behind an index, so a class is two
+loads for any code point. Before, ICU's tries took two loads below U+10000 and four above, Firefox's line trie two below
+U+1000 and four above, East_Asian_Width a search through its ranges, and Firefox's Bidi_Class one load below U+10000,
+from a table per code unit: that lookup alone gained a load. Each state table ships as
+its rows' differences from rows it repeats, starting from an earlier table's rows where one has its shape: libicucore's
+line tables differ from Chrome's root table in 8 rows. Chrome's Chinese table has a category and two states more than
+the root table, so it ships alone. The class maps are most of what is saved; the pair tables, Firefox's break states and
+the bytes per joint class keep #392's packing. Taking one string out of the bundle now shrinks its gzipped size by 5.5
+KB for the run list, 2.6 KB and 2.7 KB for the rows of Chrome's root and Chinese line tables, 1.0 KB for the bytes per
+joint class and 0.5 KB or less for each other table. Nothing is derived: the generator, still run by hand, reads the
+same engine files, checks every class of every code point and every state row against them as the library unpacks them,
+and a test checks the shipped module the same way.
+
+What that costs (2026-10-01). The unpacked tables take more memory: on a page in one language, 198 KB of typed arrays
+against 103 in the Blink profile, 199 against 104 in the WebKit profile, and 151 against 40 in the Gecko profile, or 212
+against 106 once it has resolved bidi levels and tested a newline between East Asian characters; 37 KB of each is the
+decoded run list. A second line table on a page, Chrome's Chinese one or another of Safari's, adds about 105 KB against
+77. (Counted offline as the typed arrays still held after preparing text and `clearCache()`, leaving out the 131 KB of
+Unicode-property bits `hasProperty()` keeps in either form.) The first `prepare()` on a page unpacks them, which the
+bench's `fresh` rows time: a page that has compiled the bundle and prepared nothing lays out its first 200 to 1,000
+UTF-16 units of chat messages, then as many again. The first batch took 0.3-0.45 ms longer in Chrome than the 2.0-2.8 ms
+it took before, 0.15-0.4 ms longer in Safari than 2.6-4.5 ms, and 0.1 ms or less longer in Firefox than 2.1-4.1 ms,
+where two copies of the earlier bundle differed by 0.08 ms or less; compiling the bundle took as long as before (medians
+of 18 pages a bundle for each of Latin, CJK, Arabic, Thai and mixed text; Chrome 154.0.8037.57, Firefox 156.0.1 and
+Safari 27.0, 2026-10-01; the tables are in #394). Offline it had read 0.5-1.3 ms longer in Bun 1.4 and 0.2-0.9 ms in
+Node 23. The second batch read no further from the earlier bundle's than its two copies did from each other, 0.16 ms at
+most, except on Safari's Thai page: 0.26 and 0.08 ms more in the two sessions, where the copies differed by 0.04 and
+0.06. No table is unpacked in a second batch in the Blink and WebKit profiles (checked offline on the bench's texts) and
+each page reads text of its own, so that reading stays unexplained. The scans after that are no slower in the same
+bench: no row that prepares text read slower in any browser, and in Firefox the rows that prepare text again, its widths
+cached, read 3-12% faster (9% on CJK, 4% on Arabic and on mixed text, 3-12% on five of the nine worst-case texts);
+nothing was run to say which lookup that comes from. Firefox's bidi resolution, the one reader whose lookup gained a
+load, doesn't show: Firefox's `new` rows on Arabic and on mixed text read within noise (-2% and +5%, then +2% and +3%,
+in the two sessions, the control copy between -7% and +3%), and its `seen` rows on both 4% faster in each session.
+Offline it had read 1-3% slower in Node 23 and from as fast to 11% slower in Bun 1.4.
+
+Not taken: an LZ pass over these lists, which saved nothing once the bundle is gzipped and cost a decoding pass. A table
+per code unit with a search above U+FFFF, the form Bidi_Class had, is one load below U+10000 and 64 KB a map, where the
+block tables take 18 KB (East_Asian_Width) to 59 KB (Firefox's line classes), 43 KB for Bidi_Class, and it searches for
+every emoji. Blocks below U+10000 only, with the same search above, would take about 27 KB for Chrome's root line table
+in place of 55 KB (103 of its 182 blocks are below U+10000) plus its 790 ranges above, and would search for every emoji
+as well, where the blocks make a class above U+FFFF cost what one below does. One bundle serves every engine (Decisions
+Log, 2026-09-26; the entry of 2026-10-01 has why a shorter form was taken up after that).
+
+Firefox's East_Asian_Width map takes a premise. Gecko asks its ICU4C for that property (`u_getIntPropertyValue`,
+`intl/components/src/UnicodeProperties.h:75-100`), and the map ships the values of icu_properties, the ICU4X crate whose
+Bidi_Class data Firefox's binary holds (`properties.json` has both). The two agree while both hold one Unicode version's
+values: Firefox 156.0's do, on every code point (ICU 78.3's `uchar_props_data.h` against `properties.json`, 2026-10-01).
+Nothing compares a later Firefox's, since `bun harness repin firefox` looks for the Bidi_Class bytes only; if they came
+apart, the code points whose width changed between the two versions would keep or lose a newline between East Asian
+characters where Firefox doesn't.
 
 In Line_Break=SA runs (Thai, Lao, Khmer, Myanmar, and in the Blink and WebKit scans also Tai Le, New Tai Lue, Tai Tham,
 Tai Viet and Ahom), `Intl.Segmenter` words stand in for the engines' dictionaries. Chrome 153's equal those of
@@ -1644,11 +1701,20 @@ repin` shows what), and a fact read in source needs reading again.
 - **Letter spacing and tabs.** Blink spaces cursive-script runs only at spaces (`shape_result.cc:977-990`), spaces a
   glyph cluster once, and turns off liga, clig and calt under any spacing (`font_features.cc:54-86`). A tab stop is
   eight Canvas spaces plus letter and word spacing (`font.cc:303-317`), rounded up to 1/128 px at DPR 2
-  (`simple_font_data.cc:225-240`), and a tab skips a stop under half a space away (`font.cc:333-337`). Recordings agree:
-  a tab-only line in 16px Arial is 27.563px at −1px letter spacing and 35.563px at 0 (harness recordings at commit
-  b1fd05fc, Chrome 154). The profile models neither the cursive rule nor the spacing and skip in stops, and a unit test
-  pins its stops of spaces alone ("letterSpacing participates in pre-wrap tab positioning", `src/layout.test.ts`), so a
-  port changes that test (ENGINE_FOLLOWUPS.md). (Chrome 153 source, 2026-09-16 and 09-27.)
+  (`simple_font_data.cc:225-240`), and a tab skips a stop under half a space away (`font.cc:333-337`). The spacing is in
+  a stop only under the runtime flag `TabSizeWithSpacing` (`TabSize::GetPixelSize`, `tab_size.h:24-33`), on by default
+  since Chromium 140 (Chromium commit 74fb9bb2, 2025-07-11) and no longer a flag from 155 (c8a9ba0b): a Chromium before
+  140, or an embedder with the flag off, puts a stop every eight plain spaces, which the Blink profile doesn't model
+  (ENGINE_FOLLOWUPS.md). A run of tabs is an item shaped apart from text, with no spacing of its own, whose later tabs
+  take a whole stop (`shape_result.cc:1898-1944`), which a tab on a stop takes anyway. Where letter spacing is minus a
+  space or less, so that stops are no wider than 0, `Font::TabWidth` returns a negative advance, or the letter spacing
+  at a stop of exactly 0 (`font.cc:302-340`), and the line breaker clamps the item's width to 0 where it places it
+  (`ClampNegativeToZero`, `line_breaker.cc:1486, 1703`), so such tabs take no advance. Recordings agree: a tab-only line
+  in 16px Arial is 27.563px at −1px letter spacing and 35.563px at 0 (harness recordings at commit b1fd05fc, Chrome
+  154), and no tab advances under such spacing in 792 probe inputs of tab runs (Chrome 154.0.8037.57, 2026-09-30). The
+  profile counts stops so since #395 (`letterSpaceTabStops`, `letterSpaceTabs` and `tabMinimumCharacter`,
+  `src/measurement.ts`) and doesn't model the cursive rule (ENGINE_FOLLOWUPS.md). (Chrome 153 source, 2026-09-16 and
+  09-27, and 10-01 for the flag and the clamp.)
 - **Line breaking.** ICU restarts at each line start without context, so LB20a applies there (`a‐b`, break-all, loose:
   `a` / `‐b`); the Blink scan makes one pass per text (Break Opportunities From Engine Data). Blink takes the last
   offset that fits from glyph positions, then the break at or before it, so a line ends before a ligature unless its
@@ -1836,12 +1902,35 @@ repin` shows what), and a fact read in source needs reading again.
   2026-09-19.)
 - **Tabs.** A stop falls every `tab-size` (the text frame's) × (the block's space advance in app units plus its letter
   and word spacing) (`ComputeTabWidthAppUnits`, `nsTextFrame.cpp:3875-3906`); WebKit takes both from the span, Blink the
-  span's `tab-size` with the block's font. The next stop is at least half the first font's `0` away (`AdvanceToNextTab`,
-  :4298-4304; `GetMinTabAdvanceAppUnits`, :1931-1937). A tab's position counts advances only at cluster starts, plus
-  each character's spacing (`CalcTabWidths`, :4306-4378). Recordings agree (harness recordings at commit b1fd05fc,
-  Firefox 156.0.1): a tab-only line is 8 × (space + letter spacing) unless the tab is the text's last character, as in
-  16px Arial at −1, 0 and 1px: 27.6, 35.6 and 43.6px. The profile follows none of this (ENGINE_FOLLOWUPS.md). (Firefox
-  156.0 source, 2026-09-16 and 09-27.)
+  span's `tab-size` with the block's font. The next stop is at least half a `0` away, the `0` of the first font of the
+  tab's own text run, not the block's (`AdvanceToNextTab`, :4298-4304; `MinTabAdvance`, :3539-3544;
+  `GetMinTabAdvanceAppUnits`, :1931-1937), where Blink's half space is the block's font's (`FontForTab`,
+  `inline_node.cc:2137-2143`): before a span of a tab and `b`, half the span's `0` gives Firefox 156.0.1's stop for 192
+  of 192 prefixes with each of six spans, and half the block's misses 5 with a bold span in 16px Georgia and 15 with a
+  24px one (2026-10-01). That font is the list's first available one, whether or not it has a `0`, and without one Gecko
+  takes its average character width (`GetFirstValidFont`, `gfxTextRun.cpp:2277-2296`; `ZeroOrAveCharWidth`,
+  `gfxFont.h:1698-1700`); the Gecko profile takes Canvas's width of `0`, which a later font of the list draws there, a
+  named gap (ENGINE_FOLLOWUPS.md). A tab's position counts advances only at cluster starts, plus each character's
+  spacing (`CalcTabWidths`, :4306-4378). Recordings agree (harness recordings at commit b1fd05fc, Firefox 156.0.1): a
+  tab-only line is 8 × (space + letter spacing) unless the tab is the text's last character, as in 16px Arial at −1, 0
+  and 1px: 27.6, 35.6 and 43.6px. All of it is in whole app units, so a tab exactly the minimum from its stop takes it,
+  and in Arial and Helvetica, where a space is half a `0`, a tab one space before a stop is one. Firefox's Canvas gives
+  a width as a whole number of app units too, 60 to the pixel (`CanvasRenderingContext2D.cpp:5277, 7135-7140`), so the
+  profile's position, rounded to app units, is Firefox's wherever Canvas's segment widths add up to the line's advances.
+  A break comes only after a whole run of spaces and tabs (`nsLineBreaker.cpp:318-330`) and Firefox doesn't hang a tab,
+  so a tab that doesn't fit goes to the next line with the word before it, from the last break whose line fits
+  (`BreakAndMeasureText`, `gfxTextRun.cpp:1086-1101`), or, without one, alone, as break-word wraps before any cluster
+  (:1069-1072): a later tab of the run too, while the spaces before it hang. The Gecko profile follows the stops, the
+  minimum, the app units and the tab that doesn't fit since #395 (`letterSpaceTabStops`, `tabMinimumCharacter`,
+  `tabsInAppUnits` and `hangTabs`, `src/measurement.ts`; `segmentAtLineBreaks()`, `src/analysis.ts`), not the spacing
+  after a run's last character (ENGINE_FOLLOWUPS.md). Before it, tab-separated text without letter spacing (six texts
+  such as `col1`, tab, `col2`, tab, `col3` in four fonts at 30-400px, 1,272 probe inputs recorded fresh) failed at 367
+  widths in Firefox 156.0.1 and 39 in Chrome 154.0.8037.57, which skips a stop under half a space away, and at none in
+  webkit-host, and runs of a tab, spaces and a tab (seven texts such as `ab`, tab, space, tab, space, `cd` in 16px Arial
+  and 13px Menlo at 24-300px, 980 inputs) at 301 in Firefox; with it none of those fails. One of the 980 fails in Chrome
+  before and after, on no tab rule: tab, space, tab, `indented with mixed white space` in 16px Arial at 24px, where
+  Chrome keeps `whi`, 24.008px wide, on a line; none of them fails in webkit-host (2026-09-30 and 10-01). (Firefox 156.0
+  source, 2026-09-16 and 09-27, and 10-01 for the first font's `0` and Canvas's app units.)
 
 Elsewhere: a context used before Firefox reads its late family names keeps the fallback (PLATFORM_BUGS.md, the late
 family names), and the joined Arabic study is under Content Language And Fonts, Widths That Depend On Context.
@@ -2064,14 +2153,16 @@ below 256 px, Canvas totals are exact (Engine Facts, Chrome).
   Chrome's table, which costs nothing while one bundle serves every engine and would be a loss with a bundle per engine
   (Decisions Log). The sizes behind the question were mixed units: Firefox's line data, called the largest table at 19.7
   KB, is that unpacked, and 9.8 KB of base64 and 7.0 KB gzipped as shipped, less than Chrome's root line table (15.0 KB
-  and 9.5 KB), which no option targeted (Break Opportunities From Engine Data has each table's share). Reopens with the
-  table-size question, as 3.2 KB against that Firefox cost.
+  and 9.5 KB), which no option targeted (Break Opportunities From Engine Data has each table's share). The run list of
+  #394 shares the engines' classes in the module only: each map still unpacks to a table of its own, so a lookup takes
+  no remap. Reopens with the table-size question, as 3.2 KB against that Firefox cost.
 - **One bundle per engine** (372-788 KB minified, measured on the rebuild), ruled out for now on 2026-09-26 (Decisions
   Log). Reopens if apps ship per-browser builds; an app picking an engine's entry point itself with a dynamic import
   wasn't weighed.
 - **Tables shrunk by computation**: remapping onto base classes fails for Chrome's Chinese table (`〜` and `゠` need a
   class the base lacks), and runtime state machines mean porting ICU's rule compiler, where today's tables need no
-  upkeep between refreshes. Reopens with the table-size question.
+  upkeep between refreshes. The shorter form of #394 computes nothing of the kind: it stores each table's own classes
+  and rows, and Chrome's Chinese table whole. Reopens with the table-size question.
 - **Dictionaries or ICU4X's LSTM model** for Thai, Lao, Khmer and Burmese (2026-09-25; weighed, not built): hundreds of
   KB each, and a JavaScript copy of Firefox's model is expected to run slower than Firefox's own, which wasn't
   measured. Reopens for runtimes without `Intl.Segmenter`.
@@ -2477,7 +2568,8 @@ decisions for the maintainer.
   without a language under a Chinese UI, as Chrome does (Content Language And Fonts has what it changes). Issue #321's
   eighth decision advised recording the gap instead; main kept the table when the engine tables landed (#340), 46 test
   cases for 16 lines (Chrome 153) and 4.2 KB gzipped as it ships, packed against Chrome's root table (8.6 KB whole,
-  before the packing). It was never decided on its own: the acceptance of the tables' bundle that day covers it.
+  before the packing; since #394 its rows ship alone, 2.7 KB gzipped, and its classes in the run list every map shares).
+  It was never decided on its own: the acceptance of the tables' bundle that day covers it.
 - **2026-09-23: a new harness replaces the old test suite, and what must not regress is decided afresh**, since main's
   tests were old: the engine tables (#340), the harness (#341), then the suite's removal (#348) (harness/README.md, "Why
   the old suite went").
@@ -2554,6 +2646,7 @@ decisions for the maintainer.
   read through Chrome's code-point lookup, took 3.2 KB off 55 KB gzipped, exactly and with no new upkeep, for Arabic,
   Hebrew, Hindi and Urdu analysis 13% slower in Firefox, so it was dropped (Dead Ends, Tables, Bundles And Data). It
   reopens with the table-size question; a bundle per engine would make sharing Chrome's lookup a loss, not reopen it.
+  Amended on 2026-10-01, below: how the same tables are stored may change.
 - **2026-09-27: the Gecko profile keeps its 80px floor for prefix fits, as a premise** (landed on judgement with #367).
   A prefix fit finds where an emergency break falls inside a segment by measuring the segment's grapheme prefixes, and
   the Gecko profile makes one only in segments at least 80px wide. Prefixes model Firefox's whole-word advances better
@@ -2575,3 +2668,17 @@ decisions for the maintainer.
   with no fragment. A box's width is final, fixed when it's prepared and at least 0, and heights stay the app's, with the
   README's `vertical-align: top` rule (Rich Inline Boundaries, Objects Inside A Line, has the evidence and what reopens
   negative widths and widths given at layout).
+- **2026-10-01: the break tables may be stored in a shorter form where that adds no maintenance burden** (#394). This
+  amends the 2026-09-26 entry, which read as closing how the tables are stored as well as what they hold. Its reason
+  stands for what it weighed, an alternative that changed which table Firefox reads and paid for its bytes in analysis
+  speed. A storage change is fine while the data stays what each browser's build ships, the generator stays one hand-run
+  step that checks every class of every code point and every state row against the engine files, and no bench row but
+  `fresh` is slower; what unpacking adds to a page's first `prepare()`, which `fresh` times, and to memory is a trade
+  for the maintainer, with its numbers. #394 is such a change: the classes as one run list and the state tables as row
+  differences, 13.3 KB less gzipped, for about 95 KB more typed arrays on a page in one language (110 in the Gecko
+  profile) and a first `prepare()` on a page that takes 0.45 ms longer or less in Chrome, Firefox and Safari, a trade
+  the maintainer took that day. A class costs the scans as many loads as before or fewer in nine of the ten maps and one
+  more in Firefox's Bidi_Class below U+10000, and Firefox's rows on Arabic and mixed text, the ones that could have been
+  slower, read no slower (Break Opportunities From Engine Data has the numbers). What was ruled out stays out: Firefox's
+  classes through Chrome's lookup, tables computed at runtime and a bundle per engine (Dead Ends, Tables, Bundles And
+  Data).

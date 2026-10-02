@@ -107,12 +107,34 @@ export type EngineProfile = {
   // gfxTextRun.cpp:2458-2473 and 2277-2360), which is what Canvas measures. The
   // premise there is that the default font has one, as macOS's, Helvetica, does.
   hyphenFromPrimaryFont: boolean
-  // WebKit moves a tab to the following stop when less than half a space would
-  // remain before the next one (FontCascade::tabWidth).
-  skipNarrowTabStops: boolean
+  // Pre-wrap tab stops count from the line's start, eight spaces apart, and a tab under a
+  // minimum from the next stop takes the stop after it (CSS Text 3 §4.1.2). Blink and Gecko
+  // count each of those spaces with its letter spacing (TabSize::GetPixelSize,
+  // tab_size.h:24-33, since Chromium 140 under the runtime flag TabSizeWithSpacing, which
+  // an older Chromium lacks and so counts plain spaces; Font::TabWidthInternal,
+  // font.cc:303-317; ComputeTabWidthAppUnits, nsTextFrame.cpp:3875-3906). WebKit counts
+  // plain spaces (FontCascade::tabWidth, FontCascadeInlines.h:76-93).
+  letterSpaceTabStops: boolean
+  // WebKit letter-spaces a tab as any glyph with an advance (WidthIterator.cpp:491-517).
+  // Blink shapes a run of tabs apart from text, with no spacing (shape_result.cc:1898-1944),
+  // and Gecko adds none after a tab (CanAddSpacingAfter, nsTextFrame.cpp:3860-3873).
+  letterSpaceTabs: boolean
+  // The character whose advance, halved, is the least a tab advances: a space in Blink and
+  // WebKit (Font::TabWidth, font.cc:319-340; FontCascade::tabWidth), `0` in Gecko
+  // (GetMinTabAdvanceAppUnits, nsTextFrame.cpp:1931-1937). Gecko reads the first available
+  // font's `0`, or its average character width where it has none (ZeroOrAveCharWidth,
+  // gfxFont.h:1698-1700). The profile takes Canvas's width of `0`, which a later font of
+  // the list draws where the first has none, so under such a list, one led by an icon or a
+  // single-script font, a tab near a stop can land a stop from Firefox's.
+  tabMinimumCharacter: ' ' | '0'
+  // Gecko counts a tab's position, its stops and its minimum in whole app units, sixtieths
+  // of a pixel, so a tab exactly the minimum from its stop takes it (AdvanceToNextTab,
+  // nsTextFrame.cpp:4298-4304). Blink and WebKit count in floats (fmodf).
+  tabsInAppUnits: boolean
   // A run of preserved spaces and tabs at the end of a pre-wrap line hangs in Blink
-  // and WebKit (CSS Text 3 §4.1.2). Gecko doesn't hang a tab that doesn't fit, so a
-  // tab counts in the line's fit and width there, as spaces do not.
+  // and WebKit (CSS Text 3 §4.1.2). Gecko doesn't hang a tab, so a tab counts in the
+  // line's fit and width there, as spaces do not, and one that doesn't fit goes to the
+  // next line with the word before it (segmentAtLineBreaks() in src/analysis.ts).
   hangTabs: boolean
   // Blink's break-anywhere retry and WebKit's grapheme search can end a line after
   // zero-width glue when the grapheme after it doesn't fit, so the glue takes a line of
@@ -536,7 +558,10 @@ function buildEngineProfile(): EngineProfile {
     shapesMarksAcrossSoftHyphen: engine === 'blink',
     unfitHyphenRetreat: engine === 'blink' ? 'reduced-width' : engine === 'gecko' ? 'full-width' : 'full-width-or-first',
     hyphenFromPrimaryFont: engine !== 'gecko',
-    skipNarrowTabStops: engine === 'webkit',
+    letterSpaceTabStops: engine !== 'webkit',
+    letterSpaceTabs: engine === 'webkit',
+    tabMinimumCharacter: engine === 'gecko' ? '0' : ' ',
+    tabsInAppUnits: engine === 'gecko',
     hangTabs: engine !== 'gecko',
     zeroWidthGlueTakesLine: engine !== 'gecko',
     hidesControlCharacters: engine === 'gecko',
