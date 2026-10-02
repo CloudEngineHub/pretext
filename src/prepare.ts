@@ -430,7 +430,11 @@ export function measureAnalysis(
     if (prohibitions !== null && lineStartProhibitions === null) lineStartProhibitions = Array.from({ length: mi }, () => null)
     lineStartProhibitions?.push(prohibitions)
     if (segments !== null) segments.push(text)
-    if (kind === SOFT_HYPHEN) {
+    // Contexts for every segment of soft hyphens, whatever its kind here: one that is glue,
+    // where this text's scan gives no break after it, as at the start of a Gecko text, can
+    // be a soft hyphen in the text rich inline joins (recordJoinedBreaks), where a line ends
+    // with the hyphen measured below.
+    if (kind !== TEXT && text.charCodeAt(0) === 0xAD) {
       discretionaryHyphenContexts ??= zeros(mi)
       discretionaryHyphenContexts.push(returnFitsEachSideAlone ? 0 : getJoinedNarrowing(mi, previousJoinablePiece, previousJoinableMetrics))
     } else {
@@ -438,8 +442,8 @@ export function measureAnalysis(
     }
   }
 
-  // The hyphen a chosen soft hyphen paints, which only a text with one asks for, with the
-  // gap before it, plus the hyphen's own spacing where the engine letter-spaces it.
+  // The hyphen a chosen soft hyphen paints, which only a text that holds one asks for, with
+  // the gap before it, plus the hyphen's own spacing where the engine letter-spaces it.
   const hyphenText = discretionaryHyphenContexts === null ? '-' : engineProfile.hyphenFromPrimaryFont ? getHyphenText(fontMeasurement) : '\u2010'
   const discretionaryHyphenWidth = getTextWidth(hyphenText, fontMeasurement, emojiCorrection) +
     (letterSpacing === 0 ? 0 : letterSpacing * (engineProfile.letterSpaceDiscretionaryHyphen ? 2 : 1))

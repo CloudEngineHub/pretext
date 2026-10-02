@@ -2015,6 +2015,7 @@ describe('prepare invariants', () => {
   test('a chosen soft hyphen measures as the hyphen the engine paints: U+2010 where the primary font has it, or in Gecko where any font draws it', () => {
     const profile = getEngineProfile()
     const previous = profile.hyphenFromPrimaryFont
+    const previousScan = profile.lineBreakScan
     const measureText = Object.getOwnPropertyDescriptor(TestCanvasRenderingContext2D.prototype, 'measureText')!
     // Each character is drawn by the first listed family that has it. `Own Hyphen Sans`
     // has a U+2010 narrower than its `-`, `Latin Only Sans` has none, `Even Hyphen Sans`
@@ -2088,7 +2089,18 @@ describe('prepare invariants', () => {
         expect({ family, width: prepareWithSegments(text, `16px ${family}`).discretionaryHyphenWidth }).toEqual({ family, width: expected })
         expect(hyphenFonts).toEqual([`16px ${family}`])
       }
+      // An item that starts with a soft hyphen holds it as glue under the Gecko scan, which
+      // gives no break after it there. The text its items join ends a line at it, with the
+      // hyphen the same text in one item paints.
+      profile.lineBreakScan = 'gecko'
+      clearCache()
+      const font = '16px "Latin Only Sans", "Own Hyphen Sans", serif'
+      const rich = prepareRichInline([{ text: 'trans', font }, { text: '\u00ADatlantic', font }])
+      const hyphenLine = measureWidth('trans', font) + 4
+      expect(layoutNextRichInlineLineRange(rich, hyphenLine)!.width).toBe(hyphenLine)
+      expect(layoutWithLines(prepareWithSegments(text, font), hyphenLine, LINE_HEIGHT).lines[0]!.width).toBe(hyphenLine)
       // The two generic families measure a space or U+2010 alike, which tells nothing: `-`.
+      profile.lineBreakScan = previousScan
       profile.hyphenFromPrimaryFont = true
       Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', measureText)
       clearCache()
@@ -2097,6 +2109,7 @@ describe('prepare invariants', () => {
     } finally {
       Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', measureText)
       profile.hyphenFromPrimaryFont = previous
+      profile.lineBreakScan = previousScan
       clearCache()
     }
   })
