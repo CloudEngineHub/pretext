@@ -1487,7 +1487,8 @@ are in #403). Latin and CJK text, which resolved no levels, gains as much as Ara
 word's end, which the scan made for every character through a helper the splits shared, with nothing run to confirm it.
 Firefox's Latin `layout()` at new widths read 14.8% faster in the same table, and that isn't this change's doing, as
 `layout()` runs none of its code: main after #394 to #399 had read the row 17.6% slower than main before them, and one
-build read it 13.5% slower or level by the names the bench's minifier gave its top-level bindings.
+build read it 13.5% slower or level by the names the bench's minifier gave its top-level bindings (Keeping Work
+Bounded, JavaScript Engines).
 
 With that the Gecko analysis reads 7 of the harness's texts otherwise, all generated: Balinese and Batak vowel killers
 after Arabic or Hebrew letters, U+0600 before an ideographic space, a kasra after U+200E between Arabic letters and one
@@ -1770,6 +1771,36 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   still read 7-11% slower, and with the line's start, which only the rare pre-wrap paths read, made a constant, 4-5%;
   main with those three values kept alive read 2% slower. So it's how the JITs allocate the bigger loop's state, not
   work, and it was accepted as a regression JIT placement alone explains in live code (#381, 2026-09-29).
+- **The names a minifier picks, in Firefox**: Firefox 156 reads one bench row, `resize: latin layout at new widths`,
+  about 16% slower or faster by nothing but the names the bench's minifier gives the bundle's top-level bindings. It is
+  the one resize text whose lines hold words longer than the line (two rules of 72 hyphens, each 448px in 16px Helvetica
+  Neue, against widths of 240-460px), so the one where `countPreparedLines()` runs its grapheme loop. The row first read
+  slower on #TBD, whose code `layout()` never runs. Each build below was timed against main before #394 (29562782), in
+  three sessions of Firefox 156.0.1's resize rows (2026-10-02), and every other resize row read within noise in each:
+
+  | Build | Names of the shared top-level bindings | The row, per session |
+  | --- | --- | --- |
+  | #TBD's branch before it took #394 to #403 (b9c9d758) | its own | +15.6%, +17.0%, +16.3% |
+  | That main plus only the branch's new profile field, read by nothing | main's, all 410 | -3.5%, -0.5%, -4.3% |
+  | The branch without that field | others than the branch's | -3.2%, +3.7%, +3.5% |
+  | That build plus one unused local in the rich stepper | the branch's, all 412 | +13.2%, +12.3%, +17.6% |
+  | The whole branch, the field read off the profile at its two uses | 14 differ from the branch's | -0.1%, -0.2%, -1.7% |
+
+  So neither the field nor the rich code does it, and one local that nothing reads does. Main after #394 to #399 read
+  the row +15.7%, +17.4% and +21.0% against that same main, and #403 read it -14.7% and -15.2% against main after #399,
+  each with every other `layout()` row of Firefox within noise and no change to code `layout()` runs. The reading, from
+  SpiderMonkey's source at the 156.0 tag and not from a run of Firefox: the bench bundles both entries into one
+  function, whose some 410 top-level bindings are that function's variables; past 24 names a scope orders its variables
+  by a hash of their names (`newFunctionScopeData`, `Parser.cpp`), only the first 14 get a fixed slot on the environment
+  object, and Warp compiles a read of a fixed slot and of a dynamic one differently
+  (`WarpBuilder::build_GetAliasedVar`). `countPreparedLines()` reads four module-level constants in its loop
+  (`KIND_BITS`, `TEXT`, `SPACE`, `ZERO_WIDTH_BREAK`); in main's bundle all four fall in dynamic slots, and in the
+  branch's `SPACE` falls in a fixed one. Why that would compile a slower loop isn't known, as a fixed slot is one load
+  fewer. An app's bundler picks its own names, so the same source can read either way there. So a verdict on this row
+  alone says nothing about a change whose code `layout()` doesn't run (`harness/README.md`, Bench). Making those
+  constants literals in the emitted code would take the names out of it, and is being tried apart from #TBD. Reopen on a
+  Firefox whose scopes give every binding one kind of slot, or if the row moves between two builds whose minified names
+  are the same.
 - **`%` on numbers that aren't whole** is a call: V8 works a remainder out inline only for two positive whole numbers
   and otherwise calls the C library's `fmod` (`MacroAssembler::Float64Mod`, `macro-assembler-arm64.cc:3028-3081`, V8
   15.3). A tab's advance took one, and it was what a tab's arithmetic cost. With the remainder from a division and a

@@ -249,6 +249,11 @@ shared by every canvas and the DOM, so a fresh canvas doesn't make text new.
   time in Chrome and 1.18-1.25 in Firefox, and letter-spaced CJK and control layouts at 1.12 and 1.20 in Safari.
 - **WebKit's width cache** samples one Canvas call in 21 after a run of misses, so a prepare that submits n strings
   speeds up only after 21 / gcd(n, 21) repeats: compare submitted text and cold first prepares.
+- **Firefox's `resize: latin layout at new widths`** moves about 16% with the names the bench's minifier gives the
+  bundle's top-level bindings (`RESEARCH.md`, JavaScript Engines; Firefox 156, 2026-10-02), so where it alone reads
+  slower or faster, with Firefox's other `layout()` rows level and no change to code `layout()` runs, it is read as the
+  names and not the change: a build one unused local apart gets other names and settles it. Making the constants that
+  loop reads literals in the emitted code, which would end this, is being tried separately.
 
 A full bench took about 27 minutes (2026-09-26). Nothing timed is checked in.
 
