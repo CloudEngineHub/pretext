@@ -163,13 +163,12 @@ function getScriptClasses(): ScriptClasses {
     // the vowel signs, since a shared character's run starts with the lowest code of its
     // scripts, Latin aside for a Common one (GetScripts, :118-215), and Arabic's is the
     // lowest; Mongolian's comma, full stop and four dots, whose scripts are Mongolian and
-    // Phags-pa; and U+1DFA, a mark whose one script is Syriac. None of them is also Latin,
-    // Cyrillic or Greek (Unicode 17). Gap: Blink starts such a run with all the character's
-    // scripts, which the next character that has a script narrows, and goes on with the run
-    // before it where that run's script is one of them (MergeSets, :491-565); here such a
-    // character has the cursive bit alone. So next to Thaana Blink spaces U+060C, and next
-    // to Mongolian it doesn't space the CJK punctuation Mongolian shares, nor U+202F outside
-    // Latin (ENGINE_FOLLOWUPS.md, Letter spacing).
+    // Phags-pa; and U+1DFA, a mark whose one script is Syriac. Gap: Blink starts such a run
+    // with all the character's scripts, which the next character that has a script narrows,
+    // and goes on with the run before it where that run's script is one of them (MergeSets,
+    // :491-565); here such a character has the cursive bit alone. So next to Thaana Blink
+    // spaces U+060C, and next to Mongolian it doesn't space the CJK punctuation Mongolian
+    // shares, nor U+202F outside Latin (ENGINE_FOLLOWUPS.md, Letter spacing).
     cursive: new RegExp('[\\p{scx=Arabic}\\p{Script=Syriac}\\u1DFA\\p{Script=Nko}\\p{Script=Mandaic}\\p{Script=Mongolian}\\p{Script=Phags_Pa}\\p{Script=Hanifi_Rohingya}\\u1802\\u1803\\u1805]', 'u'),
     // The letters of those scripts alone, which is what Gecko asks.
     cursiveLetter: new RegExp('[\\p{Script=Arabic}\\p{Script=Syriac}\\p{Script=Nko}\\p{Script=Mandaic}\\p{Script=Mongolian}\\p{Script=Phags_Pa}\\p{Script=Hanifi_Rohingya}]', 'uy'),
@@ -198,8 +197,9 @@ function getScripts(text: string, i: number): number {
     if (marked === null) return wideOpeningBrackets.includes(character) ? OTHER_SCRIPT : ANY_SCRIPT
     character = marked[1]!
   }
+  if (classes.cursive.test(character)) return CURSIVE_SCRIPT
   return (classes.latin.test(character) ? LATIN_SCRIPT : 0) | (classes.cyrillic.test(character) ? CYRILLIC_SCRIPT : 0) |
-    (classes.greek.test(character) ? GREEK_SCRIPT : 0) || (classes.cursive.test(character) ? CURSIVE_SCRIPT : OTHER_SCRIPT)
+    (classes.greek.test(character) ? GREEK_SCRIPT : 0) || OTHER_SCRIPT
 }
 
 // How far a text's script runs are read, the scripts the run there can be in, and each
