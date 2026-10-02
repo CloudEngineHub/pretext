@@ -24,13 +24,16 @@
 //   starts; and, cut on their own too, a run that a right-to-left mark after its white space ends where one at the white
 //   space's bidi level doesn't, one that text after it ends, an atomic item whose leading white space collapses into
 //   one, a soft hyphen after no white space, which opens none, and a ZWSP after soft hyphens where a line starts after
-//   a wrap; and, cut on their own too, the levels that rule reads: the paragraph's, at each item's offset, of every
-//   character the run goes past against the white space before them, with a newline as a space; and, cut on their own
+//   a wrap; and, cut on their own too, the levels Firefox reads there, which rich inline doesn't resolve
+//   (ENGINE_FOLLOWUPS.md): the paragraph's, at each item's offset, of every character the run goes past against the
+//   white space before them, with a newline as a space; and, cut on their own
 //   too, a soft hyphen that ends an item before a bidi control that starts the next, at the paragraph's start, after a
 //   space in the item or a collapsed one before it, which Firefox's scan of the joined text takes as text, and after
 //   other text; and, cut on its own too, a padded span that starts with a line separator after a word, before which
 //   WebKit's check at an item boundary gives no break (getWebKitBreakBetweenItems in src/line-breaks.ts), so a line
-//   that can't fit its padding breaks the word (hardBreakItemRetreat in src/measurement.ts);
+//   that can't fit its padding breaks the word (hardBreakItemRetreat in src/measurement.ts); and, cut on its own too, a
+//   soft hyphen that starts an item in 16px Inter, whose U+2010 is narrower than its hyphen-minus, so the line that
+//   ends there shows which hyphen the profile measures (hyphenFromPrimaryFont in src/measurement.ts);
 // - cut on their own too, a line that ends at a space inside an item under negative letter spacing, whose next line the
 //   browsers start after the space, beside a break at the collapsed space between items;
 // - keep-all paragraphs, cut on their own: a Korean chat message with a mention chip, a bold run inside a word and a
@@ -210,6 +213,9 @@ export function richTemplates(): Template[] {
     const [family, parts, lang] = continued[i]!
     out.push(template(`continued/${family}`, 'items that continue the line before them (src/layout.test.ts, rich-inline invariants)', ARIAL, parts.map(part => typeof part === 'string' ? item(part) : part), lang))
   }
+  // A soft hyphen that starts an item in Inter, whose U+2010 is narrower than its hyphen-minus: the line that ends there
+  // paints the hyphen that the same text in one item paints.
+  out.push(template('continued/soft-hyphen-start', 'a soft hyphen that starts an item, in a font whose U+2010 is narrower than its hyphen-minus (src/layout.test.ts, a chosen soft hyphen measures as the hyphen the engine paints)', { ...INTER, size: 16 }, ['foo trans', item('\u{AD}atlantic', { ...INTER, size: 16 })]))
   // A line that ends at a space inside an item under negative letter spacing, at −1 as for large headings and at −0.08 as
   // Signal Desktop sets Inter, and beside them a break at the collapsed space between items, at −0.2.
   const tight: ReadonlyArray<readonly [CssFont, number, readonly string[]]> = [

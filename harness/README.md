@@ -36,6 +36,17 @@ builds widths are compared exactly: to `equal <ref>` a line width that differs a
 prepared text, but for the hyphen of a soft hyphen it ends at, which the text the items join decides. A box is a visible
 character whatever its width, placed by its top.
 
+A predicted line's range runs over the source, so white space the library leaves out inside a text is in the line of the
+unit before it (`alignStream`, `predict.ts`), as white space that ends a line is in its line: Firefox gives such a
+space, or a CR, a box at the end of a line it doesn't trim, where it is the line's last visible character. A text's
+leading and trailing white space is in no line's range. That rule came with #399, whose fix it also scores, so each
+recorded case was predicted with and without it by one build of the library (2026-10-01; Chrome 154.0.8037.57,
+Firefox 156.0.1, webkit-host): no verdict moves in webkit-host, none in Chrome but that of the case listed as varying
+between runs, and 4 in Firefox, `a`, two CRs or FFs, `b` at 7.9px under -1px letter spacing, where Firefox's first line
+ends at the second CR and the prediction's at `a`. Of 124,283 probe cases recorded in Firefox, 496 move. Every move is
+from `breaks` to a pass, between two predictions with the same line starts and widths, whose line ends differ only by
+white space.
+
 A recording counts only under the environment that made it, the key in its file's first line: browser build, OS build,
 OS languages, page languages, device pixel ratio and a hash of the served fonts. `check` refuses to score under any
 other ("Record again before scoring"), so a browser or OS update never reads as a regression. A case laid out
@@ -80,7 +91,7 @@ layouts" (the narrowest real-usage draw is 25 px).
 |---|---|---|
 | `sample.ndjson` | The real-usage sample | `make.ts write` |
 | `reports.ndjson` | Filed reports with the text, font and width as filed (`sets/exact.ts`) | `make.ts write` |
-| `catalog.ndjson` | Families of templates, from the engines' rules, the UAX #14 classes between the scripts apps mix, the shapes `ENGINE_FOLLOWUPS.md` names, bidi controls where Firefox's line breaking looks past them and CJK marks Chrome halts next to other punctuation, plus adversarial `main/*` cases taken from the old test suite | the width search |
+| `catalog.ndjson` | Families of templates, from the engines' rules, the UAX #14 classes between the scripts apps mix, the shapes `ENGINE_FOLLOWUPS.md` names, bidi controls where Firefox's line breaking looks past them, CJK marks Chrome halts next to other punctuation, letter-spaced words whose ligatures the browsers turn off and emoji characters a named font draws itself, plus adversarial `main/*` cases taken from the old test suite | the width search |
 | `facts.ndjson` | The engine facts `src/layout.test.ts` checks on plain text, in a browser | the width search |
 | `rich.ndjson` | Rich-inline paragraphs: styled runs, span edges, chips, padded code spans, boxes (an empty inline-block of a width and a height, top-aligned), the shapes whose lines changed when items began to continue the line (#369), keep-all and pre-wrap paragraphs, plus `main/*` cases | the width search |
 | `census.ndjson`, `books.ndjson`, `smoke.ndjson` | Real paragraphs of `corpora/` at several widths, and whole books, from the per-engine rebuild | taken once |
@@ -152,7 +163,14 @@ grew.
 
 `sets/data/engine-facts.json`'s `layout.test.ts` line numbers, the facts set's case origins and the four accepted-list
 reasons that cite a `layout.test.ts` line point at the files of main before #340 (6d1d2106), not today's; read them with
-`git show 6d1d2106:<path>`. ENGINE_FOLLOWUPS.md, Harness debt, has what to prune when the sets are made again.
+`git show 6d1d2106:<path>`. The two facts #396 added (lines 1948 and 2015) point at that pull request's `layout.test.ts`, and
+name the fonts they run in where that isn't 16px Arial. A fact added after them names its test's line as of the commit
+that added or last changed the fact, which this paragraph names, since a later merge moves the test and a case's family
+and origin keep the line: line 1000 at dbfab0de (#399), Firefox's white space around bidi controls. Such a fact also
+names the paragraph directions it runs in where a browser's lines turn on them (that one, both). The facts set has no
+cover, so it keeps the width where a template's words join, which the catalog's cover drops once a narrower change has
+shown that kind of break: a fact that rests on a line's width, such as one space against two, goes there.
+ENGINE_FOLLOWUPS.md, Harness debt, has what to prune when the sets are made again.
 
 ## Commands
 
@@ -305,12 +323,12 @@ the lines of webkit-host's passing sample draws inside the claims were more than
 (2026-10-01). The shrink-wrap check keeps them, so there it misses a box up to a pixel too narrow where such a line is
 the widest, as in a fifth of the sample's pre-wrap draws, and webkit-host's `narrow` column reads low on pre-wrap text.
 The harness doesn't see re-layout at a line's own width; a defect that changes the widths a prepared handle keeps for
-one way of fitting lines when another is used (the stand-in Canvas gives the same widths to every way); a bracket-pair
-error in the Gecko bidi port; several rules of the Gecko profile's analysis of bidi controls (`ENGINE_FOLLOWUPS.md`,
-Harness debt); an emoji modifier split from its base across rich items; a rich paragraph of one item, which the adapter
-writes as plain text, so `src/layout.test.ts` checks its line functions against the rich stepper; Chrome's UI language,
-and so its `zh` table for pages without a `lang`; rendering other than macOS's and an iOS simulator's (Other ratios and
-phones), though Android and Windows are 65% of page views (`weights.json`);
-text chat users wrote (the sample's chat draws are stand-ins); or the demos' painted layout. No planted defect guards
-the watchdog's kill, the bench's shuffle and its separate compiles (each copy of the library compiled in a module of its
-own), Firefox's start-up hold, the page passing the browser's name to the recorder, or the cap on a job's browser.
+one way of fitting lines when another is used (the stand-in Canvas gives the same widths to every way); several rules
+of the Gecko profile's analysis of bidi controls (`ENGINE_FOLLOWUPS.md`, Harness debt); an emoji modifier split from its
+base across rich items; a rich paragraph of one item, which the adapter writes as plain text, so `src/layout.test.ts`
+checks its line functions against the rich stepper; Chrome's UI language, and so its `zh` table for pages without a
+`lang`; rendering other than macOS's and an iOS simulator's (Other ratios and phones), though Android and Windows are
+65% of page views (`weights.json`); text chat users wrote (the sample's chat draws are stand-ins); or the demos' painted
+layout. No planted defect guards the watchdog's kill, the bench's shuffle and its separate compiles (each copy of the
+library compiled in a module of its own), Firefox's start-up hold, the page passing the browser's name to the recorder,
+or the cap on a job's browser.
