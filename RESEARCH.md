@@ -1304,7 +1304,7 @@ and `1609`, `text_metrics.cc:222`). Two widths are compared, the emoji's and the
 run needs two roundings, and the count allows 2^-20 of the width, sixteen. That is 0.00002px at 20px, far under the
 steps widths come in (1/60px in Firefox, its app unit; 0.008px for an advance at 16px in a font of 2,048 units to the
 em), so "exactly as wide as an emoji" below means equal but for that rounding. Counting glyphs that way in every
-grapheme that holds an emoji or a pictograph, in Chrome 154.0.8037.57 and Firefox 156.0.1 at DPR 2 (2026-10-01, #TBD),
+grapheme that holds an emoji or a pictograph, in Chrome 154.0.8037.57 and Firefox 156.0.1 at DPR 2 (2026-10-01, #398),
 took the widths more than 0.1px off the DOM's:
 - from 2,571 of 265,140 to 807 in Chrome and from 2,298 to 0 in Firefox, over 1,473 emoji graphemes alone and inside a
   word in 30 font lists at 12, 16 and 20px; Chrome's 807 are a skin tone after a character that isn't an emoji;
@@ -2807,7 +2807,7 @@ decisions for the maintainer.
   would be the engine profile's first read of a browser's version, with two cutoffs, for builds that no longer update:
   old Chrome, and the Electron apps and Android WebViews still on such a Chromium, whose developers the changelog entry
   tells what to expect. The README says nothing of it. A report from such an app reopens it.
-- **2026-10-01: an emoji stretch that two fonts draw takes no correction** (#TBD). The emoji correction counts the emoji
+- **2026-10-01: an emoji stretch that two fonts draw takes no correction** (#398). The emoji correction counts the emoji
   font's glyphs by measuring each stretch of emoji characters whole (Content Language And Fonts, Emoji). A version that
   also asked a stretch that isn't all emoji glyphs character by character, and bounded the count by the emoji widths
   that fit in the grapheme, was measured beside it in Chrome 154.0.8037.57 and Firefox 156.0.1. The two predict every
