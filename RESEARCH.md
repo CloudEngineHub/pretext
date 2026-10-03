@@ -1847,10 +1847,21 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   (`KIND_BITS`, `TEXT`, `SPACE`, `ZERO_WIDTH_BREAK`); in main's bundle all four fall in dynamic slots, and in the
   branch's `SPACE` falls in a fixed one. Why that would compile a slower loop isn't known, as a fixed slot is one load
   fewer. An app's bundler picks its own names, so the same source can read either way there. So a verdict on this row
-  alone says nothing about a change whose code `layout()` doesn't run (`harness/README.md`, Bench). Making those
-  constants literals in the emitted code would take the names out of it, and is being tried apart from #405. Reopen on a
-  Firefox whose scopes give every binding one kind of slot, or if the row moves between two builds whose minified names
-  are the same.
+  alone says nothing about a change whose code `layout()` doesn't run (`harness/README.md`, Bench). Reopen on a Firefox
+  whose scopes give every binding one kind of slot, or if the row moves between two builds whose minified names are the
+  same.
+- **Constants written into the built code as numbers** took the names out of that loop, and were declined (#406, closed
+  unmerged; Decisions Log, 2026-10-03). With the segment kinds and flag bits as const enums, a bundle holds each use as
+  its number, and under two namings the row read alike, -1.1% and -0.3%, where main's two read 16% apart (three sessions
+  each against main before #394). What it traded, against main at #405 (162fe261) in Firefox 156.0.1 over a run of three
+  sessions and one of two (2026-10-02), per 1,000 UTF-16 units: the four slowest `layout()` and walk rows of the
+  worst-case texts (letter-spaced CJK, soft hyphens and marks, pre-wrap twice) read 7-14% faster, 0.4-0.8 µs of 4.2-8.8;
+  Latin `layout()` at widths seen before read 10-12% slower, 0.06-0.10 µs of 0.6-0.8; and `layout()` of the controls
+  and invisible-tails texts read 17% and 8-9% slower, which the unrelated #409 did to them too (`harness/README.md`,
+  Bench). Chrome 154 gave no row a verdict of slower; Safari 27 gave one, over two sessions, read as noise and not run
+  again. Offline, the SpiderMonkey shell read the Latin cost as that loop's slower state, picked now by the code and
+  not by the names, so numbers end the luck of the names and not the state. The names stay something to know when
+  reading a bench table, not something to code around.
 - **`%` on numbers that aren't whole** is a call: V8 works a remainder out inline only for two positive whole numbers
   and otherwise calls the C library's `fmod` (`MacroAssembler::Float64Mod`, `macro-assembler-arm64.cc:3028-3081`, V8
   15.3). A tab's advance took one, and it was what a tab's arithmetic cost. With the remainder from a division and a
@@ -3216,3 +3227,11 @@ decisions for the maintainer.
   reads level with main on those rows would take its place. Whether such a width should throw, as a `letterSpacing`
   that isn't finite does (#356), is on the API discussion's list (TODO.md): in the six APIs a throw would go in that
   one function, and in the streams it would cost the comparison for each line again.
+- **2026-10-03: the constants the line loops read stay `const`s, not const enums** (#406, closed unmerged), the
+  maintainer's decision. Const enums gave Firefox 156.0.1's four slowest worst-case `layout()` and walk rows 7-14%, cost
+  its Latin `layout()` at widths seen before 10-12%, and ended one row's dependence on a bundler's names (Keeping Work
+  Bounded, JavaScript Engines, has the rows). Declined on two counts. The gains and the losses are one JIT's, in one
+  version (Part 1, Engineering, JIT tuning). And the form adds complexity around the code: `tsc` writes a const enum as
+  numbers only with `verbatimModuleSyntax` off, so the build would take a setting the type check doesn't, with a test
+  to guard it. The 32 lines it saved in `src/` didn't outweigh those. Reopens if more than one engine shows the gains,
+  or with a form that gives numbers in the built code and needs no build setting.
