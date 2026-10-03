@@ -263,15 +263,15 @@ function readScriptRuns(runs: ScriptRuns, text: string, to: number): number {
 // Whether the space before the text segment text[at..end) is in the script run of the segment's
 // first character past default ignorables, the one it kerns with: a space joins the run of the
 // text before it (ScriptRunIterator::MergeSets, :490-510). The nearest character before the
-// space that has one script names that run, so the search back ends there; a closing bracket,
-// or a character of several scripts, takes its script from the runs before it, which are
-// then read.
+// space that has one script names that run, so the search back starts before the space, at
+// text[at - 2], and ends there; a closing bracket, or a character of several scripts, takes its
+// script from the runs before it, which are then read.
 function spaceSharesScriptRun(runs: ScriptRuns, text: string, at: number, end: number): boolean {
   let scripts = getScripts(text, at)
   // A default ignorable with a script of its own, as U+3164, counts as the word's first letter.
-  while (scripts === ANY_SCRIPT && at + 1 < end && hasProperty(text.charCodeAt(at), DEFAULT_IGNORABLE)) scripts = getScripts(text, ++at)
+  for (let first = at; scripts === ANY_SCRIPT && first + 1 < end && hasProperty(text.charCodeAt(first), DEFAULT_IGNORABLE); first++) scripts = getScripts(text, first + 1)
   if (scripts === ANY_SCRIPT) return true
-  for (let i = at - 1; i >= 0; i--) {
+  for (let i = at - 2; i >= 0; i--) {
     if ((text.charCodeAt(i) & 0xFC00) === 0xDC00 && i > 0) i--
     const before = getScripts(text, i)
     const bracket = (before & OTHER_SCRIPT) === 0 ? undefined : getBrackets().get(text.codePointAt(i)!)
