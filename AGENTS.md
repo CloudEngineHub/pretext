@@ -83,8 +83,7 @@ judgement; one outside them needs the maintainer first.
   changed recordings and accepted or varying lists with the change that caused them.
 - Before landing a change to `src/` other than `layout.test.ts`, or to `harness/bench/`, paste `bun harness bench main`'s
   table, every row, into the PR. A row slower in every session needs a sentence, as does growth over 5% in the
-  `measureText` calls or submitted units `bun harness equal main` prints. After every ten merged changes to `src/`, and
-  before a release, time main against main before #340 with `bun harness bench 6d1d2106` (`harness/README.md`, Bench).
+  `measureText` calls or submitted units `bun harness equal main` prints.
 - Settle behaviour in the harness's pinned headed browsers, not headless ones; `--background` bench results are
   hypotheses. Jobs may run side by side while free plus inactive memory stays above about 30%, installed Safari one at a
   time; the bench runs alone, in the foreground, on a quiet machine.

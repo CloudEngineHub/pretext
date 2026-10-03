@@ -64,13 +64,12 @@ function run(op, data, widths, reps, font, options) {
 globalThis.__benchLibrary = { prepare, run }
 `
 
-// `names` keeps the source's identifiers, for traces read by function name (trace.ts).
-export async function benchBundle(src: string, names = false): Promise<{ code: string; bytes: number; gzipped: number }> {
+export async function benchBundle(src: string): Promise<{ code: string; bytes: number; gzipped: number }> {
   const dir = join(ROOT, '.artifacts/harness-bench/entries')
   mkdirSync(dir, { recursive: true })
   const entry = join(dir, `${Bun.hash(src).toString(36)}.js`)
   writeFileSync(entry, ENTRY.replaceAll('LIB', src))
-  const built = await Bun.build({ entrypoints: [entry], target: 'browser', format: 'iife', minify: names ? { whitespace: true, syntax: true, identifiers: false } : true })
+  const built = await Bun.build({ entrypoints: [entry], target: 'browser', format: 'iife', minify: true })
   if (!built.success) throw new Error(built.logs.map(String).join('\n'))
   const code = await built.outputs[0]!.text()
   return { code, bytes: Buffer.byteLength(code), gzipped: Bun.gzipSync(code).length }

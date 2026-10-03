@@ -234,59 +234,38 @@ mixed, Latin and CJK messages, each family in a document of its own.
 
 - **A control copy.** Each document runs base, the candidate and a second copy of base, shuffled each round, since only
   same-document ratios survive drift between sessions (`RESEARCH.md`, Evaluation Traps, has the numbers behind this and
-  the bullets below).
+  the next three).
 - **Focus and a quiet machine.** Background windows' timers are slowed, so Chrome and Safari need a visible, focused
   window throughout. Using the machine spoils the sessions it overlaps, and only those; a loaded machine spoils them
   all.
-- **Sessions and the confirming one.** Two sessions by default. A row reads slower or faster only when it does so in
-  every session, and the floors are fitted to three, so each browser then times the documents of such rows in a third,
-  which must agree; a verdict from fewer prints "(unconfirmed)". Of HEAD against itself, the calibration's 141 entries
-  give 423 pairs of sessions: a pair alone calls a change in 11 of them, the three sessions together in none, which is
-  what the floors were fitted to. Other runs of one build against itself do worse: main against main on the `new` rows
-  (2026-09-28) read Chrome's Thai row slower in all three sessions, 1 of 18 entries, and in the other saved runs of
-  three sessions the control, base's own code, sat beyond the floor on one side in all three in 27 of 1,016 entries. The
-  third session costs reach: a change of 5% is caught on every `seen` row and about 8 in 10 `lines` and `worst` rows,
-  but on under 1 in 10 `new`, `rich` and `resize` rows, whose floors are 5-6%, where two sessions alone caught 15-21%;
-  those rows catch 45-69% of the 10% changes and 94% or more of the 25% ones. `--sessions=1` is a hypothesis and gets no
-  confirming session; three or more need none.
-- **Two speeds.** A copy of the library can keep one speed for a whole document and another in the next, so the control
-  can sit beyond the floor for a session with three quarters of its rounds on one side: Chrome 154's rich stats ran at
-  2.3 or 2.6 µs per 1,000 units copy by copy (2026-09-30). That session's band is then the distance between two copies
-  of base. A row left without a verdict that had such a session reads "two speeds", with base's and the control's costs
-  in the session that held them furthest apart: the run saw no change on it smaller than that distance, whatever its
-  floor. A fifth of the rows without a verdict read so in the saved runs, and four in five of Safari's `lines` rows,
-  whose copies sit further apart than the 1% floor the three browsers share. Time such a row again alone with more
-  sessions (`--rows`, `--sessions`) when the change touches what the row times, or when the candidate's value sits
-  beyond the floor on one side in every session, and read each session's values. A verdict stands as the band gives it,
-  two speeds or not (`RESEARCH.md`, Evaluation Traps, has what stricter rules cost).
+- **Two sessions and a confirming one.** A row reads slower or faster only when it does so in every session, and the
+  floors are fitted to three, where two agree by chance: in the 19 runs of three sessions saved on 2026-10-02, the
+  first two called 74 of 322 rows and the third took 22 of them back. So after the default two sessions each browser
+  times the documents of its rows that read slower or faster once more, and a row keeps its verdict only if that
+  session agrees. That is the verdict three whole sessions give, as a row two sessions don't call a third can't. A
+  verdict left with two sessions, as when the confirming one failed, prints "(unconfirmed)". `--sessions=1` is a
+  hypothesis and gets no confirming session; three or more need none.
+- **A row without a verdict prints its widest band**, as in "within noise (±11.5%)": the smallest change those sessions
+  could have called on it. A session's band is the larger of the row's floor and how far the control, base's own code,
+  sat from base, so most rows print their floor. A copy of the library can keep one speed for a whole document and
+  another in the next (Chrome 154's rich stats ran at 2.3 or 2.6 µs per 1,000 units copy by copy, 2026-09-30), and the
+  band is then the distance between two copies: on 2026-10-01 and 02 the control sat 8% or more from base in a session
+  of 12 of 13 runs of Chrome's rich stats, 11 of 13 of Safari's rich walk and 8 of 13 of its rich stream, and in most
+  runs of Chrome's CJK and Thai `new` rows, whose spread is between batches of text. Such a row says nothing of a
+  change smaller than its band: time it again alone with more sessions (`--rows`, `--sessions`) when the change touches
+  what the row times.
 - **Floors**, the noise threshold under which a row's ratio isn't called a change (1-6% by row, `FLOORS` in
   `bench/report.ts`, with the builds and machine they came from), are the largest deviation held in one direction in all
   three sessions of a calibration of HEAD against itself; calibrate again, with `bun harness bench HEAD --sessions=3`,
-  after a pin bump, on another machine or when rows are added, and replace `bench/calibration.json`, the calibration's
-  readings, with the run's `readings.json`: `bench.test.ts` then fails on an entry whose floor those three sessions
-  break. An entry the calibration didn't time in the browser takes its row's floor and prints "(uncalibrated)", as the
-  Latin and CJK `lines` entries do until the next one. Floors from the worst single reading would be too wide, since one
-  copy can run slow for a whole document (in one session Firefox 156.0.1's base copy took about twice as long as the
-  other two on kept CJK handles, 2026-09-26), and would have hidden a real 20-25% slowdown. These floors flag all four
-  slowdowns known between main before #340 (6d1d2106) and 217c84b8, a commit of #340: pre-wrap layout and walk at 1.05
-  of base's time in Chrome and 1.18-1.25 in Firefox, and letter-spaced CJK and control layouts at 1.12 and 1.20 in
-  Safari.
-- **A baseline.** `bun harness bench main` shows one change. Changes that each read within noise add up, and each PR's
-  ratio carries its own sessions' noise, so the ratios don't multiply into where main stands. After every ten merged
-  changes to `src/`, and before a release, time main against a fixed commit, main before #340:
-  `bun harness bench 6d1d2106`, with Chrome in three runs (`--browser=chrome` and `--rows=new,fresh,rich`,
-  `seen,resize,lines`, `worst`), since a run of every row of that build went past the 6 GB bound on the bench's Chrome
-  twice (2026-09-26). The first line of the output names both builds and their commits.
-- **V8's own traces**, before a slowdown with the same counted work is written down as one JIT's code placement:
-  `bun harness trace <base> "<document>" [operation]` (`"lines mixed" stats`, `"worst controls"`, `"rich latin"`) runs
-  the bench's bundles of both builds, names kept, on that document under Node, over a stand-in Canvas, and prints what
-  differs between them in `--print-bytecode` (each function's bytecode length), `--trace-turbo-inlining` (what TurboFan
-  inlined into what, and what it refused) and `--trace-opt --trace-deopt` (which tier compiled each function, and what
-  was deoptimized and why), with `--predictable` so two runs of one build print the same. With one more field on the
-  engine profile it shows `getEngineProfile()` going from 454 to 463 bytes of bytecode, past the 460 TurboFan inlines
-  (`max_inlined_bytecode_size`), and no longer inlined into the simple line walk's step (Node 23.10, V8 12.9,
-  2026-09-30). Node's V8 isn't Chrome's, so a difference is a lead to time in the bench; finding none doesn't clear
-  Chrome, and says nothing of Firefox or Safari.
+  after a pin bump or on another machine. Floors from the worst single reading would be too wide, since one copy can run
+  slow for a whole document (in one session Firefox 156.0.1's base copy took about twice as long as the other two on
+  kept CJK handles, 2026-09-26), and would have hidden a real 20-25% slowdown. These floors flag all four slowdowns
+  known between main before #340 (6d1d2106) and 217c84b8, a commit of #340: pre-wrap layout and walk at 1.05 of base's
+  time in Chrome and 1.18-1.25 in Firefox, and letter-spaced CJK and control layouts at 1.12 and 1.20 in Safari. One
+  floor serves a row in all three browsers, and the `lines` row's Latin and CJK entries, added after that calibration
+  (#TBD), take the row's (`ENGINE_FOLLOWUPS.md`, Harness debt).
+- **The builds.** The first line of the output names base and the candidate with their commits and dates, and says
+  when this tree's `src/` has uncommitted changes, so a pasted table says what it compared.
 - **WebKit's width cache** samples one Canvas call in 21 after a run of misses, so a prepare that submits n strings
   speeds up only after 21 / gcd(n, 21) repeats: compare submitted text and cold first prepares.
 - **Firefox's `resize: latin layout at new widths`** moves about 16% with the names the bench's minifier gives the
@@ -299,10 +278,10 @@ mixed, Latin and CJK messages, each family in a document of its own.
   three sessions each, 2026-10-02), so they move with unrelated changes to the bundle and want a second change's table
   before being blamed on one.
 
-A session of every row took 75 s in Chrome, 92 s in Firefox and 79 s in Safari (the medians of 95-98 sessions each,
-2026-09-26 to 30; a document that loses focus waits a minute and starts again) before the Latin and CJK `lines` rows,
-which add six operations of about 2 s each: about ten minutes for the default run, before its confirming sessions.
-Nothing timed is checked in but the calibration's readings.
+A session of every row took 74 s in Chrome, 91 s in Firefox and 79 s in Safari (the medians of 50-52 sessions each,
+2026-10-01 and 02; a document that loses focus waits a minute and starts again), before the Latin and CJK `lines`
+entries: a little over eight minutes for the default two, and then the confirming sessions, which would have timed 57
+of the third sessions' 145 documents in the 19 runs above. Nothing timed is checked in.
 
 ## Browsers and pins
 

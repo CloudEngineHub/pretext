@@ -2968,12 +2968,15 @@ widths: both measure Pretext, not a browser.
   messages interleaved, a message at a time, put the control within 4% (2026-09-29). The bench prepares each
   operation's handles in a shuffled order, so its control copy shows where that order moves a row.
 - **Two sessions agree by chance.** Of HEAD against itself (the calibration of the bench's floors at 7204cab2,
-  2026-09-26, three sessions a browser; `harness/bench/calibration.json`, checked by `bench.test.ts`), the 141 entries
-  give 423 pairs of sessions, and a pair alone calls a change in 11 of them, 4 on `new` rows; the three sessions
-  together call none, which is what the floors were fitted to. So after two sessions the bench times the rows that read
-  slower or faster in a third. A build still reads slower than itself outside that run: main against main on the `new`
-  rows (`bench main --lib=main --rows=new --sessions=3`, Chrome 154, 2026-09-28) read the Thai row +11.4%, +13.4% and
-  +6.5% with the control at -7.5%, -4.3% and -0.9%, slower in all three sessions, 1 of 18 entries; and in the 73 other
+  2026-09-26, three sessions a browser), the 141 entries give 423 pairs of sessions, and a pair alone calls a change in
+  11 of them, 4 on `new` rows; the three sessions together call none, which is what the floors were fitted to. In the 19
+  runs of three sessions in one browser saved on 2026-10-02, the first two sessions called 74 of 322 rows and the third
+  took 22 of them back, 16 in Firefox. So after two sessions the bench times the rows that read slower or faster in a
+  third (#TBD), which gives the verdict of three whole sessions, as a row two sessions don't call a third can't: fed
+  those 19 runs' sessions, it gave the three-session verdict on all 322 rows and timed 57 of the third sessions' 145
+  documents. A build still reads slower than itself in three sessions: main against main on the `new` rows
+  (`bench main --lib=main --rows=new --sessions=3`, Chrome 154, 2026-09-28) read the Thai row +11.4%, +13.4% and +6.5%
+  with the control at -7.5%, -4.3% and -0.9%, 1 of 18 entries; and in the 73 other
   saved runs of three sessions or more in one browser (2026-09-26 to 30), the control, judged as a candidate against the
   floor alone, held a change through its first three sessions in 27 of 1,016 entries (2.7%), 7 of 32 on Safari's `lines`
   row. What three sessions cost against two, with a change multiplied into the candidate's times of the calibration and
@@ -2983,17 +2986,16 @@ widths: both measure Pretext, not a browser.
 - **A copy keeps a speed for a document.** On 2026-09-30, with #381 in main, each copy of the library in a Chrome 154
   document ran `measureRichInlineStats()` over the bench's rich text at 2.24-2.35 or 2.48-2.64 µs per 1,000 units, 9
   copies of 18 each, every copy steady over its 12 rounds, so the control read 11-12% from base in 5 of those 6
-  sessions. Over the 902 saved sessions of 2026-09-26 to 30, the control sat beyond its row's floor with three quarters
-  of its rounds on one side in 55% of the readings of Safari's `lines` row, 30% of its `resize` and 25% of its `rich`
-  rows, 18% of Firefox's and 13% of Chrome's `lines` rows, and 1-2% of any browser's `new` rows, whose spread is between
-  batches of text. The bench marks a row left without a verdict that had such a session "two speeds" and moves no
-  verdict (`harness/README.md`, Bench). Two stricter rules cost verdicts in the 381 saved runs of two sessions or more
-  and took back no false one in either run of a build against itself: holding the candidate past the control too by the
-  floor in such a session took 43 of 1,526, among them Chrome's pre-wrap layout at 1.05 of main before #340, one of the
-  four slowdowns the floors are checked against; giving such a row no verdict took 173, and 6 of that run's 67. On a
-  simulated row whose copies each run 12% slow in half their documents, three sessions call identical code 1.3% of the
-  time by the band alone and 0.3% with the first rule. Reopen if a re-time takes back a verdict on a row with two
-  speeds.
+  sessions, and the row read within noise where no change under 11% could have shown. In the 97 runs of two sessions
+  or more saved on 2026-10-01 and 02, the control sat 8% or more from base in a session of 12 of 13 runs of Chrome 154's
+  rich stats, 11 of 13 of Safari 27's rich walk and 8 of 13 of its rich stream, and a row left without a verdict had a
+  band of twice its floor or more in 358 of 2,468 cases. The bench prints such a row's widest band and moves no verdict
+  (`harness/README.md`, Bench). Two stricter rules for a session whose control had three quarters of its rounds beyond
+  the floor on one side cost verdicts in the 381 runs of two sessions or more saved from 2026-09-26 to 30, and took back
+  no false one in either run of a build against itself: holding the candidate past the control too by the floor took 43
+  of 1,526, among them Chrome's pre-wrap layout at 1.05 of main before #340, one of the four slowdowns the floors are
+  checked against; giving such a row no verdict took 173. Reopen if a re-time takes back a verdict on a row whose
+  control sat that far.
 - **Headless Chrome isn't installed Chrome.** With `deviceScaleFactor: 2` it most likely lays out at zoom 1 while
   reporting DPR 2, as its measurements show, and headless Chrome 153 crashed or hung on one input installed Chrome
   handled (the report in Part 1, Merge Bars And Landing, whose own page crashes headed Chrome too).

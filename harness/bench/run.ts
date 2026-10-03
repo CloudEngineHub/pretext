@@ -4,7 +4,7 @@
 // control (harness/README.md, Bench). After two sessions, each browser times the documents of the rows that read slower
 // or faster in a third. Pinned Chrome and Firefox and installed Safari run one at a time in the foreground; with
 // --background the harness's background browsers, webkit-host for WebKit, run instead and every verdict is a
-// hypothesis. Raw samples and readings.json, every entry's readings per session, go to .artifacts/harness-bench/<time>/.
+// hypothesis. Raw samples go to .artifacts/harness-bench/<time>/.
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
@@ -12,7 +12,7 @@ import { serveJob } from '../run.ts'
 import { BROWSER, type BrowserKind } from '../types.ts'
 import { benchBundle, buildName, srcOf } from './lib.ts'
 import type { Doc, DocResult, OpSpec } from './page.ts'
-import { readings, report, unconfirmed, type SessionResults } from './report.ts'
+import { report, unconfirmed, type SessionResults } from './report.ts'
 import { createRng } from '../sets/build.ts'
 import { familyText, labels, MESSAGE_FAMILIES, reader, richItems, shapes, STYLE, units } from './texts.ts'
 
@@ -177,8 +177,8 @@ async function session(browser: BrowserKind, docs: Planned[], bundles: Record<st
 
 // Every session of a run: each browser's `sessions` of every document, then, after two, the confirming one, of the
 // documents whose rows read slower or faster (report.ts, unconfirmed): the floors are fitted to three sessions, so a
-// verdict needs three, and one session stays a hypothesis. A browser that fails a session sits out the rest, and the
-// others' tables still print.
+// verdict needs three; one session stays a hypothesis, and three or more need no other. A browser that fails a session
+// sits out the rest, and the others' tables still print.
 export async function runSessions(
   browsers: readonly BrowserKind[], sessions: number, plan: (seed: string) => Planned[],
   io: { time: (browser: BrowserKind, docs: Planned[]) => Promise<Map<string, DocResult>>; save: (entry: SessionResults) => void; log: (text: string) => void },
@@ -226,8 +226,6 @@ export async function bench(baseRef: string, lib: string, browsers: BrowserKind[
     save: entry => writeFileSync(join(dir, `${entry.browser}-${entry.session}.json`), JSON.stringify(entry)),
     log: text => console.log(text),
   })
-  // An entry a line, as bench/calibration.json keeps a calibration's.
-  writeFileSync(join(dir, 'readings.json'), `${JSON.stringify(readings(all)).replace(/"[^"]+":\[\[/g, '\n$&')}\n`)
   const after = power()
   console.log(report(all, { builds: `base: ${buildName(baseRef)}; candidate: ${buildName(lib)}`, hypotheses: background, sizes: { base: built.base, candidate: built.candidate } }))
   console.log(`power ${after.source} ${after.percent}%, load ${load()}`)
