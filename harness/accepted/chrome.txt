@@ -79,6 +79,29 @@ facts-5f171106bebb3c50 breaks
 facts-6303e3c34fadf40e breaks
 facts-ce8695e6d4a1e1d2 breaks
 
+## A word whose kerning with the space after it tightens the two, ending a line in a box under 80 px that is narrower than the word without that kerning: for start-aligned text whose element has no decoration or background, which is all the harness records, Chrome keeps the kerning where the space hangs (DontReshapeEndIfAtSpace, line_breaker.cc:1655-1659); the library puts it on the space, as Chrome does for every other text (NeedsAccurateEndPosition, line_breaker.cc:255-268), so the word is 0.88 px wider than Chrome's in 16 px Arial and the line breaks before or inside it, as on main (RESEARCH.md, Kerning At Line Edges)
+catalog-2f4ebb6506c667ed breaks
+catalog-59d0b63cce759851 breaks
+catalog-80b868bf7866519c count
+catalog-c2416bd3c18812de breaks
+catalog-d7b47eb82c8f1b36 count
+facts-03d87908da20bfa7 count
+facts-2d32f5275e5027a1 count
+facts-32536d16819b70eb count
+facts-3c1eb0f3280752c6 count
+facts-73a84536ac9d980a count
+facts-8df017adac178600 count
+facts-96a6f69654496c6e count
+facts-bd4c1379d884d263 count
+facts-bea354df8d8a2f21 count
+facts-c91a6bbba8b4c021 count
+facts-d5d196fb5a389f8a count
+facts-d5e8b14aab4ec75d count
+facts-ddf4f0f9ee9692b3 count
+facts-dfa5e78095c19924 count
+facts-f64760b85dd20bb7 count
+facts-f83e3df5862ba1c5 count
+
 ## Arabic and Hebrew beside brackets, controls, U+FFFC or rich-item edges, at 24 px and wider: Chrome breaks there where the library doesn't
 catalog-01ed9a531b7a32b4 count
 catalog-2c2c30ca491d04db breaks
@@ -438,7 +461,6 @@ facts-3c22e58cfce60993 breaks
 facts-440ced509df2d3f1 breaks
 facts-5b71f005fcfe128a breaks
 facts-6d224b34ed76519a breaks
-facts-94dfef49e4d12513 count
 facts-992ad3e2cac24507 breaks
 facts-b0d939ba4135eb20 count
 facts-b346a98dcaf21070 breaks
@@ -447,7 +469,6 @@ facts-cb726fe075c99028 count
 facts-d586e19a99606fb9 count
 facts-e91e5851773432a4 count
 facts-f540d48e169bdde8 breaks
-facts-fafba038ca0d8ad2 count
 facts-fe5b38d29bab0cd0 count
 old-gate-01057842dfeb21e1 count
 old-gate-26340842b42710a6 count
@@ -1766,7 +1787,6 @@ catalog-ffaa3e3eace7feb1 count
 catalog-ffd9a707afbfcb0e breaks
 catalog-ffe279704c8e6a28 count
 catalog-ffe5ba5e551b94c4 count
-facts-03d87908da20bfa7 count
 facts-06a1c6f4e245a3ba count
 facts-075c0188725affeb breaks
 facts-0792a7b2d9e3f483 count
@@ -1788,15 +1808,12 @@ facts-284ef93147c3b33f breaks
 facts-298a2f5832c09e92 count
 facts-299079796a31c7ad count
 facts-2bce0015c57d4142 count
-facts-2d32f5275e5027a1 count
 facts-2e6b3670b2586f69 count
 facts-2f10e92db5101b30 count
 facts-3012d56fcfd33206 count
-facts-32536d16819b70eb count
 facts-3310e26ab6c5de0f count
 facts-34349731d7eb72c0 count
 facts-396b7f1e429cf342 count
-facts-3c1eb0f3280752c6 count
 facts-43948dd493a385b0 count
 facts-47a734ca3ff89d41 count
 facts-492b2952c1500232 count
@@ -1824,7 +1841,6 @@ facts-6b871d8dbe8153b0 count
 facts-6d6532d2d5f6cd87 count
 facts-70022a1dd88914fb count
 facts-70428d03d165302c count
-facts-73a84536ac9d980a count
 facts-745c3d1bc4636ece count
 facts-783a0bbeffdafa40 count
 facts-7c57190dd3b4785f count
@@ -1834,12 +1850,10 @@ facts-7fda710ef2fb144b count
 facts-803ccc31d713baf3 count
 facts-804fbc276574bdfd count
 facts-8a7cf78ec728fb1f count
-facts-8df017adac178600 count
 facts-8fb5b2ef47136afe count
 facts-9105b4e1d4620ef2 count
 facts-9160f773987bfb15 count
 facts-938968da72eb5f04 count
-facts-96a6f69654496c6e count
 facts-9cb688eb72634c9d count
 facts-9daebdb1b4aed7be count
 facts-a6eeb97138dc0f9c count
@@ -1853,13 +1867,10 @@ facts-b560b11eed4540d4 count
 facts-b5a970140a926fc0 count
 facts-b64e43041feb4875 count
 facts-b946956aab9a799e count
-facts-bd4c1379d884d263 count
 facts-be686966b35ec0a2 count
-facts-bea354df8d8a2f21 count
 facts-c52233fb2f78fa2b count
 facts-c60a1e2d04080f61 count
 facts-c6aa71339c9857dd count
-facts-c91a6bbba8b4c021 count
 facts-cc958466bac186aa count
 facts-ceb2743d8c8e0136 count
 facts-cf6147d4954ea1eb count
@@ -1867,14 +1878,10 @@ facts-d27d03468a32c9ed count
 facts-d28653e1fa046885 count
 facts-d519b0de207f8fe4 count
 facts-d593af392654f5b3 count
-facts-d5d196fb5a389f8a count
-facts-d5e8b14aab4ec75d count
 facts-d7e802d4e4f6775b count
 facts-d8ce1ab5cf43d8e6 count
 facts-da3753237d1ed6ff count
 facts-dc0634586c9942b7 count
-facts-ddf4f0f9ee9692b3 count
-facts-dfa5e78095c19924 count
 facts-e0d95bea30c3f936 count
 facts-e3d540219335d911 count
 facts-e64791ed5631dcf7 count
@@ -1885,8 +1892,6 @@ facts-f19ba30b65824de8 count
 facts-f3338f559327923f count
 facts-f5481e33af0ddcdc count
 facts-f5e4d6f99e664ddf breaks
-facts-f64760b85dd20bb7 count
-facts-f83e3df5862ba1c5 count
 facts-f8b095bc5316218f count
 facts-f9df0d5891e85c49 count
 facts-fab3273f4ee132ac count
@@ -2100,7 +2105,7 @@ catalog-2d091e67a2645265 count
 catalog-2d352d4caf5f44ae count
 catalog-2d3b14c15fdbafe0 breaks
 catalog-2d62fdc3475ea145 count
-catalog-2dabec7608a77c60 count
+catalog-2dabec7608a77c60 breaks
 catalog-2dce931ffebb5f74 count
 catalog-2dd0c34e42ef0c85 breaks
 catalog-2dfcbafe80567013 count
@@ -3165,7 +3170,6 @@ catalog-b4b44690dd31f526 count
 catalog-cc5d4ffeee50b4a4 breaks
 catalog-dc989b8a4be38c07 breaks
 catalog-ea93805b0ccabccc count
-facts-e0056b64e873f49d count
 rich-1bde08cab6d2f582 breaks
 rich-5f514e046c5041f3 breaks
 rich-bd576120f4886917 breaks
@@ -3564,18 +3568,15 @@ sample-ff42ba37219be8db error
 sample-ffd94dbfb29c6f0c error
 
 ## Pasted C0 and C1 controls (CR, FF, VT, NUL, NEL) between letters, at 24 px and wider: Chrome gives them widths and line ends the library doesn't model
-catalog-0040df078ea0a9cd count
 catalog-0154b38964d405ff count
 catalog-03675178503740cc count
 catalog-036fe1be6283f402 count
 catalog-03836741ffe74d17 count
-catalog-041cc47c1492ea3f breaks
 catalog-061830b360e5929d count
 catalog-06425e7f5d96c42d count
 catalog-0885bc84b785d554 count
 catalog-0bc62bc49e9b8569 breaks
 catalog-0bcaf739da1829bc breaks
-catalog-0d66c8ea270096c6 breaks
 catalog-0fd36d777318d412 count
 catalog-0fda0a5d06ea29da count
 catalog-10b04eac49740daa count
@@ -3588,7 +3589,6 @@ catalog-2a99cb4421a51838 breaks
 catalog-2bf961efd91dafbe count
 catalog-2d79a4fc2ae2b2d0 count
 catalog-2f45a169ca8e6ae0 count
-catalog-2f4ebb6506c667ed breaks
 catalog-31beabaff839d366 breaks
 catalog-3242d49ad3567a35 breaks
 catalog-343d14db8e1426a8 count
@@ -3609,7 +3609,6 @@ catalog-4c68113e1deaae01 breaks
 catalog-51a3293aa9a37e5a count
 catalog-5342c2791a174c29 count
 catalog-57198da3b0934a77 count
-catalog-59d0b63cce759851 breaks
 catalog-5a2ee2d85c6ec574 count
 catalog-5ae44eeccf896f92 count
 catalog-5b6329f51b126949 breaks
@@ -3633,7 +3632,6 @@ catalog-7c8aa8c553e6ed7f count
 catalog-7e678ee4070fe5e0 breaks
 catalog-7eedccdd8bf71de9 count
 catalog-8040b9a1ec1e23cc count
-catalog-80b868bf7866519c count
 catalog-844de8abfb232f82 breaks
 catalog-85f730bcb426b80f count
 catalog-86d3aa83a10ca064 count
@@ -3644,7 +3642,6 @@ catalog-90f8b60972e4d479 count
 catalog-975ad1de9106595f count
 catalog-979edb5ddef3cdfa count
 catalog-9a77a0c35eeedc4b count
-catalog-9a91c4837d17ca69 count
 catalog-9ac7c2adf7e37e26 count
 catalog-9b0b26afc3f00754 count
 catalog-9e49a39dbf52bd2b count
@@ -3658,7 +3655,6 @@ catalog-ab0a299be780df5b count
 catalog-ab1ed614affda4aa count
 catalog-ab78d2534006667a count
 catalog-ad463c503f932387 count
-catalog-b08ea9a8bc19f430 breaks
 catalog-b2ca45535221971e count
 catalog-b47213aeac060371 count
 catalog-b4a81f0c09a4a5ce breaks
@@ -3672,7 +3668,6 @@ catalog-bc381b1f1366f81e breaks
 catalog-be69cd68099ce331 breaks
 catalog-bf1dd518b07bcd4a count
 catalog-c046489ea39ee7f3 count
-catalog-c2416bd3c18812de breaks
 catalog-c259c08a8d1e59db count
 catalog-c2658e4fe55b6fe0 count
 catalog-c7fc830af740765d count
@@ -3686,18 +3681,14 @@ catalog-cfe31dcc4230a994 count
 catalog-d233b74f210cf7e1 count
 catalog-d635238718a6cfaa breaks
 catalog-d72648c7b27b5bd7 count
-catalog-d7b47eb82c8f1b36 count
 catalog-d9cf7fe892176deb count
-catalog-e2ff6f5902d719db count
 catalog-e5fc88abda777106 count
 catalog-e6b96decd5537580 count
-catalog-e7de1c274e362ccc breaks
 catalog-e89322167b81f953 count
 catalog-ea0a2441b8357710 breaks
 catalog-eba5778708d4b9c6 breaks
 catalog-ed58d5cf11885ef1 count
 catalog-ee2b59e47b170618 breaks
-catalog-f2e0a2bfe1586c43 count
 catalog-f53d328fafc1e26f breaks
 catalog-f574d7df9af740f6 count
 catalog-f5fdeff0099bcf0e count
@@ -3768,10 +3759,6 @@ old-gate-e88005a6dd970f4e count
 old-gate-f63a66d4cfe640d0 count
 old-gate-fcbb79cc263c0b70 count
 
-## Real usage: Indonesian in Arial and Bulgarian in Times New Roman; Chrome fits one more word than the Canvas widths add up to (main before #340 too)
-sample-9e9374ae76b2b3ff breaks
-sample-edd4384f6507561c breaks
-
 ## Real usage: Japanese and Chinese lines; Chrome fits one more character than the Canvas widths add up to (main before #340 too)
 sample-1090cad44abeab6a breaks
 sample-28103c44323eb39f count
@@ -3792,21 +3779,6 @@ sample-fe4b8ea7070b7c99 breaks
 ## Real usage: Khmer and Myanmar; Chrome's dictionary breaks differ from the library's (main before #340 too)
 sample-6f8970d165201513 breaks
 sample-c11591c08197d852 breaks
-
-## Real usage: Latin, Devanagari and Cyrillic with letter-spacing; one word lands on the other line (main before #340 too)
-sample-53ffbeedb28e3e2a breaks
-
-## Real usage: Roboto and Inter, served as web fonts; one word lands on the other line (main before #340 too)
-sample-a12ef9c593d534c3 count
-sample-d7a74fa4b0e4e131 count
-sample-e16c3b260bcd3f6e count
-
-## Real usage: a Windows-only font first in the list (Calibri, Segoe UI), which macOS falls back past; one word lands on the other line (main before #340 too)
-sample-3d5afbc6ec1cfad3 breaks
-sample-46718f858abb497e breaks
-sample-5408d29e6b973ec8 breaks
-sample-87522bdb4a3d1775 breaks
-sample-e76c4a4c81e48e11 breaks
 
 ## Real usage: a word longer than the line (URLs, message placeholders, long Cyrillic or Armenian words), broken between characters; Chrome fits one character more or fewer than the library's character widths allow (main before #340 too)
 sample-15b8a9d949bc752a breaks
@@ -4054,7 +4026,6 @@ catalog-11a32e94840aa620 count
 catalog-1351735796b2be63 count
 catalog-14fb74122d3ed668 breaks
 catalog-170b25e4fbdee88a count
-catalog-1bf76a99ac1611ca count
 catalog-227d08791a4249e3 count
 catalog-2857745be266a421 count
 catalog-29ce9f4f691a9e06 count
@@ -4064,12 +4035,10 @@ catalog-4d3b1e5225d1d7a6 count
 catalog-513cd8560f67fdc6 count
 catalog-581b5276ab3d4400 count
 catalog-5e523d9d7bf2ac2f count
-catalog-5f95330b672bcb57 count
 catalog-66fb7b4cc8a8f315 count
 catalog-69fafadff79e6558 count
 catalog-6f428f9e5e78847e breaks
 catalog-72183fe330d64293 count
-catalog-777055eea5ead1e4 count
 catalog-835e48ad53da1a7b breaks
 catalog-84e09474a6c72218 count
 catalog-864b96b62243319d count
@@ -4077,7 +4046,6 @@ catalog-8c084783873f3227 count
 catalog-8d236aad0ae3238e count
 catalog-9245680a862637ea breaks
 catalog-92d3036549143b50 count
-catalog-9439ab3c29f640f0 count
 catalog-974d0946a66db7ee count
 catalog-9797b6d2a2583275 count
 catalog-9b8693b7dce4d912 count
@@ -4108,30 +4076,22 @@ catalog-f000903abb362c7e count
 catalog-fb26335fe0175947 count
 catalog-fea5d6099bf15fe3 count
 facts-01b2f58f86a4ce3d count
-facts-035561cc98fb3a26 count
 facts-050fa7e9a81d6b5f count
 facts-0c61f924384c2bcb count
 facts-115aa5301a218a7c count
 facts-12a1f789e686cada breaks
 facts-14febb15f782e1dd breaks
-facts-2a7edbc9569aab72 count
-facts-2ad7d3613ebd6249 count
 facts-2b5e2b7ec8d01235 count
 facts-2d5c7cb8ae40664a breaks
 facts-475f73b78f35d53d count
 facts-5e523d9d7bf2ac2f count
 facts-6a15ddc3941672bd count
-facts-73794e7c5003052e count
-facts-7497284da65f843f count
-facts-935240168b3f363f count
 facts-95bb3e0426c7a801 breaks
-facts-ae1e3f85daa3490f count
 facts-b8485914d68eddf6 count
 facts-c309045f0579e048 count
 facts-d5ba828b44bfb4e1 count
 facts-d5e7daf0e9f37a5d breaks
 facts-d6c085ad7370de25 count
-facts-d6d8f970dbb6580a count
 facts-edd23560d2da1d6f count
 facts-ee6c9de0a47bba8c count
 facts-f2fdc78825bafd73 count
@@ -4142,7 +4102,6 @@ rich-0f3f6df9b86811ce breaks
 rich-11e9e541971b00c0 breaks
 rich-13e88b0f7f64929a count
 rich-1b5deb3eb7ef9fcb breaks
-rich-1c219c2151cf59e1 breaks
 rich-20401df9af7ee8b6 breaks
 rich-23a305294dd9312a breaks
 rich-240b61def50ac826 breaks
@@ -4158,10 +4117,7 @@ rich-5db99b6d6871d894 breaks
 rich-5eb046964ad9149e count
 rich-60e34554e1163990 count
 rich-66b47f20a096b984 count
-rich-6a7a46283df778cd breaks
-rich-6fdaa7be578ddf43 count
 rich-7064ab16755f50b6 count
-rich-72c3aa6db713156f count
 rich-7363a3987aa7f181 count
 rich-7a654514bc533904 count
 rich-7b48f25b8637f74f count
@@ -4172,7 +4128,6 @@ rich-8ddf54286514054f count
 rich-8ed652d14e3b4274 breaks
 rich-948c0852cf7cf9db breaks
 rich-952345d30a2b1283 breaks
-rich-978ea438e6225ad6 breaks
 rich-9b5f90519a3fea98 count
 rich-9e578acbc4c12c93 breaks
 rich-9f9af886ab4d378a breaks
@@ -4182,7 +4137,6 @@ rich-a97baab699f3127f count
 rich-ab55f4f4d6c4f2f3 count
 rich-abd79f6c508af135 breaks
 rich-ae35a72297471eee breaks
-rich-ae84de47951d55c1 count
 rich-b4edfbc0cf70e393 count
 rich-b7c7827e7c167f77 count
 rich-b8c87e7db282fd10 breaks
@@ -4194,12 +4148,14 @@ rich-d45142561b8f3ce0 breaks
 rich-d65e93824467e5b4 count
 rich-d8d5d0f682604e14 count
 rich-e039e98dec4b8bc0 breaks
-rich-e151a66a92563f1b breaks
 rich-ef105534b0c98475 count
 rich-f0768af6e481afae breaks
 rich-f46ee7a612bd5a14 breaks
 rich-fbe661d1631325b5 count
 rich-ffca6282fca44ec7 count
+
+## `a`, a space under the Arabic vowel sign U+064B, a space and `b` at 1.5 px letter-spacing in pre-wrap, at 16.32 px, where `a` and the space under the mark overflow by 0.02 px: Chrome moves the second space to a line of its own, the library hangs it on the first; the library gives the mark no gap, as Chrome does since the space is in an Arabic run, and admits text with no advance and no gap wherever the line before it fit, which the space, hanging, did (main passed while it charged the mark a gap, 1.5 px too wide at any width; ENGINE_FOLLOWUPS.md, Letter spacing)
+catalog-0506555f8d35bd12 count
 
 ## pre-wrap spaces before U+FFFC or brackets, and kerning before a space, at 24 px and wider: Chrome breaks there where the library doesn't
 catalog-13dd55803a1a2260 count
@@ -4212,5 +4168,3 @@ catalog-7ab8e1cdafe1f86f count
 catalog-91d7107e61f0e1a1 count
 catalog-9b79008d4ed64bed count
 catalog-c3bf2846dfb9d249 count
-facts-7b19cdf94aecde68 count
-facts-d5695a3c742ed219 count
