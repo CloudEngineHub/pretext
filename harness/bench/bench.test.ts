@@ -80,6 +80,27 @@ describe('the report', () => {
     expect(row([two[1]!, two[0]!].map((r, session) => ({ ...r, session })), 'walk')).toEndWith('| -12.0% +8.0% | within noise (±12.0%) |')
   })
 
+  test('a verdict on a row Firefox moves with the bundle says so: an unrelated change would be blamed for it', () => {
+    const controls = (browser: string, candidate: number): SessionResults[] => [0, 1, 2].map(session => sessionOf(session, { layout: [candidate, 1], prepare: [candidate, 1] }, browser, 'controls'))
+    expect(row(controls('firefox', 1.16), 'controls layout')).toEndWith('| slower (moves with the bundle) |')
+    expect(row(controls('firefox', 0.84), 'controls layout')).toEndWith('| faster (moves with the bundle) |')
+    expect(row(controls('firefox', 1.16).slice(0, 2), 'controls layout')).toEndWith('| slower (unconfirmed) (moves with the bundle) |')
+    expect(row(controls('firefox', 1.01), 'controls layout')).toEndWith('| within noise (±2.0%) |')
+    expect(row(controls('firefox', 1.16), 'controls prepare')).toEndWith('| slower |')
+    expect(row(controls('chrome', 1.16), 'controls layout')).toEndWith('| slower |')
+  })
+
+  test('the rows marked are rows the bench times: a renamed row would lose its mark and say nothing', () => {
+    // Every operation slower but the resize documents' first, at the three widths laid out before.
+    const docs = documents(['resize', 'worst'], 'bench-test', false)
+    const slower = [0, 1, 2].map(session => ({
+      browser: 'firefox', session, seed: '', docs: docs.map(d => ({ row: d.row, family: d.family, id: d.id })),
+      results: Object.fromEntries(docs.map(d => [d.id, { id: d.id, timerStep: 0.005, start: snapshot, end: snapshot, ops: d.ops.map(spec => ({ op: spec.op, rounds: rounds(d.row === 'resize' && spec.widths.length > 0 ? 1 : 1.3, 1) })) }])),
+    }))
+    const marked = report(slower, { builds: BUILDS, hypotheses: false, sizes: {} }).split('\n').filter(line => line.endsWith('| slower (moves with the bundle) |'))
+    expect(marked.map(line => line.split(' | ').slice(0, 2).join(' | '))).toEqual(['| resize | latin layout at new widths', '| worst | controls layout', '| worst | invisible-tails layout'])
+  })
+
   test('the output starts with the builds it compared, each with its commit: a pasted table wouldn\'t say what it timed', () => {
     expect(report(two, { builds: BUILDS, hypotheses: false, sizes: {} }).split('\n')[1]).toBe(BUILDS)
     expect(buildName('HEAD')).toMatch(/^HEAD \([0-9a-f]{7,}, \d{4}-\d\d-\d\d\)$/)

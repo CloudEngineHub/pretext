@@ -11,6 +11,13 @@ import type { DocResult, Sample } from './page.ts'
 // device pixel ratio 2. Uncalibrated rows take none.
 export const FLOORS: Record<string, number> = { new: 0.06, rich: 0.05, seen: 0.01, resize: 0.05, lines: 0.01, worst: 0.02 }
 
+// Firefox 156.0.1's rows that read slower or faster with changes to the bundle their code doesn't run (2026-10-02;
+// harness/README.md, Bench, has each). A verdict on one says so, and wants a second change's table before it is blamed
+// on the change.
+const MOVES_WITH_BUNDLE: Record<string, readonly string[]> = {
+  firefox: ['resize | latin layout at new widths', 'worst | controls layout', 'worst | invisible-tails layout'],
+}
+
 export type SessionResults = { browser: string; session: number; seed: string; docs: Array<{ row: string; family: string; id: string }>; results: Record<string, DocResult> }
 
 export function median(xs: readonly number[]): number {
@@ -117,7 +124,8 @@ export function report(all: readonly SessionResults[], o: { builds: string; hypo
       // A row without a verdict prints its widest band, the smallest change these sessions could have called: where a
       // copy of base kept another speed for a document, that is the distance between two copies, not the row's floor.
       // A verdict of two sessions waits for the third the floors are fitted to.
-      const note = v === 'within noise' ? ` (±${(100 * Math.max(...per.map(s => band(s, floor)))).toFixed(1)}%)` : per.length === 2 ? ' (unconfirmed)' : ''
+      const note = v === 'within noise' ? ` (±${(100 * Math.max(...per.map(s => band(s, floor)))).toFixed(1)}%)`
+        : `${per.length === 2 ? ' (unconfirmed)' : ''}${MOVES_WITH_BUNDLE[browser]?.includes(name) === true ? ' (moves with the bundle)' : ''}`
       const hypothesis = o.hypotheses ? ' (hypothesis: background browsers)' : per.length === 1 ? ' (hypothesis: one session)' : ''
       const base = typical('base')
       if (base > (costliest.get(e.row)?.cost ?? -1)) costliest.set(e.row, { name, cost: base })

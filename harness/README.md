@@ -277,6 +277,9 @@ mixed, Latin and CJK messages, each family in a document of its own.
   16.8% and 8.7% slower under #406, two unrelated changes timed against the same main on the same day (Firefox 156.0.1,
   three sessions each, 2026-10-02), so they move with unrelated changes to the bundle and want a second change's table
   before being blamed on one.
+- **A verdict on one of those three rows** prints "(moves with the bundle)" in Firefox's table (`MOVES_WITH_BUNDLE`,
+  `bench/report.ts`). The list is Firefox 156's: after a pin bump a row stays on it only while unrelated changes still
+  move it.
 
 A session of every row took 74 s in Chrome, 91 s in Firefox and 79 s in Safari (the medians of 50-52 sessions each,
 2026-10-01 and 02; a document that loses focus waits a minute and starts again), before the Latin and CJK `lines`
