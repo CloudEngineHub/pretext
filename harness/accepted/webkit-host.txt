@@ -48,9 +48,7 @@ old-gate-739b18e51c1d20d3 breaks
 old-gate-a363ab6ddf329f2c breaks
 old-gate-b91bd6ffeef40383 breaks
 old-gate-c81cecb0b25d0d2f breaks
-old-gate-cebb2654acc6127d count
 old-gate-ebb5103acaf48aac breaks
-old-gate-eec6735d3ce10b5a breaks
 
 ## CJK beside Latin, closing punctuation, small kana or U+FFFC, and CJK under keep-all or a changed page language, at 24 px and wider: WebKit breaks there where the library doesn't
 catalog-0c476a515f026614 count
@@ -107,12 +105,10 @@ facts-6e21867973072665 count
 facts-cb726fe075c99028 count
 facts-d586e19a99606fb9 count
 old-gate-431f934b64337fc7 breaks
-old-gate-5807fa59410c4a83 breaks
 old-gate-5af2d5845d9a0c9d breaks
 old-gate-a4b0c2cd8b374d30 breaks
 old-gate-c55afebd1de7d4ff breaks
 old-gate-c7fff6370e1470f6 breaks
-old-gate-dd9785b9f09ad6a5 breaks
 rich-5d3ce06ac22e1dca count
 rich-fb89fcbe2ec753dd count
 
@@ -146,7 +142,6 @@ catalog-e2e532ee5e2beb22 count
 catalog-ef19e32843315050 count
 catalog-f59601a89eac943f count
 old-gate-0f4ab6085302b5fe breaks
-old-gate-101f07ad5f22eefc breaks
 old-gate-9d8bd60154392027 breaks
 rich-1a9f6a3ab613d5c9 count
 rich-2afd69aa3e8077b5 breaks
@@ -168,14 +163,18 @@ catalog-d17a88385635a7ae breaks
 catalog-e0082f1865840769 count
 catalog-fd88f9755ef830df breaks
 old-gate-091ae680a641b5eb count
+old-gate-0a144c01bf5ebe94 count
 old-gate-0eea5deda1d13e7f count
 old-gate-1a6a7eb9655478e8 count
 old-gate-1afaf0f58a4d1e3f count
 old-gate-1d8c70da199e271c count
+old-gate-2831b45a3a3ed47d count
 old-gate-28f1b71db41cf4d7 count
 old-gate-2cc3dd823dbbe301 count
 old-gate-31af20e064ef2edc count
 old-gate-31e4205e7b3d6d33 count
+old-gate-3523f33f414e4d24 count
+old-gate-35beb0937be3f4df count
 old-gate-3b44d0256f640c89 count
 old-gate-3f01143a9a1e57c6 count
 old-gate-447065020227fb6e count
@@ -185,6 +184,7 @@ old-gate-4d17d533b9e4ffc9 count
 old-gate-528fcf9feff47c76 count
 old-gate-541d12f4b4fd7e8c count
 old-gate-57f8dcf65b871504 count
+old-gate-5b01cb0c1d5660bb count
 old-gate-5ecbfe5b6fbd7755 count
 old-gate-65a74277b380a2a2 count
 old-gate-716890708b219d79 count
@@ -195,6 +195,7 @@ old-gate-80f5a8ad8ef43054 count
 old-gate-827b1f2cf6a005f2 count
 old-gate-860fe4a5cd9cb7dc count
 old-gate-8673b25132c24956 count
+old-gate-8a353a3d6796295e count
 old-gate-8ffb745938355ad2 count
 old-gate-9289624c6e7421d2 count
 old-gate-9473dd9268d65dc5 count
@@ -207,6 +208,7 @@ old-gate-a73092582360832b count
 old-gate-a9c1e39a477fcd0d count
 old-gate-b3caec5337828db6 count
 old-gate-b57a87356f9e0d0f count
+old-gate-beb0c43bb9347cfd count
 old-gate-c4568682294f538c count
 old-gate-c4f3a8c867b040c3 count
 old-gate-c851e59459d91c49 count
@@ -226,6 +228,7 @@ old-gate-e3d3c1d905d2d57d count
 old-gate-e5a9cfde5fe0975d count
 old-gate-ebac9380591c23ec count
 old-gate-ebbad3ec75222375 count
+old-gate-eda49d3d069323a9 count
 old-gate-f59a86459057b5a6 count
 old-gate-fa58e2db03c79fcc count
 old-gate-fb1730d8c673cff2 count
@@ -245,7 +248,6 @@ old-gate-ed333a573cae856d count
 old-gate-f72f0863bf4961db count
 
 ## Lost against main before #340 (6d1d210): VT between Latin letters before brackets and Arabic; WebKit breaks after the VT, the library a letter later
-old-gate-0389719e61d4cfa7 count
 old-gate-04d3119da5a3931e count
 old-gate-398911ce17952484 count
 old-gate-64311d82d42ef913 count
@@ -698,6 +700,7 @@ catalog-4f1d43dab5829393 breaks
 catalog-4f2fa9d5393df630 count
 catalog-4f3c61b5ae319c7b count
 catalog-4f5e6a07562c7627 count
+catalog-4f8c884c5d99aa7e count
 catalog-4fb7ae2e6fe721a5 count
 catalog-4fefa82ff1c153d4 count
 catalog-50a46af1c5b600a2 count
@@ -818,13 +821,11 @@ catalog-655fde1ab654de22 count
 catalog-6591e12d9c9d5e51 count
 catalog-65d83e06a7f3f79b count
 catalog-65eb88113d2ffd7d count
-catalog-660906c3cfddd90b breaks
 catalog-661ca6ec18b5a347 count
 catalog-663353749889efe2 count
 catalog-66350471b851209d count
 catalog-665e2224a9efc686 count
 catalog-6667d4fee8f02050 count
-catalog-66a389cadd3f56a3 count
 catalog-672e663c355887e0 count
 catalog-673ee31a81f7175a count
 catalog-6787f0edadf0aecf count
@@ -867,6 +868,7 @@ catalog-6e0152ace658eca1 count
 catalog-6e07faa176dcb30f count
 catalog-6e24579b573efbf8 count
 catalog-6e2f168511329f2d count
+catalog-6eaeb053ec0e4a6b breaks
 catalog-6ed13275ea655a11 count
 catalog-6ef5658b53967490 count
 catalog-6f7d79d07bec8324 count
@@ -879,6 +881,7 @@ catalog-703ec7bd07db044d count
 catalog-7048acdb28d8bb4b count
 catalog-7090b5c3182b70ce count
 catalog-71247b06edd27703 count
+catalog-7162cc75d69efdc0 count
 catalog-7165dbe0b98c9087 breaks
 catalog-71a60695fdfeae53 breaks
 catalog-71ca3985e73d0f3e count
@@ -1044,6 +1047,7 @@ catalog-8fcbaf00df3ae919 count
 catalog-902ec2a481052c2f breaks
 catalog-90310a6d46d95231 count
 catalog-90356bbbc8ca55fa count
+catalog-904879d92edf97fe count
 catalog-90690fcfdf7a236e count
 catalog-907b8e5018317b5f count
 catalog-90ad3357095528e7 count
@@ -1077,7 +1081,6 @@ catalog-942ee7026105e76a breaks
 catalog-94554da905bd30a3 count
 catalog-947accb556ca11e2 breaks
 catalog-9526d1607f8cb9b6 count
-catalog-952ba48b82d8f7ee count
 catalog-953920cf53ad0fb1 count
 catalog-955d89955c381fce breaks
 catalog-9575ca8e09007420 breaks
@@ -1143,6 +1146,7 @@ catalog-9f0473c1e539e054 count
 catalog-9f07ac4a15d10406 count
 catalog-9f3e3a598d622e52 count
 catalog-9f5bef8db41f212a count
+catalog-9f5fd984f0e6b9b6 breaks
 catalog-9f62371e7afb3142 breaks
 catalog-9fe41eda81036276 count
 catalog-9fe779ed657d67dc count
@@ -1322,6 +1326,7 @@ catalog-c0ec00d47325d8ee count
 catalog-c11e449d0a7b8709 count
 catalog-c126322690bde658 count
 catalog-c1450352f926e490 count
+catalog-c14cc186455e2c7d count
 catalog-c19d71a55b5a89a7 count
 catalog-c1e63ffaae63d3e1 count
 catalog-c1ed4f51a3051f8a count
@@ -1650,7 +1655,6 @@ catalog-fd642b92e9f2a319 count
 catalog-fd8751c118d7d5e8 count
 catalog-fdd0eebf4864ea10 count
 catalog-fde1d70ed3acbcbd count
-catalog-fe115a1323926c1a count
 catalog-fe22afda44820a77 breaks
 catalog-fe342562293d95cb count
 catalog-fec6433146d130e5 count
@@ -1822,7 +1826,6 @@ catalog-18e43ef43fbd6626 count
 catalog-18eb4248e9064bfa count
 catalog-190a361ef5480dc0 count
 catalog-194ec9bdc9132093 count
-catalog-19d9493a37dfcea5 count
 catalog-1a4d680406b0af70 count
 catalog-1a519fd037382bc0 count
 catalog-1a57842ed7cd6c22 count
@@ -1959,6 +1962,7 @@ catalog-40b21d1a66fa6583 count
 catalog-417b5e25967c6ec4 count
 catalog-419ad08694db1e95 count
 catalog-421da938cc8ec779 count
+catalog-42330cc2bb6856d9 count
 catalog-424d918d6877164a count
 catalog-42f4769d6b72c707 count
 catalog-434993c93ee30393 count
@@ -1986,6 +1990,7 @@ catalog-48f2b7b030c79b1f count
 catalog-48fb905f7f498a5a count
 catalog-495467645e27f72e count
 catalog-49e88f4cd78620f0 count
+catalog-4a3325b9dbda6639 breaks
 catalog-4a4f797fbe8d9358 count
 catalog-4a91f6c589376736 breaks
 catalog-4c1bb985fd571fc6 count
@@ -2126,7 +2131,6 @@ catalog-74e2d9065b48e37f count
 catalog-752b72da8bead624 count
 catalog-75375001cc584860 count
 catalog-7565e33e94ebb693 count
-catalog-75a6c5896637efff count
 catalog-75b9372ae1bc5875 count
 catalog-764b2b2246109ffb count
 catalog-76ba497af0c2c00c count
@@ -2732,6 +2736,11 @@ rich-f925dd03f35ccc51 count
 rich-f9df6a719b8e8745 breaks
 rich-fb77b1bfbe1c8a96 count
 
+## Narrower than real layouts: width 1, where nothing fits: Hebrew before two opening brackets in 24 px Noto Nastaliq Urdu or Amiri; WebKit ends a line between the brackets, or between the letter and the brackets, where the library keeps both brackets with the letter
+catalog-097b64c5cad414b7 count
+catalog-9fd7135efb07d8f8 count
+catalog-d010655220842af2 count
+
 ## Other shapes (U+FFFC, U+058A, hyphens before curly quotes, kerning before a space, rich-item boundaries), at 24 px and wider: WebKit breaks there where the library doesn't
 old-gate-c3afe2d7b44933ef count
 
@@ -3276,11 +3285,6 @@ facts-ed271f1b72434581 count
 facts-f4ed7850936e9108 count
 facts-f84fc6c6d229bb98 count
 facts-ff8f4819ed6eede6 count
-old-gate-355e3c83a438ecb5 breaks
-old-gate-91674bab36f09a1b count
-old-gate-a129c4825e4eb270 breaks
-old-gate-cf06ac6bcbc630bb breaks
-old-gate-d938fc2ff2e06063 count
 
 ## Real usage: Hebrew with a prefix before a Latin word (ל-Microsoft); WebKit breaks after the hyphen, the library doesn't (main before #340 too)
 sample-1562f53a72883442 breaks
@@ -3347,6 +3351,12 @@ catalog-ed797fdb4546b9b6 breaks
 old-gate-4b10fe4b73388914 breaks
 old-gate-5b751d92bd3fd93b breaks
 old-gate-8e57ffed8ca4d5e3 breaks
+
+## Two joined Arabic letters before Hebrew in 24 px Noto Nastaliq Urdu, in a box narrower than one of them (24 and 26.67 px against 28.2 px): WebKit shapes each piece of the broken word alone, so each letter fills a line, where the library gives the second letter the joined word's width less the first (3.96 px) and keeps a Hebrew letter beside it, so the two Hebrew letters WebKit keeps together land on two lines
+catalog-42ea14dfc4420ed6 breaks
+catalog-7da27baff84238c6 breaks
+catalog-7e4d2080498ad6ca breaks
+catalog-8104103952a40460 breaks
 
 ## White space and soft hyphens before a ZWSP where a line starts, at 24 px and wider: Safari keeps the space after the first soft hyphen visible there, as it doesn't consume a soft hyphen at a line start, where the library consumes both, as it does in one text; main passed these only because its first fragment started before the space its line start consumed (ENGINE_FOLLOWUPS.md)
 rich-1e4eb256d9bee7b8 breaks

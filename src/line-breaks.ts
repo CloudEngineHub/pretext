@@ -768,7 +768,7 @@ function nextBreakableSpace(s: string, startPosition: number, punctuationBreaks:
 // ko, line_cj.brk for zh and line.brk otherwise, plus the locale's quotation remap
 // (apple-brkiter.cpp:458-473, apple-rbbi.cpp:406-487), looked up with ICU's parent fallback
 // under ICU's case: lowercase language, title-case script, uppercase region (uloc_getName).
-function getWebKitLineRules(language: string | null): WebKitLineRules {
+export function getWebKitLineRules(language: string | null): WebKitLineRules {
   const locale = language ?? ''
   let line = webkitLineRules.get(locale)
   if (line !== undefined) return line

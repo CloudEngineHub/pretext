@@ -51,11 +51,12 @@ white space.
 
 A recording counts only under the environment that made it, the key in its file's first line: browser build, OS build,
 OS languages, page languages, device pixel ratio and a hash of the served fonts. `check` refuses to score under any
-other ("Record again before scoring"), so a browser or OS update never reads as a regression. A case laid out
-differently in two recordings under one key has page history: its result depends on what the page laid out before,
+other ("Record again before scoring"), so a browser or OS update never reads as a regression. A case whose lines start
+or end elsewhere in two recordings under one key has page history: its result depends on what the page laid out before,
 through the browser's caches, which the paragraph alone can't predict, so it's never pinned. A pinned case is one whose
-recordings all agree, and only pinned cases are scored. A new case fails `check` until `bun harness record --only-new`
-records it, except in installed Safari, which records only a seeded sample: unobserved is never a pass.
+recordings all agree on that, and only pinned cases are scored; line widths and heights may move between recordings,
+since the pass rule doesn't read them. A new case fails `check` until `bun harness record --only-new` records it,
+except in installed Safari, which records only a seeded sample: unobserved is never a pass.
 
 Every pinned case blocks alike, CJK included, and a change that fails one lists it under a written reason, so a hard
 tradeoff goes on record instead of being ruled out. Generated cases under 24 px are scored too, although narrower than
@@ -150,10 +151,10 @@ New cases mustn't pile up as the old suite's did, a hand-written repro per bug.
 2. `make.ts first <set> --browser=<b>` in Chrome, Firefox and webkit-host, then `make.ts select <set>`, then
    `make.ts bisect <set> --browser=<b>` in each.
 3. `make.ts cut <set>` writes `cases/<set>.ndjson`. It keeps only the frozen `main/*` cases and the templates the saved
-   search holds, so after a partial search it silently drops every other generated case (8,926 at b1fd05fc); search the
-   whole set before cutting, then remove `.artifacts/harness-sets/<set>/`. A template added to an existing family should
-   bring its older cases back byte for byte, and a whole-catalog search derives every generated case again, so a
-   browser's drift lands in the PR.
+   search holds, so it refuses a search that doesn't cover every template of the set (a cut after a partial search
+   dropped 8,926 generated cases with no word at b1fd05fc); search the whole set before cutting, then remove
+   `.artifacts/harness-sets/<set>/`. A template added to an existing family should bring its older cases back byte for
+   byte, and a whole-catalog search derives every generated case again, so a browser's drift lands in the PR.
 4. `bun harness record --only-new`, then `bun harness check`; a new failure the change doesn't fix goes on the accepted
    list with `check --accept="<reason>"`.
 
@@ -177,8 +178,16 @@ ENGINE_FOLLOWUPS.md, Harness debt, has what to prune when the sets are made agai
 ## Commands
 
 AGENTS.md's Validation says when to run `repin`, `check`, `gate` and `bench`. `gate` adds a prediction in reverse order
-(a paragraph mustn't wrap differently because of what was prepared before it), 1,000 seeded cases recorded again (the
-recordings must still describe the browser), and each new failure recorded and predicted alone, to attribute it.
+(a paragraph mustn't wrap differently because of what was prepared before it), 1,000 cases recorded again (the
+recordings must still describe the browser), and each new failure recorded and predicted alone, to attribute it. The
+1,000 are drawn by the commit under test, so one commit always draws the same and successive changes cover every
+recording; the gate prints the seed, and `--seed` draws with another. One draw can hold ten times the text of another,
+so the time the recording takes moves with the commit. It also runs the offline invariants (`invariants.ts`, which
+`bun test` runs on 600 seeded draws) over every checked-in case in the browser's engine profile, beside the browser's jobs,
+but not on a run with `--cases`; a child that dies blocks like a failing invariant. A drawn case whose lines differ from
+its recording is recorded once more in a browser process of its own: laid out as recorded there, it's page history, and
+the gate lists it; laid out otherwise there too, it blocks, since either the recording is stale or it holds page history
+both of `record`'s orders shared. `bun harness record --cases=<a file of those cases>` then lists it as page history.
 `record --only-new` records new cases, `check --accept="<reason>"` puts the new failures on the accepted list under that
 reason and drops the entries that pass again, and `explain` shows one case, or a paragraph given with `--text`, line by
 line against the browser.
@@ -203,11 +212,21 @@ from the browser's Canvas, so attribution never calls such a move a library defe
 
 Page history misleads (`RESEARCH.md`, Evaluation Traps, has the cases; Engine Facts, Safari (WebKit), has WebKit's
 caches): when the gate's attribution calls a failure page history, that holds only once the case fails the same way
-alone, and a webkit-host win or loss counts only if it holds alone or in fresh documents in both orders. The cases seen
-with page history, `recordings/<browser>.history.txt`, are kept across every recording under one environment, and
-`repin` carries them to a new build, since two orders miss history both share: one recording's two orders found 11 of
-webkit-host's 87 (2026-09-24), and without the carried list 33 cases would have blocked when Firefox went to 156.0.1
-(2026-09-25).
+alone, and a webkit-host win or loss counts only if it holds alone in a process of its own (`bun harness explain
+--cases=<a file of the one case>`) or in fresh documents in both orders. The cases seen with page history,
+`recordings/<browser>.history.txt`, are kept across every recording under one environment, and `repin` carries them to a
+new build, since two orders miss history both share: one recording's two orders found 11 of webkit-host's 87
+(2026-09-24), and without the carried list 33 cases would have blocked when Firefox went to 156.0.1 (2026-09-25).
+`record`'s second order is its first reversed, so every case is laid out once before and once after each other one:
+WebKit lays a right-to-left paragraph out with the items of a left-to-right one of the same text laid out before it, and
+when the second order was a shuffle, which keeps half of all pairs in order, 29 webkit-host cases were pinned to the
+order both had shared, which the first recording in sorted and reversed order listed (2026-09-30). The two orders don't
+show every such pair: WebKit's cache drops entries at random once it holds enough text, which a pass over every case
+reaches (`RESEARCH.md`, Engine Facts, Safari (WebKit)), so a case whose twin's entry was dropped before the case came
+stays pinned, at its layout alone, until a gate draws the two together and lists it. For the same reason which pass
+shows which layout differs between recordings, so a case recorded again keeps what is stored while it holds the layouts
+just recorded, a page-history pair in either order, and a full `record` under the same environment rewrites a file only
+where a case's lines moved.
 
 ## Proving "no change"
 
@@ -303,10 +322,10 @@ the per-engine rebuild's harness) and on installed Safari's 2,000-case sample he
 recordings are identical, widths included, and the other 5 are page history in webkit-host (2026-09-24). That
 compares the browsers' layouts only. Pretext's predictions aren't scored in installed Safari: it has no accepted list,
 so `check --browser=safari` would report webkit-host's accepted failures as new, and its sample holds none of the cases
-added since it was drawn. A Safari or macOS update voids the comparison, and no command makes it again: `repin safari`
-records both browsers and prints each one's drift against its own earlier recordings, never one against the other, so
-compare the two scratch recordings by hand, over the cases pinned in both. Installed Safari stalls when hidden (WebKit
-suspends a hidden page past a CPU limit averaged over 8 minutes), so keep its window uncovered during a job.
+added since it was drawn. A Safari or macOS update voids the comparison until `repin safari`, which records both
+browsers and prints on how many of the cases both pin their lines agree, shows they agree again. Installed Safari
+stalls when hidden (WebKit suspends a hidden page past a CPU limit averaged over 8 minutes), so keep its window
+uncovered during a job.
 
 Firefox changes fonts after it starts (see also `PLATFORM_BUGS.md`, the late family names): emoji beside Arial laid out
 otherwise when recorded 11 s after launch than at 12, 15 or 30 s (91 cases, 2026-09-24), so each Firefox job holds its
@@ -369,4 +388,4 @@ checks its line functions against the rich stepper; Chrome's UI language, and so
 65% of page views (`weights.json`); text chat users wrote (the sample's chat draws are stand-ins); or the demos' painted
 layout. No planted defect guards the watchdog's kill, the bench's shuffle and its separate compiles (each copy of the
 library compiled in a module of its own), Firefox's start-up hold, the page passing the browser's name to the recorder,
-or the cap on a job's browser.
+or the cap on a job's browser beyond its kill needing no `ps` table.

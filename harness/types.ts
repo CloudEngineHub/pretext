@@ -24,15 +24,17 @@ export const BROWSERS: readonly BrowserKind[] = ['chrome', 'firefox', 'webkit-ho
 // - `foreground`: the bench times it in the foreground, in these by default.
 // - `phone`: a phone's browser, which lays text out at its CSS size only in the page an app serves it: a viewport meta
 //   tag and `text-size-adjust: 100%` (run.ts). Its recordings are never checked in (cli.ts).
+// - `profiles`: the engine profiles its gate runs the offline invariants in (invariants.ts): the one the library takes
+//   in it, and with Chrome the one an engine the library doesn't recognize gets.
 export const BROWSER: Record<BrowserKind, {
   cases: BrowserKind; sample: number | null; settleMs: number; textEmojiLast: boolean; hyphenCopies: boolean; systemWebKit: boolean
-  wholePixelBoxes: boolean; background: boolean; foreground: boolean; phone: boolean
+  wholePixelBoxes: boolean; background: boolean; foreground: boolean; phone: boolean; profiles: ReadonlyArray<'blink' | 'webkit' | 'gecko' | 'unknown'>
 }> = {
-  chrome: { cases: 'chrome', sample: null, settleMs: 0, textEmojiLast: false, hyphenCopies: true, systemWebKit: false, wholePixelBoxes: false, background: true, foreground: true, phone: false },
-  firefox: { cases: 'firefox', sample: null, settleMs: 15_000, textEmojiLast: true, hyphenCopies: false, systemWebKit: false, wholePixelBoxes: false, background: true, foreground: true, phone: false },
-  'webkit-host': { cases: 'safari', sample: null, settleMs: 0, textEmojiLast: false, hyphenCopies: false, systemWebKit: true, wholePixelBoxes: true, background: true, foreground: false, phone: false },
-  safari: { cases: 'safari', sample: 2000, settleMs: 0, textEmojiLast: false, hyphenCopies: false, systemWebKit: true, wholePixelBoxes: true, background: false, foreground: true, phone: false },
-  ios: { cases: 'safari', sample: null, settleMs: 0, textEmojiLast: false, hyphenCopies: false, systemWebKit: true, wholePixelBoxes: true, background: false, foreground: false, phone: true },
+  chrome: { cases: 'chrome', sample: null, settleMs: 0, textEmojiLast: false, hyphenCopies: true, systemWebKit: false, wholePixelBoxes: false, background: true, foreground: true, phone: false, profiles: ['blink', 'unknown'] },
+  firefox: { cases: 'firefox', sample: null, settleMs: 15_000, textEmojiLast: true, hyphenCopies: false, systemWebKit: false, wholePixelBoxes: false, background: true, foreground: true, phone: false, profiles: ['gecko'] },
+  'webkit-host': { cases: 'safari', sample: null, settleMs: 0, textEmojiLast: false, hyphenCopies: false, systemWebKit: true, wholePixelBoxes: true, background: true, foreground: false, phone: false, profiles: ['webkit'] },
+  safari: { cases: 'safari', sample: 2000, settleMs: 0, textEmojiLast: false, hyphenCopies: false, systemWebKit: true, wholePixelBoxes: true, background: false, foreground: true, phone: false, profiles: ['webkit'] },
+  ios: { cases: 'safari', sample: null, settleMs: 0, textEmojiLast: false, hyphenCopies: false, systemWebKit: true, wholePixelBoxes: true, background: false, foreground: false, phone: true, profiles: ['webkit'] },
 }
 
 export type CssFont = { family: string; size: number; weight: number; style: 'normal' | 'italic' }

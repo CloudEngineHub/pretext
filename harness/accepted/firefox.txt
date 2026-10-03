@@ -883,6 +883,7 @@ catalog-6357f34a1644caba count
 catalog-63bdca867389a6f9 count
 catalog-63ed84f58514031f count
 catalog-649a59f1e14490b8 count
+catalog-64af204e17f879ac breaks
 catalog-6528758e78857f6d count
 catalog-654425d8fe55de76 breaks
 catalog-6627a27138179b09 count
@@ -901,6 +902,7 @@ catalog-6c236ea5457bc82d breaks
 catalog-6cef974ec9f1b20b count
 catalog-6d378e7e6992ab68 count
 catalog-6d720e32d70f0482 breaks
+catalog-6db8c8206e0a503d breaks
 catalog-6e5641eb202e297c count
 catalog-6e9af9887ecb5544 count
 catalog-6ebbdfc8d4eccd1c breaks
@@ -2980,6 +2982,12 @@ rich-bcf83992add4faec count
 rich-d46f633fad829104 count
 rich-ee31e728f8b9b40e count
 rich-fcc03bb8c805a9c8 count
+
+## The Thai-page fuzz string ENGINE_FOLLOWUPS.md names for script runs (Thai, Myanmar, Khmer and Bengali marks, an ideograph and a bracket, ending in U+2007), in 16 px Arial at 24 px: Firefox ends a line after the Myanmar letter, after the Khmer sign and after the Bengali letter, 6 lines, where the Gecko scan, which doesn't split text runs where the script changes, keeps the three on one, 5 lines; unscored while page history was decided on line widths, as its first line is 17.6 or 21.1 px wide by what Firefox laid out before
+followup-60f1c8ca3ac68aed count
+
+## U+FFFD, a letter and a soft hyphen that start a pre-wrap paragraph, in 16 px Arial at 25 px: the hyphen doesn't fit after the letter, so Firefox breaks between U+FFFD and the letter, where the library takes the soft hyphen and overflows, as in #323's word; unscored while page history was decided on line widths, as U+FFFD is 13.1 or 16 px wide by what Firefox laid out before
+catalog-4ee5e9be3e576e04 breaks
 
 ## White space before bidi controls at another bidi level at the end of a span, before white space that starts the next, at 24 px and wider: Firefox ends its text run at the controls and keeps both, where the Gecko analysis reads white space through bidi controls as one run whatever their levels and leaves out white space before only controls at the end of a text (#368), so the library gives the two one gap (main too; ENGINE_FOLLOWUPS.md)
 rich-27fd19a39448d520 count

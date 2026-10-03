@@ -167,7 +167,9 @@ export function searchLineEnds(text: string, lines: Lines, rectsAt: RectsAt): Li
 // that end it. Those hang past the line end, so a box sized to the text needs no room for them, and the library's line
 // widths leave them out too; the shrink-wrap check compares the two. A trailing space counts only where its box reaches
 // within a pixel of either end of the line, since WebKit gives a character's box in whole pixels; that leaves a space
-// inside a line that bidi reordering ends elsewhere.
+// inside a line that bidi reordering ends elsewhere. A space that only characters without a box follow on the line comes off too,
+// though the browser keeps it there: before a word joiner or a ZWSP and U+2028, Safari's line box is 112.77px in 18px
+// Georgia, as the library's line is, and the width here 108px.
 export function lineWidths(text: string, rects: readonly Rect[], lines: Lines, ends: LineEnds, rectsAt: RectsAt): number[] {
   const left = Array.from({ length: lines.lo.length }, () => Infinity)
   const right = Array.from({ length: lines.lo.length }, () => -Infinity)

@@ -153,13 +153,25 @@ export function environmentKey(browser: BrowserKind, env: PageEnv): string {
 export type Session = { close: () => Promise<void> }
 
 // What the harness keeps of a browser it launched: `roots` finds its own processes in a `ps` table, or says why they're
-// gone; `stop` closes it; `cleanup` removes what it leaves once killed; `moved` asks for the processes to be found again.
-type Launched = { pid?: number; roots: (rows: readonly Row[]) => Row[] | string; stop: () => Promise<void>; cleanup: () => void; moved?: boolean }
+// gone; `known` is its processes in the last table read, and those it named since; `stop` closes it; `cleanup` removes
+// what it leaves once killed; `moved` asks for the processes to be found again.
+export type Launched = { pid?: number; roots: (rows: readonly Row[]) => Row[] | string; known: Row[]; stop: () => Promise<void>; cleanup: () => void; moved?: boolean }
 type Row = { pid: number; ppid: number; command: string }
 
-function processes(): Row[] {
+// One `ps` table. A read took over 10 s once, under a load average above 200, so it gets three tries, or one from the
+// poller, which reads again a second later.
+function processes(tries = 3): Row[] {
   const out: Row[] = []
-  const lines = execFileSync('ps', ['-axo', 'pid=,ppid=,command='], { encoding: 'utf8', maxBuffer: 64 << 20, timeout: 10_000 }).split('\n')
+  let table = ''
+  for (let attempt = 1; ; attempt++) {
+    try {
+      table = execFileSync('ps', ['-axo', 'pid=,ppid=,command='], { encoding: 'utf8', maxBuffer: 64 << 20, timeout: 10_000 })
+      break
+    } catch (error) {
+      if (attempt >= tries) throw error
+    }
+  }
+  const lines = table.split('\n')
   for (let i = 0; i < lines.length; i++) {
     const match = /^\s*(\d+)\s+(\d+) (.*)$/.exec(lines[i]!)
     if (match !== null) out.push({ pid: Number(match[1]), ppid: Number(match[2]), command: match[3]! })
@@ -229,36 +241,51 @@ async function release(launched: Launched): Promise<void> {
   open.delete(launched)
 }
 
-function kill(launched: Launched): void {
-  const rows = processes()
-  const roots = launched.roots(rows)
-  const tree = typeof roots === 'string' ? [] : descendants(rows, roots)
-  for (let i = 0; i < tree.length; i++) signal(tree[i]!.pid, 'SIGKILL')
+// The processes the last table held go first and need no `ps`: a browser past its bound grows by gigabytes a second,
+// and a read that fails or takes its 30 s would leave it running. Then those a fresh table adds, when `table` gives one.
+export function kill(launched: Launched, table: () => Row[] = processes): void {
+  for (let i = 0; i < launched.known.length; i++) signal(launched.known[i]!.pid, 'SIGKILL')
+  try {
+    const rows = table()
+    const roots = launched.roots(rows)
+    const tree = typeof roots === 'string' ? [] : descendants(rows, roots)
+    for (let i = 0; i < tree.length; i++) signal(tree[i]!.pid, 'SIGKILL')
+  } catch {
+    // The known ones are gone.
+  }
   launched.cleanup()
 }
 
-// The processes are found again from `ps` each second, and whenever the browser says they moved.
+// Each tick checks the bound first, on the processes the last table held, since the read that may follow holds the
+// process for as long as `ps` takes. The processes are found again from `ps` each second, and whenever the browser says
+// they moved. A read that fails keeps the last table's processes, and the next second reads again.
 function watch(browser: BrowserKind, launched: Launched, fail: (error: Error) => void, boundMb: number): Session {
-  let tree: Row[] = []
   let ticks = 0
   const timer = setInterval(() => {
-    if (ticks++ % 10 === 0 || launched.moved === true) {
-      launched.moved = false
-      const rows = processes()
-      const roots = launched.roots(rows)
-      if (typeof roots === 'string') {
-        clearInterval(timer)
-        fail(new Error(`${browser} ${roots} before its job ended`))
-        return
-      }
-      tree = descendants(rows, roots)
-    }
+    const tree = launched.known
     let kb = 0
     for (let i = 0; i < tree.length; i++) kb += footprintKb(tree[i]!.pid)
-    if (kb <= boundMb * 1024) return
-    clearInterval(timer)
-    kill(launched)
-    fail(new Error(`${browser}: its ${tree.length} processes held ${Math.round(kb / 1024)} MB, past the harness's ${boundMb} MB bound, so the job killed them`))
+    if (kb > boundMb * 1024) {
+      clearInterval(timer)
+      kill(launched)
+      fail(new Error(`${browser}: its ${tree.length} processes held ${Math.round(kb / 1024)} MB, past the harness's ${boundMb} MB bound, so the job killed them`))
+      return
+    }
+    if (ticks++ % 10 !== 0 && launched.moved !== true) return
+    launched.moved = false
+    let rows: Row[]
+    try {
+      rows = processes(1)
+    } catch {
+      return
+    }
+    const roots = launched.roots(rows)
+    if (typeof roots === 'string') {
+      clearInterval(timer)
+      fail(new Error(`${browser} ${roots} before its job ended`))
+      return
+    }
+    launched.known = descendants(rows, roots)
   }, 100)
   return {
     close() {
@@ -295,6 +322,7 @@ async function openApp(app: string, executable: string, marker: string, profile:
           const main = rows.find(row => row.pid === found.pid && row.command === found.command)
           return main === undefined ? 'quit' : [main]
         },
+        known: [found],
         stop: () => stop(found, profile),
         cleanup: () => rmSync(profile, { recursive: true, force: true }),
       })
@@ -370,7 +398,9 @@ function launchFirefox(url: string, profile: string, foreground: boolean): Promi
 }
 
 // The host names its web content process on its stdout whenever a navigation commits in another one. build.sh keeps
-// the hash of the source it built from, so a host built before this protocol, or from other source, isn't run.
+// the hash of the source it built from, so a host built before this protocol, or from other source, isn't run. The
+// host and each process it names are known from then, not from the next `ps` table, so the bound holds them while
+// `ps` fails; the table that comes checks the named one's command.
 async function launchWebKitHost(url: string): Promise<Launched> {
   const source = new Bun.CryptoHasher('sha256').update(readFileSync(join(ROOT, 'harness/webkit-host/main.swift'))).digest('hex')
   const built = await Bun.file(`${WEBKIT_HOST}.source-sha256`).text().catch(() => '')
@@ -381,6 +411,7 @@ async function launchWebKitHost(url: string): Promise<Launched> {
     // Exit status 0 is the job's end (--exit-title).
     roots: rows => host.exitCode === 0 ? [] : host.exitCode !== null || host.signalCode !== null ? `exited with ${host.exitCode ?? host.signalCode}`
       : rows.filter(row => row.pid === host.pid || (row.pid === webContent && row.command.endsWith('/com.apple.WebKit.WebContent'))),
+    known: [{ pid: host.pid, ppid: process.pid, command: WEBKIT_HOST }],
     async stop() {
       host.kill('SIGTERM')
       if (await Promise.race([host.exited.then(() => false), Bun.sleep(4000).then(() => true)])) host.kill('SIGKILL')
@@ -397,6 +428,7 @@ async function launchWebKitHost(url: string): Promise<Launched> {
         const pid = /^web content process (\d+)$/.exec(lines[i]!)?.[1]
         if (pid === undefined) continue
         webContent = Number(pid)
+        launched.known = [...launched.known, { pid: webContent, ppid: 1, command: 'com.apple.WebKit.WebContent' }]
         launched.moved = true
       }
     }
@@ -427,6 +459,7 @@ async function launchSimulator(url: string, jobId: string): Promise<Launched> {
       const init = rows.find(row => row.command.startsWith('launchd_sim ') && row.command.includes(device))
       return init === undefined ? 'shut down' : rows.filter(row => row.ppid === init.pid && /\/(MobileSafari|com\.apple\.WebKit\.\w+)( |$)/.test(row.command))
     },
+    known: [],
     stop: () => Promise.resolve(remove()),
     cleanup: remove,
   })
@@ -483,7 +516,7 @@ async function launchSafari(url: string, jobId: string, owns: (tabUrl: string) =
     }
   }
   // The user's Safari runs the window, so none of its processes is the job's to bound or kill.
-  return own({ roots: () => [], stop: () => Promise.resolve(close()), cleanup: close })
+  return own({ roots: () => [], known: [], stop: () => Promise.resolve(close()), cleanup: close })
 }
 
 // `fail` hears why the browser went before its job ended (past `boundMb`, or a quit). `foreground` (the bench's timed

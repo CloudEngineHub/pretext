@@ -3,8 +3,8 @@
 // - harness/recordings/<browser>.txt: the recorded layout of every case whose two recordings agree, under an
 //   environment key. A line is `<id>\t<height>\t<line> <line> ...`, each line `<first>-<last>:<width>` with `-` for no
 //   visible character, or `<id>\terror\t<reason>`.
-// - harness/recordings/<browser>.history.txt: the cases whose two recordings differ (page history), both recordings, as
-//   `<id>\t<A|B>\t...`. They are never pinned.
+// - harness/recordings/<browser>.history.txt: the cases whose two recordings put a character on another line (page
+//   history), both recordings, as `<id>\t<A|B>\t...`. They are never pinned.
 // - harness/accepted/<browser>.txt: the failures a change accepted, under `## <reason>` headings, one `<id> <status>` per line.
 // - harness/varying/<browser>.txt: the cases whose predictions move with the browser's state, under `## <reason>`
 //   headings, one `<id> <kind>` per line: `runs` for one that moves between runs, predicted and printed but never
@@ -20,6 +20,17 @@ export function recordingText(recording: Recording): string {
     lines.push(`${line.first < 0 ? '-' : `${line.first}-${line.last}`}:${line.width}`)
   }
   return `${recording.height}\t${lines.join(' ')}`
+}
+
+// What the pass rule reads of a recording: where each line starts and ends. Two recordings of a case are one layout
+// when these agree. Line widths and the block's height are left out: WebKit's width cache moves a line's float edges
+// by hundredths of a pixel with what the process measured before, and Firefox clips a hanging space to the box, though
+// every character stays on its line.
+export function lineEnds(recording: Recording): string {
+  if ('error' in recording) return `error ${recording.error}`
+  let out = ''
+  for (let i = 0; i < recording.lines.length; i++) out += `${recording.lines[i]!.first}-${recording.lines[i]!.last} `
+  return out
 }
 
 export function parseRecording(text: string): Recording {
@@ -238,9 +249,15 @@ export function caseText(c: Case): string {
 // other cases goes on the page-history list, never pinned.
 export type Stored = { recordings: ReadonlyMap<string, Recording>; history: ReadonlyMap<string, [Recording, Recording]> }
 
-// A case laid out differently in its two orders is page history. So is one laid out differently from, or already page
-// history in, the stored recordings of the same environment (`prior`): two orders miss some of what depends on the cases
-// before it. Returns how many differ from the stored recordings.
+// A case whose lines start or end elsewhere (lineEnds) in its two orders is page history. So is one laid out that way
+// against, or already page history in, the stored recordings of the same environment (`prior`): two orders miss some of
+// what depends on the cases before it. A case whose line widths alone move stays pinned, since the pass rule never
+// reads them: decided on widths too, 51 of webkit-host's 202 page-history cases and 77 of Firefox's 106 went unscored
+// with the same lines in both recordings (2026-09-30). What is stored stays while it holds the layouts just recorded:
+// a pinned recording with the same line ends, and a page-history pair with the same two in either order, since which
+// pass meets which isn't the same in every recording: WebKit's cache drops entries at random (record, cli.ts), and 11
+// webkit-host pairs came out swapped in one recording (2026-10-01). So recording again rewrites a file only where a
+// case's lines moved. Returns how many differ from the stored recordings.
 export function splitHistory(ids: readonly string[], a: ReadonlyMap<string, Recording>, b: ReadonlyMap<string, Recording>, recordings: Map<string, Recording>, history: Map<string, [Recording, Recording]>, prior: Stored | null = null): number {
   let moved = 0
   for (let i = 0; i < ids.length; i++) {
@@ -251,14 +268,19 @@ export function splitHistory(ids: readonly string[], a: ReadonlyMap<string, Reco
     const earlier = prior?.history.get(id)
     recordings.delete(id)
     history.delete(id)
-    if (recordingText(first) !== recordingText(second)) history.set(id, [first, second])
+    if (lineEnds(first) !== lineEnds(second)) history.set(id, earlier !== undefined && sameLayouts(earlier, first, second) ? earlier : [first, second])
     else if (earlier !== undefined) history.set(id, earlier)
-    else if (stored !== undefined && recordingText(stored) !== recordingText(first)) {
+    else if (stored !== undefined && lineEnds(stored) !== lineEnds(first)) {
       history.set(id, [stored, first])
       moved++
-    } else recordings.set(id, first)
+    } else recordings.set(id, stored ?? first)
   }
   return moved
+}
+
+function sameLayouts(pair: readonly [Recording, Recording], first: Recording, second: Recording): boolean {
+  const [a, b, x, y] = [lineEnds(pair[0]), lineEnds(pair[1]), lineEnds(first), lineEnds(second)]
+  return (a === x && b === y) || (a === y && b === x)
 }
 
 export function assertSameEnvironment(browser: BrowserKind, recorded: string, live: string): void {

@@ -5,14 +5,14 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { srcOf } from './bench/lib.ts'
-import { fontsKey, keyOf, type Environment } from './browsers.ts'
+import { fontsKey, keyOf, kill, type Environment, type Launched } from './browsers.ts'
 import { icuEntries, rustByteStrings } from './break-data.ts'
-import { check, drift, equal, gate, parseArgs, record, type Io, type Options } from './cli.ts'
+import { check, drift, equal, gate, hostAgreement, parseArgs, record, type Invariants, type Io, type Options } from './cli.ts'
 import { groupLines, recordedLines, scanLineEnds, searchLineEnds, type RectsAt } from './observe.ts'
 import { bundle, documents, LIB, type Job } from './run.ts'
 import { box } from './sets/build.ts'
 import {
-  accept, attribute, behaviourLine, buildChange, checkBlocks, countBehaviour, countDraw, countWidths, drawRows, freshRecordings, gateBlocks, gateSample, headline, judge,
+  accept, attribute, behaviourLine, buildChange, checkBlocks, commitSeed, countBehaviour, countDraw, countWidths, drawRows, freshRecordings, gateBlocks, gateSample, headline, judge,
   libraryFaults, outsideClaims, pinning, predictionChange, reverseOrder, score, SEED, strata, tableLines, weightedShare, widthShares,
   type Behaviour, type Draw, type Outcome, type Stratum, type Verdict, type WidthTally,
 } from './score.ts'
@@ -414,6 +414,23 @@ describe('the stored recordings', () => {
     expect([...history.keys()]).toEqual(['moved'])
   })
 
+  test('a case whose line widths or height alone move between its recordings stays pinned: a paragraph with the same lines every time would go unscored, its failures with it', () => {
+    const same = layOut(TEXT, STARTS).recording
+    if ('error' in same) throw new Error('unreachable')
+    // WebKit's width cache moves a line's edge by hundredths of a pixel, and a font swapped in late moves the height.
+    const wider: Recording = { lines: same.lines.map((line, i) => (i === 0 ? { ...line, width: line.width + 0.015625 } : line)), height: same.height + 1 }
+    const recordings = new Map<string, Recording>()
+    const history = new Map<string, [Recording, Recording]>()
+    const prior = { recordings: new Map([['stored', wider]]), history: new Map<string, [Recording, Recording]>() }
+    const both = new Map([['orders', same], ['stored', same]])
+    expect(splitHistory(['orders', 'stored'], both, new Map([['orders', wider], ['stored', same]]), recordings, history, prior)).toBe(0)
+    expect([[...recordings.keys()], [...history.keys()]]).toEqual([['orders', 'stored'], []])
+    // The stored recording stays, so recording again doesn't rewrite it.
+    expect(recordings.get('stored')).toBe(wider)
+    expect(freshRecordings(['stored'], prior.recordings, [both])).toEqual({ stale: [], history: [] })
+    expect(attribute(wider, same, predicted(TEXT, [0, 10, 21, 31]), [predicted(TEXT, [0, 10, 21, 31]), predicted(TEXT, [0, 10, 21, 31])])).toBe('true loss')
+  })
+
   test('a case laid out differently from the stored recording of its environment is page history too: the gate would block at random', () => {
     const same = layOut(TEXT, STARTS).recording
     const other = layOut(TEXT, [0, 10, 26]).recording
@@ -424,6 +441,18 @@ describe('the stored recordings', () => {
     expect(splitHistory(['kept', 'listed', 'moved'], both, both, recordings, history, prior)).toBe(1)
     expect([...recordings.keys()]).toEqual(['kept'])
     expect([...history.keys()].sort()).toEqual(['listed', 'moved'])
+  })
+
+  test('a page-history case recorded again keeps its stored pair while its two orders give those two layouts, whichever comes first: every full recording would rewrite the page-history file', () => {
+    const same = layOut(TEXT, STARTS).recording
+    const other = layOut(TEXT, [0, 10, 26]).recording
+    const third = layOut(TEXT, [0, 10, 21, 31]).recording
+    const stored: [Recording, Recording] = [other, same]
+    const prior = { recordings: new Map<string, Recording>(), history: new Map([['swapped', stored], ['changed', stored]]) }
+    const history = new Map<string, [Recording, Recording]>()
+    splitHistory(['changed', 'swapped'], new Map([['changed', same], ['swapped', same]]), new Map([['changed', third], ['swapped', other]]), new Map(), history, prior)
+    expect(history.get('swapped')).toBe(stored)
+    expect(history.get('changed')).toEqual([same, third])
   })
 })
 
@@ -532,7 +561,7 @@ describe('what blocks', () => {
     expect(gateBlocks({ moved: [] }, right, { stale: ['a'] })[0]).toStartWith('BLOCKS: 1 laid out differently from the recordings every time')
   })
 
-  test('the gate\'s sample is the same in every run with the default seed, and moves by one case when one leaves the pinned cases: the gate would be green or red by the clock', () => {
+  test('the gate\'s sample is the same in every run with one seed, and moves by one case when one leaves the pinned cases: the gate would be green or red by the clock', () => {
     const cases: Case[] = []
     for (let i = 0; i < 40; i++) cases.push({ ...paragraphCase(TEXT), id: `case-${i}` })
     const sample = gateSample(cases, SEED, 5).map(c => c.id)
@@ -540,6 +569,21 @@ describe('what blocks', () => {
     const fewer = gateSample(cases.filter(c => c.id !== sample[1]), SEED, 5).map(c => c.id)
     expect(fewer.filter(id => !sample.includes(id))).toHaveLength(1)
     expect([parseArgs(['gate']).options.seed, parseArgs(['gate', '--seed=7']).options.seed]).toEqual([SEED, 7])
+  })
+
+  test('the gate\'s default seed is the commit under test, so each commit draws its own sample and the commits together draw every case: a recording outside one fixed sample would never be recorded again', () => {
+    const cases: Case[] = []
+    for (let i = 0; i < 40; i++) cases.push({ ...paragraphCase(TEXT), id: `case-${i}` })
+    const drawn = new Set<string>()
+    for (let commit = 0; commit < 40; commit++) {
+      const hash = new Bun.CryptoHasher('sha1').update(`commit ${commit}`).digest('hex')
+      const sample = gateSample(cases, commitSeed(hash), 5).map(c => c.id)
+      expect(gateSample(cases, commitSeed(hash), 5).map(c => c.id)).toEqual(sample)
+      for (let i = 0; i < sample.length; i++) drawn.add(sample[i]!)
+    }
+    expect(drawn.size).toBe(40)
+    // A whole number the --seed flag takes back.
+    expect(commitSeed('8e88756b1f0c2d3e4f5a6b7c8d9e0f1a2b3c4d5e\n')).toBe(0x8e88756b1f0c)
   })
 
   test('page history, Firefox\'s U+FE0E cases, cases with nothing visible and cases with no recording aren\'t pinned, but every case is predicted, the pinned first: line APIs that disagree on a case with no recording would go unseen', () => {
@@ -578,6 +622,8 @@ describe('the gate and page history of predictions', () => {
     const alone = new Map([['emoji', two], ['stale', three]])
     expect(freshRecordings(['emoji', 'stale', 'same'], stored, [inSample, alone, alone])).toEqual({ stale: ['stale'], history: ['emoji'] })
     expect(freshRecordings(['same'], stored, [inSample])).toEqual({ stale: [], history: [] })
+    // One past the cases the gate records alone has no second recording, and blocks.
+    expect(freshRecordings(['emoji'], stored, [inSample, new Map()])).toEqual({ stale: ['emoji'], history: [] })
   })
 
   test('a prediction that flips between runs, once listed, is never judged, and the gate calls it varying, not a library defect: check blocked at random on a system-ui label', () => {
@@ -623,15 +669,17 @@ describe('the commands, with a stand-in browser', () => {
     return root
   }
 
-  // The browser records `layout(c, job)` for each case of a job, and the page predicts `prediction(c, job)`.
-  function browser(root: string, prediction: (c: Case, job: Job) => Prediction, layout = (_c: Case, _job: Job): Recording => laidOut, env = 'test'): Io & { printed: () => string } {
+  // The browser records `layout(c, job)` for each case of a job, and the page predicts `prediction(c, job)`. The offline
+  // invariants count `failing` under the coverage check.
+  function browser(root: string, prediction: (c: Case, job: Job) => Prediction, layout = (_c: Case, _job: Job): Recording => laidOut, env = 'test', failing: string[] = []): Io & { printed: () => string } {
     const printed: string[] = []
+    const invariants = (): Promise<Invariants> => Promise.resolve({ cases: 3, failures: failing, counts: failing.length === 0 ? {} : { coverage: failing.length }, ms: 0 })
     const run = <T extends Recording | Prediction>(job: Job): Promise<{ env: string; results: Map<string, T>; ms: number }> => {
       const results = new Map<string, T>()
       for (let i = 0; i < job.cases.length; i++) results.set(job.cases[i]!.id, (job.mode === 'record' ? layout(job.cases[i]!, job) : prediction(job.cases[i]!, job)) as T)
       return Promise.resolve({ env, results, ms: 0 })
     }
-    return { root, run, log: text => printed.push(text), printed: () => printed.join('\n') }
+    return { root, run, invariants, log: text => printed.push(text), printed: () => printed.join('\n') }
   }
 
   test('check blocks on a failure off the accepted list, --accept takes it, and a prediction that varies between runs is never judged or accepted: a regression would pass, or an accepted flip block the next run', async () => {
@@ -707,11 +755,32 @@ describe('the commands, with a stand-in browser', () => {
     expect(io.printed()).toContain('true loss  fail')
   })
 
+  test('the gate blocks when an offline invariant fails on any checked-in case or its process dies, in either engine profile Chrome stands for, and still prints what the browser found: a line API fault on a case no seeded draw holds would land', async () => {
+    const list = cases(['pass'])
+    const green = browser(folder('gate-invariants', { pass: laidOut }), () => right)
+    expect(await gate('chrome', list, options, green)).toBe(false)
+    for (const profile of ['blink', 'unknown']) expect(green.printed()).toContain(`  offline invariants, ${profile} profile: none fails over 3 cases`)
+    const io = browser(folder('gate-invariants', { pass: laidOut }), () => right, undefined, undefined, ['case-1 at 16: line 2 leaves "  " unpainted'])
+    expect(await gate('chrome', list, options, io)).toBe(true)
+    expect(io.printed()).toContain('  BLOCKS: offline invariants fail in the blink profile, over 3 cases: coverage 1\n    case-1 at 16: line 2 leaves "  " unpainted')
+    // A child killed for its memory or its time blocks, and the gate still prints what the browser found.
+    const killed = browser(folder('gate-invariants', { pass: laidOut }), () => right)
+    killed.invariants = profile => (profile === 'blink' ? Promise.reject(new Error('its process ended on SIGKILL')) : green.invariants(profile, ''))
+    expect(await gate('chrome', list, options, killed)).toBe(true)
+    expect(killed.printed()).toContain('  1 cases recorded again')
+    expect(killed.printed()).toContain('  BLOCKS: the offline invariants didn\'t finish in the blink profile: its process ended on SIGKILL\n  offline invariants, unknown profile: none fails')
+    // A run on a case file of its own reads none of the checked-in cases, so the invariants over them stay out.
+    const partial = browser(folder('gate-invariants', { pass: laidOut }), () => right, undefined, undefined, ['case-1 at 16: line 2 leaves "  " unpainted'])
+    expect(await gate('chrome', list, { ...options, partial: true }, partial)).toBe(false)
+    expect(partial.printed()).toContain('  offline invariants: not run with --cases')
+  })
+
   test('the gate blocks on breaks and line APIs that move in reverse order and on recordings that no longer hold, and moves page history it finds off the pinned and accepted cases: a message would wrap differently after other messages, or the next check block', async () => {
-    // After "first" in a job, "moves" breaks otherwise and "measures" disagrees. "found", an accepted failure, is laid out
-    // otherwise among other cases and as recorded alone. "emoji" and "late" are laid out otherwise among other cases, and
-    // alone only after "found", as Firefox's color emoji are after a U+FE0E case: the sample puts one before "found" and
-    // one after it, so each is laid out as recorded in one of the lone orders. "stale" is laid out otherwise every time.
+    // After "first" in a job, "moves" breaks otherwise and "measures" disagrees. "found", an accepted failure, "emoji"
+    // and "late" are laid out as recorded only in a browser process that laid out nothing before them, a fresh document
+    // or not, as a right-to-left paragraph is in WebKit after its left-to-right twin and Firefox's color emoji are after
+    // a U+FE0E case: recorded alone in one process for all that differ, in the sample's order and in reverse, "emoji" and
+    // "found" never came first, and blocked. "stale" is laid out otherwise every time.
     const recorded = { first: laidOut, moves: laidOut, measures: laidOut, found: laidOut, emoji: laidOut, late: laidOut, stale: laidOut }
     const root = folder('gate-order', recorded, { accepted: '## why\nfound breaks\n' })
     const afterFirst = (c: Case, job: Job): boolean => job.cases.indexOf(c) > job.cases.findIndex(x => x.id === 'first')
@@ -719,12 +788,9 @@ describe('the commands, with a stand-in browser', () => {
       if (c.id === 'found') return wrong
       if (afterFirst(c, job)) return right
       return c.id === 'moves' ? wrong : c.id === 'measures' ? { ...right, disagreement: 'measureLineStats gives 3 lines' } as Prediction : right
-    }, (c, job) => {
-      if (c.id === 'stale' || (job.documentSize > 1 && c.id !== 'first' && c.id !== 'moves' && c.id !== 'measures')) return other
-      return (c.id === 'emoji' || c.id === 'late') && job.cases.indexOf(c) > job.cases.findIndex(x => x.id === 'found') ? other : laidOut
-    })
+    }, (c, job) => (c.id === 'stale' || (['found', 'emoji', 'late'].includes(c.id) && job.cases.indexOf(c) > 0) ? other : laidOut))
     const list = cases(Object.keys(recorded))
-    expect(gateSample(list, SEED, 9).map(c => c.id).filter(id => ['emoji', 'found', 'late'].includes(id))).toEqual(['emoji', 'found', 'late'])
+    expect(gateSample(list, SEED, 9).map(c => c.id).filter(id => ['stale', 'emoji', 'found', 'late'].includes(id))).toEqual(['stale', 'emoji', 'found', 'late'])
     expect(await gate('chrome', list, options, io)).toBe(true)
     expect(io.printed()).toContain('BLOCKS: 1 predictions break differently in reverse order: moves')
     expect(io.printed()).toContain('BLOCKS: 1 cases in reverse order where another line API disagrees with the walk')
@@ -754,10 +820,19 @@ describe('the commands, with a stand-in browser', () => {
       return c.id === 'moved' || (c.id === 'orders' && jobs.indexOf(job) === 1) ? other : laidOut
     }
     await record('chrome', cases(['orders', 'kept', 'moved']), options, browser(root, () => right, layout))
-    // Sorted, then shuffled, so each case sits among other cases in the second.
-    expect(jobs.map(job => job.cases.map(c => c.id).join(' '))).toEqual(['kept moved orders', 'kept orders moved'])
+    // Sorted, then in reverse, so each case comes before every other once.
+    expect(jobs.map(job => job.cases.map(c => c.id).join(' '))).toEqual(['kept moved orders', 'orders moved kept'])
     expect([...readRecordings(recordingsPath(root, 'chrome'))!.recordings.keys()]).toEqual(['kept'])
     expect([...readHistory(historyPath(root, 'chrome'))!.cases.keys()]).toEqual(['moved', 'orders'])
+  })
+
+  test('record lays every case out once before and once after each other case: a paragraph that lays out otherwise after one particular case, as a right-to-left one does in WebKit after its left-to-right twin, would be pinned to whichever order both passes shared', async () => {
+    // "rtl" is laid out otherwise once "ltr" was laid out in the same process, whatever lies between them.
+    const ids = ['a', 'b', 'ltr', 'c', 'd', 'e', 'rtl', 'f']
+    const root = folder('record-pairs', {})
+    const layout = (c: Case, job: Job): Recording => (c.id === 'rtl' && job.cases.indexOf(c) > job.cases.findIndex(x => x.id === 'ltr') ? other : laidOut)
+    await record('chrome', cases(ids), options, browser(root, () => right, layout))
+    expect([...readHistory(historyPath(root, 'chrome'))!.cases.keys()]).toEqual(['rtl'])
   })
 
   test('record --only-new records only the cases with no recording, and refuses to add them to recordings of another environment: a browser update would read as library regressions or fixes', async () => {
@@ -804,6 +879,15 @@ describe('the commands, with a stand-in browser', () => {
     expect(again.printed()).toContain('chrome drift against harness/recordings (same environment): 0 cases laid out otherwise, 0 new page history, 0 newly recorded, 0 no longer recorded')
   })
 
+  test('repin safari says on how many of the cases both pin webkit-host has installed Safari\'s lines: after a Safari or macOS update, recordings of a stand-in that no longer lays out as Safari does would score the library', () => {
+    const root = folder('host-agreement', {})
+    if ('error' in laidOut) throw new Error('unreachable')
+    const wider: Recording = { lines: laidOut.lines.map(line => ({ ...line, width: line.width + 1 })), height: laidOut.height }
+    writeRecordings(recordingsPath(root, 'webkit-host'), { env: 'host', recordings: new Map([['same', laidOut], ['moved', laidOut], ['wider', laidOut], ['host-only', laidOut]]) })
+    writeRecordings(recordingsPath(root, 'safari'), { env: 'safari', recordings: new Map([['same', laidOut], ['moved', other], ['wider', wider], ['sample-only', laidOut]]) })
+    expect(hostAgreement(root)).toBe('webkit-host against installed Safari: 2 of the 3 cases both pin have the same lines, 1 of them with other line widths or height; otherwise: moved')
+  })
+
   test('equal counts a moved line, a line width a hundredth of a pixel off, other line text, another disagreement and another Canvas call after preparing as a difference, and lists a case that varies between runs apart: a change to src/ or the adapter would show nothing, or main against itself differ', async () => {
     const root = folder('equal', {}, { varying: '## system-ui\nlabel runs\n' })
     // This tree's build is "here"; the ref, a src/ directory, predicts `right` for every case.
@@ -820,6 +904,21 @@ describe('the commands, with a stand-in browser', () => {
     const same = browser(root, () => right)
     expect(await equal('chrome', list, new Map(list.map(c => [c.id, 'smoke'])), LIB, { ...options, lib: 'here' }, same)).toBe(false)
   })
+})
+
+describe('a browser past its memory bound', () => {
+  test('the processes last found are killed though ps fails: a page that allocates without end would keep its browser until the machine stalls', async () => {
+    const child = Bun.spawn(['sleep', '30'], { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' })
+    let cleaned = false
+    const launched: Launched = {
+      roots: () => 'quit', known: [{ pid: child.pid, ppid: process.pid, command: 'sleep 30' }], stop: () => Promise.resolve(),
+      cleanup: () => { cleaned = true },
+    }
+    // As under a load average above 200.
+    kill(launched, () => { throw new Error('spawnSync ps ETIMEDOUT') })
+    await child.exited
+    expect([child.signalCode, cleaned]).toEqual(['SIGKILL', true])
+  }, 10_000)
 })
 
 describe('the browser\'s break data', () => {

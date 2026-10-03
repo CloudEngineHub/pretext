@@ -24,7 +24,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { LIB, runJob } from '../run.ts'
-import { assertSameEnvironment, readRecordings, writeRecordings } from '../store.ts'
+import { assertSameEnvironment, lineEnds, readRecordings, writeRecordings } from '../store.ts'
 import type { BrowserKind, Case, Paragraph, Recording } from '../types.ts'
 import { digest, fixturesOf, lineBreakClass, makeCase, textOf } from './build.ts'
 
@@ -129,17 +129,9 @@ export async function recordFirst(set: string, templates: readonly Template[], b
   }
 }
 
+// `layout`: where each line starts and ends (lineEnds). Line widths are left out: Firefox reports a space that hangs
+// past the edge clipped to it, so a line's width moves with the paragraph's width though no break does.
 type Recorded = { width: number; layout: string; recording: Recording }
-
-// What a width's layout is for the cut: where each line starts and ends. Line widths are left out: Firefox reports a
-// space that hangs past the edge clipped to it, so a line's width moves with the paragraph's width though no break
-// does.
-function breaksOf(recording: Recording): string {
-  if ('error' in recording) return `error ${recording.error}`
-  let out = ''
-  for (let i = 0; i < recording.lines.length; i++) out += `${recording.lines[i]!.first}-${recording.lines[i]!.last} `
-  return out
-}
 
 // Every width a template has been recorded at in one browser, sorted; `first` keeps round 0's widths only.
 function recordedWidths(set: string, t: Template, state: State, first: boolean): Recorded[] {
@@ -147,7 +139,7 @@ function recordedWidths(set: string, t: Template, state: State, first: boolean):
   const out: Recorded[] = []
   for (const width of widths) {
     const recording = state.recordings.get(sweepId(set, t, width))
-    if (recording !== undefined) out.push({ width, layout: breaksOf(recording), recording })
+    if (recording !== undefined) out.push({ width, layout: lineEnds(recording), recording })
   }
   return out.sort((a, b) => a.width - b.width)
 }
@@ -184,7 +176,7 @@ function survivors(set: string, templates: readonly Template[], states: readonly
     for (let b = 0; b < CUT_BROWSERS.length; b++) {
       for (let w = 0; w < widths.length; w++) {
         const recording = states[b]!.recordings.get(sweepId(set, t, widths[w]!))
-        if (recording !== undefined) parts.push(inCodePoints(text, breaksOf(recording)))
+        if (recording !== undefined) parts.push(inCodePoints(text, lineEnds(recording)))
       }
     }
     if (parts.length < widths.length * CUT_BROWSERS.length) {
@@ -258,6 +250,13 @@ function movedLine(a: Recording, b: Recording): number {
 
 // Per browser, each kept template's changes, as pairs of round-0 widths.
 type Selection = Record<CutBrowser, Record<string, Array<[number, number]>>>
+// What select saves: the selection, the controls each kept template stands for (rule 2), a digest of the templates it
+// ran over and how many of them some browser hadn't recorded at every round-0 width.
+type Saved = { selection: Selection; standsFor: Record<string, string[]>; templates?: string; incomplete?: number }
+
+function templatesDigest(templates: readonly Template[]): string {
+  return digest([...new Set(templates.map(templateKey))].sort())
+}
 
 export type SelectReport = { templates: number; incomplete: number; merged: number; kept: number; changes: Record<CutBrowser, number>; selected: Record<CutBrowser, number>; selectedTemplates: number }
 
@@ -313,13 +312,14 @@ export function select(set: string, templates: readonly Template[], cover: boole
   const selectedKeys = new Set<string>()
   for (let b = 0; b < CUT_BROWSERS.length; b++) for (const key of Object.keys(selection[CUT_BROWSERS[b]!])) selectedKeys.add(key)
   mkdirSync(dirOf(set), { recursive: true })
-  writeFileSync(selectionFile(set), `${JSON.stringify({ selection, standsFor: Object.fromEntries(standsFor) })}\n`)
+  const saved: Saved = { selection, standsFor: Object.fromEntries(standsFor), templates: templatesDigest(templates), incomplete }
+  writeFileSync(selectionFile(set), `${JSON.stringify(saved)}\n`)
   return { templates: templates.length, incomplete, merged: templates.length - incomplete - keep.size, kept: keep.size, changes, selected, selectedTemplates: selectedKeys.size }
 }
 
-function readSelection(set: string): { selection: Selection; standsFor: Record<string, string[]> } {
+function readSelection(set: string): Saved {
   if (!existsSync(selectionFile(set))) throw new Error(`${set}: no selection; run select first`)
-  return JSON.parse(readFileSync(selectionFile(set), 'utf8')) as { selection: Selection; standsFor: Record<string, string[]> }
+  return JSON.parse(readFileSync(selectionFile(set), 'utf8')) as Saved
 }
 
 // The recorded widths inside a kept change whose layouts differ from the next one's.
@@ -392,9 +392,14 @@ function insideWidth(low: number, high: number): number | null {
   return null
 }
 
+// The cut holds only the templates the saved search kept, and make.ts writes it over the set's generated cases. So a
+// search that some browser hadn't finished when select ran, or that ran over other templates than the set's, is
+// refused: cut from one, a set lost every other generated case with no word (8,926 cases at b1fd05fc).
 export function cut(set: string, templates: readonly Template[]): Case[] {
   const states = CUT_BROWSERS.map(b => loadState(set, b))
-  const { selection, standsFor } = readSelection(set)
+  const { selection, standsFor, templates: searched, incomplete } = readSelection(set)
+  if (incomplete !== 0) throw new Error(`${set}: when select ran, ${incomplete ?? 'some'} templates weren't recorded in every browser; run first in each browser, then select and bisect, before cutting`)
+  if (searched !== templatesDigest(templates)) throw new Error(`${set}: select ran over other templates than the set's ${templates.length}; run first in each browser, then select and bisect, before cutting`)
   const cases: Case[] = []
   const seen = new Set<string>()
   for (let i = 0; i < templates.length; i++) {
