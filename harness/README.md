@@ -34,7 +34,9 @@ builds widths are compared exactly: to `equal <ref>` a line width that differs a
 `materializeLineRange()` and their rich-inline counterparts) must agree on lines, widths and text, and none may call
 `measureText` after preparing. A rich fragment's text is `materializeLineRange()`'s over its cursors in its item's own
 prepared text, but for the hyphen of a soft hyphen it ends at, which the text the items join decides. A box is a visible
-character whatever its width, placed by its top.
+character whatever its width, placed by its top. Every case is laid out start-aligned in an element with no text
+decoration or background, so a browser rule that depends on those is recorded on one side only: Chrome keeps a word's
+kerning with a hanging space in such text and drops it in the others (`RESEARCH.md`, Kerning At Line Edges).
 
 A predicted line's range runs over the source, so white space the library leaves out inside a text is in the line of the
 unit before it (`alignStream`, `predict.ts`), as white space that ends a line is in its line: Firefox gives such a
@@ -218,7 +220,8 @@ harness/invariants.test.ts`) and the bench's floors.
   which `check` never fails on, still shows there.
 - An offline replay detects change but isn't an oracle: its stand-in Canvas gives each character a width from a
   formula, moved a little by each pair of neighbouring characters (`offline-equal.ts`), so it can't fail on shaping,
-  painting or string storage.
+  painting or string storage. Every stand-in font kerns the space, so offline the Chromium profile never takes the
+  path of a font that kerns nothing with it, which `src/layout.test.ts` and the browsers run.
 - Without the invariants' desktop user agent and string `letterSpacing` (`invariants.ts`), a planted defect in reusing
   a prepared handle went unseen in 500 draws.
 - Canvas-call counts before #355 aren't comparable with later ones: the harness's adapter (`run.ts`) stopped calling
@@ -252,8 +255,9 @@ shared by every canvas and the DOM, so a fresh canvas doesn't make text new.
 - **Firefox's `resize: latin layout at new widths`** moves about 16% with the names the bench's minifier gives the
   bundle's top-level bindings (`RESEARCH.md`, JavaScript Engines; Firefox 156, 2026-10-02), so where it alone reads
   slower or faster, with Firefox's other `layout()` rows level and no change to code `layout()` runs, it is read as the
-  names and not the change: a build one unused local apart gets other names and settles it. Making the constants that
-  loop reads literals in the emitted code, which would end this, is being tried separately.
+  names and not the change: a build one unused local apart gets other names and settles it. Writing the constants that
+  loop reads into the built code as numbers ended this for that loop and was declined (#406; `RESEARCH.md`, Decisions
+  Log, 2026-10-03), so the row still moves with the names.
 - **Firefox's `worst: controls layout` and `worst: invisible-tails layout`** read 15.8% and 5.9% slower under #409 and
   16.8% and 8.7% slower under #406, two unrelated changes timed against the same main on the same day (Firefox 156.0.1,
   three sessions each, 2026-10-02), so they move with unrelated changes to the bundle and want a second change's table

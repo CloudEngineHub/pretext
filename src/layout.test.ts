@@ -1231,7 +1231,8 @@ describe('boundary-policy regressions', () => {
       ...measureText,
       value(this: TestCanvasRenderingContext2D, text: string) {
         measured.add(text)
-        longest = Math.max(longest, text.length)
+        // The longest string with a mark: the Chromium profile also asks the font one long string (getFontSpaceKerning).
+        if (text.includes('\u0301')) longest = Math.max(longest, text.length)
         return { width: measureWidth(text, this.font) }
       },
     })
@@ -1913,9 +1914,9 @@ describe('measurement invariants', () => {
 
   test('breakable fit cache distinguishes fit modes', () => {
     const measurement = getFontMeasurement('16px Fit Mode Test', null, false)
-    const metrics: SegmentMetrics = { width: 80, emojiCount: -1, fit: null }
+    const metrics: SegmentMetrics = { width: 80, emojiCount: -1, fit: null, spaceKerning: null }
     for (const [text, width] of [['a', 10], ['b', 20], ['c', 30], ['ab', 35], ['bc', 60]] as const) {
-      measurement.metrics.set(text, { width, emojiCount: -1, fit: null })
+      measurement.metrics.set(text, { width, emojiCount: -1, fit: null, spaceKerning: null })
     }
     measurement.metrics.set('abc', metrics)
 
@@ -2901,6 +2902,7 @@ describe('prepare invariants', () => {
       ['lineFitEpsilon', 0.005, 1 / 64, 0.005],
       ['prefixFitMinWidth', Infinity, 0, 80],
       ['measureTextWithFollowingSpace', false, true, false],
+      ['kernsSpacesInScriptRun', true, false, false],
       ['letterSpaceDiscretionaryHyphen', false, true, true],
       ['letterSpacingInAppUnits', false, false, true],
       ['canvasLetterSpacingDropsLigatures', true, false, true],
@@ -6130,6 +6132,181 @@ test('the Safari profile keeps the kerning between a word and a following space'
 })
 
 
+test('the Chromium profile takes the kerning between a word and the spaces beside it', () => {
+  // The engine profile is computed once per process, so Chrome runs in a child
+  // process. A is 10px, other letters 8px, a space 4px, format characters and
+  // marks 0px. Canvas cuts a string at U+0020 and kerns nothing across it. U+2028
+  // draws the space glyph, 4px, without a cut: in one string A kerns -1px with a
+  // space glyph after it, past a word joiner, B +1px, and a space glyph -2px with a
+  // Latin or Cyrillic T after it, and a mark after a space glyph sits on it, 3px
+  // narrower. Under fontKerning 'none' nothing kerns. The `Plain` fonts kern nothing
+  // under either, and `16px Cyrillic` only the Cyrillic T. In `16px Glyph` U+2028 has a
+  // glyph of its own, 8px. Widths are float32, as Canvas's are, and W is 253 + 1/65536
+  // px, so W with a space glyph, past 256px, loses its last bit.
+  const layoutUrl = new URL('./layout.ts', import.meta.url).href
+  const richInlineUrl = new URL('./rich-inline.ts', import.meta.url).href
+  const script = `
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: {
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36',
+    } })
+    const measured = []
+    class Context {
+      font = ''
+      letterSpacing = '0px'
+      fontKerning = 'auto'
+      measureText(text) {
+        measured.push(this.fontKerning === 'auto' ? text : this.fontKerning + ':' + text)
+        let width = 0
+        for (const ch of text) width += ch === ' ' ? 4 : ch === '\\u2028' ? (this.font.includes('Glyph') ? 8 : 4) : /[\\u2060\\u0301]/.test(ch) ? 0 : ch === 'A' ? 10 : ch === 'W' ? 253 + 1 / 65536 : 8
+        const pairs = this.font.includes('Cyrillic') ? [/(?!)/g, /(?!)/g, /\\u2028\\u0422/g] : [/A\\u2060*\\u2028/g, /B\\u2028/g, /\\u2028[T\\u0422]/g]
+        const kerning = this.fontKerning === 'none' || this.font.includes('Plain') ? 0 : (text.match(pairs[0]) ?? []).length - (text.match(pairs[1]) ?? []).length + 2 * (text.match(pairs[2]) ?? []).length
+        return { width: Math.fround(width - kerning - 3 * (text.match(/\\u2028\\u0301/g) ?? []).length) }
+      }
+    }
+    globalThis.OffscreenCanvas = class { getContext() { return new Context() } }
+    const { prepare, prepareWithSegments, layout, layoutWithLines } = await import(${JSON.stringify(layoutUrl)})
+    const { prepareRichInline, measureRichInlineStats } = await import(${JSON.stringify(richInlineUrl)})
+    const widths = []
+    for (const [text, font, options] of [
+      ['AA TT', '16px Test', {}], ['TT AA', '16px Test', {}], ['AA  TT', '16px Test', { whiteSpace: 'pre-wrap' }],
+      ['AA\\u2060 \\u2060TT', '16px Test', {}], ['AA \\u0301T', '16px Test', {}], ['AA TT', '16px Test', { letterSpacing: 1 }],
+      ['\\u0436\\u0436 TT', '16px Test', {}], ['\\u0436\\u0436 \\u0422\\u0422', '16px Test', {}], ['TT \\u0436\\u0436, TT', '16px Test', {}],
+      ['12 TT', '16px Test', {}], ['AA TT', '16px Glyph', {}],
+      ['  TT\\n TT', '16px Test', { whiteSpace: 'pre-wrap' }], ['\\u0436\\u0436 \\u2060TT', '16px Test', {}],
+      ['\\u0436\\u0436 (TT) TT', '16px Test', {}], ['TT (\\u0436\\u0436) TT', '16px Test', {}], ['(TT) \\u0422\\u0422', '16px Test', {}],
+      ['(12) TT', '16px Test', {}], ['\\u05D0 AA TT AA \\u05D1', '16px Test', {}], ['\\u202AAA TT', '16px Test', {}],
+      ['AA T\\u0301T', '16px Test', {}],
+      ['TT\\u3002 TT', '16px Test', {}], ['TT \\u00B7 TT', '16px Test', {}], ['\\u03B1\\u03B1 \\u00B7 TT', '16px Test', {}],
+      ['TT \\uFF08TT\\uFF09 TT', '16px Test', {}], ['TT \\uFF08 TT', '16px Test', {}], ['(\\u00B7 \\u0436\\u0436) TT', '16px Test', {}],
+      ['\\u0436\\u0436 (TT [TT] TT) TT', '16px Test', {}], ['\\u0436\\u0436 (TT] TT', '16px Test', {}], ['TT \\uFE35 TT', '16px Test', {}],
+      ['TT 1\\u0342 TT', '16px Test', {}], ['\\u{10400}\\u{10401} TT', '16px Test', {}],
+      ['BB TT', '16px Test', {}], ['xW y', '16px Wide', {}], ['y Wx', '16px Wide', {}],
+      ['AA TT', '16px Plain', {}], ['\\u0436\\u0436 \\u0422\\u0422', '16px Cyrillic', {}],
+    ]) widths.push(prepareWithSegments(text, font, options).widths)
+    const lines = []
+    for (const [text, width, font] of [['AA TT', 20, '16px Test'], ['AA TT', 37, '16px Test'], ['AAA TT', 10.5, '16px Test'], ['BB TT', 16.5, '16px Test']]) {
+      const result = layoutWithLines(prepareWithSegments(text, font), width, 20)
+      lines.push({ lines: result.lines.map(line => [line.text, line.width]), lineCount: layout(prepare(text, font), width, 20).lineCount })
+    }
+    const rich = [[{ text: 'AA TT', font: '16px Test' }], [{ text: 'AA', font: '16px Test' }, { text: ' TT', font: '16px Test' }]]
+      .map(items => measureRichInlineStats(prepareRichInline(items), 100).maxLineWidth)
+    // What a prepare asks Canvas with a U+2028 in it, the font's probe as its length.
+    const asks = (text, font) => {
+      measured.length = 0
+      prepare(text, font)
+      return measured.filter(text => text.includes('\\u2028')).map(text => text.length > 9 ? text.slice(0, text.indexOf('\\u2028')) + (text.length - text.indexOf('\\u2028')) : text)
+    }
+    const asked = asks('AA TT AT TA AA TT', '16px Fresh')
+    const cut = measured.filter(text => text.length > 1 && text.includes(' '))
+    const fontAsked = [asks('AATT', '16px Fresh Two'), asks('AA TT AT', '16px Plain Two'), asks('AA TT', '16px Plain Two'), asks('AA TT', '16px Glyph Two')]
+    const unasked = [asks('\\u6F22 \\u3042 \\u30A2 \\uD55C\\uAD6D \\u6F22', '16px Words'), asks('\\u05D0 AA TT', '16px Mixed')]
+    console.log(JSON.stringify({ widths, lines, rich, asked, fontAsked, unasked, cut }))
+  `
+  const { widths, lines, rich, asked, fontAsked, unasked, cut } = JSON.parse(runInChild(script)) as Record<'widths' | 'lines' | 'rich' | 'asked' | 'fontAsked' | 'unasked' | 'cut', unknown>
+  expect(widths).toEqual([
+    // The space takes the word's kerning with it, which tightens the two, and its own with
+    // the word after it.
+    [20, 1, 16],
+    [16, 4, 20],
+    // The first and the last of a run of preserved spaces.
+    [20, 5, 16],
+    // HarfBuzz's lookups skip a word joiner, on either side.
+    [20, 1, 16],
+    // A mark after the space is the space's own cluster, no pair with it.
+    [20, 3, 8],
+    // Letter spacing keeps the kerning.
+    [21, 1, 17],
+    // The space is in the script run of the text before it: after Cyrillic it kerns
+    // with a Cyrillic word, not with a Latin one, and a comma keeps the run's script.
+    [16, 4, 16],
+    [16, 2, 16],
+    [16, 4, 24, 4, 16],
+    // Before any script the run takes the script of what follows.
+    [16, 2, 16],
+    // Where U+2028 doesn't measure as the space, no kerning is taken.
+    [20, 4, 16],
+    // Preserved spaces that start the text or follow a line feed are an item of their own.
+    [8, 16, 0, 4, 16],
+    // The script is read at the letter whose kerning is taken, past a word joiner.
+    [16, 4, 16],
+    // A closing bracket takes the script of the run its opening bracket is in, so the space
+    // after it kerns with a word of that script only. A bracket that starts the text is in
+    // the run of the first letter after it, or of the word past the space when none comes.
+    [16, 4, 32, 4, 16],
+    [16, 4, 32, 2, 16],
+    [32, 4, 16],
+    [32, 2, 16],
+    // Which spaces share a level with a word depends on the paragraph's direction once a
+    // text holds a right-to-left letter or an explicit bidi control, so such a text takes no
+    // kerning.
+    [8, 4, 20, 4, 16, 4, 20, 4, 8],
+    [28, 4, 16],
+    // A first letter with a combining mark after it may be drawn as one glyph, which the
+    // bare letter's kerning with the space says nothing about.
+    [20, 3, 16],
+    // Script_Extensions: an ideographic full stop is in East Asian scripts only, so it ends a
+    // Latin run and the space after it is in its run. A middle dot is in Latin and Greek among
+    // others: it goes on a Latin run, and after Greek it leaves the run Greek.
+    [24, 4, 16],
+    [16, 4, 8, 2, 16],
+    [16, 4, 8, 4, 16],
+    // A fullwidth opening bracket is in the Han scripts, a run of its own, which its closing
+    // bracket takes, and which the space after it is in.
+    [16, 4, 32, 4, 16],
+    [16, 4, 8, 4, 16],
+    // A bracket opened in a run that ends with several scripts left takes the first of them, and
+    // Latin is the last: after a middle dot, which Latin and Greek share, the run is Greek, so
+    // the space after the closing bracket doesn't kern with a Latin word.
+    [16, 4, 24, 4, 16],
+    // Brackets pair as Unicode pairs them, the ones opened since closing with theirs: the
+    // outer closing bracket goes back to the Cyrillic run past an inner pair, a closing
+    // bracket that pairs with none stays in its run, and a bracket Unicode gives no pair, as
+    // a vertical form, is no bracket.
+    [16, 4, 24, 4, 32, 2, 24, 4, 16],
+    [16, 4, 32, 2, 16],
+    [16, 4, 8, 2, 16],
+    // A digit under a mark that only Greek lists is Greek, so the space after it is.
+    [16, 4, 16, 4, 16],
+    // A letter outside the Basic Multilingual Plane has its script like any other.
+    [16, 4, 16],
+    // A kerning that widens the two stays on the word.
+    [17, 2, 16],
+    // What float32 rounding leaves between a pair's width and its parts' is no kerning.
+    [261, 4, 8],
+    [8, 4, 261],
+    // A font is asked once whether it kerns the printable ASCII characters with the space. One
+    // that kerns none takes no kerning, with a character outside them either: the premise's gap.
+    [20, 4, 16],
+    [16, 4, 16],
+  ])
+  expect(lines).toEqual([
+    // The space hangs with the kerning it took from both words, so a line that ends there
+    // has the word without it.
+    { lines: [['AA ', 20], ['TT', 16]], lineCount: 2 },
+    { lines: [['AA TT', 37]], lineCount: 1 },
+    { lines: [['A', 10], ['A', 10], ['A ', 10], ['T', 8], ['T', 8]], lineCount: 5 },
+    // A word needs the room of a kerning that widens it, on its last letter where it breaks.
+    { lines: [['B', 8], ['B ', 9], ['TT', 16]], lineCount: 3 },
+  ])
+  // A space inside a rich item kerns as in plain text; the gap between two items
+  // takes none (ENGINE_FOLLOWUPS.md).
+  expect(rich).toEqual([37, 40])
+  // The font is asked once whether it kerns the space: U+2028 between the printable ASCII
+  // characters, 189 units, as the context stands and under fontKerning 'none', then U+2028
+  // alone. Then each edge letter once with U+2028, however many words share the letter. No
+  // string holds a U+0020 beside other text.
+  expect(asked).toEqual(['189', 'none:189', '\u2028', '\u2028A', 'A\u2028', '\u2028T', 'T\u2028'])
+  expect(cut).toEqual([])
+  // A text without a space doesn't ask the font. A font that kerns nothing is asked once and
+  // its words never; one whose U+2028 isn't the space likewise.
+  expect(fontAsked).toEqual([[], ['189', 'none:189'], [], ['189', 'none:189', '\u2028']])
+  // Canvas shapes an ideograph or a kana as a word of its own, no font kerns a Hangul syllable
+  // with the space, and text that mixes directions takes no kerning, so only their fonts are
+  // asked.
+  expect(unasked).toEqual([['189', 'none:189', '\u2028'], ['189', 'none:189', '\u2028']])
+})
+
+
 test('the Safari profile lets small kana and U+30FC start a line only on Japanese and Korean pages', () => {
   // The engine profile is computed once per process, so Safari runs in a child
   // process. Every character is 16px. Preparation reads <html lang> once.
@@ -6247,16 +6424,18 @@ test('letter-spaced text is measured as each engine\'s Canvas shapes it', () => 
     console.log(JSON.stringify([...rows, measureRichInlineStats(rich, 1000).maxLineWidth]))
   `))
   // Each row: the segments' widths, the advances a break inside `find` falls by, the lines
-  // at 76px, the letterSpacing the context measured under, and its measureText calls.
-  const shaped = [
-    [[21, 8, 29], [8, 8, 8, 8], 1, ['0px'], 9],
-    [[28, 8, 38], [8, 8, 8, 8], 2, ['0.000001px'], 7],
+  // at 76px, the letterSpacing the context measured under, and its measureText calls. The
+  // Chromium profile asks the font twice more, under each letterSpacing it measures with,
+  // whether it kerns the space (getFontSpaceKerning).
+  const shaped = (fontCalls: number): unknown => [
+    [[21, 8, 29], [8, 8, 8, 8], 1, ['0px'], 9 + fontCalls],
+    [[28, 8, 38], [8, 8, 8, 8], 2, ['0.000001px'], 7 + fontCalls],
     [[22, 8, 29], [8, 8, 8, 8], 1, [], 0],
     [[21, 8, 29], [8, 8, 8, 8], 1, [], 0],
     88,
   ]
-  expect(rowsOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36')).toEqual(shaped)
-  expect(rowsOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:156.0) Gecko/20100101 Firefox/156.0')).toEqual(shaped)
+  expect(rowsOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36')).toEqual(shaped(2))
+  expect(rowsOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:156.0) Gecko/20100101 Firefox/156.0')).toEqual(shaped(0))
   expect(rowsOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Safari/605.1.15')).toEqual([
     [[21, 8, 29], [8, 5, 8, 8], 1, ['0px'], 7],
     [[25, 8, 35], [8, 5, 8, 8], 1, ['0px'], 1],
@@ -6378,7 +6557,7 @@ test('letter spacing leaves out cursive scripts as Chrome and Firefox do', () =>
   ]
   const layoutUrl = new URL('./layout.ts', import.meta.url).href
   const richInlineUrl = new URL('./rich-inline.ts', import.meta.url).href
-  const rowsOf = (userAgent: string): { gaps: number[]; lines: string[]; rich: number } => JSON.parse(runInChild(`
+  const rowsOf = (userAgent: string): { gaps: number[]; spaceUnderMark: number; lines: string[]; rich: number } => JSON.parse(runInChild(`
     Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { userAgent: ${JSON.stringify(userAgent)} } })
     class Context {
       font = ''
@@ -6392,12 +6571,13 @@ test('letter spacing leaves out cursive scripts as Chrome and Firefox do', () =>
     const width = (text, letterSpacing) => measureNaturalWidth(prepareWithSegments(text, font, { letterSpacing }))
     console.log(JSON.stringify({
       gaps: ${JSON.stringify(strings.map(row => row[1]))}.map(text => (width(text, 8) - width(text, 4)) / 4),
+      spaceUnderMark: (width('a \\u064B 12', 8) - width('a \\u064B 12', 4)) / 4,
       // Four 8px letters too long for a 20px line, at 4px.
       lines: layoutWithLines(prepareWithSegments('\\u0628\\u0628\\u0628\\u0628', font, { letterSpacing: 4 }), 20, 20).lines.map(line => line.text),
       // A letter-spaced Arabic item after a Latin one.
       rich: measureRichInlineStats(prepareRichInline([{ text: 'ab ', font }, { text: '\\u0628\\u0628', font, letterSpacing: 4 }]), 1000).maxLineWidth,
     }))
-  `)) as { gaps: number[]; lines: string[]; rich: number }
+  `)) as { gaps: number[]; spaceUnderMark: number; lines: string[]; rich: number }
   const chrome = rowsOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36')
   const firefox = rowsOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:156.0) Gecko/20100101 Firefox/156.0')
   const safari = rowsOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Safari/605.1.15')
@@ -6408,6 +6588,12 @@ test('letter spacing leaves out cursive scripts as Chrome and Firefox do', () =>
     expect({ shows, chrome: chrome.gaps[i], firefox: firefox.gaps[i], safari: safari.gaps[i] })
       .toEqual({ shows, chrome: inChrome, firefox: inFirefox, safari: shows === 'lam-alef' ? 2 : inSafari })
   }
+  // A space takes the scripts of a mark right after it as a digit does, though the two are
+  // segments apart: of `a`, a space under U+064B, a space and `12`, Chrome 154 spaces `a` and
+  // the two spaces, and the digits are in the Arabic run (2026-10-02). Firefox and Safari
+  // give the space and its mark one gap and the profiles two (ENGINE_FOLLOWUPS.md, Letter
+  // spacing), so only Chrome's row is checked.
+  expect(chrome.spaceUnderMark).toBe(3)
   const pairs = ['\u0628\u0628', '\u0628\u0628']
   const letters = ['\u0628', '\u0628', '\u0628', '\u0628']
   expect([chrome.lines, firefox.lines, safari.lines]).toEqual([pairs, pairs, letters])
