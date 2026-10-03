@@ -34,7 +34,9 @@ builds widths are compared exactly: to `equal <ref>` a line width that differs a
 `materializeLineRange()` and their rich-inline counterparts) must agree on lines, widths and text, and none may call
 `measureText` after preparing. A rich fragment's text is `materializeLineRange()`'s over its cursors in its item's own
 prepared text, but for the hyphen of a soft hyphen it ends at, which the text the items join decides. A box is a visible
-character whatever its width, placed by its top.
+character whatever its width, placed by its top. Every case is laid out start-aligned in an element with no text
+decoration or background, so a browser rule that depends on those is recorded on one side only: Chrome keeps a word's
+kerning with a hanging space in such text and drops it in the others (`RESEARCH.md`, Kerning At Line Edges).
 
 A predicted line's range runs over the source, so white space the library leaves out inside a text is in the line of the
 unit before it (`alignStream`, `predict.ts`), as white space that ends a line is in its line: Firefox gives such a
@@ -237,7 +239,8 @@ harness/invariants.test.ts`) and the bench's floors.
   which `check` never fails on, still shows there.
 - An offline replay detects change but isn't an oracle: its stand-in Canvas gives each character a width from a
   formula, moved a little by each pair of neighbouring characters (`offline-equal.ts`), so it can't fail on shaping,
-  painting or string storage.
+  painting or string storage. Every stand-in font kerns the space, so offline the Chromium profile never takes the
+  path of a font that kerns nothing with it, which `src/layout.test.ts` and the browsers run.
 - Without the invariants' desktop user agent and string `letterSpacing` (`invariants.ts`), a planted defect in reusing
   a prepared handle went unseen in 500 draws.
 - Canvas-call counts before #355 aren't comparable with later ones: the harness's adapter (`run.ts`) stopped calling
@@ -248,16 +251,31 @@ harness/invariants.test.ts`) and the bench's floors.
 Speed claims rest on `bun harness bench`'s same-document ratios. Its rows (`new`, `rich`, `seen`, `resize`, `lines`,
 `worst`) follow what an app does; never rank `prepare()` against `layout()`, as one is paid once and the other on every
 resize. The `new` rows time text no library or browser has laid out: Firefox and Safari keep shaped text per font,
-shared by every canvas and the DOM, so a fresh canvas doesn't make text new.
+shared by every canvas and the DOM, so a fresh canvas doesn't make text new. The `lines` row times the line functions on
+mixed, Latin and CJK messages, each family in a document of its own.
 
 - **A control copy.** Each document runs base, the candidate and a second copy of base, shuffled each round, since only
   same-document ratios survive drift between sessions (`RESEARCH.md`, Evaluation Traps, has the numbers behind this and
-  the next two).
+  the next three).
 - **Focus and a quiet machine.** Background windows' timers are slowed, so Chrome and Safari need a visible, focused
   window throughout. Using the machine spoils the sessions it overlaps, and only those; a loaded machine spoils them
   all.
-- **Two sessions** (`--sessions=2`) do unless they disagree on a verdict that matters; the default of 3 calibrates the
-  floors. A row reads slower or faster only when it does so in every session.
+- **Two sessions and a confirming one.** A row reads slower or faster only when it does so in every session, and the
+  floors are fitted to three, where two agree by chance: in the 19 runs of three sessions saved on 2026-10-02, the
+  first two called 74 of 322 rows and the third took 22 of them back. So after the default two sessions each browser
+  times the documents of its rows that read slower or faster once more, and a row keeps its verdict only if that
+  session agrees. That is the verdict three whole sessions give, as a row two sessions don't call a third can't. A
+  verdict left with two sessions, as when the confirming one failed, prints "(unconfirmed)". `--sessions=1` is a
+  hypothesis and gets no confirming session; three or more need none.
+- **A row without a verdict prints its widest band**, as in "within noise (±11.5%)": the smallest change those sessions
+  could have called on it. A session's band is the larger of the row's floor and how far the control, base's own code,
+  sat from base, so most rows print their floor. A copy of the library can keep one speed for a whole document and
+  another in the next (Chrome 154's rich stats ran at 2.3 or 2.6 µs per 1,000 units copy by copy, 2026-09-30), and the
+  band is then the distance between two copies: on 2026-10-01 and 02 the control sat 8% or more from base in a session
+  of 12 of 13 runs of Chrome's rich stats, 11 of 13 of Safari's rich walk and 8 of 13 of its rich stream, and in most
+  runs of Chrome's CJK and Thai `new` rows, whose spread is between batches of text. Such a row says nothing of a
+  change smaller than its band: time it again alone with more sessions (`--rows`, `--sessions`) when the change touches
+  what the row times.
 - **Floors**, the noise threshold under which a row's ratio isn't called a change (1-6% by row, `FLOORS` in
   `bench/report.ts`, with the builds and machine they came from), are the largest deviation held in one direction in all
   three sessions of a calibration of HEAD against itself; calibrate again, with `bun harness bench HEAD --sessions=3`,
@@ -265,20 +283,31 @@ shared by every canvas and the DOM, so a fresh canvas doesn't make text new.
   slow for a whole document (in one session Firefox 156.0.1's base copy took about twice as long as the other two on
   kept CJK handles, 2026-09-26), and would have hidden a real 20-25% slowdown. These floors flag all four slowdowns
   known between main before #340 (6d1d2106) and 217c84b8, a commit of #340: pre-wrap layout and walk at 1.05 of base's
-  time in Chrome and 1.18-1.25 in Firefox, and letter-spaced CJK and control layouts at 1.12 and 1.20 in Safari.
+  time in Chrome and 1.18-1.25 in Firefox, and letter-spaced CJK and control layouts at 1.12 and 1.20 in Safari. One
+  floor serves a row in all three browsers, and the `lines` row's Latin and CJK entries, added after that calibration
+  (#416), take the row's (`ENGINE_FOLLOWUPS.md`, Harness debt).
+- **The builds.** The first line of the output names base and the candidate with their commits and dates, and says
+  when this tree's `src/` has uncommitted changes, so a pasted table says what it compared.
 - **WebKit's width cache** samples one Canvas call in 21 after a run of misses, so a prepare that submits n strings
   speeds up only after 21 / gcd(n, 21) repeats: compare submitted text and cold first prepares.
 - **Firefox's `resize: latin layout at new widths`** moves about 16% with the names the bench's minifier gives the
   bundle's top-level bindings (`RESEARCH.md`, JavaScript Engines; Firefox 156, 2026-10-02), so where it alone reads
   slower or faster, with Firefox's other `layout()` rows level and no change to code `layout()` runs, it is read as the
-  names and not the change: a build one unused local apart gets other names and settles it. Making the constants that
-  loop reads literals in the emitted code, which would end this, is being tried separately.
+  names and not the change: a build one unused local apart gets other names and settles it. Writing the constants that
+  loop reads into the built code as numbers ended this for that loop and was declined (#406; `RESEARCH.md`, Decisions
+  Log, 2026-10-03), so the row still moves with the names.
 - **Firefox's `worst: controls layout` and `worst: invisible-tails layout`** read 15.8% and 5.9% slower under #409 and
   16.8% and 8.7% slower under #406, two unrelated changes timed against the same main on the same day (Firefox 156.0.1,
   three sessions each, 2026-10-02), so they move with unrelated changes to the bundle and want a second change's table
   before being blamed on one.
+- **A verdict on one of those three rows** prints "(moves with the bundle)" in Firefox's table (`MOVES_WITH_BUNDLE`,
+  `bench/report.ts`). The list is Firefox 156's: after a pin bump a row stays on it only while unrelated changes still
+  move it.
 
-A full bench took about 27 minutes (2026-09-26). Nothing timed is checked in.
+A session of every row took 74 s in Chrome, 91 s in Firefox and 79 s in Safari (the medians of 50-52 sessions each,
+2026-10-01 and 02; a document that loses focus waits a minute and starts again), before the Latin and CJK `lines`
+entries: a little over eight minutes for the default two, and then the confirming sessions, which would have timed 57
+of the third sessions' 145 documents in the 19 runs above. Nothing timed is checked in.
 
 ## Browsers and pins
 

@@ -20,6 +20,15 @@ export function srcOf(refOrDir: string): string {
   return join(dir, 'src')
 }
 
+// A build as the bench's output names it, so a pasted table says what it compared: a ref with its commit and date, this
+// tree's src/ with the commit it sits on and whether it differs from it, any other directory by its path.
+export function buildName(refOrDir: string): string {
+  const git = (...args: string[]): string => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' }).trim()
+  if (!existsSync(join(refOrDir, 'layout.ts'))) return `${refOrDir} (${git('log', '-1', '--format=%h, %cs', refOrDir)})`
+  if (resolve(refOrDir) !== join(ROOT, 'src')) return resolve(refOrDir)
+  return `this tree's src/ (on ${git('log', '-1', '--format=%h, %cs')}${git('status', '--porcelain', '--', 'src') === '' ? '' : ', with uncommitted changes'})`
+}
+
 // What a document runs of a library: handles of each kind, and one operation over them `reps` times, a width a rep.
 const ENTRY = `import * as L from 'LIB/layout.ts'
 import * as R from 'LIB/rich-inline.ts'

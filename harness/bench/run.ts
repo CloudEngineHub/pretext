@@ -1,17 +1,18 @@
-// bun harness bench <base> [--lib=<dir|ref>] [--browser=chrome,firefox,safari] [--sessions=3] [--rows=new,seen,...]
+// bun harness bench <base> [--lib=<dir|ref>] [--browser=chrome,firefox,safari] [--sessions=2] [--rows=new,seen,...]
 //   [--background]
 // Times <base>'s src/ against --lib's (this tree's by default) in the same documents, with a second copy of base as the
-// control (harness/README.md, Bench). Pinned Chrome and Firefox and installed Safari run one at a time in the
-// foreground; with --background the harness's background browsers, webkit-host for WebKit, run instead and every
-// verdict is a hypothesis. Raw samples go to .artifacts/harness-bench/<time>/.
+// control (harness/README.md, Bench). After two sessions, each browser times the documents of the rows that read slower
+// or faster in a third. Pinned Chrome and Firefox and installed Safari run one at a time in the foreground; with
+// --background the harness's background browsers, webkit-host for WebKit, run instead and every verdict is a
+// hypothesis. Raw samples go to .artifacts/harness-bench/<time>/.
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { serveJob } from '../run.ts'
 import { BROWSER, type BrowserKind } from '../types.ts'
-import { benchBundle, srcOf } from './lib.ts'
+import { benchBundle, buildName, srcOf } from './lib.ts'
 import type { Doc, DocResult, OpSpec } from './page.ts'
-import { report, type SessionResults } from './report.ts'
+import { report, unconfirmed, type SessionResults } from './report.ts'
 import { createRng } from '../sets/build.ts'
 import { familyText, labels, MESSAGE_FAMILIES, reader, richItems, shapes, STYLE, units } from './texts.ts'
 
@@ -83,8 +84,14 @@ export function documents(rows: readonly string[], seed: string, focus: boolean)
     ])
   }
   if (want('lines')) {
-    const texts = reader('mixed').batch(20_000)!
-    doc('lines', 'mixed', 'en', STYLE.mixed.font, {}, ['stats', 'walk', 'stream', 'lines'].map(op => ({ op, texts, textUnits: units(texts), handles: 'segments' as const, widths: [180, 240, 320] })))
+    // Latin and CJK messages of their own too: the mixed ones hold little of any one script, so a line walk that slowed
+    // on one script's handles would leave their rows within noise, as one on CJK handles would have in #366
+    // (RESEARCH.md, The Walkers' Shapes).
+    for (const family of ['mixed', 'latin', 'cjk'] as const) {
+      const texts = reader(family).batch(20_000)!
+      const ops = family === 'mixed' ? ['stats', 'walk', 'stream', 'lines'] : ['stats', 'walk', 'stream']
+      doc('lines', family, STYLE[family].lang, STYLE[family].font, {}, ops.map(op => ({ op, texts, textUnits: units(texts), handles: 'segments' as const, widths: [180, 240, 320] })))
+    }
   }
   if (want('worst')) {
     for (const shape of shapes()) {
@@ -168,6 +175,42 @@ async function session(browser: BrowserKind, docs: Planned[], bundles: Record<st
   return results
 }
 
+// Every session of a run: each browser's `sessions` of every document, then, after two, the confirming one, of the
+// documents whose rows read slower or faster (report.ts, unconfirmed): the floors are fitted to three sessions, so a
+// verdict needs three; one session stays a hypothesis, and three or more need no other. A browser that fails a session
+// sits out the rest, and the others' tables still print.
+export async function runSessions(
+  browsers: readonly BrowserKind[], sessions: number, plan: (seed: string) => Planned[],
+  io: { time: (browser: BrowserKind, docs: Planned[]) => Promise<Map<string, DocResult>>; save: (entry: SessionResults) => void; log: (text: string) => void },
+): Promise<{ all: SessionResults[]; failed: Map<BrowserKind, string> }> {
+  const all: SessionResults[] = []
+  const failed = new Map<BrowserKind, string>()
+  const run = async (browser: BrowserKind, s: number, only: readonly string[] | null): Promise<void> => {
+    const seed = crypto.randomUUID()
+    const docs = plan(seed).filter(d => only === null || only.includes(d.id))
+    const started = Date.now()
+    let results: Map<string, DocResult>
+    try {
+      results = await io.time(browser, docs)
+    } catch (error) {
+      const why = error instanceof Error ? error.message : String(error)
+      failed.set(browser, `session ${s + 1}: ${why}`)
+      io.log(`${browser} session ${s + 1} failed, so ${browser} sits out the rest: ${why}`)
+      return
+    }
+    const entry: SessionResults = { browser, session: s, seed, docs: docs.map(d => ({ row: d.row, family: d.family, id: d.id })), results: Object.fromEntries(results) }
+    io.save(entry)
+    io.log(`${browser} session ${s + 1}${only === null ? '' : ', confirming the rows that read slower or faster'}: ${docs.length} documents in ${((Date.now() - started) / 1000).toFixed(0)} s, seed ${seed}`)
+    all.push(entry)
+  }
+  for (let s = 0; s < sessions; s++) for (const browser of browsers) if (!failed.has(browser)) await run(browser, s, null)
+  for (const browser of browsers) {
+    const again = failed.has(browser) || sessions !== 2 ? [] : unconfirmed(all.filter(r => r.browser === browser))
+    if (again.length > 0) await run(browser, sessions, again)
+  }
+  return { all, failed }
+}
+
 export async function bench(baseRef: string, lib: string, browsers: BrowserKind[], sessions: number, rows: readonly string[], background: boolean): Promise<void> {
   const before = power()
   if (!background && before.source === 'battery' && before.percent < 20) throw new Error(`On battery at ${before.percent}%: the Mac throttles; plug it in to time`)
@@ -178,32 +221,13 @@ export async function bench(baseRef: string, lib: string, browsers: BrowserKind[
   const dir = resolve(import.meta.dir, '../../.artifacts/harness-bench', stamp)
   mkdirSync(dir, { recursive: true })
   console.log(`bench ${baseRef} against ${lib}, ${sessions} sessions in ${browsers.join(', ')}${background ? ', in the background (hypotheses)' : ', in the foreground'}; power ${before.source} ${before.percent}%, load ${load()}; samples in ${dir}`)
-  const all: SessionResults[] = []
-  // A browser that fails a session sits out the rest, and the others' tables still print.
-  const failed = new Map<BrowserKind, string>()
-  for (let s = 0; s < sessions; s++) {
-    for (const browser of browsers) {
-      if (failed.has(browser)) continue
-      const seed = crypto.randomUUID()
-      const docs = documents(rows, seed, !background)
-      const started = Date.now()
-      let results: Map<string, DocResult>
-      try {
-        results = await session(browser, docs, { base: built.base.code, candidate: built.candidate.code }, !background)
-      } catch (error) {
-        const why = error instanceof Error ? error.message : String(error)
-        failed.set(browser, `session ${s + 1}: ${why}`)
-        console.log(`${browser} session ${s + 1} failed, so ${browser} sits out the rest: ${why}`)
-        continue
-      }
-      const entry: SessionResults = { browser, session: s, seed, docs: docs.map(d => ({ row: d.row, family: d.family, id: d.id })), results: Object.fromEntries(results) }
-      writeFileSync(join(dir, `${browser}-${s}.json`), JSON.stringify(entry))
-      console.log(`${browser} session ${s + 1}: ${docs.length} documents in ${((Date.now() - started) / 1000).toFixed(0)} s, seed ${seed}`)
-      all.push(entry)
-    }
-  }
+  const { all, failed } = await runSessions(browsers, sessions, seed => documents(rows, seed, !background), {
+    time: (browser, docs) => session(browser, docs, { base: built.base.code, candidate: built.candidate.code }, !background),
+    save: entry => writeFileSync(join(dir, `${entry.browser}-${entry.session}.json`), JSON.stringify(entry)),
+    log: text => console.log(text),
+  })
   const after = power()
-  console.log(report(all, { hypotheses: background, sizes: { base: built.base, candidate: built.candidate } }))
+  console.log(report(all, { builds: `base: ${buildName(baseRef)}; candidate: ${buildName(lib)}`, hypotheses: background, sizes: { base: built.base, candidate: built.candidate } }))
   console.log(`power ${after.source} ${after.percent}%, load ${load()}`)
   if (failed.size > 0) throw new Error(`bench: ${[...failed].map(([browser, why]) => `${browser} ${why}`).join('; ')}`)
 }
