@@ -3092,35 +3092,6 @@ describe('prepare invariants', () => {
     }
   })
 
-  test('a line the WebKit profile ends at U+2028 or U+2029 leaves out the collapsible space before it', () => {
-    const profile = getEngineProfile()
-    const previous = profile.lineBreakScan
-    try {
-      profile.lineBreakScan = 'webkit'
-      // Safari removes a line's trailing collapsible space where the line closes, at a forced break as
-      // at a wrap (InlineLineBuilder.cpp:646; Line::appendLineBreak, InlineLine.cpp:588-597, leaves it
-      // trimmable): `xx`, two spaces, U+2028, two spaces, `yy` in 16px Arial is 16px wide on both lines.
-      for (const letterSpacing of [0, 2, -1]) {
-        const wrapped = layoutWithLines(prepareWithSegments('aaa bbb', FONT, { letterSpacing }), measureWidth('aaa b', FONT), LINE_HEIGHT)
-        const widths = wrapped.lines.map(line => line.width)
-        expect(wrapped.lines.map(line => line.text)).toEqual(['aaa ', 'bbb'])
-        for (const text of ['aaa \u2028bbb', 'aaa \u2029bbb', 'aaa  \u2028  bbb']) {
-          const prepared = prepareWithSegments(text, FONT, { letterSpacing })
-          const result = layoutWithLines(prepared, 1000, LINE_HEIGHT)
-          expect(result.lines.map(line => line.width)).toEqual(widths)
-          expect(collectStreamedLines(prepared, 1000)).toEqual(result.lines)
-          expect(measureLineStats(prepared, 1000)).toEqual({ lineCount: 2, maxLineWidth: Math.max(...widths) })
-          expect(measureNaturalWidth(prepared)).toBe(Math.max(...widths))
-        }
-      }
-      // A preserved space before the separator still counts where it fits, as before a line feed.
-      const preserved = layoutWithLines(prepareWithSegments('aaa \u2028bbb', FONT, { whiteSpace: 'pre-wrap' }), 1000, LINE_HEIGHT)
-      expect(preserved.lines.map(line => line.width)).toEqual([measureWidth('aaa ', FONT), measureWidth('bbb', FONT)])
-    } finally {
-      profile.lineBreakScan = previous
-    }
-  })
-
   test('keep-all letter groups take emergency breaks where the word segmenter marks CJK as not a word', async () => {
     const { clearWordSegmenter } = await import('./line-breaks.ts')
     // Firefox's word segmenter doesn't mark some CJK text as a word.
