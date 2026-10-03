@@ -1,8 +1,9 @@
 // The library's port of ICU's rule-based break iterator and its packed tables (src/line-breaks.ts, src/graphemes.ts)
 // against the system's ICU, libicucore, through bun:ffi, on seeded random strings: an oracle that shares nothing with
 // the port, in seconds and without a browser. Skipped where the library or a symbol is missing, as off macOS.
-// - Chrome's line and character rules, as the library ships them, run by the system's ICU engine
-//   (ubrk_openBinaryRules): the port's state machine and tries against ICU's, on rules it didn't write.
+// - Chrome's line and character rules, the compiled files in scripts/engine-data that the shipped tables were packed
+//   from, run by the system's ICU engine (ubrk_openBinaryRules): the packing, the port's state machine and its class
+//   lookup against ICU's, on rules it didn't write.
 // - Safari's line rules for each locale (ubrk_open with UBRK_LINE, as WebKit opens them) and its character rules: the
 //   shipped Apple tables, their choice by language and the quotation remaps against the ICU Safari runs. Only while the
 //   system's ICU holds the break data the tables were generated from, which `bun harness repin safari` reports: an OS
@@ -11,9 +12,12 @@
 // (src/line-breaks.ts), and the two engines' dictionaries differ on random letters.
 import { dlopen, FFIType, type Pointer } from 'bun:ffi'
 import { describe, expect, test } from 'bun:test'
-import { charTablesPacked, lineTablesPacked, type LineTable } from '../src/generated/engine-break-data.ts'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import SOURCES from '../scripts/engine-data/sources.json'
+import type { LineTable } from '../src/generated/engine-break-data.ts'
 import { findGraphemeEnds } from '../src/graphemes.ts'
-import { getWebKitLineRules, markRuleBoundaries, parseBreakRules, unpackTableFrom } from '../src/line-breaks.ts'
+import { getBreakRules, getWebKitLineRules, markRuleBoundaries, type BreakRules } from '../src/line-breaks.ts'
 import { breakDataReport } from './break-data.ts'
 import { createRng } from './sets/build.ts'
 
@@ -46,7 +50,8 @@ function open(type: number, locale: string): Pointer | null {
   return status[0] > 0 ? null : iterator
 }
 const opened: Uint8Array[] = []
-function openRules(rules: Uint8Array): Pointer | null {
+function openRules(file: string): Pointer | null {
+  const rules = new Uint8Array(readFileSync(join(import.meta.dir, '../scripts/engine-data', SOURCES.chrome.dir, file)))
   opened.push(rules)
   status[0] = 0
   const iterator = icu!.ubrk_openBinaryRules(rules, rules.length, NO_TEXT, 0, status)
@@ -111,7 +116,7 @@ function differences(texts: readonly string[], iterator: Pointer, mine: (text: s
   return out
 }
 
-function lineBoundaries(text: string, rules: ReturnType<typeof parseBreakRules>, overrides?: Parameters<typeof markRuleBoundaries>[3]): string {
+function lineBoundaries(text: string, rules: BreakRules, overrides?: Parameters<typeof markRuleBoundaries>[3]): string {
   const flags = new Uint8Array(text.length + 1)
   markRuleBoundaries(rules, text, flags, overrides)
   let out = ''
@@ -130,17 +135,16 @@ function graphemeBoundaries(table: 'chromium/char' | 'apple/char', text: string)
 describe.skipIf(icu === null)('the ICU port against the system\'s ICU', () => {
   test('Chrome\'s line rules give ICU\'s boundaries through the port\'s state machine and tries: a wrong transition would move breaks in Chrome and Edge that no recorded case holds', () => {
     for (const table of ['chromium/line_normal', 'chromium/line_normal_cj'] satisfies LineTable[]) {
-      const bytes = unpackTableFrom(lineTablesPacked, table)
-      const iterator = openRules(bytes)
+      const iterator = openRules(`${table.slice('chromium/'.length)}.brk`)
       // An ICU that no longer reads these compiled rules can't judge them.
       if (iterator === null) continue
-      const rules = parseBreakRules(bytes)
+      const rules = getBreakRules(table)
       expect(differences(randomTexts(table, 30_000), iterator, text => lineBoundaries(text, rules))).toEqual([])
     }
   })
 
   test('the grapheme scan gives ICU\'s clusters on Chrome\'s character rules: a line broken between graphemes would split one', () => {
-    const iterator = openRules(unpackTableFrom(charTablesPacked, 'chromium/char'))
+    const iterator = openRules('char.brk')
     if (iterator === null) return
     expect(differences(randomTexts('chromium/char', 30_000), iterator, text => graphemeBoundaries('chromium/char', text))).toEqual([])
   })
