@@ -596,11 +596,11 @@ export function measureAnalysis(
         previousJoinableMetrics = textMetrics
         let followingSpaceKerning = followingSpaceTail === null || measuredWithSpace ? 0 : getTailKerning(text + followingSpaceTail)
         if (fontSpaceKerning !== null && textMetrics.spaceKerning !== noSpaceKerning) {
-          const afterSpace = mi > 0 && isSpaceKind(flags[mi - 1]! & KIND_BITS)
-          const beforeSpace = mi + 1 < segmentCount && isSpaceKind(flags[mi + 1]! & KIND_BITS)
-          if (afterSpace || beforeSpace) {
+          const spaceBefore = mi > 0 && isSpaceKind(flags[mi - 1]! & KIND_BITS)
+          const spaceAfter = mi + 1 < segmentCount && isSpaceKind(flags[mi + 1]! & KIND_BITS)
+          if (spaceBefore || spaceAfter) {
             const kerning = textMetrics.spaceKerning ?? getSpaceKerning(text, textMetrics, fontMeasurement, fontSpaceKerning)
-            if (beforeSpace) {
+            if (spaceAfter) {
               // Premise: a kerning that tightens the word and the space after it goes on the
               // space, which hangs, so a line that ends there has the word without it, as in
               // Blink under a text-align other than start and for text whose element has a
@@ -616,7 +616,7 @@ export function measureAnalysis(
             // (shaping_line_breaker.cc:307-324). Preserved spaces that start the text or follow
             // a forced break are a Blink item of their own (inline_items_builder.cc:988-1034),
             // which kerns with nothing.
-            if (afterSpace && kerning.before !== 0 &&
+            if (spaceBefore && kerning.before !== 0 &&
               !((flags[mi - 1]! & KIND_BITS) === PRESERVED_SPACE && (mi === 1 || (flags[mi - 2]! & KIND_BITS) === HARD_BREAK)) &&
               spaceSharesScriptRun(scriptRuns, normalized, starts[mi]!, starts[mi]! + text.length)) {
               widths[mi - 1] = widths[mi - 1]! + kerning.before
