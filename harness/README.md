@@ -263,7 +263,7 @@ mixed, Latin and CJK messages, each family in a document of its own.
   known between main before #340 (6d1d2106) and 217c84b8, a commit of #340: pre-wrap layout and walk at 1.05 of base's
   time in Chrome and 1.18-1.25 in Firefox, and letter-spaced CJK and control layouts at 1.12 and 1.20 in Safari. One
   floor serves a row in all three browsers, and the `lines` row's Latin and CJK entries, added after that calibration
-  (#TBD), take the row's (`ENGINE_FOLLOWUPS.md`, Harness debt).
+  (#416), take the row's (`ENGINE_FOLLOWUPS.md`, Harness debt).
 - **The builds.** The first line of the output names base and the candidate with their commits and dates, and says
   when this tree's `src/` has uncommitted changes, so a pasted table says what it compared.
 - **WebKit's width cache** samples one Canvas call in 21 after a run of misses, so a prepare that submits n strings

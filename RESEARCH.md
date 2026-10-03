@@ -2972,7 +2972,7 @@ widths: both measure Pretext, not a browser.
   11 of them, 4 on `new` rows; the three sessions together call none, which is what the floors were fitted to. In the 19
   runs of three sessions in one browser saved on 2026-10-02, the first two sessions called 74 of 322 rows and the third
   took 22 of them back, 16 in Firefox. So after two sessions the bench times the rows that read slower or faster in a
-  third (#TBD), which gives the verdict of three whole sessions, as a row two sessions don't call a third can't: fed
+  third (#416), which gives the verdict of three whole sessions, as a row two sessions don't call a third can't: fed
   those 19 runs' sessions, it gave the three-session verdict on all 322 rows and timed 57 of the third sessions' 145
   documents. A build still reads slower than itself in three sessions: main against main on the `new` rows
   (`bench main --lib=main --rows=new --sessions=3`, Chrome 154, 2026-09-28) read the Thai row +11.4%, +13.4% and +6.5%
