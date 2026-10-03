@@ -350,20 +350,15 @@ export type FontMeasurement = {
   // Metrics of a text item measured together with one following U+0020, keyed by
   // the item alone. The width includes that space.
   followingSpaceMetrics: Map<string, SegmentMetrics>
-  // In the Chromium profile, the font's kerning with the space glyph, or null where it has
-  // none, asked for the first text with a space (getFontSpaceKerning).
-  spaceKerning: FontSpaceKerning | null | undefined
+  // In the Chromium profile, null for a font that kerns nothing with the space glyph, asked for
+  // the first text with a space (getFontSpaceKerning). Otherwise each character's kerning with a
+  // space glyph after it, keyed by its code unit << 1, and with one before it, by that | 1, once
+  // a segment has the character at that edge (getSpaceKerning).
+  spaceKerning: Map<number, number> | null | undefined
   emojiCorrection: number | null // Probed for the first text that may hold emoji
   emojiWidth: number // Canvas's width of one glyph of the emoji font, measured with the correction
   hyphenText: string | null // Asked for the first text with a soft hyphen (getHyphenText)
   hanKerning: HanKerningFontData | null | undefined // Read for the first text that may kern
-}
-// What preparation keeps of a font that kerns with the space glyph.
-export type FontSpaceKerning = {
-  // A character's kerning with a space glyph after it, and with one before it, by code unit,
-  // once a segment has the character at that edge (getSpaceKerning).
-  after: Map<number, number>
-  before: Map<number, number>
 }
 let cachedEngineProfile: EngineProfile | null = null
 
@@ -624,7 +619,7 @@ function takesNoSpaceKerning(code: number): boolean {
 // kerning from GPOS, `kern` and `kerx` (hb-ot-shape.cc:127-131, hb-ot-kern-table.hh:67). Asked
 // once per font. Premise: a font that kerns no printable ASCII character with the space kerns
 // nothing with it (RESEARCH.md, Kerning At Line Edges, has the fonts that do).
-export function getFontSpaceKerning(measurement: FontMeasurement): FontSpaceKerning | null {
+export function getFontSpaceKerning(measurement: FontMeasurement): Map<number, number> | null {
   if (measurement.spaceKerning === undefined) {
     const context = measurement.state.context
     let probe = '\u2028'
@@ -634,16 +629,16 @@ export function getFontSpaceKerning(measurement: FontMeasurement): FontSpaceKern
     const unkerned = context.measureText(probe).width
     context.fontKerning = 'auto'
     // Where U+2028 alone doesn't measure as the space, it doesn't stand for it.
-    measurement.spaceKerning = kerned !== unkerned && context.measureText('\u2028').width === getSegmentMetrics(' ', measurement).width ? { after: new Map(), before: new Map() } : null
+    measurement.spaceKerning = kerned !== unkerned && context.measureText('\u2028').width === getSegmentMetrics(' ', measurement).width ? new Map() : null
   }
   return measurement.spaceKerning
 }
 
 // A character's kerning with a space glyph after it, or before it: the two in one string, with
 // U+2028 for the space, less each alone. Asked of Canvas once per font and side.
-function getCharacterSpaceKerning(code: number, spaceFirst: boolean, measurement: FontMeasurement, font: FontSpaceKerning): number {
-  const kernings = spaceFirst ? font.before : font.after
-  let kerning = kernings.get(code)
+function getCharacterSpaceKerning(code: number, spaceFirst: boolean, measurement: FontMeasurement, kernings: Map<number, number>): number {
+  const key = code << 1 | (spaceFirst ? 1 : 0)
+  let kerning = kernings.get(key)
   if (kerning === undefined) {
     kerning = 0
     if (!takesNoSpaceKerning(code)) {
@@ -654,7 +649,7 @@ function getCharacterSpaceKerning(code: number, spaceFirst: boolean, measurement
       // width / 2^22 is rounding, not kerning (RESEARCH.md, Kerning At Line Edges).
       if (Math.abs(kerning) <= pairWidth / 0x400000) kerning = 0
     }
-    kernings.set(code, kerning)
+    kernings.set(key, kerning)
   }
   return kerning
 }
@@ -665,13 +660,13 @@ function getCharacterSpaceKerning(code: number, spaceFirst: boolean, measurement
 // doesn't cut there. Premise: the segment's last and first character stand for the word, past
 // default ignorables, which HarfBuzz's lookups pass over, and a first character with a combining
 // mark after it takes none (RESEARCH.md, Kerning At Line Edges, has the gaps).
-export function getSpaceKerning(seg: string, metrics: SegmentMetrics, measurement: FontMeasurement, font: FontSpaceKerning): SpaceKerning {
+export function getSpaceKerning(seg: string, metrics: SegmentMetrics, measurement: FontMeasurement, kernings: Map<number, number>): SpaceKerning {
   let first = 0
   let last = seg.length - 1
   while (first < last && hasProperty(seg.charCodeAt(first), DEFAULT_IGNORABLE)) first++
   while (last > first && hasProperty(seg.charCodeAt(last), DEFAULT_IGNORABLE)) last--
-  const before = first < last && hasProperty(seg.charCodeAt(first + 1), MARK) ? 0 : getCharacterSpaceKerning(seg.charCodeAt(first), true, measurement, font)
-  const after = getCharacterSpaceKerning(seg.charCodeAt(last), false, measurement, font)
+  const before = first < last && hasProperty(seg.charCodeAt(first + 1), MARK) ? 0 : getCharacterSpaceKerning(seg.charCodeAt(first), true, measurement, kernings)
+  const after = getCharacterSpaceKerning(seg.charCodeAt(last), false, measurement, kernings)
   return metrics.spaceKerning = after === 0 && before === 0 ? noSpaceKerning : { after, before }
 }
 
