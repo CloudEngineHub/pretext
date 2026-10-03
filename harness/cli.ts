@@ -8,7 +8,7 @@
 //                            and line text for every case, with the same line APIs' disagreements and Canvas calls after
 //                            preparing, and each set's measureText calls and submitted units here and there;
 //                            --offline: whether their src/ give the same results on a stand-in Canvas (offline-equal.ts)
-//   bench <base> [--sessions=3] [--rows=new,...] [--background]   <base>'s src/ timed against --lib's (bench/run.ts)
+//   bench <base> [--sessions=2] [--rows=new,...] [--background]   <base>'s src/ timed against --lib's (bench/run.ts)
 //   repin <chrome|firefox|safari> [--write]   after a browser update: pin the installed Chrome or Firefox, record every
 //                            case into a scratch copy of the recordings, and print what changed and whether the browser's
 //                            break data is still scripts/engine-data's; --write replaces the recordings and the pin
@@ -570,7 +570,7 @@ async function main(): Promise<number> {
       if (positional[1] === undefined) throw new Error('bench needs a base: a git ref or a src/ directory')
       const background = flags.has('background')
       const chosen = flags.has('browser') ? browsers : BROWSERS.filter(browser => BROWSER[browser][background ? 'background' : 'foreground'])
-      await bench(positional[1], flags.get('lib') ?? LIB, chosen, Number(flags.get('sessions') ?? 3), flags.get('rows')?.split(',') ?? ROWS, background)
+      await bench(positional[1], flags.get('lib') ?? LIB, chosen, Number(flags.get('sessions') ?? 2), flags.get('rows')?.split(',') ?? ROWS, background)
       return 0
     }
     case 'repin': {
