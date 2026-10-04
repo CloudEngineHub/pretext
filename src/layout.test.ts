@@ -5868,6 +5868,20 @@ describe('layout invariants', () => {
         expect(richLines(items, 46)).toEqual(['中:16', '中」:32', '中:16'])
       }
       expect(richLines([{ text: '中中」' }, { text: '中' }], 46)).toEqual(['中中」:40', '中:16'])
+      // Before a space the mark's line-end halt is left to a line broken between graphemes, which
+      // an item of one character and the mark takes at 24-31px. A run of U+3000 that ends an
+      // item keeps its hang before a space. And a closing mark halted by its pair has no
+      // line-end halt left to take: `中中」` is 40px before `·`, never 32. Each as the text.
+      const edges: [string, string, number, string[]][] = [
+        ['中」', ' 中', 28, ['中」:24', '中:16']],
+        ['中中\u3000', ' 中', 40, ['中中\u3000:32', '中:16']],
+        ['中中」', '·中', 36, ['中:16', '中」·:33.6', '中:16']],
+      ]
+      for (const [first, second, width, expected] of edges) {
+        expect({ first, second, width, lines: richLines([{ text: first }, { text: second }], width) }).toEqual({ first, second, width, lines: expected })
+        const flat = layoutWithLines(prepareWithSegments(first + second, font), width, LINE_HEIGHT).lines.map(line => `${line.text.replace(/ $/, '')}:${Math.round(line.width * 100) / 100}`)
+        expect({ first, second, width, lines: flat }).toEqual({ first, second, width, lines: expected })
+      }
       // In pre-wrap the next item's preserved space, tab or line feed joins the mark's text, which
       // gives no break before it, and a ZWSP that starts the next item gives none in either mode.
       for (const [second, whiteSpace] of [[' 中', 'pre-wrap'], ['\t中', 'pre-wrap'], ['\n中', 'pre-wrap'], ['\u200B中', 'normal']] as const) {
