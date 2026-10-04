@@ -1189,7 +1189,8 @@ Rich inline (`prepareRichInline()` and its walkers, `src/rich-inline.ts`) measur
 paragraph's joined text. Measuring alone is a premise whose gap is out of scope for now, since rich inline with kerning
 between sibling spans is left for later (Part 1, The Per-Engine Rebuild And What Counts As Done): Chrome and Firefox
 kern across same-font spans, so Arial `community` + `,` fits about 1px earlier than its two widths, and Safari doesn't
-(2026-09-12). Where Pretext's plain-text walkers, given the joined text as one string, and the browser's lines for the
+(2026-09-12). The one width read across items is the halt Chrome gives a pair of fullwidth marks (CJK At An Item's
+Edge). Where Pretext's plain-text walkers, given the joined text as one string, and the browser's lines for the
 same text in one text node disagree, rich inline follows the plain-text walkers, but for a few places where it follows
 the browser and the walkers don't yet: in the Gecko profile a rich line hangs the space before a soft hyphen Firefox
 drops and its start consumes that soft hyphen, and in every profile an item whose whole width fits goes on its line
@@ -1345,6 +1346,18 @@ object (Blink's, WebKit's and Gecko's sources are cited at the rule in `prepareR
 On three probes that fixed 1,845 Chrome, 818 Firefox and 1,884 webkit-host cases and lost 76, 81 and 101, 241 of the
 258 losses holding a soft hyphen or bidi control beside the atomic item's white space, where the gap had made up for
 white space Pretext gets wrong there. In Firefox an atomic item's leading white space also collapses into an open run.
+
+#### CJK At An Item's Edge
+
+What Chrome's `text-spacing-trim` does with fullwidth punctuation at a span's edge, in Chrome 154.0.8037.57 on macOS
+27.0 at DPR 2, in 16px Hiragino Sans and PingFang SC (2026-09-30 to 10-04), which rich inline follows since #TBD. A
+halt is the half an em Chrome takes off a fullwidth mark (`src/han-kerning.ts`). Firefox and webkit-host halt no mark.
+- Chrome halts a pair of fullwidth marks that a span edge splits as in one text node, whatever the two spans' weights,
+  sizes or families and with padding between them, each mark by the font of its own span, since `HanKerning::Compute`
+  reads the paragraph's text on both sides of each shaped run (`han_kerning.cc:262-320`, Chromium 153): `文字」` and a
+  span `。文字` are 88px wide, where the two measured apart take 96px, and a 20px `「引用」` before a 16px `。` halts `」`
+  by 10px. Measured apart, `これは`, a bold `「引用」` and `。と言った` wrapped otherwise than Chrome at 68 of 141 widths
+  from 60 to 200px.
 
 #### Objects Inside A Line
 

@@ -21,6 +21,7 @@ import {
   type WhiteSpaceMode,
 } from './analysis.js'
 import { isDiscardable, isSpaceOrTabOrSegmentBreak } from './gecko-line-breaks.js'
+import { getHaltAcrossRuns } from './han-kerning.js'
 import { getWebKitBreakBetweenItems } from './line-breaks.js'
 import { buildLineTextFromRange, getGraphemeEnds, type PreparedSegments } from './line-text.js'
 import {
@@ -33,7 +34,7 @@ import {
   walkPreparedLinesRaw,
   type ItemLine,
 } from './line-break.js'
-import { getEngineProfile, getFontMeasurement, getPreparationLanguage, getSegmentMetrics, readLetterSpacing, type EngineProfile } from './measurement.js'
+import { getEngineProfile, getFontMeasurement, getPreparationLanguage, getSegmentMetrics, readLetterSpacing, zeros, type EngineProfile } from './measurement.js'
 import { measureAnalysis } from './prepare.js'
 
 // Helper for rich-text inline flow under `white-space: normal` or `pre-wrap`.
@@ -369,6 +370,32 @@ const BOX_HANDLE: PreparedSegments = {
   overflowLineEndTrims: null, letterSpacing: 0, discretionaryHyphenWidth: 0, discretionaryHyphenContexts: null, tabStopAdvance: 0, minimumTabAdvance: 0,
 }
 
+// Blink's text-spacing-trim halts a pair of marks that two items split between them, as it does
+// in one text node, whatever the fonts or the padding between them (getHaltAcrossRuns): in 16px
+// Hiragino Sans, Chrome 154 lays out `文字」` and a span `。文字`, bold or padded or neither, 88px
+// wide plus the padding, as their text in one node, where the two measured apart take 96px.
+// `joined` is the text the items join, `after`'s starting at its `start`. A closing mark halted
+// before the next item's first character is halted wherever the line ends, so it has no
+// line-end halt left to take, and an opening mark halted after the item before takes its halt
+// back where it starts a line, so a line walks its item (lineStartExtras), whose whole width is
+// its width at a line's start.
+function haltAcrossItems(before: JoinedPortion, after: JoinedPortion, joined: string, items: Array<RichInlineItem | RichInlineBox>, language: string | null): void {
+  const closing = getHaltAcrossRuns(joined, after.start, -1, (items[before.itemIndex] as RichInlineItem).font, before.item.prepared.letterSpacing !== 0, language)
+  if (closing > 0) {
+    const { widths, lineEndTrims } = before.item.prepared
+    widths[widths.length - 1] = widths[widths.length - 1]! - closing
+    if (lineEndTrims !== null) lineEndTrims[widths.length - 1] = 0
+    before.item.naturalWidth -= closing
+  }
+  const opening = getHaltAcrossRuns(joined, after.start, 1, (items[after.itemIndex] as RichInlineItem).font, after.item.prepared.letterSpacing !== 0, language)
+  if (opening > 0) {
+    const { prepared } = after.item
+    prepared.widths[0] = prepared.widths[0]! - opening
+    ;(prepared.lineStartExtras ??= zeros(prepared.widths.length))[0] = opening
+    after.item.walked = true
+  }
+}
+
 export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, options?: RichInlineOptions): PreparedRichInline {
   const whiteSpace = options?.whiteSpace ?? 'normal'
   const wordBreak = options?.wordBreak ?? 'normal'
@@ -478,7 +505,10 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
         for (let i = 0, j = 0; i < joinedPortions.length; i++) {
           const portion = joinedPortions[i]!
           while (j < joined.starts.length && joined.starts[j]! < portion.start) j++
-          if (i > 0) portion.item.breakBefore = joined.starts[j] === portion.start && breaksBefore(joined.flags, j) && (joined.flags[j]! & KIND_BITS) !== HARD_BREAK
+          if (i > 0) {
+            portion.item.breakBefore = joined.starts[j] === portion.start && breaksBefore(joined.flags, j) && (joined.flags[j]! & KIND_BITS) !== HARD_BREAK
+            if (profile.hanKerning) haltAcrossItems(joinedPortions[i - 1]!, portion, joinedText, items, language)
+          }
           recordJoinedBreaks(portion, joined, j, i + 1 < joinedPortions.length ? joinedPortions[i + 1]!.start : joinedText.length, walkedFlags)
         }
       }
