@@ -30,12 +30,6 @@ const NARROW_MAX_VIEWPORT_WIDTH = 640
 export const CARD_PADDING_X = 16
 export const CARD_PADDING_Y = 12
 
-// The row that follows the pointer: the most lines its card grows to, and its stage, the
-// area a pointer is followed in, as tall as that card and half a line more, so the pointer
-// has room below the card's last line.
-export const FOLLOW_MAX_LINES = 8
-export const FOLLOW_STAGE_HEIGHT = FOLLOW_MAX_LINES * LINE_HEIGHT + CARD_PADDING_Y * 2 + LINE_HEIGHT / 2
-
 export const ELLIPSIS = '…'
 export const MORE_LABEL = 'more'
 export const LESS_LABEL = 'less'
@@ -122,8 +116,6 @@ export const samples: Sample[] = [
 export const middleLabel = createLabel('Middle', '~/Projects/atlas/packages/renderer/src/text/layout/line-breaker.test.ts')
 
 export const moreSample = createSample('Link after the cut', 'ltr', samples[0]!.text)
-
-export const followSample = createSample('Follows the pointer', 'ltr', 'Move the pointer over this area and the card’s corner springs after it. Every frame on the way has another width and another height, and the paragraph is laid out again for each: the lines that fit, where the last one is cut, and the room the ellipsis takes. Nothing is measured in the page while it moves. The widths were taken once, when the text was prepared, and each layout after that is arithmetic over them, which is why a spring can drive it sixty or a hundred and twenty times a second without the text falling behind the box.')
 
 export function getPageGeometry(viewportWidth: number, requestedTextWidth: number): PageGeometry {
   const marginX = viewportWidth <= NARROW_MAX_VIEWPORT_WIDTH ? NARROW_PAGE_MARGIN_X : PAGE_MARGIN_X
