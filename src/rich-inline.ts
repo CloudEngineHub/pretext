@@ -731,7 +731,9 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
 
     if (previousItem === null || whitespaceBefore || preparedItem.break === 'never' || previousItem.break === 'never') {
       finishJoinedText()
-      if (previousItem !== null && (gapIsSpace || (hasLeadingWhitespace && ownsWhiteSpace))) leaveEndHaltToOverflow(previousItem)
+      // What follows the mark is the gap before this item, where there is one, and only without
+      // one this item's own leading white space.
+      if (previousItem !== null && (pendingGapWidth !== null ? gapIsSpace : hasLeadingWhitespace && ownsWhiteSpace)) leaveEndHaltToOverflow(previousItem)
       preparedItem.breakBefore = whitespaceBefore || (previousItem !== null && breaksAfterAtomic)
     }
     if (preparedItem.break === 'never') {

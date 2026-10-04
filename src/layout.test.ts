@@ -5896,7 +5896,10 @@ describe('layout invariants', () => {
       // Nor is the white space of a chip that holds nothing else, before text or a box.
       expect(richLines([{ text: '中中」' }, { text: ' ', break: 'never', extraWidth: 5 }, { text: '中' }], 46)).toEqual(['中中」:40', '中:16'])
       expect(richLines([{ text: '中中」' }, { text: ' ', break: 'never', extraWidth: 5 }, { width: 5 }], 46)).toEqual(['中中」:40', ':5'])
+      // Nor is a space that starts the item after such a chip, which the chip comes before.
+      expect(richLines([{ text: '中中」' }, { text: ' ', break: 'never', extraWidth: 5 }, { text: ' 中' }], 46)).toEqual(['中中」:40', '中:16'])
       expect(richLines([{ text: '中中」 ' }, { text: ' ', break: 'never', extraWidth: 5 }, { text: '中' }], 46)).toEqual(['中:16', '中」:32', '中:16'])
+      expect(richLines([{ text: '中中」' }, { text: ' ' }, { text: ' ', break: 'never', extraWidth: 5 }, { text: ' 中' }], 46)).toEqual(['中:16', '中」:32', '中:16'])
     } finally {
       Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', measureText)
     }
