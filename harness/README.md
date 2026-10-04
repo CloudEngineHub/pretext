@@ -315,7 +315,7 @@ Builds are read from the app bundles, since a user agent names only the major ve
 policy before its first launch, since a pinned Firefox once updated itself (`browsers.ts` has how). Safari can't be
 pinned, and a macOS update moves all three browsers (system fonts, Core Text, ICU, emoji). `repin` records every case
 with the new build into a scratch copy of the recordings and prints the cases laid out otherwise, the new page history,
-and whether the browser's break data still matches `scripts/engine-data/`.
+and whether the browser still holds the break data and character properties in `scripts/engine-data/`.
 
 webkit-host lays text out as Safari 27.0 does: the same line geometry on 25,180 cases in both orders (2026-09-17, in
 the per-engine rebuild's harness) and on installed Safari's 2,000-case sample here, where the 1,990 cases pinned in both
