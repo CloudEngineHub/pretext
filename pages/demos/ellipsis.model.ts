@@ -113,9 +113,9 @@ export const samples: Sample[] = [
   createSample('End, right-to-left', 'rtl', 'بدأت الرحلة في الصباح الباكر، وكانت الطريق إلى الساحل طويلة، لكن المناظر على جانبيها جعلتنا ننسى التعب تماما حتى وصلنا إلى الميناء القديم. هناك جلسنا على الرصيف نشرب الشاي ونراقب القوارب وهي تعود محملة بالصيد، ثم مشينا في الأزقة الضيقة حتى غابت الشمس.'),
 ]
 
-export const middleLabel = createLabel('Middle', '~/Projects/atlas/packages/renderer/src/text/layout/line-breaker.test.ts')
+export const middleLabel = createLabel('Middle, preserving /', '~/Projects/atlas/packages/renderer/src/text/layout/line-breaker.test.ts')
 
-export const moreSample = createSample('Link after the cut', 'ltr', samples[0]!.text)
+export const moreSample = createSample('End, with a “more” link', 'ltr', samples[0]!.text)
 
 export function getPageGeometry(viewportWidth: number, requestedTextWidth: number): PageGeometry {
   const marginX = viewportWidth <= NARROW_MAX_VIEWPORT_WIDTH ? NARROW_PAGE_MARGIN_X : PAGE_MARGIN_X
