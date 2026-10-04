@@ -122,6 +122,28 @@
         white-space: nowrap;
       }
 
+      /* The link row holds the lines its closed and open states share, then two layers, one over
+         the other: the closed state's last line, and the open state's lines from there on.
+         ellipsis.ts writes the box's height and each layer's top and opacity every frame of a
+         fade. The box clips the open layer's lines below its height, 6px out so that the focus
+         ring of a link on its last line shows whole. */
+      .more {
+        clip-path: inset(-6px);
+        isolation: isolate;
+      }
+
+      .layer {
+        position: absolute;
+        left: 0;
+        width: 100%;
+      }
+
+      /* The two layers' colours add, so the start of the cut line, which both paint in the same
+         place, keeps its full ink through a fade. */
+      .layer + .layer {
+        mix-blend-mode: plus-lighter;
+      }
+
       /* The link takes the width of its text alone, in the paragraph's font, which is the room
          Pretext leaves for it. */
       .more-link {

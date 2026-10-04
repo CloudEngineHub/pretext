@@ -24,6 +24,10 @@ type State = {
   requestedTextWidth: number
   maxLines: number
   moreOpen: boolean
+  // How far the link row is from its closed state, 0, to its open one, 1, and the time of the
+  // frame that last moved it, null while it rests.
+  moreFade: number
+  moreFadedAt: number | null
   events: {
     widthValue: number | null
     linesValue: number | null
@@ -43,6 +47,14 @@ type LinesDom = {
   lines: LineDom[]
 }
 
+// One of the link row's two layers: the lines the closed and the open paragraph don't share,
+// each with its own link.
+type MoreLayerDom = {
+  lines: LinesDom
+  link: HTMLButtonElement
+  linkLine: number // the line the link is attached to, -1 while detached
+}
+
 // cache lifetime: page, for every node.
 type DomCache = {
   page: HTMLElement
@@ -53,21 +65,30 @@ type DomCache = {
   boxes: HTMLDivElement[]
   clamps: LinesDom[]
   middle: LineDom
-  more: LinesDom
-  moreLink: HTMLButtonElement
-  moreLinkLine: number // the line the link is attached to, -1 while detached
+  moreBox: HTMLDivElement
+  reducedMotion: MediaQueryList
+  moreShared: LinesDom
+  moreClosed: MoreLayerDom
+  moreOpen: MoreLayerDom
 }
 
 const st: State = {
   requestedTextWidth: DEFAULT_TEXT_WIDTH,
   maxLines: DEFAULT_LINES,
   moreOpen: false,
+  moreFade: 0,
+  moreFadedAt: null,
   events: {
     widthValue: null,
     linesValue: null,
     moreClicked: false,
   },
 }
+
+// The link row's fade covers 63% of what is left of it every this many milliseconds.
+const FADE_TIME_CONSTANT = 60
+// The fade is at its end once the box is within this many pixels of its height there.
+const FADE_REST = 0.05
 
 const domCache = createDom()
 let scheduledRaf: number | null = null
@@ -82,10 +103,8 @@ domCache.linesSlider.addEventListener('input', () => {
   scheduleRender()
 })
 
-domCache.moreLink.addEventListener('click', () => {
-  st.events.moreClicked = true
-  scheduleRender()
-})
+domCache.moreClosed.link.addEventListener('click', toggleMore)
+domCache.moreOpen.link.addEventListener('click', toggleMore)
 
 window.addEventListener('resize', () => {
   scheduleRender()
@@ -96,6 +115,11 @@ document.fonts.ready.then(() => {
 })
 
 scheduleRender()
+
+function toggleMore(): void {
+  st.events.moreClicked = true
+  scheduleRender()
+}
 
 function getRequiredElement<T extends HTMLElement>(id: string, ctor: { new (): T }): T {
   const element = document.getElementById(id)
@@ -131,6 +155,17 @@ function createRow(label: string, direction: 'ltr' | 'rtl', parent: Element): HT
   return box
 }
 
+// A layer of the link row: the lines from where the two states part, and a link.
+function createMoreLayer(box: HTMLDivElement, label: string, expanded: boolean): MoreLayerDom {
+  const layer = createElement('div', 'layer', box)
+  const link = document.createElement('button')
+  link.type = 'button'
+  link.className = 'more-link'
+  link.textContent = label
+  link.setAttribute('aria-expanded', expanded ? 'true' : 'false')
+  return { lines: { box: layer, lines: [] }, link, linkLine: -1 }
+}
+
 function createDom(): DomCache {
   const rows = getRequiredElement('rows', HTMLElement)
 
@@ -148,10 +183,8 @@ function createDom(): DomCache {
   boxes.push(middleBox)
 
   const moreBox = createRow(moreSample.label, moreSample.direction, rows)
+  moreBox.classList.add('more')
   boxes.push(moreBox)
-  const moreLink = document.createElement('button')
-  moreLink.type = 'button'
-  moreLink.className = 'more-link'
 
   return {
     page: getRequiredElement('page', HTMLElement),
@@ -162,17 +195,21 @@ function createDom(): DomCache {
     boxes,
     clamps,
     middle: createLine(middleBox, 0),
-    more: { box: moreBox, lines: [] },
-    moreLink,
-    moreLinkLine: -1,
+    moreBox,
+    reducedMotion: matchMedia('(prefers-reduced-motion: reduce)'),
+    // The shared lines get an element of their own ahead of the two layers, so the row's DOM is
+    // in reading order, which a selection, a copy and a screen reader follow.
+    moreShared: { box: createElement('div', 'shared', moreBox), lines: [] },
+    moreClosed: createMoreLayer(moreBox, MORE_LABEL, false),
+    moreOpen: createMoreLayer(moreBox, LESS_LABEL, true),
   }
 }
 
 function scheduleRender(): void {
   if (scheduledRaf !== null) return
-  scheduledRaf = requestAnimationFrame(function renderEllipsisFrame() {
+  scheduledRaf = requestAnimationFrame(function renderEllipsisFrame(now) {
     scheduledRaf = null
-    render()
+    if (render(now)) scheduleRender()
   })
 }
 
@@ -188,12 +225,29 @@ function paintLines(dom: LinesDom, lines: string[], tail: string): void {
   }
 }
 
-function render(): void {
+// Writes one layer of the link row: where it starts, its lines, the link after `linkLine`, and
+// how much of it shows. The layer of the state the row isn't in is inert, so its link takes no
+// click and no focus, even while it still fades out.
+function paintMoreLayer(dom: MoreLayerDom, top: number, lines: string[], linkLine: number, tail: string, opacity: number, shown: boolean): void {
+  dom.lines.box.style.top = `${top}px`
+  paintLines(dom.lines, lines, linkLine < 0 ? '' : tail)
+  if (dom.linkLine !== linkLine) {
+    if (linkLine < 0) dom.link.remove()
+    else dom.lines.lines[linkLine]!.root.appendChild(dom.link)
+    dom.linkLine = linkLine
+  }
+  dom.lines.box.style.opacity = String(opacity)
+  dom.lines.box.toggleAttribute('inert', !shown)
+}
+
+// Returns whether the link row is still fading, which takes another frame.
+function render(now: number): boolean {
   // DOM reads
   // body.clientWidth leaves out the scrollbar gutter. Chrome's documentElement.clientWidth includes
   // the gutter while the page doesn't overflow.
   const viewportWidth = document.body.clientWidth
-  const linkHadFocus = document.activeElement === domCache.moreLink
+  const linkHadFocus = document.activeElement === domCache.moreClosed.link || document.activeElement === domCache.moreOpen.link
+  const reducedMotion = domCache.reducedMotion.matches
 
   // Inputs
   let requestedTextWidth = st.requestedTextWidth
@@ -209,11 +263,31 @@ function render(): void {
   const clamps: ClampLayout[] = []
   for (let i = 0; i < samples.length; i++) clamps.push(layoutClamp(samples[i]!.prepared, textWidth, maxLines))
   const middle = layoutMiddle(middleLabel, textWidth)
-  const more = layoutMore(moreSample.prepared, textWidth, maxLines, moreOpen)
+  // Both states of the link row, so that one can fade into the other, at whatever width the
+  // frame has: every height is known before the click.
+  const closed = layoutMore(moreSample.prepared, textWidth, maxLines, false)
+  const open = layoutMore(moreSample.prepared, textWidth, maxLines, true)
+  // A paragraph that fits its lines has no link, and its two states are the same lines. Otherwise
+  // they share every line before the closed one's last, which stays as it is while the rest fades.
+  const sharedLines = closed.linkLine >= 0 ? closed.linkLine : closed.lines.length
+
+  // Animation tick
+  // The fade closes on its state by exponential decay, which is closed-form: a frame of any
+  // length lands on the same curve, and a click halfway turns it around from where it is.
+  const fadeDest = moreOpen ? 1 : 0
+  let moreFade = st.moreFade
+  let moreFadedAt: number | null = null
+  if (moreFade !== fadeDest) {
+    moreFade = fadeDest + (moreFade - fadeDest) * Math.exp(-(now - (st.moreFadedAt ?? now)) / FADE_TIME_CONSTANT)
+    if (reducedMotion || Math.abs(moreFade - fadeDest) * (open.height - closed.height) < FADE_REST) moreFade = fadeDest
+    else moreFadedAt = now
+  }
 
   st.requestedTextWidth = requestedTextWidth
   st.maxLines = maxLines
   st.moreOpen = moreOpen
+  st.moreFade = moreFade
+  st.moreFadedAt = moreFadedAt
   st.events.widthValue = null
   st.events.linesValue = null
   st.events.moreClicked = false
@@ -239,19 +313,18 @@ function render(): void {
 
   if (domCache.middle.text.data !== middle) domCache.middle.text.data = middle
 
-  domCache.more.box.style.height = `${more.height}px`
-  paintLines(domCache.more, more.lines, more.linkLine < 0 ? '' : moreOpen ? ' ' : `${ELLIPSIS} `)
-  const linkLabel = moreOpen ? LESS_LABEL : MORE_LABEL
-  if (domCache.moreLink.textContent !== linkLabel) domCache.moreLink.textContent = linkLabel
-  domCache.moreLink.setAttribute('aria-expanded', moreOpen ? 'true' : 'false')
-  const linkMoved = domCache.moreLinkLine !== more.linkLine
-  if (linkMoved) {
-    if (more.linkLine < 0) domCache.moreLink.remove()
-    else domCache.more.lines[more.linkLine]!.root.appendChild(domCache.moreLink)
-    domCache.moreLinkLine = more.linkLine
-  }
+  // The box is as far between the two states' heights as the fade is, and clips the open
+  // layer's lines below that.
+  domCache.moreBox.style.height = `${closed.height + (open.height - closed.height) * moreFade}px`
+  paintLines(domCache.moreShared, closed.lines.slice(0, sharedLines), '')
+  const layerTop = sharedLines * LINE_HEIGHT
+  paintMoreLayer(domCache.moreClosed, layerTop, closed.lines.slice(sharedLines), closed.linkLine - sharedLines, `${ELLIPSIS} `, 1 - moreFade, !moreOpen)
+  paintMoreLayer(domCache.moreOpen, layerTop, open.lines.slice(sharedLines), open.linkLine < 0 ? -1 : open.linkLine - sharedLines, ' ', moreFade, moreOpen)
 
   // Side effects
-  // Moving a focused element drops its focus.
-  if (linkHadFocus && linkMoved && more.linkLine >= 0) domCache.moreLink.focus()
+  // Focus stays on the link that shows: a click leaves it on the layer that fades out, and a link
+  // moved to another line loses it. Without a scroll, so a click doesn't jump the page to the link.
+  if (linkHadFocus && closed.linkLine >= 0) (moreOpen ? domCache.moreOpen : domCache.moreClosed).link.focus({ preventScroll: true })
+
+  return moreFadedAt !== null
 }
