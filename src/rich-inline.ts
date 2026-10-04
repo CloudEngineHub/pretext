@@ -401,11 +401,12 @@ function haltAcrossItems(before: JoinedPortion, after: JoinedPortion, joined: st
 // holds that. There the halt an item's own text gives the mark it ends with is the one only a
 // line broken between graphemes takes (overflowLineEndTrims), as in one text: in 16px Hiragino
 // Sans, Chrome 154 fits `文字）` in 40-47px before a span `i`, and before a span that starts
-// with a space, or a space and a box, it breaks before `字`. An atomic item's own leading
-// space is none: its inline-block trims it (ownsWhiteSpace in prepareRichInline()), a break
-// comes right after the mark, and Chrome fits `設定）` in 40-47px before a chip ` @a `. A run
-// of U+3000 that ends the item has a line-end trim too, its hang (addIdeographicSpaceHangs in
-// src/prepare.ts), which stays.
+// with a space, or a space and a box, it breaks before `字`. An atomic item's own white space
+// is none, where it starts the item or is all of it: its inline-block trims it (ownsWhiteSpace
+// and gapIsSpace in prepareRichInline()), a break comes right after the mark, and Chrome fits
+// `設定）` in 40-47px before a chip ` @a ` and before a chip of a space. A run of U+3000 that
+// ends the item has a line-end trim too, its hang (addIdeographicSpaceHangs in src/prepare.ts),
+// which stays.
 function leaveEndHaltToOverflow(item: PreparedRichInlineItem): void {
   const { lineEndTrims, segments } = item.prepared
   if (lineEndTrims === null) return
@@ -540,6 +541,9 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
 
   for (let index = 0; index < items.length; index++) {
     const item = items[index]!
+    // Whether the gap before this item is a space in the paragraph's text. The gap an atomic
+    // item of only white space makes isn't one (leaveEndHaltToOverflow).
+    const gapIsSpace = pendingGapWidth !== null && (items[pendingGapItemIndex] as RichInlineItem).break !== 'never'
     if (item.text === undefined) {
       // A box: an atomic item with no text, and so no white space of its own, which takes the gap
       // before it, breaks on both sides and keeps white space after it on its line as an atomic item
@@ -550,7 +554,7 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
       // extraWidth does (RESEARCH.md, Objects Inside A Line), so Pretext refuses both.
       if (!Number.isFinite(item.width) || item.width < 0) throw new RangeError(`Item ${index} has no text, so it's a box, whose width must be a finite number of CSS px, at least 0, not ${item.width}`)
       finishJoinedText()
-      if (pendingGapWidth !== null && previousItem !== null) leaveEndHaltToOverflow(previousItem)
+      if (previousItem !== null && gapIsSpace) leaveEndHaltToOverflow(previousItem)
       const box: PreparedRichInlineItem = {
         break: 'never', breakBefore: pendingGapWidth !== null || previousItem !== null, continued: false, walked: false,
         establishesLine: true, extraWidth: item.width, gapBefore: pendingGapWidth ?? 0, gapItemIndex: pendingGapWidth === null ? -1 : pendingGapItemIndex,
@@ -727,7 +731,7 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
 
     if (previousItem === null || whitespaceBefore || preparedItem.break === 'never' || previousItem.break === 'never') {
       finishJoinedText()
-      if (previousItem !== null && (pendingGapWidth !== null || (hasLeadingWhitespace && ownsWhiteSpace))) leaveEndHaltToOverflow(previousItem)
+      if (previousItem !== null && (gapIsSpace || (hasLeadingWhitespace && ownsWhiteSpace))) leaveEndHaltToOverflow(previousItem)
       preparedItem.breakBefore = whitespaceBefore || (previousItem !== null && breaksAfterAtomic)
     }
     if (preparedItem.break === 'never') {

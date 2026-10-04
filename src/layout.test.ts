@@ -5893,6 +5893,10 @@ describe('layout invariants', () => {
       for (const text of [' @a ', ' @a', '@a']) {
         expect({ text, lines: richLines([{ text: '中中」' }, { text, break: 'never', extraWidth: 8 }, { text: '中' }], 46) }).toEqual({ text, lines: ['中中」:40', '@a中:43.2'] })
       }
+      // Nor is the white space of a chip that holds nothing else, before text or a box.
+      expect(richLines([{ text: '中中」' }, { text: ' ', break: 'never', extraWidth: 5 }, { text: '中' }], 46)).toEqual(['中中」:40', '中:16'])
+      expect(richLines([{ text: '中中」' }, { text: ' ', break: 'never', extraWidth: 5 }, { width: 5 }], 46)).toEqual(['中中」:40', ':5'])
+      expect(richLines([{ text: '中中」 ' }, { text: ' ', break: 'never', extraWidth: 5 }, { text: '中' }], 46)).toEqual(['中:16', '中」:32', '中:16'])
     } finally {
       Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', measureText)
     }
