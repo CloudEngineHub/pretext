@@ -36,6 +36,7 @@ If you want textarea-like text where ordinary spaces, `\t` tabs, and `\n` hard b
 ```ts
 const prepared = prepare(textareaValue, '16px Inter', { whiteSpace: 'pre-wrap' })
 const { height } = layout(prepared, textareaWidth, 20)
+// A <textarea> shows one more line than this when its value is empty or ends with \n
 
 // Long text edited live: prepare each paragraph apart, keeping its \n, and re-prepare only the one an edit touches
 const paragraphs = textareaValue.split(/(?<=\n)/).map(p => prepare(p, '16px Inter', { whiteSpace: 'pre-wrap' }))
@@ -75,7 +76,7 @@ walkLineRanges(prepared, 320, line => { if (line.width > maxW) maxW = line.width
 // maxW is now the widest line — the tightest container width that still fits the text! This multiline "shrink wrap" has been missing from web
 ```
 
-Size an element to `Math.ceil(maxW)`, as the `/demos/bubbles` demo does: at the exact fractional width, the browser can wrap the widest line.
+Size an element to `Math.ceil(maxW)`, capped at the `maxWidth` you passed, as the `/demos/bubbles` demo does. At the exact fractional width the browser can wrap the widest line. Without the cap the element can come out a pixel wider than `maxWidth`, where the browser can break its lines elsewhere: a line that just fits can measure up to 1/64px over `maxWidth`.
 
 - `layoutNextLineRange()` lets you route text one row at a time when width changes as you go:
 
@@ -233,10 +234,11 @@ setLocale(locale?: string): void // optional (by default we use the page languag
 Notes:
 - `LayoutCursor` is a segment/grapheme cursor, not a raw string offset.
 - Browsers let the spaces at a line's end run past it without counting toward its width, which CSS calls hanging. A line's `width` leaves out what hangs: all of it where the line wraps, and in `pre-wrap`, before a newline or at the end of the text, only the part that doesn't fit in `maxWidth`. Chrome and Safari hang tabs the same way; Firefox counts them in the width. `measureNaturalWidth()` still counts spaces before a newline, like CSS max-content.
-- `layout()` with an empty string returns `{ lineCount: 0, height: 0 }`. Browsers still size an empty block to one `line-height`, so clamp with `Math.max(1, lineCount) * lineHeight` if you need that behavior.
-- Pretext doesn't give bidi levels or a visual order. If you're drawing mixed bidi text, like English and Arabic, render each paragraph as one DOM element with its direction set, and the browser orders every line. If you draw lines separately, such as with Canvas `fillText()`, each line is ordered as its own paragraph, so numbers or punctuation next to a line break, or bidi controls that span lines (invisible direction characters such as U+202A-U+202E or U+2066-U+2069), can come out in a different order.
+- `layout()` with an empty string returns `{ lineCount: 0, height: 0 }`, as an empty block is 0 tall, and a newline at the very end of `pre-wrap` text adds no line. A `<textarea>` shows one more line in both cases, so add one to `lineCount` when its value is empty or ends with `\n`.
+- Pretext doesn't give bidi levels or a visual order. If you're drawing mixed bidi text, like English and Arabic, render each paragraph as one DOM element with its direction set, and the browser orders every line. In `pre-wrap` text every newline starts a paragraph: set `unicode-bidi: plaintext` on the element, or prepare and paint each paragraph apart, so that each takes its own direction. An English paragraph inside a right-to-left element can paint a line wider than Pretext measures it, which then wraps. If you draw lines separately, such as with Canvas `fillText()`, each line is ordered as its own paragraph, so numbers or punctuation next to a line break, or bidi controls that span lines (invisible direction characters such as U+202A-U+202E or U+2066-U+2069), can come out in a different order.
 - A rich-inline fragment's `gapBefore` is a space in the font and letter spacing of item `gapItemIndex`: the fragment's own item, the previous fragment's item, or an item holding only whitespace, which gets no fragment. An atomic item's own leading and trailing white space makes no gap, as browsers trim it inside the item's inline-block. Draw the space inside that item's element so it paints at that width.
 - In `pre-wrap`, rich-inline fragments have no gaps: a fragment's `text` keeps its spaces, and its `occupiedWidth`, like the line's `width`, leaves out what hangs at the line's end. An atomic item's own spaces collapse, as in a chip's `white-space: nowrap` inline-block, so its cursors index its text prepared without `whiteSpace`. A tab counts eight spaces of its own item's font, as Safari does; Chrome and Firefox count the paragraph's, so a tab inside an item in another font, such as inline code in prose, can land on another stop there.
+- A rich-inline item that wraps is charged its whole `extraWidth` on every line it reaches, as CSS `box-decoration-break: clone` pads a span, where CSS's default pads only the span's two ends. Paint each fragment as its own element with the padding on both sides, as the demos do: a padded span the browser wraps itself can break elsewhere, with `clone` too.
 - A rich-inline line is as tall as the paragraph's line height while its text keeps the paragraph font's size, ascent and descent. Text in another size, or in a face whose ascent and descent differ (Helvetica Neue's bold on macOS), makes a line taller, with or without boxes; `line-height: 1` on each fragment's element keeps it inside the line, as the rich-note demo does.
 - Segment widths are browser-canvas widths for line breaking, not enough to position individual characters in Arabic or mixed bidi text.
 
