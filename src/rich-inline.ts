@@ -396,6 +396,26 @@ function haltAcrossItems(before: JoinedPortion, after: JoinedPortion, joined: st
   }
 }
 
+// Blink halts a closing mark at a line's end only where a break comes right after it, and its
+// scan gives none before a space, a tab or a line feed (src/han-kerning.ts), whichever item
+// holds that. There the halt an item's own text gives the mark it ends with is the one only a
+// line broken between graphemes takes (overflowLineEndTrims), as in one text: in 16px Hiragino
+// Sans, Chrome 154 fits `文字）` in 40-47px before a span `i`, and before a span that starts
+// with a space, or a space and a box, it breaks before `字`. An atomic item's own leading
+// space is none: its inline-block trims it (ownsWhiteSpace in prepareRichInline()), a break
+// comes right after the mark, and Chrome fits `設定）` in 40-47px before a chip ` @a `. A run
+// of U+3000 that ends the item has a line-end trim too, its hang (addIdeographicSpaceHangs in
+// src/prepare.ts), which stays.
+function leaveEndHaltToOverflow(item: PreparedRichInlineItem): void {
+  const { lineEndTrims, segments } = item.prepared
+  if (lineEndTrims === null) return
+  const last = lineEndTrims.length - 1
+  const trim = lineEndTrims[last]!
+  if (trim === 0 || segments[last]!.endsWith('\u3000')) return
+  lineEndTrims[last] = 0
+  ;(item.prepared.overflowLineEndTrims ??= zeros(last + 1))[last] = trim
+}
+
 export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, options?: RichInlineOptions): PreparedRichInline {
   const whiteSpace = options?.whiteSpace ?? 'normal'
   const wordBreak = options?.wordBreak ?? 'normal'
@@ -507,7 +527,9 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
           while (j < joined.starts.length && joined.starts[j]! < portion.start) j++
           if (i > 0) {
             portion.item.breakBefore = joined.starts[j] === portion.start && breaksBefore(joined.flags, j) && (joined.flags[j]! & KIND_BITS) !== HARD_BREAK
-            if (profile.hanKerning) haltAcrossItems(joinedPortions[i - 1]!, portion, joinedText, items, language)
+            const before = joinedPortions[i - 1]!
+            if (profile.hanKerning) haltAcrossItems(before, portion, joinedText, items, language)
+            if (!portion.item.breakBefore) leaveEndHaltToOverflow(before.item)
           }
           recordJoinedBreaks(portion, joined, j, i + 1 < joinedPortions.length ? joinedPortions[i + 1]!.start : joinedText.length, walkedFlags)
         }
@@ -528,6 +550,7 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
       // extraWidth does (RESEARCH.md, Objects Inside A Line), so Pretext refuses both.
       if (!Number.isFinite(item.width) || item.width < 0) throw new RangeError(`Item ${index} has no text, so it's a box, whose width must be a finite number of CSS px, at least 0, not ${item.width}`)
       finishJoinedText()
+      if (pendingGapWidth !== null && previousItem !== null) leaveEndHaltToOverflow(previousItem)
       const box: PreparedRichInlineItem = {
         break: 'never', breakBefore: pendingGapWidth !== null || previousItem !== null, continued: false, walked: false,
         establishesLine: true, extraWidth: item.width, gapBefore: pendingGapWidth ?? 0, gapItemIndex: pendingGapWidth === null ? -1 : pendingGapItemIndex,
@@ -704,6 +727,7 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
 
     if (previousItem === null || whitespaceBefore || preparedItem.break === 'never' || previousItem.break === 'never') {
       finishJoinedText()
+      if (previousItem !== null && (pendingGapWidth !== null || (hasLeadingWhitespace && ownsWhiteSpace))) leaveEndHaltToOverflow(previousItem)
       preparedItem.breakBefore = whitespaceBefore || (previousItem !== null && breaksAfterAtomic)
     }
     if (preparedItem.break === 'never') {

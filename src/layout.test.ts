@@ -5857,6 +5857,42 @@ describe('layout invariants', () => {
       expect(measureRichInlineStats(halted, 46)).toEqual({ lineCount: 1, maxLineWidth: 45 })
       expect(measureRichInlineStats(halted, 53)).toEqual({ lineCount: 1, maxLineWidth: 53 })
       expect(measureRichInlineStats(halted, 52)).toEqual({ lineCount: 2, maxLineWidth: 48 })
+      // Blink halts it only where a break comes right after it, and its scan gives none before
+      // a space, so before its item's own trailing space, the next item's leading one or an item
+      // of one, the mark keeps its width, as in one text; before a letter it halts.
+      for (const items of [[{ text: '中中」 ' }, { text: '中' }], [{ text: '中中」' }, { text: ' 中' }], [{ text: '中中」' }, { text: ' ' }, { text: '中' }]]) {
+        for (const width of [40, 47, 48]) {
+          const flat = layoutWithLines(prepareWithSegments('中中」 中', font), width, LINE_HEIGHT).lines.map(line => `${line.text.trimEnd()}:${Math.round(line.width * 100) / 100}`)
+          expect({ items, width, lines: richLines(items, width) }).toEqual({ items, width, lines: flat })
+        }
+        expect(richLines(items, 46)).toEqual(['中:16', '中」:32', '中:16'])
+      }
+      expect(richLines([{ text: '中中」' }, { text: '中' }], 46)).toEqual(['中中」:40', '中:16'])
+      // In pre-wrap the next item's preserved space, tab or line feed joins the mark's text, which
+      // gives no break before it, and a ZWSP that starts the next item gives none in either mode.
+      for (const [second, whiteSpace] of [[' 中', 'pre-wrap'], ['\t中', 'pre-wrap'], ['\n中', 'pre-wrap'], ['\u200B中', 'normal']] as const) {
+        for (const width of [40, 46, 47, 48]) {
+          const rich = prepareRichInline([{ text: '中中」', font }, { text: second, font }], { whiteSpace })
+          const lines: string[] = []
+          walkRichInlineLineRanges(rich, width, range => {
+            lines.push(`${materializeRichInlineLineRange(rich, range).fragments.map(fragment => fragment.text).join('')}:${range.width}`)
+          })
+          const flat = layoutWithLines(prepareWithSegments(`中中」${second}`, font, { whiteSpace }), width, LINE_HEIGHT).lines.map(line => `${line.text}:${line.width}`)
+          expect({ second, width, lines }).toEqual({ second, width, lines: flat })
+          expect(lines.length).toBe(width < 48 ? 3 : 2)
+        }
+      }
+      // A space before a box or a chip is such a space too, in its own item or the mark's. A
+      // chip's own leading space is none: its box trims it, so a break comes right after the
+      // mark, which halts as before a chip without one.
+      for (const items of [[{ text: '中中」 ' }, { width: 5 }], [{ text: '中中」' }, { text: ' ' }, { width: 5 }]]) {
+        expect({ items, lines: richLines(items, 46) }).toEqual({ items, lines: ['中:16', '中」:42.28'] })
+        expect({ items, lines: richLines(items, 48) }).toEqual({ items, lines: ['中中」:48', ':5'] })
+      }
+      expect(richLines([{ text: '中中」' }, { width: 5 }], 46)).toEqual(['中中」:45'])
+      for (const text of [' @a ', ' @a', '@a']) {
+        expect({ text, lines: richLines([{ text: '中中」' }, { text, break: 'never', extraWidth: 8 }, { text: '中' }], 46) }).toEqual({ text, lines: ['中中」:40', '@a中:43.2'] })
+      }
     } finally {
       Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', measureText)
     }

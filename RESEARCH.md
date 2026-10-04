@@ -1358,6 +1358,15 @@ halt is the half an em Chrome takes off a fullwidth mark (`src/han-kerning.ts`).
   span `。文字` are 88px wide, where the two measured apart take 96px, and a 20px `「引用」` before a 16px `。` halts `」`
   by 10px. Measured apart, `これは`, a bold `「引用」` and `。と言った` wrapped otherwise than Chrome at 68 of 141 widths
   from 60 to 200px.
+- A closing mark that Chrome halts at a span's end, where the span fits only so, stays halted where the line goes on:
+  `文字」` and a span `i` take one 43.81px line at 44-47px, where their text in one node takes two, of 40px and
+  3.81px. Rich inline did this before #TBD, and still does. Chrome halts the mark only where a break comes right
+  after it (`ShapingLineBreaker::ShapeLine`, `shaping_line_breaker.cc:342-363`), and its scan gives none before a
+  space, a tab or a line feed: `文字）` before a span that starts with a space, or with that space ending its own
+  span, or before a span that starts with a line feed in pre-wrap, breaks before `字` at 40-47px, as in one node,
+  and so does `設定）` before a space and a box or a chip. A chip's own leading space is no such space, since its
+  inline-block trims it: a break comes right after the mark, and `設定）` before a chip ` @a ` fits 40-47px halted.
+  Rich inline had kept `文字）` halted on one line there, since an item's own text ends at the mark.
 
 #### Objects Inside A Line
 
