@@ -534,7 +534,6 @@ export function measureAnalysis(
     let fitAdvances: number[] | null = null
     let entry: SegmentEntryGeometry | null = null
     let prohibitions: Uint8Array | null = null
-    let startExtras: number[] | null = null
     switch (kind) {
       case TEXT: {
         // A control the engine hides takes no advance, only letter spacing.
@@ -614,7 +613,7 @@ export function measureAnalysis(
         fitAdvances = fit.advances
         if (fitAdvances === null) break
         // A difference from the advance, so it holds whatever the advances take below.
-        startExtras = fit.lineStartExtras
+        if (fit.lineStartExtras !== null) (breakableLineStartExtras ??= new Array<number[] | null>(segmentCount).fill(null))[mi] = fit.lineStartExtras
         // The cached advances are shared by every occurrence of this text; only
         // the final grapheme touches the following space.
         if (followingSpaceKerning !== 0) {
@@ -670,8 +669,6 @@ export function measureAnalysis(
     entryGeometry?.push(entry)
     if (prohibitions !== null && lineStartProhibitions === null) lineStartProhibitions = Array.from({ length: mi }, () => null)
     lineStartProhibitions?.push(prohibitions)
-    if (startExtras !== null && breakableLineStartExtras === null) breakableLineStartExtras = Array.from({ length: mi }, () => null)
-    breakableLineStartExtras?.push(startExtras)
     if (segments !== null) segments.push(text)
     // Contexts for every segment of soft hyphens, whatever its kind here: one that is glue,
     // where this text's scan gives no break after it, as at the start of a Gecko text, can
