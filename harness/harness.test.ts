@@ -6,7 +6,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node
 import { join } from 'node:path'
 import { srcOf } from './bench/lib.ts'
 import { fontsKey, keyOf, kill, type Environment, type Launched } from './browsers.ts'
-import { icuEntries, rustByteStrings } from './break-data.ts'
+import { cArrays, icuEntries, rustByteStrings } from './break-data.ts'
 import { check, drift, equal, gate, hostAgreement, parseArgs, record, type Invariants, type Io, type Options } from './cli.ts'
 import { groupLines, recordedLines, scanLineEnds, searchLineEnds, type RectsAt } from './observe.ts'
 import { bundle, documents, LIB, type Job } from './run.ts'
@@ -922,7 +922,7 @@ describe('a browser past its memory bound', () => {
 })
 
 describe('the browser\'s break data', () => {
-  test('an ICU data file\'s entries and a Rust source\'s byte strings read back as the bytes they hold: a browser whose break data changed would read as the same, and the tables go stale', () => {
+  test('an ICU data file\'s entries, a Rust source\'s byte strings and a C source\'s arrays read back as the bytes they hold: a browser whose break data changed would read as the same, and the tables go stale', () => {
     // A 32-byte header, then the table of contents (a count and two name and data offsets from its start), the names and
     // the data.
     const bytes = new Uint8Array(96)
@@ -944,6 +944,9 @@ describe('the browser\'s break data', () => {
     const entries = icuEntries(bytes.subarray(0, 93))
     expect([...entries].map(([key, data]) => [key, [...data]])).toEqual([['brkitr/a.brk', [1, 2, 3, 4]], ['brkitr/b.brk', [5, 6, 7]]])
     expect(rustByteStrings('from_bytes_unchecked (b"\\0A\\x7F\\\\\\"") , x: b""').map(array => [...array])).toEqual([[0, 65, 127, 92, 34], []])
+    // An array sized by a name is one no build keeps.
+    const arrays = cArrays('static const uint16_t a[3]={\n0x485,1,\n0xffff\n};\nstatic const int32_t indexes[COUNT]={1,2};\nstatic const uint32_t b[1]={0x3075a31};')
+    expect([...arrays].map(([name, array]) => [name, [...new Uint8Array(array.buffer)]])).toEqual([['a', [0x85, 4, 1, 0, 0xff, 0xff]], ['b', [0x31, 0x5a, 7, 3]]])
   })
 })
 

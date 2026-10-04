@@ -1,5 +1,5 @@
 {
-  "chrome": { "dir": "chrome-153", "inBrowser": ["line_normal.brk", "line_normal_cj.brk", "char.brk"] },
-  "safari": { "dir": "safari-27.0", "inBrowser": ["line.brk", "line_normal.brk", "line_cj.brk", "char.brk"] },
-  "firefox": { "dir": "firefox-156", "inBrowser": ["segmenter_break_line_v1.rs.data", "segmenter_break_grapheme_cluster_v1.rs.data"] }
+  "chrome": { "dir": "chrome-153", "inBrowser": ["line_normal.brk", "line_normal_cj.brk", "char.brk"], "compiledIn": ["uchar_props_data.h", "ubidi_props_data.h"] },
+  "safari": { "dir": "safari-27.0", "inBrowser": ["line.brk", "line_normal.brk", "line_cj.brk", "char.brk"], "compiledIn": [] },
+  "firefox": { "dir": "firefox-156", "inBrowser": ["segmenter_break_line_v1.rs.data", "segmenter_break_grapheme_cluster_v1.rs.data"], "compiledIn": ["../chrome-153/uchar_props_data.h", "../chrome-153/ubidi_props_data.h"] }
 }

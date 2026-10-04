@@ -20,6 +20,12 @@
 //   kFastLineBreakTable (character_property_data_generator.cc:422-551).
 // - char.brk: the brkitr/char.brk entry of Chrome 153.0.8010.53's icudtl.dat, the same bytes
 //   as in 153.0.8010.48 and 153.0.8010.50.
+// - uchar_props_data.h, ubidi_props_data.h: ICU 78.2's character properties (Unicode 17), from
+//   source/common/ of Chromium's ICU at 8cc91d9b, the commit Chromium 153.0.8010.48's DEPS names.
+//   ICU compiles them into its library, so Chrome holds their arrays in its binary and not in
+//   icudtl.dat: Chrome 154.0.8037.57's does, each byte for byte, which `bun harness repin chrome`
+//   checks. Firefox 156.0's ICU 78.3 has the same two files (intl/icu/source/common/), and
+//   Firefox 156.0.1's XUL the arrays (`repin firefox`), so the script classes are Firefox's too.
 // safari-27.0/, from Safari 27.0 on macOS 27:
 // - line.brk, line_normal.brk, line_cj.brk: brkitr entries of /usr/share/icu/icudt78l.dat,
 //   the data libicucore 78.1 reads, the same bytes as on macOS 26.5.2.
@@ -63,6 +69,21 @@ import {
   type BreakRules,
   type ClassTable,
 } from '../src/line-breaks.ts'
+import {
+  ANY_SCRIPT,
+  CLOSING_BRACKET,
+  CURSIVE_LETTER,
+  CURSIVE_SCRIPT,
+  CYRILLIC_SCRIPT,
+  GREEK_SCRIPT,
+  LATIN_SCRIPT,
+  MARK_SCRIPTS_SHIFT,
+  OPENING_BRACKET,
+  OPENING_BRACKET_SHIFT,
+  OTHER_SCRIPT,
+  TAKES_MARK_SCRIPTS,
+} from '../src/prepare.ts'
+import { cArrays } from '../harness/break-data.ts'
 import SOURCES from './engine-data/sources.json'
 
 const scriptsDir = dirname(fileURLToPath(import.meta.url))
@@ -482,6 +503,105 @@ const rangeClasses = (ranges: Ranges, keep: (value: number) => boolean): Uint8Ar
 }
 engineClassMaps['gecko/east_asian_width'] = rangeClasses(properties.eastAsianWidth, value => value === 2 || value === 3 || value === 5)
 
+// Script classes, for Blink's script runs: what ScriptRunIterator asks ICU of a code point
+// (ICUScriptData::GetScripts, GetPairedBracket and GetPairedBracketType,
+// script_run_iterator.cc:118-224 in Chromium 153, cited by line below), read from ICU's compiled
+// properties as ICU reads them, then as the bits src/prepare.ts names, which has what the runs do
+// with them, and one class for each set of bits.
+const characterProperties = readText(`${CHROME}/uchar_props_data.h`)
+const bidiProperties = readText(`${CHROME}/ubidi_props_data.h`)
+const propertyArrays = new Map([...cArrays(characterProperties), ...cArrays(bidiProperties)])
+// A UTrie2's index and values, one array. Its struct gives no high range (highStart, the tenth
+// field, is 0x110000), so getTrieValue reads every code point through the index.
+function readTrie(source: string, name: string): ArrayLike<number> {
+  if (!new RegExp(`${name},\\s*${name}\\+\\d+,\\s*nullptr,(?:\\s*\\w+,){6}\\s*0x110000,`).test(source)) throw new Error(`${name} has a high range`)
+  return propertyArrays.get(name)!
+}
+const propsVectorsTrie = readTrie(characterProperties, 'propsVectorsTrie_index')
+const propsVectors = propertyArrays.get('propsVectors')!
+const scriptExtensions = propertyArrays.get('scriptExtensions')!
+const bidiTrie = readTrie(bidiProperties, 'ubidi_props_trieIndex')
+// UTRIE2_GET16 for a code point up to U+10FFFF (utrie2.h:814-855): the index of a lead
+// surrogate's own values is apart from the one its code unit reads.
+function getTrieValue(trie: ArrayLike<number>, c: number): number {
+  const block = c > 0xffff ? trie[trie[0x820 + (c >> 11)]! + ((c >> 5) & 0x3f)]! : trie[(c >= 0xd800 && c <= 0xdbff ? 0x140 : 0) + (c >> 5)]!
+  return trie[(block << 2) + (c & 0x1f)]!
+}
+// A code point's Script and its Script_Extensions, which without any are its Script alone
+// (uscript_getScript and uscript_getScriptExtensions, uchar.cpp:534-617).
+function getScripts(c: number): [number, number[]] {
+  const scriptX = propsVectors[getTrieValue(propsVectorsTrie, c)]! & 0xfff
+  const codeOrIndex = scriptX & 0x3ff
+  if (scriptX < 0x400) return [codeOrIndex, [codeOrIndex]]
+  const extensions: number[] = []
+  let at = scriptX < 0xc00 ? codeOrIndex : scriptExtensions[codeOrIndex + 1]!
+  do extensions.push(scriptExtensions[at]! & 0x7fff); while (scriptExtensions[at++]! < 0x8000)
+  return [scriptX < 0x800 ? COMMON : scriptX < 0xc00 ? INHERITED : scriptExtensions[codeOrIndex]!, extensions]
+}
+// A paired bracket's other bracket (ubidi_getPairedBracket and getMirror, ubidi_props.cpp:145-232):
+// its code plus its mirror delta, bits 13 to 15, signed. No bracket's is -4, which sends ICU to
+// its table of mirrors.
+function getPairedBracket(c: number): number {
+  const delta = getTrieValue(bidiTrie, c) << 16 >> 29
+  if (delta === -4) throw new Error(`U+${c.toString(16)}'s pair is in the table of mirrors`)
+  return c + delta
+}
+// ICU's script codes (unicode/uscript.h): Common, Inherited, the three with a bit of their own,
+// and the seven whose letters join, which Blink and Gecko name alike (IsCursiveScript,
+// shape_result.cc:977-990; UnicodeProperties.h:350-355): Arabic, Mongolian, Syriac, Mandaic,
+// N'Ko, Phags-pa and Hanifi Rohingya.
+const [COMMON, INHERITED, ARABIC, CYRILLIC, GREEK, LATIN] = [0, 1, 2, 8, 14, 25]
+const cursiveScripts = [ARABIC, 27, 34, 84, 87, 90, 182]
+// The scripts of a character that scripts share, from its Script_Extensions. What starts or
+// goes on with a cursive run in Blink, besides the seven scripts' own characters: one whose
+// scripts include Arabic, such as U+060C, U+0640 and the vowel signs, since a shared
+// character's run starts with the lowest code of its scripts, Latin aside for a Common one
+// (GetScripts, :118-215), and Arabic's is the lowest; and one whose scripts are all cursive, as
+// Mongolian's comma, full stop and four dots, which Phags-pa shares, and U+1DFA, a mark whose
+// one script is Syriac. Gap: Blink starts such a run with all the character's scripts, which
+// the next character that has a script narrows, and goes on with the run before it where that
+// run's script is one of them (MergeSets, :491-565); here such a character has the cursive bit
+// alone. So next to Thaana Blink spaces U+060C, and next to Mongolian it doesn't space the
+// CJK punctuation Mongolian shares, nor U+202F outside Latin
+// (ENGINE_FOLLOWUPS.md, Letter spacing).
+function getScriptBits(extensions: readonly number[]): number {
+  if (extensions.includes(ARABIC) || extensions.every(script => cursiveScripts.includes(script))) return CURSIVE_SCRIPT
+  return (extensions.includes(LATIN) ? LATIN_SCRIPT : 0) | (extensions.includes(CYRILLIC) ? CYRILLIC_SCRIPT : 0) |
+    (extensions.includes(GREEK) ? GREEK_SCRIPT : 0) || OTHER_SCRIPT
+}
+const scriptClassFacts: number[] = []
+engineClassMaps['chromium/script'] = classesOf(c => {
+  const [script, extensions] = getScripts(c)
+  // Bidi_Paired_Bracket_Type: 1 for an opening bracket, 2 for a closing one (ubidi_props.h:102, 115).
+  const bracket = (getTrieValue(bidiTrie, c) >> 8) & 3
+  let facts: number
+  if (script === INHERITED) {
+    // A mark stays in the run before it, and gives the scripts that list it to a Common character
+    // before it (FetchNextCharacter, :624-635).
+    facts = ANY_SCRIPT | (extensions[0] === INHERITED ? 0 : getScriptBits(extensions) << MARK_SCRIPTS_SHIFT)
+  } else if (extensions[0] === COMMON) {
+    // A Common character that no script lists stays in the run before it too, but an opening
+    // bracket whose East Asian Width is halfwidth (2), fullwidth (3) or wide (5), which Blink
+    // makes Han (FixScriptsByEastAsianWidth, :83-110; uprops.h:159-160). Gap: so does a Common
+    // character that one script lists, such as the circled ideographs, which here has that
+    // script (ENGINE_FOLLOWUPS.md, Letter spacing).
+    const width = (propsVectors[getTrieValue(propsVectorsTrie, c)]! >> 12) & 7
+    facts = TAKES_MARK_SCRIPTS | (bracket === 1 && (width === 2 || width === 3 || width === 5) ? OTHER_SCRIPT : ANY_SCRIPT)
+  } else {
+    facts = cursiveScripts.includes(script) ? CURSIVE_SCRIPT | CURSIVE_LETTER : getScriptBits(extensions)
+  }
+  if (bracket !== 0) {
+    const pair = getPairedBracket(c)
+    if (((getTrieValue(bidiTrie, pair) >> 8) & 3) !== 3 - bracket || getPairedBracket(pair) !== c) throw new Error(`U+${c.toString(16)} and U+${pair.toString(16)} aren't each other's bracket`)
+    facts |= bracket === 1 ? OPENING_BRACKET : CLOSING_BRACKET | ((c - pair) << OPENING_BRACKET_SHIFT)
+  }
+  // src/prepare.ts looks for cursive characters only past ASCII.
+  if (c < 0x80 && facts !== LATIN_SCRIPT && (facts & TAKES_MARK_SCRIPTS) === 0) throw new Error(`U+${c.toString(16)} is neither a Latin letter nor a Common character`)
+  let scriptClass = scriptClassFacts.indexOf(facts)
+  if (scriptClass < 0) scriptClass = scriptClassFacts.push(facts) - 1
+  return scriptClass
+})
+
 // --- The shorter form ---
 
 // Class maps. Engines class most code points alike, and so do one engine's tables, so the maps
@@ -722,16 +842,23 @@ export type LineTable = ${quoted(lineTableSources.map(([name]) => name))}
 export type CharTable = ${quoted(charTableNames)}
 export type RuleTable = LineTable | CharTable
 
-// A class for every code point: each rule table's categories, and for Firefox the Line_Break
+// A class for every code point: each rule table's categories, for Firefox the Line_Break
 // values of its baked ICU4X line data and icu_properties 2.1.2's East_Asian_Width H (2), F (3)
-// and W (5), 0 otherwise, in ICU4C numbering. For each map, its row in the remaps and
-// how many blocks its table takes; then one list of runs for all maps and the remaps, a byte per
-// joint class and map (unpackClassRuns in src/line-breaks.ts).
+// and W (5), 0 otherwise, in ICU4C numbering, and a script class, an index into scriptClassFacts
+// below. For each map, its row in the remaps and how many blocks its table takes; then one list
+// of runs for all maps and the remaps, a byte per joint class and map (unpackClassRuns in
+// src/line-breaks.ts).
 export type ClassMap = ${quoted(classMapNames)}
 export const classMaps: Record<ClassMap, readonly [number, number]> = ${JSON.stringify(classMaps)}
 export const jointClassCount = ${jointClassCount}
 export const classRunsVarints = '${classRunsVarints}'
 export const classRemapsPacked = '${classRemapsPacked}'
+
+// What ICU 78.2's Script, Script_Extensions, East_Asian_Width and bracket pairs (Unicode 17) say
+// of the code points of each script class, as the bits src/prepare.ts names: the scripts Blink's
+// script runs read a character as, the ones a mark gives the character before it, whether it is
+// a paired bracket, and how far before a closing bracket's code its opening bracket's is.
+export const scriptClassFacts: readonly number[] = ${JSON.stringify(scriptClassFacts)}
 
 // Each rule table's forward state table: its categories, first dictionary category, look-ahead
 // slots and states, then the table its rows start from, if any, and the rows' differences
@@ -761,6 +888,7 @@ export const geckoLineBreakStatesPacked = '${geckoLineBreakStatesPacked}'
 
 const summary = [
   `${jointRuns.length} runs of ${jointClassCount} joint classes for ${classMapNames.length} class maps, ${classRunsVarints.length} B in base64, remaps ${classRemapsPacked.length} B`,
+  `${scriptClassFacts.length} script classes`,
   `class table blocks ${classMapNames.map(name => `${name} ${classMaps[name]![1]}`).join(', ')}`,
   `state tables ${Object.keys(ruleTables).map(name => `${name} ${ruleTables[name]![5].length} B${ruleTables[name]![4] === null ? '' : ` from ${ruleTables[name]![4]}`}`).join(', ')}`,
   `pair tables differ in ${differingPairs} pairs`,

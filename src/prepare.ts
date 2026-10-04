@@ -5,7 +5,8 @@
 import { observeSegmentEntries, textMayHaveEntryGeometry, type SegmentEntryGeometry } from './entry-geometry.js'
 import { getHanKerningTrims, textMayHanKern, type HanKerningTrims } from './han-kerning.js'
 import { findGraphemeEnds, type GraphemeTable } from './graphemes.js'
-import { DEFAULT_IGNORABLE, hasProperty, lazyRegExp } from './line-breaks.js'
+import { scriptClassFacts } from './generated/engine-break-data.js'
+import { DEFAULT_IGNORABLE, getClass, hasProperty, lazyRegExp, unpackClasses, type ClassTable } from './line-breaks.js'
 import {
   CONTROL,
   HARD_BREAK,
@@ -128,91 +129,60 @@ function isSpaceKind(kind: number): boolean {
 // for the seven scripts whose letters join, and one for every other script, so two scripts
 // that share a bit read as one; a character of any script has all five. Cyrillic, Greek and
 // Latin are in Blink's order for a Common character's extensions, by ICU script code with
-// Latin last (GetScripts, :191-198), so a run's lowest bit is the script it resolves to. The
-// scripts and script extensions are the JavaScript engine's (RESEARCH.md, Tables Against
-// Canvas).
-const OTHER_SCRIPT = 1
-const CYRILLIC_SCRIPT = 2
-const GREEK_SCRIPT = 4
-const LATIN_SCRIPT = 8
-const CURSIVE_SCRIPT = 16
-const ANY_SCRIPT = 31
-// The Unicode classes the scripts are read with, each built at its first use (lazyRegExp).
-// Characters that stay in the run before them in Blink: Common ones that no script lists,
-// and marks, which inherit. Gap: so does a Common character that one script lists, such as
-// the circled ideographs, which here has that script (ENGINE_FOLLOWUPS.md, Letter spacing).
-const scriptNeutralRe = lazyRegExp(String.raw`[\p{scx=Common}\p{Script=Inherited}]`, 'u')
-// A Common character right before a mark that has script extensions, as the Arabic vowel
-// signs do, doesn't stay: it takes the mark's scripts (FetchNextCharacter, :624-635), so a
-// digit or a dotted circle that carries a fatha starts an Arabic run. A match ends where
-// the mark starts; the mark is the first group.
-const markedCommonRe = lazyRegExp(String.raw`\p{scx=Common}(?=((?=\p{Script=Inherited})\P{scx=Inherited}))`, 'uy')
-const latinRe = lazyRegExp(String.raw`\p{scx=Latin}`, 'u')
-const cyrillicRe = lazyRegExp(String.raw`\p{scx=Cyrillic}`, 'u')
-const greekRe = lazyRegExp(String.raw`\p{scx=Greek}`, 'u')
-// What starts or goes on with a cursive run in Blink: the letters of the seven scripts;
-// the Common characters and marks whose scripts include Arabic, such as U+060C, U+0640 and
-// the vowel signs, since a shared character's run starts with the lowest code of its
-// scripts, Latin aside for a Common one (GetScripts, :118-215), and Arabic's is the
-// lowest; Mongolian's comma, full stop and four dots, whose scripts are Mongolian and
-// Phags-pa; and U+1DFA, a mark whose one script is Syriac. Gap: Blink starts such a run
-// with all the character's scripts, which the next character that has a script narrows,
-// and goes on with the run before it where that run's script is one of them (MergeSets,
-// :491-565); here such a character has the cursive bit alone. So next to Thaana Blink
-// spaces U+060C, and next to Mongolian it doesn't space the CJK punctuation Mongolian
-// shares, nor U+202F outside Latin (ENGINE_FOLLOWUPS.md, Letter spacing).
-const cursiveRunRe = lazyRegExp(String.raw`[\p{scx=Arabic}\p{Script=Syriac}\u1DFA\p{Script=Nko}\p{Script=Mandaic}\p{Script=Mongolian}\p{Script=Phags_Pa}\p{Script=Hanifi_Rohingya}\u1802\u1803\u1805]`, 'u')
-// The letters of those scripts alone, which is what Gecko asks.
-const cursiveScriptRe = lazyRegExp(String.raw`[\p{Script=Arabic}\p{Script=Syriac}\p{Script=Nko}\p{Script=Mandaic}\p{Script=Mongolian}\p{Script=Phags_Pa}\p{Script=Hanifi_Rohingya}]`, 'uy')
+// Latin last (GetScripts, :191-198), so a run's lowest bit is the script it resolves to. A
+// character's scripts, and a few facts more in the bits above them, come from ICU's Script,
+// Script_Extensions and bracket pairs as Chrome's build holds them, and Firefox's: a class
+// for every code point ('chromium/script') and each class's bits (scriptClassFacts).
+// scripts/generate-engine-break-data.ts has which scripts a character is given there, and
+// what that leaves out.
+export const OTHER_SCRIPT = 1
+export const CYRILLIC_SCRIPT = 2
+export const GREEK_SCRIPT = 4
+export const LATIN_SCRIPT = 8
+export const CURSIVE_SCRIPT = 16
+export const ANY_SCRIPT = 31
+// A mark that scripts list, as they do the Arabic vowel signs, is of any script itself and has
+// those scripts in the next five bits. A Common character that no script lists takes them
+// from such a mark right after it (FetchNextCharacter, :624-635), so a digit or a dotted circle
+// that carries a fatha starts an Arabic run.
+export const MARK_SCRIPTS_SHIFT = 5
+export const TAKES_MARK_SCRIPTS = 1 << 10
+// A character whose own script, whatever else lists it, is one whose letters join.
+export const CURSIVE_LETTER = 1 << 11
+// A paired bracket, and from this bit up a closing bracket's code less its opening bracket's.
+export const OPENING_BRACKET = 1 << 12
+export const CLOSING_BRACKET = 1 << 13
+export const OPENING_BRACKET_SHIFT = 14
 
-// The opening brackets of no script that Blink makes Han, those whose East Asian Width is
-// wide, fullwidth or halfwidth (FixScriptsByEastAsianWidth, script_run_iterator.cc:83-110).
-// Regular expressions have no property for that width, so these are listed: of Unicode
-// 17's 64 opening brackets, the eight of that width whose script extensions are Common
-// alone. U+3008-U+301A and U+FF62, of that width too, list their scripts. A bracket
-// under such a mark has the mark's scripts by then, so it isn't made Han.
-const wideOpeningBrackets = '\u2329\uFE59\uFE5B\uFE5D\uFF08\uFF3B\uFF5B\uFF5F'
-
-// Unicode 15's bracket pairs, each an opening bracket and then its closing one (BidiBrackets.txt,
-// as servo/unicode-bidi ca612daf lists them, src/char_data/tables.rs:519-535).
-const bracketPairs = '()[]{}\u0F3A\u0F3B\u0F3C\u0F3D\u169B\u169C\u2045\u2046\u207D\u207E\u208D\u208E\u2308\u2309\u230A\u230B' +
-  '\u2329\u232A\u2768\u2769\u276A\u276B\u276C\u276D\u276E\u276F\u2770\u2771\u2772\u2773\u2774\u2775\u27C5\u27C6' +
-  '\u27E6\u27E7\u27E8\u27E9\u27EA\u27EB\u27EC\u27ED\u27EE\u27EF\u2983\u2984\u2985\u2986\u2987\u2988\u2989\u298A' +
-  '\u298B\u298C\u298D\u2990\u298F\u298E\u2991\u2992\u2993\u2994\u2995\u2996\u2997\u2998\u29D8\u29D9\u29DA\u29DB' +
-  '\u29FC\u29FD\u2E22\u2E23\u2E24\u2E25\u2E26\u2E27\u2E28\u2E29\u2E55\u2E56\u2E57\u2E58\u2E59\u2E5A\u2E5B\u2E5C' +
-  '\u3008\u3009\u300A\u300B\u300C\u300D\u300E\u300F\u3010\u3011\u3014\u3015\u3016\u3017\u3018\u3019\u301A\u301B' +
-  '\uFE59\uFE5A\uFE5B\uFE5C\uFE5D\uFE5E\uFF08\uFF09\uFF3B\uFF3D\uFF5B\uFF5D\uFF5F\uFF60\uFF62\uFF63'
-// Each of those brackets to its pair's opening bracket << 1, | 1 for an opening bracket. U+2329
-// and U+232A read as U+3008 and U+3009, their canonical equivalents, as that table folds them.
-let brackets: Map<number, number> | null = null
-function getBrackets(): Map<number, number> {
-  if (brackets !== null) return brackets
-  brackets = new Map()
-  for (let k = 0; k < bracketPairs.length; k += 2) {
-    const first = bracketPairs.charCodeAt(k)
-    const opening = first === 0x2329 ? 0x3008 : first
-    brackets.set(first, opening << 1 | 1)
-    brackets.set(bracketPairs.charCodeAt(k + 1), opening << 1)
-  }
-  return brackets
+// Every code point's class, unpacked when a text first asks for a script.
+let scriptClasses: ClassTable | null = null
+function getScriptFacts(c: number): number {
+  return scriptClassFacts[getClass(scriptClasses ??= unpackClasses('chromium/script'), c)]!
 }
 
-// The scripts of the character at text[i], by Script_Extensions, as Blink reads them
+// The facts of the character at text[i], with the scripts it has there, as Blink reads them
 // (GetScripts, script_run_iterator.cc:118-215).
-function getScripts(text: string, i: number): number {
-  // ASCII letters are Latin and the rest of ASCII is Common, unless a mark follows.
-  const code = text.charCodeAt(i)
-  if (code < 0x80 && !(text.charCodeAt(i + 1) >= 0x300)) return (code | 0x20) >= 0x61 && (code | 0x20) <= 0x7a ? LATIN_SCRIPT : ANY_SCRIPT
-  let character = String.fromCodePoint(text.codePointAt(i)!)
-  if (scriptNeutralRe().test(character)) {
-    markedCommonRe().lastIndex = i
-    const marked = markedCommonRe().exec(text)
-    if (marked === null) return wideOpeningBrackets.includes(character) ? OTHER_SCRIPT : ANY_SCRIPT
-    character = marked[1]!
+function getScriptFactsAt(text: string, i: number): number {
+  const c = text.codePointAt(i)!
+  const facts = getScriptFacts(c)
+  const next = i + (c > 0xFFFF ? 2 : 1)
+  if ((facts & TAKES_MARK_SCRIPTS) !== 0 && next < text.length) {
+    const markScripts = getScriptFacts(text.codePointAt(next)!) >> MARK_SCRIPTS_SHIFT & ANY_SCRIPT
+    if (markScripts !== 0) return facts & ~ANY_SCRIPT | markScripts
   }
-  if (cursiveRunRe().test(character)) return CURSIVE_SCRIPT
-  return (latinRe().test(character) ? LATIN_SCRIPT : 0) | (cyrillicRe().test(character) ? CYRILLIC_SCRIPT : 0) |
-    (greekRe().test(character) ? GREEK_SCRIPT : 0) || OTHER_SCRIPT
+  return facts
+}
+
+// Whether a text holds a character whose scripts are cursive, or a mark that gives them: no
+// other text has a grapheme that takes no letter spacing. ASCII, which is Latin letters and
+// Common characters, has neither.
+function mayHoldCursive(text: string): boolean {
+  for (let i = 0; i < text.length; i++) {
+    if (text.charCodeAt(i) < 0x80) continue
+    const facts = getScriptFacts(text.codePointAt(i)!)
+    if ((facts & ANY_SCRIPT) === CURSIVE_SCRIPT || (facts >> MARK_SCRIPTS_SHIFT & ANY_SCRIPT) === CURSIVE_SCRIPT) return true
+  }
+  return false
 }
 
 // How far a text's script runs are read, the scripts the run there can be in, and each
@@ -227,18 +197,15 @@ type ScriptRuns = { read: number, scripts: number, openBrackets: number[] }
 // character. A closing bracket takes the script of the run its opening bracket is in, once
 // that run has ended, among the last 32 opened, and closes the ones opened since; its own
 // stays open, so a second closing bracket goes back to that run too (OpenBracket,
-// CloseBracket and FixupStack, :431-489, :567-590). The pairs are Unicode 15's (bracketPairs),
-// with U+2329 and U+232A folded into U+3008 and U+3009, which ICU pairs only with each other
-// (ENGINE_FOLLOWUPS.md, Letter spacing).
+// CloseBracket and FixupStack, :431-489, :567-590).
 function readScriptRuns(runs: ScriptRuns, text: string, to: number): number {
   const { openBrackets } = runs
   while (runs.read < to || (runs.scripts === ANY_SCRIPT && runs.read < text.length)) {
     const c = text.codePointAt(runs.read)!
-    let scripts = getScripts(text, runs.read)
-    // A bracket is of no script or of the East Asian ones. Gap: one under a mark that gives it
-    // other scripts is read as no bracket. No bracket's code is as low as a run's script.
-    const bracket = (scripts & OTHER_SCRIPT) === 0 ? undefined : getBrackets().get(c)
-    const opened = bracket !== undefined && (bracket & 1) === 0 ? openBrackets.lastIndexOf(bracket >> 1) : -1
+    const facts = getScriptFactsAt(text, runs.read)
+    let scripts = facts & ANY_SCRIPT
+    // No bracket's code is as low as a run's script.
+    const opened = (facts & CLOSING_BRACKET) !== 0 ? openBrackets.lastIndexOf(c - (facts >> OPENING_BRACKET_SHIFT)) : -1
     if (opened >= 0) {
       if (openBrackets[opened + 1] !== 0) scripts = openBrackets[opened + 1]!
       openBrackets.length = opened + 2
@@ -251,9 +218,9 @@ function readScriptRuns(runs: ScriptRuns, text: string, to: number): number {
       for (let k = openBrackets.length - 1; k > 0 && openBrackets[k] === 0; k -= 2) openBrackets[k] = runs.scripts & -runs.scripts
       runs.scripts = scripts
     }
-    if (bracket !== undefined && (bracket & 1) === 1) {
+    if ((facts & OPENING_BRACKET) !== 0) {
       if (openBrackets.length === 64) openBrackets.splice(0, 2)
-      openBrackets.push(bracket >> 1, 0)
+      openBrackets.push(c, 0)
     }
     runs.read += c > 0xFFFF ? 2 : 1
   }
@@ -267,15 +234,15 @@ function readScriptRuns(runs: ScriptRuns, text: string, to: number): number {
 // text[at - 2], and ends there; a closing bracket, or a character of several scripts, takes its
 // script from the runs before it, which are then read.
 function spaceSharesScriptRun(runs: ScriptRuns, text: string, at: number, end: number): boolean {
-  let scripts = getScripts(text, at)
+  let scripts = getScriptFactsAt(text, at) & ANY_SCRIPT
   // A default ignorable with a script of its own, as U+3164, counts as the word's first letter.
-  for (let first = at; scripts === ANY_SCRIPT && first + 1 < end && hasProperty(text.charCodeAt(first), DEFAULT_IGNORABLE); first++) scripts = getScripts(text, first + 1)
+  for (let first = at; scripts === ANY_SCRIPT && first + 1 < end && hasProperty(text.charCodeAt(first), DEFAULT_IGNORABLE); first++) scripts = getScriptFactsAt(text, first + 1) & ANY_SCRIPT
   if (scripts === ANY_SCRIPT) return true
   for (let i = at - 2; i >= 0; i--) {
     if ((text.charCodeAt(i) & 0xFC00) === 0xDC00 && i > 0) i--
-    const before = getScripts(text, i)
-    const bracket = (before & OTHER_SCRIPT) === 0 ? undefined : getBrackets().get(text.codePointAt(i)!)
-    if (bracket !== undefined && (bracket & 1) === 0) break
+    const facts = getScriptFactsAt(text, i)
+    if ((facts & CLOSING_BRACKET) !== 0) break
+    const before = facts & ANY_SCRIPT
     if (before === ANY_SCRIPT) continue
     if ((before & (before - 1)) === 0) return (before & scripts) !== 0
     break
@@ -295,8 +262,8 @@ function spaceSharesScriptRun(runs: ScriptRuns, text: string, at: number, end: n
 // word, a space and `123.` only the space is spaced. That is Chrome since 149; 138 to 148
 // don't space the run's spaces either, and before 138 every letter is spaced, which no
 // version check here follows (ENGINE_FOLLOWUPS.md, Letter spacing). WebKit spaces every
-// glyph with an advance. Chrome 154, Firefox 156 and webkit-host lay 64 strings out so
-// (2026-10-01). The profile's unspacedCursive names the engine's rule. This gives the
+// glyph with an advance. Chrome 154, Firefox 156 and webkit-host lay 66 strings out so
+// (2026-10-03). The profile's unspacedCursive names the engine's rule. This gives the
 // graphemes of the text segment text[start..end) that take no letter spacing, as ascending
 // indices, or null without any: in Gecko, which is given no runs, those whose first
 // character is a letter of a cursive script; in Blink those whose first character is in a
@@ -307,13 +274,8 @@ function getUnspacedGraphemes(text: string, start: number, end: number, grapheme
   const count = findGraphemeEnds(graphemeTable, text, start, end, ends)
   let unspaced: number[] | null = null
   for (let g = 0, at = start; g < count; at = ends[g++]!) {
-    let joins: boolean
-    if (runs === null) {
-      cursiveScriptRe().lastIndex = at
-      joins = cursiveScriptRe().test(text)
-    } else {
-      joins = readScriptRuns(runs, text, at + 1) === CURSIVE_SCRIPT && text.charCodeAt(at) !== 0xA0
-    }
+    const joins = runs === null ? (getScriptFacts(text.codePointAt(at)!) & CURSIVE_LETTER) !== 0
+      : readScriptRuns(runs, text, at + 1) === CURSIVE_SCRIPT && text.charCodeAt(at) !== 0xA0
     if (joins) (unspaced ??= []).push(g)
   }
   return unspaced
@@ -502,7 +464,7 @@ export function measureAnalysis(
   let spaceShare = 0
 
   // Whether the text may hold graphemes that take no letter spacing in this engine.
-  const cursiveSpacing = hasLetterSpacing && engineProfile.unspacedCursive !== 'none' && cursiveRunRe().test(normalized)
+  const cursiveSpacing = hasLetterSpacing && engineProfile.unspacedCursive !== 'none' && mayHoldCursive(normalized)
 
   const widths: number[] = []
   // An engine's scan makes one prepared segment per analysis segment, whose flags the
