@@ -6177,6 +6177,7 @@ test('the Chromium profile takes the kerning between a word and the spaces besid
       ['(12) TT', '16px Test', {}], ['\\u05D0 AA TT AA \\u05D1', '16px Test', {}], ['\\u202AAA TT', '16px Test', {}],
       ['AA T\\u0301T', '16px Test', {}],
       ['TT\\u3002 TT', '16px Test', {}], ['TT \\u00B7 TT', '16px Test', {}], ['\\u03B1\\u03B1 \\u00B7 TT', '16px Test', {}],
+      ['\\u3231 TT', '16px Test', {}],
       ['TT \\uFF08TT\\uFF09 TT', '16px Test', {}], ['TT \\uFF08 TT', '16px Test', {}], ['(\\u00B7 \\u0436\\u0436) TT', '16px Test', {}],
       ['\\u0436\\u0436 (TT [TT] TT) TT', '16px Test', {}], ['\\u0436\\u0436 (TT] TT', '16px Test', {}], ['TT \\uFE35 TT', '16px Test', {}],
       ['TT 1\\u0342 TT', '16px Test', {}], ['\\u{10400}\\u{10401} TT', '16px Test', {}],
@@ -6250,6 +6251,9 @@ test('the Chromium profile takes the kerning between a word and the spaces besid
     [24, 4, 16],
     [16, 4, 8, 2, 16],
     [16, 4, 8, 4, 16],
+    // A parenthesized ideograph, which Han alone lists, is a Common character still and stays in
+    // any run: the space after it is in the run of the word that follows.
+    [8, 2, 16],
     // A fullwidth opening bracket is in the Han scripts, a run of its own, which its closing
     // bracket takes, and which the space after it is in.
     [16, 4, 32, 4, 16],
@@ -6486,8 +6490,8 @@ test('letter spacing leaves out cursive scripts as Chrome and Firefox do', () =>
   // The engine profile is computed once per process, so each engine runs in a child
   // process. Each row: what the string shows, the string, and the letter-spacing gaps
   // Chrome 154, Firefox 156 and webkit-host gave it in 16px Arial, read from the page's
-  // widths at 4px and 8px (2026-09-30; the thirteen rows before the last two at 0 and 10px,
-  // 2026-10-01; the last two 2026-10-03). Every code point is 8px here, so the profile's gaps
+  // widths at 4px and 8px (2026-09-30; the thirteen rows before the last three at 0 and 10px,
+  // 2026-10-01; the last three 2026-10-03). Every code point is 8px here, so the profile's gaps
   // are its widths at 4px and 8px, less each other, over 4.
   const strings: Array<[string, string, number, number, number]> = [
     ['latin', 'abc', 3, 3, 3],
@@ -6556,6 +6560,7 @@ test('letter spacing leaves out cursive scripts as Chrome and Firefox do', () =>
     ['fullwidth bracket under an arabic vowel sign among latin', 'abc \uFF08\u064B12', 4, 7, 7],
     ['closing bracket under an arabic vowel sign', 'ab (\u0628\u064A\u062A)\u064B 12', 8, 8, 11],
     ['angle bracket before the other pair\'s closing one', '\u3008\u0628\u064A\u062A\u232A', 1, 2, 5],
+    ['a parenthesized ideograph, which han alone lists, after arabic', '\u0628\u064A\u062A\u3231 12', 1, 4, 7],
   ]
   const layoutUrl = new URL('./layout.ts', import.meta.url).href
   const richInlineUrl = new URL('./rich-inline.ts', import.meta.url).href

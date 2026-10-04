@@ -262,7 +262,7 @@ function spaceSharesScriptRun(runs: ScriptRuns, text: string, at: number, end: n
 // word, a space and `123.` only the space is spaced. That is Chrome since 149; 138 to 148
 // don't space the run's spaces either, and before 138 every letter is spaced, which no
 // version check here follows (ENGINE_FOLLOWUPS.md, Letter spacing). WebKit spaces every
-// glyph with an advance. Chrome 154, Firefox 156 and webkit-host lay 66 strings out so
+// glyph with an advance. Chrome 154, Firefox 156 and webkit-host lay 67 strings out so
 // (2026-10-03). The profile's unspacedCursive names the engine's rule. This gives the
 // graphemes of the text segment text[start..end) that take no letter spacing, as ascending
 // indices, or null without any: in Gecko, which is given no runs, those whose first
