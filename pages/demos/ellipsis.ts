@@ -4,6 +4,9 @@ import {
   DEFAULT_LINES,
   DEFAULT_TEXT_WIDTH,
   ELLIPSIS,
+  FOLLOW_MAX_LINES,
+  FOLLOW_STAGE_HEIGHT,
+  followSample,
   FONT,
   getPageGeometry,
   layoutClamp,
@@ -20,6 +23,13 @@ import {
   type ClampLayout,
 } from './ellipsis.model.ts'
 
+// A damped spring: where it is, where it is going and how fast it moves.
+type Spring = {
+  pos: number
+  dest: number
+  v: number
+}
+
 type State = {
   requestedTextWidth: number
   maxLines: number
@@ -28,10 +38,18 @@ type State = {
   // frame that last moved it, null while it rests.
   moreFade: number
   moreFadedAt: number | null
+  // The pointer in the window's coordinates, null before it first moves and once it leaves.
+  pointer: { x: number; y: number } | null
+  // The follow row's text width and height, null until the first frame gives them a size to
+  // rest at, and the time its springs are stepped up to, null while they rest.
+  followWidth: Spring | null
+  followHeight: Spring | null
+  springsSteppedUntil: number | null
   events: {
     widthValue: number | null
     linesValue: number | null
     moreClicked: boolean
+    pointer: PointerEvent | null // the frame's last pointer event: a move, a press, or the pointer leaving or cancelled
   }
 }
 
@@ -67,6 +85,9 @@ type DomCache = {
   middle: LineDom
   moreBox: HTMLDivElement
   reducedMotion: MediaQueryList
+  followStage: HTMLDivElement
+  followBox: HTMLDivElement
+  follow: LinesDom
   moreShared: LinesDom
   moreClosed: MoreLayerDom
   moreOpen: MoreLayerDom
@@ -78,10 +99,15 @@ const st: State = {
   moreOpen: false,
   moreFade: 0,
   moreFadedAt: null,
+  pointer: null,
+  followWidth: null,
+  followHeight: null,
+  springsSteppedUntil: null,
   events: {
     widthValue: null,
     linesValue: null,
     moreClicked: false,
+    pointer: null,
   },
 }
 
@@ -89,6 +115,12 @@ const st: State = {
 const FADE_TIME_CONSTANT = 60
 // The fade is at its end once the box is within this many pixels of its height there.
 const FADE_REST = 0.05
+// The follow row's springs: stepped this many milliseconds at a time, with this stiffness and
+// damping for a mass of 1, which overshoots a little, and at rest once this close and this slow.
+const SPRING_STEP = 4
+const SPRING_STIFFNESS = 300
+const SPRING_DAMPING = 24
+const SPRING_REST = 0.01
 
 const domCache = createDom()
 let scheduledRaf: number | null = null
@@ -106,6 +138,18 @@ domCache.linesSlider.addEventListener('input', () => {
 domCache.moreClosed.link.addEventListener('click', toggleMore)
 domCache.moreOpen.link.addEventListener('click', toggleMore)
 
+// A press counts as a move, for a touch. The pointer leaving the page ends the hover, as does a
+// touch the browser takes over to scroll, which Safari tells only as a cancel. A scroll can move
+// the stage under a pointer that stays where it is.
+document.addEventListener('pointermove', recordPointer)
+document.addEventListener('pointerdown', recordPointer)
+document.addEventListener('pointercancel', recordPointer)
+document.documentElement.addEventListener('pointerleave', recordPointer)
+
+window.addEventListener('scroll', () => {
+  scheduleRender()
+})
+
 window.addEventListener('resize', () => {
   scheduleRender()
 })
@@ -119,6 +163,33 @@ scheduleRender()
 function toggleMore(): void {
   st.events.moreClicked = true
   scheduleRender()
+}
+
+function recordPointer(event: PointerEvent): void {
+  st.events.pointer = event
+  scheduleRender()
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
+}
+
+// Moves a spring towards `dest` by `steps` steps, or puts it there under reduced motion.
+// Returns whether it still moves.
+function stepSpring(spring: Spring, dest: number, steps: number, reducedMotion: boolean): boolean {
+  spring.dest = dest
+  const t = SPRING_STEP / 1000
+  for (let i = 0; i < steps; i++) {
+    spring.v += (-SPRING_STIFFNESS * (spring.pos - spring.dest) - SPRING_DAMPING * spring.v) * t
+    spring.pos += spring.v * t
+  }
+  // A spring swings about its end forever, ever less: close and slow enough is at rest.
+  if (reducedMotion || (Math.abs(spring.v) < SPRING_REST && Math.abs(spring.dest - spring.pos) < SPRING_REST)) {
+    spring.pos = spring.dest
+    spring.v = 0
+    return false
+  }
+  return true
 }
 
 function getRequiredElement<T extends HTMLElement>(id: string, ctor: { new (): T }): T {
@@ -146,6 +217,10 @@ function createLine(box: HTMLDivElement, index: number): LineDom {
 // measured. The card takes its width from the box and its own padding.
 function createRow(label: string, direction: 'ltr' | 'rtl', parent: Element): HTMLDivElement {
   createElement('div', 'row-label', parent).textContent = label
+  return createCard(direction, parent)
+}
+
+function createCard(direction: 'ltr' | 'rtl', parent: Element): HTMLDivElement {
   const card = createElement('div', 'card', parent)
   card.style.padding = `${CARD_PADDING_Y}px ${CARD_PADDING_X}px`
   const box = createElement('div', 'text', card)
@@ -186,6 +261,13 @@ function createDom(): DomCache {
   moreBox.classList.add('more')
   boxes.push(moreBox)
 
+  // The follow row's card sits in a stage of a fixed height, so the rows below the card's top
+  // stay where they are while it grows. Its box isn't among `boxes`: its width is its own.
+  createElement('div', 'row-label', rows).textContent = followSample.label
+  const followStage = createElement('div', 'stage', rows)
+  followStage.style.height = `${FOLLOW_STAGE_HEIGHT}px`
+  const followBox = createCard(followSample.direction, followStage)
+
   return {
     page: getRequiredElement('page', HTMLElement),
     widthSlider: getRequiredElement('width-slider', HTMLInputElement),
@@ -197,6 +279,9 @@ function createDom(): DomCache {
     middle: createLine(middleBox, 0),
     moreBox,
     reducedMotion: matchMedia('(prefers-reduced-motion: reduce)'),
+    followStage,
+    followBox,
+    follow: { box: followBox, lines: [] },
     // The shared lines get an element of their own ahead of the two layers, so the row's DOM is
     // in reading order, which a selection, a copy and a screen reader follow.
     moreShared: { box: createElement('div', 'shared', moreBox), lines: [] },
@@ -240,7 +325,8 @@ function paintMoreLayer(dom: MoreLayerDom, top: number, lines: string[], linkLin
   dom.lines.box.toggleAttribute('inert', !shown)
 }
 
-// Returns whether the link row is still fading, which takes another frame.
+// Returns whether the link row still fades or the follow row still springs, which takes another
+// frame.
 function render(now: number): boolean {
   // DOM reads
   // body.clientWidth leaves out the scrollbar gutter. Chrome's documentElement.clientWidth includes
@@ -248,6 +334,7 @@ function render(now: number): boolean {
   const viewportWidth = document.body.clientWidth
   const linkHadFocus = document.activeElement === domCache.moreClosed.link || document.activeElement === domCache.moreOpen.link
   const reducedMotion = domCache.reducedMotion.matches
+  const stage = domCache.followStage.getBoundingClientRect()
 
   // Inputs
   let requestedTextWidth = st.requestedTextWidth
@@ -256,6 +343,11 @@ function render(now: number): boolean {
   if (st.events.linesValue !== null) maxLines = st.events.linesValue
   let moreOpen = st.moreOpen
   if (st.events.moreClicked) moreOpen = !moreOpen
+  let pointer = st.pointer
+  if (st.events.pointer !== null) {
+    const gone = st.events.pointer.type === 'pointerleave' || st.events.pointer.type === 'pointercancel'
+    pointer = gone ? null : { x: st.events.pointer.clientX, y: st.events.pointer.clientY }
+  }
 
   // Layout
   const geometry = getPageGeometry(viewportWidth, requestedTextWidth)
@@ -270,6 +362,20 @@ function render(now: number): boolean {
   // A paragraph that fits its lines has no link, and its two states are the same lines. Otherwise
   // they share every line before the closed one's last, which stays as it is while the rest fades.
   const sharedLines = closed.linkLine >= 0 ? closed.linkLine : closed.lines.length
+  // The follow row's card puts its bottom right corner under a pointer that is over the stage,
+  // within the sizes the stage holds, and rests at the sliders' size otherwise.
+  const followMinWidth = Math.min(MIN_TEXT_WIDTH, geometry.maxTextWidth)
+  const followMaxHeight = FOLLOW_MAX_LINES * LINE_HEIGHT
+  let followWidthDest = textWidth
+  let followHeightDest = maxLines * LINE_HEIGHT
+  if (
+    pointer !== null &&
+    pointer.x >= stage.left && pointer.x <= stage.left + geometry.pageWidth &&
+    pointer.y >= stage.top && pointer.y <= stage.top + FOLLOW_STAGE_HEIGHT
+  ) {
+    followWidthDest = clamp(pointer.x - stage.left - CARD_PADDING_X * 2, followMinWidth, geometry.maxTextWidth)
+    followHeightDest = clamp(pointer.y - stage.top - CARD_PADDING_Y * 2, LINE_HEIGHT, followMaxHeight)
+  }
 
   // Animation tick
   // The fade closes on its state by exponential decay, which is closed-form: a frame of any
@@ -282,15 +388,39 @@ function render(now: number): boolean {
     if (reducedMotion || Math.abs(moreFade - fadeDest) * (open.height - closed.height) < FADE_REST) moreFade = fadeDest
     else moreFadedAt = now
   }
+  // The follow row's springs take whole steps up to this frame's time. A spring is made at
+  // rest where it first belongs, so the first frame paints the row at its size.
+  const followWidth = st.followWidth ?? { pos: followWidthDest, dest: followWidthDest, v: 0 }
+  const followHeight = st.followHeight ?? { pos: followHeightDest, dest: followHeightDest, v: 0 }
+  let springsSteppedUntil = st.springsSteppedUntil ?? now
+  // No more than 300 steps a frame, so a stalled tab doesn't make its next frame late too.
+  const springSteps = Math.min(300, Math.floor((now - springsSteppedUntil) / SPRING_STEP))
+  springsSteppedUntil += springSteps * SPRING_STEP
+  const widthSprings = stepSpring(followWidth, followWidthDest, springSteps, reducedMotion)
+  const heightSprings = stepSpring(followHeight, followHeightDest, springSteps, reducedMotion)
+  const springing = widthSprings || heightSprings
+
+  // The follow row's layout, at wherever its springs are: an overshoot stays inside the sizes
+  // the stage holds, and the lines are those that fit the height. A line fits from half a pixel
+  // short of it, since a spring swings by less than that about a whole number of lines before
+  // it rests, and the last line would blink with each swing.
+  const followTextWidth = clamp(followWidth.pos, followMinWidth, geometry.maxTextWidth)
+  const followTextHeight = clamp(followHeight.pos, LINE_HEIGHT, followMaxHeight)
+  const follow = layoutClamp(followSample.prepared, followTextWidth, Math.floor((followTextHeight + 0.5) / LINE_HEIGHT))
 
   st.requestedTextWidth = requestedTextWidth
   st.maxLines = maxLines
   st.moreOpen = moreOpen
   st.moreFade = moreFade
   st.moreFadedAt = moreFadedAt
+  st.pointer = pointer
+  st.followWidth = followWidth
+  st.followHeight = followHeight
+  st.springsSteppedUntil = springing ? springsSteppedUntil : null
   st.events.widthValue = null
   st.events.linesValue = null
   st.events.moreClicked = false
+  st.events.pointer = null
 
   // DOM writes
   domCache.page.style.width = `${geometry.pageWidth}px`
@@ -298,10 +428,12 @@ function render(now: number): boolean {
   domCache.widthSlider.min = String(Math.min(MIN_TEXT_WIDTH, geometry.maxTextWidth))
   domCache.widthSlider.max = String(geometry.maxTextWidth)
   domCache.widthSlider.value = String(textWidth)
-  domCache.widthValue.textContent = `${textWidth}px`
+  // Only on a change, as for a line's text: a pointer move renders too, and a selection in a
+  // value shouldn't go with it.
+  if (domCache.widthValue.textContent !== `${textWidth}px`) domCache.widthValue.textContent = `${textWidth}px`
   domCache.linesSlider.max = String(MAX_LINES)
   domCache.linesSlider.value = String(maxLines)
-  domCache.linesValue.textContent = String(maxLines)
+  if (domCache.linesValue.textContent !== String(maxLines)) domCache.linesValue.textContent = String(maxLines)
   for (let i = 0; i < domCache.boxes.length; i++) domCache.boxes[i]!.style.width = `${textWidth}px`
 
   for (let i = 0; i < samples.length; i++) {
@@ -321,10 +453,14 @@ function render(now: number): boolean {
   paintMoreLayer(domCache.moreClosed, layerTop, closed.lines.slice(sharedLines), closed.linkLine - sharedLines, `${ELLIPSIS} `, 1 - moreFade, !moreOpen)
   paintMoreLayer(domCache.moreOpen, layerTop, open.lines.slice(sharedLines), open.linkLine < 0 ? -1 : open.linkLine - sharedLines, ' ', moreFade, moreOpen)
 
+  domCache.followBox.style.width = `${followTextWidth}px`
+  domCache.followBox.style.height = `${followTextHeight}px`
+  paintLines(domCache.follow, follow.lines, follow.truncated ? ELLIPSIS : '')
+
   // Side effects
   // Focus stays on the link that shows: a click leaves it on the layer that fades out, and a link
   // moved to another line loses it. Without a scroll, so a click doesn't jump the page to the link.
   if (linkHadFocus && closed.linkLine >= 0) (moreOpen ? domCache.moreOpen : domCache.moreClosed).link.focus({ preventScroll: true })
 
-  return moreFadedAt !== null
+  return moreFadedAt !== null || springing
 }

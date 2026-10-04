@@ -144,6 +144,17 @@
         mix-blend-mode: plus-lighter;
       }
 
+      /* The follow row's stage: the area a pointer is followed in. ellipsis.ts writes its height.
+         A touch that drags inside it moves the card and neither scrolls the page nor selects
+         the text, which changes under it every frame. The outline takes no room. */
+      .stage {
+        border-radius: 14px;
+        outline: 1px dashed var(--rule);
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+
       /* The link takes the width of its text alone, in the paragraph's font, which is the room
          Pretext leaves for it. */
       .more-link {
