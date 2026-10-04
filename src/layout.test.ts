@@ -6486,9 +6486,9 @@ test('letter spacing leaves out cursive scripts as Chrome and Firefox do', () =>
   // The engine profile is computed once per process, so each engine runs in a child
   // process. Each row: what the string shows, the string, and the letter-spacing gaps
   // Chrome 154, Firefox 156 and webkit-host gave it in 16px Arial, read from the page's
-  // widths at 4px and 8px (2026-09-30; the last thirteen rows at 0 and 10px, 2026-10-01). Every
-  // code point is 8px here, so the profile's gaps are its widths at 4px and 8px, less each
-  // other, over 4.
+  // widths at 4px and 8px (2026-09-30; the thirteen rows before the last two at 0 and 10px,
+  // 2026-10-01; the last two 2026-10-03). Every code point is 8px here, so the profile's gaps
+  // are its widths at 4px and 8px, less each other, over 4.
   const strings: Array<[string, string, number, number, number]> = [
     ['latin', 'abc', 3, 3, 3],
     ['hebrew', '\u05D0\u05D1\u05D2', 3, 3, 3],
@@ -6554,6 +6554,8 @@ test('letter spacing leaves out cursive scripts as Chrome and Firefox do', () =>
     ['digit under a devanagari stress mark after arabic', '\u0628\u064A\u062A 1\u0951 2', 4, 4, 7],
     ['digit under a tilde after arabic', '\u0628\u064A\u062A 5\u0303 6', 4, 4, 7],
     ['fullwidth bracket under an arabic vowel sign among latin', 'abc \uFF08\u064B12', 4, 7, 7],
+    ['closing bracket under an arabic vowel sign', 'ab (\u0628\u064A\u062A)\u064B 12', 8, 8, 11],
+    ['angle bracket before the other pair\'s closing one', '\u3008\u0628\u064A\u062A\u232A', 1, 2, 5],
   ]
   const layoutUrl = new URL('./layout.ts', import.meta.url).href
   const richInlineUrl = new URL('./rich-inline.ts', import.meta.url).href

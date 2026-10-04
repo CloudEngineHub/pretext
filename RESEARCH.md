@@ -276,13 +276,20 @@ a rule by reading it and its unit tests (`rebuild/src/engines/<engine>/`) agains
   the project is closed (Decisions Log, 2026-09-23 and 2026-09-26).
 - **`\p{…}`** follows the JavaScript engine's Unicode tables, not layout's, so the rebuild takes no engine decision from
   it. Main's scans do, through `hasProperty()` (`src/line-breaks.ts`: letters and numbers, marks, punctuation,
-  default-ignorables, emoji, Hangul), and so does the cursive rule for letter spacing, which reads scripts and script
-  extensions (`src/prepare.ts`), on the premise that a browser's JavaScript engine and its layout use the same Unicode
-  version, which nothing checks. Script extensions are revised in most Unicode versions, more than those classes are,
-  so the premise carries more there: where the two differ, a punctuation mark or a combining mark that scripts share
-  is spaced otherwise than the browser spaces it. What no property says is listed by hand in the code with how it was
-  derived, as the eight wide opening brackets Blink makes Han are, and the unit tests of these rules read Bun's
-  tables (Unicode 17 in Bun 1.4.2).
+  default-ignorables, emoji, Hangul), on the premise that a browser's JavaScript engine and its layout use the same
+  Unicode version, which nothing checks.
+- **Scripts come from a table** since #TBD: the script runs behind the Chromium profile's kerning with spaces and the
+  cursive rule for letter spacing (`src/prepare.ts`) look a character up in a class for every code point, made from
+  ICU's Script, Script_Extensions, East_Asian_Width and bracket pairs as Chrome's build compiles them in (ICU 78.2,
+  Unicode 17; `scripts/generate-engine-break-data.ts`). Firefox's build holds the same arrays, so its cursive rule reads
+  the table too, and `bun harness repin` says when either build no longer holds them. Until then the scripts were read
+  with seven `\p{…}` classes, the eight wide opening brackets Blink makes Han and the bracket pairs listed by hand, two
+  to five tests each time a character outside ASCII was met. Script extensions are revised in most Unicode versions, so
+  that premise carried more than `hasProperty()`'s does. Where a JavaScript engine has Unicode 17 the classes gave what
+  the table gives, the scripts of every code point alone and of 4.2 million pairs, each Common code point before each
+  mark that scripts list among them (Bun 1.4.2, d8 15.4.80 and the SpiderMonkey 156 shell); Node 23, on Unicode 16,
+  differs on the 142 code points Unicode 17 added and on U+0320, whose extensions it dropped (2026-10-03). The table
+  costs the main entry 0.3 KB gzipped, and 29 KB of typed arrays once a text asks for a script.
 - **`Intl.Segmenter`** stays for Southeast Asian words (Dead Ends, Tables, Bundles And Data, has the alternatives)
   because Pretext needs the browser's split, not the right one. Firefox's slow Thai segmentation is its own trade for
   download size, so no bug was filed.
@@ -1792,8 +1799,8 @@ own, as in 7 of 69,547 cuts of the strings that hold a control into items at ran
 (`src/gecko-bidi-levels.ts`), the splits and the guard, `levelsMayMatter()`, with its argument
 (`src/gecko-line-breaks.ts`), are at 8e88756b, and the guard's method stays the one to use for any port claimed exact: a
 written argument, a fuzz against the unguarded path, and a unit test per rule. The bracket pairs stay for their other
-reader, Blink's script runs, which letter spacing and the Chromium profile's kerning with spaces turn on, as a list
-beside that reader (`bracketPairs`, `src/prepare.ts`).
+reader, Blink's script runs, which letter spacing and the Chromium profile's kerning with spaces turn on: a list beside
+that reader until #TBD, and since then ICU's own pairs, in the table of script classes (Part 1, Tables Against Canvas).
 
 While the scan made the splits, two designs were rejected: resolving wherever a cluster holds several code points,
 exact with a shorter argument, but vowel marks and emoji make that 37% of Arabic paragraphs and 57% of the chat's
@@ -2057,9 +2064,10 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   shells' numbers are hypotheses, on a stand-in Canvas; the browsers' are the bench's, whose tables are in the PR. Since
   #408 the cursive rule reads its runs through the reader of script runs it shares with the kerning with spaces, which
   has seven such classes where the rule had six, built the same way, so 17 are; as literals, the reader's first six had
-  cost a fresh page 0.2 ms of compile in Chrome 154's bench (1.75 ms against 1.54, two sessions, 2026-10-02). A new
-  expression with such a class that most text never reaches goes through `lazyRegExp()`; one tested per segment stays a
-  literal. Reopens if the bench reads the worst-case rows level with those five built at first use.
+  cost a fresh page 0.2 ms of compile in Chrome 154's bench (1.75 ms against 1.54, two sessions, 2026-10-02). Since
+  #TBD the reader looks scripts up in a table and has none, so 10 are. A new expression with such a class that most
+  text never reaches goes through `lazyRegExp()`; one tested per segment stays a literal. Reopens if the bench reads
+  the worst-case rows level with those five built at first use.
 - **A loop slows once a check in it has held**: a check in the counter's loop that handed unbroken-boundary lines to the
   full walker slowed counting all other text up to 1.6 times in Firefox and 1.3 in Chrome, though the check alone cost
   nothing (#350, 2026-09-26).
@@ -2311,7 +2319,12 @@ repin` shows what), and a fact read in source needs reading again.
   lists stays in whatever run it is in. The port gives a shared character its leading script wherever it stands and
   leaves the rest out: U+202F, which Latin, Mongolian and Phags-pa share, takes no gap alone, after Arabic or between
   Han characters, and one among Latin letters, and its Mongolian run takes in the digits around it, so `10`, U+202F,
-  `000` in a text of its own takes none of its 6 gaps (Chrome 154, 2026-10-01; ENGINE_FOLLOWUPS.md, Letter spacing). A
+  `000` in a text of its own takes none of its 6 gaps (Chrome 154, 2026-10-01; ENGINE_FOLLOWUPS.md, Letter spacing).
+  Brackets pair as ICU pairs them (`GetPairedBracket`, `:217-219`), so U+232A closes U+2329 and not U+3008, and a
+  bracket under a mark that scripts list is opened or closed all the same: `〈`, an Arabic word and U+232A take 1 gap,
+  and `ab (`, an Arabic word, `)` under U+064B, a space and `12` take 8, in Chrome 154 and, since #TBD, in the port,
+  which gave 2 and 5 while it paired brackets from a list of its own that read U+2329 and U+232A as U+3008 and U+3009,
+  and read no bracket under such a mark (2026-10-03; Part 1, Tables Against Canvas). A
   tab stop is eight Canvas spaces plus letter and word spacing (`font.cc:303-317`), rounded up to 1/128 px at DPR 2
   (`simple_font_data.cc:225-240`), and a tab skips a stop under half a space away (`font.cc:333-337`). The spacing is in
   a stop only under the runtime flag `TabSizeWithSpacing` (`TabSize::GetPixelSize`, `tab_size.h:24-33`), on by default
