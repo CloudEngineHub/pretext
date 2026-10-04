@@ -361,7 +361,7 @@ function getWalkedHandle(prepared: PreparedSegments, flags: Uint8Array): Prepare
   return { ...prepared, segmentFlags: flags, simpleLineWalkFastPath: false }
 }
 
-// A box's handle, which every box shares, as nothing writes to a handle: one empty segment, which its
+// A box's handle, which every box shares, as nothing writes to it: one empty segment, which its
 // fragment spans, so that a line starting at the box doesn't take that start for its end
 // (stepRichInlineLine).
 const BOX_HANDLE: PreparedSegments = {

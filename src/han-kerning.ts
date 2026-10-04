@@ -182,9 +182,10 @@ function isCanvasCjkSymbol(c: number): boolean {
 // between them, as two rich-inline items do: `side` 1 is the later character's, after the
 // earlier one, and -1 the earlier's, before the later one; 0 without one. Blink shapes each run
 // with the paragraph's whole text and reads the character before the run's first and after its
-// last there, typing both by the run's own font (HanKerning::Compute, han_kerning.cc:262-320,
-// over the text HarfBuzzShaper holds, harfbuzz_shaper.cc:895), so `font` is the font of the
-// item that holds the halted character, measured as that item's text is (`letterSpaced`).
+// last there, typing both by the run's own font (HanKerning::AppendFontFeatures,
+// han_kerning.cc:262-320, over the text HarfBuzzShaper holds, harfbuzz_shaper.cc:895), so `font`
+// is the font of the item that holds the halted character, measured as that item's text is
+// (`letterSpaced`).
 export function getHaltAcrossRuns(text: string, index: number, side: number, font: string, letterSpaced: boolean, language: string | null): number {
   const halted = text.charCodeAt(side === 1 ? index : index - 1)
   if (!maybeHanKerns(halted)) return 0
