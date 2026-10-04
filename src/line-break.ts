@@ -345,7 +345,7 @@ export function countPreparedLines(prepared: PreparedLineBreakData, maxWidth: nu
     // geometry takes the tail or its fresh prefixes.
     const prohibitions = lineStartProhibitions?.[i] ?? null
     const entry = entryGeometry === null ? null : entryGeometry[i]!
-    const startExtras = breakableLineStartExtras === null ? null : breakableLineStartExtras[i]!
+    const startExtras = breakableLineStartExtras?.[i] ?? null
     let g = 0
     while (g < advances.length) {
       if (g > 0 && entry !== null && entry.entries[g] !== null) {
@@ -464,7 +464,6 @@ function walkPreparedComplexLines(
     entryGeometry,
     discretionaryHyphenWidth,
     letterSpacing,
-    breakableLineStartExtras,
     lineStartExtras,
     lineEndTrims,
     overflowLineEndTrims,
@@ -834,7 +833,7 @@ function walkPreparedComplexLines(
                 hasContent = true
                 lineEndSegmentIndex = i
                 lineEndGraphemeIndex = g + 1
-                const startExtras = breakableLineStartExtras === null ? null : breakableLineStartExtras[i]!
+                const startExtras = prepared.breakableLineStartExtras?.[i] ?? null
                 lineW = startExtras === null ? baseGw : baseGw + startExtras[g]!
                 // A line that holds only this grapheme, overflowing, keeps the graphemes after
                 // it that can't start a line, and ends.
@@ -971,7 +970,7 @@ function stepPreparedSimpleLineGeometry(
   cursor: LayoutCursor,
   maxWidth: number,
 ): number {
-  const { widths, segmentFlags, breakableFitAdvances, entryGeometry, breakableLineStartExtras, lineStartExtras, lineEndTrims, overflowLineEndTrims } = prepared
+  const { widths, segmentFlags, breakableFitAdvances, entryGeometry, lineStartExtras, lineEndTrims, overflowLineEndTrims } = prepared
   // A negative width lays out as 0, as in the complex walker.
   const fitLimit = Math.max(0, maxWidth) + getEngineProfile().lineFitEpsilon
   const start = cursor.segmentIndex
@@ -1003,7 +1002,7 @@ function stepPreparedSimpleLineGeometry(
     }
   } else if (cursor.graphemeIndex > 0 || (startW - startTrim > fitLimit && startAdvances !== null)) {
     const fitAdvances = startAdvances!
-    const startExtras = breakableLineStartExtras === null ? null : breakableLineStartExtras[start]!
+    const startExtras = prepared.breakableLineStartExtras?.[start] ?? null
     let g = cursor.graphemeIndex + 1
     lineW = startExtras === null ? fitAdvances[g - 1]! : fitAdvances[g - 1]! + startExtras[g - 1]!
     // A line that holds only an overflowing grapheme keeps the graphemes after it
