@@ -1364,9 +1364,22 @@ halt is the half an em Chrome takes off a fullwidth mark (`src/han-kerning.ts`).
   after it (`ShapingLineBreaker::ShapeLine`, `shaping_line_breaker.cc:342-363`), and its scan gives none before a
   space, a tab or a line feed: `文字）` before a span that starts with a space, or with that space ending its own
   span, or before a span that starts with a line feed in pre-wrap, breaks before `字` at 40-47px, as in one node,
-  and so does `設定）` before a space and a box or a chip. A chip's own leading space is no such space, since its
-  inline-block trims it: a break comes right after the mark, and `設定）` before a chip ` @a ` fits 40-47px halted.
-  Rich inline had kept `文字）` halted on one line there, since an item's own text ends at the mark.
+  and so does `設定）` before a space and a box or a chip. A chip's own white space is no such space, where it starts
+  the chip's text or is all of it, since its inline-block trims it: a break comes right after the mark, and `設定）`
+  before a chip ` @a `, or before a chip of a space, fits 40-47px halted. Rich inline had kept `文字）` halted on one
+  line before a space, since an item's own text ends at the mark.
+
+These counts are of probes recorded fresh in two document orders on 2026-10-04, each case predicted with main at #423
+and with #TBD, and not kept. Styled Japanese and Chinese sentences at 120-600px in nine font stacks go from 5,608 to
+6,199 of 6,210 in Chrome, all through the pair halt: of the 602 that fail on main, 162 have a wrong line count and 440
+the right count with a wrong break, and 2 and 9 are left. Over twelve probes of 152,572 cases (those sentences and
+five more sets of them; pairs of marks across span edges at 16-160px, and inside units filled grapheme by grapheme; a
+closing mark before spaces, boxes and chips; U+3000 and white space at a span's end; and 12,200 seeded draws), #TBD
+fixes 7,687 Chrome cases and loses 36 that main passes. No prediction moves in Firefox or webkit-host, which halt
+nothing. Each of the 36 is another gap that main's marks, half an em too wide, had made up for (ENGINE_FOLLOWUPS.md,
+Rich-inline item edges): 13 where a soft hyphen's hyphen no longer fits, 12 through a U+3000 run that ends a span, 9
+through U+3000 after a collapsible space, and 2 through the padding of a chip of only white space. A Chrome that stops
+halting across spans, which the rich set's `item-edges` cases would show at a repin, reopens the first fact.
 
 #### Objects Inside A Line
 
