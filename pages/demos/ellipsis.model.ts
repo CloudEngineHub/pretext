@@ -115,7 +115,7 @@ export const samples: Sample[] = [
 
 export const middleLabel = createLabel('Middle, preserving /', '~/Projects/atlas/packages/renderer/src/text/layout/line-breaker.test.ts')
 
-export const moreSample = createSample('End, with a “more” link', 'ltr', samples[0]!.text)
+export const moreSample = createSample('Expandable', 'ltr', samples[0]!.text)
 
 export function getPageGeometry(viewportWidth: number, requestedTextWidth: number): PageGeometry {
   const marginX = viewportWidth <= NARROW_MAX_VIEWPORT_WIDTH ? NARROW_PAGE_MARGIN_X : PAGE_MARGIN_X
