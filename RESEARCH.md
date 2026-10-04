@@ -1975,8 +1975,11 @@ before the ellipsis, which the demo, written for normal white space, drops.
 
 **The other two cuts.** The line that keeps a label's start and end painted no wider than its box at all 321 widths for
 a path and a URL in Chrome; in Firefox and webkit-host the URL ran over at 2 widths, by up to 1.0px, where the end it
-kept starts after a kerned pair (`y.`). The line that leaves "… more" room fit its box in all 1,274 layouts with a
-link, within 1/64px, and the open paragraph had the browser's lines in each.
+kept starts after a kerned pair (`y.`). Those counts are of an end that fits half the room. The demo now keeps a path's
+file name with its slash where the room holds it, and falls back to that rule where it doesn't: every fourth width from
+120 to 440px painted no wider than its box in Chrome, the name whole at 72 of 81 (2026-10-04); Firefox and webkit-host
+were not run again. The line that leaves "… more" room fit its box in all 1,274 layouts with a link, within 1/64px, and
+the open paragraph had the browser's lines in each.
 
 Not probed: widths under 120px, fonts without U+2026, letter spacing, soft hyphens, rich inline, `text-overflow:
 ellipsis` on one line and the unprefixed `line-clamp`. What the demo had to work around is on TODO.md's list for the API
