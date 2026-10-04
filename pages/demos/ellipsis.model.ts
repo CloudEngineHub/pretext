@@ -5,7 +5,6 @@ import {
   layoutWithLines,
   measureNaturalWidth,
   prepareWithSegments,
-  walkLineRanges,
   type LayoutCursor,
   type PreparedTextWithSegments,
 } from '../../src/layout.ts'
@@ -57,6 +56,7 @@ export type Label = {
   text: string
   prepared: PreparedTextWithSegments
   starts: LayoutCursor[]
+  nameStart: number // the index in `starts` of the label's last slash, where a path's file name starts; 0 without one
 }
 
 export type PageGeometry = {
@@ -98,11 +98,14 @@ function createLabel(label: string, text: string): Label {
   const prepared = prepareWithSegments(text, FONT)
   // A line no wider than 0 holds one grapheme, as under overflow-wrap: break-word, so the
   // lines' starts are every place the text can be cut.
+  const graphemes = layoutWithLines(prepared, 0, LINE_HEIGHT).lines
   const starts: LayoutCursor[] = []
-  walkLineRanges(prepared, 0, line => {
-    starts.push(line.start)
-  })
-  return { label, text, prepared, starts }
+  let nameStart = 0
+  for (let i = 0; i < graphemes.length; i++) {
+    starts.push(graphemes[i]!.start)
+    if (graphemes[i]!.text === '/') nameStart = i
+  }
+  return { label, text, prepared, starts, nameStart }
 }
 
 export const samples: Sample[] = [
@@ -183,21 +186,29 @@ export function layoutClamp(prepared: PreparedTextWithSegments, width: number, m
   }
 }
 
-// One line that keeps a label's start and end around an ellipsis. The end is the longest
-// run of graphemes that fits half the room; the start fills what is left. The stream only
-// walks forward, so each candidate end is measured as the line from its first grapheme.
+// One line that keeps a label's start and end around an ellipsis. The end is a path's file
+// name with its slash where the room holds it, so the cut never falls inside the name, and
+// otherwise the longest run of graphemes that fits half the room; the start fills what is
+// left. The stream only walks forward, so each candidate end is measured as the line from its
+// first grapheme.
 export function layoutMiddle(label: Label, width: number): string {
-  const { prepared, starts } = label
+  const { prepared, starts, nameStart } = label
   const whole = layoutNextLineRange(prepared, START, Number.POSITIVE_INFINITY)
   if (whole === null || whole.width <= width) return label.text
   const room = width - ELLIPSIS_WIDTH
   let end = ''
   let endWidth = 0
-  for (let i = starts.length - 1; i > 0; i--) {
-    const rest = layoutNextLine(prepared, starts[i]!, Number.POSITIVE_INFINITY)
-    if (rest === null || rest.width > room / 2) break
-    end = rest.text
-    endWidth = rest.width
+  const name = nameStart > 0 ? layoutNextLine(prepared, starts[nameStart]!, Number.POSITIVE_INFINITY) : null
+  if (name !== null && name.width <= room) {
+    end = name.text
+    endWidth = name.width
+  } else {
+    for (let i = starts.length - 1; i > 0; i--) {
+      const rest = layoutNextLine(prepared, starts[i]!, Number.POSITIVE_INFINITY)
+      if (rest === null || rest.width > room / 2) break
+      end = rest.text
+      endWidth = rest.width
+    }
   }
   return fillLine(prepared, START, room - endWidth) + ELLIPSIS + end
 }
