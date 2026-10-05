@@ -4924,8 +4924,8 @@ describe('rich-inline invariants', () => {
         // so a space the line's end consumes is on none, nor are soft hyphens the next line's
         // start consumes; Firefox still paints two such spaces at the end of the first line, the
         // space at -6px and the second space of `ab`, a space, a soft hyphen and a space before
-        // `cd` (ENGINE_FOLLOWUPS.md, Rich-inline item edges, which also has the two shapes of a
-        // soft hyphen after white space right before the box that the profile misses).
+        // `cd` (ENGINE_FOLLOWUPS.md, Rich-inline item edges, which also has the shape the profile
+        // misses: a soft hyphen between two spaces of one item that ends right before the box).
         const zero = { width: 0 }
         const chip: RichInlineItem = { text: 'abcdef', font: FONT, break: 'never' }
         const padded = (value: string): RichInlineItem => ({ text: value, font: FONT, extraWidth: 1 })
@@ -5005,6 +5005,7 @@ describe('rich-inline invariants', () => {
           [[text('ab '), zero, zero, text('cd')], preWrap, [[0, 1, 2], [3]]],
           [[text('ab '), zero, text(' '), zero, text('cd')], preWrap, [[0, 1, 2, 3], [4]]],
           [[text('ab '), zero, text(' '), zero], preWrap, [[0, 1, 2, 3]]],
+          [[text('ab '), text('\u00AD'), zero, text('cd')], preWrap, [[0, 1, 2], [3]]],
           // A span with padding after it has a width and starts the next line, its spaces too, as
           // after an item of a soft hyphen there.
           [[text('ab '), zero, padded(' cd')], preWrap, [[0, 1], [2], [2]]],

@@ -510,7 +510,8 @@ function walkPreparedComplexLines(
   // In Gecko a text frame's width leaves out its trailing spaces that overflow the line and
   // keeps those that fit, whatever follows the frame (EngineProfile, hangsSpacesPerTextFrame),
   // so in a rich-inline paragraph the run of preserved spaces that hang goes on, with what
-  // overflows, past a segment that takes no room: an object of width 0 or a soft hyphen.
+  // overflows, past a segment that takes no room: an object of width 0, a soft hyphen or a
+  // zero-width break, which the Gecko scan makes of a soft hyphen after white space.
   const hangGoesOnPastEmpty = items !== undefined && engineProfile.hangsSpacesPerTextFrame
   const testsHyphenBeforeAtomic = engineProfile.testsHyphenBeforeAtomic
   const zeroWidthGlueTakesLine = engineProfile.zeroWidthGlueTakesLine
@@ -666,7 +667,7 @@ function walkPreparedComplexLines(
             const contribution = w + (spaced ? letterSpacing : 0)
             if (contribution !== 0) fitAdvance = leadingSpacing + contribution
           }
-          const hangs = (1 << kind & hangingKinds) !== 0
+          const hangs = (1 << kind & hangingKinds) !== 0 || (hangGoesOnPastEmpty && kind === ZERO_WIDTH_BREAK && hangEndSegmentIndex === i)
           if (hangs) {
             if (hangEndSegmentIndex !== i) {
               hangStartWidth = lineW - lineEndTrimmed + leadingSpacing
