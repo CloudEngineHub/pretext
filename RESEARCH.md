@@ -2035,7 +2035,10 @@ runs (Firefox 156.0.1, bench sessions of 2026-09-27 and 28, unless noted):
   read for every walk, twelve a pass, so that reading is no work saved: the walker holds one local less (JavaScript
   Engines, State a loop keeps for its rare paths), and a second run of that change alone gave neither row a verdict,
   1.4% and 2.1% faster. Against main, every `prepare()` row on seen text and both of those then read within 1.1% (three
-  background sessions for each figure here but the foreground ones, so hypotheses until a foreground run shows them).
+  background sessions for each figure here but the foreground ones, so hypotheses). The foreground bench of the change
+  as it landed gave none of those rows a verdict in Chrome 154: seen Latin messages read 0.9% slower than main, the book
+  0.6%, keep-all brackets 0.5%, the emoji texts 0.2%, `measureLineStats()` of mixed messages 1.4% and `walkLineRanges()`
+  of pre-wrap chunks 0.9% (three sessions, 2026-10-05).
 
 #### The Walkers' Shapes
 
