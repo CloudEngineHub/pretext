@@ -2198,20 +2198,21 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   `measureAnalysis()` ran when it was made. Canvas gives a whole width, as an ideograph's 16px, as an int32. Main with
   every whole width stored back as an int32 (`w | 0`) read `measureLineStats()` over the bench's CJK messages 4.7%
   slower than main, `walkLineRanges()` 11.9% and the stream 2.2%; main with every width stored back as a double, read
-  out of a `Float64Array`, read the stats 11.9% faster and the walk level (background Firefox 156.0.1, three sessions
-  each, 2026-10-05). That reads as: on main the handles the bench's stats row walks, the first a page makes, hold int32
-  widths, and the ones its walk row walks, made once the code is compiled, hold doubles. The first build of the
-  one-paragraph rich inline gave `measureAnalysis()` two parameters with default values, and every handle then held
-  int32 widths: the CJK stats read 5.2-5.4% slower than main and the walk 10.9-11.8%, as did main with only those two
-  parameters added (+5.3%, +11.8%), and that build with its widths stored back as doubles read as main does with its own
-  (-10.9%, -0.1%). Handles the defaulted build made were as slow under a second copy of main's walker, and main's
-  handles weren't under the defaulted build's; copying the handle or its lists, other minified names, and the build's
-  own walker or main's each left it as slow. With both parameters passed by every caller the rows read level (-0.2% and
-  +0.6%). Latin and mixed messages, whose widths are fractions, read level throughout, as did Chrome 154 and
+  out of a `Float64Array`, read the stats 11.9% and 12.3% faster in two runs, `layout()` of CJK at widths seen before
+  12.2% faster and the walk level or 6% faster, with Chrome 154 and webkit-host level on every row (background Firefox
+  156.0.1, three sessions each, 2026-10-05). That reads as: on main the handles the bench's stats row walks, the first a
+  page makes, hold int32 widths, and the ones its walk row walks, made once the code is compiled, hold doubles. The
+  first build of the one-paragraph rich inline gave `measureAnalysis()` two parameters with default values, and every
+  handle then held int32 widths: the CJK stats read 5.2-5.4% slower than main and the walk 10.9-11.8%, as did main with
+  only those two parameters added (+5.3%, +11.8%), and that build with its widths stored back as doubles read as main
+  does with its own (-10.9%, -0.1%). Handles the defaulted build made were as slow under a second copy of main's walker,
+  and main's handles weren't under the defaulted build's; copying the handle or its lists, other minified names, and the
+  build's own walker or main's each left it as slow. With both parameters passed by every caller the rows read level
+  (-0.2% and +0.6%). Latin and mixed messages, whose widths are fractions, read level throughout, as did Chrome 154 and
   webkit-host. SpiderMonkey 156.0.1's shell shows the int32 cost (+14% and +8% for the same forced int32) and not the
   default values' effect, so why they keep whole widths int32 in the browser wasn't found. Reopens with a way to store a
-  handle's widths as doubles whatever tier made them that costs a short text's preparation nothing: it is worth 12% of a
-  count of CJK lines in Firefox for text prepared while the code is cold.
+  handle's widths as doubles whatever tier made them that costs a short text's preparation nothing: it is worth 12% of
+  `layout()` and of a count of CJK lines in Firefox for text prepared while the code is cold.
 - **A flag parameter, in JavaScriptCore**: `buildLineTextFromRange()` took a last parameter, true by default, for
   whether its range ends a line, and webkit-host read `layoutWithLines()` over the bench's mixed messages 4.0-4.7%
   slower than main in three runs, for one test a line (JavaScriptCore's shell: +2.9%; V8's and SpiderMonkey's level). As
