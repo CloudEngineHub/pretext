@@ -3175,6 +3175,13 @@ below 256 px, Canvas totals are exact (Engine Facts, Chrome).
   each glyph's advance to an app unit, so a pair measured at the text's size and at a much larger one shows which letter
   holds the kerning, at 6 to 90 `measureText` calls for a font that kerns (the per-engine rebuild's recipe, which told
   47 of 49 font rows and none wrongly).
+- **A question about kerning before the Gecko profile's ligature question** (#TBD, 2026-10-05, one build, Firefox
+  156.0.1, every case predicted once). Whether the pair with `fontKerning` off is as wide as its two letters, asked
+  first, settles a kerned pair in one Canvas call, where the ligature question takes two, the pair as it stands and
+  without its ligatures; a ligature or two joined letters then take three. No prediction of 44,235 differed. The sample
+  took 2.5% more `measureText` calls than the prefixes alone, for the one question's 3.1%, and the books 0.9% for 0.7%.
+  Not kept: a second Canvas state to set and restore and ten more lines, for 0.6% of the sample's calls. Reopens if text
+  of many fonts with few words in each comes to matter more than those.
 
 #### DOM And Canvas-Element Paths
 
