@@ -411,7 +411,8 @@ of the Gecko profile's analysis of bidi controls (`ENGINE_FOLLOWUPS.md`, Harness
 base across rich items; a rich paragraph of one item, which the adapter writes as plain text, so `src/layout.test.ts`
 checks its line functions against the rich stepper; Chrome's UI language, and so its `zh` table for pages without a
 `lang`; rendering other than macOS's and an iOS simulator's (Other ratios and phones), though Android and Windows are
-65% of page views (`weights.json`); text chat users wrote (the sample's chat draws are stand-ins); or the demos' painted
+65% of page views (`weights.json`); text chat users wrote (the sample's chat draws are stand-ins; written prompts and replies in their place moved the
+headline by 0.03 points or less, RESEARCH.md, Decisions Log, 2026-10-05); or the demos' painted
 layout. No planted defect guards the watchdog's kill, the bench's shuffle and its separate compiles (each copy of the
 library compiled in a module of its own), Firefox's start-up hold, the page passing the browser's name to the recorder,
 or the cap on a job's browser beyond its kill needing no `ps` table.
