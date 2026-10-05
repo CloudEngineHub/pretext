@@ -14,8 +14,8 @@ Changelog updates guideline: don't add dev-facing notes, only user-facing ones. 
 - `ENGINE_FOLLOWUPS.md`: open gaps. `PLATFORM_BUGS.md`: browser and OS bugs, read before changing an engine-profile
   workaround or a line-fit tolerance. `TODO.md`: priorities. `DEVELOPMENT.md`: the demo server, engine data, releases.
   `pages/demos/markdown-chat.md`: the chat demo's patterns for app developers, updated with the chat.
-- engineering.md and ui.md, the maintainer's general rules for code and UI (`docs/` in the vibescript repository, to be
-  open-sourced as chenguini), hold here; a pointer such as (engineering.md, Caching) names a section there.
+- engineering.md and ui.md, the maintainer's general rules for code and UI (`docs/` in the chenguini repository, not yet
+  public), hold here; a pointer such as (engineering.md, Caching) names a section there.
 - Keep a doc current in the change that makes it stale.
 
 A text goes through analysis (`src/analysis.ts`: white space, break opportunities from ports of each engine's scan in
