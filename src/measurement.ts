@@ -78,6 +78,16 @@ export type EngineProfile = {
   // from 24px or everywhere fixed adversarial lines at 24-80px but made Firefox prepare new
   // text much slower (RESEARCH.md, Break Opportunities From Engine Data; Decisions Log).
   prefixFitMinWidth: number
+  // Gecko shapes a word once, whole, and never again (gfxTextRun::SetLineBreaks does nothing,
+  // gfxTextRun.cpp:1292-1301), so a line adds up the advances its letters have in that one
+  // shaping wherever it starts. A ligature's whole advance is on its first letter and none on
+  // the rest (GetAdvanceForGlyph, gfxTextRun.cpp:1139-1151), so a line ends inside a ligature
+  // only where the ligature starts the line and doesn't fit. Blink and WebKit shape or measure
+  // a line from its own start, where the letters of a ligature cut in two each have a glyph.
+  // The Gecko profile follows it in the words it fits from prefixes
+  // (countLigaturesOnFirstLetter). The kerning those advances keep at a cut isn't ported
+  // (ENGINE_FOLLOWUPS.md, Emergency breaks inside a word).
+  cutWordKeepsLigatures: boolean
   // WebKit measures a text item together with a directly following U+0020 and
   // subtracts one unshaped space, so the item keeps its kerning with that space
   // wherever the line ends. Gecko shapes words without their spaces.
@@ -371,6 +381,7 @@ export type FontMeasurement = {
   emojiWidth: number // Canvas's width of one glyph of the emoji font, measured with the correction
   hyphenText: string | null // Asked for the first text with a soft hyphen (getHyphenText)
   hanKerning: HanKerningFontData | null | undefined // Read for the first text that may kern
+  ligaturePairs: Map<string, boolean> // Whether two neighbouring graphemes are a ligature, once asked (isLigature)
 }
 let cachedEngineProfile: EngineProfile | null = null
 
@@ -730,6 +741,7 @@ function buildEngineProfile(): EngineProfile {
     lineFitEpsilon: engine === 'webkit' ? 1 / 64 : 0.005,
     cutWordFit: engine === 'blink' ? 'reshaped-lines' : 'segment-prefixes',
     prefixFitMinWidth: engine === 'webkit' ? 0 : 80,
+    cutWordKeepsLigatures: engine === 'gecko',
     measureTextWithFollowingSpace: engine === 'webkit',
     kernsSpacesInScriptRun: engine === 'blink',
     letterSpaceDiscretionaryHyphen: engine !== 'blink',
@@ -890,8 +902,9 @@ export function getSegmentFit(
   withLineStartProhibitions = false,
 ): SegmentFit {
   if (metrics.fit !== null && metrics.fit.mode === mode) return metrics.fit
+  const profile = getEngineProfile()
   const ends = new Int32Array(seg.length)
-  const count = findGraphemeEnds(getEngineProfile().graphemeTable, seg, 0, seg.length, ends)
+  const count = findGraphemeEnds(profile.graphemeTable, seg, 0, seg.length, ends)
   if (count <= 1) return metrics.fit = { mode, advances: null, lineStartExtras: null, lineStartProhibitions: null, entryGeometry: null }
   let prohibitions: Uint8Array | null = null
   if (withLineStartProhibitions) {
@@ -924,8 +937,53 @@ export function getSegmentFit(
     // Past MAX_PREFIX_FIT_GRAPHEMES, prefixes give way to pairs.
     const prefixes = mode === 'segment-prefixes' && count <= MAX_PREFIX_FIT_GRAPHEMES
     advances = measureFitAdvances(seg, ends, count, mode === 'segment-prefixes' && !prefixes ? 'pair-context' : mode, metrics, measurement, emojiCorrection, followingSpaceWidth)
+    if (prefixes && profile.cutWordKeepsLigatures) countLigaturesOnFirstLetter(seg, ends, advances, measurement, emojiCorrection)
   }
   return metrics.fit = { mode, advances, lineStartExtras, lineStartProhibitions: prohibitions, entryGeometry: null }
+}
+
+// Moves the advance of each later letter of a ligature onto the ligature's first letter, in a
+// segment's prefix advances, as Gecko counts it where it cuts a word (EngineProfile's
+// cutWordKeepsLigatures). A prefix that ends inside a ligature has the first letter's glyph
+// alone, so the next letter's advance after that prefix isn't its advance alone, in app units,
+// 1/60 px, which Gecko's Canvas reports whole, and there Canvas is asked whether the two are a
+// ligature (isLigature). Where a line is narrower than the ligature it starts with, Gecko cuts
+// inside it and gives each of its letters an equal share (ComputeLigatureData,
+// gfxTextRun.cpp:238-322); here the first letter keeps the whole advance (ENGINE_FOLLOWUPS.md,
+// Emergency breaks inside a word).
+function countLigaturesOnFirstLetter(seg: string, ends: Int32Array, advances: number[], measurement: FontMeasurement, emojiCorrection: number): void {
+  // Text measured under letter spacing has no optional ligature, and a context that can't
+  // turn them off can't be asked.
+  if (!measurement.state.shapesLetterSpaced || measurement.state.letterSpaced) return
+  // The grapheme the ligature that holds the grapheme before this one starts with, or that grapheme.
+  let first = 0
+  for (let i = 1; i < advances.length; i++) {
+    const start = ends[i - 1]!
+    const alone = getTextWidth(seg.slice(start, ends[i]), measurement, emojiCorrection)
+    if (Math.round((advances[i]! - alone) * 60) !== 0 && isLigature(seg.slice(i === 1 ? 0 : ends[i - 2]!, ends[i]), measurement)) {
+      advances[first] = advances[first]! + advances[i]!
+      advances[i] = 0
+    } else {
+      first = i
+    }
+  }
+}
+
+// Whether two neighbouring graphemes are one of the font's optional ligatures: the pair measures
+// otherwise without them, as the context shapes text under a letter spacing
+// (LETTER_SPACED_SHAPING). Asked of Canvas once per pair and font. A kerned pair, letters that
+// join, a mark on its base and a ligature the font requires measure the same, and aren't one.
+function isLigature(pair: string, measurement: FontMeasurement): boolean {
+  let ligature = measurement.ligaturePairs.get(pair)
+  if (ligature === undefined) {
+    const context = measurement.state.context
+    const width = getSegmentMetrics(pair, measurement).width
+    context.letterSpacing = LETTER_SPACED_SHAPING
+    ligature = context.measureText(pair).width !== width
+    context.letterSpacing = '0px'
+    measurement.ligaturePairs.set(pair, ligature)
+  }
+  return ligature
 }
 
 // Whether a segment's advances add up to its width, within the rounding of Canvas's widths.
@@ -991,7 +1049,7 @@ export function getFontMeasurement(font: string, language: string | null, letter
   let measurement = fonts.get(font)
   if (measurement === undefined) {
     const canvasFont = state.genericFamilies === null ? font : getCanvasFont(font, state.genericFamilies)
-    measurement = { state, canvasFont, metrics: new Map(), followingSpaceMetrics: new Map(), spaceKerning: undefined, emojiCorrection: null, emojiWidth: 0, hyphenText: null, hanKerning: undefined }
+    measurement = { state, canvasFont, metrics: new Map(), followingSpaceMetrics: new Map(), spaceKerning: undefined, emojiCorrection: null, emojiWidth: 0, hyphenText: null, hanKerning: undefined, ligaturePairs: new Map() }
     fonts.set(font, measurement)
   }
   state.context.font = measurement.canvasFont

@@ -2902,6 +2902,7 @@ describe('prepare invariants', () => {
       ['lineFitEpsilon', 0.005, 1 / 64, 0.005],
       ['cutWordFit', 'reshaped-lines', 'segment-prefixes', 'segment-prefixes'],
       ['prefixFitMinWidth', 80, 0, 80],
+      ['cutWordKeepsLigatures', false, false, true],
       ['measureTextWithFollowingSpace', false, true, false],
       ['kernsSpacesInScriptRun', true, false, false],
       ['letterSpaceDiscretionaryHyphen', false, true, true],
@@ -6555,15 +6556,75 @@ test('the Chromium profile cuts a word as lines shaped alone', () => {
       [['To.To.', 40], ['To.To.', 40], ['To.', 20]], true, ['To', 'To.', 'To.T', 'To.To', 'To.To.', 'To.To.T', 'To.To.To', 'To.To.To.', 'To.To.To.T', 'To.To.To.To', 'To.To.To.To.', 'To.To.To.To.T', 'To.To.To.To.To'],
     ],
   ])
-  // WebKit carries the rest of a cut word's width and Gecko adds the advances of the word
-  // shaped whole. Neither is ported: both profiles take every line from the word's prefixes
-  // (ENGINE_FOLLOWUPS.md, Emergency breaks inside a word).
+  // WebKit carries the rest of a cut word's width, and Gecko leaves a pair's kerning where
+  // the word shaped whole has it. Neither is ported: both profiles take the lines of a kerned
+  // word from its prefixes (ENGINE_FOLLOWUPS.md, Emergency breaks inside a word).
   for (const userAgent of [
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Safari/605.1.15',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:156.0) Gecko/20100101 Firefox/156.0',
   ]) {
     expect((rowsOf(userAgent) as unknown[][])[0]!.slice(0, 4))
       .toEqual([[8, 5, 4, 8, 5, 4, 8, 5, 4, 8, 5, 4, 8, 5, 4], null, [['To.To.T', 42], ['o.To.To.', 43]], true])
+  }
+})
+
+test('the Firefox profile counts a ligature whole on its first letter where it cuts a word', () => {
+  // The engine profile is computed once per process, so each engine runs in a child
+  // process. Every letter is 8px. `fi` is a ligature, 3px narrower than its letters, which
+  // the context turns off under any letterSpacing but 0, as Firefox's does. `AV` kern and
+  // `xy` join, as two Arabic letters do, 2px narrower under every letterSpacing. Each word is
+  // 80px or wider, so the Gecko profile fits it from its prefixes.
+  const layoutUrl = new URL('./layout.ts', import.meta.url).href
+  const rowsOf = (userAgent: string): unknown => JSON.parse(runInChild(`
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { userAgent: ${JSON.stringify(userAgent)} } })
+    const asked = []
+    class Context {
+      font = ''
+      letterSpacing = '0px'
+      measureText(text) {
+        asked.push((this.letterSpacing === '0px' ? '' : 'spaced:') + text)
+        const ligatures = this.letterSpacing === '0px' ? text.split('fi').length - 1 : 0
+        return { width: [...text].length * 8 - 3 * ligatures - 2 * (text.split(/AV|xy/).length - 1) }
+      }
+    }
+    globalThis.OffscreenCanvas = class { getContext() { return new Context() } }
+    const { prepareWithSegments, layoutWithLines } = await import(${JSON.stringify(layoutUrl)})
+    const font = '16px Test'
+    const row = (text, width, letterSpacing = 0) => {
+      asked.length = 0
+      const prepared = prepareWithSegments(text, font, { letterSpacing })
+      return [prepared.breakableFitAdvances[0], layoutWithLines(prepared, width, 20).lines.map(line => line.text), letterSpacing === 0 ? asked.filter(text => text.startsWith('spaced:')) : []]
+    }
+    console.log(JSON.stringify([row('aaaafiaaaaaa', 44), row('bbbbbbbbfifi', 44), row('aaaafiaaaaaa', 44, 1), row('aaaaxyaaaaaa', 44), row('ccfiaaaaaaaa', 10), row('AVAVAVAVAVAV', 21)]))
+  `))
+  // Each row: the advances a cut falls by, the lines, and what the profile asked Canvas under
+  // the letterSpacing that turns ligatures off, for text that has no letter spacing.
+  expect(rowsOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:156.0) Gecko/20100101 Firefox/156.0')).toEqual([
+    // The ligature counts whole on its first letter, so no line ends inside it: `aaaaf` alone
+    // would fit 44px. One Canvas question, the pair without its ligatures.
+    [[8, 8, 8, 8, 13, 0, 8, 8, 8, 8, 8, 8], ['aaaa', 'fiaaa', 'aaa'], ['spaced:fi']],
+    // Asked once per pair and font.
+    [[8, 8, 8, 8, 8, 8, 8, 8, 13, 0, 13, 0], ['bbbbb', 'bbbfi', 'fi'], []],
+    // Letter-spaced text has no ligature to keep whole.
+    [[8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8], ['aaaa', 'fiaa', 'aaaa'], []],
+    // Letters that join are no ligature the context can turn off, and stay as the prefixes have them.
+    [[8, 8, 8, 8, 8, 6, 8, 8, 8, 8, 8, 8], ['aaaax', 'yaaaa', 'aa'], ['spaced:xy']],
+    // A line narrower than the ligature it starts with takes the first letter, as every line
+    // takes one, and the rest of the ligature has no width left (ENGINE_FOLLOWUPS.md,
+    // Emergency breaks inside a word).
+    [[8, 8, 13, 0, 8, 8, 8, 8, 8, 8, 8, 8], ['c', 'c', 'f', 'ia', 'a', 'a', 'a', 'a', 'a', 'a', 'a'], []],
+    // A kerned pair is asked about too and stays as the prefixes have it: the part of the
+    // kerning Firefox leaves on the letter before a cut isn't ported, so `AVA`, 22px as a
+    // prefix, doesn't fit 21px.
+    [[8, 6, 8, 6, 8, 6, 8, 6, 8, 6, 8, 6], ['AV', 'AV', 'AV', 'AV', 'AV', 'AV'], ['spaced:AV']],
+  ])
+  // Blink and WebKit shape or measure a line again from its start, so their profiles end a
+  // line inside the ligature and ask nothing.
+  for (const userAgent of [
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Safari/605.1.15',
+  ]) {
+    expect((rowsOf(userAgent) as unknown[][])[0]).toEqual([[8, 8, 8, 8, 8, 5, 8, 8, 8, 8, 8, 8], ['aaaaf', 'iaaaa', 'aa'], []])
   }
 })
 

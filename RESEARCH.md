@@ -779,10 +779,30 @@ alone is 85.03px, and `To.` five times at 54px is 7, 7 and 1, where the profile 
 counts the glyph's whole advance on that letter and nothing on the rest (Engine Facts, Firefox, Ligatures), so it ends a
 line inside a ligature only where the ligature starts the line and doesn't fit: the real-usage sample's
 `արդյունավետությունը։` in 16px `Arial, sans-serif` at 151px, whose fallback font draws `ու` as one glyph, ends its line
-before the ligature, 140.95px wide, in Firefox, where the prefixes keep `ո` at 150.5px (Firefox 156.0.1, 2026-10-04). A
-port of both was built and left out, the kerning for the premise it needs: Canvas totals at the text's size don't show
-which letter of a pair holds its kerning (Dead Ends, Fitting, Cuts And Fast Paths; Decisions Log, 2026-10-05).
-`getTextClusters()` in Firefox would give every advance inside the word in one call.
+before the ligature, 140.95px wide, in Firefox, where the prefixes keep `ո` at 150.5px (Firefox 156.0.1, 2026-10-04).
+
+Since #TBD the Gecko profile counts a ligature as Firefox does, in the words it fits from prefixes
+(`countLigaturesOnFirstLetter()` in `src/measurement.ts`). Where a letter's advance after its prefix isn't its advance
+alone, in app units, Canvas is asked about the two letters, once per pair and font: whether the pair measures otherwise
+under the letter spacing that turns optional ligatures off (Measurement Model). If it does, the two are a ligature; a
+kerned pair and two joined letters measure the same. A ligature's later letters then give their advances to its first,
+and the walkers need nothing more: a letter with no advance fits wherever the letter before it does, so a line ends
+inside the ligature only where the ligature starts the line and doesn't fit. Letter-spaced text has no optional ligature
+and is asked nothing. Against the prefixes alone in Firefox 156.0.1 (2026-10-05), 6 of 44,235 predictions differ, 3 of
+them in a line's width alone: 2 accepted cases pass, the Armenian word and `x ffiffiffiffiffiffi y` in 24px Hoefler Text
+at 15px, so the sample's failing draws inside the claims go from 3 to 2, and 1 case fails anew, the same Hoefler text in
+a 1px box, 20 lines in Firefox and 14 in the profile, which doesn't give the letters of a ligature that starts a line it
+doesn't fit the equal shares Firefox gives them (`ComputeLigatureData`, `gfxTextRun.cpp:238-322`). The letters measured
+alone and the question cost 3.1% more `measureText` calls and 1.0% more submitted units on the sample, and 0.7% and 0.3%
+on the books; a pair is asked once per font, so text in a font seen before costs less. Of the 405 ligatures Firefox drew
+among 42,680 font and two-letter combinations probed, the question found 387, missed the 18 that are as wide as their
+letters, as Helvetica Neue's `fi`, and named no pair that isn't one (Firefox 156.0.1, 2026-10-04). ENGINE_FOLLOWUPS.md,
+Emergency breaks inside a word, has what the rule leaves.
+
+The kerning at a cut is not ported. Canvas totals at the text's size don't show which letter of a pair holds its
+kerning, and a build on a premise in its place, half on the letter before the cut in every font, was left out (Dead
+Ends, Fitting, Cuts And Fast Paths; Decisions Log, 2026-10-05). `getTextClusters()` in Firefox would give every advance
+inside the word in one call, ligatures and kerning alike.
 
 Chrome reads each offset's position from the text shaped once, whole, takes the last offset within the width and one
 layout unit, and shapes the line's start and end again wherever HarfBuzz marks the cut unsafe, which it does between two
@@ -2230,8 +2250,8 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   11.6% faster. So a verdict on `cjk stats` can come from the bundle alone. About `worst: long-breakable-runs layout`,
   the other row that runs the counter's grapheme loop, these runs say nothing either way: one build read it 7.1% slower
   and, timed again, 0.2% faster, its control between 10.2% faster and 13.1% slower (Firefox 156.0.1, three background
-  sessions each, 2026-10-04, so hypotheses). The change as it landed leaves the Gecko profile's fit as it was, and was
-  not timed apart in Firefox before its foreground bench.
+  sessions each, 2026-10-04, so hypotheses). The change as it landed keeps that build's ligature rule in the Gecko
+  profile and not its kerning, and was not timed apart in Firefox before its foreground bench.
 - **Constants written into the built code as numbers** took the names out of that loop, and were declined (#406, closed
   unmerged; Decisions Log, 2026-10-03). With the segment kinds and flag bits as const enums, a bundle holds each use as
   its number, and under two namings the row read alike, -1.1% and -0.3%, where main's two read 16% apart (three sessions
@@ -2665,7 +2685,8 @@ repin` shows what), and a fact read in source needs reading again.
   Helvetica Neue go through HarfBuzz and round each glyph. (Firefox 156, 2026-09-16 to 09-20.)
 - **Ligatures.** A range edge inside a ligature gets its advance shared by started clusters (`ComputeLigatureData`,
   `gfxTextRun.cpp:238-322`), but the break scan puts it all on the first character (`:989, 1139-1149`), so a break
-  between lam and alef never fits more text, which the Gecko profile's prefixes don't follow (Break Opportunities From
+  between lam and alef never fits more text. The Gecko profile follows that for a font's optional ligatures in words of
+  80px or wider (#TBD) and not for one the font requires, as lam-alef, which its prefixes cut (Break Opportunities From
   Engine Data). Real text breaks inside ligatures under break-all, in long words, at soft
   hyphens and in URLs (1,432 cases in Helvetica, Hoefler Text, Seravek, Lucida Grande and the Latin of PingFang SC and
   Hiragino Sans). Unfiled: `ComputeLigatureData` divides a signed advance by an unsigned count (`:249-289`), so a span
@@ -3122,32 +3143,27 @@ below 256 px, Canvas totals are exact (Engine Facts, Chrome).
   carried. The line's first grapheme and its first two, measured together, matched webkit-host on 571,857 probe
   layouts in an offline count that cost 44-62% more calls; no build of it was made. Reopens with a cursor that carries
   a line's start width (TODO.md, the API discussion) together with that line start.
-- **Firefox's rule for a cut word, from two Canvas questions and a premise** (#TBD, 2026-10-04, two builds of the Gecko
-  profile, each scored once in Firefox 156.0.1 on 44,205 pinned cases). Firefox adds up the advances a word's letters
-  have in the word shaped whole, wherever a line starts (Break Opportunities From Engine Data). The builds turned a
-  segment's prefix advances into those. Where a letter's advance after its prefix wasn't its advance alone, they asked
-  Canvas, once per pair and font, whether the pair with `fontKerning` off is as wide as its two letters, which is
-  kerning, and if not, whether the pair measures otherwise under the letter spacing that turns optional ligatures off
-  (Measurement Model), which is a ligature. The first build put a ligature's whole advance on its first letter: 6
-  predictions differed, 2 accepted cases passed, the sample's Armenian word and `ffi` in 24px Hoefler Text at 15px, and
-  1 failed anew, the same Hoefler text in a 1px box, 20 lines in Firefox and 14 in the build, which left out the equal
-  shares Firefox gives the letters of a ligature that starts a line it doesn't fit (`ComputeLigatureData`,
-  `gfxTextRun.cpp:238-322`). The letters measured alone and the questions cost 5.8% more `measureText` calls and 1.7%
-  more submitted units on the sample, and 0.9% and 0.4% on the books. The second build added kerning. Canvas totals hold
-  both halves of a pair's kerning wherever both letters are measured, so at the text's size they don't show which letter
-  holds it, and the build took a premise: the letter before a cut keeps half, in every font. That is exact, to an app
-  unit, for a font that splits kerning, and #421's three texts laid out as Firefox does, each line within 0.01px. A font
-  that kerns through GPOS, as most web fonts do, keeps half of the prefixes' error on each line, in the same direction,
-  and a paragraph whose errors cancelled can gain or lose a line: `AV` twelve times in 16px Arial at 76.8px is 8, 8, 7
-  and 1 letters in Firefox, 7, 8, 8 and 1 from the prefixes and 8, 8 and 8 with half, whose last eight come to 76.46px
-  for Firefox's 77.05px. With both rules 107 predictions differed, 4 more accepted cases passed, all wrong line counts
-  before, and none more was lost. On 27,884 probe layouts of words cut between letters in 55 font rows, 23 that split
-  kerning and 26 that don't, the prefixes were wrong in 1,097: half fixed 490 of them and lost 8, all 8 in fonts that
-  split kerning, and in the 26 GPOS rows lost none of 12,876, turned 16 from the right count with a letter on another
-  line into a wrong count, 2 the other way, and 48 from a wrong count into Firefox's lines; all of the kerning on the
-  letter before fixed 723 and lost 237; each font's own placement fixed 753 and lost 10. On a second probe of 10,011
-  layouts, of made-up paragraphs, real-looking long words and a sweep of 70 widths, half turned 9 from the right count
-  with a letter on another line into a wrong count, 8 of them `AV` runs in Arial, Roboto and Inter and 1 the placeholder
+- **Half of a pair's kerning on the letter before a cut, in the Gecko profile** (#TBD, 2026-10-04, one build of the
+  profile, scored once in Firefox 156.0.1 on 44,205 pinned cases). Firefox adds up the advances a word's letters have in
+  the word shaped whole, wherever a line starts, so the letter before a cut keeps its part of the kerning with the
+  letter after it, which a prefix measured alone doesn't have (Break Opportunities From Engine Data). For a letter whose
+  advance after its prefix isn't its advance alone, the build asked Canvas, before the ligature rule's question, whether
+  the pair with `fontKerning` off is as wide as its two letters: that is kerning. Canvas totals hold both halves of a
+  pair's kerning wherever both letters are measured, so at the text's size they don't show which letter holds it, and
+  the build took a premise: the letter before a cut keeps half, in every font. That is exact, to an app unit, for a font
+  that splits kerning, and #421's three texts laid out as Firefox does, each line within 0.01px. A font that kerns
+  through GPOS, as most web fonts do, keeps half of the prefixes' error on each line, in the same direction, and a
+  paragraph whose errors cancelled can gain or lose a line: `AV` twelve times in 16px Arial at 76.8px is 8, 8, 7 and 1
+  letters in Firefox, 7, 8, 8 and 1 from the prefixes and 8, 8 and 8 with half, whose last eight come to 76.46px for
+  Firefox's 77.05px. With it and the ligature rule 107 predictions differed from the prefixes alone, 6 of them the
+  ligature rule's, and 4 more accepted cases passed, all wrong line counts before, and none more was lost. On 27,884
+  probe layouts of words cut between letters in 55 font rows, 23 that split kerning and 26 that don't, the prefixes were
+  wrong in 1,097: half fixed 490 of them and lost 8, all 8 in fonts that split kerning, and in the 26 GPOS rows lost
+  none of 12,876, turned 16 from the right count with a letter on another line into a wrong count, 2 the other way, and
+  48 from a wrong count into Firefox's lines; all of the kerning on the letter before fixed 723 and lost 237; each
+  font's own placement fixed 753 and lost 10. On a second probe of 10,011 layouts, of made-up paragraphs, real-looking
+  long words and a sweep of 70 widths, half turned 9 from the right count with a letter on another line into a wrong
+  count, 8 of them `AV` runs in Arial, Roboto and Inter and 1 the placeholder
   `{MULTI_GROUP_TAB_COUNT,plural,=1{Tab}other{Tabs}}` in 15px Inter at 67.6px (7 lines in Firefox, 8 with half), and 21
   from a wrong count into the right one, and failed none that the prefixes passed (the probes' strings were chosen to be
   cut inside kerned words, so their rates aren't real text's). In a joined script the kerning question reads a kerning
@@ -3859,30 +3875,35 @@ decisions for the maintainer.
   numbers only with `verbatimModuleSyntax` off, so the build would take a setting the type check doesn't, with a test
   to guard it. The 32 lines it saved in `src/` didn't outweigh those. Reopens if more than one engine shows the gains,
   or with a form that gives numbers in the built code and needs no build setting.
-- **2026-10-05: of the three engines' rules for a word cut between letters, Chrome's is ported, on a premise, and
-  Firefox's and Safari's are not** (#TBD). Chrome reads positions from the word shaped whole and shapes a line's ends
-  again where the cut is unsafe; which glyph holds a pair's kerning, HarfBuzz's safe-to-break flags and the device pixel
-  ratio decide the rest, and Canvas gives none of the three to `prepare()`, so the Blink profile takes the longest
-  stretch of letters that fits shaped alone, in a word of 80px or wider (Break Opportunities From Engine Data has the
-  rule, the numbers and the gaps). Three things in it are choices. The 80px floor is the Gecko profile's (2026-09-27),
-  kept for the same reason. A word as wide as its letters alone is taken to have nothing shaped across them, for speed,
-  which leaves such a word fit as it was before. And pairs stand for the word wherever they add up to it, with its
-  prefixes measured only where they don't: pairs are shared by every word of a font and prefixes by none, and prefixes
-  alone cost more than twice the `measureText` calls on new long words, links and keep-all Japanese (Dead Ends, Fitting,
-  Cuts And Fast Paths). The price is 7.2% more calls on the real-usage sample for 7 of the 29 draws Chrome failed, and
-  no recorded case lost. Firefox's rule was built, in two parts, and left out (Dead Ends, Fitting, Cuts And Fast Paths,
-  has the builds and their numbers). Its exact rule needs which letter of a pair holds the kerning, which Canvas doesn't
-  give at the text's size; the build's premise in its place, half on the letter before the cut in every font, is exact
-  for the fonts that split kerning and is one that fonts kerning through GPOS break, which most web fonts are, and a
-  premise real fonts break isn't taken on judgement (Part 1, The Correctness Stance). It fixed #421's three Firefox
-  texts and 4 accepted cases, none of them a real-usage draw. The ligature rule built with it takes no such premise: it
-  fixed 1 of the 3 real-usage draws Firefox fails, for 5.8% more calls on the sample and one case lost in a 1px box. It
-  was left out with the kerning rule and was never decided on its own. Safari's rule needs the width left
-  of a cut word carried from line to line, a third field of the cursor and so a change of the public API, and its
-  partial builds lost more than they fixed. So the Gecko and WebKit profiles keep the prefixes, with the gaps
+- **2026-10-05: of the three engines' rules for a word cut between letters, Chrome's is ported, on a premise, and of
+  Firefox's the ligature rule; Firefox's kerning at a cut and Safari's carried width are not** (#TBD). Chrome reads
+  positions from the word shaped whole and shapes a line's ends again where the cut is unsafe; which glyph holds a
+  pair's kerning, HarfBuzz's safe-to-break flags and the device pixel ratio decide the rest, and Canvas gives none of
+  the three to `prepare()`, so the Blink profile takes the longest stretch of letters that fits shaped alone, in a word
+  of 80px or wider (Break Opportunities From Engine Data has the rule, the numbers and the gaps). Three things in it are
+  choices. The 80px floor is the Gecko profile's (2026-09-27), kept for the same reason. A word as wide as its letters
+  alone is taken to have nothing shaped across them, for speed, which leaves such a word fit as it was before. And pairs
+  stand for the word wherever they add up to it, with its prefixes measured only where they don't: pairs are shared by
+  every word of a font and prefixes by none, and prefixes alone cost more than twice the `measureText` calls on new long
+  words, links and keep-all Japanese (Dead Ends, Fitting, Cuts And Fast Paths). The price is 7.2% more calls on the
+  real-usage sample for 7 of the 29 draws Chrome failed, and no recorded case lost. Firefox adds up the advances a
+  word's letters have in the word shaped whole, and two parts of that were built. The ligature rule is ported: a
+  ligature counts whole on its first letter (`GetAdvanceForGlyph`, `gfxTextRun.cpp:1139-1151`), found from one Canvas
+  question per pair and font, which takes no premise about the font. It fixes 1 of the 3 real-usage draws Firefox
+  failed, for 3.1% more calls on the sample, and loses one case, in a 1px box narrower than the ligature that starts its
+  line, where Firefox gives each letter an equal share of the advance; the shares aren't ported, since they show only in
+  a box narrower than one ligature. The kerning is not ported, the maintainer's decision. The exact rule needs which
+  letter of a pair holds the kerning, which Canvas doesn't give at the text's size; the build's premise in its place,
+  half on the letter before the cut in every font, is exact for the fonts that split kerning and is one that fonts
+  kerning through GPOS break, which most web fonts are, and a premise real fonts break isn't taken (Part 1, The
+  Correctness Stance). It fixed #421's three Firefox texts and 4 accepted cases, none of them a real-usage draw, and on
+  a probe of 10,011 layouts turned 9 right line counts into wrong ones and 21 the other way (Dead Ends, Fitting, Cuts
+  And Fast Paths, has the build and its numbers). Safari's rule needs the width left of a cut word carried from line to
+  line, a third field of the cursor and so a change of the public API, and its partial builds lost more than they fixed.
+  So the Gecko profile keeps the prefixes' kerning and the WebKit profile the prefixes, with the gaps
   ENGINE_FOLLOWUPS.md names under Emergency breaks inside a word. Chrome's fit gives way to `getTextClusters()` in
-  Chrome, and its floor to cheaper questions or a real case under 80px. Firefox's reopens with `getTextClusters()` in
-  Firefox or with a probe of each font's kerning placement, which Firefox's Canvas shows at a much larger size. The
-  ligature rule alone is a trade still to be put to the maintainer, with those numbers and with the equal shares its
-  build left out, which are the case it lost. Safari's reopens with a cursor that carries a line's start width (TODO.md,
-  the API discussion).
+  Chrome, and its floor to cheaper questions or a real case under 80px. Firefox's kerning reopens with
+  `getTextClusters()` in Firefox, which would take the place of the ligature questions too, or with a probe of each
+  font's kerning placement, which Firefox's Canvas shows at a much larger size. The ligature's equal shares reopen with
+  a real layout cut inside a ligature that starts its line. Safari's reopens with a cursor that carries a line's start
+  width (TODO.md, the API discussion).
