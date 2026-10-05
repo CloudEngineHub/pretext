@@ -8,7 +8,7 @@
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { serveJob } from '../run.ts'
+import { serveJob, windowTitle } from '../run.ts'
 import { BROWSER, type BrowserKind } from '../types.ts'
 import { benchBundle, buildName, srcOf } from './lib.ts'
 import type { Doc, DocResult, OpSpec } from './page.ts'
@@ -129,7 +129,8 @@ function power(): { source: string; percent: number } {
 }
 const load = (): string => execFileSync('sysctl', ['-n', 'vm.loadavg'], { encoding: 'utf8' }).trim()
 
-// One session in one browser: every document, each a fresh page, each library's bundle with a comment of its own.
+// One session in one browser: every document, each a fresh page, each library's bundle with a comment of its own. A
+// background window's title says so (windowTitle, run.ts); a foreground one keeps the title its floors were fitted with.
 async function session(browser: BrowserKind, docs: Planned[], bundles: Record<string, string>, foreground: boolean): Promise<Map<string, DocResult>> {
   const id = crypto.randomUUID()
   const results = new Map<string, DocResult>()
@@ -143,7 +144,7 @@ async function session(browser: BrowserKind, docs: Planned[], bundles: Record<st
     if (url.searchParams.get('job') !== id && url.pathname !== '/favicon.ico') return new Response('Inactive job', { status: 409 })
     const d = docs[Number(url.searchParams.get('n'))]!
     switch (url.pathname) {
-      case '/doc': return new Response(`<!doctype html><html lang="${d.lang}"><head><meta charset="utf-8"><title>pretext bench</title></head><body><script type="module" src="/page.js?job=${id}&n=0"></script></body></html>`, { headers: { ...isolated, 'content-type': 'text/html; charset=utf-8' } })
+      case '/doc': return new Response(`<!doctype html><html lang="${d.lang}"><head><meta charset="utf-8"><title>${foreground ? 'pretext bench' : windowTitle('pretext bench', browser)}</title></head><body><script type="module" src="/page.js?job=${id}&n=0"></script></body></html>`, { headers: { ...isolated, 'content-type': 'text/html; charset=utf-8' } })
       case '/page.js': return new Response(script, { headers: { ...isolated, 'content-type': 'text/javascript; charset=utf-8' } })
       case '/api/doc': {
         const names = d.library === undefined ? LABELS : [d.library]

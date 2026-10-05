@@ -334,7 +334,9 @@ async function openApp(app: string, executable: string, marker: string, profile:
 
 // Chrome activates itself when it shows a window the usual way, so it starts with none, and the job's one window is
 // opened in the background through the DevTools protocol (Target.createTarget { newWindow, background }). Its page zoom
-// is the profile's default zoom level, the power of 1.2 that gives the factor.
+// is the profile's default zoom level, the power of 1.2 that gives the factor. A background window is the smallest Chrome
+// gives, to stay out of the user's way; the bench's foreground window keeps the size its floors were fitted at. Firefox's
+// window keeps its size, since Firefox hides the page of a covered window (harness/README.md, Browsers and pins).
 async function launchChrome(url: string, profile: string, foreground: boolean): Promise<Launched> {
   const app = appPath('chrome')
   mkdirSync(join(profile, 'Default'), { recursive: true })
@@ -345,7 +347,7 @@ async function launchChrome(url: string, profile: string, foreground: boolean): 
   const launched = await openApp(app, `${app}/Contents/MacOS/Google Chrome`, `--user-data-dir=${profile}`, profile, [
     `--user-data-dir=${profile}`, '--disable-updater-scheduler', '--no-first-run', '--no-default-browser-check', '--disable-sync',
     '--disable-extensions', '--disable-component-update', '--disable-background-timer-throttling',
-    '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding', '--window-size=1200,900',
+    '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding', `--window-size=${foreground ? '1200,900' : '500,375'}`,
     '--no-startup-window', '--remote-debugging-port=0', ...(setup.scale === null ? [] : [`--force-device-scale-factor=${setup.scale}`]),
     '-AppleLanguages', '(en-US)',
   ], foreground)
