@@ -333,12 +333,13 @@ first document until 15 s.
 
 Pinned Chrome and Firefox open each job's window on the user's screen, behind the others. Its page is blank and dark
 (`#111` on html and body; a case's paragraph is added, read and removed in one call, so none is ever painted), and its
-title reads "This tab doesn't need focus - pretext harness", or "... - pretext bench" under `bench --background`: such
-a job runs on fetches alone. Chrome's window is the smallest Chrome gives, 500x375. With all three, every case recorded
-the same lines, widths and height in both orders, and was predicted the same, as with main's white page, bare title and
-1200x900 window: Chrome's 43,101 and Firefox's 44,205 (2026-10-05, Chrome 154.0.8037.57, Firefox 156.0.1). The one
-Chrome prediction listed as varying between runs moved in check's order in 11 of 100 runs with them and in 14 of 100
-without, and in reverse order in none of either; no other prediction moved in any. None of the three reaches a case:
+title reads "This tab doesn't need focus - pretext harness", or "... - pretext bench" under `bench --background`: such a
+job runs on fetches alone. The bench's own document takes only the title and keeps its white page. Chrome's window is
+the smallest Chrome gives, 500x375. With all three, every case recorded the same lines, widths and height in both
+orders, and was predicted the same, as with main's white page, bare title and 1200x900 window: Chrome's 43,101 and
+Firefox's 44,205 (2026-10-05, Chrome 154.0.8037.57, Firefox 156.0.1). The one Chrome prediction listed as varying
+between runs moved in check's order in 11 of 100 runs with them and in 14 of 100 without, and in reverse order in none
+of either; no other prediction moved in any. None of the three reaches a case:
 
 - **The colour** replaces the white that html and body already had, and a background isn't inherited, so each case's
   computed style is what it was. Chrome's rule that reads a background (What a case is and when it passes) reads the
@@ -353,7 +354,8 @@ The other windows are as they were. The bench's foreground runs keep the bare ti
 floors were fitted with, until a foreground run shows another form within them. Firefox's window keeps its size:
 Firefox hides the page of a window covered whole, as a small one is more easily, and three documents of one background
 bench at 500x375 ran hidden, two of them 1.7 and 3 times slower. Installed Safari's page wasn't run, and webkit-host's
-window is transparent. During its hold a Firefox window shows Firefox's own blank page.
+window is transparent. During its hold a Firefox window shows Firefox's own blank page. None of this was run with
+macOS set to always show scroll bars, where a case that overflows only the small window would newly get one.
 
 ## Other ratios and phones
 
