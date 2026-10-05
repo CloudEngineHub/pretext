@@ -1205,7 +1205,7 @@ build before the change. The PRs named, and their commits' messages, have the fu
 
 Terms: an *item* is one entry of the list `prepareRichInline()` takes, a styled run of text or a box; the *paragraph* is
 all the items of one call; a *segment* is the unit the line walkers step over, a stretch of text between two places a
-line may end; the *handle* is what preparation gives the walkers (`PreparedLineBreakData`).
+line may end; the *handle* is what preparation gives the walkers (`PreparedLineData`).
 
 `prepareRichInline()` joins the items' texts, an atomic item (`break: 'never'`) or a box as one U+FFFC, and analyzes
 that text once, as `prepare()` analyzes a text, with a segment starting wherever an item does (`ParagraphItems` and
