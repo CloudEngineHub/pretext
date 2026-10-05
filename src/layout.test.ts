@@ -5846,6 +5846,9 @@ describe('layout invariants', () => {
       // The halted mark takes the trim of its own item's font: 10px at 20px.
       expect(richLines([{ text: '中中」', font: '20px Halt Test Sans' }, { text: '。中中' }], 1e5)).toEqual(['中中」。中中:98'])
       expect(richLines([{ text: '中中」' }, { text: '「中中', font: '20px Halt Test Sans' }], 1e5)).toEqual(['中中」「中中:98'])
+      // Also a trim its item's own text never asked for, a dot's, which the pair is the first to
+      // measure, after the item after it set the context to another font: 12px at 24px.
+      expect(richLines([{ text: '中中。', font: '24px Halt Test Sans' }, { text: '」中' }], 1e5)).toEqual(['中中。」中:92'])
       // No pair crosses an atomic item, a box or a collapsed space.
       expect(measureRichInlineStats(prepareRichInline([{ text: '中」', font }, { width: 0 }, { text: '。中', font }]), 1e5).maxLineWidth).toBe(64)
       expect(measureRichInlineStats(prepareRichInline([{ text: '中」', font }, { text: '。', font, break: 'never' }, { text: '中', font }]), 1e5).maxLineWidth).toBe(64)

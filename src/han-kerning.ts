@@ -197,13 +197,13 @@ export function getPairTypes(text: string, index: number): number {
 // after its last there, typing both by the run's own font (HanKerning::AppendFontFeatures,
 // han_kerning.cc:262-320, over the text HarfBuzzShaper holds, harfbuzz_shaper.cc:895), so `font`
 // is the font of the item that holds the halted character, measured as that item's text is
-// (`letterSpaced`).
+// (`letterSpaced`). Preparing that item's text, which holds the character, read the font's data,
+// so the context is set to the font only to measure a character's first halt in it.
 export function getHaltAcrossRuns(types: number, halted: number, side: number, font: string, letterSpaced: boolean, language: string | null): number {
   if (!maybeHanKerns(halted)) return 0
-  const measurement = getFontMeasurement(font, language, letterSpaced)
-  const data = getFontData(measurement)
+  const data = getFontData(getFontMeasurement(font, language, letterSpaced, false))
   if (data === null || haltedSide(getFontCharType(data, types >> 4), getFontCharType(data, types & 15)) !== side) return 0
-  return getTrim(data, halted, measurement)
+  return data.trims.get(halted) ?? getTrim(data, halted, getFontMeasurement(font, language, letterSpaced))
 }
 
 export type HanKerningTrims = {
