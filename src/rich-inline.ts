@@ -21,7 +21,7 @@ import {
   type WhiteSpaceMode,
 } from './analysis.js'
 import { getSegmentEntryWidth, type SegmentEntryGeometry } from './entry-geometry.js'
-import { buildLineTextFromRange, getGraphemeEnds, type PreparedSegments } from './line-text.js'
+import { buildLineTextFromRange, buildRangeText, getGraphemeEnds, type PreparedSegments } from './line-text.js'
 import {
   getItemTabAdvance,
   normalizeMaxWidth,
@@ -1034,7 +1034,8 @@ export function materializeRichInlineLineRange(
     else if (endSegmentIndex > startSegmentIndex) sourceEnd = sourceEnds[endSegmentIndex - 1]!
     fragments.push({
       itemIndex: fragment.itemIndex,
-      text: buildLineTextFromRange(data, startSegmentIndex, startGraphemeIndex, endSegmentIndex, endGraphemeIndex, endsLine),
+      text: endsLine ? buildLineTextFromRange(data, startSegmentIndex, startGraphemeIndex, endSegmentIndex, endGraphemeIndex)
+        : buildRangeText(data, startSegmentIndex, startGraphemeIndex, endSegmentIndex, endGraphemeIndex),
       gapBefore: fragment.gapBefore,
       gapItemIndex: fragment.gapItemIndex,
       occupiedWidth: fragment.occupiedWidth,

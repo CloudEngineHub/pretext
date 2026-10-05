@@ -32,16 +32,14 @@ function getGraphemeStart(prepared: PreparedSegments, segmentIndex: number, grap
   return graphemeIndex === 0 ? 0 : getGraphemeEnds(prepared, segmentIndex)[graphemeIndex - 1]!
 }
 
-// The text of a range of `prepared`'s segments: a line's, with a hyphen where it ends at a soft
-// hyphen, whose width counted it, or with `endsLine` false that of a rich-inline fragment its line
-// goes on after.
-export function buildLineTextFromRange(
+// The text of a range of `prepared`'s segments, with no hyphen: that of a rich-inline fragment its
+// line goes on after.
+export function buildRangeText(
   prepared: PreparedSegments,
   startSegmentIndex: number,
   startGraphemeIndex: number,
   endSegmentIndex: number,
   endGraphemeIndex: number,
-  endsLine = true,
 ): string {
   const { segmentFlags } = prepared
   // A range kept from a longer text, such as one prepared again since, can end
@@ -71,5 +69,17 @@ export function buildLineTextFromRange(
     )
   }
 
-  return endsLine && isDiscretionaryLineEnd(segmentFlags, endSegmentIndex, endGraphemeIndex) ? text + '-' : text
+  return text
+}
+
+// A line's text: its range's, with a hyphen where it ends at a soft hyphen, whose width counted it.
+export function buildLineTextFromRange(
+  prepared: PreparedSegments,
+  startSegmentIndex: number,
+  startGraphemeIndex: number,
+  endSegmentIndex: number,
+  endGraphemeIndex: number,
+): string {
+  const text = buildRangeText(prepared, startSegmentIndex, startGraphemeIndex, endSegmentIndex, endGraphemeIndex)
+  return isDiscretionaryLineEnd(prepared.segmentFlags, endSegmentIndex, endGraphemeIndex) ? text + '-' : text
 }
