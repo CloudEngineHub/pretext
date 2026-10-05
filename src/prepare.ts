@@ -736,7 +736,10 @@ export function measureAnalysis(
 // marks U+3000 as a space glyph, like SPACE (SetupClusterBoundaries, gfxFont.cpp:749-750), and
 // BreakAndMeasureText fits a line without its trailing space glyphs (gfxTextRun.cpp:1152-1160,
 // 1175), so Firefox hangs the run too. `trims` holds segments [from, to) of the analysis, a
-// rich-inline item's in its paragraph's, from index 0.
+// rich-inline item's in its paragraph's, from index 0. A run that ends an item hangs whatever
+// the next item starts with, as the engines hang it wherever a line ends; a text's run before
+// a ZWSP, a soft hyphen or a character no line starts with doesn't yet (ENGINE_FOLLOWUPS.md,
+// Line edges).
 function addIdeographicSpaceHangs(
   trims: number[] | null,
   analysis: TextAnalysis,
@@ -750,7 +753,7 @@ function addIdeographicSpaceHangs(
   for (let i = from; i < to; i++) {
     const end = i + 1 < flags.length ? starts[i + 1]! : normalized.length
     if ((flags[i]! & KIND_BITS) !== TEXT || normalized.charCodeAt(end - 1) !== 0x3000) continue
-    if (i + 1 < flags.length) {
+    if (i + 1 < to) {
       const next = flags[i + 1]! & KIND_BITS
       if (next !== HARD_BREAK && next !== SPACE && !(next === TEXT && (flags[i + 1]! & UNBROKEN) === 0)) continue
     }

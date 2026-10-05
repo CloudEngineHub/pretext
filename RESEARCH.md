@@ -1230,7 +1230,10 @@ WebKit's measuring, and the named gap of the section's first paragraph in the ot
 the paragraph's text whatever items they are in come from the paragraph's analysis: the mark before and after a shaped
 run that decide a fullwidth mark's halt (`HanKerning::AppendFontFeatures`, `han_kerning.cc:266-273`, `288-294`), so a
 pair of marks an item start splits halts as in one text, each mark by its own item's font, with no code for it in
-`src/rich-inline.ts`; and a run of U+3000 that ends an item hangs or not by what follows it in the paragraph.
+`src/rich-inline.ts`; and a run of U+3000 inside an item hangs or not by what follows it in the paragraph. A run that
+ends an item hangs whatever the next item starts with, as Chrome and Firefox hang it wherever a line ends: a text's run
+hangs only before a break its scan gives, a narrower rule that a paragraph would lose lines by, since an item's last
+run hung before this design (`addIdeographicSpaceHangs()`; ENGINE_FOLLOWUPS.md, Line edges).
 
 What an item carries of its own goes on its segments. Its `extraWidth` is in the width of its first segment that takes
 room, and a line that starts later in the item adds it there (`lineStartExtras`, and `insideExtras` and `fillExtras`

@@ -6188,6 +6188,11 @@ describe('layout invariants', () => {
         const flat = layoutWithLines(prepareWithSegments(first + second, font), width, LINE_HEIGHT).lines.map(line => `${line.text.replace(/ $/, '')}:${Math.round(line.width * 100) / 100}`)
         expect({ first, second, width, lines: flat }).toEqual({ first, second, width, lines: expected })
       }
+      // A run of U+3000 that ends an item hangs whatever the next item starts with, where a
+      // text's run hangs only before a break its scan gives (ENGINE_FOLLOWUPS.md, Line edges).
+      for (const second of ['\u200B中', '」中', { width: 0 }]) {
+        expect({ second, lines: richLines([{ text: '中中\u3000' }, typeof second === 'string' ? { text: second } : second], 24).slice(0, 2) }).toEqual({ second, lines: ['中:16', second === '\u200B中' ? '中\u3000\u200B:16' : '中\u3000:16'] })
+      }
       // In pre-wrap the next item's preserved space, tab or line feed joins the mark's text, which
       // gives no break before it, and a ZWSP that starts the next item gives none in either mode.
       for (const [second, whiteSpace] of [[' 中', 'pre-wrap'], ['\t中', 'pre-wrap'], ['\n中', 'pre-wrap'], ['\u200B中', 'normal']] as const) {
