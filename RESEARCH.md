@@ -857,6 +857,26 @@ one kerned word in 13 font specs at 20-120px the profile passes 18,191, with 83 
 331 font strings with little text each, 12.7% and 17.6% more calls on its Roboto and Inter paragraphs, whose words
 rarely add up, and 1.3% on the books; a pair is asked once per font, so text in a font seen before costs less.
 
+New interface labels pay the most for the pairs, since a label is short and a font has met few of its pairs: over
+Chromium's 7,000 translated labels in 35 languages, prepared one a call in 13px `system-ui` in the order of the bench's
+`new: labels` row, the profile makes 27,128 `measureText` calls where the sums made 24,647, 10.1% more, with 4.7% more
+submitted units, and 10.7% more calls over the batches that row times. One language's 200 labels alone take 17.3% more
+calls in English, 41.7% in German, 34.3% in Russian and 50.6% in Greek and in Tamil. 96% of the added calls are pairs,
+82% of them for words 80-120px wide, and four pair answers in five are that the two letters don't kern, which Canvas
+says no other way. Each pair a font hasn't met is one unknown, and the word's width, already measured, is the one
+equation the fit has for them, so no fit that asks less gives the same advances: what costs less asks fewer words or
+fewer of a word's pairs, and Dead Ends, Fitting, Cuts And Fast Paths has those measured (Chrome 154.0.8037.57,
+2026-10-05; calls counted in a background window, not timed).
+
+What the labels get for it, on 13,090 probe layouts of one word a paragraph: 390 words of 78px or wider from those
+labels, Latin, Cyrillic and Greek in 13px Helvetica Neue, 13px Inter and 14px Roboto and Tamil in 13px Tamil Sangam MN,
+in boxes of 50-140px, and 130 Arabic words of seven letters or more in 24px and 32px Geeza Pro, 24px Arial and 24px Noto
+Naskh Arabic in boxes of 48-160px. Chrome cuts the word in 6,063 of them. Of the 5,077 that aren't Arabic the profile
+fails 4, each the right line count with a letter on another line in a box under 80px, where the sums failed 142, 9 of
+them wrong line counts and 60 in boxes of 80px or wider. Of the 986 Arabic ones it fails 577, 5 of the 144 in boxes of
+80px or wider, where the sums failed 848 and 117: in a joined script the prefixes are not Chrome's rule and still far
+nearer to it than the letters alone (Chrome 154.0.8037.57, 2026-10-05).
+
 What the premise leaves, each in ENGINE_FOLLOWUPS.md, Emergency breaks inside a word: a wrapped line whose every pair of
 letters is kerned, which Chrome can leave wider than its box by a rule that turns on which glyph holds a pair's kerning
 and on the device pixel ratio; a pair that kerns apart at the cut; joined scripts, where Chrome shapes a line again with
@@ -3142,6 +3162,37 @@ below 256 px, Canvas totals are exact (Engine Facts, Chrome).
   breaks inside a word, has a later count). And measuring a letter-spaced word's letters before its prefixes, to skip
   the prefixes of one that adds up, moved 16 Amiri cases through what Chrome's Canvas remembers (PLATFORM_BUGS.md).
   Reopens with a line start measured as its first two graphemes together, which keeps joined forms.
+- **Cheaper forms of the Blink profile's fit of a cut word, for new interface labels** (#TBD, 2026-10-05, each a build
+  whose calls were counted on Chromium's 7,000 labels and which was scored once in Chrome 154.0.8037.57 on every pinned
+  case and on the 13,090 probe layouts of Break Opportunities From Engine Data; the percentages are `measureText` calls
+  over the sums, on all the labels, on the batches the bench's `new: labels` row times and on the real-usage sample,
+  where the fit as landed reads 10.1%, 10.7% and 7.2%). None gives the fit's advances for less, and each is a trade:
+  - Words holding a letter of a joined script left to the sums, since the premise is wrong for them: 9.5%, 10.6% and
+    7.2%, as no word of Arabic letters alone reaches 80px at 13px. 23 pinned cases fail anew, 19 of them wrong line
+    counts, and 848 of the 986 Arabic probe layouts fail in place of 577. A dead end: the sums are much further from
+    Chrome there than the prefixes.
+  - The pairs asked in the word's order only until what they hold accounts for the word's width, the letters after that
+    keeping their widths alone: 8.4%, 9.2% and 5.0%. It takes the premise of a word that adds up for the rest of a word,
+    and fails the same way, where kernings after the stop cancel, which a font's few kerning values make common: 3
+    pinned predictions change a width and none fails (`certificat`, cut from `certificates` in 24px Inter, comes to
+    100.51px for Chrome's 100.75px, its `ca` and `te` kerning 0.234px each way after `rt` has held the word's 0.375px,
+    and a lam-alef of `سلاملاtail` in 32px Arial to 17.41px for 19.22px, the word's first two pairs holding by chance
+    all of its 14.72px, so that its prefixes are never asked), 1 more label layout of the 5,077 fails
+    (`approvata}other{#` in 13px Inter at 50px), and 2.00% of the passing probe lines are more than 0.05px from Chrome's
+    in place of 1.87%.
+  - The same, counting first the pairs the font has measured already: 5.9%, 6.2% and 4.3%, with 1 pinned prediction
+    changing a width and no probe layout. A word's advances then depend, where kernings cancel, on which texts the font
+    met before it, which nothing in Pretext does by its own doing.
+  - A floor of 90px for the Blink profile: 7.8%, 8.0% and 5.8% (6.6%, 7.0% and 4.0% with the stop). No pinned case fails
+    and the sample's 7 hold, the narrowest of their words being 90.6px, which is the only reason for 90. Words of
+    80-90px go back to the sums: 32 of the 5,077 label layouts fail, 5 of them in boxes of 80px or wider, and 710 of the
+    986 Arabic ones.
+  - A floor of 100px: 5.9%, 5.9% and 4.7% (5.0%, 5.1% and 3.2% with the stop). 28 pinned cases fail again, 18 of them
+    wrong line counts, one a real-usage draw, a 90.6px Ukrainian word in a 12px Times New Roman label in a 69.83px box
+    with the right line count and a letter on another line, so the sample's failing draws in claims are 23; 59 of the
+    5,077 label layouts fail, 18 of them in boxes of 80px or wider, and 793 Arabic ones.
+  Reopens with a Canvas call that gives every position of a run, with an option that tells `prepare()` a text is never
+  cut inside a word, or with a decision on one of the trades.
 - **Safari's rule for a cut word, in part** (#TBD, 2026-10-04, four builds of the WebKit profile, each scored once in
   webkit-host on 44,448 pinned cases). WebKit keeps the longest prefix that fits, measured from the line's own start,
   and gives the rest of the word the width left over without measuring it (Engine Facts, Safari, Overlong words).
