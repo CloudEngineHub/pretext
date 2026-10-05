@@ -2283,7 +2283,9 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   the other row that runs the counter's grapheme loop, these runs say nothing either way: one build read it 7.1% slower
   and, timed again, 0.2% faster, its control between 10.2% faster and 13.1% slower (Firefox 156.0.1, three background
   sessions each, 2026-10-04, so hypotheses). The change as it landed keeps that build's ligature rule in the Gecko
-  profile and not its kerning, and was not timed apart in Firefox before its foreground bench.
+  profile and not its kerning. Its foreground bench read `lines: cjk stats` and `resize: latin layout at new widths`
+  within noise in Firefox (three sessions, 2026-10-05), and the long breakable runs slower, for a reason of their own
+  (below, One whole number among a cut word's advances).
 - **Constants written into the built code as numbers** took the names out of that loop, and were declined (#406, closed
   unmerged; Decisions Log, 2026-10-03). With the segment kinds and flag bits as const enums, a bundle holds each use as
   its number, and under two namings the row read alike, -1.1% and -0.3%, where main's two read 16% apart (three sessions
@@ -2331,8 +2333,32 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   one number and adds nothing, read level in Chrome (+0.1% against the build with differences) and in Firefox 156, whose
   profile has none (4.0% slower than main against 4.6%, inside its control's band), so the handle keeps the difference,
   which holds whatever a segment's advances take later. Three background sessions for each figure but the 10.3%, so
-  hypotheses. Reopens if a foreground run shows either form of the read faster, or with `getTextClusters()` (Break
-  Opportunities From Engine Data).
+  hypotheses. In the foreground the row read 9.4% slower than main for the Blink profile's fit alone and 9.7% for the
+  change as it landed, 4.8%, 10.6% and 10.8% by session, and level in Safari 27, whose profile keeps no extras (three
+  sessions each, 2026-10-05). Reopens if a foreground run shows either form of the read faster, or with
+  `getTextClusters()` (Break Opportunities From Engine Data).
+- **One whole number among a cut word's advances, in Firefox** (#TBD, Firefox 156.0.1, 2026-10-05): with the Gecko
+  profile's ligature rule, `layout()` of the bench's long breakable runs read 13.9% slower than main in the foreground,
+  13.9%, 14.9% and 5.5% in three sessions, and 7.2% and 8.7% in two background runs, where the build with the Blink
+  profile's fit alone, whose Gecko profile runs main's code, read level (1.4% faster in the foreground, 0.8% slower and
+  0.8% faster in the background). It isn't work. Main, that build and the change break the paragraph into the same
+  lines, cut the same words (880, 660 and 440 at the bench's 240, 300 and 360px) and add the same letters in
+  `countPreparedLines()`'s loop (53,966, 45,980 and 36,960), and their handles differ in one word of 4,205: the
+  paragraph's one ligature in Firefox, the `ff` of a link, whose two letters have the advances 9.2333 and 0 where main
+  has 4.7333 and 4.5. The rule writes that 0 as a whole number among the word's fractional advances, and with that one
+  number present SpiderMonkey's compiled loop is in a slower state, about 7% apart, far more often: 15 of 18 background
+  readings of the row, against 7 of 48 for main and 1 of 18 for the same build with the zero written as -0. A build that
+  stores every whole-number advance as an integer was not slow, so the cost is not an integer's but that of one stray
+  integer among doubles, for a reason not found. That SpiderMonkey holds the 0 as an integer and -0 as a double is
+  inferred from how those builds read, since neither a page nor the engine's shell shows how a number is held. The slow
+  state also appears with no such number, in a quarter to a third of processes, so three sessions of this row in Firefox
+  are weak evidence either way. Two ways out, neither taken: the zero written as -0 removes it, and is a constant chosen
+  for one engine's number tags; the advances in typed arrays, which have no tags, remove it in SpiderMonkey's shell and
+  read about 40% slower than main in V8's. So it is left as a regression one JIT alone explains (Part 1, Engineering,
+  JIT tuning). The same foreground run read `worst: arabic-book layout` 2.6% slower in every session, and the build with
+  the Blink profile's fit alone had read it 3.7% slower with main's code in the Gecko profile, so that row isn't the
+  ligature rule's; it wasn't traced. Reopens with `getTextClusters()` in Firefox, which would take the rule's place, if
+  typed arrays are taken for another reason, or if cut words in real text show the cost.
 - **Inline caches**: once `layout()` has stepped such text, Chrome's `walkLineRanges()` of simple text, sharing the
   simple stepper, takes 2-4% longer than a second copy of main, by a mechanism not found. V8's caches turn polymorphic
   over the two handle kinds (`--log-ic`), but one shape for both didn't help Chrome and cost Firefox up to 14%; a
