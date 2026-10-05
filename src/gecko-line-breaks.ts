@@ -201,15 +201,12 @@ function transformText(input: string, is8bit: boolean, preserveWhiteSpace: boole
     // COMPRESS_WHITESPACE_NEWLINE, :272-387
     let inWhitespace = false
     let i = 0
-    // Where the frame i is in ends, the next frame start past i: the input's end for one text.
+    // Where the frame a white-space run starts in ends, the next frame start past the run's start:
+    // the input's end for one text. Only a run reads it, so it is found where one starts.
     let frame = 0
     let frameEnd = frameStarts === null ? len : 0
     while (i < len) {
       const ch = input.charCodeAt(i)
-      if (i >= frameEnd) {
-        while (frame < frameStarts!.length && frameStarts![frame]! <= i) frame++
-        frameEnd = frame < frameStarts!.length ? frameStarts![frame]! : len
-      }
       if (!isSpaceOrTabOrSegmentBreak(ch) && !isDiscardable(ch, is8bit)) {
         // A CR or FF is no white space to TransformText (:51-57), so it ends a white-space run and
         // stays in the text run, which gives it no glyph and no advance: it skips a control
@@ -229,6 +226,10 @@ function transformText(input: string, is8bit: boolean, preserveWhiteSpace: boole
         continue
       }
       if (isSpaceOrTabOrSegmentBreak(ch)) {
+        if (i >= frameEnd) {
+          while (frame < frameStarts!.length && frameStarts![frame]! <= i) frame++
+          frameEnd = frame < frameStarts!.length ? frameStarts![frame]! : len
+        }
         let keepLastSpace = false
         let hasSegmentBreak = ch === 0x0a
         let trailingDiscardables = 0

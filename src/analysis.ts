@@ -530,11 +530,25 @@ export function analyzeText(
 function removeItemsSkippableSegmentBreaks(text: string, starts: number[], profile: AnalysisProfile, language: string | null, resultStarts: number[]): string {
   if (profile.lineBreakScan === 'webkit' || !text.includes('\n')) return text
   let result = ''
+  // Where the text that isn't in `result` yet starts. Only an item that holds a line feed can
+  // change, so only those are cut out and transformed, and the text between two that changed is
+  // copied in one piece.
+  let copied = 0
+  let newline = text.indexOf('\n')
   for (let k = 0; k < starts.length; k++) {
-    resultStarts.push(result.length)
-    result += removeSkippableSegmentBreaks(text.slice(starts[k], k + 1 < starts.length ? starts[k + 1] : text.length), profile, language)
+    const start = starts[k]!
+    const end = k + 1 < starts.length ? starts[k + 1]! : text.length
+    resultStarts.push(result.length + start - copied)
+    if (newline < 0 || newline >= end) continue
+    const item = text.slice(start, end)
+    const transformed = removeSkippableSegmentBreaks(item, profile, language)
+    if (transformed.length !== item.length) {
+      result += text.slice(copied, start) + transformed
+      copied = end
+    }
+    newline = text.indexOf('\n', end)
   }
-  return result
+  return copied === 0 ? text : result + text.slice(copied)
 }
 
 // The offset in `source` that each unit of `normalized` comes from. Normalization only removes
