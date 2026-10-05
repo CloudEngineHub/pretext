@@ -429,7 +429,7 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
         // An item of only spaces after its own start edge follows none either.
         const afterTextSpaces = at - 1 > previousItemStart && (flags[at - 1]! & KIND_BITS) === PRESERVED_SPACE && (flags[at - 2]! & KIND_BITS) !== TAB &&
           (openingEdges === null || at - 2 >= openingEdges.length || openingEdges[at - 2] === 0)
-        const fit = getOpeningFit(sub.segmentFlags, extraWidth, afterObject, afterTextSpaces, profile)
+        const fit = getOpeningFit(sub.segmentFlags, extraWidth, afterTextSpaces, profile)
         // In WebKit a break comes before white space that starts an item (whiteSpaceItemBreaks), and
         // none before a hard break, after an object too (nextWrapOpportunity,
         // InlineFormattingUtils.cpp:469-475).
@@ -772,12 +772,13 @@ function setAt<T>(list: T[] | null, index: number, value: T, empty: T): T[] | nu
 // shaping_line_breaker.cc:490-495): the line then trails them, taking the open tag and white
 // space or a forced break after them with no fit (HandleTrailingSpaces, :2426-2534). WebKit fits
 // a box that opens in the content it places without its cloned end edge
-// (placedClonedDecorationWidth, InlineLineBuilder.cpp:1501-1523), where a hard break starts it or
-// white space does after an object, but that content runs on past the inline box ends after a line
-// break or white space (nextWrapOpportunity, InlineFormattingUtils.cpp:470-475, 530-538), so it
-// fits the end edge too of an item of white space that ends there. Gecko fits a frame's whole
-// width, its cloned end edge too (CanPlaceFrame, nsLineLayout.cpp:1217-1270).
-function getOpeningFit(segmentFlags: Uint8Array, extraWidth: number, afterObject: boolean, afterTextSpaces: boolean, profile: EngineProfile): number {
+// (placedClonedDecorationWidth, InlineLineBuilder.cpp:1501-1523), where a hard break or white
+// space starts it, after the white space before it, which the line counts (the walker's line
+// width holds it), but that content runs on past the inline box ends after a line break or white
+// space (nextWrapOpportunity, InlineFormattingUtils.cpp:470-475, 530-538), so it fits the end
+// edge too of an item of white space that ends there. Gecko fits a frame's whole width, its
+// cloned end edge too (CanPlaceFrame, nsLineLayout.cpp:1217-1270).
+function getOpeningFit(segmentFlags: Uint8Array, extraWidth: number, afterTextSpaces: boolean, profile: EngineProfile): number {
   const fit = profile.paddedOpeningFit
   const firstKind = segmentFlags[0]! & KIND_BITS
   const opensWithWhiteSpace = firstKind === PRESERVED_SPACE || (firstKind === TAB && profile.hangTabs)
@@ -785,7 +786,7 @@ function getOpeningFit(segmentFlags: Uint8Array, extraWidth: number, afterObject
   let whiteSpaceEnd = 0
   while (whiteSpaceEnd < segmentFlags.length && ((segmentFlags[whiteSpaceEnd]! & KIND_BITS) === PRESERVED_SPACE || (segmentFlags[whiteSpaceEnd]! & KIND_BITS) === TAB)) whiteSpaceEnd++
   if (fit === 'start' && (opensWithWhiteSpace || opensWithBreak)) return afterTextSpaces || whiteSpaceEnd === segmentFlags.length ? 0 : extraWidth / 2
-  if (fit === 'placed' && ((afterObject && opensWithWhiteSpace) || opensWithBreak)) {
+  if (fit === 'placed' && (opensWithWhiteSpace || opensWithBreak)) {
     const onlyOpening = whiteSpaceEnd === segmentFlags.length || (whiteSpaceEnd === segmentFlags.length - 1 && (segmentFlags[whiteSpaceEnd]! & KIND_BITS) === HARD_BREAK)
     return onlyOpening ? extraWidth : extraWidth / 2
   }

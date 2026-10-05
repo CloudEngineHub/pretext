@@ -4735,15 +4735,14 @@ describe('rich-inline invariants', () => {
         expect(foo).toBeLessThan(stop)
         if (fit === 'start') expect(head([{ text: 'foo\t', font: FONT }, { text: '\nbar', font: FONT, extraWidth: 40 }], stop + 1)).toEqual(['foo\t', ''])
         // Chrome takes the spaces that start a padded span with no edge too, after spaces that
-        // follow text; without spaces before the span, it fits the span's start edge. Safari and
-        // Firefox fit both edges.
+        // follow text; without spaces before the span, it fits the span's start edge. Safari fits
+        // the start edge, and Firefox both edges.
         const first = (items: Parameters<typeof prepareRichInline>[0], width: number) => lines(items, width)[0]!.fragments.map(f => f[1]).join('|')
         expect(first([{ text: 'foo   ', font: FONT }, { text: '  bar', font: FONT, extraWidth: 40 }], foo + 1)).toBe(fit === 'start' ? 'foo   |  ' : 'foo   ')
-        // Where the padding fits after the text but not after its spaces, the line keeps the span's
-        // spaces where the engine leaves spaces that hang out of the fit. Firefox counts them, and
-        // with no break before the text's last word ends the line before the span.
+        // Safari and Firefox count the text's spaces before the edges they fit, and Firefox, with
+        // no break before the text's last word, ends the line before the span.
         expect(first([{ text: 'foo   ', font: FONT }, { text: '  bar', font: FONT, extraWidth: 40 }], foo + 41)).toBe(fit === 'both' ? 'foo   ' : 'foo   |  ')
-        expect(first([{ text: 'foo', font: FONT }, { text: '  bar', font: FONT, extraWidth: 40 }], foo + 21)).toBe(fit === 'start' ? 'foo|  ' : 'foo')
+        expect(first([{ text: 'foo', font: FONT }, { text: '  bar', font: FONT, extraWidth: 40 }], foo + 21)).toBe(fit === 'both' ? 'foo' : 'foo|  ')
         expect(first([{ text: 'foo', font: FONT }, { text: '  bar', font: FONT, extraWidth: 40 }], foo + 19)).toBe('foo')
       }
       profile.hardBreakItemRetreat = previousFit.hardBreakItemRetreat

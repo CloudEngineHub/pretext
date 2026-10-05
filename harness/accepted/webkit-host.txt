@@ -1,10 +1,3 @@
-## A padded rich pre-wrap span that starts on the line it ends inside, at a line feed or after spaces that hang, at 24 px and wider: Safari fits that line without the span's end edge, the library with it, as Firefox does (ENGINE_FOLLOWUPS.md)
-rich-f7c605f19ec5d469 breaks
-
-## A padded rich pre-wrap span that starts with spaces after a word that ends with spaces, at 24 px and wider: Safari fits the span's start edge with the word's spaces, as it leaves only the span's own out of the fit (its last white-space item's width, hangingContentWidth), where the library leaves the word's spaces out and fits both edges (ENGINE_FOLLOWUPS.md)
-rich-5e1adef196a86585 breaks
-rich-a3217381ee65daac breaks
-
 ## A soft hyphen after a space, before white space in the next span or its own, or white space and a soft hyphen that start the paragraph before a ZWSP, at 24 px and wider: Safari keeps the space after the soft hyphen visible where a line starts, as it doesn't consume a soft hyphen at a line start, where the library consumes both (main and 0fef0023 too; ENGINE_FOLLOWUPS.md)
 rich-0de3e74d8bc2e919 count
 rich-1a6f9dd50d85f9f7 count
