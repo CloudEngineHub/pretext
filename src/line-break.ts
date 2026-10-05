@@ -670,7 +670,15 @@ function walkPreparedComplexLines(
           if (hangs) {
             if (hangEndSegmentIndex !== i) {
               hangStartWidth = lineW - lineEndTrimmed + leadingSpacing
-              hangStays = items !== undefined && i > lineStartSegmentIndex && (segmentFlags[i - 1]! & KIND_BITS) === OBJECT && staysAfterObject(segmentFlags, i, hangingKinds)
+              hangStays = false
+              if (items !== undefined && i > lineStartSegmentIndex && (segmentFlags[i - 1]! & KIND_BITS) === OBJECT) {
+                hangStays = staysAfterObject(segmentFlags, i, hangingKinds)
+                // A run that goes down with its tab leaves from the break after the object.
+                if (!hangStays) {
+                  pendingBreakSegmentIndex = i
+                  pendingBreakWidth = lineW - lineEndTrimmed
+                }
+              }
               hangEdgesWidth = 0
             }
             hangEndSegmentIndex = i + 1
