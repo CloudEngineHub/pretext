@@ -579,14 +579,14 @@ engineClassMaps['chromium/script'] = classesOf(c => {
     // A mark stays in the run before it, and gives the scripts that list it to a Common character
     // before it (FetchNextCharacter, :624-635).
     facts = ANY_SCRIPT | (extensions[0] === INHERITED ? 0 : getScriptBits(extensions) << MARK_SCRIPTS_SHIFT)
-  } else if (extensions[0] === COMMON) {
-    // A Common character that no script lists stays in the run before it too, but an opening
-    // bracket whose East Asian Width is halfwidth (2), fullwidth (3) or wide (5), which Blink
-    // makes Han (FixScriptsByEastAsianWidth, :83-110; uprops.h:159-160). Gap: so does a Common
-    // character that one script lists, such as the circled ideographs, which here has that
-    // script (ENGINE_FOLLOWUPS.md, Letter spacing).
+  } else if (script === COMMON && extensions.length === 1) {
+    // A Common character that no script lists, or only one, as one lists the circled
+    // ideographs, stays in the run before it too: Blink keeps Common first among its scripts
+    // (GetScripts, :184-189). But an opening bracket that no script lists and whose East Asian
+    // Width is halfwidth (2), fullwidth (3) or wide (5), Blink makes Han
+    // (FixScriptsByEastAsianWidth, :83-110; uprops.h:159-160).
     const width = (propsVectors[getTrieValue(propsVectorsTrie, c)]! >> 12) & 7
-    facts = TAKES_MARK_SCRIPTS | (bracket === 1 && (width === 2 || width === 3 || width === 5) ? OTHER_SCRIPT : ANY_SCRIPT)
+    facts = TAKES_MARK_SCRIPTS | (bracket === 1 && extensions[0] === COMMON && (width === 2 || width === 3 || width === 5) ? OTHER_SCRIPT : ANY_SCRIPT)
   } else {
     facts = cursiveScripts.includes(script) ? CURSIVE_SCRIPT | CURSIVE_LETTER : getScriptBits(extensions)
   }
