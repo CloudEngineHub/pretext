@@ -2359,7 +2359,10 @@ repin` shows what), and a fact read in source needs reading again.
   (2026-10-02). A character several scripts share starts a run that holds them all, the lowest code leading, Latin aside
   for a Common character, which the next character with a script narrows, and it stays in a run of any of them
   (`GetScripts`, `MergeSets`, `script_run_iterator.cc:118-215`, `:491-565`); a Common character that only one script
-  lists stays in whatever run it is in. The port gives a shared character its leading script wherever it stands and
+  lists, as Han does the parenthesized and circled ideographs, stays in whatever run it is in, and so it does in the
+  port since #426, which had given it that script: an Arabic word, U+3231, a space and `12` take 1 gap where the port
+  gave 4, and the space in `㈱ All` kerns with `A` (Chrome 154, 2026-10-03). The port gives a character that several
+  scripts share its leading script wherever it stands and
   leaves the rest out: U+202F, which Latin, Mongolian and Phags-pa share, takes no gap alone, after Arabic or between
   Han characters, and one among Latin letters, and its Mongolian run takes in the digits around it, so `10`, U+202F,
   `000` in a text of its own takes none of its 6 gaps (Chrome 154, 2026-10-01; ENGINE_FOLLOWUPS.md, Letter spacing).
