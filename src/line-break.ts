@@ -2,6 +2,7 @@ import {
   CONTROL,
   HARD_BREAK,
   KIND_BITS,
+  OBJECT,
   PRESERVED_SPACE,
   RETURNABLE,
   SOFT_HYPHEN,
@@ -41,7 +42,8 @@ export type PreparedLineBreakData = {
   // Null without any.
   lineStartExtras: number[] | null
   // Per segment, width it drops where a line ends after it and it doesn't fit otherwise,
-  // as Blink's line-end halt of a closing mark. Null without any.
+  // as Blink's line-end halt of a closing mark; an object's is width its line doesn't fit
+  // there and still paints (ParagraphSegmentData). Null without any.
   lineEndTrims: number[] | null
   // Per segment, width it drops in place of that where it overflows a line that has no break
   // before it and the line ends after it: Blink retries such a line with a break after every
@@ -54,32 +56,39 @@ export type PreparedLineBreakData = {
   discretionaryHyphenContexts: number[] | null
   tabStopAdvance: number // Advance between tab stops for pre-wrap tab segments
   minimumTabAdvance: number // The least a tab advances: one nearer its stop takes the stop after
+  // What the segments of a rich-inline paragraph of several items have of their own
+  // (src/rich-inline.ts), which a text's handle doesn't have.
+  items?: ParagraphSegmentData
 }
 
-// A rich-inline item's line (src/rich-inline.ts). In: whether the walk continues a line
-// with content, whether that line can end before the item and a return from an unfit
-// soft hyphen can too, per segment, the graphemes inside it that the text the items
-// join breaks before, else null, and where the item's text starts on the line, which its
-// tab stops count from. Out, where the walk takes the item's end: the line's latest break
-// (segment -1 without one) and the width a line ending there paints. In and out,
-// `hangWidth`: the width of the run of preserved spaces and tabs that ends the line
-// before the item, which goes on into the item's own and hangs with them. Out, it and
-// `breakHangWidth` give what the rich line hangs (stepRichInlineLine) where the walk and
-// the latest break end: where the walk takes the item's end or a hard break, the whole run
-// it ends with, which its width includes; where it or the break ends right after a run that
-// goes on from before the item, the run's part before the item, which the width, 0 there,
-// leaves out, as the item's own part hangs; else 0.
-export type ItemLine = {
-  continues: boolean
-  breakBefore: boolean
-  fitsBreakBefore: boolean
-  innerBreaks: (number[] | null)[] | null
-  lineOffset: number
-  breakSegmentIndex: number
-  breakGraphemeIndex: number
-  breakWidth: number
-  breakHangWidth: number
-  hangWidth: number
+// What a rich-inline paragraph's items give its segments, per segment, each list null where no
+// segment has a value of its own:
+// - `hyphenWidths`, `tabStopAdvances`, `minimumTabAdvances`: the hyphen a soft hyphen paints, the
+//   advance between a tab's stops and the least a tab advances, in the item's font, where two
+//   items differ in one;
+// - `insideExtras`, `fillExtras`: the item's extraWidth where a line that starts inside the
+//   segment pays it, or starts at it and fills it grapheme by grapheme, as a line that starts
+//   with the whole segment pays lineStartExtras;
+// - `openingEdges`: the width of a segment that is the start edge of a padded item's opening
+//   (getOpeningFit in src/rich-inline.ts), which a line that takes it paints whole, whatever of
+//   it the line fitted: an object's line-end trim is the part its line doesn't fit, and an edge
+//   the engine fits none of is a preserved space, which takes no room in the run of preserved
+//   spaces and tabs it is in;
+// - `emptyObjectSpaces`, `emptyObjectReturns`: where the engine places an object of width 0
+//   though it sticks out of the line, for each such object what a line reads of the text around
+//   it (getEmptyObjectFacts in src/rich-inline.ts): the width of the white space that ends the
+//   text before it as its last text frame's own, 0 where that text ends in other white space
+//   and -1 where it ends in none, and 1 where a line with a break before the object goes back
+//   to it, as what follows the object would stick out too.
+export type ParagraphSegmentData = {
+  hyphenWidths: number[] | null
+  tabStopAdvances: number[] | null
+  minimumTabAdvances: number[] | null
+  insideExtras: number[] | null
+  fillExtras: number[] | null
+  openingEdges: number[] | null
+  emptyObjectSpaces: number[] | null
+  emptyObjectReturns: Uint8Array | null
 }
 
 type InternalLineVisitor = (
@@ -92,12 +101,6 @@ type InternalLineVisitor = (
 
 export function breaksAfterKind(kind: number): boolean {
   return (1 << kind & BREAK_AFTER_KINDS) !== 0
-}
-
-// Whether a line can end between two segments, from the kind before, the kind
-// after and whether the scan gives no break there, as before NEL (UAX #14 LB6).
-export function endsLineBefore(previousKind: number, kind: number, unbroken: boolean): boolean {
-  return (breaksAfterKind(previousKind) || !breaksAfterKind(kind)) && !unbroken
 }
 
 // End cursors consume source. A terminal SHY is not a selected wrap, even
@@ -147,6 +150,21 @@ function getTabAdvance(position: number, tabStopAdvance: number, minimumAdvance:
   return advance < minimumAdvance ? advance + tabStopAdvance : advance
 }
 
+// The advance of tab segment `index` of a rich-inline paragraph, which the line reaches at
+// `lineWidth`: to the next stop of its item's font. Tab stops count from the line's start in
+// every engine, never from an item's (Blink's line_breaker.cc:2963-2971, WebKit's pen position,
+// Gecko's CalcTabWidths, nsTextFrame.cpp:4298-4378). A padded item's text starts after its start
+// edge, half its extraWidth, all of which `lineWidth` counts, for a tab that starts the line too
+// (lineStartExtras): the other half is the end edge, which follows the item's text on the line.
+// Where the paragraph's items differ in letter spacing, a tab's width holds the gap after it, as
+// every segment's holds its own (src/rich-inline.ts); else it is 0.
+export function getItemTabAdvance(prepared: PreparedLineBreakData, items: ParagraphSegmentData, index: number, lineWidth: number, appUnits: boolean): number {
+  const stopAdvance = items.tabStopAdvances === null ? prepared.tabStopAdvance : items.tabStopAdvances[index]!
+  const minimumAdvance = items.minimumTabAdvances === null ? prepared.minimumTabAdvance : items.minimumTabAdvances[index]!
+  const endEdge = items.insideExtras === null ? 0 : items.insideExtras[index]! / 2
+  return getTabAdvance(lineWidth - endEdge, stopAdvance, minimumAdvance, appUnits) + prepared.widths[index]!
+}
+
 // Where a line that holds only an overflowing grapheme ends: after that grapheme and
 // the graphemes after it that can't start a line, up to `endGraphemeIndex`.
 function getOverflowingFirstGraphemeEnd(
@@ -161,14 +179,6 @@ function getOverflowingFirstGraphemeEnd(
   return end
 }
 
-// The advance of a segment's first `count` graphemes after the gap `spacing`, with the
-// letter spacing between them.
-function getGraphemesAdvance(fitAdvances: readonly number[], count: number, spacing: number, letterSpacing: number): number {
-  let advance = spacing
-  for (let g = 0; g < count; g++) advance += fitAdvances[g]! + (g > 0 ? letterSpacing : 0)
-  return advance
-}
-
 function getTerminalLetterSpacing(
   prepared: PreparedLineBreakData,
   hangingKinds: number,
@@ -179,6 +189,7 @@ function getTerminalLetterSpacing(
 ): number {
   const { letterSpacing, segmentFlags } = prepared
   if (letterSpacing === 0) return 0
+  const openingEdges = prepared.items === undefined ? null : prepared.items.openingEdges
 
   if (endGraphemeIndex > 0) return (segmentFlags[endSegmentIndex]! & SPACED) !== 0 ? letterSpacing : 0
 
@@ -193,8 +204,9 @@ function getTerminalLetterSpacing(
     const kind = flags & KIND_BITS
     // Segments that take no letter spacing, such as zero-width glue or marks
     // shaped on the grapheme before them, leave that grapheme's gap last. A tab
-    // that takes none follows that gap, which its stop counts from.
-    if (kind === SPACE || (kind !== CONTROL && kind !== TAB && (flags & SPACED) === 0)) continue
+    // that takes none follows that gap, which its stop counts from. An object
+    // leaves none after itself, nor does the edge of a padded opening.
+    if (kind === SPACE || (kind !== CONTROL && kind !== TAB && kind !== OBJECT && (flags & SPACED) === 0 && (openingEdges === null || openingEdges[i]! === 0))) continue
 
     if (i === startSegmentIndex && startGraphemeIndex > 0) return letterSpacing
 
@@ -402,15 +414,35 @@ function countSteppedLines(prepared: PreparedLineBreakData, maxWidth: number): n
   return count
 }
 
+// Whether the run of preserved spaces and tabs that hang, which starts at segment `start` right
+// after an object on its line, an atomic rich-inline item or a box (OBJECT), stays there however
+// far the line overflows, as no break comes before it in the text (UAX #14 LB7). Blink takes it
+// as trailing items after the break after an atomic inline (HandleTrailingSpaces,
+// line_breaker.cc:2426-2534), trailing on into the next item where an item's spaces reach its end
+// (:2518-2533); WebKit gives a soft wrap opportunity after each white-space item
+// (isAtSoftWrapOpportunity, InlineFormattingUtils.cpp:408-413) and keeps each as content that hangs
+// (InlineContentBreaker.cpp:181-182); and Gecko lets an empty frame past the line's end
+// (CanPlaceFrame, nsLineLayout.cpp:1217-1270). After text that overflows, the engine's retry
+// between graphemes breaks before the white space instead. But Gecko breaks only after a run of
+// spaces and tabs (nsLineBreaker.cpp:323, :586) and doesn't hang a tab, so where the white space
+// runs into a tab, Firefox moves all of it to the next line with the tab. The walker asks once
+// per run, so a long run costs one pass.
+function staysAfterObject(segmentFlags: Uint8Array, start: number, hangingKinds: number): boolean {
+  let after = start + 1
+  while (after < segmentFlags.length && (1 << (segmentFlags[after]! & KIND_BITS) & hangingKinds) !== 0) after++
+  return after === segmentFlags.length || (segmentFlags[after]! & KIND_BITS) !== TAB
+}
+
 // Whether a line that would end at the break before `breakSegmentIndex`, painting
 // `breakWidth`, returns to the earlier opportunity `targetSegmentIndex`: where it
 // ends at a selected discretionary hyphen that doesn't fit. A return needs an
 // overflow that isolated widths can show and a target that really is the latest
 // opportunity. The soft hyphens on the line may measure narrower joined than apart by
 // less than the overflow, and nothing after the target may be text that the scan breaks
-// before after other text, an opportunity that segment kinds don't mark. The target can
-// be a segment start that follows a break outside the prepared text, such as a
-// rich-inline item boundary.
+// before after other text, an opportunity that segment kinds don't mark. A rich-inline
+// paragraph marks every break the scan gives before text (src/rich-inline.ts), and its
+// line records each one that leaves the room the engine's return needs, so its target is
+// the latest opportunity.
 function returnsFromUnfitHyphen(
   prepared: PreparedLineBreakData,
   lineStartSegmentIndex: number,
@@ -428,7 +460,7 @@ function returnsFromUnfitHyphen(
   if (narrowing >= overflow) return false
   for (let i = targetSegmentIndex + 1; i < softHyphenIndex; i++) {
     const flags = segmentFlags[i]!
-    if (!breaksAfterKind(flags & KIND_BITS) && (flags & UNBROKEN) === 0 && !breaksAfterKind(segmentFlags[i - 1]! & KIND_BITS)) return false
+    if (!breaksAfterKind(flags & KIND_BITS) && (flags & UNBROKEN) === 0 && !breaksAfterKind(segmentFlags[i - 1]! & KIND_BITS) && prepared.items === undefined) return false
   }
   return true
 }
@@ -448,8 +480,6 @@ function walkPreparedComplexLines(
   onLine: InternalLineVisitor | undefined,
   stats: LineStats | null,
   singleLine = false,
-  // A rich-inline item's one line (ItemLine).
-  item: ItemLine | null = null,
 ): number | null {
   const {
     widths,
@@ -465,18 +495,30 @@ function walkPreparedComplexLines(
     minimumTabAdvance,
   } = prepared
   const segmentCount = segmentFlags.length
+  const items = prepared.items
+  const hyphenWidths = items === undefined ? null : items.hyphenWidths
+  const insideExtras = items === undefined ? null : items.insideExtras
+  const fillExtras = items === undefined ? null : items.fillExtras
+  const openingEdges = items === undefined ? null : items.openingEdges
+  const emptyObjectSpaces = items === undefined ? null : items.emptyObjectSpaces
+  const emptyObjectReturns = items === undefined ? null : items.emptyObjectReturns
   const engineProfile = getEngineProfile()
   // Preserved spaces and tabs at the end of a line hang past it (CSS Text 3
   // §4.1.2), so they take no room when fitting and don't size the line (§8.2).
   // Gecko doesn't hang tabs.
   const hangingKinds = 1 << PRESERVED_SPACE | (engineProfile.hangTabs ? 1 << TAB : 0)
+  // In Gecko a text frame's width leaves out its trailing spaces that overflow the line and
+  // keeps those that fit, whatever follows the frame (EngineProfile, hangsSpacesPerTextFrame),
+  // so in a rich-inline paragraph the run of preserved spaces that hang goes on, with what
+  // overflows, past a segment that takes no room: an object of width 0 or a soft hyphen.
+  const hangGoesOnPastEmpty = items !== undefined && engineProfile.hangsSpacesPerTextFrame
+  const testsHyphenBeforeAtomic = engineProfile.testsHyphenBeforeAtomic
   const zeroWidthGlueTakesLine = engineProfile.zeroWidthGlueTakesLine
   const tabsInAppUnits = engineProfile.tabsInAppUnits
-  // A rich item's line starts after the line's content before the item, which can
-  // leave it a negative width, and its break before the item is the line's pending
-  // break (ItemLine). Any other negative width lays out as 0, as in the simple stepper.
-  const continues = item !== null && item.continues
-  const availableWidth = continues ? maxWidth : Math.max(0, maxWidth)
+  const paddedOpeningFit = engineProfile.paddedOpeningFit
+  const hardBreakItemRetreat = engineProfile.hardBreakItemRetreat
+  // A negative width lays out as 0, as in the simple stepper.
+  const availableWidth = Math.max(0, maxWidth)
   const fitLimit = availableWidth + engineProfile.lineFitEpsilon
   // Preparation records soft-hyphen contexts only where the text has a soft hyphen.
   const retreatsFromUnfitHyphen = prepared.discretionaryHyphenContexts !== null
@@ -486,26 +528,18 @@ function walkPreparedComplexLines(
   const reservedHyphenWidth = retreatsAtFullWidth ? 0 : discretionaryHyphenWidth
   // WebKit's return stops at the line's first opportunity, whatever its hyphen overflows:
   // the soft hyphen the line reaches before any of its opportunities has fit, since one
-  // without a hyphen fits where the text before it did. A rich item that continues a line
-  // doesn't know that line's first opportunity.
-  const keepsFirstBreak = retreatsFromUnfitHyphen && engineProfile.unfitHyphenRetreat === 'full-width-or-first' && !continues
-  const breakBeforeSegmentIndex = item !== null && item.breakBefore ? cursor.segmentIndex : -1
-  const fitBreakBefore = item !== null && item.fitsBreakBefore ? cursor.segmentIndex : -1
-  const innerBreaks = item === null ? null : item.innerBreaks
-  // Tab stops count from the line's start, in every engine, never from a rich item's
-  // (Blink's line_breaker.cc:2963-2971, WebKit's pen position, Gecko's CalcTabWidths,
-  // nsTextFrame.cpp:4298-4378).
-  const lineOffset = item === null ? 0 : item.lineOffset
+  // without a hyphen fits where the text before it did.
+  const keepsFirstBreak = retreatsFromUnfitHyphen && engineProfile.unfitHyphenRetreat === 'full-width-or-first'
 
   let lastLineWidth: number | null = null
   while (true) {
     const lineStartSegmentIndex = cursor.segmentIndex
     const lineStartGraphemeIndex = cursor.graphemeIndex
     let lineW = 0
-    let hasContent = continues
+    let hasContent = false
     let lineEndSegmentIndex = lineStartSegmentIndex
     let lineEndGraphemeIndex = lineStartGraphemeIndex
-    let pendingBreakSegmentIndex = breakBeforeSegmentIndex
+    let pendingBreakSegmentIndex = -1
     // A line that ends at the pending break both fits and paints this width.
     let pendingBreakWidth = 0
     // The opportunity the line returns to when a selected discretionary hyphen does
@@ -514,25 +548,18 @@ function walkPreparedComplexLines(
     // the latest that fits at the full width (retreatsAtFullWidth). Under
     // keepsFirstBreak it is the line's first soft hyphen, whatever its hyphen
     // overflows, until a later opportunity fits.
-    let fitBreakSegmentIndex = fitBreakBefore
+    let fitBreakSegmentIndex = -1
     let fitBreakPaintWidth = 0
-    // The latest break inside a segment, from innerBreaks: its segment (-1 without
-    // one), the grapheme it falls before and the width a line ending there paints.
-    let innerBreakSegmentIndex = -1
-    let innerBreakGraphemeIndex = 0
-    let innerBreakWidth = 0
     // The latest run of preserved spaces and tabs: the segment after it, and the
     // line's width before it, less the line-end trim of the text it follows, with
-    // the gap after the glyph before it. A rich item's walk starts inside the run
-    // that ends the line before it, where there is one (ItemLine).
+    // the gap after the glyph before it. In a rich-inline paragraph, the run can
+    // stay on its line after an object however far it overflows (staysAfterObject),
+    // and that width also has the edges in the run that a line ending in it paints,
+    // which are hangEdgesWidth wide (ParagraphSegmentData).
     let hangEndSegmentIndex = -1
     let hangStartWidth = 0
-    let hangsFromBefore = false
-    if (item !== null && item.hangWidth > 0) {
-      hangEndSegmentIndex = lineStartSegmentIndex
-      hangStartWidth = -item.hangWidth
-      hangsFromBefore = true
-    }
+    let hangStays = false
+    let hangEdgesWidth = 0
     // The line-end trim of the last whole segment, where only that trim let it fit, kept
     // past segments after it that take no room at the line end, as spaces. Every later
     // segment that takes room overflows, so the line ends before it and paints that much less.
@@ -550,10 +577,12 @@ function walkPreparedComplexLines(
 
     let lineWidth: number | null = null
     if ((segmentFlags[lineStartSegmentIndex]! & KIND_BITS) === HARD_BREAK) {
-      // A line that starts at a hard break is an empty chunk's (normalizePreparedLineStart).
+      // A line that starts at a hard break is an empty chunk's (normalizePreparedLineStart),
+      // as wide as what a line pays where it starts there: inside a padded rich-inline item,
+      // its extraWidth.
       cursor.segmentIndex = lineStartSegmentIndex + 1
       cursor.graphemeIndex = 0
-      lineWidth = 0
+      lineWidth = lineStartExtras === null ? 0 : lineStartExtras[lineStartSegmentIndex]!
     } else {
       decided: {
         // Where the line ends when its source runs out: after the chunk's hard
@@ -579,31 +608,45 @@ function walkPreparedComplexLines(
           const startGraphemeIndex = i === lineStartSegmentIndex ? lineStartGraphemeIndex : 0
           // The gap before a segment belongs to the grapheme before it. A control or
           // a tab that takes no letter spacing still follows that gap but adds none
-          // after itself; other segments that take none leave it as it was.
+          // after itself, and so does an object, which is no character (CSS Text 3,
+          // letter-spacing), as is the edge of a padded opening that hangs as white
+          // space; other segments that take none leave it as it was.
           const gap = letterSpacing !== 0 && hasContent && !zeroWidthPrefix && !afterUnspacedControl ? letterSpacing : 0
           let leadingSpacing = 0
-          if (letterSpacing !== 0 && (spaced || kind === CONTROL || kind === TAB)) {
+          if (letterSpacing !== 0 && (spaced || kind === CONTROL || kind === TAB || kind === OBJECT || (openingEdges !== null && openingEdges[i]! !== 0))) {
             leadingSpacing = gap
             afterUnspacedControl = !spaced
           }
           if (kind !== ZERO_WIDTH_BREAK && kind !== ZERO_WIDTH_GLUE) zeroWidthPrefix = false
-          const w = kind === TAB
-            ? getTabAdvance(lineOffset + lineW + leadingSpacing, tabStopAdvance, minimumTabAdvance, tabsInAppUnits)
-            : widths[i]!
+          const w = kind !== TAB ? widths[i]!
+            : items === undefined ? getTabAdvance(lineW + leadingSpacing, tabStopAdvance, minimumTabAdvance, tabsInAppUnits)
+            : getItemTabAdvance(prepared, items, i, hasContent ? lineW + leadingSpacing : lineStartExtras === null ? 0 : lineStartExtras[i]!, tabsInAppUnits)
           const advance = leadingSpacing + w
           const endTrim = lineEndTrims === null ? 0 : lineEndTrims[i]!
-          // The graphemes inside the segment before which the line can end, else null.
-          const segmentInner = innerBreaks === null ? null : innerBreaks[i]!
 
           if (kind === SOFT_HYPHEN && startGraphemeIndex === 0) {
             if (hasContent) {
+              // A break comes after an object, so a line returns to it from a soft hyphen right
+              // after the object whose hyphen doesn't fit: Chrome, Firefox and Safari break
+              // there with the hyphen where it fits, and else after the object.
+              if (retreatsFromUnfitHyphen && i > lineStartSegmentIndex && (segmentFlags[i - 1]! & KIND_BITS) === OBJECT) {
+                fitBreakSegmentIndex = i
+                fitBreakPaintWidth = lineW
+              }
+              if (hangGoesOnPastEmpty && hangEndSegmentIndex === i) {
+                hangEndSegmentIndex = i + 1
+                hangStartWidth = Math.max(hangStartWidth, Math.min(lineW, availableWidth))
+              }
               lineEndSegmentIndex = i + 1
               lineEndGraphemeIndex = 0
               if (i + 1 < segmentCount && (segmentFlags[i + 1]! & KIND_BITS) !== HARD_BREAK) {
                 pendingBreakSegmentIndex = i + 1
-                pendingBreakWidth = lineW + discretionaryHyphenWidth
-                // A soft hyphen's fit already includes its own hyphen.
-                if (retreatsFromUnfitHyphen && (pendingBreakWidth <= fitLimit || (keepsFirstBreak && fitBreakSegmentIndex < 0))) {
+                pendingBreakWidth = lineW + (hyphenWidths === null ? discretionaryHyphenWidth : hyphenWidths[i]!)
+                // A soft hyphen's fit already includes its own hyphen, but for one right before an
+                // atomic item where the engine never tests that hyphen (EngineProfile).
+                const fitWidth = !testsHyphenBeforeAtomic && (segmentFlags[i + 1]! & KIND_BITS) === OBJECT && (openingEdges === null || openingEdges[i + 1]! === 0)
+                  ? lineW : pendingBreakWidth
+                if (retreatsFromUnfitHyphen && (fitWidth <= fitLimit || (keepsFirstBreak && fitBreakSegmentIndex < 0))) {
                   fitBreakSegmentIndex = pendingBreakSegmentIndex
                   fitBreakPaintWidth = pendingBreakWidth
                 }
@@ -627,9 +670,14 @@ function walkPreparedComplexLines(
           if (hangs) {
             if (hangEndSegmentIndex !== i) {
               hangStartWidth = lineW - lineEndTrimmed + leadingSpacing
-              hangsFromBefore = false
+              hangStays = items !== undefined && i > lineStartSegmentIndex && (segmentFlags[i - 1]! & KIND_BITS) === OBJECT && staysAfterObject(segmentFlags, i, hangingKinds)
+              hangEdgesWidth = 0
             }
             hangEndSegmentIndex = i + 1
+            if (openingEdges !== null) {
+              hangStartWidth += openingEdges[i]!
+              hangEdgesWidth += openingEdges[i]!
+            }
           }
           // Where glue can't hold a line, glue at a line start isn't the line's content:
           // the segment after it starts the line, however wide.
@@ -653,19 +701,18 @@ function walkPreparedComplexLines(
               const startTrim = overflowLineEndTrims !== null && fitAdvance + startExtra - overflowLineEndTrims[i]! <= fitLimit
                 ? overflowLineEndTrims[i]!
                 : endTrim
-              if (fitAdvance + startExtra - startTrim > fitLimit && breakableFitAdvances[i] !== null) {
+              // Preserved spaces hang whole, with the advances rich inline gives them too
+              // (hardBreakItemRetreat).
+              if (fitAdvance + startExtra - startTrim > fitLimit && breakableFitAdvances[i] !== null && !hangs) {
                 fillStart = 0
               } else {
                 hasContent = true
                 lineEndSegmentIndex = i + 1
                 lineEndGraphemeIndex = 0
                 lineW = w + startExtra
-                lineEndTrimmed = fitAdvance + startExtra > fitLimit ? startTrim : 0
-                if (segmentInner !== null) {
-                  innerBreakSegmentIndex = i
-                  innerBreakGraphemeIndex = segmentInner[segmentInner.length - 1]!
-                  innerBreakWidth = getGraphemesAdvance(breakableFitAdvances[i]!, innerBreakGraphemeIndex, 0, letterSpacing)
-                }
+                // What the line pays at its start stays where the white space it starts with hangs.
+                if (hangs) hangStartWidth += startExtra
+                lineEndTrimmed = fitAdvance + startExtra > fitLimit && kind !== OBJECT ? startTrim : 0
                 // The break segment hangs with the gap before it, a run of preserved
                 // spaces and tabs hangs whole, and a tab that doesn't hang counts whole.
                 if (breakAfter && (i + 1 === segmentCount || (segmentFlags[i + 1]! & UNBROKEN) === 0)) {
@@ -680,18 +727,44 @@ function walkPreparedComplexLines(
               }
             }
           } else {
-            // A run of preserved spaces and tabs fits where the text before it fits. Rich
-            // inline's firstSegmentOverflows() repeats this fit for an item's first segment.
-            const newFitW = hangs ? hangStartWidth : lineW + fitAdvance
-            if (newFitW - endTrim > fitLimit) {
+            // A run of preserved spaces and tabs fits where the text before it fits, and after an
+            // object however far the line overflows (staysAfterObject).
+            const newFitW = hangs ? hangStartWidth - hangEdgesWidth : lineW + fitAdvance
+            // Blink and WebKit move an object of width 0 that doesn't fit to the next line as any
+            // other. Gecko places an empty frame though it sticks out of the line (CanPlaceFrame,
+            // nsLineLayout.cpp:1264-1269; EngineProfile, emptyAtomicAlwaysFits). It sticks out
+            // where the content before it ends past the line's end, with the collapsed space
+            // before the object, which a line end trims no more once the object follows it
+            // (nsLineLayout.cpp:1017-1020), and without the preserved spaces that hang, which end
+            // at the line's end (nsTextFrame.cpp:11216-11229). The line then ends before it where
+            // the text before it ends in white space and its last frame ends past the line's end
+            // without that frame's own spaces, as the line breaks after the white space
+            // (nsTextFrame.cpp:11443-11456), and where a break comes before the object and what
+            // follows it sends the line back there (ParagraphSegmentData).
+            let placesEmptyObject = false
+            if (emptyObjectSpaces !== null && kind === OBJECT && w === 0 && newFitW > fitLimit) {
+              const contentW = hangEndSegmentIndex === i ? hangStartWidth : lineW
+              const space = emptyObjectSpaces[i]!
+              placesEmptyObject = contentW <= fitLimit || !((space >= 0 && contentW - space > fitLimit) || emptyObjectReturns![i] === 1)
+            }
+            // No engine lets content make a line narrower (findWholeLine in src/rich-inline.ts), so in
+            // a rich-inline paragraph a segment of less than no advance, as a letter under a letter
+            // spacing more negative than it is wide, doesn't bring a line that overflows back.
+            const narrowsOverflow = items !== undefined && fitAdvance < 0 && lineW - lineEndTrimmed > fitLimit
+            if ((newFitW - endTrim > fitLimit || narrowsOverflow) && !(hangs && hangStays) && !placesEmptyObject) {
               // A break segment hangs with the gap before it, after the content before
               // it, which fits without its line-end trim. A collapsible space or ZWSP
               // hangs even after overflowing content that started the line, as the
               // simple stepper does; a preserved space there starts the next line. A
-              // tab that doesn't hang goes to the next line, as text does.
+              // tab that doesn't hang goes to the next line, as text does. A ZWSP also
+              // hangs right after an object, as after the start edge of its item's opening,
+              // which the line took by the part it fits; after a chip wider than the line
+              // that is Firefox's line, where Chrome and Safari give a ZWSP that ends the
+              // paragraph a line of its own (ENGINE_FOLLOWUPS.md, Rich-inline item edges).
               const contentW = lineW - lineEndTrimmed
               if (breakAfter && (hangs || kind !== TAB) && (contentW <= fitLimit ||
-                (pendingBreakSegmentIndex < 0 && (kind === SPACE || kind === ZERO_WIDTH_BREAK)))) {
+                (pendingBreakSegmentIndex < 0 && (kind === SPACE || kind === ZERO_WIDTH_BREAK)) ||
+                (kind === ZERO_WIDTH_BREAK && (segmentFlags[i - 1]! & KIND_BITS) === OBJECT))) {
                 endWidth = hangs ? hangStartWidth : contentW
                 lineW += advance
                 endSegmentIndex = i + 1
@@ -702,38 +775,35 @@ function walkPreparedComplexLines(
               // BreakAndMeasureText keeps the last break whose line fits (gfxTextRun.cpp:1086-1101).
               // Without one it wraps before the tab, as break-word lets it before any cluster
               // (:1069-1072), and the spaces before the tab hang.
-              if (kind === TAB && !hangs && pendingBreakSegmentIndex < 0 && innerBreakSegmentIndex < 0) {
+              if (kind === TAB && !hangs && pendingBreakSegmentIndex < 0) {
                 endSegmentIndex = i
                 endGraphemeIndex = 0
                 endWidth = hangEndSegmentIndex === i && i > lineStartSegmentIndex ? hangStartWidth : contentW
                 break decided
               }
 
-              // The line ends at the latest break inside the segment that fits, else,
-              // where the scan gives no break before the segment, as before NEL (UAX #14
-              // LB6), it returns to its last break. Without one, Blink and WebKit retry
-              // between graphemes, so the segment's graphemes fill it.
-              if (segmentInner !== null) {
-                const fitAdvances = breakableFitAdvances[i]!
-                let innerAdvance = leadingSpacing
-                for (let g = 0, k = 0; k < segmentInner.length; g++) {
-                  innerAdvance += fitAdvances[g]! + (g > 0 ? letterSpacing : 0)
-                  if (lineW + innerAdvance + letterSpacing > fitLimit) break
-                  if (g + 1 === segmentInner[k]) {
-                    innerBreakSegmentIndex = i
-                    innerBreakGraphemeIndex = g + 1
-                    innerBreakWidth = lineW + innerAdvance
-                    k++
-                  }
-                }
-              }
               const unbroken = (flags & UNBROKEN) !== 0
-              if (innerBreakSegmentIndex >= 0 && (innerBreakSegmentIndex === i || (unbroken && innerBreakSegmentIndex >= pendingBreakSegmentIndex))) {
-                endSegmentIndex = innerBreakSegmentIndex
-                endGraphemeIndex = innerBreakGraphemeIndex
-                endWidth = innerBreakWidth
-                break decided
+              // An object with no break before it is the start edge of a padded rich-inline
+              // item's opening (src/rich-inline.ts). Blink's line trails once the preserved
+              // spaces it ends with overflow: it takes the white space after them, the tags of
+              // spans that open among it and a forced break with no fit (HandleTrailingSpaces,
+              // line_breaker.cc:2426-2534), so an edge right after such a run joins it, taking
+              // no room. WebKit fits the content it places without the white space that hangs
+              // before it (hangingContentWidth, InlineContentBreaker.cpp:183-186), so there the
+              // edge joins the run where it fits after the content before the run.
+              if (kind === OBJECT && unbroken && hangEndSegmentIndex === i && (paddedOpeningFit === 'start' ? lineW > fitLimit
+                : paddedOpeningFit === 'placed' && hangStartWidth - hangEdgesWidth + w - endTrim <= fitLimit)) {
+                hangEndSegmentIndex = i + 1
+                hangStartWidth += w
+                hangEdgesWidth += w
+                lineW += advance
+                lineEndSegmentIndex = i + 1
+                lineEndGraphemeIndex = 0
+                continue
               }
+              // Where the scan gives no break before the segment, as before NEL (UAX #14
+              // LB6), the line returns to its last break. Without one, Blink and WebKit retry
+              // between graphemes, so the segment's graphemes fill it.
               if (unbroken && pendingBreakSegmentIndex >= 0) {
                 lineEndSegmentIndex = pendingBreakSegmentIndex
                 lineEndGraphemeIndex = 0
@@ -750,6 +820,51 @@ function walkPreparedComplexLines(
                 lineEndTrimmed = overflowLineEndTrims[i]!
                 continue
               }
+              // Where the line of such an edge has no break to return to, the line ends before
+              // it, but before a hard break only in Blink, whose retry breaks between any two
+              // graphemes: WebKit and Gecko end the line before the last grapheme of the text
+              // before the edge, and keep the edge on a line that grapheme starts (EngineProfile,
+              // hardBreakItemRetreat). Of preserved spaces there, whose advances rich inline
+              // gives, Gecko moves the last and WebKit those that don't fit: all of them where a
+              // negative letter spacing leaves a space no advance, so that giving one up gives no
+              // overflow back. The ones the line keeps hang.
+              if (kind === OBJECT && hardBreakItemRetreat !== 'item' && i + 1 < segmentCount && (segmentFlags[i + 1]! & KIND_BITS) === HARD_BREAK) {
+                const beforeFlags = segmentFlags[i - 1]!
+                const beforeKind = beforeFlags & KIND_BITS
+                const spaceAdvances = beforeKind === PRESERVED_SPACE ? breakableFitAdvances[i - 1]! : null
+                if (spaceAdvances !== null) {
+                  const count = spaceAdvances.length
+                  const spaceAdvance = spaceAdvances[0]!
+                  const moved = hardBreakItemRetreat !== 'fit' || lineW <= fitLimit ? 1 : spaceAdvance > 0 ? Math.min(count, Math.ceil((lineW - fitLimit) / spaceAdvance)) : count
+                  if (i - 1 > lineStartSegmentIndex || count - moved > lineStartGraphemeIndex) {
+                    endSegmentIndex = i - 1
+                    endGraphemeIndex = count - moved
+                    endWidth = hangStartWidth
+                    break decided
+                  }
+                }
+                const beforeAdvances = beforeKind === TEXT || beforeKind === CONTROL ? breakableFitAdvances[i - 1]! : null
+                const spacing = (beforeFlags & SPACED) !== 0 ? letterSpacing : 0
+                if (beforeAdvances !== null && (i - 1 > lineStartSegmentIndex || beforeAdvances.length - 1 > lineStartGraphemeIndex)) {
+                  endSegmentIndex = i - 1
+                  endGraphemeIndex = beforeAdvances.length - 1
+                  endWidth = lineW - beforeAdvances[endGraphemeIndex]! - spacing
+                  break decided
+                }
+                if (beforeAdvances === null && (beforeKind === TEXT || beforeKind === CONTROL) && i - 1 > lineStartSegmentIndex) {
+                  endSegmentIndex = i - 1
+                  endGraphemeIndex = 0
+                  endWidth = lineW - widths[i - 1]! - spacing
+                  break decided
+                }
+                if (spaceAdvances !== null || (beforeKind !== PRESERVED_SPACE && beforeKind !== TAB)) {
+                  lineW += advance
+                  lineEndSegmentIndex = i + 1
+                  lineEndGraphemeIndex = 0
+                  lineEndTrimmed = 0
+                  continue
+                }
+              }
               if (breakableFitAdvances[i] === null) {
                 returnsFromHyphen = true
                 break decided
@@ -757,27 +872,33 @@ function walkPreparedComplexLines(
               fillStart = 0
               fillSpacing = leadingSpacing
             } else {
-              // A break the scan gives before text is one the line can return to.
+              // A break the scan gives before text is one the line can return to. A rich-inline
+              // paragraph's line returns to it from an unfit hyphen too, where it leaves the
+              // room the engine's return needs: Chrome lays out the spans `\u6F22\u5B57`,
+              // `\u00ADab`, `cd` in 16px Arial at 34.7px as `\u6F22` / `\u5B57-` / `abcd`. A
+              // text's line doesn't yet (ENGINE_FOLLOWUPS.md, Rich-inline item edges).
               if ((flags & RETURNABLE) !== 0 && !breakAfter && pendingBreakSegmentIndex !== i) {
                 pendingBreakSegmentIndex = i
                 pendingBreakWidth = lineW
+                if (items !== undefined && retreatsFromUnfitHyphen && lineW + reservedHyphenWidth <= fitLimit) {
+                  fitBreakSegmentIndex = i
+                  fitBreakPaintWidth = lineW
+                }
               }
               if (retreatsAtFullWidth && !breakAfter && (flags & UNBROKEN) === 0 && i > lineStartSegmentIndex && !breaksAfterKind(segmentFlags[i - 1]! & KIND_BITS)) {
                 fitBreakSegmentIndex = i
                 fitBreakPaintWidth = lineW
               }
-              // The last break inside the segment is the line's latest.
-              if (segmentInner !== null) {
-                innerBreakSegmentIndex = i
-                innerBreakGraphemeIndex = segmentInner[segmentInner.length - 1]!
-                innerBreakWidth = lineW + getGraphemesAdvance(breakableFitAdvances[i]!, innerBreakGraphemeIndex, leadingSpacing, letterSpacing)
-              }
               lineW += advance
               lineEndSegmentIndex = i + 1
               lineEndGraphemeIndex = 0
+              if (hangGoesOnPastEmpty && hangEndSegmentIndex === i && kind === OBJECT && w === 0) {
+                hangEndSegmentIndex = i + 1
+                hangStartWidth = Math.max(hangStartWidth, Math.min(lineW, availableWidth))
+              }
               // A segment that takes no room at the line end, as a space, leaves the glyph
               // before it last on the line, with its trim.
-              if (fitAdvance !== 0 && !hangs) lineEndTrimmed = newFitW > fitLimit ? endTrim : 0
+              if (fitAdvance !== 0 && !hangs) lineEndTrimmed = newFitW > fitLimit && kind !== OBJECT ? endTrim : 0
               if (breakAfter && (i + 1 === segmentCount || (segmentFlags[i + 1]! & UNBROKEN) === 0)) {
                 pendingBreakSegmentIndex = i + 1
                 pendingBreakWidth = hangs ? hangStartWidth : kind === TAB ? lineW : lineW - advance - lineEndTrimmed
@@ -818,9 +939,6 @@ function walkPreparedComplexLines(
             lineEndGraphemeIndex = 0
             lineW = freshWhole - letterSpacing
           } else {
-            // The first of the segment's inner breaks after the fill's start.
-            let nextInner = 0
-            while (segmentInner !== null && nextInner < segmentInner.length && segmentInner[nextInner]! <= fillStart) nextInner++
             for (let g = fillStart; g < fitCount; g++) {
               const baseGw = fitAdvances[g]!
               if (!hasContent) {
@@ -828,9 +946,12 @@ function walkPreparedComplexLines(
                 lineEndSegmentIndex = i
                 lineEndGraphemeIndex = g + 1
                 lineW = baseGw
+                // A line that starts inside a padded rich-inline item, or fills its first
+                // segment, pays the item's extraWidth (ParagraphSegmentData).
+                if (g > 0 ? insideExtras !== null : fillExtras !== null) lineW += g > 0 ? insideExtras![i]! : fillExtras![i]!
                 // A line that holds only this grapheme, overflowing, keeps the graphemes after
                 // it that can't start a line, and ends.
-                const end = baseGw + letterSpacing > fitLimit
+                const end = lineW + letterSpacing > fitLimit
                   ? getOverflowingFirstGraphemeEnd(prepared, i, g, fitCount)
                   : g + 1
                 if (end > g + 1) {
@@ -842,25 +963,10 @@ function walkPreparedComplexLines(
                 }
               } else {
                 const candidatePaintWidth = lineW + (baseGw + (g > fillStart ? letterSpacing : fillSpacing))
-                if (candidatePaintWidth + letterSpacing > fitLimit) {
-                  // The line returns to its latest break inside a segment, as there is
-                  // no other break to return to where graphemes fill it.
-                  if (innerBreakSegmentIndex >= 0) {
-                    endSegmentIndex = innerBreakSegmentIndex
-                    endGraphemeIndex = innerBreakGraphemeIndex
-                    endWidth = innerBreakWidth
-                  }
-                  break decided
-                }
+                if (candidatePaintWidth + letterSpacing > fitLimit) break decided
                 lineW = candidatePaintWidth
                 lineEndSegmentIndex = i
                 lineEndGraphemeIndex = g + 1
-              }
-              if (segmentInner !== null && nextInner < segmentInner.length && segmentInner[nextInner] === g + 1) {
-                innerBreakSegmentIndex = i
-                innerBreakGraphemeIndex = g + 1
-                innerBreakWidth = lineW
-                nextInner++
               }
             }
           }
@@ -894,11 +1000,12 @@ function walkPreparedComplexLines(
           endGraphemeIndex = 0
           endWidth = fitBreakPaintWidth
         } else if (endSegmentIndex < 0) {
-          // A line that ends at its pending break paints the pending width.
+          // A line that ends at its pending break paints the pending width, and one that wraps
+          // right after a run of preserved spaces and tabs hangs it, with no break there too.
           endSegmentIndex = lineEndSegmentIndex
           endGraphemeIndex = lineEndGraphemeIndex
-          endWidth = pendingBreakSegmentIndex === lineEndSegmentIndex && lineEndGraphemeIndex === 0
-            ? pendingBreakWidth
+          endWidth = pendingBreakSegmentIndex === lineEndSegmentIndex && lineEndGraphemeIndex === 0 ? pendingBreakWidth
+            : items !== undefined && hangEndSegmentIndex === lineEndSegmentIndex && lineEndGraphemeIndex === 0 ? hangStartWidth
             : lineW - lineEndTrimmed
         }
         cursor.segmentIndex = endSegmentIndex
@@ -912,36 +1019,7 @@ function walkPreparedComplexLines(
           (hangEndSegmentIndex === segmentCount || (segmentFlags[hangEndSegmentIndex]! & KIND_BITS) === HARD_BREAK)
         const paintWidth = (hangsWhereUnfit ? lineW - lineEndTrimmed : endWidth) +
           getTerminalLetterSpacing(prepared, hangingKinds, lineStartSegmentIndex, lineStartGraphemeIndex, endSegmentIndex, endGraphemeIndex)
-        lineWidth = hangsWhereUnfit && item === null ? Math.max(hangStartWidth, Math.min(paintWidth, availableWidth)) : paintWidth
-        if (item !== null) {
-          // Where the line wraps right after a run that goes on from before the item, the
-          // width there is that run's start, before the item.
-          const wrapsAfterRunFromBefore = !hangsWhereUnfit && hangsFromBefore && endGraphemeIndex === 0 && endSegmentIndex === hangEndSegmentIndex && endSegmentIndex > lineStartSegmentIndex
-          item.hangWidth = hangsWhereUnfit ? paintWidth - hangStartWidth : wrapsAfterRunFromBefore ? -hangStartWidth : 0
-          if (wrapsAfterRunFromBefore) lineWidth = 0
-          // The line's latest break, as a line that returns to it ends: inside a segment,
-          // at a segment start or before the item, or where that is a soft hyphen that
-          // doesn't fit, the opportunity the line returns to from it.
-          let breakSegmentIndex = pendingBreakSegmentIndex
-          let breakGraphemeIndex = 0
-          let breakWidth = pendingBreakWidth
-          if (innerBreakSegmentIndex >= 0 && innerBreakSegmentIndex >= pendingBreakSegmentIndex) {
-            breakSegmentIndex = innerBreakSegmentIndex
-            breakGraphemeIndex = innerBreakGraphemeIndex
-            breakWidth = innerBreakWidth
-          } else if (fitBreakSegmentIndex >= 0 && returnsFromUnfitHyphen(prepared, lineStartSegmentIndex, fitBreakSegmentIndex, breakSegmentIndex, breakWidth, fitLimit)) {
-            breakSegmentIndex = fitBreakSegmentIndex
-            breakWidth = fitBreakPaintWidth
-          }
-          item.breakHangWidth = 0
-          if (hangsFromBefore && breakGraphemeIndex === 0 && breakSegmentIndex === hangEndSegmentIndex && breakSegmentIndex > lineStartSegmentIndex) {
-            item.breakHangWidth = -hangStartWidth
-            breakWidth = 0
-          }
-          item.breakSegmentIndex = breakSegmentIndex
-          item.breakGraphemeIndex = breakGraphemeIndex
-          item.breakWidth = breakWidth + getTerminalLetterSpacing(prepared, hangingKinds, lineStartSegmentIndex, lineStartGraphemeIndex, breakSegmentIndex, breakGraphemeIndex)
-        }
+        lineWidth = hangsWhereUnfit ? Math.max(hangStartWidth, Math.min(paintWidth, availableWidth)) : paintWidth
       }
     }
     if (lineWidth === null) break
@@ -997,6 +1075,10 @@ function stepPreparedSimpleLineGeometry(
     const fitAdvances = startAdvances!
     let g = cursor.graphemeIndex + 1
     lineW = fitAdvances[g - 1]!
+    // A line that starts inside a padded rich-inline item, or fills its first segment, pays
+    // the item's extraWidth (ParagraphSegmentData).
+    const items = prepared.items
+    if (items !== undefined && (g > 1 ? items.insideExtras !== null : items.fillExtras !== null)) lineW += g > 1 ? items.insideExtras![start]! : items.fillExtras![start]!
     // A line that holds only an overflowing grapheme keeps the graphemes after it
     // that can't start a line, and ends.
     const overflowEnd = lineW > fitLimit ? getOverflowingFirstGraphemeEnd(prepared, start, g - 1, fitAdvances.length) : g
@@ -1038,16 +1120,13 @@ function stepPreparedSimpleLineGeometry(
   return lineW - endTrimmed
 }
 
-// Steps one line from a normalized line start, or a rich-inline item's line (ItemLine),
-// which the full walker continues from the item's start. A cursor inside a segment
-// needs that segment's breakable fit advances. A handle rich-inline gives the full
-// walker leaves the line's latest break in `item`.
+// Steps one line from a normalized line start. A cursor inside a segment needs that segment's
+// breakable fit advances.
 export function stepPreparedLineGeometryFromStart(
   prepared: PreparedLineBreakData,
   cursor: LayoutCursor,
   maxWidth: number,
-  item: ItemLine | null = null,
 ): number | null {
-  if (prepared.simpleLineWalkFastPath && (item === null || !item.continues)) return stepPreparedSimpleLineGeometry(prepared, cursor, maxWidth)
-  return walkPreparedComplexLines(prepared, cursor, maxWidth, undefined, null, true, item)
+  if (prepared.simpleLineWalkFastPath) return stepPreparedSimpleLineGeometry(prepared, cursor, maxWidth)
+  return walkPreparedComplexLines(prepared, cursor, maxWidth, undefined, null, true)
 }

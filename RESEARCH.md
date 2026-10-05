@@ -1185,28 +1185,114 @@ emergency break inside `AV` in 18px Times New Roman it paints `V` at 11.833px, k
 
 ### Rich Inline Boundaries
 
-Rich inline (`prepareRichInline()` and its walkers, `src/rich-inline.ts`) measures each item alone and breaks by the
-paragraph's joined text. Measuring alone is a premise whose gap is out of scope for now, since rich inline with kerning
-between sibling spans is left for later (Part 1, The Per-Engine Rebuild And What Counts As Done): Chrome and Firefox
-kern across same-font spans, so Arial `community` + `,` fits about 1px earlier than its two widths, and Safari doesn't
-(2026-09-12). Where Pretext's plain-text walkers, given the joined text as one string, and the browser's lines for the
-same text in one text node disagree, rich inline follows the plain-text walkers, but for a few places where it follows
-the browser and the walkers don't yet: in the Gecko profile a rich line hangs the space before a soft hyphen Firefox
-drops and its start consumes that soft hyphen, and in every profile an item whose whole width fits goes on its line
-(ENGINE_FOLLOWUPS.md, White space and controls, and Negative letter spacing and hanging spaces). It takes the premise
-that a browser lays spans out as it lays out their text in one text node; where browsers don't, mostly at soft
-hyphens, bidi controls and separators beside white space at a span's edge, is in ENGINE_FOLLOWUPS.md, Rich-inline item
-edges.
+Rich inline (`prepareRichInline()`, `src/rich-inline.ts`) lays its items out as one paragraph: their texts joined and
+analyzed once, each item's segments measured in the item's font, and the lines found by the text walkers (Rich Inline
+As One Paragraph). Measuring each item alone is a premise whose gap is out of scope for now, since rich inline with
+kerning between sibling spans is left for later (Part 1, The Per-Engine Rebuild And What Counts As Done): Chrome and
+Firefox kern across same-font spans, so Arial `community` + `,` fits about 1px earlier than its two widths, and Safari
+doesn't (2026-09-12). Where Pretext's plain-text walkers, given the joined text as one string, and the browser's lines
+for the same text in one text node disagree, rich inline follows the walkers, which lay it out, but for a paragraph
+whose whole width fits, which is one line (ENGINE_FOLLOWUPS.md, Negative letter spacing and hanging spaces). It takes
+the premise that a browser lays spans out as it lays out their text in one text node; where browsers don't, mostly at
+soft hyphens, bidi controls and separators beside white space at a span's edge, is in ENGINE_FOLLOWUPS.md, Rich-inline
+item edges.
 
 The rich-inline counts below from 2026-09-26 to 28 are of *probes*: cases generated for one change, each beside the
 same text in one text node, recorded in Chrome, Firefox and webkit-host and not checked in, and counted against the
 build before the change. The PRs named, and their commits' messages, have the full counts and attributions.
 
+#### Rich Inline As One Paragraph
+
+Terms: an *item* is one entry of the list `prepareRichInline()` takes, a styled run of text or a box; the *paragraph* is
+all the items of one call; a *segment* is the unit the line walkers step over, a stretch of text between two places a
+line may end; the *handle* is what preparation gives the walkers (`PreparedLineBreakData`).
+
+`prepareRichInline()` joins the items' texts, an atomic item (`break: 'never'`) or a box as one U+FFFC, and analyzes
+that text once, as `prepare()` analyzes a text, with a segment starting wherever an item does (`ParagraphItems` and
+`ITEM_START` in `src/analysis.ts`). It measures each item's segments in the item's font and copies them into one handle,
+which `walkPreparedLinesRaw()` and the steppers of `src/line-break.ts` lay out as they lay out a text. A line's
+fragments are its segments cut where the item changes (`createLine()`). A paragraph of one text item without
+`extraWidth`, or whose other items are empty, is that text's own handle.
+
+It is the engines' model, to the extent each has one. Blink builds one string for a paragraph's inline content, with a
+span's open and close tags as zero-length items over it and an atomic inline as one U+FFFC, and runs one break iterator
+over it (`InlineNode::CollectInlines`, `inline_node.cc:1126-1160`; `AppendAtomicInline`,
+`inline_items_builder.cc:1269-1287`; `CanBreakAfter`, `line_breaker.cc:1210-1231`). Gecko has no such string, but its
+line breaker keeps the word at hand across text frames and font changes and analyzes it whole, starting again only at
+an atomic frame (`nsLineBreaker::AppendText`, `nsLineBreaker.cpp:243-268`; `BuildTextRunsScanner::ScanFrame`,
+`nsTextFrame.cpp:2208-2209`, `2248-2251`). WebKit cuts each text node into items from its own text and decides a
+boundary between two boxes from the next box's text with the last two characters before it
+(`InlineItemsBuilder.cpp:924-1051`; `TextUtil::mayBreakInBetween`, `TextUtil.cpp:367-396`). So the analysis of a
+paragraph takes each engine's scan as that engine runs it: Blink's over the joined text; Gecko's over it too, with the
+items as text frames for the white-space run and each item's own segment break transformation; WebKit's over each
+item's text, joined by its check at a boundary (`getWebKitParagraphBreaks()`). Each item measured in its own font is
+WebKit's measuring, and the named gap of the section's first paragraph in the other two. Two things Blink reads from
+the paragraph's text whatever items they are in come from the paragraph's analysis: the mark before and after a shaped
+run that decide a fullwidth mark's halt (`HanKerning::AppendFontFeatures`, `han_kerning.cc:266-273`, `288-294`), so a
+pair of marks an item start splits halts as in one text, each mark by its own item's font, with no code for it in
+`src/rich-inline.ts`; and a run of U+3000 that ends an item hangs or not by what follows it in the paragraph.
+
+What an item carries of its own goes on its segments. Its `extraWidth` is in the width of its first segment that takes
+room, and a line that starts later in the item adds it there (`lineStartExtras`, and `insideExtras` and `fillExtras`
+where the line starts inside a segment); an item that opens with preserved white space, a hard break or a zero-width
+space gets a start edge of its own, an empty segment the line fits by the edges the engine fits there
+(`getOpeningFit()`). The handle's letter spacing is the one the items share, and where they differ each segment's
+width holds its item's; the hyphen a soft hyphen paints, the tab stops and the least a tab advances are per segment
+where two items differ in one (`ParagraphSegmentData`). An atomic item or a box is one segment of kind `OBJECT`, with a
+break on both sides and none inside.
+
+That replaced a second line walker for rich inline, which analyzed each item's text on its own, patched it toward the
+text the items join and stepped item by item, calling the text walker for one item at a time (Continuing The Line has
+what it was and what it found). It kept drifting from the text walkers: each rule the text walkers gained needed its
+copy at item edges (#332). The item stepper, the walker's mode for one item's line, the joined windows and the second
+handle per item are gone, and three fields of the engine profile with them (`breaksFromItemText`,
+`collapsesSpaceAcrossSoftHyphens`, `spaceBeforeSoftHyphenHangs`).
+
+What a caller sees change: a fragment's `start` and `end`, and a line's `end`, count segments of the item's part of
+the paragraph, where they were cursors into `prepareWithSegments(item.text)`. The two differ wherever an item starts
+inside a word, where white space collapses across items, and where Firefox's white-space run reads through an item's
+start, so no mapping keeps the old meaning without each item's own analysis, which the design removes. Cursors are
+for passing back to `layoutNextRichInlineLineRange()` and `materializeRichInlineLineRange()`; a materialized fragment
+has `sourceStart` and `sourceEnd`, UTF-16 offsets in its item's `text`. Also: an atomic item of only white space is an
+object as wide as its `extraWidth`, as every engine lays out an inline-block of only white space (Atomic Items' Own
+White Space), where it was a collapsed space; an item of soft hyphens or a ZWSP that a line's start consumes gets no
+empty fragment on that line; and a collapsed space at an item's edge is measured with its item, so in the Chromium
+profile it takes its kerning with the word beside it there, and in the WebKit profile a word is measured with the
+space that ends its item.
+
+A paragraph whose whole width fits is one line, taken without a walk (`findWholeLine()`): most paragraphs of a chat
+are. Every engine tests a line at prefixes of it and lets no content make it narrower (the function cites all three),
+so the premise holds wherever no item's advance is negative; a paragraph with such an item, as a letter under a letter
+spacing more negative than it is wide, is walked, and there a segment of less than no advance doesn't bring a line
+that overflows back. Inside one item the premise's gap is left, as in a paragraph of one item before
+(ENGINE_FOLLOWUPS.md, Negative letter spacing and hanging spaces).
+
+Firefox's rules for an atomic item of width 0 (Objects Inside A Line) are stated about text frames. The paragraph's
+walker doesn't know where items start, so preparation finds for each such object what a line reads of the text around
+it, the white space that ends the text before it and whether what follows sends the line back, once, from the
+paragraph's end back (`setEmptyObjectFacts()`), and the walker reads those two facts where the object sticks out of a
+line.
+
+Cutting a line into fragments is a second pass over the line's segments, and how it is written decides its cost in
+Firefox. A first candidate of this design (branch `rich-paragraph`, 2026-10-01) walked rich lines 36-39% slower than
+the item stepper in Firefox 156.0.1 and streamed them 51% slower, while finding the lines themselves 2.3 times faster
+(the bench's `rich` rows, two foreground sessions, then three in the background, 2026-10-05). All of the loss was in
+that pass, for three reasons none of which the design needs: two binary searches a line for the items of its first
+segment and its end; an advance to the next item inside the loop; and, inside the loop, the width of a segment the line
+starts or ends inside, a call and an inner loop that 7 of the bench's 2,688 lines take, since only Gecko's scan keeps a
+rule of 72 hyphens as one segment. SpiderMonkey compiled the whole loop slower once that rarely taken branch held a
+call or a nested loop, about 3.6 ns a segment, and didn't with a constant in its place (156.0.1's shell; its mechanism
+wasn't found). With each segment's item read from a list made at preparation and the widths of the at most two partly
+taken segments found before the loop, the same lines walked 10% faster than the item stepper and streamed level in
+Firefox, 16-24% and 10-13% faster in V8's shell and 20-24% and 14-22% in JavaScriptCore's (background Firefox and
+shells on a stand-in Canvas, so hypotheses until the bench times them; JavaScript Engines has the general rule).
+`createLine()` is written that way.
+
 #### Joined Text
 
 Chrome's and Firefox's items break by the joined text, a font change ending only Gecko's shaped run (Firefox 155 wrapped
 same-font spans as one text node, 2026-09-14); WebKit's and the WebKit profile's break by each box's own text, with the
-previous box's last two characters as context (`breaksFromItemText` in the profile; `TextUtil.cpp:374-396`). Splitting a word changes
+previous box's last two characters as context (`getWebKitParagraphBreaks()` in `src/analysis.ts`; `TextUtil.cpp:374-396`). Splitting a word changes
 its segmentation (Thai `ความสวยง` is `ความ/สวย/ง` alone, `ความ/สวยงาม` joined), and each engine's rules apply across
 items: Firefox, whose lines don't start with small kana, keeps `待って` together across `ちょっと待` and `ってください`, while in
 Safari 26.5.2 the joined analysis lost Thai and Lao words split across items (2026-09-12; unchecked on 27). The analysis
@@ -1220,8 +1306,8 @@ split from its consonant and browsers shape with it (16px Myanmar Sangam MN: `�
 joined; ENGINE_FOLLOWUPS.md), and breaking at every item boundary had matched those counts only by breaking where
 Firefox never does (Firefox 155, 2026-09-14; old suite, `tests/wrapping`, removed 2026-09-25).
 
-Under keep-all, which `prepareRichInline()` takes for the whole paragraph (`{ wordBreak }`), each item's analysis and
-the joined text's take it, so Blink's and Gecko's keep-all scans decide the breaks across items as in one text. WebKit's
+Under keep-all, which `prepareRichInline()` takes for the whole paragraph (`{ wordBreak }`), the paragraph's analysis
+takes it, so Blink's and Gecko's keep-all scans decide the breaks across items as in one text. WebKit's
 check at a box boundary reads no prior context under keep-all (`TextUtil::findNextBreakablePosition`,
 `TextUtil.cpp:403-407`; `BreakablePositions::next`, `BreakablePositions.h:288-300`): a box starts at a break only where
 it starts with a breakable space or ZWSP. So where punctuation ends a box, after which Safari's keep-all breaks inside
@@ -1234,27 +1320,31 @@ each engine reads a boundary's rule from the spans beside it, WebKit from the ne
 
 #### Continuing The Line
 
-Since #369 (2026-09-27) an item's walk continues the line instead of starting one, as a browser lays out one paragraph's
-text across its spans. Before, each item was walked as if it began a line and then walked again to an earlier end in
-four cases (a split word, a joined break after the walk's end, an overflowing hyphen, a continuing run that didn't fit),
-which got some cases right only by luck. Now the full walker takes what the line holds before the item (whether it has
-content, its latest break, which the rich stepper keeps across items, and whether a return from an unfit soft hyphen can
-end the line there) and the joined text's breaks inside the item's segments, on a copy of the item's handle whose flags
-follow the joined text (`getWalkedHandle()`). There a ZWSP or soft hyphen takes the kind of the last of the joined
-text's segments inside it, as the text around it decides it (`recordJoinedBreaks()`); taking the kind of the one that
-starts where the item's does fitted a hyphen Firefox doesn't draw in 14 probe cases. An item that starts a line on a
-fast-path handle still takes the simple stepper (Keeping Work Bounded, The Walkers' Shapes). On a stand-in fuzz of case
+This is how rich inline was laid out from #369 (2026-09-27) until the one-paragraph design replaced it (Rich Inline As
+One Paragraph), kept for what it measured: the rules it found hold in the paragraph's analysis too. From #369 an
+item's walk continued the line instead of starting one, as a browser lays out one paragraph's text across its spans.
+Before, each item was walked as if it began a line and then walked again to an earlier end in four cases (a split word,
+a joined break after the walk's end, an overflowing hyphen, a continuing run that didn't fit), which got some cases
+right only by luck. From #369 the full walker took what the line held before the item (whether it had content, its
+latest break, which a stepper over the items kept across them, and whether a return from an unfit soft hyphen could end
+the line there) and the joined text's breaks inside the item's segments, on a copy of the item's handle whose flags
+followed the joined text. There a ZWSP or soft hyphen took the kind of the last of the joined text's segments inside
+it, as the text around it decides it; taking the kind of the one that starts where the item's does fitted a hyphen
+Firefox doesn't draw in 14 probe cases. An item that started a line on a fast-path handle still took the simple
+stepper (Keeping Work Bounded, The Walkers' Shapes). On a stand-in fuzz of case
 texts split into same-font items, rich lines then matched the plain-text walker's at 607 to 981 more widths per profile,
 and lost only 117 in the WebKit profile, which Safari lays out as rich inline now does (webkit-host passes all 303 probe
 cases of those shapes), and 13 in the Gecko profile, where an item's own white-space processing removes a newline the
 joined text keeps; a 4,858-case probe fixed 370 Chrome, 511 Firefox and 1,308 webkit-host cases and lost 11, 4 and 11
 (10e75bba, #369, attributes them).
 
-A ZWSP that starts an item keeps the line it holds at a text's start, and a zero-width break that only the joined text
-gives there holds none: taking every item start that continues a run as inside a chunk lost 76 webkit-host, 3 Chrome and
-2 Firefox probe cases. A fragment's text is its item's own, with the hyphen at its end taken from the copy
-(harness/README.md, What a case is and when it passes): built wholly from the copy, it showed a soft hyphen that Gecko's
-joined scan makes text before a bidi control (#373). In the Gecko profile a joined window that starts after collapsible
+A ZWSP that started an item kept the line it holds at a text's start, and a zero-width break that only the joined text
+gives there held none: taking every item start that continues a run as inside a chunk lost 76 webkit-host, 3 Chrome and
+2 Firefox probe cases. In the paragraph a ZWSP after a wrap is inside its chunk, as in a text, so a line start consumes
+it, where the browsers give it a line of its own when the text after it doesn't fit (ENGINE_FOLLOWUPS.md, Rich-inline
+item edges). A fragment's text was its item's own, with the hyphen at its end taken from the copy: built wholly from
+the copy, it showed a soft hyphen that Gecko's joined scan makes text before a bidi control (#373), which the
+paragraph's analysis avoids by starting a segment where an item starts with one. In the Gecko profile a joined window that starts after collapsible
 white space is analyzed after a space, which Gecko's scan reads as context, so it breaks after a bidi control that
 follows the space, and after content where content comes before that space, without which a soft hyphen after the space
 took a hyphen the paragraph's text doesn't (29 Firefox probe cases).
@@ -1264,23 +1354,23 @@ transforms segment breaks in the text of the whole inline formatting context and
 (`transformsSegmentBreaksAcrossItems` cites both); taking the paragraph's transformation in the Gecko profile lost 30
 Firefox cases of a 43,462-case probe and fixed 7.
 
-What the design costs in structure (#370, 2026-09-28): rich inline analyses each item on its own, then patches it toward
-the text the items join (`recordJoinedBreaks()`, `markUnbroken()`, `getWalkedHandle()`, the joined windows and the
-passes after the item loop in `src/rich-inline.ts`, `ItemLine` and the walker's item mode in `src/line-break.ts`, and a
-second handle per item with its caches kept twice, about 330 lines with comments), because fragment cursors index
-`prepareWithSegments(item.text)`. Written from scratch it would be one analysis of the paragraph cut at item boundaries,
-as the rebuild indexes a paragraph's content (`rebuild/src/content.ts` on branch `rebuild-20260916`), which needs a new
-cursor contract and letter spacing and `extraWidth` per segment in the walker. It isn't prototyped, and is on the API
-discussion's list (TODO.md).
+What that design cost in structure (#370, 2026-09-28): rich inline analyzed each item on its own, then patched it
+toward the text the items join (the joined windows and the passes after the item loop in `src/rich-inline.ts`, the
+walker's mode for one item's line in `src/line-break.ts`, and a second handle per item with its caches kept twice,
+about 330 lines with comments), because fragment cursors indexed `prepareWithSegments(item.text)`. Written from scratch
+it is one analysis of the paragraph cut at item boundaries, as the rebuild indexes a paragraph's content
+(`rebuild/src/content.ts` on branch `rebuild-20260916`), with a new cursor contract and letter spacing and `extraWidth`
+per segment in the walker: Rich Inline As One Paragraph.
 
 #### Items Of Soft Hyphens And White Space
 
 An item holding only soft hyphens and collapsible white space is no line content, since a line start consumes it, but
-since #369 it takes part in the paragraph's runs and breaks as its text does in one text node. The rules, with each
-browser's example, are in the comments of `src/rich-inline.ts` and of the engine profile's `spaceBeforeSoftHyphenHangs`,
-and the harness's `rich/continued` families pin the lines; which engine takes which `spaceBeforeSoftHyphenHangs` value
-moves only line widths, which the harness doesn't judge, so `src/layout.test.ts` pins it with each engine's whole
-profile. These results shaped them. After content the item keeps the collapsed space before it: ending the line before
+it takes part in the paragraph's runs and breaks as its text does in one text node: since the one-paragraph design by
+construction, as its text is the paragraph's. From #369 until then the item stepper had rules of its own for it, with
+a profile field, `spaceBeforeSoftHyphenHangs`, for where the collapsed space before such an item hangs in each engine,
+which moved only line widths; the paragraph lays that space out as the text walkers lay it out in one text, and the
+field is gone (Rich Inline As One Paragraph has the widths that moved). The harness's `rich/continued` families pin the
+lines. These results shaped the stepper's rules. After content the item keeps the collapsed space before it: ending the line before
 the item lost 288 Firefox cases of a 43,462-case probe, as Firefox keeps the space and the soft hyphen on the line.
 Where a line ends after it, the browsers break at that space and move the soft hyphen on, so the space hangs, but each
 engine keeps the soft hyphen on the line in other places, so the profiles name three behaviours: hanging the space also
@@ -1299,11 +1389,11 @@ follows the line's content: that fixed 415 Firefox cases of an 80,512-case probe
 end the line for every item that reserves nothing fixed 487 more Firefox cases but lost 245 more, and 11 Chrome and 58
 webkit-host ones.
 
-In the Gecko profile a soft hyphen after collapsible white space is a zero-width break, which Firefox drops, so a rich
-line start consumes it wherever it reaches it (`normalizeItemLineStart()`) and tells it from a ZWSP that holds the line
-by the segment's first code unit: normalizing again from the next segment, or taking an item's start as a text's start
-only at its first segment, lost a ZWSP's line, and giving `normalizePreparedLineStart()`, which the plain walkers share,
-the chunk's start as a parameter read Firefox's `lines` mixed stream 2.2-2.4% slower.
+In the Gecko profile a soft hyphen after collapsible white space is a zero-width break, which Firefox drops. The item
+stepper's line start consumed it wherever it reached it and told it from a ZWSP that holds the line by the segment's
+first code unit: normalizing again from the next segment, or taking an item's start as a text's start only at its first
+segment, lost a ZWSP's line, and giving `normalizePreparedLineStart()`, which the plain walkers share, the chunk's start
+as a parameter read Firefox's `lines` mixed stream 2.2-2.4% slower. The paragraph's lines start as a text's do.
 
 #### Firefox's White-Space Run Across Items
 
@@ -1313,8 +1403,8 @@ among it as one run, and carries the run from one text frame to the next (`Trans
 frame ends the run, and so does an atomic inline (`BuildTextRunsScanner::ScanFrame`). Bidi resolution splits text frames
 where the embedding level changes, and a text run doesn't go on across the split (`ContinueTextRunAcrossFrames`,
 `nsTextFrame.cpp:2023-2030`), so a dropped character at another level than the white space before it ends the run too.
-Since #369 the Gecko profile follows that run across items (`collapsesSpaceAcrossSoftHyphens`; `whitespaceRunOpen` in
-`src/rich-inline.ts`, whose comments have the rules and Firefox's widths). It resolves no levels and takes each dropped
+Since #369 the Gecko profile follows that run across items: the scan's text transform takes a paragraph's items as
+text frames (`transformText()` in `src/gecko-line-breaks.ts`, whose comment has the rule and Firefox's widths). It resolves no levels and takes each dropped
 character at the level of the white space before it. A soft hyphen, an embedding or override control and an isolate
 initiator always have it. A direction mark has it unless it goes against the direction of its paragraph, embedding or
 isolate after white space that follows text of that direction, follows a mark of the other direction, or has an opening
@@ -1328,9 +1418,9 @@ left-to-right cases and 173 right-to-left ones, and the run without levels passe
 mark or a PDI inside an embedding or isolate the port passed all 155 cases in each direction, and the run without levels
 passes 142 (Firefox 156.0.1, 2026-10-01). In the harness's rich set, whose level templates are left-to-right paragraphs,
 the port decided 6 Firefox cases, each a right-to-left mark with a soft hyphen after white space at an item's end. White
-space and soft hyphens after an item's leading white space are part of that run, so the Gecko profile walks an item of
-soft hyphens and white space only where it starts with a soft hyphen, whose white space starts a run of its own: walking
-every such item there, as Chrome and Safari do, lost 421 Firefox cases of a 28,435-case probe and fixed 30. The run
+space and soft hyphens after an item's leading white space are part of that run, and white space after a soft hyphen
+that starts an item starts a run of its own: taking every item of soft hyphens and white space as Chrome and Safari do
+lost 421 Firefox cases of a 28,435-case probe and fixed 30. The run
 fixed 6,220 Firefox cases of an 80,512-case probe and lost 220, most of which Firefox lays out otherwise as spans than
 as one node, and moved no Chrome or webkit-host case; since #372 (2026-09-28) an item of only white space and bidi
 controls between words takes one space, as in Firefox. What it still gets wrong, such as two spaces around a control at
@@ -1345,6 +1435,10 @@ object (Blink's, WebKit's and Gecko's sources are cited at the rule in `prepareR
 On three probes that fixed 1,845 Chrome, 818 Firefox and 1,884 webkit-host cases and lost 76, 81 and 101, 241 of the
 258 losses holding a soft hyphen or bidi control beside the atomic item's white space, where the gap had made up for
 white space Pretext gets wrong there. In Firefox an atomic item's leading white space also collapses into an open run.
+An atomic item of only white space is still an object, as wide as its `extraWidth`, with a break on both sides: the
+three browsers lay out `ab`, a chip of two spaces with 5px of padding and `cd` in 16px Arial at 40px as `ab` and the
+chip, then `cd`, in normal white space and in pre-wrap (2026-10-01, a 180-case probe per browser). Until the
+one-paragraph design such an item was a collapsed space.
 
 #### Objects Inside A Line
 
@@ -1365,15 +1459,15 @@ than the line, moves to the next line in Chrome and Safari, as any atomic item d
 (`CanPlaceFrame`, `nsLineLayout.cpp:1264-1269`; the profile's `emptyAtomicAlwaysFits`) without counting the break after
 it as one that fits (`:1260`, `:1506-1513`), so a frame with a width that comes next, text, a span with padding or white
 space in a text node of its own, sends the line back to its last break that fit, and the empty frame starts the next
-line with it; it stays where the line ends without that (`getKeptEmptyEnd()` in `src/rich-inline.ts` has the cases). `ab
+line with it; it stays where the line ends without that (`setEmptyObjectFacts()` in `src/rich-inline.ts` has the cases). `ab
 `, a 0px box and `cd` in 16px Arial at 20.25px are `ab` and then the box with `cd`, and with ` cd` the box stays after
 `ab`. The break before the frame comes after white space, an atomic item or a soft hyphen, each read from the text,
 never from a width, which letter spacing takes below nothing. A text frame that ends in a soft hyphen leaves a break
 after itself whatever the hyphen's width (`HasSoftHyphenBefore`, `nsTextFrame.cpp:11432-11439`). Gecko's line breaker
 leaves a break after a text run that ends in a space or a tab whatever its advance, once soft hyphens are discarded, in
 however many nodes they are, and the run's last frame breaks the line there where it ends past the line's end without
-its own trailing spaces (`nsLineBreaker::Reset`, `nsLineBreaker.cpp:710-719`; `nsTextFrame.cpp:11443-11456`;
-`getFrameEndSpace()`), so the frame then starts the next line. Under pre-wrap the space hangs, and Gecko's text frame
+its own trailing spaces (`nsLineBreaker::Reset`, `nsLineBreaker.cpp:710-719`; `nsTextFrame.cpp:11443-11456`), so the
+frame then starts the next line. Under pre-wrap the space hangs, and Gecko's text frame
 leaves out of its width the spaces that overflow the line, whatever follows the frame (`nsTextFrame.cpp:11216-11229`;
 the profile's `hangsSpacesPerTextFrame`), so the box is inside the line, at its end, and stays, as does a second box, a
 space or a node of a soft hyphen after it, while a span with padding after it starts the next line: in the Gecko profile
@@ -1459,14 +1553,14 @@ preparing again on each resize costs them.
 #### Items, Spaces And Fits
 
 - Zero-width items keep their source identity: dropping them lost standalone ZWSPs, and compressing the item array broke
-  cursor and fragment indices. Both analyses stay, each item's own and the joined text's: their segments differ in 457
-  of 3,000 random rich-inline flows, and the joined pass was about 1% of preparation on 2026-09-16, before #369 to #371
-  gave it joined windows, a second handle per item and Firefox's levels, which left with #403; it hasn't been timed
-  since.
+  cursor and fragment indices. An item's own analysis and the joined text's differ in their segments in 457 of 3,000
+  random rich-inline flows, which is why fragment cursors can't index both: until the one-paragraph design both analyses
+  were made, and since it only the paragraph's.
 - Measure a collapsed space itself: `measureText('A A') - measureText('AA')` includes A–A kerning.
-- An item's reserved width, the collapsed space before it plus its `extraWidth`, is checked before the whole item's fit,
-  and rejects the item only when it's above the remaining width plus the fit epsilon (`lineFitEpsilon`): checking the
-  whole item's fit first lost nine Safari forced-overflow matches, a broader guard 62 (2026-09-13; old suite).
+- In the item stepper an item's reserved width, the collapsed space before it plus its `extraWidth`, was checked before
+  the whole item's fit, and rejected the item only when it was above the remaining width plus the fit epsilon
+  (`lineFitEpsilon`): checking the whole item's fit first lost nine Safari forced-overflow matches, a broader guard 62
+  (2026-09-13; old suite).
 - Chrome and Firefox break before the ZWSP in `a`/ZWSP/`hello` at width 1 even in one text node, so a run that began the
   line still breaks at item boundaries on overflow; atomic `break: 'never'` items allow a break on both sides, as
   css-text requires (2026-09-12).
@@ -1478,9 +1572,9 @@ A line count that rises with the width is a bug: four raw-width fit checks in `s
 item (items `T` and `po\u00add` gave `T` / `pod`, where `Tpo\u00add` gives `Tpo-` / `d`; #323). Blink retries the item
 at the width less the hyphen, then rewinds earlier items at the full width; subtracting the hyphen left sub-1e-6px
 backward ranges, so the item was walked again to the soft hyphen, cutting the flows in a seeded search that take more
-lines as the width grows from 43-60 to 7-14 per profile (#327, 2026-09-15; ENGINE_FOLLOWUPS.md). Since #369 the walk
-that continues the line decides whether the text before the hyphen fits, and which earlier breaks a return may take is
-at the rich stepper's return in `src/rich-inline.ts`. A run that continues across items moves to the next line whole in
+lines as the width grows from 43-60 to 7-14 per profile (#327, 2026-09-15; ENGINE_FOLLOWUPS.md). The paragraph's walk
+decides whether the text before the hyphen fits, and which earlier breaks a return may take is the text walker's rule
+(`returnsFromUnfitHyphen()` in `src/line-break.ts`). A run that continues across items moves to the next line whole in
 every profile where its first break is a soft hyphen whose hyphen doesn't fit, as it does in Safari 27 (`the `, `inter`,
 `na\u00ADtion\u00ADal` at 84px in 16px Arial, #323's cases). Until #396 the WebKit profile made that return only, and
 kept an unfit hyphen in one text and in an item that a break comes before, as after a space or an atomic item, where
@@ -1497,10 +1591,9 @@ per-engine rebuild (`rebuild/` on branch `rebuild-20260916`, a from-scratch port
 the plain-text correctness reference; "the rebuild" below) got 99.3-100% of 1,334 cases' line counts right per browser
 (2026-09-18; `rebuild/research/PREWRAP-RICH.md` on that branch).
 
-Rich inline takes `pre-wrap` (#173), on its premise that spans lay out as their text in one text node (Joined Text): each
-item's analysis and the joined text's take it, and since nothing collapses, a window runs from one atomic item to the
-next. A run of preserved spaces that ends a line hangs across items: an item's walk starts inside the run the line ends
-with (`ItemLine`), so its spaces fit where the content before the run fits, and the rich line hangs the run where it
+Rich inline takes `pre-wrap` (#173), on its premise that spans lay out as their text in one text node (Joined Text): the
+paragraph's analysis takes it. A run of preserved spaces that ends a line hangs across items, as the run is one in the
+paragraph's handle: its spaces fit where the content before the run fits, and the line hangs the run where it
 ends, all of it where the line wraps and before a hard break or at the paragraph's end only what doesn't fit, as Blink
 walks back over item results (`ComputeTrailingSpaceWidth`, `line_info.cc:289-415`), WebKit exempts each white-space
 item's hanging width from the fit (`InlineContentBreaker`) and Gecko hangs each frame's trailing white space
@@ -1517,8 +1610,7 @@ with white space that hangs before the span left out; Firefox both, as Gecko fit
 without one, Chrome ends the line before the span, as its retry of an overflowing line breaks between any two graphemes,
 and Firefox and Safari before the last grapheme of the text before it, a preserved space too, whose wrap opportunities
 lie inside it, and before that grapheme's span where the grapheme is all of one; Safari keeps the preserved spaces that
-fit of ones that overflow, as WebKit breaks the run that overflows where it fits (`hardBreakItemRetreat`). A break the
-walk of an item gives after its preserved spaces is the next item's, which the text the items join decides. WebKit's
+fit of ones that overflow, as WebKit breaks the run that overflows where it fits (`hardBreakItemRetreat`). WebKit's
 soft wrap index loop ends the content it places after a line break item (`InlineFormattingUtils.cpp:456-475`), so no
 break comes before a line feed that starts a box there either, after an atomic item too, and allows wrapping next to a
 white-space item (`:406-418`). A carriage return that ends one item and a
@@ -1937,7 +2029,10 @@ then. Counting the work each piece skips, with each put back as #364 removed it 
   prepared long breakable runs 4.2% faster and pre-wrap chunks 1.3%, within noise, in both sessions; the three layout
   rows that read slower in Firefox and Safari run no segmentation and read within noise when run again.
 
-The stepper's skip of a step that doesn't advance is live code since #369, which ends a line there after content.
+The next paragraphs time the item stepper that laid rich inline out until the one-paragraph design (Rich Inline
+Boundaries, Rich Inline As One Paragraph), and stay as the record of what its checks cost.
+
+The stepper's skip of a step that doesn't advance was live code from #369, which ended a line there after content.
 
 After content, the rich stepper doesn't walk an item whose first segment doesn't fit: the full walker there only ends
 the line before the item, as the stepper now does itself. `firstSegmentOverflows()` repeats the walker's fit for that
@@ -1996,6 +2091,16 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   failing a type check over letter-spaced CJK and never reached FTL, and Safari 27 prepared letter-spaced CJK and
   keep-all CJK brackets 45-59% slower; with the sum in `getTextSegmentWidth()`, 9-10% faster than main (#358,
   2026-09-26).
+- **A rarely taken branch inside a loop, in SpiderMonkey**: a loop that holds a call or a nested loop on a path few
+  iterations take can run slower for every iteration in Firefox, and doesn't in V8 or JavaScriptCore. The pass that
+  cuts a rich-inline line into fragments held, for the segment a line starts or ends inside, a call and a loop over its
+  graphemes; 7 of 2,688 lines took it, and with it SpiderMonkey 156.0.1 ran the loop about 3.6 ns a segment slower,
+  0.8-1.3 µs per 1,000 units of the bench's rich walk and 22 points of that row in background Firefox. A constant in
+  the branch's place gave the time back; only its call, only its loop, or both in a function of their own didn't, and
+  no bailout loop and none of five optimizer switches explained it (the shell's `inIon()`, `--ion-pruning=off`,
+  `--ion-licm=off`, `--ion-range-analysis=off`, `--ion-scalar-replacement=off`, `--ion-osr=off`; the JIT's source
+  wasn't read). Finding those widths before the loop, at most two a line, is also less work, so it isn't code shaped to
+  one JIT (2026-10-05; Rich Inline Boundaries, Rich Inline As One Paragraph).
 - **Captured numbers and loop bounds**: V8 boxes a number a nested function captures (a write 12-14ns in the full
   walker, about 1ns as a local), and JavaScriptCore types an infinite default loop bound as a double (Bun walked
   letter-spaced and pre-wrap text 30-65% slower). Fixing both halved letter-spaced CJK `layout()` in all three browsers

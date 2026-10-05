@@ -296,6 +296,11 @@ export function measureAnalysis(
   // Whether text segments take emergency breaks between graphemes: an atomic rich item,
   // which is only laid out whole, takes none.
   overflowBreaks: boolean,
+  // For a rich-inline item, whose `analysis` is its part of its paragraph's: the paragraph's
+  // analysis and the item's first segment there, where the marks Blink halts read the text
+  // around the item (getHanKerningTrims); else null.
+  paragraph: TextAnalysis | null = null,
+  paragraphFrom = 0,
 ): (PreparedText & PreparedLineBreakData) | (PreparedText & PreparedSegments) {
   const { normalized, texts, starts, flags } = analysis
   const segmentCount = flags.length
@@ -667,10 +672,9 @@ export function measureAnalysis(
     if (prohibitions !== null && lineStartProhibitions === null) lineStartProhibitions = Array.from({ length: mi }, () => null)
     lineStartProhibitions?.push(prohibitions)
     if (segments !== null) segments.push(text)
-    // Contexts for every segment of soft hyphens, whatever its kind here: one that is glue,
-    // where this text's scan gives no break after it, as at the start of a Gecko text, can
-    // be a soft hyphen in the text rich inline joins (recordJoinedBreaks), where a line ends
-    // with the hyphen measured below.
+    // Contexts for every segment of soft hyphens, whatever its kind here, one that is glue
+    // too, where the scan gives no break after it: a handle with contexts is one whose lines
+    // return from an unfit hyphen, measured below.
     if (kind !== TEXT && text.charCodeAt(0) === 0xAD) {
       discretionaryHyphenContexts ??= zeros(mi)
       discretionaryHyphenContexts.push(returnFitsEachSideAlone ? 0 : getJoinedNarrowing(mi, previousJoinablePiece, previousJoinableMetrics))
@@ -689,13 +693,14 @@ export function measureAnalysis(
   // a line takes back the halt Blink gives its first character there.
   let hanKerning: HanKerningTrims = { widthTrims: null, lineStartExtras: null, lineEndTrims: null, overflowLineEndTrims: null }
   if (engineProfile.hanKerning && textMayHanKern(normalized)) {
-    hanKerning = getHanKerningTrims(fontMeasurement, analysis)
+    hanKerning = paragraph === null ? getHanKerningTrims(fontMeasurement, analysis) : getHanKerningTrims(fontMeasurement, paragraph, paragraphFrom, paragraphFrom + segmentCount)
     const trims = hanKerning.widthTrims
     if (trims !== null) for (let i = 0; i < trims.length; i++) widths[i] = widths[i]! - trims[i]!
   }
   let lineEndTrims = hanKerning.lineEndTrims
   if (engineProfile.hangsIdeographicSpace && normalized.includes('\u3000')) {
-    lineEndTrims = addIdeographicSpaceHangs(lineEndTrims, analysis, fontMeasurement, letterSpacing, discretionaryHyphenWidth)
+    lineEndTrims = paragraph === null ? addIdeographicSpaceHangs(lineEndTrims, analysis, fontMeasurement, letterSpacing, discretionaryHyphenWidth, 0, segmentCount)
+      : addIdeographicSpaceHangs(lineEndTrims, paragraph, fontMeasurement, letterSpacing, discretionaryHyphenWidth, paragraphFrom, paragraphFrom + segmentCount)
   }
   const prepared = {
     widths,
@@ -730,16 +735,19 @@ export function measureAnalysis(
 // (SetBreakOffset, shaping_line_breaker.cc:212-216), which has to fit. Gecko (Firefox 156)
 // marks U+3000 as a space glyph, like SPACE (SetupClusterBoundaries, gfxFont.cpp:749-750), and
 // BreakAndMeasureText fits a line without its trailing space glyphs (gfxTextRun.cpp:1152-1160,
-// 1175), so Firefox hangs the run too.
+// 1175), so Firefox hangs the run too. `trims` holds segments [from, to) of the analysis, a
+// rich-inline item's in its paragraph's, from index 0.
 function addIdeographicSpaceHangs(
   trims: number[] | null,
   analysis: TextAnalysis,
   measurement: FontMeasurement,
   letterSpacing: number,
   hyphenWidth: number,
+  from: number,
+  to: number,
 ): number[] | null {
   const { normalized, starts, flags } = analysis
-  for (let i = 0; i < flags.length; i++) {
+  for (let i = from; i < to; i++) {
     const end = i + 1 < flags.length ? starts[i + 1]! : normalized.length
     if ((flags[i]! & KIND_BITS) !== TEXT || normalized.charCodeAt(end - 1) !== 0x3000) continue
     if (i + 1 < flags.length) {
@@ -752,8 +760,8 @@ function addIdeographicSpaceHangs(
     const afterSoftHyphen = i > 0 && start === starts[i] && normalized.charCodeAt(start - 1) === 0xAD
     const hang = getSegmentMetrics(run, measurement).width + run.length * letterSpacing - (afterSoftHyphen ? hyphenWidth : 0)
     if (hang <= 0) continue
-    trims ??= zeros(flags.length)
-    trims[i] = trims[i]! + hang
+    trims ??= zeros(to - from)
+    trims[i - from] = trims[i - from]! + hang
   }
   return trims
 }

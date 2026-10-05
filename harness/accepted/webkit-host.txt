@@ -277,6 +277,23 @@ old-gate-1975647affaed0ce count
 ## Lost against main before #340 (6d1d210): combining marks after WJ and ZWSP between letters, in pre-wrap under keep-all at 1 px letter-spacing; the library breaks otherwise than WebKit
 old-gate-2314a84759638dd7 count
 
+## Narrower than real layouts: 1-23 px, a ZWSP alone in a rich item, or in one after only white space, soft hyphens or a combining mark's base, where the text around it doesn't fit its line: Safari gives the ZWSP a line of its own, as for the text in one node, where the text walkers keep it on the line before it or consume it at a line's start; the item stepper took an item's start as a text's start, where a ZWSP holds a line (ENGINE_FOLLOWUPS.md, Rich-inline item edges)
+rich-14eba924d604608e count
+rich-18c8c76538599828 count
+rich-19e866488d756c8e count
+rich-1cf16d131d7a3916 count
+rich-3f7623a4b4dd94eb count
+rich-4b7d153ff81b0f68 count
+rich-4bd4fbdb2b90da52 count
+rich-7ed410c8998dbb4a count
+rich-a889c7e59cf41cad count
+rich-dcfaf1298b58bfa4 count
+rich-f3094dad03fc3dc4 count
+
+## Narrower than real layouts: 1-9 px, a U+2028 that starts a span after a word broken between letters and a space: Safari gives the separator a line of its own after the space that hangs, where the text walkers end the last letter's line at it, as at a hard break in one text (ENGINE_FOLLOWUPS.md, Rich-inline item edges)
+rich-099f76bfffda5693 count
+rich-2e0b42e4cf20058f count
+
 ## Narrower than real layouts: 2-23 px, where most lines break inside a word; the narrowest real-usage draw is 25 px
 catalog-0005e05ab13a91c6 count
 catalog-00344699a51f6462 count
@@ -1733,6 +1750,13 @@ rich-4e7797d2c399aac5 breaks
 rich-94e63267840040ac breaks
 rich-9d0c04c18c44fb34 count
 rich-f6d6190bf525ffc7 count
+
+## Narrower than real layouts: 4-9 px, white space and soft hyphens in items before a ZWSP where a line starts: Safari keeps the space after the first soft hyphen visible there, where the library consumes both, as it does in one text; these passed only while a line gave an item its start consumes an empty fragment, whose range held that space (ENGINE_FOLLOWUPS.md, Rich-inline item edges)
+rich-0ff6bd7dbf62940e breaks
+rich-cb273776ca332c30 breaks
+
+## Narrower than real layouts: 9.7 px, `A` and a word joiner in an item of its own at -1 px letter spacing: Safari gives the word joiner no letter spacing and keeps it on the line of `A`, where the library spaces it (ENGINE_FOLLOWUPS.md, Letter spacing) and the text walkers, which fit a character of no advance against the line's width before the negative gap, end the line before it; the item stepper fitted each item whole
+rich-82cd866ac6217db7 count
 
 ## Narrower than real layouts: a soft hyphen after a word joiner, a combining mark and a ZWSP at 1 px letter-spacing, at 1-8 px: WebKit gives the characters without an advance no letter spacing, so its hyphen fits the line, where the library spaces them, finds the hyphen 3 px too wide and returns to the ZWSP; main kept every unfit hyphen and passed by accident (ENGINE_FOLLOWUPS.md, Letter spacing)
 catalog-1d72217944543263 breaks
@@ -3363,6 +3387,12 @@ rich-1e4eb256d9bee7b8 breaks
 rich-62e4228d958cf44e breaks
 rich-8058c8ea44ac27f5 breaks
 rich-ad4e0796eaaec403 breaks
+
+## White space and soft hyphens in items before a ZWSP where a line starts, at 24 px and wider: Safari keeps the space after the first soft hyphen visible there, as it doesn't consume a soft hyphen at a line start, where the library consumes both, as it does in one text; these passed only while a line gave an item its start consumes an empty fragment, whose range held that space (ENGINE_FOLLOWUPS.md, Rich-inline item edges)
+rich-14f68f3cc6f7140c breaks
+rich-49f015c20c562738 breaks
+rich-64a76c11090a01ae breaks
+rich-729b900c377fd1bd breaks
 
 ## Within 1/64 px of where the browser's lines change, at 24 px and wider: the library's fit lands on the other side there, while the whole-pixel widths inside both layouts pass
 catalog-08343c18c4be4ee9 count

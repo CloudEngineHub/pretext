@@ -65,7 +65,7 @@
 //   preserved spaces split across items after a box, which stay on its line, a line feed and a tab after one; and
 //   a box of width 0 past a line's end, after a space that doesn't fit and after a box wider than the line, which
 //   Chrome and Safari move to the next line and Firefox keeps unless text comes right after it, not after a space
-//   (getKeptEmptyEnd in src/rich-inline.ts), and two of them after a pre-wrap space that hangs, which Firefox has
+//   (setEmptyObjectFacts in src/rich-inline.ts), and two of them after a pre-wrap space that hangs, which Firefox has
 //   inside the line;
 // - shapes whose rule only a unit test held, cut on their own: a padded code span alone in its paragraph, which the
 //   adapter still lays out with rich-inline, for its padding; in pre-wrap, a box about as wide as the words after it

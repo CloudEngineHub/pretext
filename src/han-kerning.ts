@@ -193,26 +193,31 @@ export type HanKerningTrims = {
   overflowLineEndTrims: number[] | null
 }
 
-// The trims of an analysis' text segments, read from the characters before and after each.
-export function getHanKerningTrims(measurement: FontMeasurement, analysis: TextAnalysis): HanKerningTrims {
+// The trims of an analysis' text segments, read from the characters before and after each. For a
+// rich-inline item, those of its segments, [from, to) of its paragraph's analysis, in lists that
+// start at `from`: Blink reads the character before a shaped run and the one after it from the
+// paragraph's text, whatever items they are in, and types both by the font of the run it shapes
+// (HanKerning::AppendFontFeatures, han_kerning.cc:242-243, 266-273, 288-294, 314-319), so a pair
+// of marks an item start splits halts as in one text, each mark by its own item's font.
+export function getHanKerningTrims(measurement: FontMeasurement, analysis: TextAnalysis, from = 0, to = analysis.flags.length): HanKerningTrims {
   const out: HanKerningTrims = { widthTrims: null, lineStartExtras: null, lineEndTrims: null, overflowLineEndTrims: null }
   const data = getFontData(measurement)
   if (data === null) return out
   const { flags, starts, normalized } = analysis
   const count = flags.length
   const addWidthTrim = (i: number, trim: number): void => {
-    out.widthTrims ??= zeros(count)
-    out.widthTrims[i] = out.widthTrims[i]! + trim
+    out.widthTrims ??= zeros(to - from)
+    out.widthTrims[i - from] = out.widthTrims[i - from]! + trim
   }
-  for (let i = 0; i < count; i++) {
+  for (let i = from; i < to; i++) {
     if ((flags[i]! & KIND_BITS) !== TEXT) continue
     const start = starts[i]!
     const end = i + 1 < count ? starts[i + 1]! : normalized.length
     const first = normalized.charCodeAt(start)
     if (i > 0 && maybeHanKerns(first) && haltedSide(getCharType(data, normalized, start - 1), getCharType(data, normalized, start)) === 1) {
       const trim = getTrim(data, first, measurement)
-      out.lineStartExtras ??= zeros(count)
-      out.lineStartExtras[i] = trim
+      out.lineStartExtras ??= zeros(to - from)
+      out.lineStartExtras[i - from] = trim
       addWidthTrim(i, trim)
     }
     for (let k = start + 1; k < end; k++) {
@@ -237,11 +242,11 @@ export function getHanKerningTrims(measurement: FontMeasurement, analysis: TextA
     if ((lastType !== CLOSE && lastType !== CLOSE_QUOTE) || getCharType(data, normalized, end - 1) !== CLOSE) continue
     // A break directly after the segment: text after a break, or the end of the text.
     if (atEnd || ((flags[i + 1]! & KIND_BITS) === TEXT && (flags[i + 1]! & UNBROKEN) === 0)) {
-      out.lineEndTrims ??= zeros(count)
-      out.lineEndTrims[i] = getTrim(data, last, measurement)
+      out.lineEndTrims ??= zeros(to - from)
+      out.lineEndTrims[i - from] = getTrim(data, last, measurement)
     } else {
-      out.overflowLineEndTrims ??= zeros(count)
-      out.overflowLineEndTrims[i] = getTrim(data, last, measurement)
+      out.overflowLineEndTrims ??= zeros(to - from)
+      out.overflowLineEndTrims[i - from] = getTrim(data, last, measurement)
     }
   }
   return out
