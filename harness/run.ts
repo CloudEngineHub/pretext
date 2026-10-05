@@ -65,17 +65,31 @@ export function documents(browser: BrowserKind, cases: Case[], size: number): Ca
   return docs.concat(late)
 }
 
+// Pinned Chrome and Firefox each open a window on the user's screen, so there the page is dark and its title says the
+// window needs nothing of them: a job's loop runs on fetches alone (page.ts). Neither reaches what a case lays out:
+// - The dark colour is the value of the background html and body already had, so no element gains a background and no
+//   case's computed style changes. The element that holds a case's text never gets one: a background there changed
+//   171 of Chrome's 43,101 recordings.
+// - A title is never laid out or measured, so its words reach none of the caches the cases meet, where a sentence or
+//   an image in the page moved a Chrome prediction. The words come first, since a tab cuts a long title at its end.
+// The other browsers keep the white page and the bare name. The measurements: harness/README.md, Browsers and pins.
+const watched = (browser: BrowserKind): boolean => browser === 'chrome' || browser === 'firefox'
+export function windowTitle(name: string, browser: BrowserKind): string {
+  return watched(browser) ? `This tab doesn't need focus - ${name}` : name
+}
+
 // A phone gets the page an app serves it, with a viewport meta tag and `text-size-adjust: 100%`. On a bare page iPhone
 // Safari enlarges the text of a block wider than its viewport: it laid out 63 of the sample's 11,901 cases otherwise,
 // all 736-864 px wide (a 14 px Roboto line 177.5 px wide came out 262 px wide), and was wrong on 0.58% of paragraphs
 // inside what Pretext claims, against 0.29% (Safari 26.0.1 in the iOS 26.0 simulator, 2026-09-30).
-function pageHtml(doc: Case[], phone: boolean): string {
+function pageHtml(doc: Case[], browser: BrowserKind): string {
+  const phone = BROWSER[browser].phone
   const c = doc[0]!
   const families = c.fontFixtures ?? []
   const fonts = FIXTURES.filter(fixture => families.includes(fixture.family)).map(fixture => ({ family: fixture.family, weight: fixture.weight, url: `/fonts/${fixture.file}` }))
   const lang = c.pageLang.replace(/[&"<>]/g, ch => `&#${ch.charCodeAt(0)};`)
-  return `<!doctype html><html lang="${lang}"><head><meta charset="utf-8">${phone ? '<meta name="viewport" content="width=device-width,initial-scale=1">' : ''}<title>pretext harness</title>`
-    + `<style>html,body{margin:0;padding:0;background:#fff;color:#000}${phone ? 'html{-webkit-text-size-adjust:100%;text-size-adjust:100%}' : ''}</style></head><body>`
+  return `<!doctype html><html lang="${lang}"><head><meta charset="utf-8">${phone ? '<meta name="viewport" content="width=device-width,initial-scale=1">' : ''}<title>${windowTitle('pretext harness', browser)}</title>`
+    + `<style>html,body{margin:0;padding:0;background:${watched(browser) ? '#111' : '#fff'};color:#000}${phone ? 'html{-webkit-text-size-adjust:100%;text-size-adjust:100%}' : ''}</style></head><body>`
     + `<script id="fonts" type="application/json">${JSON.stringify(fonts)}</script><script type="module" src="/page.js"></script></body></html>`
 }
 
@@ -177,7 +191,7 @@ export async function runJob<T extends Recording | Prediction>(job: Job): Promis
         if (url.searchParams.get('job') !== id || n !== doc) return new Response('Inactive document', { status: 409 })
         const wait = settled - Date.now()
         if (wait > 0) await Bun.sleep(wait)
-        return new Response(pageHtml(docs[n]!, BROWSER[job.browser].phone), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } })
+        return new Response(pageHtml(docs[n]!, job.browser), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } })
       }
       case '/page.js': return new Response(script, { headers: { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-store' } })
       case '/api/step': return await step(request, finish)

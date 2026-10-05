@@ -2803,8 +2803,12 @@ repin` shows what), and a fact read in source needs reading again.
   code; Blink and WebKit don't. (Firefox 156, 2026-09-19.)
 - **OffscreenCanvas against the DOM.** OffscreenCanvas shapes at the CSS size at 60 app units per px, the DOM at the
   device size, rounding each glyph at max(1, round(60 / dpr)) units per device pixel (`gfxHarfBuzzShaper.cpp:1559,
-  1699-1702`): about 0.03% of widths are a unit off (Geeza Pro, Thonburi, Helvetica Neue), no traced break moved, and
-  synthetic bold likewise (`gfxFont.h:1899-1904`). A `<canvas>` element at the device size matches (243 of 243 units);
+  1699-1702`): about 0.03% of widths are a unit off (Geeza Pro, Thonburi, Helvetica Neue), and no traced break moved.
+  Synthetic bold differs by more: a face drawn bold without a bold face of its family gets 0.25 + 0.75 × S / 48 px a
+  cluster at the shaped size S under 48 px (`gfxFont.h:1899-1904`), so OffscreenCanvas is 0.25 × (1 − 1/dpr) px a
+  cluster wider than the page in any proportional family, 7 app units at 10-16px at ratio 2 and none at ratio 1
+  (Roboto and Inter, Firefox 156.0.1, 2026-10-05), which has moved real-usage breaks (ENGINE_FOLLOWUPS.md, Canvas
+  answers that differ from the page). A `<canvas>` element at the device size matches (243 of 243 units);
   why Firefox still uses OffscreenCanvas is under Dead Ends, DOM And Canvas-Element Paths. (Firefox 156, 2026-09-17 and
   09-18.)
 - **Optical sizing.** OffscreenCanvas never applies automatic optical sizing (`nsFont.cpp:276-279`; Mozilla #2020917),
@@ -3887,6 +3891,21 @@ decisions for the maintainer.
   numbers only with `verbatimModuleSyntax` off, so the build would take a setting the type check doesn't, with a test
   to guard it. The 32 lines it saved in `src/` didn't outweigh those. Reopens if more than one engine shows the gains,
   or with a form that gives numbers in the built code and needs no build setting.
+- **2026-10-05: the real-usage sample keeps its stand-in chat text**, the maintainer's decision. The sample's chat and
+  AI-reply draws, about 65% of its weight, are text of another kind cut to chat lengths (harness/README.md, Two kinds of
+  set). They were swapped, on a branch kept unpublished, for 2,127 prompts of OpenAssistant oasst2 (Apache-2.0) and
+  1,429 blocks of ChatGPT replies from WildChat-1M (ODC-By 1.0), chosen by the sets' own moderation fields, with
+  anything holding a URL, an `@` or a run of digits left out, and read twice by a language model and by no person.
+  Stand-ins fell from 79.57% of the weight to 29.98%, since a draw that rolled an inserted URL, long word, emoji or
+  styled span stays one, and the same library went from 99.74% of in-claims paragraphs right to 99.77% in Chrome
+  154.0.8037.57, 99.97% to 100.00% in Firefox 156.0.1 and 99.94% to 99.96% in webkit-host: 3 failures came with the new
+  draws, each a character on another line under a gap ENGINE_FOLLOWUPS.md names, and about 10 left with their stand-ins.
+  So on plain prose the stand-ins hide nothing, and the swap wasn't taken: it would put text under two other licenses
+  into the repository, republish people's messages no person read, and add about 9 MB of recordings, for a number that
+  didn't move; and the filter that keeps personal details out drops the long unbreakable strings that are the hard part
+  of chat. The one gap it turned up is recorded (ENGINE_FOLLOWUPS.md, Canvas answers that differ from the page:
+  Firefox's synthetic bold). Reopens if the headline is to be quoted in public, where a stand-in share of 80% weakens
+  it, or with a set of messages between people whose license allows republishing.
 - **2026-10-05: of the three engines' rules for a word cut between letters, Chrome's is ported, on a premise, and of
   Firefox's the ligature rule; Firefox's kerning at a cut and Safari's carried width are not** (#TBD). Chrome reads
   positions from the word shaped whole and shapes a line's ends again where the cut is unsafe; which glyph holds a
