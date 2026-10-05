@@ -477,6 +477,7 @@ export function measureAnalysis(
   const breakableFitAdvances: (number[] | null)[] = []
   let entryGeometry: (SegmentEntryGeometry | null)[] | null = null
   let lineStartProhibitions: (Uint8Array | null)[] | null = null
+  let breakableLineStartExtras: (number[] | null)[] | null = null
   // WebKit's line-start rule applies only in text holding a code unit above U+00FF.
   const keepsLineStartPunctuation = engineProfile.keepsLineStartPunctuation && /[\u0100-\uFFFF]/.test(normalized)
   const segments = includeSegments ? [] as string[] : null
@@ -533,6 +534,7 @@ export function measureAnalysis(
     let fitAdvances: number[] | null = null
     let entry: SegmentEntryGeometry | null = null
     let prohibitions: Uint8Array | null = null
+    let startExtras: number[] | null = null
     switch (kind) {
       case TEXT: {
         // A control the engine hides takes no advance, only letter spacing.
@@ -605,12 +607,14 @@ export function measureAnalysis(
         if (!overflowBreaks || (segment & ONE_CLUSTER) !== 0 || text.length === 1) break
         const fitMode: BreakableFitMode = letterSpacing !== 0 ? 'segment-prefixes'
           : numericRunRe.test(text) ? 'pair-context'
-          : textMetrics.width >= engineProfile.prefixFitMinWidth ? 'segment-prefixes'
-          : 'sum-graphemes'
+          : textMetrics.width < engineProfile.prefixFitMinWidth ? 'sum-graphemes'
+          : engineProfile.cutWordFit
         const fit = getSegmentFit(text, textMetrics, fontMeasurement, emojiCorrection, fitMode,
           measuredWithSpace ? spaceWidth : null, engineProfile.keepsLineStartPunctuation)
         fitAdvances = fit.advances
         if (fitAdvances === null) break
+        // A difference from the advance, so it holds whatever the advances take below.
+        startExtras = fit.lineStartExtras
         // The cached advances are shared by every occurrence of this text; only
         // the final grapheme touches the following space.
         if (followingSpaceKerning !== 0) {
@@ -666,6 +670,8 @@ export function measureAnalysis(
     entryGeometry?.push(entry)
     if (prohibitions !== null && lineStartProhibitions === null) lineStartProhibitions = Array.from({ length: mi }, () => null)
     lineStartProhibitions?.push(prohibitions)
+    if (startExtras !== null && breakableLineStartExtras === null) breakableLineStartExtras = Array.from({ length: mi }, () => null)
+    breakableLineStartExtras?.push(startExtras)
     if (segments !== null) segments.push(text)
     // Contexts for every segment of soft hyphens, whatever its kind here: one that is glue,
     // where this text's scan gives no break after it, as at the start of a Gecko text, can
@@ -708,6 +714,7 @@ export function measureAnalysis(
     discretionaryHyphenWidth,
     discretionaryHyphenContexts,
     lineStartProhibitions,
+    breakableLineStartExtras,
     lineStartExtras: hanKerning.lineStartExtras,
     lineEndTrims,
     overflowLineEndTrims: hanKerning.overflowLineEndTrims,

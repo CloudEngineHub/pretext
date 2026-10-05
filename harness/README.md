@@ -238,11 +238,17 @@ harness/invariants.test.ts`) and the bench's floors.
   line text, the line APIs' disagreements and the Canvas calls after preparing. So a change that moves only widths,
   which `check` never fails on, still shows there.
 - An offline replay detects change but isn't an oracle: its stand-in Canvas gives each character a width from a
-  formula, moved a little by each pair of neighbouring characters (`offline-equal.ts`), so it can't fail on shaping,
-  painting or string storage. Every stand-in font kerns the space, so offline the Chromium profile never takes the
+  formula, moved a little by each pair of neighbouring characters (`standInWidth()` in `invariants.ts`), so it can't
+  fail on shaping, painting or string storage. Every stand-in font kerns the space, so offline the Chromium profile never takes the
   path of a font that kerns nothing with it, which `src/layout.test.ts` and the browsers run.
 - Without the invariants' desktop user agent and string `letterSpacing` (`invariants.ts`), a planted defect in reusing
   a prepared handle went unseen in 500 draws.
+- Without the stand-in's kerning and ligatures between neighbouring letters (#TBD), every word measured as its letters
+  do alone, so the fits of a word cut between letters all gave one answer: a planted defect that overwrote the advances
+  a held handle keeps when its word was fit another way went unseen in 600 draws of every profile. With them, the
+  profiles whose context takes no `letterSpacing` fail it, the unknown one in 71 draws and the WebKit one in 1; the
+  Blink and Gecko profiles measure letter-spaced text apart, so no word there is fit two ways. A planted miss of a
+  line-start width in `layout()`'s count fails the Blink profile's agreement check in 1 draw of 600.
 - Canvas-call counts before #355 aren't comparable with later ones: the harness's adapter (`run.ts`) stopped calling
   `setLocale()` per case, cutting its calls 20-25% with no prediction change (2026-09-26).
 
@@ -379,9 +385,8 @@ rounds (`types.ts`, `wholePixelBoxes`). The width report leaves those lines out 
 the lines of webkit-host's passing sample draws inside the claims were more than 0.05 px off, without them 0.8%
 (2026-10-01). The shrink-wrap check keeps them, so there it misses a box up to a pixel too narrow where such a line is
 the widest, as in a fifth of the sample's pre-wrap draws, and webkit-host's `narrow` column reads low on pre-wrap text.
-The harness doesn't see re-layout at a line's own width; a defect that changes the widths a prepared handle keeps for
-one way of fitting lines when another is used (the stand-in Canvas gives the same widths to every way); several rules
-of the Gecko profile's analysis of bidi controls (`ENGINE_FOLLOWUPS.md`, Harness debt); an emoji modifier split from its
+The harness doesn't see re-layout at a line's own width; several rules of the Gecko profile's analysis of bidi
+controls (`ENGINE_FOLLOWUPS.md`, Harness debt); an emoji modifier split from its
 base across rich items; a rich paragraph of one item, which the adapter writes as plain text, so `src/layout.test.ts`
 checks its line functions against the rich stepper; Chrome's UI language, and so its `zh` table for pages without a
 `lang`; rendering other than macOS's and an iOS simulator's (Other ratios and phones), though Android and Windows are
