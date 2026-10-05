@@ -199,7 +199,7 @@ export type HanKerningTrims = {
 // paragraph's text, whatever items they are in, and types both by the font of the run it shapes
 // (HanKerning::AppendFontFeatures, han_kerning.cc:242-243, 266-273, 288-294, 314-319), so a pair
 // of marks an item start splits halts as in one text, each mark by its own item's font.
-export function getHanKerningTrims(measurement: FontMeasurement, analysis: TextAnalysis, from = 0, to = analysis.flags.length): HanKerningTrims {
+export function getHanKerningTrims(measurement: FontMeasurement, analysis: TextAnalysis, from: number, to: number): HanKerningTrims {
   const out: HanKerningTrims = { widthTrims: null, lineStartExtras: null, lineEndTrims: null, overflowLineEndTrims: null }
   const data = getFontData(measurement)
   if (data === null) return out

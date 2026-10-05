@@ -296,11 +296,13 @@ export function measureAnalysis(
   // Whether text segments take emergency breaks between graphemes: an atomic rich item,
   // which is only laid out whole, takes none.
   overflowBreaks: boolean,
-  // For a rich-inline item, whose `analysis` is its part of its paragraph's: the paragraph's
-  // analysis and the item's first segment there, where the marks Blink halts read the text
-  // around the item (getHanKerningTrims); else null.
-  paragraph: TextAnalysis | null = null,
-  paragraphFrom = 0,
+  // The analysis `analysis` is part of and where it starts there: for a rich-inline item its
+  // paragraph's and the item's first segment, where the marks Blink halts and a run of U+3000
+  // read the text around the item (getHanKerningTrims, addIdeographicSpaceHangs); for a text,
+  // `analysis` and 0. Every caller passes both: with a default value on either, Firefox walked
+  // the lines of CJK handles made here 11% slower (RESEARCH.md, JavaScript Engines).
+  paragraph: TextAnalysis,
+  paragraphFrom: number,
 ): (PreparedText & PreparedLineBreakData) | (PreparedText & PreparedSegments) {
   const { normalized, texts, starts, flags } = analysis
   const segmentCount = flags.length
@@ -693,14 +695,13 @@ export function measureAnalysis(
   // a line takes back the halt Blink gives its first character there.
   let hanKerning: HanKerningTrims = { widthTrims: null, lineStartExtras: null, lineEndTrims: null, overflowLineEndTrims: null }
   if (engineProfile.hanKerning && textMayHanKern(normalized)) {
-    hanKerning = paragraph === null ? getHanKerningTrims(fontMeasurement, analysis) : getHanKerningTrims(fontMeasurement, paragraph, paragraphFrom, paragraphFrom + segmentCount)
+    hanKerning = getHanKerningTrims(fontMeasurement, paragraph, paragraphFrom, paragraphFrom + segmentCount)
     const trims = hanKerning.widthTrims
     if (trims !== null) for (let i = 0; i < trims.length; i++) widths[i] = widths[i]! - trims[i]!
   }
   let lineEndTrims = hanKerning.lineEndTrims
   if (engineProfile.hangsIdeographicSpace && normalized.includes('\u3000')) {
-    lineEndTrims = paragraph === null ? addIdeographicSpaceHangs(lineEndTrims, analysis, fontMeasurement, letterSpacing, discretionaryHyphenWidth, 0, segmentCount)
-      : addIdeographicSpaceHangs(lineEndTrims, paragraph, fontMeasurement, letterSpacing, discretionaryHyphenWidth, paragraphFrom, paragraphFrom + segmentCount)
+    lineEndTrims = addIdeographicSpaceHangs(lineEndTrims, paragraph, fontMeasurement, letterSpacing, discretionaryHyphenWidth, paragraphFrom, paragraphFrom + segmentCount)
   }
   const prepared = {
     widths,

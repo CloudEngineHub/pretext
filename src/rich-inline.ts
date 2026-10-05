@@ -220,7 +220,7 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
   const only = onlyIndex < 0 ? undefined : items[onlyIndex]!
   if (only !== undefined && only.text !== undefined && only.break !== 'never' && (only.extraWidth ?? 0) === 0) {
     const analysis = analyzeText(only.text, profile, whiteSpace, wordBreak, language)
-    const data = measureAnalysis(analysis, only.font, true, readLetterSpacing(only.letterSpacing, profile), profile, language, true) as PreparedSegments
+    const data = measureAnalysis(analysis, only.font, true, readLetterSpacing(only.letterSpacing, profile), profile, language, true, analysis, 0) as PreparedSegments
     const itemSegments: number[] = []
     for (let index = 0; index <= items.length; index++) itemSegments.push(index <= onlyIndex ? 0 : data.segmentFlags.length)
     return findWholeLine({
@@ -351,7 +351,7 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
         width = item.width
       } else {
         const ownAnalysis = analyzeText(item.text, profile, 'normal', wordBreak, language)
-        const own = measureAnalysis(ownAnalysis, item.font, false, readLetterSpacing(item.letterSpacing, profile), profile, language, false)
+        const own = measureAnalysis(ownAnalysis, item.font, false, readLetterSpacing(item.letterSpacing, profile), profile, language, false, ownAnalysis, 0)
         const start: LayoutCursor = { segmentIndex: 0, graphemeIndex: 0 }
         if (normalizePreparedLineStart(own, start)) width = stepPreparedLineGeometryFromStart(own, start, Number.POSITIVE_INFINITY)!
         width += item.extraWidth ?? 0
