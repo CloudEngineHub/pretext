@@ -1,3 +1,6 @@
+## #421, "AV" nine times in 16 px Helvetica Neue at 85 px, a word cut twice: WebKit measures a line that starts inside a cut word from that line's own start (TextUtil::breakWord, TextUtil.cpp:242-365) and gives the rest of the word the width left over (AbstractLineBuilder.cpp:92-96), so its second line, whose nine letters measure 85.03 px alone, keeps eight; the library takes every line from the differences of the word's prefixes, in which that line's first "A" keeps its kerning with the "V" before it, so the nine are 84.32 px and fit; the rest of a cut word carries its width from line to line, which the cursor has no field for, so the rule isn't ported (the right line count, main too; ENGINE_FOLLOWUPS.md, Emergency breaks inside a word)
+report-aa5ba7c12d9ff140 breaks
+
 ## A padded rich pre-wrap span that starts on the line it ends inside, at a line feed or after spaces that hang, at 24 px and wider: Safari fits that line without the span's end edge, the library with it, as Firefox does (ENGINE_FOLLOWUPS.md)
 rich-f7c605f19ec5d469 breaks
 
