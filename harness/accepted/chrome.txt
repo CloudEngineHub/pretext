@@ -4016,10 +4016,8 @@ catalog-fcaddf2e30bed338 count
 ## White space and soft hyphens before a ZWSP where a line starts, at 24 px and wider: Chrome keeps the space after the first soft hyphen visible there, as it doesn't consume a soft hyphen at a line start, where the library consumes both, as it does in one text; main passed these only because its first fragment started before the space its line start consumed (ENGINE_FOLLOWUPS.md)
 rich-11a3923c1b2e930a breaks
 rich-1e4eb256d9bee7b8 breaks
-rich-5b60c65e1f4531a1 count
 rich-62e4228d958cf44e breaks
 rich-8058c8ea44ac27f5 breaks
-rich-c84427ff3e354b1e count
 
 ## White space and soft hyphens in items before a ZWSP where a line starts, at 24 px and wider: Chrome keeps the space after the first soft hyphen visible there, as it doesn't consume a soft hyphen at a line start, where the library consumes both, as it does in one text; these passed only while a line gave an item its start consumes an empty fragment, whose range held that space (ENGINE_FOLLOWUPS.md, Rich-inline item edges)
 rich-49f015c20c562738 breaks
@@ -4169,6 +4167,10 @@ rich-ffca6282fca44ec7 count
 
 ## `a`, a space under the Arabic vowel sign U+064B, a space and `b` at 1.5 px letter-spacing in pre-wrap, at 16.32 px, where `a` and the space under the mark overflow by 0.02 px: Chrome moves the second space to a line of its own, the library hangs it on the first; the library gives the mark no gap, as Chrome does since the space is in an Arabic run, and admits text with no advance and no gap wherever the line before it fit, which the space, hanging, did (main passed while it charged the mark a gap, 1.5 px too wide at any width; ENGINE_FOLLOWUPS.md, Letter spacing)
 catalog-0506555f8d35bd12 count
+
+## `ab`, an item of a space, a soft hyphen, a space, a soft hyphen and a ZWSP, then `textword`, at 26 and 26.7 px: Chrome ends the first line after `ab` and gives the rest of that item a line of its own that shows nothing, 5 lines, as it doesn't consume a soft hyphen at a line start, so the space after it stays on that line; the library ends the first line there too, and its next line's start consumes the soft hyphens, that space and the ZWSP, as it does in one text, so its prediction is a line short, 4 lines, where main's 5 had the ZWSP alone on the second line, a wrong break (ENGINE_FOLLOWUPS.md, Rich-inline item edges)
+rich-5b60c65e1f4531a1 count
+rich-c84427ff3e354b1e count
 
 ## pre-wrap spaces before U+FFFC or brackets, and kerning before a space, at 24 px and wider: Chrome breaks there where the library doesn't
 catalog-13dd55803a1a2260 count
