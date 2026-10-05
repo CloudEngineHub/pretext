@@ -21,7 +21,7 @@ import {
   type WhiteSpaceMode,
 } from './analysis.js'
 import { isDiscardable, isSpaceOrTabOrSegmentBreak } from './gecko-line-breaks.js'
-import { getHaltAcrossRuns } from './han-kerning.js'
+import { getHaltAcrossRuns, getPairTypes } from './han-kerning.js'
 import { getWebKitBreakBetweenItems } from './line-breaks.js'
 import { buildLineTextFromRange, getGraphemeEnds, type PreparedSegments } from './line-text.js'
 import {
@@ -380,14 +380,16 @@ const BOX_HANDLE: PreparedSegments = {
 // back where it starts a line, so a line walks its item (lineStartExtras), whose whole width is
 // its width at a line's start.
 function haltAcrossItems(before: JoinedPortion, after: JoinedPortion, joined: string, items: Array<RichInlineItem | RichInlineBox>, language: string | null): void {
-  const closing = getHaltAcrossRuns(joined, after.start, -1, (items[before.itemIndex] as RichInlineItem).font, before.item.prepared.letterSpacing !== 0, language)
+  const types = getPairTypes(joined, after.start)
+  if (types === 0) return
+  const closing = getHaltAcrossRuns(types, joined.charCodeAt(after.start - 1), -1, (items[before.itemIndex] as RichInlineItem).font, before.item.prepared.letterSpacing !== 0, language)
   if (closing > 0) {
     const { widths, lineEndTrims } = before.item.prepared
     widths[widths.length - 1] = widths[widths.length - 1]! - closing
     if (lineEndTrims !== null) lineEndTrims[widths.length - 1] = 0
     before.item.naturalWidth -= closing
   }
-  const opening = getHaltAcrossRuns(joined, after.start, 1, (items[after.itemIndex] as RichInlineItem).font, after.item.prepared.letterSpacing !== 0, language)
+  const opening = getHaltAcrossRuns(types, joined.charCodeAt(after.start), 1, (items[after.itemIndex] as RichInlineItem).font, after.item.prepared.letterSpacing !== 0, language)
   if (opening > 0) {
     const { prepared } = after.item
     prepared.widths[0] = prepared.widths[0]! - opening

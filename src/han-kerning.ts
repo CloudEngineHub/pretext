@@ -151,7 +151,10 @@ function getFontData(measurement: FontMeasurement): HanKerningFontData | null {
 
 // HanKerning::GetCharType (han_kerning.cc:142-168).
 function getCharType(data: HanKerningFontData, text: string, index: number): number {
-  const type = getStaticCharType(text, index)
+  return getFontCharType(data, getStaticCharType(text, index))
+}
+
+function getFontCharType(data: HanKerningFontData, type: number): number {
   switch (type) {
     case DOT: return data.typeForDot
     case COLON: return data.typeForColon
@@ -178,20 +181,28 @@ function isCanvasCjkSymbol(c: number): boolean {
   return (c >= 0x3000 && c <= 0x30FF) || (c >= 0xFE30 && c <= 0xFE6F) || (c >= 0xFF00 && c <= 0xFFEF && c !== 0xFF1B)
 }
 
-// The halt of one character of the pair text[index - 1], text[index] that two shaped runs split
-// between them, as two rich-inline items do: `side` 1 is the later character's, after the
-// earlier one, and -1 the earlier's, before the later one; 0 without one. Blink shapes each run
-// with the paragraph's whole text and reads the character before the run's first and after its
-// last there, typing both by the run's own font (HanKerning::AppendFontFeatures,
+// The types of the pair text[index - 1], text[index] before a font types its dots, colons and
+// quotes (getStaticCharType), the earlier's times 16 plus the later's; 0 where either has none,
+// as no font halts a character next to one.
+export function getPairTypes(text: string, index: number): number {
+  const earlier = getStaticCharType(text, index - 1)
+  const later = earlier === OTHER ? OTHER : getStaticCharType(text, index)
+  return later === OTHER ? 0 : earlier * 16 + later
+}
+
+// The halt of one character, `halted`, of a pair that two shaped runs split between them, as two
+// rich-inline items do, from the pair's types (getPairTypes): `side` 1 is the later character's,
+// after the earlier one, and -1 the earlier's, before the later one; 0 without one. Blink shapes
+// each run with the paragraph's whole text and reads the character before the run's first and
+// after its last there, typing both by the run's own font (HanKerning::AppendFontFeatures,
 // han_kerning.cc:262-320, over the text HarfBuzzShaper holds, harfbuzz_shaper.cc:895), so `font`
 // is the font of the item that holds the halted character, measured as that item's text is
 // (`letterSpaced`).
-export function getHaltAcrossRuns(text: string, index: number, side: number, font: string, letterSpaced: boolean, language: string | null): number {
-  const halted = text.charCodeAt(side === 1 ? index : index - 1)
+export function getHaltAcrossRuns(types: number, halted: number, side: number, font: string, letterSpaced: boolean, language: string | null): number {
   if (!maybeHanKerns(halted)) return 0
   const measurement = getFontMeasurement(font, language, letterSpaced)
   const data = getFontData(measurement)
-  if (data === null || haltedSide(getCharType(data, text, index - 1), getCharType(data, text, index)) !== side) return 0
+  if (data === null || haltedSide(getFontCharType(data, types >> 4), getFontCharType(data, types & 15)) !== side) return 0
   return getTrim(data, halted, measurement)
 }
 
