@@ -246,9 +246,10 @@ harness/invariants.test.ts`) and the bench's floors.
 - Without the stand-in's kerning and ligatures between neighbouring letters (#TBD), every word measured as its letters
   do alone, so the fits of a word cut between letters all gave one answer: a planted defect that overwrote the advances
   a held handle keeps when its word was fit another way went unseen in 600 draws of every profile. With them, the
-  profiles whose context takes no `letterSpacing` fail it, the unknown one in 71 draws and the WebKit one in 1; the
-  Blink and Gecko profiles measure letter-spaced text apart, so no word there is fit two ways. A planted miss of a
-  line-start width in `layout()`'s count fails the Blink profile's agreement check in 1 draw of 600.
+  unknown profile, whose context takes no `letterSpacing`, fails it in 84 draws of 600. The WebKit profile's takes none
+  either, and it failed in 1 of the 600 drawn before the cut-word cases joined the sets and in none of those drawn
+  since; the Blink and Gecko profiles measure letter-spaced text apart, so no word there is fit two ways. A planted miss
+  of a line-start width in `layout()`'s count fails the Blink profile's agreement check in 3 draws of 600.
 - Canvas-call counts before #355 aren't comparable with later ones: the harness's adapter (`run.ts`) stopped calling
   `setLocale()` per case, cutting its calls 20-25% with no prediction change (2026-09-26).
 
