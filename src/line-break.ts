@@ -627,27 +627,34 @@ function walkPreparedComplexLines(
 
           if (kind === SOFT_HYPHEN && startGraphemeIndex === 0) {
             if (hasContent) {
-              // A break comes after an object, so a line returns to it from a soft hyphen right
-              // after the object whose hyphen doesn't fit: Chrome, Firefox and Safari break
-              // there with the hyphen where it fits, and else after the object.
-              if (retreatsFromUnfitHyphen && i > lineStartSegmentIndex && (segmentFlags[i - 1]! & KIND_BITS) === OBJECT) {
-                fitBreakSegmentIndex = i
-                fitBreakPaintWidth = lineW
-              }
-              if (hangGoesOnPastEmpty && hangEndSegmentIndex === i) {
-                hangEndSegmentIndex = i + 1
-                hangStartWidth = Math.max(hangStartWidth, Math.min(lineW, availableWidth))
+              // The hyphen a line that ends here paints, and whether it has to fit. What only a
+              // rich-inline paragraph has is under one test, which is all a text's soft hyphen
+              // pays for it (RESEARCH.md, Keeping Work Bounded).
+              let hyphenWidth = discretionaryHyphenWidth
+              let fitsHyphen = true
+              if (items !== undefined) {
+                // A break comes after an object, so a line returns to it from a soft hyphen right
+                // after the object whose hyphen doesn't fit: Chrome, Firefox and Safari break
+                // there with the hyphen where it fits, and else after the object.
+                if (retreatsFromUnfitHyphen && i > lineStartSegmentIndex && (segmentFlags[i - 1]! & KIND_BITS) === OBJECT) {
+                  fitBreakSegmentIndex = i
+                  fitBreakPaintWidth = lineW
+                }
+                if (hangGoesOnPastEmpty && hangEndSegmentIndex === i) {
+                  hangEndSegmentIndex = i + 1
+                  hangStartWidth = Math.max(hangStartWidth, Math.min(lineW, availableWidth))
+                }
+                if (hyphenWidths !== null) hyphenWidth = hyphenWidths[i]!
+                // A soft hyphen's fit includes its own hyphen, but for one right before an atomic
+                // item where the engine never tests that hyphen (EngineProfile).
+                fitsHyphen = testsHyphenBeforeAtomic || i + 1 === segmentCount || (segmentFlags[i + 1]! & KIND_BITS) !== OBJECT || (openingEdges !== null && openingEdges[i + 1]! !== 0)
               }
               lineEndSegmentIndex = i + 1
               lineEndGraphemeIndex = 0
               if (i + 1 < segmentCount && (segmentFlags[i + 1]! & KIND_BITS) !== HARD_BREAK) {
                 pendingBreakSegmentIndex = i + 1
-                pendingBreakWidth = lineW + (hyphenWidths === null ? discretionaryHyphenWidth : hyphenWidths[i]!)
-                // A soft hyphen's fit already includes its own hyphen, but for one right before an
-                // atomic item where the engine never tests that hyphen (EngineProfile).
-                const fitWidth = !testsHyphenBeforeAtomic && (segmentFlags[i + 1]! & KIND_BITS) === OBJECT && (openingEdges === null || openingEdges[i + 1]! === 0)
-                  ? lineW : pendingBreakWidth
-                if (retreatsFromUnfitHyphen && (fitWidth <= fitLimit || (keepsFirstBreak && fitBreakSegmentIndex < 0))) {
+                pendingBreakWidth = lineW + hyphenWidth
+                if (retreatsFromUnfitHyphen && ((fitsHyphen ? pendingBreakWidth : lineW) <= fitLimit || (keepsFirstBreak && fitBreakSegmentIndex < 0))) {
                   fitBreakSegmentIndex = pendingBreakSegmentIndex
                   fitBreakPaintWidth = pendingBreakWidth
                 }
@@ -739,28 +746,34 @@ function walkPreparedComplexLines(
             // A run of preserved spaces and tabs fits where the text before it fits, and after an
             // object however far the line overflows (staysAfterObject).
             const newFitW = hangs ? hangStartWidth - hangEdgesWidth : lineW + fitAdvance
-            // Blink and WebKit move an object of width 0 that doesn't fit to the next line as any
-            // other. Gecko places an empty frame though it sticks out of the line (CanPlaceFrame,
-            // nsLineLayout.cpp:1264-1269; EngineProfile, emptyAtomicAlwaysFits). It sticks out
-            // where the content before it ends past the line's end, with the collapsed space
-            // before the object, which a line end trims no more once the object follows it
-            // (nsLineLayout.cpp:1017-1020), and without the preserved spaces that hang, which end
-            // at the line's end (nsTextFrame.cpp:11216-11229). The line then ends before it where
-            // the text before it ends in white space and its last frame ends past the line's end
-            // without that frame's own spaces, as the line breaks after the white space
-            // (nsTextFrame.cpp:11443-11456), and where a break comes before the object and what
-            // follows it sends the line back there (ParagraphSegmentData).
-            let placesEmptyObject = false
-            if (emptyObjectSpaces !== null && kind === OBJECT && w === 0 && newFitW > fitLimit) {
-              const contentW = hangEndSegmentIndex === i ? hangStartWidth : lineW
-              const space = emptyObjectSpaces[i]!
-              placesEmptyObject = contentW <= fitLimit || !((space >= 0 && contentW - space > fitLimit) || emptyObjectReturns![i] === 1)
+            // Whether the segment ends the line. What only a rich-inline paragraph has is under one
+            // test, as at a soft hyphen (above).
+            let overflows = newFitW - endTrim > fitLimit
+            if (items !== undefined) {
+              // Blink and WebKit move an object of width 0 that doesn't fit to the next line as any
+              // other. Gecko places an empty frame though it sticks out of the line (CanPlaceFrame,
+              // nsLineLayout.cpp:1264-1269; EngineProfile, emptyAtomicAlwaysFits). It sticks out
+              // where the content before it ends past the line's end, with the collapsed space
+              // before the object, which a line end trims no more once the object follows it
+              // (nsLineLayout.cpp:1017-1020), and without the preserved spaces that hang, which
+              // end at the line's end (nsTextFrame.cpp:11216-11229). The line then ends before it
+              // where the text before it ends in white space and its last frame ends past the
+              // line's end without that frame's own spaces, as the line breaks after the white
+              // space (nsTextFrame.cpp:11443-11456), and where a break comes before the object
+              // and what follows it sends the line back there (ParagraphSegmentData).
+              let placesEmptyObject = false
+              if (emptyObjectSpaces !== null && kind === OBJECT && w === 0 && newFitW > fitLimit) {
+                const contentW = hangEndSegmentIndex === i ? hangStartWidth : lineW
+                const space = emptyObjectSpaces[i]!
+                placesEmptyObject = contentW <= fitLimit || !((space >= 0 && contentW - space > fitLimit) || emptyObjectReturns![i] === 1)
+              }
+              // No engine lets content make a line narrower (findWholeLine in src/rich-inline.ts),
+              // so a segment of less than no advance, as a letter under a letter spacing more
+              // negative than it is wide, doesn't bring a line that overflows back.
+              const narrowsOverflow = fitAdvance < 0 && lineW - lineEndTrimmed > fitLimit
+              overflows = (overflows || narrowsOverflow) && !(hangs && hangStays) && !placesEmptyObject
             }
-            // No engine lets content make a line narrower (findWholeLine in src/rich-inline.ts), so in
-            // a rich-inline paragraph a segment of less than no advance, as a letter under a letter
-            // spacing more negative than it is wide, doesn't bring a line that overflows back.
-            const narrowsOverflow = items !== undefined && fitAdvance < 0 && lineW - lineEndTrimmed > fitLimit
-            if ((newFitW - endTrim > fitLimit || narrowsOverflow) && !(hangs && hangStays) && !placesEmptyObject) {
+            if (overflows) {
               // A break segment hangs with the gap before it, after the content before
               // it, which fits without its line-end trim. A collapsible space or ZWSP
               // hangs even after overflowing content that started the line, as the
