@@ -430,11 +430,16 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
       if (firstKind === PRESERVED_SPACE || firstKind === TAB || firstKind === HARD_BREAK || (firstKind === ZERO_WIDTH_BREAK && first === from)) {
         const at = widths.length
         const afterObject = at > 0 && (flags[at - 1]! & KIND_BITS) === OBJECT
-        // Whether the item follows preserved spaces that follow text in their own item: Blink gives
-        // every run of preserved tabs a control item of its own (inline_items_builder.cc:1098-1110),
-        // so a tab, and spaces after one, follow no text.
-        // An item of only spaces after its own start edge follows none either.
-        const afterTextSpaces = at - 1 > previousItemStart && (flags[at - 1]! & KIND_BITS) === PRESERVED_SPACE && (flags[at - 2]! & KIND_BITS) !== TAB &&
+        // Whether the item follows preserved spaces that follow text in their own text item. Blink
+        // ends a text item at each character it makes a control item (IsControlItemCharacter,
+        // inline_items_builder.cc:177-184; AppendPreserveWhitespace, :1082-1126): a run of preserved
+        // tabs (:1098-1110), a line feed, whose forced break the spaces after it follow as a text item
+        // of their own (:1084-1097, 1023-1033), and a lone CR or FF (:1119-1125), which the analysis
+        // takes as a line feed. So spaces after a tab or a hard break, which is a line feed in the
+        // one profile that reads this, follow no text. A ZWNJ, the other such character, starts a
+        // text item and is text in it (:1112-1118), as it is here. An item of only spaces after its
+        // own start edge follows none either.
+        const afterTextSpaces = at - 1 > previousItemStart && (flags[at - 1]! & KIND_BITS) === PRESERVED_SPACE && (1 << (flags[at - 2]! & KIND_BITS) & (1 << TAB | 1 << HARD_BREAK)) === 0 &&
           (openingEdges === null || at - 2 >= openingEdges.length || openingEdges[at - 2] === 0)
         const fit = getOpeningFit(sub.segmentFlags, extraWidth, afterTextSpaces, profile)
         // In WebKit a break comes before white space that starts an item (whiteSpaceItemBreaks), and

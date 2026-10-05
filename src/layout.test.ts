@@ -4520,6 +4520,43 @@ describe('rich-inline invariants', () => {
     }
   })
 
+  test('spaces after a line feed follow no text, so the Chromium profile fits a padded opening after them by its start edge', () => {
+    const space = measureWidth(' ', FONT)
+    const texts = (items: Parameters<typeof prepareRichInline>[0], width: number) => {
+      const prepared = prepareRichInline(items, { whiteSpace: 'pre-wrap' })
+      const out: string[] = []
+      walkRichInlineLineRanges(prepared, width, range => {
+        out.push(materializeRichInlineLineRange(prepared, range).fragments.map(f => f.text).join('|'))
+      })
+      expect(measureRichInlineStats(prepared, width).lineCount).toBe(out.length)
+      return out
+    }
+    const profile = getEngineProfile()
+    const previous = profile.paddedOpeningFit
+    try {
+      profile.paddedOpeningFit = 'start'
+      // Blink ends a text item at a line feed, so the spaces after one are a text item with no text
+      // before them, and a line that ends with them doesn't trail into the padded span after them: the
+      // span's start edge, half its extraWidth, is fitted after the spaces, and where it doesn't fit
+      // the span starts the next line. Chrome lays out `ab\n  ` and a 6px-padded `\ncd` in 16px Arial
+      // at 9-14.5px as 6 lines, the spaces on a line of their own, and at 15-17.5px, where the spaces
+      // and the 6px start edge fit, as 5. A lone CR is a line feed to the analysis.
+      for (const before of ['a\n  ', 'a\r  ']) {
+        const items = [{ text: before, font: FONT }, { text: '\nb', font: FONT, extraWidth: 8 }]
+        expect(texts(items, 2 * space + 5)).toEqual(['a', '  |', 'b'])
+        expect(texts(items, 2 * space + 3)).toEqual(['a', '  ', '', 'b'])
+      }
+      // Spaces after text in their item, a ZWNJ too, which Blink keeps as text, trail into the span
+      // however far its edge overflows.
+      for (const [before, line] of [['a  ', 'a  '], ['a\u200C  ', 'a\u200C  '], ['a\nc  ', 'c  ']] as const) {
+        const items = [{ text: before, font: FONT }, { text: '\nb', font: FONT, extraWidth: 8 }]
+        expect(texts(items, measureWidth(line.trimEnd(), FONT) + 1).slice(-2)).toEqual([line + '|', 'b'])
+      }
+    } finally {
+      profile.paddedOpeningFit = previous
+    }
+  })
+
   test('no line ends inside a run of preserved spaces that goes on across items, but in the WebKit profile', () => {
     const BOLD = '700 16px Test Sans'
     const boldSpace = measureWidth(' ', BOLD)
