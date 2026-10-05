@@ -1742,6 +1742,11 @@ catalog-1d72217944543263 breaks
 catalog-3552d0e49f3c4569 breaks
 catalog-a1b0b5def1fd6512 breaks
 
+## Narrower than real layouts: one word cut into many pieces in a box of 1-17 px ("To." eight times in 16 px Helvetica Neue at 1 px, forty joined "ه" in 16 px Arial at 15.1 and 17 px); WebKit measures each piece from its own line's start and gives the rest of the word the width left over (AbstractLineBuilder.cpp:92-96), which shrinks by what each piece takes beyond its share of the word, until the rest fits a line whole ("o." with 0.58 px left, the last three "ه"); the library's pieces add up to the word, so it cuts once more; the rest of a cut word carries its width from line to line, which the cursor has no field for, so the rule isn't ported (ENGINE_FOLLOWUPS.md, Emergency breaks inside a word)
+catalog-1e09fb14909f48c4 count
+catalog-32b37afd7007a194 count
+catalog-5535b5abb35ad415 count
+
 ## Narrower than real layouts: width 1, where nothing fits and WebKit keeps spaces, marks, controls or zero-width characters with the character before them otherwise than the library
 catalog-0099ca5fe40e865a count
 catalog-00f0c5905d3ef90c count

@@ -1,3 +1,7 @@
+## "To." eight times, one word, cut between "T" and "o" 1/64 px under where Firefox's lines change, in 16 px Helvetica Neue at 155.67 px and in 16 px Roboto at 163.6 px: Firefox's cut follows the advances the letters have in the word shaped whole (BreakAndMeasureText, gfxTextRun.cpp:1004-1191), where the "T" before the cut is narrower by its part of the kerning with the "o", half in Helvetica Neue, whose kern table splits it (hb-kern.hh:102-106), and all of it in Roboto, which kerns through GPOS (PairSet.hh:126-127), so 22 letters fit, 155.65 px and 163.58 px; the library takes the differences of the word's prefixes, and the prefix that ends in that "T" has it as wide as it is alone, so the "T" moves to the next line; Canvas totals don't show which letter of a pair holds its kerning, so the rule isn't ported (the right line count; ENGINE_FOLLOWUPS.md, Emergency breaks inside a word)
+catalog-0ca65d4f65590f2a breaks
+catalog-7980a6283a8730fd breaks
+
 ## #323, "the international" with soft hyphens at 52.5-56 px: where the syllable before the first soft hyphen doesn't fit with its hyphen, Firefox breaks the word between letters, the library at the soft hyphen (main before #340 too)
 report-23cd6052bc54f415 breaks
 report-953b7e9cd05588ed breaks
