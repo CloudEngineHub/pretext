@@ -61,8 +61,9 @@ export type EngineProfile = {
   // questions about the word (getSegmentFit). WebKit measures the word's grapheme prefixes
   // (TextUtil::breakWord), and Gecko adds the advances of the word shaped whole
   // (gfxTextRun::BreakAndMeasureText), which prefixes follow in joined scripts where
-  // standalone graphemes don't: 'segment-prefixes' for both, which is neither engine's rule
-  // where a line starts inside the word (ENGINE_FOLLOWUPS.md, Emergency breaks inside a word).
+  // standalone graphemes don't: 'segment-prefixes' for both, which is WebKit's rule for a word
+  // cut once and neither engine's rule otherwise (ENGINE_FOLLOWUPS.md, Emergency breaks inside
+  // a word).
   // Blink reads positions from the word shaped whole and shapes a line's start and end again
   // wherever HarfBuzz calls the cut unsafe, as between two kerned or two joined letters
   // (ShapingLineBreaker::ShapeLine, shaping_line_breaker.cc:304-324, 511-584), so kerning
