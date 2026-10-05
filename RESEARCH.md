@@ -1249,17 +1249,26 @@ text the items join and stepped item by item, calling the text walker for one it
 what it was and what it found). It kept drifting from the text walkers: each rule the text walkers gained needed its
 copy at item edges (#332). The item stepper, the walker's mode for one item's line, the joined windows and the second
 handle per item are gone, and three fields of the engine profile with them (`breaksFromItemText`,
-`collapsesSpaceAcrossSoftHyphens`, `spaceBeforeSoftHyphenHangs`). `src/` outside tests is 313 lines shorter, 1,391 added
-and 1,704 removed, and 173 lines of code shorter, counting neither blank lines nor comments: `src/rich-inline.ts` goes
-from 1,065 lines of code to 781, `src/analysis.ts` from 317 to 396 and `src/line-break.ts` from 768 to 790, as the
+`collapsesSpaceAcrossSoftHyphens`, `spaceBeforeSoftHyphenHangs`). `src/` outside tests is 253 lines shorter, 1,465 added
+and 1,718 removed, and 138 lines of code shorter, counting neither blank lines nor comment lines: `src/rich-inline.ts`
+goes from 1,065 lines of code to 786, `src/analysis.ts` from 317 to 409 and `src/line-break.ts` from 768 to 799, as the
 walker's mode for one item's line makes way for what a paragraph's segments carry. The main entry's bundle grows by
-3,118 B minified (1,099 B gzipped) to 94,868 B (39,965 B), since the walker and the analysis are its own, and
-`@chenglou/pretext/rich-inline` shrinks by 2,189 B (133 B) to 104,534 B (43,791 B).
+3,373 B minified (1,168 B gzipped) to 95,123 B (40,019 B), since the walker and the analysis are its own, and
+`@chenglou/pretext/rich-inline` shrinks by 1,765 B minified to 104,958 B and is 3 B larger gzipped, 43,907 B
+(`bun build --minify`, then `gzip -9`; against main at #432, 2026-10-05).
 
 What a caller sees change: a fragment's `start` and `end`, and a line's `end`, count segments of the item's part of
-the paragraph, where they were cursors into `prepareWithSegments(item.text)`. The two differ wherever an item starts
-inside a word, where white space collapses across items, and where Firefox's white-space run reads through an item's
-start, so no mapping keeps the old meaning without each item's own analysis, which the design removes. Cursors are
+the paragraph, where they were cursors into `prepareWithSegments(item.text)`. The two differ in most paragraphs of
+several items: an item that starts with white space after another item's text keeps that space as the first segment of
+its part, where its own analysis dropped it, so each of its cursors is one higher; an atomic item is one segment, so
+the chip `New York` ends at segment 1, where it ended at 3; an item that starts inside a word is cut otherwise where
+the scan's breaks depend on the whole word, as a Thai word's do in the Blink and Gecko profiles; and Firefox's
+white-space run reads through an item's start. Only a paragraph of one text item without `extraWidth`, which is that
+text's own handle, keeps its text's cursors. Over 6,000 generated paragraphs of two to four items on the stand-in
+Canvas, main's cursors against this design's at five widths (2026-10-05): all 425 whose only such trait is an item
+that starts with a space after text differ, and none of the 355 whose items only end with a space, nor of the 1,208
+that only split an ordinary word. So no mapping keeps the old meaning without each item's own analysis, which the
+design removes. Cursors are
 for passing back to `layoutNextRichInlineLineRange()` and `materializeRichInlineLineRange()`; a materialized fragment
 has `sourceStart` and `sourceEnd`, UTF-16 offsets in its item's `text`. Also: an atomic item of only white space is an
 object as wide as its `extraWidth`, as every engine lays out an inline-block of only white space (Atomic Items' Own
@@ -1305,8 +1314,10 @@ space, soft hyphens and ZWSPs. Of pinned cases that main fails 11, 9 and 3 pass,
 fail, each with a written reason on its accepted list: 17, 12 and 17 hold a ZWSP, which the browsers give a line of its
 own after content that overflows, or whose line on main was right only by the range of an empty fragment, all under
 24px but 4 in Chrome and 4 in webkit-host; one in each is a word joiner at −1px letter spacing; and the others are a
-soft hyphen item before a bidi control at 1px in Firefox and a line separator at 1 and 8.9px in webkit-host. Of the
-real-usage sample's draws 26, 26 and 38 differ and none changes its verdict. Among cases that pass in both, the widest
+soft hyphen item before a bidi control at 1px in Firefox and a line separator at 1 and 8.9px in webkit-host. Two more
+Chrome cases, at 26 and 26.7px, which main fails by a character on another line, fail by their line count on the
+paragraph, a line short (ENGINE_FOLLOWUPS.md, Rich-inline item edges, has the paragraph). Of the real-usage sample's
+draws 26, 26 and 38 differ and none changes its verdict. Among cases that pass in both, the widest
 error of a line's width moves nearer the browser's in 46, 33 and 40 and further in 19, 63 and 22: nearer where a soft
 hyphen that ends an item now has its hyphen, further in Firefox where a space before a soft hyphen is no longer hung
 (ENGINE_FOLLOWUPS.md, Rich-inline item edges).
@@ -1326,6 +1337,20 @@ Firefox), a soft hyphen item between preserved spaces and a padded span (22 in C
 item's end (7 in Chrome), and smaller ones (21, 17 and 24): items of soft hyphens, white space and ZWSPs found by
 fuzzing, a 0px box at −6px letter spacing under 6px, and in Chrome a line feed after padded spaces whose span's end
 edge alone overflows.
+
+Two reviews of the design added probes, taken the same way at the commit before their fixes (2026-10-05). Of 1,888
+layouts of 32 paragraphs (split words, padded spans, chips and boxes, pre-wrap tabs, soft hyphens at item ends, Arabic
+and Hebrew, styled Japanese and Chinese), Chrome passes 1,780, Firefox 1,826 and webkit-host 1,875, where main passes
+1,729, 1,810 and 1,863; one webkit-host layout is lost, of two soft hyphens across an item edge. Of 2,049 layouts of a
+soft hyphen that ends a padded span, at half-pixel widths, they pass 1,855, 2,013 and 2,029, against 1,788, 1,971 and
+1,969; two Chrome ones are lost, at the edge of a gap main has too, the hyphen Chrome charges where a line ends at a
+space after a soft hyphen. And 356 Chrome layouts of `ab`, a line feed and two spaces before a 6px-padded item that
+starts with a line feed or spaces showed a rule the design had too narrow: main passed 344 of them and the paragraph
+308, losing 36 at 9-14.5px, where it put the padded item's opening on the spaces' line, 5 lines for Chrome's 6. Blink
+ends a text item at a line feed as at a tab, so those spaces follow no text and their line doesn't trail into the
+opening (Box Edges And Pre-wrap, below, has the rule). With that, all 356 pass, and of 1,613 Chrome layouts that also
+hold the first probes' line-feed and space-span shapes 1,442 pass, 48 more and none fewer, where main passes 1,409. No
+pinned case holds the shape, so the fix moves no pinned prediction, and a unit test holds it.
 
 The halt Chrome gives a pair of fullwidth marks comes with the paragraph's analysis: of the 6,210 layouts of styled
 Chinese and Japanese sentences at 120-600px in nine font stacks that #425 measured, Chrome passes 6,199 on the
@@ -1673,8 +1698,10 @@ item's hanging width from the fit (`InlineContentBreaker`) and Gecko hangs each 
 comes before a hard break (UAX #14 LB6). A padded span that starts with one fits its padding there as each engine fits a
 span whose line ends as it opens: Chrome its start edge, as Blink adds that edge when the span opens and a forced break's
 close tags trail it, and no edge after preserved spaces that overflow or follow text in one span, as its return breaks
-that text before them and the line then trails the spaces, the open tag and the forced break (a run of tabs is an item
-of its own there, so a tab, and spaces after one, follow no text), the spaces overflowing where the content before
+that text before them and the line then trails the spaces, the open tag and the forced break (Blink ends a text item at
+each character it makes a control item, a run of tabs, a line feed and a lone CR or FF, so a tab or a line feed, and
+spaces after one, follow no text; `IsControlItemCharacter`, `inline_items_builder.cc:177-184`), the spaces overflowing
+where the content before
 them fits with the start edges of the spans that open among them and the spaces after those edges don't; Safari its end edge too
 where the span holds only white space up to the break, as WebKit's content runs on past the box ends after a line break,
 with white space that hangs before the span left out; Firefox both, as Gecko fits a frame's cloned end edge
