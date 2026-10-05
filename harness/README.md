@@ -32,8 +32,9 @@ builds widths are compared exactly: to `equal <ref>` a line width that differs a
 (Proving "no change"). The library's consistency blocks on every case, recorded or not: the line APIs (`layout()`,
 `measureLineStats()`, `walkLineRanges()`, `layoutNextLineRange()`, `layoutNextLine()`, `layoutWithLines()`,
 `materializeLineRange()` and their rich-inline counterparts) must agree on lines, widths and text, and none may call
-`measureText` after preparing. A rich fragment's text is `materializeLineRange()`'s over its cursors in its item's own
-prepared text, but for the hyphen of a soft hyphen it ends at, which the text the items join decides. A box is a visible
+`measureText` after preparing. A rich fragment's text is its item's text between the fragment's `sourceStart` and
+`sourceEnd` as painted, white space collapsed and invisible breaks left out, with the hyphen of a soft hyphen its line
+ends at (`fragmentProblem()`). A box is a visible
 character whatever its width, placed by its top. Every case is laid out start-aligned in an element with no text
 decoration or background, so a browser rule that depends on those is recorded on one side only: Chrome keeps a word's
 kerning with a hanging space in such text and drops it in the others (`RESEARCH.md`, Kerning At Line Edges).
@@ -383,7 +384,9 @@ The harness doesn't see re-layout at a line's own width; a defect that changes t
 one way of fitting lines when another is used (the stand-in Canvas gives the same widths to every way); several rules
 of the Gecko profile's analysis of bidi controls (`ENGINE_FOLLOWUPS.md`, Harness debt); an emoji modifier split from its
 base across rich items; a rich paragraph of one item, which the adapter writes as plain text, so `src/layout.test.ts`
-checks its line functions against the rich stepper; Chrome's UI language, and so its `zh` table for pages without a
+checks its line functions against the same item with an empty item after it; a line that holds only an atomic item of
+white space, which has no text for the recorder to list, so a prediction with that line is scored as a line too many
+though the recorded height has it; Chrome's UI language, and so its `zh` table for pages without a
 `lang`; rendering other than macOS's and an iOS simulator's (Other ratios and phones), though Android and Windows are
 65% of page views (`weights.json`); text chat users wrote (the sample's chat draws are stand-ins); or the demos' painted
 layout. No planted defect guards the watchdog's kill, the bench's shuffle and its separate compiles (each copy of the

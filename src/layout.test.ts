@@ -3377,9 +3377,9 @@ describe('rich-inline invariants', () => {
 
   test('a paragraph of one item lays out as that item with an empty item after it', async () => {
     // One text item alone is its text's own handle (prepareRichInline) unless it's atomic or has
-    // extraWidth; with any item after it, even an empty one, the paragraph is assembled from its
-    // items. Only the cursor after the last line counts the empty item. The stream takes one
-    // more line than the walk, so a stream that doesn't end fails.
+    // extraWidth, and so is a paragraph whose other items are empty, which are dropped. Only the
+    // cursor after the last line counts the empty item. The stream takes one more line than the
+    // walk, so a stream that doesn't end fails.
     const walk = (prepared: ReturnType<typeof prepareRichInline>, maxWidth: number, items: number) => {
       const lines: unknown[] = []
       const count = walkRichInlineLineRanges(prepared, maxWidth, range => {

@@ -1249,7 +1249,12 @@ text the items join and stepped item by item, calling the text walker for one it
 what it was and what it found). It kept drifting from the text walkers: each rule the text walkers gained needed its
 copy at item edges (#332). The item stepper, the walker's mode for one item's line, the joined windows and the second
 handle per item are gone, and three fields of the engine profile with them (`breaksFromItemText`,
-`collapsesSpaceAcrossSoftHyphens`, `spaceBeforeSoftHyphenHangs`).
+`collapsesSpaceAcrossSoftHyphens`, `spaceBeforeSoftHyphenHangs`). `src/` outside tests is 313 lines shorter, 1,391 added
+and 1,704 removed, and 173 lines of code shorter, counting neither blank lines nor comments: `src/rich-inline.ts` goes
+from 1,065 lines of code to 781, `src/analysis.ts` from 317 to 396 and `src/line-break.ts` from 768 to 790, as the
+walker's mode for one item's line makes way for what a paragraph's segments carry. The main entry's bundle grows by
+3,118 B minified (1,099 B gzipped) to 94,868 B (39,965 B), since the walker and the analysis are its own, and
+`@chenglou/pretext/rich-inline` shrinks by 2,189 B (133 B) to 104,534 B (43,791 B).
 
 What a caller sees change: a fragment's `start` and `end`, and a line's `end`, count segments of the item's part of
 the paragraph, where they were cursors into `prepareWithSegments(item.text)`. The two differ wherever an item starts
@@ -1290,6 +1295,50 @@ taken segments found before the loop, the same lines walked 10% faster than the 
 Firefox, 16-24% and 10-13% faster in V8's shell and 20-24% and 14-22% in JavaScriptCore's (background Firefox and
 shells on a stand-in Canvas, so hypotheses until the bench times them; JavaScript Engines has the general rule).
 `createLine()` is written that way.
+
+What it measured, against main at #430 in Chrome 154.0.8037.57, Firefox 156.0.1 and webkit-host on WebKit
+22625.1.29.11.27, on macOS 27.0 at device pixel ratio 2 (2026-10-05; the PR's description has the tables). No plain
+text moves: with every rich input left out, 19,391 plain inputs of the offline comparison give the same handles, lines
+and `measureText` calls in all four profiles, and no pinned plain prediction differs in any browser. Of the pinned
+predictions 728, 779 and 829 differ in Chrome, Firefox and webkit-host, all rich, most by a line's range among white
+space, soft hyphens and ZWSPs. Of pinned cases that main fails 11, 9 and 3 pass, and of those it passes 18, 14 and 20
+fail, each with a written reason on its accepted list: 17, 12 and 17 hold a ZWSP, which the browsers give a line of its
+own after content that overflows, or whose line on main was right only by the range of an empty fragment, all under
+24px but 4 in Chrome and 4 in webkit-host; one in each is a word joiner at −1px letter spacing; and the others are a
+soft hyphen item before a bidi control at 1px in Firefox and a line separator at 1 and 8.9px in webkit-host. Of the
+real-usage sample's draws 26, 26 and 38 differ and none changes its verdict. Among cases that pass in both, the widest
+error of a line's width moves nearer the browser's in 46, 33 and 40 and further in 19, 63 and 22: nearer where a soft
+hyphen that ends an item now has its hyphen, further in Firefox where a space before a soft hyphen is no longer hung
+(ENGINE_FOLLOWUPS.md, Rich-inline item edges).
+
+Three probes, each layout recorded fresh in two document orders and predicted with main and with the paragraph, none
+kept: 23,757 layouts of Chinese and Japanese text in styled runs, with fullwidth marks and U+3000 at item edges, which
+are PR #425's probes; 8,504 of item edges in Latin text, as padded spans that start with white space or a hard break
+in pre-wrap, soft hyphens before and after items, and chips of white space; and 4,637 of the example shapes
+ENGINE_FOLLOWUPS.md names. Chrome passes 22,936, 7,848 and 3,643 of them, where main passes 20,243, 7,657 and 3,505;
+Firefox 23,584, 8,443 and 4,089, against 23,412, 7,843 and 3,830; webkit-host 23,671, 8,308 and 3,935, against 23,606,
+8,020 and 3,886. Main passes 235 Chrome, 146 Firefox and 169 webkit-host layouts that the paragraph fails. Of them 94,
+74 and 94 hold a line of only a chip of white space, which the recorder doesn't list and whose height the paragraph
+has right where main has it wrong. The rest are gaps ENGINE_FOLLOWUPS.md names, each with its count: a ZWSP after a
+chip wider than the line (51 in Chrome and in webkit-host), a soft hyphen right after a U+3000 run (40 in Chrome), a
+0px box after a space and a soft hyphen that Firefox drops (31 in Firefox), a 0px box between two U+3000 runs (24 in
+Firefox), a soft hyphen item between preserved spaces and a padded span (22 in Chrome), a closing mark halted at an
+item's end (7 in Chrome), and smaller ones (21, 17 and 24): items of soft hyphens, white space and ZWSPs found by
+fuzzing, a 0px box at −6px letter spacing under 6px, and in Chrome a line feed after padded spaces whose span's end
+edge alone overflows.
+
+The halt Chrome gives a pair of fullwidth marks comes with the paragraph's analysis: of the 6,210 layouts of styled
+Chinese and Japanese sentences at 120-600px in nine font stacks that #425 measured, Chrome passes 6,199 on the
+paragraph, where main passes 5,608 (162 with a wrong line count and 440 with a character on another line; 2 and 9 are
+left, each with a padded code span or a chip), and every one of the 6,210 predictions is the one #425's build gives,
+as is every one of 9,768 of pairs of marks across span edges at 16-160px; #425's 34 pinned `rich/item-edges` cases per
+browser pass in all three. What #425 has and the paragraph doesn't is the mark halted at an item's end (above).
+
+Chrome submits more units to `measureText` for rich cases, by as many calls: 46,824 against 45,310 over the rich set
+(+3.3%), 33,233 against 32,070 over the sample's rich draws and 3,697 against 2,214 over the catalog's 288 rich cases.
+A collapsed space at an item's edge is now measured with its item, so more paragraphs meet the Chromium profile's probe
+of how a font kerns a space with its neighbours, two strings of printable ASCII, which a page pays once for a font.
+Firefox's and webkit-host's calls and units stay within 0.2% over the rich set and the sample. The bench wasn't run.
 
 #### Joined Text
 
@@ -1606,7 +1655,8 @@ comes before a hard break (UAX #14 LB6). A padded span that starts with one fits
 span whose line ends as it opens: Chrome its start edge, as Blink adds that edge when the span opens and a forced break's
 close tags trail it, and no edge after preserved spaces that overflow or follow text in one span, as its return breaks
 that text before them and the line then trails the spaces, the open tag and the forced break (a run of tabs is an item
-of its own there, so a tab, and spaces after one, follow no text); Safari its end edge too
+of its own there, so a tab, and spaces after one, follow no text), the spaces overflowing where the content before
+them fits with the start edges of the spans that open among them and the spaces after those edges don't; Safari its end edge too
 where the span holds only white space up to the break, as WebKit's content runs on past the box ends after a line break,
 with white space that hangs before the span left out; Firefox both, as Gecko fits a frame's cloned end edge
 (`paddedOpeningFit`, `src/measurement.ts`). Where it doesn't fit, all three engines return the line to its latest break;
@@ -1626,7 +1676,8 @@ an empty frame past the line's end (`CanPlaceFrame`), as all three browsers lay 
 Chrome gives a line feed after such spaces a line of its own, and moves a span that starts with white space and goes on
 past it whole, where rich inline takes an item as the paragraph's own text (ENGINE_FOLLOWUPS.md). But Gecko breaks only
 after a run of spaces and tabs (`nsLineBreaker.cpp:323`, `:586`) and doesn't hang a tab, so Firefox moves such white
-space that runs into a tab to the next line with the tab, whatever items it spans. Before #386 a line took only the
+space that runs into a tab to the next line with the tab, whatever items it spans, from the break after the atomic
+item. Before #386 a line took only the
 first item's white space there: of 10,991 probe inputs in 77 shapes at 20-200px, 2,173 Chrome, 1,095 Firefox and 2,223
 webkit-host inputs pass since that change that failed before, and 72 Chrome and 43 Firefox ones that passed by luck fail
 (Chrome 154, Firefox 156.0.1, webkit-host, 2026-09-30; the shapes are in ENGINE_FOLLOWUPS.md). A way to tell a span from
@@ -1635,8 +1686,8 @@ after a chip stays where the engine fits its opening, and in Chrome one of only 
 overflows, as Blink's return keeps the trailable items after the break it returns to, white space and the tags of spans
 that close among it (`RewindOverflow`, `line_breaker.cc:4332-4424`), which keeps such a span after any content; else the
 line ends at the break after the chip, or in Safari, before a line feed, returns to the break before the chip. Blink
-fits only the start edge of a padded span that starts with white space after text too, where rich inline takes the whole
-`extraWidth` in Safari and Firefox (ENGINE_FOLLOWUPS.md). An atomic item lays its text out in normal white space, as a
+and WebKit fit only the start edge of a padded span that starts with white space after text too, WebKit after the
+text's own spaces, which it counts, and Firefox both edges (ENGINE_FOLLOWUPS.md has the counts). An atomic item lays its text out in normal white space, as a
 chip's `white-space: nowrap` box does: the rebuild's premise, the chip's max-content width with its preserved spaces, is
 6.6px wider than all three browsers lay out the 12px chip ` @bob ` in 15px Helvetica Neue prose (2026-09-29).
 Of 500 real-usage pre-wrap paragraphs split into same-font spans, each one that fails fails in one node too; what's left
@@ -3775,3 +3826,24 @@ decisions for the maintainer.
   numbers only with `verbatimModuleSyntax` off, so the build would take a setting the type check doesn't, with a test
   to guard it. The 32 lines it saved in `src/` didn't outweigh those. Reopens if more than one engine shows the gains,
   or with a form that gives numbers in the built code and needs no build setting.
+- **2026-10-05: rich inline is one paragraph, laid out by the text walkers** (proposed in the change that makes it; it
+  changes what rich-inline cursors mean, so it is the maintainer's to rule on, and this entry holds once that change
+  merges). One analysis of the items' joined text and one handle replace the item stepper, a second line walker that
+  kept drifting from the first (Rich Inline Boundaries, Rich Inline As One Paragraph, has the design and its counts).
+  What it settles: a rule about line breaking is written once, in the analysis, the profile or the walker; what an
+  engine does at a span's edge goes on the paragraph's segments, never in a walker of its own; and a rich-inline cursor
+  counts the paragraph's segments, with `sourceStart` and `sourceEnd` on a materialized fragment for its place in the
+  item's text, since no mapping gives a cursor into `prepareWithSegments(item.text)` without analyzing each item
+  again. What it costs: that cursor contract; an atomic item of only white space is an object as wide as its
+  `extraWidth`; the main entry is 1,099 B larger gzipped for what the walker and the analysis carry for a paragraph;
+  and the walker has rules that hold for a paragraph only (`items !== undefined`), where plain text has the same gap
+  and wasn't to move in the same change: a U+3000 run that hangs at an item's end, the breaks before text that a
+  return from an unfit hyphen may take, a soft hyphen beside an object, and a segment of negative advance on a line
+  that overflows. Each is the engine's rule, and the text walkers should take it in a change of their own, which
+  removes the guard. What it gave up, each a named gap with its count (ENGINE_FOLLOWUPS.md, Rich-inline item edges):
+  the Gecko profile's hang of a space before a soft hyphen Firefox drops, which the stepper had as a profile field and
+  the text walker lacks; Chrome's closing mark halted at an item's end; and a line of its own for a ZWSP after content
+  that overflows, which the stepper gave an item of only a ZWSP. It reopens if an app needs cursors into each item's
+  own prepared text; if the bench, which wasn't run with it, shows the fragment pass slower than the stepper in
+  Firefox in the foreground, where background runs and the shells show it faster; or with kerning across sibling
+  spans, which wants the paragraph measured as well as analyzed whole.
