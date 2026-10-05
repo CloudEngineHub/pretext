@@ -183,8 +183,10 @@ function isCanvasCjkSymbol(c: number): boolean {
 
 // The types of the pair text[index - 1], text[index] before a font types its dots, colons and
 // quotes (getStaticCharType), the earlier's times 16 plus the later's; 0 where either has none,
-// as no font halts a character next to one.
+// as no font halts a character next to one, and 0 at once where neither is in the ranges a halt
+// can come from, so a boundary between Latin letters and ASCII punctuation types nothing.
 export function getPairTypes(text: string, index: number): number {
+  if (!maybeHanKerns(text.charCodeAt(index - 1)) && !maybeHanKerns(text.charCodeAt(index))) return 0
   const earlier = getStaticCharType(text, index - 1)
   const later = earlier === OTHER ? OTHER : getStaticCharType(text, index)
   return later === OTHER ? 0 : earlier * 16 + later
