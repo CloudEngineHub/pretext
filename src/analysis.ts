@@ -591,12 +591,17 @@ function getWebKitParagraphBreaks(source: string, paragraph: ParagraphItems, pre
     const start = starts[k]!
     const end = k + 1 < starts.length ? starts[k + 1]! : source.length
     if (start === end) continue
-    const itemText = source.slice(start, end)
-    const itemBreaks = getWebKitLineBreaks(itemText, preserve, keepAll, language)
-    for (let i = 1; i <= end - start; i++) breaks[start + i] = itemBreaks[i]!
+    // An item of one unit, as a space between two styled words or an atomic item's U+FFFC, has
+    // no break inside, and its scan marks its end only after a line or paragraph separator
+    // (getWebKitLineBreaks), so only those are scanned.
+    const first = source.charCodeAt(start)
+    if (end - start > 1 || first === 0x2028 || first === 0x2029) {
+      const itemBreaks = getWebKitLineBreaks(source.slice(start, end), preserve, keepAll, language)
+      for (let i = 1; i <= end - start; i++) breaks[start + i] = itemBreaks[i]!
+    }
     if (previous >= 0 && !atomic[k] && !atomic[previous]) {
-      const collapses = !preserve && (isCollapsibleSpaceCode(source.charCodeAt(start)) || isCollapsibleSpaceCode(source.charCodeAt(start - 1)))
-      if (collapses || getWebKitBreakBetweenItems(source.slice(Math.max(starts[previous]!, start - 2), start), itemText, keepAll, language)) breaks[start] = breaks[start]! | BREAK
+      const collapses = !preserve && (isCollapsibleSpaceCode(first) || isCollapsibleSpaceCode(source.charCodeAt(start - 1)))
+      if (collapses || getWebKitBreakBetweenItems(source.slice(Math.max(starts[previous]!, start - 2), start), source.slice(start, end), keepAll, language)) breaks[start] = breaks[start]! | BREAK
     }
     previous = k
   }

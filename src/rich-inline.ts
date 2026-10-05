@@ -178,6 +178,13 @@ function getInternalPreparedRichInline(prepared: PreparedRichInline): InternalPr
 function sliceAnalysis(analysis: TextAnalysis, from: number, to: number): TextAnalysis {
   const count = analysis.flags.length
   if (from === 0 && to === count) return analysis
+  // An item of one segment, as a word between two spaces, is that segment: its text is the
+  // item's normalized text, and no space follows it there, which is all a space's source is
+  // read for (measureAnalysis).
+  if (to === from + 1) {
+    const text = analysis.texts[from]!
+    return { normalized: text, spaceSources: null, texts: [text], starts: [0], flags: [analysis.flags[from]!], hasUnbroken: analysis.hasUnbroken }
+  }
   const start = analysis.starts[from]!
   const end = to < count ? analysis.starts[to]! : analysis.normalized.length
   const starts: number[] = []
