@@ -849,7 +849,9 @@ function walkPreparedComplexLines(
                   const count = spaceAdvances.length
                   const spaceAdvance = spaceAdvances[0]!
                   const moved = hardBreakItemRetreat !== 'fit' || lineW <= fitLimit ? 1 : spaceAdvance > 0 ? Math.min(count, Math.ceil((lineW - fitLimit) / spaceAdvance)) : count
-                  if (i - 1 > lineStartSegmentIndex || count - moved > lineStartGraphemeIndex) {
+                  // The start edge of the spaces' own item is no content to leave on the line.
+                  const contentStart = openingEdges !== null && openingEdges[lineStartSegmentIndex]! !== 0 ? lineStartSegmentIndex + 1 : lineStartSegmentIndex
+                  if (i - 1 > contentStart || count - moved > lineStartGraphemeIndex) {
                     endSegmentIndex = i - 1
                     endGraphemeIndex = count - moved
                     endWidth = hangStartWidth
