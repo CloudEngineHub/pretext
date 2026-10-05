@@ -2641,7 +2641,7 @@ repin` shows what), and a fact read in source needs reading again.
     split an LTR paragraph's frames only once the document has seen RTL text.
 
   (Firefox 155 and 156, 2026-09-14 to 09-20.)
-- **Span edges.** A span's end border and padding are reserved on every line it occupies (`nsInlineFrame.cpp:516`), so
+- **Span edges.** A span's end border and padding are reserved on every line it occupies (`nsInlineFrame.cpp:519`), so
   shrink-wrapping padded spans to the widest line can move a break (2 of 55 widths), as with the Markdown chat's inline
   code; Blink and WebKit don't. (Firefox 156, 2026-09-19.)
 - **OffscreenCanvas against the DOM.** OffscreenCanvas shapes at the CSS size at 60 app units per px, the DOM at the
