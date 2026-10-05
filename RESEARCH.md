@@ -829,7 +829,7 @@ wider than Chrome paints it, 2 keep-all Japanese paragraphs at 159px pass becaus
 holds both `ب`, 32.16px, where Chrome gives the second a line of its own; they stay accepted. On 18,382 probe layouts of
 one kerned word in 13 font specs at 20-120px the profile passes 18,191, with 83 wrong line counts, where the sums passed
 12,919 with 1,605. The pairs cost 7.2% more `measureText` calls and 2.5% more submitted units on the sample, which meets
-292 font strings with little text each, 12.7% and 17.6% more calls on its Roboto and Inter paragraphs, whose words
+331 font strings with little text each, 12.7% and 17.6% more calls on its Roboto and Inter paragraphs, whose words
 rarely add up, and 1.3% on the books; a pair is asked once per font, so text in a font seen before costs less.
 
 What the premise leaves, each in ENGINE_FOLLOWUPS.md, Emergency breaks inside a word: a wrapped line whose every pair of
@@ -3876,12 +3876,13 @@ decisions for the maintainer.
   for the fonts that split kerning and is one that fonts kerning through GPOS break, which most web fonts are, and a
   premise real fonts break isn't taken on judgement (Part 1, The Correctness Stance). It fixed #421's three Firefox
   texts and 4 accepted cases, none of them a real-usage draw. The ligature rule built with it takes no such premise: it
-  fixed 1 of the 3 real-usage draws Firefox fails, for 5.8% more calls on the sample and one case lost in a 1px box, and
-  was left out with the kerning rule, the two weighed as one port of Firefox's rule. Safari's rule needs the width left
+  fixed 1 of the 3 real-usage draws Firefox fails, for 5.8% more calls on the sample and one case lost in a 1px box. It
+  was left out with the kerning rule and was never decided on its own. Safari's rule needs the width left
   of a cut word carried from line to line, a third field of the cursor and so a change of the public API, and its
   partial builds lost more than they fixed. So the Gecko and WebKit profiles keep the prefixes, with the gaps
   ENGINE_FOLLOWUPS.md names under Emergency breaks inside a word. Chrome's fit gives way to `getTextClusters()` in
   Chrome, and its floor to cheaper questions or a real case under 80px. Firefox's reopens with `getTextClusters()` in
-  Firefox or with a probe of each font's kerning placement, which Firefox's Canvas shows at a much larger size, and the
-  ligature rule alone with the equal shares ported. Safari's reopens with a cursor that carries a line's start width
-  (TODO.md, the API discussion).
+  Firefox or with a probe of each font's kerning placement, which Firefox's Canvas shows at a much larger size. The
+  ligature rule alone is a trade still to be put to the maintainer, with those numbers and with the equal shares its
+  build left out, which are the case it lost. Safari's reopens with a cursor that carries a line's start width (TODO.md,
+  the API discussion).
