@@ -28,7 +28,7 @@ throughout:
 - **Page history** is a result that depends on what the page measured or laid out before, through the browser's caches,
   which the paragraph alone can't predict.
 - **engineering.md** and **ui.md** are the maintainer's general rules for code and for UI, `docs/engineering.md` and
-  `docs/ui.md` in the vibescript repository, not yet public and to be open-sourced as chenguini; **Scrolling.md**,
+  `docs/ui.md` in the chenguini repository, not yet public; **Scrolling.md**,
   `docs/Scrolling.md` there, argues the scrolling rules. A pointer such as (engineering.md, Caching) names a section
   there. This file keeps only how such a rule applies to Pretext, its evidence and Pretext's own exceptions.
 
