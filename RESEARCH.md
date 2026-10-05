@@ -1966,6 +1966,24 @@ runs (Firefox 156.0.1, bench sessions of 2026-09-27 and 28, unless noted):
   (Part 1, Engineering, JIT tuning), and it missed the punctuation Arabic shares outside those blocks, so `abc`,
   U+204F, `def` took 7 gaps where Chrome 154 gives 6. Reopens if the bench's letter-spaced CJK prepare row shows the
   test.
+- **Line-start extras** (#TBD; Break Opportunities From Engine Data): only a word of 80px or wider whose letters don't
+  add up to it has them, and the handle lists them per segment, so a text with one such word carries a list as long as
+  its segments. In Chrome 154, 40 of the bench's 278 Latin messages do, and the Arabic book is one text of 37,604
+  segments with 23 such words. Built as the lists of fresh-line geometry and of line-start prohibitions are, by
+  `Array.from` over the segments before the first such word and then a test and a push for every segment, the list made
+  Chrome prepare Latin messages it had seen 3.4% slower than main, the book 3.5%, keep-all brackets 3.7% and the emoji
+  texts 3.0% (three foreground sessions of a first build, 2026-10-04). It is made where the first such word is found, at
+  the text's segment count, and filled with null in one call. Against the first build those rows read 2.9%, 3.4%, 3.1%
+  and 2.3% faster, where a build that lists nothing, and so cuts words otherwise, read 3.2%, 5.1%, 4.9% and 2.5% faster;
+  a loop of pushes read as the fill does, and `Array.from` at the full count read the book 5.7% slower than the first
+  build and long breakable runs 5.8%, 8-11 ns for each slot. The simple stepper and the full walker read the list where
+  a line starts inside a word, where the first build read it for every line and held it through every walk:
+  `measureLineStats()` of mixed messages read 1.5% faster and `walkLineRanges()` of pre-wrap chunks 2.2%, which had read
+  3.2% and 4.6% slower than main. On mixed messages that is a read removed for every line. On pre-wrap chunks it is one
+  read for every walk, twelve a pass, so that reading is no work saved: the walker holds one local less (JavaScript
+  Engines, State a loop keeps for its rare paths), and a second run of that change alone gave neither row a verdict,
+  1.4% and 2.1% faster. Against main, every `prepare()` row on seen text and both of those then read within 1.1% (three
+  background sessions for each figure here but the foreground ones, so hypotheses until a foreground run shows them).
 
 #### The Walkers' Shapes
 
@@ -2057,10 +2075,11 @@ rich-inline preparation 12% slower in Chrome 154, so the analysis builds a plain
 measurement reads them, not once in the analysis, made Firefox 156 prepare rich items 11-19% slower (#360, 2026-09-26).
 `Array.from({ length }, fn)` cost Chrome 154 5.7% preparing CJK it had measured before, so per-segment arrays that
 start at zero are pushed in a loop (`zeros()`), while lists of records or null keep `Array.from`: one helper pushing
-both made Node 23's V8 store each zero as a boxed double (#366, #370). Overflow trims read in `countPreparedLines()`'s
-loop cost Firefox 156 13-26% counting long breakable runs, so `layout()` counts a handle with overflow trims through
-the simple stepper, and its line APIs keep the simple walk, without which Chrome 154's line APIs ran 62-108% slower on
-CJK messages (#366, 2026-09-27). `measureAnalysis()` keeps its helpers as closures: hoisted, they
+both made Node 23's V8 store each zero as a boxed double (#366, #370). The list of line-start extras, a null for nearly
+every segment, is filled in one call (Work Done Only Where A Rule Applies). Overflow trims read in
+`countPreparedLines()`'s loop cost Firefox 156 13-26% counting long breakable runs, so `layout()` counts a handle with
+overflow trims through the simple stepper, and its line APIs keep the simple walk, without which Chrome 154's line APIs
+ran 62-108% slower on CJK messages (#366, 2026-09-27). `measureAnalysis()` keeps its helpers as closures: hoisted, they
 measured the same in offline replays of all four profiles the replay runs (Blink, WebKit, Gecko and an unrecognized
 engine's) but took 16 more lines, and a hoist lands only if it removes lines and the bench shows a gain, so they weren't
 timed (2026-09-26). AGENTS.md's locals rule is for line walkers.
@@ -2201,6 +2220,18 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   alone says nothing about a change whose code `layout()` doesn't run (`harness/README.md`, Bench). Reopen on a Firefox
   whose scopes give every binding one kind of slot, or if the row moves between two builds whose minified names are the
   same.
+- **Firefox's `lines: cjk stats` moved the same way** under a first build of #TBD, which also changed the Gecko
+  profile's fit of a cut word (Dead Ends, Fitting, Cuts And Fast Paths) and gave it no line-start extras. A build of it
+  doing main's work in the Gecko profile, with main's `src/line-break.ts` and main's fit of a cut word, so that only the
+  bundle differed (five more top-level functions, one more handle field, always null), read `lines: cjk stats` 4.4%
+  slower than main in every session, `cjk walk` 3.7% slower, inside its noise, and `resize: latin layout at new widths`
+  14.1% faster. The first build read those three 4.4%, 6.7% and 23.8% slower, with main's `src/line-break.ts` alone 4.5%
+  and 10.4% slower and 16.4% faster, and with the list read where a line starts inside a word 1.1% and 0.7% slower and
+  11.6% faster. So a verdict on `cjk stats` can come from the bundle alone. About `worst: long-breakable-runs layout`,
+  the other row that runs the counter's grapheme loop, these runs say nothing either way: one build read it 7.1% slower
+  and, timed again, 0.2% faster, its control between 10.2% faster and 13.1% slower (Firefox 156.0.1, three background
+  sessions each, 2026-10-04, so hypotheses). The change as it landed leaves the Gecko profile's fit as it was, and was
+  not timed apart in Firefox before its foreground bench.
 - **Constants written into the built code as numbers** took the names out of that loop, and were declined (#406, closed
   unmerged; Decisions Log, 2026-10-03). With the segment kinds and flag bits as const enums, a bundle holds each use as
   its number, and under two namings the row read alike, -1.1% and -0.3%, where main's two read 16% apart (three sessions
@@ -2233,6 +2264,23 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   letter spacing or under one that is a short binary fraction, such as 0.5px. Under another, such as 0.3px, the width
   of a line with a tab past its third stop can differ in its last bits: by up to 1.1e-13px, in under a tenth of 44,000
   generated lines for each of four such spacings, none of which broke elsewhere.
+- **A second array kept by each cut word** (#TBD, Chrome 154, 2026-10-04): with line-start extras, `layout()` of the
+  bench's long breakable runs reads 8.6-10.3% slower than main, where 660 to 1,100 words are cut at each width and the
+  counter reads one extra for each line that starts inside one. Part of it is no operation of the counter's. With
+  `countPreparedLines()` as on main, which reads no extra, the row read 6.2%, 3.1% and 5.3% slower than main in three
+  builds whose cut words keep their extras in an array, listed on the handle or not, and 0.8% with no such array made,
+  0.3% with main's fit in the same bundle, and 0.9% with the extras in `Float64Array`s; a second session's runs of four
+  of those builds read 3.6% and 5.0% with the array and 0.3% and 0.6% without it or with typed arrays. So 3-6% comes and
+  goes with a second ordinary array kept by each cut word, in a loop that does the same work either way, and the rest is
+  the read. That the cost is where V8 keeps that array, next to the advances the loop adds up, is an inference from
+  those builds, since V8 keeps a typed array's numbers apart from ordinary arrays; nothing of V8's was read or traced
+  for it. Typed arrays weren't taken: read by the walkers they made the row 13.4% slower than main, and the only reason
+  for them is one engine's heap. Storing each letter's own width in place of the difference, so that a line start reads
+  one number and adds nothing, read level in Chrome (+0.1% against the build with differences) and in Firefox 156, whose
+  profile has none (4.0% slower than main against 4.6%, inside its control's band), so the handle keeps the difference,
+  which holds whatever a segment's advances take later. Three background sessions for each figure but the 10.3%, so
+  hypotheses. Reopens if a foreground run shows either form of the read faster, or with `getTextClusters()` (Break
+  Opportunities From Engine Data).
 - **Inline caches**: once `layout()` has stepped such text, Chrome's `walkLineRanges()` of simple text, sharing the
   simple stepper, takes 2-4% longer than a second copy of main, by a mechanism not found. V8's caches turn polymorphic
   over the two handle kinds (`--log-ic`), but one shape for both didn't help Chrome and cost Firefox up to 14%; a
