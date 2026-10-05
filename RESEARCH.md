@@ -1338,7 +1338,26 @@ Chrome submits more units to `measureText` for rich cases, by as many calls: 46,
 (+3.3%), 33,233 against 32,070 over the sample's rich draws and 3,697 against 2,214 over the catalog's 288 rich cases.
 A collapsed space at an item's edge is now measured with its item, so more paragraphs meet the Chromium profile's probe
 of how a font kerns a space with its neighbours, two strings of printable ASCII, which a page pays once for a font.
-Firefox's and webkit-host's calls and units stay within 0.2% over the rich set and the sample. The bench wasn't run.
+Firefox's and webkit-host's calls and units stay within 0.2% over the rich set and the sample.
+
+Speed, against main at #431 (1f98f317), from the bench's background browsers (Chrome 154.0.8037.57, Firefox 156.0.1,
+webkit-host; 2026-10-05), so hypotheses until the bench times the foreground browsers. A pair of figures is two runs,
+one of three sessions and one of five; the PR's description has every row. Laying out prepared rich text:
+`measureRichInlineStats()` takes 0.20 of main's time in Chrome, 0.39-0.41 in Firefox and 0.23-0.24 in webkit-host;
+`walkRichInlineLineRanges()` reads 28% faster, 11-13% and 22-27%; and `layoutNextRichInlineLineRange()` 25% faster in
+Chrome, 18-24% in webkit-host and level in Firefox (-3.1% and +0.3%, inside its band). Preparing rich text no library
+has seen and counting its lines, the `rich-new` row, reads slower in all three: 9-10% as the bench's medians in Firefox,
+6-17% in Chrome and 10-13% in webkit-host, and over the eleven to fourteen runs of this design's builds 6-26%, 1-17% and
+8-15%. The row times each batch once and its sessions differ by 20 points, so three sessions don't settle it. The
+engines' shells on a stand-in Canvas say where it goes. With the code warm the paragraph costs V8 what the item
+stepper's preparation did (+0.4%), SpiderMonkey 8% less and JavaScriptCore 37% more: every segment's text is a slice of
+the paragraph's joined text, which JavaScriptCore resolves and hashes where an item's own text was a string at hand, a
+paragraph's white space collapses over the whole text, and the WebKit profile scans each item of two units or more. On a
+fresh page the shells read 14-28% slower over the first 14,000 units, which is the bench's row, and SpiderMonkey with
+its interpreters alone 10% faster: the engines reach their compiled speed later on the paragraph's code, and why wasn't
+found. What plain text's rows read is under Keeping Work Bounded: the walker's rules for a paragraph are tests on a
+text's path (Work Done Only Where A Rule Applies), and two forms of the first build cost one engine more than their work
+(JavaScript Engines: how a width is stored, a flag parameter).
 
 #### Joined Text
 
@@ -2015,6 +2034,25 @@ runs (Firefox 156.0.1, bench sessions of 2026-09-27 and 28, unless noted):
   1.1. The scan doesn't mark the CR of a CRLF: collapsing adjacent white space already joins it to the line feed's
   space, and marking it, which builds the source again for every text with CRLF line ends, read 1.2 to 1.3 for the same
   lines (0 of 700,000 random strings differ between the two).
+- **What only a rich-inline paragraph has, on a text's path** (Rich Inline Boundaries, Rich Inline As One Paragraph;
+  background Chrome 154, Firefox 156.0.1 and webkit-host, three sessions a run, 2026-10-05). The full walker's rules for
+  a paragraph are tests of `items !== undefined` or of a list a text doesn't have. Four ran at every soft hyphen and
+  three at every fit of a segment on a line with content, and the bench's soft hyphens and marks read `layout()` 7.3%,
+  5.9% and 7.4% slower than main. Under one test each they read 1.2-4.8%, 2.4-2.7% and 3.7-5.5% slower over three runs.
+  With every paragraph statement out of the walker the engines' shells read that row level with main or 2% faster, so
+  the rest is the tests left, one or two a segment: whether a zero-width break goes on with a run of hanging spaces,
+  asked of every segment that doesn't hang, and whether an object of width 0 does. Pre-wrap chunks, whose spaces and
+  tabs hang, read `layout()` 3.3-3.7% slower in Firefox and 7.1-8.6% in webkit-host for the same reason. JavaScriptCore
+  reads the first of those tests dearer than its work: with the hanging kinds picked by one select its shell read
+  pre-wrap chunks level, where it read them 6-9% slower, and V8's shell then read the soft hyphens 2 points slower and
+  SpiderMonkey's the pre-wrap walk 1.5, so the form stays (Part 1, Engineering, JIT tuning). In preparation, the Gecko
+  scan's white-space pass found for every unit where its item ends, which only a white-space run reads: Firefox's shell
+  prepared the bench's long breakable runs 3.3% slower than main, and 1.6% with that found where a run starts.
+- **A paragraph's segment breaks, in the Gecko profile**: Gecko transforms segment breaks in each text frame's own text,
+  so a paragraph with a line feed had every item cut out of the joined text, transformed and joined again: 8,508 of the
+  bench's 14,834 rich items, 199 of which hold a line feed. Cutting out only those, and copying the text between two
+  that changed in one piece, SpiderMonkey 156.0.1's shell prepared new rich text 3-6 points faster with the code warm
+  and 8 over a fresh page's first 14,000 units (+22.0% to +14.2% against main, twenty sessions, 2026-10-05).
 - **Graphemes past dropped characters**: the Gecko profile's grapheme table tests only code points in the rules'
   Control category for what the text run drops; testing every code point made Firefox prepare CJK and Arabic 2-3%
   slower (#368).
@@ -2155,6 +2193,30 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   `--ion-licm=off`, `--ion-range-analysis=off`, `--ion-scalar-replacement=off`, `--ion-osr=off`; the JIT's source
   wasn't read). Finding those widths before the loop, at most two a line, is also less work, so it isn't code shaped to
   one JIT (2026-10-05; Rich Inline Boundaries, Rich Inline As One Paragraph).
+- **How a width is stored, in SpiderMonkey**: Firefox's full walker is slower over a handle whose whole widths are
+  stored as int32 values than over one whose widths are all doubles, and which one a handle gets depends on how
+  `measureAnalysis()` ran when it was made. Canvas gives a whole width, as an ideograph's 16px, as an int32. Main with
+  every whole width stored back as an int32 (`w | 0`) read `measureLineStats()` over the bench's CJK messages 4.7%
+  slower than main, `walkLineRanges()` 11.9% and the stream 2.2%; main with every width stored back as a double, read
+  out of a `Float64Array`, read the stats 11.9% faster and the walk level (background Firefox 156.0.1, three sessions
+  each, 2026-10-05). That reads as: on main the handles the bench's stats row walks, the first a page makes, hold int32
+  widths, and the ones its walk row walks, made once the code is compiled, hold doubles. The first build of the
+  one-paragraph rich inline gave `measureAnalysis()` two parameters with default values, and every handle then held
+  int32 widths: the CJK stats read 5.2-5.4% slower than main and the walk 10.9-11.8%, as did main with only those two
+  parameters added (+5.3%, +11.8%), and that build with its widths stored back as doubles read as main does with its own
+  (-10.9%, -0.1%). Handles the defaulted build made were as slow under a second copy of main's walker, and main's
+  handles weren't under the defaulted build's; copying the handle or its lists, other minified names, and the build's
+  own walker or main's each left it as slow. With both parameters passed by every caller the rows read level (-0.2% and
+  +0.6%). Latin and mixed messages, whose widths are fractions, read level throughout, as did Chrome 154 and
+  webkit-host. SpiderMonkey 156.0.1's shell shows the int32 cost (+14% and +8% for the same forced int32) and not the
+  default values' effect, so why they keep whole widths int32 in the browser wasn't found. Reopens with a way to store a
+  handle's widths as doubles whatever tier made them that costs a short text's preparation nothing: it is worth 12% of a
+  count of CJK lines in Firefox for text prepared while the code is cold.
+- **A flag parameter, in JavaScriptCore**: `buildLineTextFromRange()` took a last parameter, true by default, for
+  whether its range ends a line, and webkit-host read `layoutWithLines()` over the bench's mixed messages 4.0-4.7%
+  slower than main in three runs, for one test a line (JavaScriptCore's shell: +2.9%; V8's and SpiderMonkey's level). As
+  two functions, a range's text and a line's, which adds the hyphen, webkit-host read -1.1% and the shell -1.3%
+  (2026-10-05). The split is plain and no other engine moved, so it stays whatever JavaScriptCore does later.
 - **Captured numbers and loop bounds**: V8 boxes a number a nested function captures (a write 12-14ns in the full
   walker, about 1ns as a local), and JavaScriptCore types an infinite default loop bound as a double (Bun walked
   letter-spaced and pre-wrap text 30-65% slower). Fixing both halved letter-spaced CJK `layout()` in all three browsers
@@ -3844,6 +3906,6 @@ decisions for the maintainer.
   the Gecko profile's hang of a space before a soft hyphen Firefox drops, which the stepper had as a profile field and
   the text walker lacks; Chrome's closing mark halted at an item's end; and a line of its own for a ZWSP after content
   that overflows, which the stepper gave an item of only a ZWSP. It reopens if an app needs cursors into each item's
-  own prepared text; if the bench, which wasn't run with it, shows the fragment pass slower than the stepper in
-  Firefox in the foreground, where background runs and the shells show it faster; or with kerning across sibling
-  spans, which wants the paragraph measured as well as analyzed whole.
+  own prepared text; if the bench, which ran with it in the background browsers only, shows the fragment pass slower
+  than the stepper in Firefox in the foreground, where the background runs show the walk 11-13% faster and the stream
+  level; or with kerning across sibling spans, which wants the paragraph measured as well as analyzed whole.
