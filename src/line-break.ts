@@ -796,10 +796,15 @@ function walkPreparedComplexLines(
               // spaces it ends with overflow: it takes the white space after them, the tags of
               // spans that open among it and a forced break with no fit (HandleTrailingSpaces,
               // line_breaker.cc:2426-2534), so an edge right after such a run joins it, taking
-              // no room. WebKit fits the content it places without the white space that hangs
-              // before it (hangingContentWidth, InlineContentBreaker.cpp:183-186), so there the
-              // edge joins the run where it fits after the content before the run.
-              if (kind === OBJECT && unbroken && hangEndSegmentIndex === i && (paddedOpeningFit === 'start' ? lineW > fitLimit
+              // no room. The spaces overflow where the content before them fits with the start
+              // edges of the spans that open among them, half of each such edge (getOpeningFit),
+              // and the spaces after those edges don't; an overflow before the spaces or at a
+              // span's end edge returns instead. WebKit fits the content it places without the
+              // white space that hangs before it (hangingContentWidth,
+              // InlineContentBreaker.cpp:183-186), so there the edge joins the run where it fits
+              // after the content before the run.
+              if (kind === OBJECT && unbroken && hangEndSegmentIndex === i && (paddedOpeningFit === 'start'
+                ? hangStartWidth - hangEdgesWidth / 2 <= fitLimit && lineW - hangEdgesWidth / 2 > fitLimit
                 : paddedOpeningFit === 'placed' && hangStartWidth - hangEdgesWidth + w - endTrim <= fitLimit)) {
                 hangEndSegmentIndex = i + 1
                 hangStartWidth += w
