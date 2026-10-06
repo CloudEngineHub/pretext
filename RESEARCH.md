@@ -247,9 +247,10 @@ a rule by reading it and its unit tests (`rebuild/src/engines/<engine>/`) agains
   don't tell which uses are common (2026-09-26). Don't overfit to today's uses.
 - **The engine work changed no public export**, from #340 to #375. Rich inline has since gained an options argument
   (`wordBreak`, #379; `whiteSpace`, #381, which an editor in #173 was laying out itself) and boxes (`RichInlineBox`,
-  #387, in place of the stand-in characters of #201). The API discussion, a review of the whole public API at the end
-  of the project and before any release, has issue #321's `direction` option and `devicePixelRatio` in `layout()` on
-  its list (TODO.md). One bundle serves every engine (Decisions Log, 2026-09-26).
+  #387, in place of the stand-in characters of #201), and the line functions that return no text take a `prepare()`
+  handle (Decisions Log, 2026-10-06). The API discussion, a review of the whole public API at the end of the project
+  and before any release, has issue #321's `direction` option and `devicePixelRatio` in `layout()` on its list
+  (TODO.md). One bundle serves every engine (Decisions Log, 2026-09-26).
 - **No public API that serves no known user (2026-09-29).** A new option or export needs an app or a person who needs
   it. One without is described in an issue, kept simple, with whoever has the use asked there, as #382 asks about
   padding on an item split across lines.
@@ -376,8 +377,9 @@ a rule by reading it and its unit tests (`rebuild/src/engines/<engine>/`) agains
   2026-09-18, and came off that branch's tip. Triage closed the report that day as a stability issue without security
   impact, so nothing about it is withheld any more: PLATFORM_BUGS.md describes it, and the page stays in the rebuild
   branch's history.
-- **License notices** for the ported engine code and data are deferred until the end of the project (TODO.md, End of
-  project).
+- **License notices** of the BSD- and Unicode-licensed sources that shipped code or data follows or is generated from go
+  at the end of `LICENSE`, after the MIT text and kept brief: each source's copyright lines, and each distinct license
+  text once.
 
 ## Part 2: Evidence
 
@@ -4306,3 +4308,17 @@ decisions for the maintainer.
   font's kerning placement, which Firefox's Canvas shows at a much larger size. The ligature's equal shares reopen with
   a real layout cut inside a ligature that starts its line, and the rule past 96 graphemes with a real word that long
   cut inside one. Safari's reopens with a cursor that carries a line's start width (TODO.md, the API discussion).
+- **2026-10-06: the line functions that return no text take a `prepare()` handle**, the maintainer's decision for the
+  first release. `walkLineRanges()`, `measureLineStats()`, `measureNaturalWidth()` and `layoutNextLineRange()` return
+  widths and cursors, read from the line-break data `layout()` reads (`PreparedLineBreakData`, `src/line-break.ts`),
+  yet their types asked for a `prepareWithSegments()` handle. That handle differs only by `segments` and `kinds`, each
+  segment's string and kind, so an app that only shrink-wraps, balances or counts lines kept every text's strings for
+  nothing, 1.5-2.1 times the heap per handle (Dead Ends, Caching, State And API Designs, has the figures). The change is
+  to the types alone: the built code is byte for byte what it was. `layoutWithLines()`, `layoutNextLine()` and
+  `materializeLineRange()` return text and keep needing the strings. The decision fixes that a line's geometry never
+  needs a handle's strings, already the rule for `layout()`, whose walkers the four share; a unit test holds the two
+  handles to the same data, and the four to the same results from both, in each engine profile. README doesn't promise
+  that a range walked on a `prepare()` handle materializes against a `prepareWithSegments()` handle of the same text:
+  that holds only while both were prepared with the same font, options and language by the same version. Rich inline
+  has no such handle, and one can be added later without a break. Reopens if a per-line fact the four return comes to
+  need the strings.
