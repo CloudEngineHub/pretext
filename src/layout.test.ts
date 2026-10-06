@@ -2622,19 +2622,6 @@ describe('prepare invariants', () => {
     }
   })
 
-  test('engines Pretext doesn\'t recognize take Blink\'s whole profile', () => {
-    // The engine profile is computed once per process, so each user agent runs in a child process.
-    const measurementUrl = new URL('./measurement.ts', import.meta.url).href
-    const profileOf = (userAgent: string): unknown => JSON.parse(runInChild(`
-      Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { userAgent: ${JSON.stringify(userAgent)} } })
-      const { getEngineProfile } = await import(${JSON.stringify(measurementUrl)})
-      console.log(JSON.stringify(getEngineProfile()))
-    `))
-    const system = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko)'
-    // A desktop web view without a Blink token, and Chrome on the same system.
-    expect(profileOf(`${system} Safari/537.36`)).toEqual(profileOf(`${system} Chrome/153.0.0.0 Safari/537.36`))
-  })
-
   test('the library has no regex lookbehind, which a JavaScriptCore without it refuses to load', async () => {
     // JavaScriptCore checks every regex literal when it parses a module, so where it can't
     // parse a lookbehind, one stops the whole library from loading, whichever engine's path
@@ -2933,7 +2920,9 @@ describe('prepare invariants', () => {
       ['Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Mobile Safari/537.36', profileOf(1, 'disabled')],
       ['Mozilla/5.0 (Android 14; Mobile; rv:156.0) Gecko/156.0 Firefox/156.0', profileOf(3, 'disabled')],
       ['Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148', profileOf(2)],
-      // Engines Pretext doesn't recognize take Blink's profile.
+      // Engines Pretext doesn't recognize take Blink's profile: a desktop web view without a Blink
+      // token takes desktop Chrome's whole.
+      ['Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Safari/537.36', profileOf(1)],
       ['Bun/1.4.0', profileOf(1, 'disabled')],
     ] as const) {
       const built: unknown = await engineProfileUnder(userAgent)
