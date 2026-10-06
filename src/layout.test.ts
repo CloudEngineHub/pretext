@@ -1,6 +1,7 @@
 import '../harness/watchdog.ts'
 import { beforeAll, beforeEach, describe, expect, test } from 'bun:test'
 import type { AnalysisProfile } from './analysis.ts'
+import type { PreparedText } from './layout.ts'
 import type { RichInlineBox, RichInlineItem } from './rich-inline.ts'
 
 // Unit checks over a deterministic fake canvas backend: the shipped prepare/layout
@@ -458,6 +459,118 @@ describe('shared public contracts', () => {
       layoutNextLineRange(rich, { segmentIndex: 0, graphemeIndex: 0 }, width)
     }
     expect(canvasMeasurementCount).toBe(before)
+  })
+
+  test('the line functions that return no text give the same lines from a prepare() handle', () => {
+    // walkLineRanges(), measureLineStats(), measureNaturalWidth() and layoutNextLineRange()
+    // read the line-break data alone, and a prepare() handle holds all of it: it leaves out
+    // only the strings, `segments` and `kinds` (RESEARCH.md, Decisions Log, 2026-10-06).
+    // The calls here are typed, so this file compiles only while all four take the handle
+    // prepare() returns.
+    const light: PreparedText = prepare('a\tbb trans\u00ADatlantic 中文字 Superlongword', FONT, { whiteSpace: 'pre-wrap' })
+    const withSegments = prepareWithSegments('a\tbb trans\u00ADatlantic 中文字 Superlongword', FONT, { whiteSpace: 'pre-wrap' })
+    const linesOf = (prepared: PreparedText): unknown => {
+      const walked: unknown[] = []
+      const count = walkLineRanges(prepared, 60, line => walked.push(line))
+      const first = layoutNextLineRange(prepared, { segmentIndex: 0, graphemeIndex: 0 }, 60)
+      return [count, walked, first, measureLineStats(prepared, 60), measureNaturalWidth(prepared)]
+    }
+    expect(linesOf(light)).toEqual(linesOf(withSegments))
+
+    // The engine profile is computed once per process, so each engine runs in a child
+    // process. Its canvas fills every field of the handle that an engine fills: an ASCII
+    // character is 8px, a space 4px, an invisible character 0 and any other 16px, `To` kerns,
+    // 3px narrower, fullwidth marks halt as in Chrome's Canvas, and the context takes a
+    // letterSpacing. For each text and set of options, the prepare() handle holds the data
+    // of the prepareWithSegments() one less `segments` and `kinds`, and at each width the
+    // four functions give the same lines, widths and cursors from both. `unfilled` names the
+    // fields null in every text, which are the ones that engine's profile never fills.
+    const texts = [
+      "Just tried the new update and it's so much better, especially on older devices.",
+      '这是一段中文文本，用于测试「文本布局」库。每个字符之间都可以断行。',
+      '中」「中」中」 中。」、「中',
+      'これはテキストレイアウトのテストです。パフォーマンスは非常に重要です。',
+      '이것은 텍스트 레이아웃 라이브러리의 테스트입니다. 한국어 텍스트를 확인합니다.',
+      'هذا النص باللغة العربية لاختبار دعم الاتجاه من اليمين إلى اليسار',
+      'นี่คือข้อความทดสอบสำหรับไลบรารีจัดวางข้อความ ทดสอบการตัดคำภาษาไทย',
+      'Great work! 👏👏👏 exactly what we needed 🎯 👩‍💻 🇯🇵 👍🏽',
+      'trans\u00ADatlantic co\u00ADoperation inter\u00ADnation\u00ADal\u00ADisation',
+      'a\tbb\tccc\n\n  dd  \tee  \n',
+      'see https://example.com/Tomato/Tomorrow?To=more or Superlongwordwithoutanyspaces',
+      'aaaa\u200Cbbbb\u2060cccc\u200Ddddd ab\u200Bcd\u200Bef',
+      '中文\u3000\u3000中文 0123456789012345678901234567890',
+      'aaaa\u0085bbbb cccc\u2028dddd',
+      'Hello مرحبا שלום 你好 こんにちは 안녕하세요 สวัสดี',
+      '',
+      '   ',
+    ]
+    const layoutUrl = new URL('./layout.ts', import.meta.url).href
+    const rowsOf = (userAgent: string): unknown => JSON.parse(runInChild(`
+      Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { userAgent: ${JSON.stringify(userAgent)} } })
+      class Context {
+        font = ''
+        letterSpacing = '0px'
+        fontKerning = 'auto'
+        measureText(text) {
+          const spacing = Number.parseFloat(this.letterSpacing)
+          let width = 0
+          let count = 0
+          for (const ch of text) {
+            count++
+            if (!/[\\u00AD\\u200B-\\u200D\\u2060]/.test(ch)) width += ch > '\\u2E7F' ? 16 : ch === ' ' ? 4 : 8
+          }
+          if (this.fontKerning === 'auto') width -= 3 * (text.split('To').length - 1)
+          width -= 8 * (text.match(/[\\u3002\\u300D](?=[\\u3002\\u300D])|(?<=[\\u3002\\u300D\\u300C])\\u300C/g) ?? []).length
+          if (Math.abs(spacing) >= 1 / 65536) width += count * spacing
+          return { width, actualBoundingBoxLeft: 0, actualBoundingBoxRight: width - (/[\\u3001\\u3002]$/.test(text) ? 8 : 0) }
+        }
+      }
+      globalThis.OffscreenCanvas = class { getContext() { return new Context() } }
+      const { prepare, prepareWithSegments, walkLineRanges, measureLineStats, measureNaturalWidth, layoutNextLineRange } = await import(${JSON.stringify(layoutUrl)})
+      const linesOf = (prepared, text, width) => {
+        const walked = []
+        const count = walkLineRanges(prepared, width, line => walked.push(line))
+        const streamed = []
+        let cursor = { segmentIndex: 0, graphemeIndex: 0 }
+        // No text has more lines than a line per unit, plus one.
+        for (let i = 0; i <= text.length + 1; i++) {
+          const line = layoutNextLineRange(prepared, cursor, width)
+          if (line === null) break
+          streamed.push(line)
+          cursor = line.end
+        }
+        return JSON.stringify([count, walked, streamed, measureLineStats(prepared, width), measureNaturalWidth(prepared)])
+      }
+      let compared = 0
+      const different = []
+      const filled = new Set()
+      const fields = new Set()
+      for (const text of ${JSON.stringify(texts)}) for (const options of [
+        undefined,
+        { whiteSpace: 'pre-wrap' },
+        { wordBreak: 'keep-all' },
+        { letterSpacing: 2 },
+        { whiteSpace: 'pre-wrap', wordBreak: 'keep-all', letterSpacing: -1 },
+      ]) {
+        const light = prepare(text, '16px Test', options)
+        const { segments, kinds, ...data } = prepareWithSegments(text, '16px Test', options)
+        compared++
+        if (JSON.stringify(light) !== JSON.stringify(data)) different.push([text, options, 'handle'])
+        for (const key of Object.keys(light)) {
+          fields.add(key)
+          if (light[key] !== null) filled.add(key)
+        }
+        for (const width of [0, 9, 28, 40, 85.5, 160, 320, Infinity]) {
+          compared++
+          if (linesOf(light, text, width) !== linesOf(prepareWithSegments(text, '16px Test', options), text, width)) different.push([text, options, width])
+        }
+      }
+      console.log(JSON.stringify({ compared, different, unfilled: [...fields].filter(key => !filled.has(key)).sort() }))
+    `))
+    const compared = texts.length * 5 * 9
+    expect(rowsOf(CHROME_USER_AGENT)).toEqual({ compared, different: [], unfilled: ['lineStartProhibitions'] })
+    expect(rowsOf(FIREFOX_USER_AGENT)).toEqual({ compared, different: [], unfilled: ['breakableLineStartExtras', 'lineStartExtras', 'lineStartProhibitions', 'overflowLineEndTrims'] })
+    expect(rowsOf(SAFARI_USER_AGENT)).toEqual({ compared, different: [], unfilled: ['breakableLineStartExtras', 'entryGeometry', 'lineEndTrims', 'lineStartExtras', 'overflowLineEndTrims'] })
   })
 
   test('emergency wrapping preserves complete graphemes inside continuous words', () => {

@@ -51,9 +51,11 @@ The returned height is the crucial last piece for unlocking web UIs:
 - _development time_ verification (especially now with AI) that labels on e.g. buttons don't overflow to the next line, browser-free
 - prevent layout shift when new text loads and you wanna re-anchor the scroll position
 
+With that same `prepare()` handle you can also get the line count & widest line (`measureLineStats()`, no `lineHeight` needed), the natural width (`measureNaturalWidth()`) and each line's width (`walkLineRanges()`, `layoutNextLineRange()`): see use case 2 and the API Glossary below.
+
 ### 2. Lay out the paragraph lines manually yourself
 
-Switch out `prepare` with `prepareWithSegments`, then:
+Switch out `prepare` with `prepareWithSegments`, which the APIs that return a line's text need (`layoutWithLines()`, `layoutNextLine()`, `materializeLineRange()`), then:
 
 - `layoutWithLines()` gives you all the lines at a fixed width:
 
@@ -138,11 +140,11 @@ Use-case 2 APIs:
 ```ts
 prepareWithSegments(text: string, font: string, options?: { whiteSpace?: 'normal' | 'pre-wrap', wordBreak?: 'normal' | 'keep-all', letterSpacing?: number }): PreparedTextWithSegments // same as `prepare()`, but returns a richer structure for manual line layout needs
 layoutWithLines(prepared: PreparedTextWithSegments, maxWidth: number, lineHeight: number): { height: number, lineCount: number, lines: LayoutLine[] } // high-level api for manual layout needs. Accepts a fixed max width for all lines. Similar to `layout()`'s return, but additionally returns the lines info
-walkLineRanges(prepared: PreparedTextWithSegments, maxWidth: number, onLine: (line: LayoutLineRange) => void): number // low-level api for manual layout needs. Accepts a fixed max width for all lines. Calls `onLine` once per line with its actual calculated line width and start/end cursors, without building line text strings. Very useful for certain cases where you wanna speculatively test a few width and height boundaries (e.g. binary search a nice width value by repeatedly calling walkLineRanges and checking the line count, and therefore height, is "nice" too). You can have text messages shrinkwrap and balanced text layout this way. After walkLineRanges calls, you'd call layoutWithLines once, with your satisfying max width, to get the actual lines info.
-measureLineStats(prepared: PreparedTextWithSegments, maxWidth: number): { lineCount: number, maxLineWidth: number } // returns only how many lines this width produces, and how wide the widest one is. Avoids line/string allocations.
-measureNaturalWidth(prepared: PreparedTextWithSegments): number // Returns the width of the widest line when only explicit line breaks apply.
+walkLineRanges(prepared: PreparedText, maxWidth: number, onLine: (line: LayoutLineRange) => void): number // low-level api for manual layout needs. Accepts a fixed max width for all lines. Calls `onLine` once per line with its actual calculated line width and start/end cursors, without building line text strings. Very useful for certain cases where you wanna speculatively test a few width and height boundaries (e.g. binary search a nice width value by repeatedly calling walkLineRanges and checking the line count, and therefore height, is "nice" too). You can have text messages shrinkwrap and balanced text layout this way. After walkLineRanges calls, you'd call layoutWithLines once, with your satisfying max width, to get the actual lines info.
+measureLineStats(prepared: PreparedText, maxWidth: number): { lineCount: number, maxLineWidth: number } // returns only how many lines this width produces, and how wide the widest one is. Avoids line/string allocations.
+measureNaturalWidth(prepared: PreparedText): number // Returns the width of the widest line when only explicit line breaks apply.
 layoutNextLine(prepared: PreparedTextWithSegments, start: LayoutCursor, maxWidth: number): LayoutLine | null // iterator-like api for laying out each line with a different width! Returns the LayoutLine starting from `start`, or `null` when the paragraph's exhausted. Pass the previous line's `end` cursor as the next `start`.
-layoutNextLineRange(prepared: PreparedTextWithSegments, start: LayoutCursor, maxWidth: number): LayoutLineRange | null // same as layoutNextLine(), but without allocating line text strings. Useful for variable-width manual layout, occlusion, and virtualization measurements.
+layoutNextLineRange(prepared: PreparedText, start: LayoutCursor, maxWidth: number): LayoutLineRange | null // same as layoutNextLine(), but without allocating line text strings. Useful for variable-width manual layout, occlusion, and virtualization measurements.
 materializeLineRange(prepared: PreparedTextWithSegments, line: LayoutLineRange): LayoutLine // turns a LayoutLineRange from layoutNextLineRange() or walkLineRanges() into a full line with text
 type PreparedTextWithSegments = PreparedText & {
   segments: string[] // The text split into segments, e.g. ['hello', ' ', 'world']
