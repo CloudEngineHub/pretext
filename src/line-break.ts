@@ -121,7 +121,7 @@ export function isDiscretionaryLineEnd(
 // At a paragraph or hard-break start, ZWSP is real source: it establishes the
 // line and offers a break after it. UAX #14 forbids an ordinary break before
 // ZWSP. After a forced overflow break browsers can still give ZWSP its own line;
-// that start is consumed here, as before.
+// that start is consumed here.
 function consumesAtLineStart(kind: number, atChunkStart: boolean): boolean {
   return kind === SPACE || kind === SOFT_HYPHEN || (kind === ZERO_WIDTH_BREAK && !atChunkStart)
 }
