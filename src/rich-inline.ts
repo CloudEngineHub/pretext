@@ -650,10 +650,10 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
 // where the hyphen of the soft hyphen it ends at overflows (LineBreaker::BreakText,
 // line_breaker.cc:1705-1719), so a break inside the item that holds the soft hyphen leaves room
 // for that item's hyphen. Where none in the item does, the line goes back over the items before it
-// to the latest break that fits, with no room (HandleOverflow, :4100-4108), so the break before an
+// to the latest break that fits, with no room (HandleOverflow, :4105-4112), so the break before an
 // item's first segment leaves none. The premise is that a break inside an item is returned to from
 // a soft hyphen of that item: for one inside an earlier item Blink asks only that the line fit
-// (:4124-4136), and this leaves room for that item's hyphen (ENGINE_FOLLOWUPS.md, Rich-inline item
+// (:4138-4158), and this leaves room for that item's hyphen (ENGINE_FOLLOWUPS.md, Rich-inline item
 // edges).
 function getHyphenRooms(hyphenWidths: number[], itemSegments: number[], segmentItems: Int32Array): number[] {
   const rooms: number[] = []

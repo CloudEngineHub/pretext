@@ -1582,7 +1582,7 @@ item edges, has the shapes and what each leaves).
 - The room a line leaves for a hyphen where it returns from a soft hyphen whose hyphen doesn't fit (Engine Facts,
   Chrome, has the retry). `BreakText` retries one item against the width less that item's own hyphen
   (`line_breaker.cc:1705-1719`, Chromium 153), and where no break in the item leaves the room, `HandleOverflow` goes
-  back to the latest break before the item that fits, with none (`:4100-4108`). So a break inside an item leaves room
+  back to the latest break before the item that fits, with none (`:4105-4112`). So a break inside an item leaves room
   for that item's hyphen, and the break before an item's first segment leaves none (`hyphenRooms`). The paragraph
   first left the first text item's hyphen at every break. Of 1,015 Chrome layouts with a one-letter syllable before
   the soft hyphen, that form passes 903, main 914 and the rule 954: main's walk left the next item's hyphen at the
