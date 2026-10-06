@@ -1451,11 +1451,11 @@ rich-8992da35e9afd564 breaks
 rich-92a3f55de690d221 breaks
 rich-ac88f7d112e69240 count
 
-## Narrower than real layouts: a 1 px box, narrower than the "ffi" ligature of 24 px Hoefler Text that starts its line; Firefox cuts inside such a ligature and gives each of its letters an equal share of its advance (ComputeLigatureData, gfxTextRun.cpp:238-322), so each letter takes a line, where the library counts the ligature whole on its first letter and gives the rest no width, so two of them share a line (ENGINE_FOLLOWUPS.md, Emergency breaks inside a word)
-catalog-5e5da93679ee9480 count
-
 ## Narrower than real layouts: 9.7 px, `A` and a word joiner in an item of its own at -1 px letter spacing: Firefox gives the word joiner no letter spacing and keeps it on the line of `A`, where the library spaces it (ENGINE_FOLLOWUPS.md, Letter spacing) and the text walkers, which fit a character of no advance against the line's width before the negative gap, end the line before it; the item stepper fitted each item whole
 rich-6dbb34be649dfa2b count
+
+## Narrower than real layouts: a 1 px box, narrower than the "ffi" ligature of 24 px Hoefler Text that starts its line; Firefox cuts inside such a ligature and gives each of its letters an equal share of its advance (ComputeLigatureData, gfxTextRun.cpp:238-322), so each letter takes a line, where the library counts the ligature whole on its first letter and gives the rest no width, so two of them share a line (ENGINE_FOLLOWUPS.md, Emergency breaks inside a word)
+catalog-5e5da93679ee9480 count
 
 ## Narrower than real layouts: width 1, a soft hyphen in a span of its own after a word: Firefox ends the last letter's line after the soft hyphen, where the text walkers end it at the letter and the next line's start consumes the soft hyphen, as in one text (ENGINE_FOLLOWUPS.md, Rich-inline item edges)
 rich-fb77b1bfbe1c8a96 breaks
