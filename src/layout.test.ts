@@ -2159,12 +2159,12 @@ describe('prepare invariants', () => {
 
       // A break between two text segments, as after `-`, after an en dash or between
       // ideographs, is an opportunity like a space: the line returns to it, with no hyphen.
-      const lineTexts = (source: string, maxWidth: number): string[] => {
-        const handle = prepareWithSegments(source, FONT)
+      const lineTexts = (source: string, maxWidth: number, letterSpacing = 0): string[] => {
+        const handle = prepareWithSegments(source, FONT, { letterSpacing })
         const lines = layoutWithLines(handle, maxWidth, LINE_HEIGHT).lines.map(line => line.text)
         expect(collectStreamedLines(handle, maxWidth).map(line => line.text)).toEqual(lines)
         expect(measureLineStats(handle, maxWidth).lineCount).toBe(lines.length)
-        expect(layout(prepare(source, FONT), maxWidth, LINE_HEIGHT).lineCount).toBe(lines.length)
+        expect(layout(prepare(source, FONT, { letterSpacing }), maxWidth, LINE_HEIGHT).lineCount).toBe(lines.length)
         return lines
       }
       expect(prepareWithSegments('x ab-cd\u00ADefgh', FONT).segments).toEqual(['x', ' ', 'ab-', 'cd', '\u00AD', 'efgh'])
@@ -2191,6 +2191,13 @@ describe('prepare invariants', () => {
         expect(lineTexts(narrowSyllable, narrowWidth)).toEqual(['x ', 'ab-i-', 'efgh'])
         profile.unfitHyphenRetreat = 'full-width'
         expect(lineTexts(narrowSyllable, narrowWidth)).toEqual(['x ab-', 'iefgh'])
+        // A return at the full width tests no width at such a break: the line fit when it
+        // reached the break, with the letter-spacing gap after its last letter. Under spacing
+        // that gives the syllable a negative advance, `x ab-` fits 22px only with that gap.
+        for (const unfitHyphenRetreat of ['full-width', 'full-width-or-first'] as const) {
+          profile.unfitHyphenRetreat = unfitHyphenRetreat
+          expect(lineTexts(narrowSyllable, 22, -4)).toEqual(['x ab-', 'iefgh'])
+        }
       } finally {
         Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', measureText)
         profile.unfitHyphenRetreat = 'reduced-width'

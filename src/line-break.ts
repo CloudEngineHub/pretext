@@ -478,7 +478,8 @@ function walkPreparedComplexLines(
   const retreatsFromUnfitHyphen = prepared.discretionaryHyphenContexts !== null
   // Blink's retry leaves room for the hyphen at every earlier opportunity. Gecko and
   // WebKit return to any opportunity whose line fits.
-  const reservedHyphenWidth = engineProfile.unfitHyphenRetreat === 'reduced-width' ? discretionaryHyphenWidth : 0
+  const reservesHyphenWidth = engineProfile.unfitHyphenRetreat === 'reduced-width'
+  const reservedHyphenWidth = reservesHyphenWidth ? discretionaryHyphenWidth : 0
   // WebKit's return stops at the line's first opportunity, whatever its hyphen overflows:
   // the soft hyphen the line reaches before any of its opportunities has fit, since one
   // without a hyphen fits where the text before it did. A rich item that continues a line
@@ -758,9 +759,11 @@ function walkPreparedComplexLines(
                 pendingBreakWidth = lineW
               }
               // A break the scan gives between two text segments, as after `-` or between
-              // ideographs, is an opportunity the line returns to like any other.
+              // ideographs, is an opportunity the line returns to like any other. The line up
+              // to it fit when its last segment was admitted, with the letter-spacing gap after
+              // it that lineW leaves out, so only Blink's room for the hyphen is tested here.
               if (retreatsFromUnfitHyphen && !breakAfter && (flags & UNBROKEN) === 0 && i > lineStartSegmentIndex &&
-                !breaksAfterKind(segmentFlags[i - 1]! & KIND_BITS) && lineW + reservedHyphenWidth <= fitLimit) {
+                !breaksAfterKind(segmentFlags[i - 1]! & KIND_BITS) && (!reservesHyphenWidth || lineW + discretionaryHyphenWidth <= fitLimit)) {
                 fitBreakSegmentIndex = i
                 fitBreakPaintWidth = lineW
               }
