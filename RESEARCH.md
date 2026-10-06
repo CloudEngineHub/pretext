@@ -921,21 +921,22 @@ in the batch timed, the build timed with #435 lacked #425, which main had, and p
 library prepared before it, not the label's own calls. A list of labels laid out at 320px reads nothing those calls
 measure: plain text reads a word's cut advances only in a box narrower than the word, and no word of the 7,000 labels
 reaches 240px. No fit that asks Firefox less gives the same advances in every font, since a call returns one width and a
-new word's prefixes are unknowns no other word determines. One fit that asks less on a premise was measured as a scratch
-build of 664082af and isn't in the library (Firefox 156.0.1, 2026-10-05): a word's letter pairs asked before its
-prefixes, each letter alone and after the letter before it, strings every word of a font shares, and the prefixes only
-where the pairs don't add up to the word's width in Firefox's units of 1/60px. German's 200 labels took 1,057 calls for
-1,557, Finnish's 1,055 for 1,613 and all 7,000 took 27,337 for 32,769 (on Firefox's logged widths), 61-66% of the fit's
-calls; German read 28% faster than main, so about 17% faster than 0.0.9 (foreground, three sessions of ten rounds); and
-none of Firefox's 44,269 harness predictions and no bit of 199,522 advances on those labels differed from main's. Its
-premise is that a word whose pairs add up has nothing shaped across three letters. Label words in Arabic script break
-it, 10 of the 770 whose pairs add up, by up to 1.35px on a letter, all of them under 80px there, so the build left a
-word with a letter of a joined script to its prefixes; and the premise was measured on label words in one font list at
-13px and on the harness's cases, not on a probe of fonts. Whether the Gecko profile takes such a premise is a decision
-of its own (Part 1, The Correctness Stance). The scripts that counted and timed the prefix fit aren't in the repository
-either. A fit that asks less on a premise no real font breaks, an option that tells `prepare()` a text is never cut
-inside a word (TODO.md, the API discussion), or a release whose labels must not be slower than 0.0.9's in any language,
-would reopen this.
+new word's prefixes are unknowns no other word determines. One fit that asks less on a premise was built and isn't in
+the library (Firefox 156.0.1, 2026-10-06, a build that isn't in the repository): a word's letter pairs asked before its
+prefixes, each letter alone and after the letter before it, strings every word of a font shares, and taken for the
+prefix advances where they add up to the word's width in Firefox's units of 1/60px. Its premise is that such a word has
+nothing shaped across three letters. With the words that engine rules exclude left to their prefixes (a letter shaped
+with both its neighbours, a joined script, a right-to-left letter or bidi control, small capitals), none of Firefox's
+44,363 harness predictions differed from main's, the fit made 50% fewer calls on German's 200 labels and 51% fewer on
+all 7,000, and a new label's first `prepare()` took 22.5% less time in German, 26.5% in Finnish and 25.9% in Armenian,
+and 7.3% more in Telugu (foreground, three sessions of ten rounds). Real fonts break the premise where a font's rule
+reaches past the neighbouring letter: Caveat in 1.0% to 3.9% of the Latin words tried, `system-ui`'s colon after a digit
+or capital in bold and italic, and some three-letter string in 229 of 710 faces probed. In a box narrower than such a
+word the cut then lands a letter away from Firefox's, where the prefixes have it right. A premise real fonts break isn't
+taken for speed (Part 1, The Correctness Stance), so the Gecko profile keeps its prefixes. The scripts that counted and
+timed the prefix fit aren't in the repository either. A fit that asks less on a premise no real font breaks, an option
+that tells `prepare()` a text is never cut inside a word (TODO.md, the API discussion), or a release whose labels must
+not be slower than 0.0.9's in any language, would reopen this.
 
 What the labels get for it, on 13,090 probe layouts of one word a paragraph: 390 words of 78px or wider from those
 labels, Latin, Cyrillic and Greek in 13px Helvetica Neue, 13px Inter and 14px Roboto and Tamil in 13px Tamil Sangam MN,
