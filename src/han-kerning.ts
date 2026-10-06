@@ -24,7 +24,7 @@
 // bounds under the page's Han script (han_kerning.cc:47-168, 400-535).
 import { KIND_BITS, TEXT, UNBROKEN, type TextAnalysis } from './analysis.js'
 import { hasProperty, PUNCTUATION } from './line-breaks.js'
-import { getFontMeasurement, getSegmentMetrics, zeros, type FontMeasurement } from './measurement.js'
+import { getContext, getFontMeasurement, getSegmentMetrics, zeros, type FontMeasurement } from './measurement.js'
 
 const OTHER = 0
 const OPEN = 1
@@ -122,8 +122,7 @@ function getTrim(data: HanKerningFontData, c: number, measurement: FontMeasureme
   return trim
 }
 
-// HanKerning::FontData (han_kerning.cc:400-535), with the measure context set to the font;
-// null where the font that draws 「 has no halt.
+// HanKerning::FontData (han_kerning.cc:400-535); null where the font that draws 「 has no halt.
 function getFontData(measurement: FontMeasurement): HanKerningFontData | null {
   if (measurement.hanKerning !== undefined) return measurement.hanKerning
   const data: HanKerningFontData = { typeForDot: OTHER, typeForColon: OTHER, typeForSemicolon: OTHER, quoteFullwidth: false, trims: new Map() }
@@ -132,7 +131,7 @@ function getFontData(measurement: FontMeasurement): HanKerningFontData | null {
     return null
   }
   const hanWidth = getSegmentMetrics('\u4E2D', measurement).width
-  const ctx = measurement.state.context
+  const ctx = getContext(measurement)
   const glyphs = [0x3001, 0x3002, 0xFF0C, 0xFF0E, 0xFF1A, 0xFF1B, 0x201C, 0x2018, 0x201D, 0x2019].map(c => getTypeFromBounds(ctx, c, hanWidth))
   // A group has one type only when its glyphs share the advance and the type (han_kerning.cc:88-135).
   const group = (from: number, to: number): number => {
@@ -199,13 +198,13 @@ export function getPairTypes(text: string, index: number): number {
 // after its last there, typing both by the run's own font (HanKerning::AppendFontFeatures,
 // han_kerning.cc:262-320, over the text HarfBuzzShaper holds, harfbuzz_shaper.cc:895), so `font`
 // is the font of the item that holds the halted character, measured as that item's text is
-// (`letterSpaced`). Preparing that item's text, which holds the character, read the font's data,
-// so the context is set to the font only to measure a character's first halt in it.
+// (`letterSpaced`).
 export function getHaltAcrossRuns(types: number, halted: number, side: number, font: string, letterSpaced: boolean, language: string | null): number {
   if (!maybeHanKerns(halted)) return 0
-  const data = getFontData(getFontMeasurement(font, language, letterSpaced, false))
+  const measurement = getFontMeasurement(font, language, letterSpaced)
+  const data = getFontData(measurement)
   if (data === null || haltedSide(getFontCharType(data, types >> 4), getFontCharType(data, types & 15)) !== side) return 0
-  return data.trims.get(halted) ?? getTrim(data, halted, getFontMeasurement(font, language, letterSpaced))
+  return getTrim(data, halted, measurement)
 }
 
 export type HanKerningTrims = {
