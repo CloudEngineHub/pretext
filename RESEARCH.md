@@ -1443,13 +1443,13 @@ what it was and what it found). It kept drifting from the text walkers: each rul
 copy at item edges (#332), as the halt of a pair of fullwidth marks did (#425). The item stepper, the walker's mode
 for one item's line, the joined windows, the second handle per item and the halts read across two items are gone, and
 three fields of the engine profile with them (`breaksFromItemText`, `collapsesSpaceAcrossSoftHyphens`,
-`spaceBeforeSoftHyphenHangs`). Against main at #453 (2026-10-06), `src/` outside tests is 259 lines shorter, 1,552
-added and 1,811 removed, and 152 lines of code shorter, counting neither blank lines nor comment lines:
+`spaceBeforeSoftHyphenHangs`). Against main at #453 (2026-10-06), `src/` outside tests is 246 lines shorter, 1,565
+added and 1,811 removed, and 140 lines of code shorter, counting neither blank lines nor comment lines:
 `src/rich-inline.ts` goes from 1,101 lines of code to 815, `src/analysis.ts` from 317 to 410 and `src/line-break.ts`
-from 768 to 806, as the walker's mode for one item's line makes way for what a paragraph's segments carry. The main
-entry's bundle grows by 3,502 B minified (1,248 B gzipped) to 96,709 B (40,589 B), since the walker and the analysis
-are its own, and `@chenglou/pretext/rich-inline` shrinks by 2,052 B minified to 107,245 B and by 139 B gzipped to
-44,674 B (`bun build --minify`, then `gzip -9`).
+from 768 to 818, as the walker's mode for one item's line makes way for what a paragraph's segments carry. The main
+entry's bundle grows by 3,638 B minified (1,276 B gzipped) to 96,845 B (40,617 B), since the walker and the analysis
+are its own, and `@chenglou/pretext/rich-inline` shrinks by 1,914 B minified to 107,383 B and by 106 B gzipped to
+44,707 B (`bun build --minify`, then `gzip -9`).
 
 What a caller sees change: a fragment's `start` and `end`, and a line's `end`, count segments of the item's part of
 the paragraph, where they were cursors into `prepareWithSegments(item.text)`. The two differ in most paragraphs of
@@ -4722,7 +4722,7 @@ decisions for the maintainer.
   item again. What it costs: that cursor contract; an atomic item of only white space is an object as wide as its
   `extraWidth`; preparing rich text is slower in Safari, 10-15% for text no library has seen and 30-39% for text
   prepared again, and 3-16% for new text in Chrome and Firefox, against stats at 0.2-0.4 of the stepper's time and
-  walks 12-30% faster; the main entry is 1,248 B larger gzipped for what the walker and the analysis carry for a
+  walks 12-30% faster; the main entry is 1,276 B larger gzipped for what the walker and the analysis carry for a
   paragraph; and the walker has rules that hold for a paragraph only (`items !== undefined`), where plain text has the
   same gap and wasn't to move in the same change: a U+3000 run that hangs at an item's end, a soft hyphen beside an
   object, a segment of negative advance on a line that overflows, and a run of preserved spaces that hangs where a
