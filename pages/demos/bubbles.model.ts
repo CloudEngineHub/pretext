@@ -99,7 +99,9 @@ export function computeBubbleRender(preparedBubbles: PreparedBubble[], bubbleMax
     const cssMetrics = collectWrapMetrics(bubble.prepared, contentMaxWidth)
     const tightMetrics = findTightWrapMetrics(bubble.prepared, contentMaxWidth)
 
-    const cssWidth = Math.ceil(cssMetrics.maxLineWidth) + PADDING_H * 2
+    // What CSS paints for `width: fit-content` under a `max-width`: text that fits on one line gets its own width,
+    // and text that wraps gets the whole max-width, whatever its widest line.
+    const cssWidth = cssMetrics.lineCount > 1 ? bubbleMaxWidth : cssMetrics.maxLineWidth + PADDING_H * 2
     const tightWidth = Math.ceil(tightMetrics.maxLineWidth) + PADDING_H * 2
     const cssHeight = cssMetrics.height + PADDING_V * 2
     totalWastedPixels += Math.max(0, cssWidth - tightWidth) * cssHeight
