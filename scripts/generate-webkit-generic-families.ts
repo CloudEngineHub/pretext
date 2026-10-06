@@ -11,7 +11,8 @@
 //   zh-MO, zh-SG and zh-TW, the family of CTFontDescriptorCreateForCSSFamily(key, language) for the
 //   five kCTFontCSSFamily keys, the call SystemFontDatabaseCoreText.cpp:320-365 makes. Dumped on
 //   macOS 27.0 (26A428) and in the iOS 26.0 simulator; an iPhone on iOS 27 drew the same
-//   families on the 11 page languages the safari-generic probe covers.
+//   families under the ten page languages tried there (ar, en, he, hi, ja, ko, th, zh, zh-Hans
+//   and zh-Hant; Safari 27.0, 2026-09-24).
 // - missing-families.json: the families of those tables that Safari 27 on macOS 27 and Safari in
 //   the iOS 26.0 simulator can't use. A family counts as usable when some text in 28 scripts
 //   measures differently in OffscreenCanvas with it listed before Courier or Times than with
