@@ -350,7 +350,7 @@ export function clearCache(): void {
 // Sets the language later preparation breaks and measures under in place of
 // `<html lang>`, which a worker doesn't have; an empty one is a page's without a
 // language. Without a locale, preparation reads `<html lang>` again. Prepared
-// handles keep theirs (RESEARCH.md, Decisions Log).
+// handles keep theirs (RESEARCH.md, Decisions Log, 2026-09-26).
 export function setLocale(locale?: string): void {
   setLocaleLanguage(locale)
   clearCache()

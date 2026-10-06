@@ -23,7 +23,8 @@ const BREAK_AFTER_KINDS = 1 << SPACE | 1 << ZERO_WIDTH_BREAK | 1 << SOFT_HYPHEN 
 export type PreparedLineBreakData = {
   widths: number[] // Segment widths, e.g. [42.5, 4.4, 37.2]
   // Per segment, its flags byte, e.g. [TEXT, SPACE, TEXT]. A JSON copy of the handle turns it into an
-  // object with no length, on which the walkers never finish (RESEARCH.md, Decisions Log)
+  // object with no length, on which the walkers never finish (RESEARCH.md, Decisions Log,
+  // 2026-09-24)
   segmentFlags: Uint8Array
   // Normal text can use the simple line stepper across all layout APIs, and layout()
   // counts it with one numeric loop where it has no overflow trims
@@ -297,7 +298,8 @@ export function walkPreparedLinesRaw(
 // cursor and no per-line call. Every segment boundary of a fast-path handle is
 // a break, so an overflowing space or ZWSP ends its line and any other segment
 // starts the next one. The full walker costs three to five times as much per
-// segment, so one walker for all text was rejected (RESEARCH.md, Decisions Log).
+// segment, so one walker for all text was rejected (RESEARCH.md, Decisions Log,
+// 2026-09-24).
 export function countPreparedLines(prepared: PreparedLineBreakData, maxWidth: number): number {
   // The loop takes no overflow trims, which the stepper takes for a line's first segment.
   if (!prepared.simpleLineWalkFastPath || prepared.overflowLineEndTrims !== null) {
