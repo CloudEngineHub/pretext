@@ -10,6 +10,7 @@
 //   update is no regression.
 // No Thai, Lao, Khmer or Myanmar letter is drawn: inside their runs Intl.Segmenter stands in for ICU's dictionaries
 // (src/line-breaks.ts), and the two engines' dictionaries differ on random letters.
+import './watchdog.ts'
 import { dlopen, FFIType, type Pointer } from 'bun:ffi'
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
