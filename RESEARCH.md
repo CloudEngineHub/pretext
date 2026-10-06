@@ -4711,7 +4711,7 @@ decisions for the maintainer.
   item again. What it costs: that cursor contract; an atomic item of only white space is an object as wide as its
   `extraWidth`; preparing rich text is slower in Safari, 10-15% for text no library has seen and 30-39% for text
   prepared again, and 3-16% for new text in Chrome and Firefox, against stats at 0.2-0.4 of the stepper's time and
-  walks 12-30% faster; the main entry is 1,226 B larger gzipped for what the walker and the analysis carry for a
+  walks 12-30% faster; the main entry is 1,248 B larger gzipped for what the walker and the analysis carry for a
   paragraph; and the walker has rules that hold for a paragraph only (`items !== undefined`), where plain text has the
   same gap and wasn't to move in the same change: a U+3000 run that hangs at an item's end, a soft hyphen beside an
   object, a segment of negative advance on a line that overflows, and a run of preserved spaces that hangs where a
