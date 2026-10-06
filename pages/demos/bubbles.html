@@ -172,9 +172,10 @@
     <p class="eyebrow">Demo</p>
     <h1>Shrinkwrap showdown</h1>
     <p class="intro">
-      CSS <code>width: fit-content</code> sizes a bubble to its widest wrapped
-      line, which leaves dead space when the last line is short. Pretext finds
-      the tightest width that still wraps to the exact same number of lines.
+      With CSS <code>width: fit-content</code>, a bubble whose text wraps is as
+      wide as its <code>max-width</code>, which leaves dead space beside the
+      lines. Pretext finds the tightest width that still wraps to the exact
+      same number of lines.
     </p>
 
     <section class="controls" aria-label="Container width control">
@@ -187,9 +188,10 @@
       <section class="panel" id="panel-css">
         <h2>CSS fit-content</h2>
         <p>
-          Uses <code>width: fit-content; max-width: 80%</code>. The browser wraps
-          the text, then sizes the bubble to the longest wrapped line. Shorter
-          lines leave empty bubble area behind.
+          Uses <code>width: fit-content</code> and a <code>max-width</code> of
+          80% of the chat. Text that fits on one line gets a bubble of its own
+          width. Text that wraps gets the whole <code>max-width</code>, however
+          short its lines.
         </p>
         <div class="metric">Wasted pixels: <span id="css-waste">...</span></div>
         <div class="chat" id="chat-css"></div>
@@ -202,7 +204,8 @@
           the same line count, and <code>walkLineRanges()</code> for its widest
           line. Zero wasted pixels. No DOM text measurement in the resize path.
         </p>
-        <div class="metric">Wasted pixels: <span id="shrink-waste">0</span></div>
+        <!-- 0 by definition: a bubble's wasted pixels are its area beyond the shrunk bubble's, and these are the shrunk bubbles. -->
+        <div class="metric">Wasted pixels: <span>0</span></div>
         <div class="chat" id="chat-shrink"></div>
       </section>
     </section>
@@ -294,9 +297,11 @@
     <section class="why">
       <h2>Why can't CSS do this?</h2>
       <p>
-        CSS only knows <code>fit-content</code>, which is the width of the
-        widest line after wrapping. If a paragraph wraps to 3 lines and the
-        last line is short, CSS still sizes the container to the longest line.
+        CSS picks a box's width before it breaks the lines.
+        <code>fit-content</code> is the width of the text on one line, capped
+        at the room the box may take, here its <code>max-width</code>. If a
+        paragraph is too long for one line and wraps to 3, the box takes all
+        of that room, and stays that wide even when all 3 lines end up shorter.
         There's no CSS property to say “find the narrowest width that still
         produces exactly 3 lines.” That requires
         <strong>measuring the text at multiple widths and comparing line

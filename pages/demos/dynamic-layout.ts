@@ -21,8 +21,9 @@ This page's made to show off our layout APIs:
 - The first visible render waits for both fonts and hull preload, so it uses the real geometry from the start.
 - There is no DOM text measurement loop feeding layout.
 */
-import { layoutNextLine, measureNaturalWidth, prepareWithSegments, walkLineRanges, type LayoutCursor, type PreparedTextWithSegments } from '../../src/layout.ts'
+import { layoutNextLine, measureNaturalWidth, prepare, prepareWithSegments, type LayoutCursor, type PreparedTextWithSegments } from '../../src/layout.ts'
 import { BODY_COPY } from './dynamic-layout-text.ts'
+import { breaksInsideWord, hasActiveTextSelection, positionedLinesEqual, setNodeCount, type PositionedLine } from './line-nodes.ts'
 import openaiLogoUrl from '../assets/openai-symbol.svg'
 import claudeLogoUrl from '../assets/claude-symbol.svg'
 import {
@@ -78,13 +79,6 @@ type LogoAnimationState = {
   spin: SpinState | null
 }
 
-type PositionedLine = {
-  x: number
-  y: number
-  width: number
-  text: string
-}
-
 type ProjectedBodyLine = PositionedLine & {
   className: string
 }
@@ -130,6 +124,7 @@ type PageLayout = {
   headlineLineHeight: number
   creditGap: number
   creditLetterSpacing: number
+  creditWidth: number
   copyGap: number
   openaiRect: Rect
   claudeRect: Rect
@@ -225,6 +220,8 @@ const [, openaiLayout, claudeLayout, openaiHit, claudeHit] = await Promise.all([
 ])
 const wrapHulls: WrapHulls = { openaiLayout, claudeLayout, openaiHit, claudeHit }
 const preparedBody = getPrepared(BODY_COPY, BODY_FONT, BODY_LETTER_SPACING)
+const CREDIT_WIDTH = measureCreditWidth(CREDIT_LETTER_SPACING)
+const NARROW_CREDIT_WIDTH = measureCreditWidth(NARROW_CREDIT_LETTER_SPACING)
 
 function getPrepared(text: string, font: string, letterSpacing: number): PreparedTextWithSegments {
   const key = `${font}::${letterSpacing}::${text}`
@@ -235,12 +232,8 @@ function getPrepared(text: string, font: string, letterSpacing: number): Prepare
   return prepared
 }
 
-function headlineBreaksInsideWord(prepared: PreparedTextWithSegments, maxWidth: number): boolean {
-  let breaksInsideWord = false
-  walkLineRanges(prepared, maxWidth, line => {
-    if (line.end.graphemeIndex !== 0) breaksInsideWord = true
-  })
-  return breaksInsideWord
+function measureCreditWidth(letterSpacing: number): number {
+  return Math.ceil(measureNaturalWidth(prepare(CREDIT_TEXT, CREDIT_FONT, { letterSpacing })))
 }
 
 function getObstacleIntervals(obstacle: BandObstacle, bandTop: number, bandBottom: number): Interval[] {
@@ -335,20 +328,10 @@ function layoutColumn(
   return { lines, cursor }
 }
 
-function syncPool<T extends HTMLElement>(pool: T[], length: number, create: () => T, parent: HTMLElement = stage): void {
-  while (pool.length < length) {
-    const element = create()
-    pool.push(element)
-    parent.appendChild(element)
-  }
-  while (pool.length > length) {
-    const element = pool.pop()!
-    element.remove()
-  }
-}
-
-function projectHeadlineLines(lines: PositionedLine[], font: string, lineHeight: number): void {
-  syncPool(domCache.headlineLines, lines.length, () => {
+// Both projections below write a line's text only when it differs from the text its node holds, which is `written`'s
+// at the same index: writing a node's text again, even the same text, drops a selection inside it.
+function projectHeadlineLines(lines: PositionedLine[], written: PositionedLine[], font: string, lineHeight: number): void {
+  setNodeCount(domCache.headlineLines, lines.length, () => {
     const element = document.createElement('span')
     element.className = 'headline-line'
     return element
@@ -357,7 +340,7 @@ function projectHeadlineLines(lines: PositionedLine[], font: string, lineHeight:
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index]!
     const element = domCache.headlineLines[index]!
-    element.textContent = line.text
+    if (written[index]?.text !== line.text) element.textContent = line.text
     element.style.left = `${line.x}px`
     element.style.top = `${line.y}px`
     element.style.font = font
@@ -381,23 +364,6 @@ function projectChromeLayout(layout: PageLayout): void {
   domCache.claudeLogo.style.width = `${layout.claudeRect.width}px`
   domCache.claudeLogo.style.height = `${layout.claudeRect.height}px`
   domCache.claudeLogo.style.transform = `rotate(${logoAnimations.claude.angle}rad)`
-}
-
-function positionedLinesEqual(a: PositionedLine[], b: PositionedLine[]): boolean {
-  if (a.length !== b.length) return false
-  for (let index = 0; index < a.length; index++) {
-    const left = a[index]!
-    const right = b[index]!
-    if (
-      left.x !== right.x ||
-      left.y !== right.y ||
-      left.width !== right.width ||
-      left.text !== right.text
-    ) {
-      return false
-    }
-  }
-  return true
 }
 
 function projectedBodyLinesEqual(a: ProjectedBodyLine[], b: ProjectedBodyLine[]): boolean {
@@ -434,7 +400,7 @@ function textProjectionEqual(a: TextProjection | null, b: TextProjection): boole
     projectedBodyLinesEqual(a.bodyLines, b.bodyLines)
 }
 
-function projectTextProjection(projection: TextProjection): void {
+function projectTextProjection(projection: TextProjection, written: TextProjection | null): void {
   domCache.headline.style.left = '0px'
   domCache.headline.style.top = '0px'
   domCache.headline.style.width = `${projection.pageWidth}px`
@@ -442,7 +408,7 @@ function projectTextProjection(projection: TextProjection): void {
   domCache.headline.style.font = projection.headlineFont
   domCache.headline.style.lineHeight = `${projection.headlineLineHeight}px`
 
-  projectHeadlineLines(projection.headlineLines, projection.headlineFont, projection.headlineLineHeight)
+  projectHeadlineLines(projection.headlineLines, written === null ? [] : written.headlineLines, projection.headlineFont, projection.headlineLineHeight)
 
   domCache.credit.style.display = projection.creditLeft === null ? 'none' : 'block'
   domCache.credit.style.left = `${projection.creditLeft ?? 0}px`
@@ -452,16 +418,17 @@ function projectTextProjection(projection: TextProjection): void {
   domCache.credit.style.letterSpacing = `${projection.creditLetterSpacing}px`
   domCache.credit.style.lineHeight = `${CREDIT_LINE_HEIGHT}px`
 
-  syncPool(domCache.bodyLines, projection.bodyLines.length, () => {
+  setNodeCount(domCache.bodyLines, projection.bodyLines.length, () => {
     const element = document.createElement('span')
     element.className = 'line'
     return element
-  })
+  }, stage)
+  const writtenBodyLines = written === null ? [] : written.bodyLines
   for (let index = 0; index < projection.bodyLines.length; index++) {
     const line = projection.bodyLines[index]!
     const element = domCache.bodyLines[index]!
     element.className = line.className
-    element.textContent = line.text
+    if (writtenBodyLines[index]?.text !== line.text) element.textContent = line.text
     element.style.left = `${line.x}px`
     element.style.top = `${line.y}px`
     element.style.font = projection.bodyFont
@@ -479,7 +446,7 @@ function fitHeadlineFontSize(headlineWidth: number, pageWidth: number): number {
     const size = Math.floor((low + high) / 2)
     const font = `700 ${size}px ${HEADLINE_FONT_FAMILY}`
     const headlinePrepared = getPrepared(HEADLINE_TEXT, font, HEADLINE_LETTER_SPACING)
-    if (!headlineBreaksInsideWord(headlinePrepared, headlineWidth)) {
+    if (!breaksInsideWord(headlinePrepared, headlineWidth)) {
       best = size
       low = size + 1
     } else {
@@ -607,6 +574,7 @@ function buildLayout(pageWidth: number, pageHeight: number, lineHeight: number):
       headlineLineHeight,
       creditGap,
       creditLetterSpacing: NARROW_CREDIT_LETTER_SPACING,
+      creditWidth: NARROW_CREDIT_WIDTH,
       copyGap,
       openaiRect,
       claudeRect,
@@ -661,6 +629,7 @@ function buildLayout(pageWidth: number, pageHeight: number, lineHeight: number):
     headlineLineHeight,
     creditGap,
     creditLetterSpacing: CREDIT_LETTER_SPACING,
+    creditWidth: CREDIT_WIDTH,
     copyGap,
     openaiRect,
     claudeRect,
@@ -745,12 +714,11 @@ function evaluateLayout(
     layout.isNarrow ? creditBlocked.concat(claudeCreditBlocked) : creditBlocked,
     MIN_SLOT_WIDTH,
   )
-  const creditWidth = Math.ceil(measureNaturalWidth(getPrepared(CREDIT_TEXT, CREDIT_FONT, layout.creditLetterSpacing)))
   // When no slot fits, the credit isn't painted, rather than painted over a logo or past the page.
   let creditLeft: number | null = null
   for (let index = 0; index < creditSlots.length; index++) {
     const slot = creditSlots[index]!
-    if (slot.right - slot.left >= creditWidth) {
+    if (slot.right - slot.left >= layout.creditWidth) {
       creditLeft = Math.round(slot.left)
       break
     }
@@ -843,7 +811,7 @@ function commitFrame(now: number): boolean {
   }
 
   if (!textProjectionEqual(committedTextProjection, textProjection)) {
-    projectTextProjection(textProjection)
+    projectTextProjection(textProjection, committedTextProjection)
     committedTextProjection = textProjection
   }
 
@@ -896,11 +864,6 @@ function scheduleRender(): void {
     scheduled.value = false
     if (render(now)) scheduleRender()
   })
-}
-
-function hasActiveTextSelection(): boolean {
-  const selection = window.getSelection()
-  return selection !== null && !selection.isCollapsed && selection.rangeCount > 0
 }
 
 window.addEventListener('resize', scheduleRender)

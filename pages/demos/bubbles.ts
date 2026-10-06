@@ -14,7 +14,6 @@ type State = {
 const domCache = {
   slider: getRequiredInput('slider'),
   cssWaste: getRequiredSpan('css-waste'),
-  shrinkWaste: getRequiredSpan('shrink-waste'),
 }
 
 const shrinkNodes = bubblesPage.dom.shrinkBubbles
@@ -79,5 +78,4 @@ function render(): void {
   }
 
   domCache.cssWaste.textContent = formatPixelCount(renderState.totalWastedPixels)
-  domCache.shrinkWaste.textContent = '0'
 }

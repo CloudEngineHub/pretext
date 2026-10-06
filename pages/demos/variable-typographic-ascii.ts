@@ -1,4 +1,4 @@
-import { measureNaturalWidth, prepareWithSegments } from '../../src/layout.ts'
+import { measureNaturalWidth, prepare } from '../../src/layout.ts'
 
 const COLS = 50
 const ROWS = 28
@@ -88,7 +88,7 @@ function estimateBrightness(ch: string, font: string): number {
 }
 
 function measureWidth(ch: string, font: string): number {
-  return measureNaturalWidth(prepareWithSegments(ch, font))
+  return measureNaturalWidth(prepare(ch, font))
 }
 
 const palette: PaletteEntry[] = []

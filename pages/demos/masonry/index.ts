@@ -136,6 +136,8 @@ function render() {
   const windowHeight = document.documentElement.clientHeight
   const scrollTop = window.scrollY
 
+  // Every card is laid out again on every frame, scroll frames included: the immediate-mode rule applied
+  // (RESEARCH.md, Demos And The Chat), and it shows what layout() costs.
   const layoutState = computeLayout(windowWidth)
   domCache.container.style.height = `${layoutState.contentHeight}px`
 
