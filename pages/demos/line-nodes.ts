@@ -12,11 +12,11 @@ export type PositionedLine = {
 
 // Whether a line ends partway into a segment at this width: a word wider than the line, broken between two graphemes.
 export function breaksInsideWord(prepared: PreparedText, maxWidth: number): boolean {
-  let breaksInsideWord = false
+  let found = false
   walkLineRanges(prepared, maxWidth, line => {
-    if (line.end.graphemeIndex !== 0) breaksInsideWord = true
+    if (line.end.graphemeIndex !== 0) found = true
   })
-  return breaksInsideWord
+  return found
 }
 
 export function positionedLinesEqual(a: PositionedLine[], b: PositionedLine[]): boolean {
