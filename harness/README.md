@@ -425,6 +425,4 @@ checks its line functions against the rich stepper; Chrome's UI language, and so
 `lang`; rendering other than macOS's and an iOS simulator's (Other ratios and phones), though Android and Windows are
 65% of page views (`weights.json`); text chat users wrote (the sample's chat draws are stand-ins; written prompts and replies in their place moved the
 headline by 0.03 points or less, RESEARCH.md, Decisions Log, 2026-10-05); or the demos' painted
-layout. No planted defect guards the watchdog's kill, the bench's shuffle and its separate compiles (each copy of the
-library compiled in a module of its own), Firefox's start-up hold, the page passing the browser's name to the recorder,
-or the cap on a job's browser beyond its kill needing no `ps` table.
+layout. `ENGINE_FOLLOWUPS.md`, Harness debt, lists the mechanisms and checks that no planted defect guards.
