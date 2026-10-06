@@ -23,6 +23,7 @@ This page's made to show off our layout APIs:
 */
 import { layoutNextLine, measureNaturalWidth, prepareWithSegments, walkLineRanges, type LayoutCursor, type PreparedTextWithSegments } from '../../src/layout.ts'
 import { BODY_COPY } from './dynamic-layout-text.ts'
+import { hasActiveTextSelection, positionedLinesEqual, setNodeCount, type PositionedLine } from './line-nodes.ts'
 import openaiLogoUrl from '../assets/openai-symbol.svg'
 import claudeLogoUrl from '../assets/claude-symbol.svg'
 import {
@@ -76,13 +77,6 @@ type SpinState = {
 type LogoAnimationState = {
   angle: number
   spin: SpinState | null
-}
-
-type PositionedLine = {
-  x: number
-  y: number
-  width: number
-  text: string
 }
 
 type ProjectedBodyLine = PositionedLine & {
@@ -335,20 +329,8 @@ function layoutColumn(
   return { lines, cursor }
 }
 
-function syncPool<T extends HTMLElement>(pool: T[], length: number, create: () => T, parent: HTMLElement = stage): void {
-  while (pool.length < length) {
-    const element = create()
-    pool.push(element)
-    parent.appendChild(element)
-  }
-  while (pool.length > length) {
-    const element = pool.pop()!
-    element.remove()
-  }
-}
-
 function projectHeadlineLines(lines: PositionedLine[], font: string, lineHeight: number): void {
-  syncPool(domCache.headlineLines, lines.length, () => {
+  setNodeCount(domCache.headlineLines, lines.length, () => {
     const element = document.createElement('span')
     element.className = 'headline-line'
     return element
@@ -381,23 +363,6 @@ function projectChromeLayout(layout: PageLayout): void {
   domCache.claudeLogo.style.width = `${layout.claudeRect.width}px`
   domCache.claudeLogo.style.height = `${layout.claudeRect.height}px`
   domCache.claudeLogo.style.transform = `rotate(${logoAnimations.claude.angle}rad)`
-}
-
-function positionedLinesEqual(a: PositionedLine[], b: PositionedLine[]): boolean {
-  if (a.length !== b.length) return false
-  for (let index = 0; index < a.length; index++) {
-    const left = a[index]!
-    const right = b[index]!
-    if (
-      left.x !== right.x ||
-      left.y !== right.y ||
-      left.width !== right.width ||
-      left.text !== right.text
-    ) {
-      return false
-    }
-  }
-  return true
 }
 
 function projectedBodyLinesEqual(a: ProjectedBodyLine[], b: ProjectedBodyLine[]): boolean {
@@ -452,11 +417,11 @@ function projectTextProjection(projection: TextProjection): void {
   domCache.credit.style.letterSpacing = `${projection.creditLetterSpacing}px`
   domCache.credit.style.lineHeight = `${CREDIT_LINE_HEIGHT}px`
 
-  syncPool(domCache.bodyLines, projection.bodyLines.length, () => {
+  setNodeCount(domCache.bodyLines, projection.bodyLines.length, () => {
     const element = document.createElement('span')
     element.className = 'line'
     return element
-  })
+  }, stage)
   for (let index = 0; index < projection.bodyLines.length; index++) {
     const line = projection.bodyLines[index]!
     const element = domCache.bodyLines[index]!
@@ -896,11 +861,6 @@ function scheduleRender(): void {
     scheduled.value = false
     if (render(now)) scheduleRender()
   })
-}
-
-function hasActiveTextSelection(): boolean {
-  const selection = window.getSelection()
-  return selection !== null && !selection.isCollapsed && selection.rangeCount > 0
 }
 
 window.addEventListener('resize', scheduleRender)
