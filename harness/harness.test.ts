@@ -1068,7 +1068,7 @@ describe('the library through the adapter', () => {
     expect([edges.starts[0], edges.ends[1]]).toEqual([1, 3])
   })
 
-  test('layout() counting other lines than the walk blocks: a virtualized list would size a row for lines it doesn\'t paint (the review\'s D1: an overflowing space starts the next line in layout()\'s counter)', async () => {
+  test('layout() counting other lines than the walk blocks: a virtualized list would size a row for lines it doesn\'t paint (an overflowing space starts the next line in layout()\'s counter)', async () => {
     const text = 'aaaa bbbb cccc'
     // "aaaa" fits exactly, so each space overflows and must hang.
     const c = paragraph(text, library.measureNaturalWidth(library.prepareWithSegments('aaaa', '16px Harness Test')))
