@@ -36,10 +36,6 @@ window.addEventListener('resize', () => {
   scheduleRender()
 })
 
-document.fonts.ready.then(() => {
-  scheduleRender()
-})
-
 scheduleRender()
 
 function getRequiredInput(id: string): HTMLInputElement {
