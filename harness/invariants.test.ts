@@ -103,6 +103,8 @@ const PLANTS: ReadonlyArray<readonly [string, Profile, string, string, ReadonlyA
       'if (geometry !== null && fit.entryGeometry !== null && fit.entryGeometry.geometry !== null) {\n      Object.assign(fit.entryGeometry.geometry, geometry)\n      Object.assign(fit.entryGeometry, { letterSpacing, emojiCorrection })\n      return fit.entryGeometry.geometry\n    }\n    fit.entryGeometry = { letterSpacing, emojiCorrection, geometry }']], 'held handles'],
   ['a chip would be sized with its padding twice while its line stays right (p11)', 'unknown', 'extra-width-twice', 'rich-inline.ts',
     [[/collectItemRest\(fragments, itemIndex, item, EMPTY_LAYOUT_CURSOR, gapBefore, gapItemIndex, occupiedWidth\)/, 'collectItemRest(fragments, itemIndex, item, EMPTY_LAYOUT_CURSOR, gapBefore, gapItemIndex, occupiedWidth + item.extraWidth)']], 'rich lines'],
+  ['two words in items of their own would touch in Firefox, the space between them given no room', 'gecko', 'gap-joins-every-run', 'rich-inline.ts',
+    [[/const runGoesOn = profile\.collapsesSpaceAcrossSoftHyphens && itemBreak !== 'never' && runEnd > 0 && isSpaceOrTabOrSegmentBreak\(text\.charCodeAt\(runEnd - 1\)\)/, 'const runGoesOn = profile.collapsesSpaceAcrossSoftHyphens && itemBreak !== \'never\'']], 'rich lines'],
   ['a long word would measure every prefix, so preparing it grows with the square of its length (p08)', 'webkit', 'prefixes-uncapped', 'measurement.ts',
     [[/const prefixes = mode === 'segment-prefixes' && count <= MAX_PREFIX_FIT_GRAPHEMES/, 'const prefixes = mode === \'segment-prefixes\'']], 'growth'],
   ['a message shown at two letter spacings would take the first one\'s fresh-line geometry at the second', 'blink', 'entry-geometry-ignores-letter-spacing', 'prepare.ts',
