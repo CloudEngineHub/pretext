@@ -258,8 +258,9 @@ harness/invariants.test.ts`) and the bench's floors.
 Speed claims rest on `bun harness bench`'s same-document ratios. Its rows (`new`, `rich`, `seen`, `resize`, `lines`,
 `worst`) follow what an app does; never rank `prepare()` against `layout()`, as one is paid once and the other on every
 resize. The `new` rows time text no library or browser has laid out: Firefox and Safari keep shaped text per font,
-shared by every canvas and the DOM, so a fresh canvas doesn't make text new. The `lines` row times the line functions on
-mixed, Latin and CJK messages, each family in a document of its own.
+shared by every canvas and the DOM, so a fresh canvas doesn't make text new. The `rich` row's `rich-seen` prepares its
+kept messages again, where every item looks its font up and measures nothing. The `lines` row times the line functions
+on mixed, Latin and CJK messages, each family in a document of its own.
 
 - **A control copy.** Each document runs base, the candidate and a second copy of base, shuffled each round, since only
   same-document ratios survive drift between sessions (`RESEARCH.md`, Evaluation Traps, has the numbers behind this and

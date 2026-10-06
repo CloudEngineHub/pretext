@@ -5754,7 +5754,7 @@ describe('layout invariants', () => {
       expect(richLines([{ text: '中中」', font: '20px Halt Test Sans' }, { text: '。中中' }], 1e5)).toEqual(['中中」。中中:98'])
       expect(richLines([{ text: '中中」' }, { text: '「中中', font: '20px Halt Test Sans' }], 1e5)).toEqual(['中中」「中中:98'])
       // Also a trim its item's own text never asked for, a dot's, which the pair is the first to
-      // measure, after the item after it set the context to another font: 12px at 24px.
+      // measure, after the item after it was measured in another font: 12px at 24px.
       expect(richLines([{ text: '中中。', font: '24px Halt Test Sans' }, { text: '」中' }], 1e5)).toEqual(['中中。」中:92'])
       // No pair crosses an atomic item, a box or a collapsed space.
       expect(measureRichInlineStats(prepareRichInline([{ text: '中」', font }, { width: 0 }, { text: '。中', font }]), 1e5).maxLineWidth).toBe(64)
@@ -6753,4 +6753,167 @@ test('letter spacing leaves out cursive scripts as Chrome and Firefox do', () =>
   const letters = ['\u0628', '\u0628', '\u0628', '\u0628']
   expect([chrome.lines, firefox.lines, safari.lines]).toEqual([pairs, pairs, letters])
   expect([chrome.rich, firefox.rich, safari.rich]).toEqual([40, 40, 48])
+})
+
+test('a width is measured under its own font, shaping and language, whatever was measured before it', () => {
+  // The engine profile is computed once per process, so each engine runs in a child process.
+  // Preparation sets the context where it measures, not where it looks a font up, so each row
+  // measures something new right after the context was left on another font, another
+  // letterSpacing or another language's context. An ASCII character is half an em wide and
+  // any other a whole one; `fi` ligates, 3px narrower, unless the context has a letterSpacing;
+  // a context under `ja` measures three quarters; Canvas draws an emoji an em and a quarter
+  // wide and the page an em; U+2010 is three quarters of an em; a font named Kern kerns `b`
+  // with the space after it by 1px; and one named Halt halts fullwidth marks as Chrome's
+  // Canvas does, its dots closing ones. Like Firefox's, the context takes a face the page
+  // adds only when its font is assigned: a family named Late measures twice as wide before.
+  const layoutUrl = new URL('./layout.ts', import.meta.url).href
+  const richInlineUrl = new URL('./rich-inline.ts', import.meta.url).href
+  const rowsOf = (userAgent: string): unknown => JSON.parse(runInChild(`
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { userAgent: ${JSON.stringify(userAgent)} } })
+    const root = { lang: 'en' }
+    const em = font => Number.parseFloat(/[\\d.]+(?=px)/.exec(font)[0])
+    let contexts = 0
+    let measuredIn = ''
+    let added = false
+    let assignments = 0
+    class Context {
+      assigned = '10px sans-serif'
+      late = false
+      get font() { return this.assigned }
+      set font(value) {
+        assignments++
+        this.assigned = value
+        this.late = added
+      }
+      letterSpacing = '0px'
+      fontKerning = 'auto'
+      lang = 'inherit'
+      constructor() { contexts++ }
+      measureText(text) {
+        const size = em(this.font)
+        measuredIn = this.font
+        let width = 0
+        for (const ch of text) width += ch === '\\u{1F600}' ? size * 1.25 : ch === '\\u2010' ? size * 0.75 : ch > '\\u2E7F' ? size : size / 2
+        if (Number.parseFloat(this.letterSpacing) === 0) width -= 3 * (text.split('fi').length - 1)
+        if (this.font.includes('Kern') && this.fontKerning === 'auto') width -= text.split('b\\u2028').length - 1
+        if (this.font.includes('Halt')) width -= (text.match(/[\\u3002\\u300D](?=[\\u3002\\u300D])|(?<=[\\u3002\\u300D\\u300C])\\u300C/g) ?? []).length * size / 2
+        if (this.lang === 'ja') width *= 0.75
+        if (this.font.includes('Late') && !this.late) width *= 2
+        return { width, actualBoundingBoxLeft: 0, actualBoundingBoxRight: width - (/[\\u3001\\u3002\\uFF0C\\uFF0E]$/.test(text) ? size / 2 : 0) }
+      }
+    }
+    globalThis.OffscreenCanvas = class { getContext() { return new Context() } }
+    globalThis.document = {
+      documentElement: root,
+      body: { appendChild() {}, removeChild() {} },
+      createElement() {
+        const style = {}
+        return { style, getBoundingClientRect: () => ({ width: em(style.font) }) }
+      },
+    }
+    const { prepareWithSegments, measureNaturalWidth, clearCache } = await import(${JSON.stringify(layoutUrl)})
+    const { prepareRichInline, measureRichInlineStats } = await import(${JSON.stringify(richInlineUrl)})
+    const width = (text, font, letterSpacing = 0) => measureNaturalWidth(prepareWithSegments(text, font, { letterSpacing }))
+    const rich = items => measureRichInlineStats(prepareRichInline(items), 1e5).maxLineWidth
+    const rows = {}
+
+    // Two fonts by turns, where all the text is cached but one segment.
+    const a = '16px Test', b = '20px Test'
+    rich([{ text: 'aa', font: a }, { text: 'bb', font: b }, { text: 'aa', font: a }])
+    rows.fonts = [rich([{ text: 'aa', font: a }, { text: 'bb', font: b }, { text: 'cc', font: a }]), rich([{ text: 'bb', font: b }, { text: 'aa', font: a }, { text: 'dd', font: b }])]
+    // Prepared again, with every segment cached, the items measure nothing and assign no font.
+    const assigned = assignments
+    rich([{ text: 'aa', font: a }, { text: 'bb', font: b }, { text: 'cc', font: a }])
+    rows.again = assignments - assigned
+
+    // One font, with and without letter spacing: new text each time, then new text after a cached item of the other kind.
+    const spaced = '16px Spaced'
+    rows.spacing = [
+      rich([{ text: 'fig', font: spaced }, { text: 'fin', font: spaced, letterSpacing: 2 }, { text: 'fit', font: spaced }]),
+      rich([{ text: 'fit', font: spaced }, { text: 'fib', font: spaced, letterSpacing: 2 }]),
+      rich([{ text: 'fin', font: spaced, letterSpacing: 2 }, { text: 'fir', font: spaced }]),
+    ]
+
+    // Another language makes another context, which starts with neither the font nor the shaping.
+    const made = contexts
+    rows.language = [width('fig', '16px Language', 1)]
+    root.lang = 'ja'
+    rows.language.push(width('fig', '16px Language', 1), width('fig', '16px Language'))
+    root.lang = 'en'
+    rows.language.push(width('fig', '16px Language'), contexts - made)
+
+    // clearCache() keeps the context, with the font and the shaping it was left on.
+    const kept = contexts
+    rows.cleared = [width('fin', '16px Cleared', 2)]
+    clearCache()
+    rows.cleared.push(width('fin', '16px Cleared'))
+    clearCache()
+    rows.cleared.push(width('fin', '16px Cleared', 2))
+    clearCache()
+    rows.cleared.push(width('aa', '20px Cleared'))
+    clearCache()
+    rows.cleared.push(width('aa', '16px Cleared'), contexts - kept)
+
+    // A face added after its font was measured shows in new text prepared in that font, with nothing prepared in
+    // another between, and after clearCache() in the text measured before.
+    rows.added = [width('aa', '16px Late')]
+    added = true
+    rows.added.push(width('bb', '16px Late'), width('aa', '16px Late'))
+    clearCache()
+    rows.added.push(width('aa', '16px Late'))
+
+    // What a font is asked once, asked first when its text is cached and another font was measured last: the emoji
+    // correction, whether it kerns with the space, a character's kerning with one, and a mark's halt beside the next
+    // item's.
+    width('ab', '16px Emoji')
+    width('x', b)
+    rows.emoji = width('ab \\u{1F600}', '16px Emoji')
+    width('ab', '16px Kern')
+    width('cb', '16px Kern')
+    width('y', b)
+    rows.kerning = [width('ab ab', '16px Kern')]
+    width('z', b)
+    rows.kerning.push(width('cb cb', '16px Kern'))
+    rows.halt = rich([{ text: '\\u4E2D\\u4E2D\\u3002', font: '24px Halt' }, { text: '\\u300D\\u4E2D', font: '16px Halt' }])
+    // Asking a font which hyphen it paints sets the context to other fonts and back, so the marks' halts, read after
+    // it in the same preparation, are the font's.
+    rows.hyphen = width('a\\u00ADb\\u4E2D\\u300D\\u300C\\u4E2D', '16px Hyphen Halt')
+    // Where a line that starts inside a word at an invisible character takes its widths from Canvas, they are observed
+    // again under another letter spacing, with the word's other measurements cached.
+    width('ab\\u2060cd', '16px Entry', 1)
+    width('s', b)
+    width('ab\\u2060cd', '16px Entry', 2)
+    rows.entry = measuredIn
+    // Whether two letters are a ligature is asked of the context without its ligatures, here first asked with the
+    // word, its letters and the pair all cached, after letter-spaced text in a font whose \`fi\` without the ligature
+    // is as wide as this font's with it. The text measured next has its ligature, and the letter-spaced text after it none.
+    rich([{ text: 'f i fi', font: '100px Liga', break: 'never' }])
+    width('x', '97px Test', 1)
+    rows.ligature = [measureRichInlineStats(prepareRichInline([{ text: 'fi', font: '100px Liga' }]), 60).maxLineWidth, width('fig', '16px Liga'), width('fix', '16px Liga', 2)]
+    console.log(JSON.stringify(rows))
+  `))
+  // `fin` under letter spacing is 24px and its three spacings where the context drops the
+  // ligature, and 21px and them in the WebKit profile, which measures with it. Two contexts
+  // are made for the two language changes and none for the four clearCache() calls. Only the
+  // Chromium profile asks for kerning with the space and for halts, and the WebKit profile
+  // observes no line starts inside a word, so its last measurement is the 20px text's. Only
+  // the Gecko profile asks for ligatures: a line that cuts \`fi\` has the ligature's 97px on its
+  // \`f\`, and the others the letter's 50px.
+  const rows = (fin: number, kerned: number, halted: number, entry: string, cutLigature: number): unknown => ({
+    fonts: [52, 56],
+    again: 0,
+    spacing: [21 + fin + 21, 21 + fin, fin + 21],
+    language: [fin - 3, (fin - 6) * 0.75 + 3, 15.75, 21, 2],
+    cleared: [fin, 21, fin, 20, 16, 0],
+    added: [32, 16, 32, 16],
+    emoji: 40,
+    kerning: [kerned, kerned],
+    halt: halted,
+    hyphen: halted === 92 ? 72 : 80,
+    entry,
+    ligature: [cutLigature, 21, fin],
+  })
+  expect(rowsOf(CHROME_USER_AGENT)).toEqual(rows(30, 39, 92, '16px Entry', 50))
+  expect(rowsOf(FIREFOX_USER_AGENT)).toEqual(rows(30, 40, 104, '16px Entry', 97))
+  expect(rowsOf(SAFARI_USER_AGENT)).toEqual(rows(27, 40, 104, '20px Test', 50))
 })
