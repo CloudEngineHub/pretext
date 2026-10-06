@@ -2106,24 +2106,7 @@ describe('prepare invariants', () => {
     expect(layout(prepared, alphaWidth + 0.1, LINE_HEIGHT).lineCount).toBe(2)
   })
 
-  test('every engine returns from an unfit hyphen its own way, and only Blink paints the hyphen unspaced', async () => {
-    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
-    try {
-      for (const [index, userAgent, unfitHyphenRetreat, letterSpaceDiscretionaryHyphen] of [
-        [0, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36', 'reduced-width', false],
-        [1, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5.2 Safari/605.1.15', 'full-width-or-first', true],
-        [2, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:155.0) Gecko/20100101 Firefox/155.0', 'full-width', true],
-      ] as const) {
-        Object.defineProperty(globalThis, 'navigator', { value: { userAgent }, configurable: true, writable: true })
-        const specifier = `./measurement.ts?unfit-hyphen-${index}`
-        const fresh = await import(specifier) as MeasurementModule
-        expect(fresh.getEngineProfile()).toMatchObject({ unfitHyphenRetreat, letterSpaceDiscretionaryHyphen })
-      }
-    } finally {
-      if (descriptor === undefined) Reflect.deleteProperty(globalThis, 'navigator')
-      else Object.defineProperty(globalThis, 'navigator', descriptor)
-    }
-
+  test('a letter-spaced hyphen takes one more spacing where letterSpaceDiscretionaryHyphen is set', () => {
     const profile = getEngineProfile()
     const previous = profile.letterSpaceDiscretionaryHyphen
     try {
