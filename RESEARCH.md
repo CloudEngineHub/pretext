@@ -2166,7 +2166,7 @@ runs (Firefox 156.0.1, bench sessions of 2026-09-27 and 28, unless noted):
   empty observation is kept as a found one is: since #368 a segment ending in a long run of controls is a few clusters,
   not one per control, so it falls within that bound, and observing again at every prepare made Firefox prepare the
   invisible tails 6% slower. Under no letter spacing the strings an observation asks Canvas, up to three per line start,
-  are widths of the font's segment cache (#TBD), which often has the first already, one grapheme of the word that its
+  are widths of the font's segment cache (#453), which often has the first already, one grapheme of the word that its
   cut-word fit measured (a letter with its ZWNJ, a word joiner alone), and which words with the same line start then
   share. Asked at every observation, as before, 418 of the 32,861 `measureText` calls Firefox 156.0.1 makes for
   Chromium's 7,000 interface labels asked a string again, 231 of the 1,236 for Persian's 200 alone and 184 of Telugu's
