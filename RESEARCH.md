@@ -329,8 +329,7 @@ a rule by reading it and its unit tests (`rebuild/src/engines/<engine>/`) agains
   obvious things it can discover. Write down every philosophy the project holds, since a capable agent still wants the
   intent and can follow it, and the traps capability alone doesn't solve, of which dead ends are one example among
   several. Discoverable means cheap to discover, so facts that take hours of browser runs stay; every measured fact and
-  dead end carries its date, browser build and what would reopen it, and a rule or a trap needs no reopen condition;
-  AGENTS.md may hold one screen of pipeline map.
+  dead end carries its date, browser build and what would reopen it; AGENTS.md may hold one screen of pipeline map.
 - **Written for a cold reader (2026-09-27).** A doc reads right to someone who has seen none of the conversations or
   working sessions behind it. It states rules as the project's rules, in plain words, and never quotes conversations; it
   defines each term where first used and uses no entry ids, code names or labels from a working session; history stays
