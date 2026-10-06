@@ -376,8 +376,9 @@ a rule by reading it and its unit tests (`rebuild/src/engines/<engine>/`) agains
   2026-09-18, and came off that branch's tip. Triage closed the report that day as a stability issue without security
   impact, so nothing about it is withheld any more: PLATFORM_BUGS.md describes it, and the page stays in the rebuild
   branch's history.
-- **License notices** for the ported engine code and data are deferred until the end of the project (TODO.md, End of
-  project).
+- **License notices** of the BSD- and Unicode-licensed sources that shipped code or data follows or is generated from go
+  at the end of `LICENSE`, after the MIT text and kept brief: each source's copyright lines, and each distinct license
+  text once.
 
 ## Part 2: Evidence
 
