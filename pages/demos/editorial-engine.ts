@@ -328,16 +328,16 @@ function fitHeadline(maxWidth: number, maxHeight: number, maxSize: number = 92):
     const font = `700 ${size}px ${HEADLINE_FONT_FAMILY}`
     const lineHeight = Math.round(size * 0.93)
     const prepared = prepareWithSegments(HEADLINE_TEXT, font, { letterSpacing: HEADLINE_LETTER_SPACING })
-    let breaksWord = false
+    let brokenWords = 0
     let lineCount = 0
 
     walkLineRanges(prepared, maxWidth, line => {
       lineCount++
-      if (line.end.graphemeIndex !== 0) breaksWord = true
+      if (line.end.graphemeIndex !== 0) brokenWords++
     })
 
     const totalHeight = lineCount * lineHeight
-    if (!breaksWord && totalHeight <= maxHeight) {
+    if (brokenWords === 0 && totalHeight <= maxHeight) {
       best = size
       const result = layoutWithLines(prepared, maxWidth, lineHeight)
       bestLines = result.lines.map((line, index) => ({

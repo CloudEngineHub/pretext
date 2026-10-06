@@ -115,8 +115,7 @@ export function syncCssRiverOverlay(
     const textNode = paragraph.firstChild
     if (!(textNode instanceof Text)) throw new Error('Expected CSS paragraph to contain a single text node')
 
-    const text = textNode.textContent
-    if (text === null) throw new Error('Expected CSS paragraph text')
+    const text = textNode.data
 
     for (let charIndex = 0; charIndex < text.length; charIndex++) {
       if (text[charIndex] !== ' ') continue
