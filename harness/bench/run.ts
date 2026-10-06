@@ -72,6 +72,8 @@ export function documents(rows: readonly string[], seed: string, focus: boolean)
     doc('rich', 'latin', 'en', STYLE.latin.font, {}, [
       { op: 'rich-new', batches, batchUnits: batches.map(items => items.reduce((n, list) => n + list.reduce((m, item) => m + item.text.length, 0), 0)), widths: [220] },
       ...['rich-stats', 'rich-walk', 'rich-stream'].map(op => ({ op, texts: kept, textUnits: keptUnits, handles: 'rich' as const, widths: [180, 220, 260] })),
+      // The kept messages prepared again, where every item looks its font up and measures nothing.
+      { op: 'rich-seen', texts: kept, textUnits: keptUnits, widths: [220] },
     ])
   }
   for (const family of MESSAGE_FAMILIES) {

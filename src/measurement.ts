@@ -349,14 +349,15 @@ export type BreakableFitMode = 'sum-graphemes' | 'segment-prefixes' | 'pair-cont
 // language it was created under: all of it is replaced when that language changes.
 type MeasureState = {
   language: string | null
-  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
+  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D // Once made, read through getContext() alone
+  font: string // The font getContext() set the context to since a font was last looked up, or ''
+  letterSpacing: string // The letterSpacing getContext() last set the context to
   genericFamilies: string[] | null // The families the language gives the generic keywords, or null
   takesLetterSpacing: boolean // As Chrome's and Firefox's contexts do, as a string of CSS px
   // Whether the context shapes text under LETTER_SPACED_SHAPING as the page shapes text
   // under letter spacing, without its optional ligatures: it takes a letterSpacing and
   // the engine's Canvas turns them off under one (canvasLetterSpacingDropsLigatures).
   shapesLetterSpaced: boolean
-  letterSpaced: boolean // Whether the context is set to LETTER_SPACED_SHAPING, by getFontMeasurement()
   fonts: Map<string, FontMeasurement>
   // What letter-spaced text measures in each font where shapesLetterSpaced: the same text
   // shaped without its optional ligatures.
@@ -366,10 +367,11 @@ let measureState: MeasureState | null = null
 // What preparation keeps per font. It all goes together, when the caches clear or the
 // language changes.
 export type FontMeasurement = {
-  state: MeasureState // Its context, which getFontMeasurement() sets to the font and its shaping
+  state: MeasureState // Its context, which getContext() sets to the font and its shaping
   // The font Canvas is given: the declared font, with the generic keywords the context's
   // language names replaced by their families.
   canvasFont: string
+  letterSpacing: string // The Canvas letterSpacing its text is shaped under: LETTER_SPACED_SHAPING or none
   metrics: Map<string, SegmentMetrics>
   // Metrics of a text item measured together with one following U+0020, keyed by
   // the item alone. The width includes that space.
@@ -513,7 +515,7 @@ export function getHyphenText(measurement: FontMeasurement): string {
   const size = fontSizeRe.exec(font)
   let hyphenText = '-'
   if (size !== null && getSegmentMetrics('\u2010', measurement).width !== getSegmentMetrics('-', measurement).width) {
-    const context = measurement.state.context
+    const context = getContext(measurement)
     const start = size.index + size[0].length
     const prefix = font.slice(0, start)
     const families = font.slice(start).match(familyRe) ?? []
@@ -588,10 +590,10 @@ export function zeros(count: number): number[] {
 // even when assignment or measurement fails. Null where the context can't take the
 // spacing.
 export function measureWithLetterSpacing(text: string, letterSpacing: number, emojiCorrection: number, measurement: FontMeasurement): number | null {
-  const { context, takesLetterSpacing } = measurement.state
-  if (!takesLetterSpacing) return null
+  if (!measurement.state.takesLetterSpacing) return null
   // Counted before the spacing is set: the count measures stretches into the font's segment cache.
   const corrected = emojiCorrection === 0 ? 0 : countEmojiGlyphs(text, measurement) * emojiCorrection
+  const context = getContext(measurement)
   const previous = context.letterSpacing
   try {
     context.letterSpacing = `${letterSpacing}px`
@@ -616,7 +618,7 @@ export function getFollowingSpaceMetrics(seg: string, measurement: FontMeasureme
 }
 
 function addMetrics(cache: Map<string, SegmentMetrics>, seg: string, text: string, measurement: FontMeasurement): SegmentMetrics {
-  const metrics: SegmentMetrics = { width: measurement.state.context.measureText(text).width, emojiCount: -1, fit: null, spaceKerning: null }
+  const metrics: SegmentMetrics = { width: getContext(measurement).measureText(text).width, emojiCount: -1, fit: null, spaceKerning: null }
   cache.set(seg, metrics)
   return metrics
 }
@@ -646,7 +648,7 @@ function takesNoSpaceKerning(code: number): boolean {
 // nothing with it (RESEARCH.md, Kerning At Line Edges, has the fonts that do).
 export function getFontSpaceKerning(measurement: FontMeasurement): Map<number, number> | null {
   if (measurement.spaceKerning === undefined) {
-    const context = measurement.state.context
+    const context = getContext(measurement)
     let probe = '\u2028'
     for (let code = 0x21; code <= 0x7e; code++) probe += String.fromCharCode(code) + '\u2028'
     const kerned = context.measureText(probe).width
@@ -668,7 +670,7 @@ function getCharacterSpaceKerning(code: number, spaceFirst: boolean, measurement
     kerning = 0
     if (!takesNoSpaceKerning(code)) {
       const character = String.fromCharCode(code)
-      const pairWidth = measurement.state.context.measureText(spaceFirst ? '\u2028' + character : character + '\u2028').width
+      const pairWidth = getContext(measurement).measureText(spaceFirst ? '\u2028' + character : character + '\u2028').width
       kerning = pairWidth - getSegmentMetrics(character, measurement).width - getSegmentMetrics(' ', measurement).width
       // Blink keeps a run's width as a float32 (shape_result.cc:1539-1576), so up to the pair's
       // width / 2^22 is rounding, not kerning (RESEARCH.md, Kerning At Line Edges).
@@ -791,7 +793,7 @@ export function getEmojiCorrection(font: string, measurement: FontMeasurement): 
   if (correction !== null) return correction
 
   const fontSize = parseFontSize(font)
-  const canvasW = measurement.emojiWidth = measurement.state.context.measureText('\u{1F600}').width
+  const canvasW = measurement.emojiWidth = getContext(measurement).measureText('\u{1F600}').width
   correction = 0
   // document.body is null until the parser reaches <body>, which lib.dom's type leaves out.
   if (
@@ -956,7 +958,7 @@ export function getSegmentFit(
 function countLigaturesOnFirstLetter(seg: string, ends: Int32Array, advances: number[], measurement: FontMeasurement, emojiCorrection: number): void {
   // Text measured under letter spacing has no optional ligature, and a context that can't
   // turn them off can't be asked.
-  if (!measurement.state.shapesLetterSpaced || measurement.state.letterSpaced) return
+  if (!measurement.state.shapesLetterSpaced || measurement.letterSpacing !== '0px') return
   // The grapheme the ligature that holds the grapheme before this one starts with, or that grapheme.
   let first = 0
   for (let i = 1; i < advances.length; i++) {
@@ -978,7 +980,7 @@ function countLigaturesOnFirstLetter(seg: string, ends: Int32Array, advances: nu
 function isLigature(pair: string, measurement: FontMeasurement): boolean {
   let ligature = measurement.ligaturePairs.get(pair)
   if (ligature === undefined) {
-    const context = measurement.state.context
+    const context = getContext(measurement)
     const width = getSegmentMetrics(pair, measurement).width
     context.letterSpacing = LETTER_SPACED_SHAPING
     ligature = context.measureText(pair).width !== width
@@ -1037,11 +1039,11 @@ function measureFitAdvances(
   return advances
 }
 
-// What preparation measures a font's text through, with the context set to measure it,
-// unless the caller only reads what the font keeps (`measures` false). Text under letter
-// spacing has a measurement of its own where the context shapes it as the page does: its
-// widths, prefixes and line-edge facts all come from that shaping.
-export function getFontMeasurement(font: string, language: string | null, letterSpaced: boolean, measures = true): FontMeasurement {
+// What preparation measures a font's text through. Text under letter spacing has a
+// measurement of its own where the context shapes it as the page does: its widths,
+// prefixes and line-edge facts all come from that shaping. The context isn't touched
+// here: text that is all in the font's caches measures nothing (getContext).
+export function getFontMeasurement(font: string, language: string | null, letterSpaced: boolean): FontMeasurement {
   // Preparation starts here, with the language it resolved. After that language
   // changes, start again with a new context and empty caches; clearing the caches
   // alone would re-measure with fonts resolved under the old language.
@@ -1052,16 +1054,26 @@ export function getFontMeasurement(font: string, language: string | null, letter
   let measurement = fonts.get(font)
   if (measurement === undefined) {
     const canvasFont = state.genericFamilies === null ? font : getCanvasFont(font, state.genericFamilies)
-    measurement = { state, canvasFont, metrics: new Map(), followingSpaceMetrics: new Map(), spaceKerning: undefined, emojiCorrection: null, emojiWidth: 0, hyphenText: null, hanKerning: undefined, ligaturePairs: new Map() }
+    measurement = { state, canvasFont, letterSpacing: shaped ? LETTER_SPACED_SHAPING : '0px', metrics: new Map(), followingSpaceMetrics: new Map(), spaceKerning: undefined, emojiCorrection: null, emojiWidth: 0, hyphenText: null, hanKerning: undefined, ligaturePairs: new Map() }
     fonts.set(font, measurement)
   }
-  if (!measures) return measurement
-  state.context.font = measurement.canvasFont
-  if (state.letterSpaced !== shaped) {
-    state.context.letterSpacing = shaped ? LETTER_SPACED_SHAPING : '0px'
-    state.letterSpaced = shaped
-  }
+  // The first measurement after a lookup sets the font again, the same string too: Firefox's
+  // context takes a face added to document.fonts only when its font is assigned.
+  state.font = ''
   return measurement
+}
+
+// The font's context, set to the font and its shaping. Every measurement in a font takes
+// its context from here as it measures, so none reads a width under another font's
+// setting, whatever was looked up or prepared in between, and text that is all cached,
+// which measures nothing, sets nothing. What changes the context after that puts it back
+// before it returns (getHyphenText, measureWithLetterSpacing, getFontSpaceKerning,
+// isLigature).
+export function getContext(measurement: FontMeasurement): CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D {
+  const state = measurement.state
+  if (state.font !== measurement.canvasFont) state.context.font = state.font = measurement.canvasFont
+  if (state.letterSpacing !== measurement.letterSpacing) state.context.letterSpacing = state.letterSpacing = measurement.letterSpacing
+  return state.context
 }
 
 function createMeasureState(language: string | null): MeasureState {
@@ -1081,10 +1093,11 @@ function createMeasureState(language: string | null): MeasureState {
   return {
     language,
     context,
+    font: '',
+    letterSpacing: '0px',
     genericFamilies: language !== null && profile.namesGenericFamiliesByLanguage ? getWebKitGenericFamilies(language, context) : null,
     takesLetterSpacing,
     shapesLetterSpaced: takesLetterSpacing && profile.canvasLetterSpacingDropsLigatures,
-    letterSpaced: false,
     fonts: new Map(),
     letterSpacedFonts: new Map(),
   }
