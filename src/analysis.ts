@@ -602,7 +602,7 @@ function markItemStarts(text: string, normalized: string, breaks: Uint8Array, pa
 // Collapsible white space on either side of a boundary breaks there, as inside a text. The source
 // is the items' texts joined as they are, an atomic item as one U+FFFC, which is never scanned
 // (removeItemsSkippableSegmentBreaks leaves WebKit's text alone), so a scan takes an item's own
-// text and nothing is cut out of the source.
+// text and nothing is cut out of the source (getItemText).
 function getWebKitParagraphBreaks(source: string, paragraph: ParagraphItems, preserve: boolean, keepAll: boolean, language: string | null): Uint8Array {
   const { items, starts, atomic } = paragraph
   const breaks = new Uint8Array(source.length + 1)
@@ -616,14 +616,22 @@ function getWebKitParagraphBreaks(source: string, paragraph: ParagraphItems, pre
     // (getWebKitLineBreaks), so only those are scanned.
     const first = source.charCodeAt(start)
     if (end - start > 1 || first === 0x2028 || first === 0x2029) {
-      const itemBreaks = getWebKitLineBreaks(items[k]!.text!, preserve, keepAll, language)
+      const itemBreaks = getWebKitLineBreaks(getItemText(items[k]!, source, start, end), preserve, keepAll, language)
       for (let i = 1; i <= end - start; i++) breaks[start + i] = itemBreaks[i]!
     }
     if (previous >= 0 && !atomic[k] && !atomic[previous]) {
       const collapses = !preserve && (isCollapsibleSpaceCode(first) || isCollapsibleSpaceCode(source.charCodeAt(start - 1)))
-      if (collapses || getWebKitBreakBetweenItems(items[previous]!.text!, items[k]!.text!, keepAll, language)) breaks[start] = breaks[start]! | BREAK
+      if (collapses || getWebKitBreakBetweenItems(getItemText(items[previous]!, source, starts[previous]!, start), getItemText(items[k]!, source, start, end), keepAll, language)) breaks[start] = breaks[start]! | BREAK
     }
     previous = k
   }
   return breaks
+}
+
+// A text item's part of the source, [start, end): its own text. A text that isn't a string, which
+// the types rule out, joined the source as one, so it is cut out of there and every profile reads
+// the same text for it.
+function getItemText(item: { text?: string }, source: string, start: number, end: number): string {
+  const text = item.text
+  return typeof text === 'string' ? text : source.slice(start, end)
 }
