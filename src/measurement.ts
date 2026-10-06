@@ -347,7 +347,7 @@ export type BreakableFitMode = 'sum-graphemes' | 'segment-prefixes' | 'pair-cont
 // language it was created under: all of it is replaced when that language changes.
 type MeasureState = {
   language: string | null
-  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D // Read through getContext() alone
+  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D // Once made, read through getContext() alone
   font: string // The font getContext() set the context to since a font was last looked up, or ''
   letterSpacing: string // The letterSpacing getContext() last set the context to
   genericFamilies: string[] | null // The families the language gives the generic keywords, or null
@@ -1063,10 +1063,10 @@ export function getFontMeasurement(font: string, language: string | null, letter
 
 // The font's context, set to the font and its shaping. Every measurement in a font takes
 // its context from here as it measures, so none reads a width under another font's
-// setting, whatever was looked up or prepared in between, and a lookup that measures
-// nothing, as of text that is all cached, sets nothing. What changes the context after
-// that puts it back before it returns (getHyphenText, measureWithLetterSpacing,
-// getFontSpaceKerning, isLigature).
+// setting, whatever was looked up or prepared in between, and text that is all cached,
+// which measures nothing, sets nothing. What changes the context after that puts it back
+// before it returns (getHyphenText, measureWithLetterSpacing, getFontSpaceKerning,
+// isLigature).
 export function getContext(measurement: FontMeasurement): CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D {
   const state = measurement.state
   if (state.font !== measurement.canvasFont) state.context.font = state.font = measurement.canvasFont
