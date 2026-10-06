@@ -537,8 +537,11 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
   const segmentCount = widths.length
   while (itemSegments.length <= items.length) itemSegments.push(segmentCount)
   const segmentFlags = Uint8Array.from(flags)
-  // A line returns from an unfit hyphen to a break the scan gives before text too
-  // (walkPreparedComplexLines), so a paragraph whose lines return marks each one.
+  // A paragraph whose lines return from an unfit hyphen marks every break the scan gives before
+  // text, so its walk records each as the line's latest break (pendingBreakSegmentIndex in
+  // walkPreparedComplexLines). The return itself reads no mark, as a text's doesn't; what the marks
+  // still decide is where the Gecko profile ends a line that an object of width 0 sticks out of
+  // (ENGINE_FOLLOWUPS.md, Rich-inline item edges).
   if (marksReturnable || (discretionaryHyphenContexts !== null && !analysis.hasUnbroken)) for (let i = 0; i < segmentCount; i++) if ((segmentFlags[i]! & UNBROKEN) === 0) segmentFlags[i] = segmentFlags[i]! | RETURNABLE
 
   const segmentItems = new Int32Array(segmentCount)

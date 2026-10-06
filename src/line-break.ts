@@ -898,18 +898,10 @@ function walkPreparedComplexLines(
               fillStart = 0
               fillSpacing = leadingSpacing
             } else {
-              // A break the scan gives before text is one the line can return to. A rich-inline
-              // paragraph's line returns to it from an unfit hyphen too, where it leaves the
-              // room the engine's return needs: Chrome lays out the spans `\u6F22\u5B57`,
-              // `\u00ADab`, `cd` in 16px Arial at 34.7px as `\u6F22` / `\u5B57-` / `abcd`. A
-              // text's line doesn't yet (ENGINE_FOLLOWUPS.md, Rich-inline item edges).
+              // A break the scan gives before text is one the line can return to.
               if ((flags & RETURNABLE) !== 0 && !breakAfter && pendingBreakSegmentIndex !== i) {
                 pendingBreakSegmentIndex = i
                 pendingBreakWidth = lineW
-                if (items !== undefined && retreatsFromUnfitHyphen && lineW + reservedHyphenWidth <= fitLimit) {
-                  fitBreakSegmentIndex = i
-                  fitBreakPaintWidth = lineW
-                }
               }
               // A break the scan gives between two text segments, as after `-` or between
               // ideographs, is an opportunity the line returns to like any other. The line up
