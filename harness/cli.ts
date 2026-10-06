@@ -313,7 +313,7 @@ export async function check(browser: BrowserKind, cases: Case[], o: Options, io:
   out.push(`  shrink-wrap, report only: ${shortBubbles} passing cases predict a widest line narrower than the browser's`)
   const inexact = allWidths.inexact === 0 ? '' : `; left out, ${head === null ? '' : `${sampleWidths.inexact} and `}${allWidths.inexact} lines that end in a space, recorded in whole pixels`
   out.push(`  line widths, report only: more than ${WIDTH_STEPS.join(' / ')} px from the recorded width are ${head === null ? '' : `${widthShares(sampleWidths)} of the sample's passing draws in claims, and `}${widthShares(allWidths)} of every passing case${inexact}`)
-  out.push(`  Canvas: ${units === 0 ? '-' : (1000 * calls / units).toFixed(1)} measureText calls per 1,000 units while preparing`)
+  out.push(`  Canvas: ${units === 0 ? '-' : (1000 * calls / units).toFixed(1)} measureText calls per 1,000 units of text while preparing`)
   const blocks = checkBlocks(browser, job.results, plan.unrecorded, verdict, updated, id => describe(byId.get(id)!, outcomes.get(id)!))
   for (let i = 0; i < blocks.length; i++) out.push(`  ${blocks[i]}`)
   io.log(out.join('\n'))

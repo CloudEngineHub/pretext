@@ -206,10 +206,10 @@ a rule by reading it and its unit tests (`rebuild/src/engines/<engine>/`) agains
   Speed work has no fixed stop threshold: judge by where returns decay, the absolute gain and the complexity. Write down
   a change whose gain is small next to its cost in speed or complexity as such, so the maintainer can weigh those
   changes together (2026-09-20).
-- **Plain objects with fixed shapes** (AGENTS.md) and, in new code, indexed `for` loops over `for...of`, `.forEach` and
-  allocating `.map` chains, stricter than engineering.md, Control Flow, which allows one `forEach` or `map`. The rest of
-  engineering.md holds as written; per-browser behavior goes in the one place its Data Modeling asks for, the engine
-  profile.
+- **Plain objects and functions, not classes** (AGENTS.md, Implementation notes), their shapes fixed, and, in new code,
+  indexed `for` loops over `for...of`, `.forEach` and allocating `.map` chains, stricter than engineering.md, Control
+  Flow, which allows one `forEach` or `map`. The rest of engineering.md holds as written; per-browser behavior goes in
+  the one place its Data Modeling asks for, the engine profile.
 - **Cater to the worst case** (engineering.md, Control Flow), in time per frame, GC pauses counted with computation.
   Speed has improved enough that the worst case may regress slightly for a real gain: the rule is to cater to it, not
   that it can never regress (2026-09-26). The width memo, handles remembering which widths gave their last lines, made
@@ -340,9 +340,9 @@ a rule by reading it and its unit tests (`rebuild/src/engines/<engine>/`) agains
 - **README**, the one user-facing doc, gets extra care: illustrative and to the point, only caveats app developers act
   on, its API glossary kept, examples correct on their own and ordered simple to complex, every term defined, every
   claim true of the algorithm and confirmed in real browsers, no change beyond what the task at hand asks.
-- **Voice**: short, nuances kept, each document in its own tone (AGENTS.md) and `thoughts.md` in the maintainer's. A
-  rewrite keeps technical meaning and opinions and loses pseudo-jargon, common words in uncommon senses, vague pronouns
-  and slogans, but not words that carry meaning, such as "regression". Concrete cases over a general warning.
+- **Voice**: short, nuances kept, each document in its own tone and `thoughts.md` in the maintainer's. A rewrite keeps
+  technical meaning and opinions and loses pseudo-jargon, common words in uncommon senses, vague pronouns and slogans,
+  but not words that carry meaning, such as "regression". Concrete cases over a general warning.
 - **A PR's story stays in the PR.** Its full account (the rounds, the probes, every case it moved) goes in its
   description; this file gets the durable fact: the claim, its number, build and date, its source and what would
   reopen it. Six PRs in a row appended about 7,500 words here before the docs took this rule in #374. Length alone
@@ -430,7 +430,9 @@ harness), and the Chromium and WebKit profiles ask that way where the two hyphen
 (`getHyphenText()` in `src/measurement.ts`; 17px Inter's U+2010 is 6.09px and its `-` 7.82px). Firefox asks the first
 listed font that has one, else its default font, and paints what Canvas measures for U+2010, so the Gecko profile
 measures that (`hyphenFromPrimaryFont`; Engine Facts, Firefox). Every profile measured `-` before #396.
-ENGINE_FOLLOWUPS.md, Line edges, has what the check's premises get wrong. Only Safari letter-spaces the hyphen.
+ENGINE_FOLLOWUPS.md, Line edges, has what the check's premises get wrong. Safari and Firefox letter-space the hyphen and
+Chrome doesn't (`letterSpaceDiscretionaryHyphen`; Gecko adds the spacing to the hyphen's width in `GetHyphenWidth`,
+`nsTextFrame.cpp:4388-4399`).
 
 Every page shapes text under any non-zero letter spacing without its optional ligatures: Blink turns off `liga`, `clig`
 and `calt` (`font_features.cc:52-86`), Gecko and WebKit `liga`, `clig`, `dlig` and `hlig` (`gfxFont.cpp:672-685`;
@@ -1432,14 +1434,14 @@ An item holding only soft hyphens and collapsible white space is no line content
 since #369 it takes part in the paragraph's runs and breaks as its text does in one text node. The rules, with each
 browser's example, are in the comments of `src/rich-inline.ts` and of the engine profile's `spaceBeforeSoftHyphenHangs`,
 and the harness's `rich/continued` families pin the lines; which engine takes which `spaceBeforeSoftHyphenHangs` value
-moves only line widths, which the harness doesn't judge, so `src/layout.test.ts` pins it with each engine's whole
-profile. These results shaped them. After content the item keeps the collapsed space before it: ending the line before
-the item lost 288 Firefox cases of a 43,462-case probe, as Firefox keeps the space and the soft hyphen on the line.
-Where a line ends after it, the browsers break at that space and move the soft hyphen on, so the space hangs, but each
-engine keeps the soft hyphen on the line in other places, so the profiles name three behaviours: hanging the space also
-where Chrome and Safari end the line at the soft hyphen with its hyphen lost 118 Chrome and 120 webkit-host line widths
-of a 32,830-case probe, and Safari's rule, keeping it before white space after the soft hyphen, fixed 335 webkit-host
-widths and lost 136 in the WebKit profile, and fixed 73 Chrome widths and lost 159 in the Chromium profile.
+moves only line widths, which the harness doesn't judge, so `src/layout.test.ts` pins it in its test of each engine's
+whole profile. These results shaped them. After content the item keeps the collapsed space before it: ending the line
+before the item lost 288 Firefox cases of a 43,462-case probe, as Firefox keeps the space and the soft hyphen on the
+line. Where a line ends after it, the browsers break at that space and move the soft hyphen on, so the space hangs, but
+each engine keeps the soft hyphen on the line in other places, so the profiles name three behaviours: hanging the space
+also where Chrome and Safari end the line at the soft hyphen with its hyphen lost 118 Chrome and 120 webkit-host line
+widths of a 32,830-case probe, and Safari's rule, keeping it before white space after the soft hyphen, fixed 335
+webkit-host widths and lost 136 in the WebKit profile, and fixed 73 Chrome widths and lost 159 in the Chromium profile.
 
 White space between such an item's soft hyphens follows a soft hyphen, not the space before the item, so Chrome and
 Safari give it room after content and the item is walked there (Gecko collapses it into the run before: Firefox's
@@ -2024,7 +2026,7 @@ again.
 Small operations turn quadratic when they repeat over growing user text (engineering.md, Control Flow). Browsers break
 lines in linear time, so exactness forces nothing worse: the rebuild's slow giant paragraphs came from its own rescans
 to the text's end from every line start. Ratios below are `bun harness bench`'s, two sessions per browser, against main
-before each change.
+before each change, unless an entry names its own sessions, build or shell.
 
 #### Quadratic Traps
 

@@ -175,7 +175,9 @@ and origin keep the line: line 1000 at dbfab0de (#399), Firefox's white space ar
 (the first of those, both). The facts set has no
 cover, so it keeps the width where a template's words join, which the catalog's cover drops once a narrower change has
 shown that kind of break: a fact that rests on a line's width, such as one space against two, goes there.
-ENGINE_FOLLOWUPS.md, Harness debt, has what to prune when the sets are made again.
+ENGINE_FOLLOWUPS.md, Harness debt, has what to prune when the sets are made again. The oracle set's origins point at
+main before #340 too: each names a mode and a case's label in `src/test-data.ts`'s oracle arrays, gone from today's
+file.
 
 ## Commands
 
@@ -257,12 +259,14 @@ harness/invariants.test.ts`) and the bench's floors.
 
 ## Bench
 
-Speed claims rest on `bun harness bench`'s same-document ratios. Its rows (`new`, `rich`, `seen`, `resize`, `lines`,
-`worst`) follow what an app does; never rank `prepare()` against `layout()`, as one is paid once and the other on every
-resize. The `new` rows time text no library or browser has laid out: Firefox and Safari keep shaped text per font,
-shared by every canvas and the DOM, so a fresh canvas doesn't make text new. The `rich` row's `rich-seen` prepares its
-kept messages again, where every item looks its font up and measures nothing. The `lines` row times the line functions
-on mixed, Latin and CJK messages, each family in a document of its own.
+Speed claims rest on `bun harness bench`'s same-document ratios. Its rows (`new`, `fresh`, `rich`, `seen`, `resize`,
+`lines`, `worst`) follow what an app does; never rank `prepare()` against `layout()`, as one is paid once and the other
+on every resize. The `new` rows time text no library or browser has laid out: Firefox and Safari keep shaped text per
+font, shared by every canvas and the DOM, so a fresh canvas doesn't make text new. The `fresh` rows are the one kind
+with no same-document ratio: each document holds one library, and times compiling its bundle, running it and its first
+two batches of new messages, which the table after the rows gives as medians per library, with no verdict. The `rich`
+row's `rich-seen` prepares its kept messages again, where every item looks its font up and measures nothing. The `lines`
+row times the line functions on mixed, Latin and CJK messages, each family in a document of its own.
 
 - **A control copy.** Each document runs base, the candidate and a second copy of base, shuffled each round, since only
   same-document ratios survive drift between sessions (`RESEARCH.md`, Evaluation Traps, has the numbers behind this and
@@ -429,6 +433,4 @@ checks its line functions against the rich stepper; Chrome's UI language, and so
 `lang`; rendering other than macOS's and an iOS simulator's (Other ratios and phones), though Android and Windows are
 65% of page views (`weights.json`); text chat users wrote (the sample's chat draws are stand-ins; written prompts and replies in their place moved the
 headline by 0.03 points or less, RESEARCH.md, Decisions Log, 2026-10-05); or the demos' painted
-layout. No planted defect guards the watchdog's kill, the bench's shuffle and its separate compiles (each copy of the
-library compiled in a module of its own), Firefox's start-up hold, the page passing the browser's name to the recorder,
-or the cap on a job's browser beyond its kill needing no `ps` table.
+layout. `ENGINE_FOLLOWUPS.md`, Harness debt, lists the mechanisms and checks that no planted defect guards.

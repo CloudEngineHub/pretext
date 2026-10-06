@@ -3,10 +3,12 @@ import { beforeAll, beforeEach, describe, expect, test } from 'bun:test'
 import type { AnalysisProfile } from './analysis.ts'
 import type { RichInlineBox, RichInlineItem } from './rich-inline.ts'
 
-// Keep the permanent suite small and durable. These tests exercise the shipped
-// prepare/layout exports with a deterministic fake canvas backend. For narrow
-// browser-specific investigations, prefer throwaway probes and browser checkers
-// over mirroring the full implementation here.
+// Unit checks over a deterministic fake canvas backend: the shipped prepare/layout
+// and rich-inline exports, and the rules behind them (the engines' break scans, the
+// engine profile's fields, the line walkers), which a test of one engine's rule sets
+// by hand on the cached profile. What a browser does is settled in the harness
+// (harness/README.md), not here: for narrow browser-specific investigations, prefer
+// throwaway probes and harness cases over mirroring the full implementation here.
 
 const FONT = '16px Test Sans'
 const LINE_HEIGHT = 19
@@ -649,7 +651,8 @@ describe('boundary rules', () => {
     // Firefox splits text runs where the script changes, which would break before the Bengali
     // letter here, and where the bidi level changes, which would start a cluster at a Balinese
     // vowel killer after Arabic letters and at a skin-tone modifier after a Hebrew letter. The
-    // Gecko scan splits at neither, on purpose (RESEARCH.md, Decisions Log).
+    // Gecko scan splits at neither, on purpose (RESEARCH.md, Decisions Log, 2026-09-24 and
+    // 2026-10-01).
     expect(analyzeText('\u1019\u17D2\u09AF', geckoProfile).texts).toEqual(['\u1019\u17D2\u09AF'])
     expect(analyzeText('\u0628\u0628\u1B44\u0628\u0628', geckoProfile).texts).toEqual(['\u0628\u0628\u1B44', '\u0628\u0628'])
     expect(analyzeText('\u05D0\uD83C\uDFFB', geckoProfile).flags[0]! & ONE_CLUSTER).toBe(ONE_CLUSTER)
@@ -2051,7 +2054,7 @@ describe('prepare invariants', () => {
   })
 
   test('a run of no-break spaces is visible text that takes emergency breaks', () => {
-    // There is no `glue` kind any more, on purpose (RESEARCH.md, Decisions Log).
+    // There is no `glue` kind any more, on purpose (RESEARCH.md, Decisions Log, 2026-09-24).
     const prepared = prepareWithSegments('\u00A0', FONT)
     expect(prepared.segments).toEqual(['\u00A0'])
     expect(layout(prepared, 200, LINE_HEIGHT)).toEqual({ lineCount: 1, height: LINE_HEIGHT })
@@ -2950,7 +2953,7 @@ describe('prepare invariants', () => {
     }
     // Apple ICU's quotation remap makes curly quotes brackets, except on ja pages. Next to
     // East Asian text, Safari 27's quotation classes decide before ICU on every page.
-    // Safari 26's rules aren't ported (RESEARCH.md, Decisions Log).
+    // Safari 26's rules aren't ported (RESEARCH.md, Decisions Log, 2026-09-16).
     expect(segments('£€£€““tail', 'webkit', 'en')).toBe('£|€|£|€|““tail')
     expect(segments('£€£€““tail', 'webkit', 'ja')).toBe('£|€|£|€““tail')
     expect(segments('中文“abc”中文', 'webkit', 'ja')).toBe('中|文|“abc”|中|文')
@@ -3247,7 +3250,7 @@ describe('prepare invariants', () => {
       }
     })
     // A document that can't create a `<canvas>`: the families come from a table, on
-    // purpose (RESEARCH.md, Decisions Log).
+    // purpose (RESEARCH.md, Decisions Log, 2026-09-24).
     Reflect.set(globalThis, 'document', { documentElement: root })
     profile.namesGenericFamiliesByLanguage = true
     const macos = ['AppleMyungjo', 'Songti SC', 'Songti TC', 'Lucida Grande', 'Apple Chancery', 'ITF Devanagari']

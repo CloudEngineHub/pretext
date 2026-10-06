@@ -689,7 +689,7 @@ describe('the commands, with a stand-in browser', () => {
     const list = cases(['pass', 'fail', 'label']).map(c => (c.id === 'label' ? c : { ...c, sample: { group: 'chat', weight: c.id === 'fail' ? 0.25 : 0.75 } }))
     const first = await check('chrome', list, options, io)
     expect([first.blocked, first.newFailures.map(c => c.id)]).toEqual([true, ['fail']])
-    expect(io.printed()).toContain('  Canvas: 232.6 measureText calls per 1,000 units while preparing')
+    expect(io.printed()).toContain('  Canvas: 232.6 measureText calls per 1,000 units of text while preparing')
     await check('chrome', list, { ...options, accept: 'a written reason' }, io)
     expect([...readAccepted(acceptedPath(root, 'chrome')).keys()]).toEqual(['fail'])
     // Accepted losses print under their reason, with the share of real paragraphs they cover.
