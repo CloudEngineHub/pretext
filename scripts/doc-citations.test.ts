@@ -9,12 +9,14 @@ import { dirname, join, normalize, relative } from 'node:path'
 // side of its colon counts too (`Part 3: Decisions Log`, `Firefox: the late family names`), and so does it without a
 // closing parenthesis (`Firefox (Gecko)` as `Firefox`). After the first section, a part that starts in lower case is
 // prose and ends the citation. RESEARCH.md is long enough that citing it without a section says nothing. The rebuild's
-// docs live on another branch, are cited under `rebuild/` and aren't checked.
+// docs live on another branch, are cited under `rebuild/` and aren't checked. A date after `Decisions Log` has to be
+// the date of an entry there.
 const ROOT = join(import.meta.dir, '..')
 const SOURCES = new Bun.Glob('{src,harness,scripts,pages}/**/*.{ts,js,html,json,ndjson,txt}')
 const DOCS = ['*.md', 'harness/**/*.md', 'pages/**/*.md', 'corpora/**/*.md'].map(pattern => new Bun.Glob(pattern))
 const CITATION = /(?<![\w/.-])((?:[a-z]+\/)*[A-Z_]+\.md)`?,[ \t]+([^;()\n]+)/g
 const DOC = /(?<![\w/.-])((?:[a-z]+\/)*[A-Z_]+\.md)(?![\w-])/g
+const LOG_DATES = /Decisions Log,\s+(\d{4}-\d{2}-\d{2}(?:(?:,| and)\s+\d{4}-\d{2}-\d{2})*)/g
 const ANCHOR = /\]\(((?:\.\.?\/)*(?:[a-z]+\/)*[A-Z_]+\.md)#([\w-]+)\)/g
 
 function headings(doc: string): Set<string> | null {
@@ -58,12 +60,15 @@ function namesNoHeading(section: string, names: Set<string>): boolean {
   return false
 }
 
-test('every doc a citation names is in the repository, and every section it names is a heading of that doc: a removed doc or a renamed heading would strand its citations', () => {
+test('every doc a citation names is in the repository, every section it names is a heading of that doc, and a Decisions Log date is an entry\'s: a removed doc, a renamed heading or a wrong date would strand its citations', () => {
   const docs = new Map<string, Set<string> | null>()
   const headingsOf = (doc: string): Set<string> | null => {
     if (!docs.has(doc)) docs.set(doc, headings(doc))
     return docs.get(doc)!
   }
+  const research = readFileSync(join(ROOT, 'RESEARCH.md'), 'utf8')
+  const logDates = new Set<string>()
+  for (const [, date] of research.slice(research.indexOf('\n## Part 3: Decisions Log')).matchAll(/^- \*\*(\d{4}-\d{2}-\d{2})/gm)) logDates.add(date!)
   const wrong: string[] = []
   const paths = [...SOURCES.scanSync({ cwd: ROOT })]
   for (let d = 0; d < DOCS.length; d++) paths.push(...DOCS[d]!.scanSync({ cwd: ROOT }))
@@ -91,6 +96,11 @@ test('every doc a citation names is in the repository, and every section it name
     }
     for (const [, doc] of text.matchAll(DOC)) {
       if (!doc!.startsWith('rebuild/') && headingsOf(doc!) === null) wrong.push(`${path}: ${doc} isn't in the repository`)
+    }
+    for (const [, cited] of text.matchAll(LOG_DATES)) {
+      for (const [date] of cited!.matchAll(/\d{4}-\d{2}-\d{2}/g)) {
+        if (!logDates.has(date)) wrong.push(`${path}: Decisions Log, ${date} is no entry's date`)
+      }
     }
     if (/\(RESEARCH\.md\)/.test(text)) wrong.push(`${path}: RESEARCH.md without a section`)
   }
