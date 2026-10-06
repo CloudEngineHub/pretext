@@ -329,7 +329,9 @@ function layoutColumn(
   return { lines, cursor }
 }
 
-function projectHeadlineLines(lines: PositionedLine[], font: string, lineHeight: number): void {
+// Both projections below write a line's text only when it differs from the text its node holds, which is `written`'s
+// at the same index: writing a node's text again, even the same text, drops a selection inside it.
+function projectHeadlineLines(lines: PositionedLine[], written: PositionedLine[], font: string, lineHeight: number): void {
   setNodeCount(domCache.headlineLines, lines.length, () => {
     const element = document.createElement('span')
     element.className = 'headline-line'
@@ -339,7 +341,7 @@ function projectHeadlineLines(lines: PositionedLine[], font: string, lineHeight:
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index]!
     const element = domCache.headlineLines[index]!
-    element.textContent = line.text
+    if (written[index]?.text !== line.text) element.textContent = line.text
     element.style.left = `${line.x}px`
     element.style.top = `${line.y}px`
     element.style.font = font
@@ -399,7 +401,7 @@ function textProjectionEqual(a: TextProjection | null, b: TextProjection): boole
     projectedBodyLinesEqual(a.bodyLines, b.bodyLines)
 }
 
-function projectTextProjection(projection: TextProjection): void {
+function projectTextProjection(projection: TextProjection, written: TextProjection | null): void {
   domCache.headline.style.left = '0px'
   domCache.headline.style.top = '0px'
   domCache.headline.style.width = `${projection.pageWidth}px`
@@ -407,7 +409,7 @@ function projectTextProjection(projection: TextProjection): void {
   domCache.headline.style.font = projection.headlineFont
   domCache.headline.style.lineHeight = `${projection.headlineLineHeight}px`
 
-  projectHeadlineLines(projection.headlineLines, projection.headlineFont, projection.headlineLineHeight)
+  projectHeadlineLines(projection.headlineLines, written === null ? [] : written.headlineLines, projection.headlineFont, projection.headlineLineHeight)
 
   domCache.credit.style.display = projection.creditLeft === null ? 'none' : 'block'
   domCache.credit.style.left = `${projection.creditLeft ?? 0}px`
@@ -422,11 +424,12 @@ function projectTextProjection(projection: TextProjection): void {
     element.className = 'line'
     return element
   }, stage)
+  const writtenBodyLines = written === null ? [] : written.bodyLines
   for (let index = 0; index < projection.bodyLines.length; index++) {
     const line = projection.bodyLines[index]!
     const element = domCache.bodyLines[index]!
     element.className = line.className
-    element.textContent = line.text
+    if (writtenBodyLines[index]?.text !== line.text) element.textContent = line.text
     element.style.left = `${line.x}px`
     element.style.top = `${line.y}px`
     element.style.font = projection.bodyFont
@@ -808,7 +811,7 @@ function commitFrame(now: number): boolean {
   }
 
   if (!textProjectionEqual(committedTextProjection, textProjection)) {
-    projectTextProjection(textProjection)
+    projectTextProjection(textProjection, committedTextProjection)
     committedTextProjection = textProjection
   }
 
