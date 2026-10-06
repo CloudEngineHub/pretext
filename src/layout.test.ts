@@ -577,7 +577,8 @@ describe('shared public contracts', () => {
   test('the type of a prepareWithSegments() handle shows segments, kinds and widths, and nothing else', () => {
     // The other fields are the line walkers' storage, which changes with engine fixes
     // (RESEARCH.md, Decisions Log, 2026-10-06). This file compiles only while the type
-    // has these three fields and no other.
+    // has these three fields and no other, read-only: `bun run check` fails otherwise,
+    // where `bun test` doesn't check types.
     const prepared = prepareWithSegments('hello world', FONT)
     const segments: readonly string[] = prepared.segments
     const kinds: readonly string[] = prepared.kinds
@@ -592,6 +593,23 @@ describe('shared public contracts', () => {
     // A hidden field is still there for code that read it, and no longer type-checks.
     // @ts-expect-error
     expect(prepared.breakableFitAdvances).toBeDefined()
+    // Read-only, and `widths` an index and a length, not an array. Each line below runs,
+    // since nothing is frozen, and is a type error: one that compiles is the type
+    // promising more, which a release can't take back.
+    const write = (_list: unknown[]): void => {}
+    // @ts-expect-error
+    write(prepared.segments)
+    // @ts-expect-error
+    write(prepared.kinds)
+    // @ts-expect-error
+    expect([...prepared.widths]).toHaveLength(3)
+    const other = prepareWithSegments('hello world', FONT)
+    // @ts-expect-error
+    prepared.segments = other.segments
+    // @ts-expect-error
+    prepared.kinds = other.kinds
+    // @ts-expect-error
+    prepared.widths = other.widths
   })
 
   test('emergency wrapping preserves complete graphemes inside continuous words', () => {
