@@ -1,9 +1,9 @@
 # Research Log
 
 Why Pretext is the way it is. Part 1 is the intent: the limits, the merge bars and the stances behind them. Part 2 is
-the evidence: measured facts, traps and dead ends, each with its browser build, its date and what would reopen it. Part
-3 is the Decisions Log. A date after a Part 1 rule is when the maintainer set it, and dates are Pacific time. Terms used
-throughout:
+the evidence: measured facts, traps and dead ends, each with its browser build and its date, and each measured fact and
+dead end with what would reopen it. Part 3 is the Decisions Log. A date after a Part 1 rule is when the maintainer set
+it, and dates are Pacific time. Terms used throughout:
 
 - **#N** is a pull request or issue in this repository (github.com/chenglou/pretext); after a tracker's name, as in
   WebKit #283408, Mozilla #2020917 or Chromium #560614560, it is that tracker's bug.
@@ -347,8 +347,9 @@ a rule by reading it and its unit tests (`rebuild/src/engines/<engine>/`) agains
   but not words that carry meaning, such as "regression". Concrete cases over a general warning.
 - **A PR's story stays in the PR.** Its full account (the rounds, the probes, every case it moved) goes in its
   description; this file gets the durable fact: the claim, its number, build and date, its source and what would
-  reopen it. Six PRs in a row appended about 7,500 words here before the docs took this rule in #374. Length alone
-  isn't the worry: the maintainer has said not to mind it in docs other than the README.
+  reopen it. Bench tables and finished comparisons go in the description too, and this file keeps the number a
+  decision rests on. Six PRs in a row appended about 7,500 words here before the docs took this rule in #374. Length
+  alone isn't the worry: the maintainer has said not to mind it in docs other than the README.
 - **What goes in**: point to numbers that go stale rather than copy them; give a fresh agent objective facts, not
   designs that fence it in. A cleanup removes only what's provably stale; docs another agent wrote are checked for
   accuracy and for fitting what was done. The changelog rule is the maintainer's own AGENTS.md line, kept word for

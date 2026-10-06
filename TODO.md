@@ -31,7 +31,6 @@ Held until the current work is done, and all before the first release.
 - File the collected browser bugs (ENGINE_FOLLOWUPS.md, External actions).
 - The open demo and showcase issues (#94, #99, #150, #151, #152, #167).
 - The bubbles demo stacks its bubbles with CSS flow (`pages/demos/bubbles.html`: `.chat` is a flex column), Pretext giving only each bubble's width: place them from Pretext's heights, as the Markdown chat does, or say so in the demo. Asked by the maintainer in March 2026, never settled.
-- The bubbles demo's "wasted pixels" figure understates its point, and its text states the CSS rule wrongly. A `width: fit-content` bubble whose text wraps is as wide as its `max-width`; the model (`computeBubbleRender()`, `pages/demos/bubbles.model.ts`), the intro, the CSS panel and the "Why can't CSS do this?" paragraph take it to be as wide as its widest line. At a 1280px window the page shows 11,944 wasted pixels in Chrome 154 where the painted CSS bubbles cover 19,328 more than the shrunk ones; Firefox 156 shows 11,868 against 19,323 and webkit-host 17,264 against 25,956 (2026-10-06). To settle with it: the shrink panel's figure is a literal 0, which is the model's definition (the CSS width minus the tightest width), though a shrunk bubble's width is rounded up, to under 1px more than its text needs (#440). Either changes what the demo claims.
 
 ## Open design questions
 

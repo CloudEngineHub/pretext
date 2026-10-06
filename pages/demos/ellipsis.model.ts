@@ -4,6 +4,7 @@ import {
   layoutNextLineRange,
   layoutWithLines,
   measureNaturalWidth,
+  prepare,
   prepareWithSegments,
   type LayoutCursor,
   type PreparedTextWithSegments,
@@ -87,7 +88,7 @@ const START: LayoutCursor = { segmentIndex: 0, graphemeIndex: 0 }
 const FIT_TOLERANCE = 1 / 64
 
 function measureWidth(text: string): number {
-  return measureNaturalWidth(prepareWithSegments(text, FONT))
+  return measureNaturalWidth(prepare(text, FONT))
 }
 
 function createSample(label: string, direction: 'ltr' | 'rtl', text: string): Sample {

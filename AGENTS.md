@@ -9,8 +9,8 @@ Changelog updates guideline: don't add dev-facing notes, only user-facing ones. 
   (Part 3). Read the log before reversing a documented decision; code comments that cite it mark where each one applies.
   A PR's full story goes in its description; `RESEARCH.md` gets the durable fact: the claim, its number, build and date,
   its source, and what would reopen it.
-- `harness/README.md`: how cases pass and grow. Accuracy claims rest on its recordings and accepted lists; speed claims
-  and finished comparisons go in PR descriptions.
+- `harness/README.md`: how cases pass and grow. Accuracy claims rest on its recordings and accepted lists; bench tables
+  and finished comparisons go in PR descriptions, and `RESEARCH.md` keeps the number a decision rests on.
 - `ENGINE_FOLLOWUPS.md`: open gaps. `PLATFORM_BUGS.md`: browser and OS bugs, read before changing an engine-profile
   workaround or a line-fit tolerance. `TODO.md`: priorities. `DEVELOPMENT.md`: the demo server, engine data, releases.
   `pages/demos/markdown-chat.md`: the chat demo's patterns for app developers, updated with the chat.
