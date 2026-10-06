@@ -2339,6 +2339,20 @@ runs (Firefox 156.0.1, bench sessions of 2026-09-27 and 28, unless noted):
   bench's 14,834 rich items, 199 of which hold a line feed. Cutting out only those, and copying the text between two
   that changed in one piece, SpiderMonkey 156.0.1's shell prepared new rich text 3-6 points faster with the code warm
   and 8 over a fresh page's first 14,000 units (+22.0% to +14.2% against main, twenty sessions, 2026-10-05).
+- **Three removals from preparing rich text, each of work every engine did** (2026-10-05, timed on the one-paragraph
+  design against itself, before main's #435 to #446; none changes a prediction: with all three, 0 of 1,000,000
+  generated paragraphs differ on a stand-in Canvas, in handle, lines or `measureText` calls, 2026-10-06). Collapsing
+  white space replaced every lone space by itself; the pattern now matches only a run that collapsing changes, so a
+  text of single spaces comes back as it is. Plain text takes that path too: the bench's `seen` rows of Latin, Arabic
+  and mixed messages read 1.5-3.9% faster in every one of three foreground sessions in Chrome 154.0.8037.57, Firefox
+  156.0.1 and Safari 27.0. A font's space and hyphen-minus widths, which every text reads for its tab stops and its
+  hyphen, are kept on the font's measurement, beside its Map of widths, which takes two Map lookups off each text and
+  each rich item: the engines' shells read new rich text 1.3% (SpiderMonkey), 2.0% (V8) and 3.1% (JavaScriptCore)
+  faster with warm code on a stand-in Canvas, and of the background browsers only webkit-host resolved it, at 5.7% of a
+  fresh page, so both are hypotheses. And the WebKit profile's scan takes each item's own text, which is its part of
+  the paragraph's, in place of a slice of it (`getItemText()` in `src/analysis.ts`): Safari 27.0 read the `rich-new`
+  row 2.1% faster over 25 foreground sessions pooled (1.2% to 2.9%, its control copy 0.7%), and no other profile runs
+  that scan. On the `rich-new` row itself, whose floor is 5%, the three together read within noise in every browser.
 - **Graphemes past dropped characters**: the Gecko profile's grapheme table tests only code points in the rules'
   Control category for what the text run drops; testing every code point made Firefox prepare CJK and Arabic 2-3%
   slower (#368).
@@ -3740,6 +3754,21 @@ below 256 px, Canvas totals are exact (Engine Facts, Chrome).
   took 2.5% more `measureText` calls than the prefixes alone, for the one question's 3.1%, and the books 0.9% for 0.7%.
   Not kept: a second Canvas state to set and restore and ten more lines, for 0.6% of the sample's calls. Reopens if text
   of many fonts with few words in each comes to matter more than those.
+- **Two more removals from preparing rich text, and two trades** (2026-10-05, each a build on the one-paragraph design
+  timed against it: the engines' shells on a stand-in Canvas and background browsers, so hypotheses, and foreground
+  runs of the bench's `rich-new` row, which called none of them). A memo of the last white-space item's space, for a
+  run of such items in one font, read 2.1% faster in Firefox over 70 foreground sessions and level in Chrome and
+  Safari. Its gain is the bench's shape, where 3,447 of 7,040 rich items are white space alone in one font; an app's
+  one item per styled run has almost none, so it isn't kept. A text's script runs made only where its kerning with
+  spaces or its cursive spacing reads them, with one shared empty set of halts, takes three small allocations off each
+  text: JavaScriptCore's shell read it 2.7% faster and SpiderMonkey's and V8's 0.9% and 0.1% slower, and of the
+  background browsers Firefox read 1.6% faster and the others level, a gain in one engine and not the same one twice,
+  so it isn't kept either (Part 1, Engineering). The hyphen and tab lists of a paragraph, made only when two of its
+  fonts differ in one, read 4.2% faster in webkit-host and level in the others on the bench's text, whose fonts agree,
+  and 2.1% and 3.7% slower in V8's and JavaScriptCore's shells where a bold word makes them differ. And where each
+  segment sits in its item's text, found when a line is first materialized, read 2.0% faster in webkit-host and about
+  2% and 1% in Firefox and Chrome, and made the first materialize 41-50% slower. Those two are trades, not taken. They
+  reopen with an app whose rich text is new on most frames.
 
 #### DOM And Canvas-Element Paths
 
