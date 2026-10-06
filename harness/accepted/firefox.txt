@@ -577,7 +577,7 @@ catalog-658777b7de4a75b5 count
 catalog-92d159c42fda8ce1 count
 catalog-db900db766e91e07 count
 
-## Narrower than real layouts: 1-23 px, a ZWSP alone in a rich item, or in one after only white space, soft hyphens or a combining mark's base, where the text around it doesn't fit its line: Firefox gives the ZWSP a line of its own, as for the text in one node, where the text walkers keep it on the line before it or consume it at a line's start; the item stepper took an item's start as a text's start, where a ZWSP holds a line (ENGINE_FOLLOWUPS.md, Rich-inline item edges)
+## Narrower than real layouts: 1-23 px, a ZWSP alone in a rich item, at the start of one, or in one after only white space, soft hyphens or a combining mark's base, where the text around it doesn't fit its line: Firefox gives the ZWSP a line of its own, as for the text in one node, where the text walkers keep it on the line before it or consume it at a line's start; the item stepper took an item's start as a text's start, where a ZWSP holds a line (ENGINE_FOLLOWUPS.md, Rich-inline item edges)
 rich-0cabfc789f6a4358 count
 rich-19e866488d756c8e count
 rich-1f6ad9306376b1f5 count

@@ -273,7 +273,7 @@ old-gate-1975647affaed0ce count
 ## Lost against main before #340 (6d1d210): combining marks after WJ and ZWSP between letters, in pre-wrap under keep-all at 1 px letter-spacing; the library breaks otherwise than WebKit
 old-gate-2314a84759638dd7 count
 
-## Narrower than real layouts: 1-23 px, a ZWSP alone in a rich item, or in one after only white space, soft hyphens or a combining mark's base, where the text around it doesn't fit its line: Safari gives the ZWSP a line of its own, as for the text in one node, where the text walkers keep it on the line before it or consume it at a line's start; the item stepper took an item's start as a text's start, where a ZWSP holds a line (ENGINE_FOLLOWUPS.md, Rich-inline item edges)
+## Narrower than real layouts: 1-23 px, a ZWSP alone in a rich item, at the start of one, or in one after only white space, soft hyphens or a combining mark's base, where the text around it doesn't fit its line: Safari gives the ZWSP a line of its own, as for the text in one node, where the text walkers keep it on the line before it or consume it at a line's start; the item stepper took an item's start as a text's start, where a ZWSP holds a line (ENGINE_FOLLOWUPS.md, Rich-inline item edges)
 rich-14eba924d604608e count
 rich-18c8c76538599828 count
 rich-19e866488d756c8e count

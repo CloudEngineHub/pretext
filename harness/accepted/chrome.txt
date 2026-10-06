@@ -556,7 +556,7 @@ catalog-97cd971f46155b13 count
 catalog-b530bfcdd337fb4e breaks
 catalog-d5273aeae7cb64af breaks
 
-## Narrower than real layouts: 1-23 px, a ZWSP alone in a rich item, or in one after only white space, soft hyphens or a combining mark's base, where the text around it doesn't fit its line: Chrome gives the ZWSP a line of its own, as for the text in one node, where the text walkers keep it on the line before it or consume it at a line's start; the item stepper took an item's start as a text's start, where a ZWSP holds a line (ENGINE_FOLLOWUPS.md, Rich-inline item edges)
+## Narrower than real layouts: 1-23 px, a ZWSP alone in a rich item, at the start of one, or in one after only white space, soft hyphens or a combining mark's base, where the text around it doesn't fit its line: Chrome gives the ZWSP a line of its own, as for the text in one node, where the text walkers keep it on the line before it or consume it at a line's start; the item stepper took an item's start as a text's start, where a ZWSP holds a line (ENGINE_FOLLOWUPS.md, Rich-inline item edges)
 rich-14eba924d604608e count
 rich-19e866488d756c8e count
 rich-4b7d153ff81b0f68 count
