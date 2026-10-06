@@ -5321,6 +5321,26 @@ describe('rich-inline invariants', () => {
     expect(() => prepareRichInline([{ text: 'ab', font: FONT }, { width: -10 }])).toThrow('Item 1 has no text')
   })
 
+  test('a rich-inline item whose text is not a string throws in every engine profile', () => {
+    const profile = getEngineProfile()
+    const previous = profile.lineBreakScan
+    try {
+      for (const lineBreakScan of ['blink', 'gecko', 'webkit'] as const) {
+        profile.lineBreakScan = lineBreakScan
+        for (const text of [12345, 0, Number.NaN, true, null, ['x y'], { a: 1 }, new String('xy')]) {
+          const item = { text: text as never, font: FONT }
+          for (const items of [[item], [item, { text: '', font: FONT }], [{ text: 'ab ', font: FONT }, item, { text: ' cd', font: FONT }], [{ ...item, break: 'never' as const }, { text: ' x', font: FONT }], [{ ...item, extraWidth: 8 }]]) {
+            for (const whiteSpace of ['normal', 'pre-wrap'] as const) expect(() => prepareRichInline(items, { whiteSpace })).toThrow(TypeError)
+          }
+        }
+      }
+      expect(() => prepareRichInline([{ text: 'ab', font: FONT }, { text: 12345 as never, font: FONT }])).toThrow('Item 1\'s text must be a string, not number')
+      expect(() => prepareRichInline([{ text: null as never, font: FONT }])).toThrow('Item 0\'s text must be a string, not null')
+    } finally {
+      profile.lineBreakScan = previous
+    }
+  })
+
   test('split CJK rich inline items stay inside the line width', () => {
     const maxWidth = measureWidth('中', FONT) + 1
     const prepared = prepareRichInline([
