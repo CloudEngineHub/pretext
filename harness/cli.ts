@@ -134,7 +134,7 @@ function shuffled<T>(list: T[], seed: number): T[] {
 
 export async function record(browser: BrowserKind, cases: Case[], o: Options, io: Io): Promise<void> {
   const old = readRecordings(recordingsPath(io.root, browser))
-  const oldHistory = readHistory(historyPath(io.root, browser))
+  const oldHistory = readHistory(historyPath(io.root, browser), old?.env)
   let list = cases.filter(c => applies(c, browser))
   if (o.onlyNew) list = list.filter(c => old?.recordings.has(c.id) !== true && oldHistory?.cases.has(c.id) !== true)
   let sorted = list.slice().sort((a, b) => (a.id < b.id ? -1 : 1))
@@ -208,7 +208,7 @@ type Scored = {
 export async function check(browser: BrowserKind, cases: Case[], o: Options, io: Io): Promise<Scored> {
   const recorded = readRecordings(recordingsPath(io.root, browser))
   if (recorded === null) throw new Error(`${browser}: no recordings; run record first`)
-  const history = readHistory(historyPath(io.root, browser))?.cases ?? new Map<string, [Recording, Recording]>()
+  const history = readHistory(historyPath(io.root, browser), recorded.env)?.cases ?? new Map<string, [Recording, Recording]>()
   const path = acceptedPath(io.root, browser)
   const accepted = readAccepted(path)
   const varying = readVarying(varyingPath(io.root, browser))

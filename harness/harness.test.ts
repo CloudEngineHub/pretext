@@ -852,6 +852,17 @@ describe('the commands, with a stand-in browser', () => {
     expect([...readRecordings(recordingsPath(root, 'chrome'))!.recordings.keys()]).toEqual(['kept', 'new'])
   })
 
+  test('check and record refuse a page-history file written under another environment than the recordings: the cases a file from another build lists would go unpinned, and a regression on them pass', async () => {
+    const root = folder('history-env', { pass: laidOut, fail: laidOut })
+    writeHistory(historyPath(root, 'chrome'), { env: 'another build', cases: new Map([['fail', [laidOut, other]]]) })
+    const io = browser(root, c => (c.id === 'fail' ? wrong : right))
+    const list = cases(['pass', 'fail', 'new'])
+    const refused = (command: Promise<unknown>): Promise<string> => command.then(() => '', (error: Error) => error.message)
+    expect(await refused(check('chrome', list, options, io))).toContain('was written under\n  another build\nbut its recordings under\n  test')
+    expect(await refused(record('chrome', list, { ...options, onlyNew: true }, io))).toContain('was written under\n  another build')
+    expect(readHistory(historyPath(root, 'chrome'))!.env).toBe('another build')
+  })
+
   test('repin records every case into a scratch copy, reports what changed, keeps the page history a new build\'s two orders miss, and writes only when asked: a browser update would read as library regressions, or the next check pin page history', async () => {
     // Under the new build "moves" lays out otherwise, "found" differs between its two orders, "history", page history
     // before, lays out one way in both, and "new" has no recording yet.
