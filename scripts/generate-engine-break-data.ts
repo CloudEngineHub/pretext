@@ -85,7 +85,7 @@ import {
   OTHER_SCRIPT,
   TAKES_MARK_SCRIPTS,
 } from '../src/prepare.ts'
-import { cArrays } from '../harness/break-data.ts'
+import { cArrays, rustByteStrings } from '../harness/break-data.ts'
 import SOURCES from './engine-data/sources.json'
 
 const scriptsDir = dirname(fileURLToPath(import.meta.url))
@@ -448,21 +448,9 @@ for (const [name, remap] of ownRemaps) {
 
 // Firefox's rule data: three Rust byte string literals, the trie index as u16 little-endian,
 // the trie data and the break states as u8, and header fields.
-const rustEscapes: Record<string, number> = { '0': 0, n: 10, r: 13, t: 9, '\\': 92, '"': 34, "'": 39 }
-const parseRustByteString = (literal: string): Uint8Array => {
-  const bytes: number[] = []
-  for (let i = 0; i < literal.length; i++) {
-    if (literal[i] !== '\\') { bytes.push(literal.charCodeAt(i)); continue }
-    const escape = literal[++i]!
-    if (escape === 'x') { bytes.push(parseInt(literal.slice(i + 1, i + 3), 16)); i += 2 }
-    else if (escape in rustEscapes) bytes.push(rustEscapes[escape]!)
-    else throw new Error(`Unknown Rust escape \\${escape}`)
-  }
-  return new Uint8Array(bytes)
-}
 function readRuleBreakData(path: string) {
   const source = readText(path)
-  const literals = Array.from(source.matchAll(/b"((?:[^"\\]|\\.)*)"/g), match => parseRustByteString(match[1]!))
+  const literals = rustByteStrings(source)
   const field = (name: string): number => {
     const match = source.match(new RegExp(`${name} : (\\d+)u`))
     if (match === null) throw new Error(`Missing ${name} in ${path}`)
