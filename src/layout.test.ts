@@ -504,7 +504,7 @@ describe('entry geometry', () => {
   })
 })
 
-describe('boundary-policy regressions', () => {
+describe('boundary rules', () => {
   const baseProfile = {
     lineBreakScan: 'blink' as const,
     graphemeTable: 'chromium/char' as const,
