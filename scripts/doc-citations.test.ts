@@ -4,15 +4,17 @@ import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, normalize, relative } from 'node:path'
 
 // Code, data and docs cite a doc's section as `<DOC>.md, <Section>[, <Subsection>]` when a reason is longer than a
-// comment. Each citation has to name headings of that doc, so a heading renamed or a doc removed fails here instead of
-// leaving readers searching. A heading's text on either side of its colon counts too (`Part 3: Decisions Log`,
-// `Firefox: the late family names`), and so does it without a closing parenthesis (`Firefox (Gecko)` as `Firefox`).
-// After the first section, a part that starts in lower case is prose and ends the citation. RESEARCH.md is long enough
-// that citing it without a section says nothing. The rebuild's docs live on another branch and aren't checked.
+// comment. Each citation has to name headings of that doc, and a doc named with no section has to be in the repository,
+// so a heading renamed or a doc removed fails here instead of leaving readers searching. A heading's text on either
+// side of its colon counts too (`Part 3: Decisions Log`, `Firefox: the late family names`), and so does it without a
+// closing parenthesis (`Firefox (Gecko)` as `Firefox`). After the first section, a part that starts in lower case is
+// prose and ends the citation. RESEARCH.md is long enough that citing it without a section says nothing. The rebuild's
+// docs live on another branch, are cited under `rebuild/` and aren't checked.
 const ROOT = join(import.meta.dir, '..')
 const SOURCES = new Bun.Glob('{src,harness,scripts,pages}/**/*.{ts,js,html,json,ndjson,txt}')
 const DOCS = ['*.md', 'harness/**/*.md', 'pages/**/*.md', 'corpora/**/*.md'].map(pattern => new Bun.Glob(pattern))
 const CITATION = /(?<![\w/.-])((?:[a-z]+\/)*[A-Z_]+\.md)`?,[ \t]+([^;()\n]+)/g
+const DOC = /(?<![\w/.-])((?:[a-z]+\/)*[A-Z_]+\.md)(?![\w-])/g
 const ANCHOR = /\]\(((?:\.\.?\/)*(?:[a-z]+\/)*[A-Z_]+\.md)#([\w-]+)\)/g
 
 function headings(doc: string): Set<string> | null {
@@ -56,7 +58,7 @@ function namesNoHeading(section: string, names: Set<string>): boolean {
   return false
 }
 
-test('every section a doc citation names is a heading of that doc: a renamed heading would strand its citations', () => {
+test('every doc a citation names is in the repository, and every section it names is a heading of that doc: a removed doc or a renamed heading would strand its citations', () => {
   const docs = new Map<string, Set<string> | null>()
   const headingsOf = (doc: string): Set<string> | null => {
     if (!docs.has(doc)) docs.set(doc, headings(doc))
@@ -86,6 +88,9 @@ test('every section a doc citation names is a heading of that doc: a renamed hea
       if (doc!.startsWith('rebuild/')) continue
       const names = headingsOf(doc!)
       if (names === null || namesNoHeading(section!, names)) wrong.push(`${path}: ${doc}, ${section!.trim()}`)
+    }
+    for (const [, doc] of text.matchAll(DOC)) {
+      if (!doc!.startsWith('rebuild/') && headingsOf(doc!) === null) wrong.push(`${path}: ${doc} isn't in the repository`)
     }
     if (/\(RESEARCH\.md\)/.test(text)) wrong.push(`${path}: RESEARCH.md without a section`)
   }
