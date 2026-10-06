@@ -6981,10 +6981,10 @@ test('a width is measured under its own font, shaping and language, whatever was
     rows.entry = measuredIn
     // Whether two letters are a ligature is asked of the context without its ligatures, here first asked with the
     // word, its letters and the pair all cached, after letter-spaced text in a font whose \`fi\` without the ligature
-    // is as wide as this font's with it. Then the letter-spaced text measured next has no ligature either.
+    // is as wide as this font's with it. The text measured next has its ligature, and the letter-spaced text after it none.
     rich([{ text: 'f i fi', font: '100px Liga', break: 'never' }])
     width('x', '97px Test', 1)
-    rows.ligature = [measureRichInlineStats(prepareRichInline([{ text: 'fi', font: '100px Liga' }]), 60).maxLineWidth, width('fix', '16px Liga', 2)]
+    rows.ligature = [measureRichInlineStats(prepareRichInline([{ text: 'fi', font: '100px Liga' }]), 60).maxLineWidth, width('fig', '16px Liga'), width('fix', '16px Liga', 2)]
     console.log(JSON.stringify(rows))
   `))
   // `fin` under letter spacing is 24px and its three spacings where the context drops the
@@ -7006,7 +7006,7 @@ test('a width is measured under its own font, shaping and language, whatever was
     halt: halted,
     hyphen: halted === 92 ? 72 : 80,
     entry,
-    ligature: [cutLigature, fin],
+    ligature: [cutLigature, 21, fin],
   })
   expect(rowsOf(CHROME_USER_AGENT)).toEqual(rows(30, 39, 92, '16px Entry', 50))
   expect(rowsOf(FIREFOX_USER_AGENT)).toEqual(rows(30, 40, 104, '16px Entry', 97))
