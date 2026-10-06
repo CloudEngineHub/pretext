@@ -1,9 +1,9 @@
 # Research Log
 
 Why Pretext is the way it is. Part 1 is the intent: the limits, the merge bars and the stances behind them. Part 2 is
-the evidence: measured facts, traps and dead ends, each with its browser build, its date and what would reopen it. Part
-3 is the Decisions Log. A date after a Part 1 rule is when the maintainer set it, and dates are Pacific time. Terms used
-throughout:
+the evidence: measured facts, traps and dead ends, each with its browser build and its date, and each measured fact and
+dead end with what would reopen it. Part 3 is the Decisions Log. A date after a Part 1 rule is when the maintainer set
+it, and dates are Pacific time. Terms used throughout:
 
 - **#N** is a pull request or issue in this repository (github.com/chenglou/pretext); after a tracker's name, as in
   WebKit #283408, Mozilla #2020917 or Chromium #560614560, it is that tracker's bug.
@@ -327,7 +327,8 @@ a rule by reading it and its unit tests (`rebuild/src/engines/<engine>/`) agains
   obvious things it can discover. Write down every philosophy the project holds, since a capable agent still wants the
   intent and can follow it, and the traps capability alone doesn't solve, of which dead ends are one example among
   several. Discoverable means cheap to discover, so facts that take hours of browser runs stay; every measured fact and
-  dead end carries its date, browser build and what would reopen it; AGENTS.md may hold one screen of pipeline map.
+  dead end carries its date, browser build and what would reopen it, and a rule or a trap needs no reopen condition;
+  AGENTS.md may hold one screen of pipeline map.
 - **Written for a cold reader (2026-09-27).** A doc reads right to someone who has seen none of the conversations or
   working sessions behind it. It states rules as the project's rules, in plain words, and never quotes conversations; it
   defines each term where first used and uses no entry ids, code names or labels from a working session; history stays
