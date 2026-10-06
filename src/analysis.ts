@@ -91,7 +91,8 @@ export type ParagraphItems = {
   sourceOffsets: Int32Array | null
 }
 
-const collapsibleWhitespaceRunRe = /[ \t\n\r\f]+/g
+// The runs that collapsing changes: a lone space is already the space its run becomes.
+const collapsibleWhitespaceRunRe = /[ \t\n\r\f]{2,}|[\t\n\r\f]/g
 const needsWhitespaceNormalizationRe = /[\t\n\r\f]| {2,}|^ | $/
 
 function isSegmentBreakRunSpace(code: number, scan: AnalysisProfile['lineBreakScan']): boolean {
