@@ -1676,9 +1676,9 @@ it: `بب ببب`, a soft hyphen, U+0650, `ببب بب` in 24px Geeza Pro is 4 l
 where `ببب` fits with its hyphen and the word takes three lines for two. The profiles do the same on the offline
 invariants' stand-in Canvas (`harness/invariants.ts`): of 3,000 plain cases drawn from the sets, each laid out at 201
 widths from a quarter of its own width to twice it, the count rises in 378 under the WebKit profile, 375 of them from a
-box narrower than a glyph, in 5 under Gecko's (ENGINE_FOLLOWUPS.md, Line edges) and in none under Blink's (2026-10-06).
-So no check sweeps widths for a rise, which would fail on ported rules, and the unit test of the rule lays out one
-sentence of ordinary words (`src/layout.test.ts`).
+box narrower than a glyph, in 5 under Gecko's, a rise Firefox doesn't have (ENGINE_FOLLOWUPS.md, Line edges), and in
+none under Blink's (2026-10-06). So no check sweeps widths for a rise, which would fail on ported rules, and the unit
+test of the rule lays out one sentence of ordinary words (`src/layout.test.ts`).
 
 A rise the browser doesn't have is a bug: four raw-width fit checks in `src/rich-inline.ts` gave 11 lines at
 115px, 12 at 115.1px (#281, 2026-09-14). An item ending at an unfit soft hyphen with no earlier break wrapped before the
