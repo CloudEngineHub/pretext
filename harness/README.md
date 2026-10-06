@@ -173,7 +173,9 @@ and origin keep the line: line 1000 at dbfab0de (#399), Firefox's white space ar
 names the paragraph directions it runs in where a browser's lines turn on them (that one, both). The facts set has no
 cover, so it keeps the width where a template's words join, which the catalog's cover drops once a narrower change has
 shown that kind of break: a fact that rests on a line's width, such as one space against two, goes there.
-ENGINE_FOLLOWUPS.md, Harness debt, has what to prune when the sets are made again.
+ENGINE_FOLLOWUPS.md, Harness debt, has what to prune when the sets are made again. The oracle set's origins point at
+main before #340 too: each names a mode and a case's label in `src/test-data.ts`'s oracle arrays, gone from today's
+file.
 
 ## Commands
 
