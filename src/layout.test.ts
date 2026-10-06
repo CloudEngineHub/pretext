@@ -1,7 +1,8 @@
 import '../harness/watchdog.ts'
 import { beforeAll, beforeEach, describe, expect, test } from 'bun:test'
 import type { AnalysisProfile } from './analysis.ts'
-import type { PreparedText } from './layout.ts'
+import type { PreparedText, PreparedTextWithSegments } from './layout.ts'
+import type { PreparedLineBreakData } from './line-break.ts'
 import type { RichInlineBox, RichInlineItem } from './rich-inline.ts'
 
 // Unit checks over a deterministic fake canvas backend: the shipped prepare/layout
@@ -78,7 +79,7 @@ type TestLayoutCursor = {
 }
 
 type TestPreparedTextWithSegments = {
-  segments: string[]
+  readonly segments: readonly string[]
 }
 
 type TestLayoutLine = {
@@ -86,6 +87,13 @@ type TestLayoutLine = {
   width: number
   start: TestLayoutCursor
   end: TestLayoutCursor
+}
+
+// A handle as the line walkers read it. The type of a prepareWithSegments() handle shows
+// `segments`, `kinds` and `widths` only, so a test of the walkers' own fields reads them
+// through here.
+function internals(prepared: PreparedText): PreparedText & PreparedLineBreakData {
+  return prepared as PreparedText & PreparedLineBreakData
 }
 
 function parseFontSize(font: string): number {
@@ -411,7 +419,7 @@ describe('shared public contracts', () => {
       ['aaaa  \nbbbb\t\ncc  ', { whiteSpace: 'pre-wrap' }, false, false],
     ] as const) {
       const prepared = prepareWithSegments(text, FONT, options)
-      expect([prepared.simpleLineWalkFastPath, prepared.simpleLineCountFastPath]).toEqual([walkFastPath, countFastPath])
+      expect([internals(prepared).simpleLineWalkFastPath, internals(prepared).simpleLineCountFastPath]).toEqual([walkFastPath, countFastPath])
       const at = (width: number): unknown => {
         const ranges: unknown[] = []
         const rangeCount = walkLineRanges(prepared, width, line => ranges.push(line))
@@ -564,6 +572,44 @@ describe('shared public contracts', () => {
     for (const userAgent of [CHROME_USER_AGENT, FIREFOX_USER_AGENT, SAFARI_USER_AGENT]) {
       expect(rowsOf(userAgent)).toEqual({ compared, different: [] })
     }
+  })
+
+  test('the type of a prepareWithSegments() handle shows segments, kinds and widths, and nothing else', () => {
+    // The other fields are the line walkers' storage, which changes with engine fixes
+    // (RESEARCH.md, Decisions Log, 2026-10-06). This file compiles only while the type
+    // has these three fields and no other, read-only: `bun run check` fails otherwise,
+    // where `bun test` doesn't check types.
+    const prepared = prepareWithSegments('hello world', FONT)
+    const segments: readonly string[] = prepared.segments
+    const kinds: readonly string[] = prepared.kinds
+    const widths: ArrayLike<number> = prepared.widths
+    expect([segments, kinds, [widths[0], widths[1], widths[2]]]).toEqual([
+      ['hello', ' ', 'world'],
+      ['text', 'space', 'text'],
+      [measureWidth('hello', FONT), measureWidth(' ', FONT), measureWidth('world', FONT)],
+    ])
+    const shown: { readonly [Field in Exclude<keyof PreparedTextWithSegments, symbol>]: true } = { segments: true, kinds: true, widths: true }
+    expect(Object.keys(prepared)).toEqual(expect.arrayContaining(Object.keys(shown)))
+    // A hidden field is still there for code that read it, and no longer type-checks.
+    // @ts-expect-error
+    expect(prepared.breakableFitAdvances).toBeDefined()
+    // Read-only, and `widths` an index and a length, not an array. Each line below runs,
+    // since nothing is frozen, and is a type error: one that compiles is the type
+    // promising more, which a release can't take back.
+    const write = (_list: unknown[]): void => {}
+    // @ts-expect-error
+    write(prepared.segments)
+    // @ts-expect-error
+    write(prepared.kinds)
+    // @ts-expect-error
+    expect([...prepared.widths]).toHaveLength(3)
+    const other = prepareWithSegments('hello world', FONT)
+    // @ts-expect-error
+    prepared.segments = other.segments
+    // @ts-expect-error
+    prepared.kinds = other.kinds
+    // @ts-expect-error
+    prepared.widths = other.widths
   })
 
   test('emergency wrapping preserves complete graphemes inside continuous words', () => {
@@ -972,7 +1018,7 @@ describe('boundary rules', () => {
       const prepared = prepareWithSegments('ab\u00AD)cd', FONT, { letterSpacing: 2 })
       expect(prepared.kinds).toEqual(['text', 'zero-width-glue', 'text'])
       expect(prepared.widths[1]).toBe(0)
-      expect(prepared.segmentFlags[1]! & SPACED).toBe(0)
+      expect(internals(prepared).segmentFlags[1]! & SPACED).toBe(0)
       const whole = lines('ab\u00AD)cd', 1000, 2)
       expect(whole.map(line => line.text)).toEqual(['ab)cd'])
       expect(whole[0]!.width).toBeCloseTo(measureWidth('ab)cd', FONT) + 5 * 2)
@@ -1014,7 +1060,7 @@ describe('boundary rules', () => {
         clearCache()
         const hidden = prepareWithSegments(`ab${control}cd`, FONT, { letterSpacing: 2 })
         const index = hidden.segments.indexOf(control)
-        expect({ control, width: hidden.widths[index], spaced: (hidden.segmentFlags[index]! & SPACED) !== 0 }).toEqual({ control, width: 0, spaced: true })
+        expect({ control, width: hidden.widths[index], spaced: (internals(hidden).segmentFlags[index]! & SPACED) !== 0 }).toEqual({ control, width: 0, spaced: true })
         profile.hidesControlCharacters = false
         clearCache()
         const shown = prepareWithSegments(`ab${control}cd`, FONT)
@@ -1066,7 +1112,7 @@ describe('boundary rules', () => {
           const prepared = prepareWithSegments(text, FONT)
           for (let i = 0; i < prepared.segments.length; i++) {
             if (prepared.kinds[i] === 'text' && getSegmentGraphemes(prepared.segments[i]!).length > 1) {
-              expect({ text, segment: prepared.segments[i], breakable: prepared.breakableFitAdvances[i] !== null }).toEqual({ text, segment: prepared.segments[i], breakable: true })
+              expect({ text, segment: prepared.segments[i], breakable: internals(prepared).breakableFitAdvances[i] !== null }).toEqual({ text, segment: prepared.segments[i], breakable: true })
             }
           }
           const graphemes = getSegmentGraphemes(text).filter(grapheme => grapheme !== ' ')
@@ -1095,12 +1141,12 @@ describe('boundary rules', () => {
       const prepared = prepareWithSegments(text, FONT)
       const zwj = prepared.segments.indexOf('‍\u{1F680}')
       expect(getSegmentGraphemes(prepared.segments[zwj]!).length).toBe(2)
-      expect(prepared.breakableFitAdvances[zwj]).toBeNull()
+      expect(internals(prepared).breakableFitAdvances[zwj]).toBeNull()
       expect(layoutWithLines(prepared, 0, LINE_HEIGHT).lines.map(line => line.text)).toEqual(['a', '\u{1F469}-', '‍\u{1F680}', 'b'])
       profile.lineBreakScan = 'blink'
       clearCache()
       const blink = prepareWithSegments('ab‍\u{1F680}', FONT)
-      expect(blink.breakableFitAdvances[0]).not.toBeNull()
+      expect(internals(blink).breakableFitAdvances[0]).not.toBeNull()
     } finally {
       profile.lineBreakScan = previous
     }
@@ -1283,7 +1329,7 @@ describe('boundary rules', () => {
           const prepared = prepareWithSegments(text, FONT, { letterSpacing: 1 })
           expect(prepared.segments[markIndex]).toBe('\u0301')
           expect(prepared.widths[markIndex]).toBe(0)
-          expect(prepared.segmentFlags[markIndex]! & SPACED).toBe(0)
+          expect(internals(prepared).segmentFlags[markIndex]! & SPACED).toBe(0)
         }
         const tail = 'aaaa\u00AD\u0301tail'
         expect(lines(tail, measureWidth('aaaatail', FONT) + 0.1)).toEqual([tail])
@@ -2200,9 +2246,9 @@ describe('prepare invariants', () => {
     const previous = profile.letterSpaceDiscretionaryHyphen
     try {
       profile.letterSpaceDiscretionaryHyphen = true
-      const spaced = prepareWithSegments('trans\u00ADatlantic', FONT, { letterSpacing: 2 }).discretionaryHyphenWidth
+      const spaced = internals(prepareWithSegments('trans\u00ADatlantic', FONT, { letterSpacing: 2 })).discretionaryHyphenWidth
       profile.letterSpaceDiscretionaryHyphen = false
-      const unspaced = prepareWithSegments('trans\u00ADatlantic', FONT, { letterSpacing: 2 }).discretionaryHyphenWidth
+      const unspaced = internals(prepareWithSegments('trans\u00ADatlantic', FONT, { letterSpacing: 2 })).discretionaryHyphenWidth
       // Both keep the gap before the hyphen; only the first spaces the hyphen.
       expect(spaced - unspaced).toBe(2)
     } finally {
@@ -2284,7 +2330,7 @@ describe('prepare invariants', () => {
         .toEqual(['ab ', 'cd\u0001efgh'])
 
       // A handle without soft-hyphen contexts keeps the overflowing hyphen.
-      const withoutContexts = { ...prepareWithSegments(text, FONT), discretionaryHyphenContexts: null }
+      const withoutContexts = { ...internals(prepareWithSegments(text, FONT)), discretionaryHyphenContexts: null }
       expect(walkPreparedLinesRaw(withoutContexts, width)).toBe(2)
     } finally {
       profile.unfitHyphenRetreat = previous
@@ -2310,7 +2356,7 @@ describe('prepare invariants', () => {
       // A and VAV measure 2px narrower joined: the hyphen line stays where it
       // overflows by less, and returns where it overflows by more.
       const joined = prepareWithSegments('ab A\u00ADVAV', font)
-      const hyphenLine = measureWidth('ab A', font) + joined.discretionaryHyphenWidth
+      const hyphenLine = measureWidth('ab A', font) + internals(joined).discretionaryHyphenWidth
       expect(layoutWithLines(joined, hyphenLine - 1, LINE_HEIGHT).lines.map(line => line.text)).toEqual(['ab A-', 'VAV'])
       expect(layoutWithLines(joined, hyphenLine - 3, LINE_HEIGHT).lines.map(line => line.text)).toEqual(['ab ', 'AVAV'])
     } finally {
@@ -2436,15 +2482,15 @@ describe('prepare invariants', () => {
         clearCache()
         hyphenFonts.length = 0
         const font = `16px ${family}`
-        expect({ family, width: prepareWithSegments(text, font).discretionaryHyphenWidth }).toEqual({ family, width: expected })
+        expect({ family, width: internals(prepareWithSegments(text, font)).discretionaryHyphenWidth }).toEqual({ family, width: expected })
         expect({ family, calls: hyphenFonts.length }).toEqual({ family, calls: hyphenCalls })
         // The font's later texts ask nothing again, and measure in the font itself.
-        expect(prepareWithSegments(`x ${text}`, font).discretionaryHyphenWidth).toBe(expected)
+        expect(internals(prepareWithSegments(`x ${text}`, font)).discretionaryHyphenWidth).toBe(expected)
         expect(hyphenFonts.length).toBe(hyphenCalls)
         expect(prepareWithSegments('new words', font).widths[0]).toBe(measureWidth('new', font))
       }
       // That hyphen follows the gap before it, as `-` does.
-      expect(prepareWithSegments(text, '16px "Own Hyphen Sans", serif', { letterSpacing: 2 }).discretionaryHyphenWidth).toBe(4 + 2)
+      expect(internals(prepareWithSegments(text, '16px "Own Hyphen Sans", serif', { letterSpacing: 2 })).discretionaryHyphenWidth).toBe(4 + 2)
       // A text without a soft hyphen asks for no hyphen but `-`.
       clearCache()
       hyphenFonts.length = 0
@@ -2460,7 +2506,7 @@ describe('prepare invariants', () => {
       ] as const) {
         clearCache()
         hyphenFonts.length = 0
-        expect({ family, width: prepareWithSegments(text, `16px ${family}`).discretionaryHyphenWidth }).toEqual({ family, width: expected })
+        expect({ family, width: internals(prepareWithSegments(text, `16px ${family}`)).discretionaryHyphenWidth }).toEqual({ family, width: expected })
         expect(hyphenFonts).toEqual([`16px ${family}`])
       }
       // An item that starts with a soft hyphen holds it as glue under the Gecko scan, which
@@ -2479,7 +2525,7 @@ describe('prepare invariants', () => {
       Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', measureText)
       clearCache()
       expect(measureWidth('\u2010', FONT)).not.toBe(hyphen)
-      expect(prepareWithSegments(text, FONT).discretionaryHyphenWidth).toBe(hyphen)
+      expect(internals(prepareWithSegments(text, FONT)).discretionaryHyphenWidth).toBe(hyphen)
     } finally {
       Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', measureText)
       profile.hyphenFromPrimaryFont = previous
@@ -2504,7 +2550,7 @@ describe('prepare invariants', () => {
       const a = measureWidth('A', font)
       const v = measureWidth('V', font)
       const width = a + v + a - 2
-      const advances = () => prepareWithSegments('AVA', font).breakableFitAdvances[0]!.map(advance => Math.round(advance * 1000) / 1000)
+      const advances = () => internals(prepareWithSegments('AVA', font)).breakableFitAdvances[0]!.map(advance => Math.round(advance * 1000) / 1000)
       profile.prefixFitMinWidth = width + 1
       expect(advances()).toEqual([a, v, a])
       clearCache()
@@ -2528,14 +2574,14 @@ describe('prepare invariants', () => {
 
     const prefixed = prepareWithSegments('foo trans\u00ADatlantic', FONT)
     const softBreakWidth = Math.max(
-      prefixed.widths[0]! + prefixed.widths[1]! + prefixed.widths[2]! + prefixed.discretionaryHyphenWidth,
+      prefixed.widths[0]! + prefixed.widths[1]! + prefixed.widths[2]! + internals(prefixed).discretionaryHyphenWidth,
       prefixed.widths[4]!,
     ) + 0.1
     const narrow = layoutWithLines(prefixed, softBreakWidth, LINE_HEIGHT)
     expect(narrow.lineCount).toBe(2)
     expect(narrow.lines.map(line => line.text)).toEqual(['foo trans-', 'atlantic'])
     expect(narrow.lines[0]!.width).toBeCloseTo(
-      prefixed.widths[0]! + prefixed.widths[1]! + prefixed.widths[2]! + prefixed.discretionaryHyphenWidth,
+      prefixed.widths[0]! + prefixed.widths[1]! + prefixed.widths[2]! + internals(prefixed).discretionaryHyphenWidth,
       5,
     )
     expect(layout(prefixed, softBreakWidth, LINE_HEIGHT).lineCount).toBe(narrow.lineCount)
@@ -4937,7 +4983,7 @@ describe('layout invariants', () => {
     const base = prepareWithSegments('Hello World', FONT)
     const zero = prepareWithSegments('Hello World', FONT, { letterSpacing: 0 })
     expect(zero.widths).toEqual(base.widths)
-    expect(zero.breakableFitAdvances).toEqual(base.breakableFitAdvances)
+    expect(internals(zero).breakableFitAdvances).toEqual(internals(base).breakableFitAdvances)
   })
 
   test('a letterSpacing that isn\'t finite throws at preparation', () => {
@@ -4988,7 +5034,7 @@ describe('layout invariants', () => {
   test('letterSpacing preserves terminal spacing after a visible soft hyphen', () => {
     const spacing = 5
     const prepared = prepareWithSegments('trans\u00ADatlantic', FONT, { letterSpacing: spacing })
-    const softHyphenLineWidth = prepared.widths[0]! + prepared.discretionaryHyphenWidth
+    const softHyphenLineWidth = prepared.widths[0]! + internals(prepared).discretionaryHyphenWidth
     const wrapped = layoutWithLines(prepared, softHyphenLineWidth - spacing / 2, LINE_HEIGHT)
 
     expect(wrapped.lines[0]!.text).toBe('trans-')
@@ -5120,7 +5166,7 @@ describe('layout invariants', () => {
 
   test('breaks long words at grapheme boundaries and keeps both layout APIs aligned', () => {
     const prepared = prepareWithSegments('Superlongword', FONT)
-    const graphemeWidths = prepared.breakableFitAdvances[0]!
+    const graphemeWidths = internals(prepared).breakableFitAdvances[0]!
     const maxWidth = graphemeWidths[0]! + graphemeWidths[1]! + graphemeWidths[2]! + 0.1
 
     const plain = layout(prepared, maxWidth, LINE_HEIGHT)
@@ -5388,7 +5434,7 @@ describe('layout invariants', () => {
   test('overlong breakable segments wrap onto a fresh line when the current line already has content', () => {
     const prepared = prepareWithSegments('foo abcdefghijk', FONT)
     const prefixWidth = prepared.widths[0]! + prepared.widths[1]!
-    const wordBreaks = prepared.breakableFitAdvances[2]!
+    const wordBreaks = internals(prepared).breakableFitAdvances[2]!
     const width = prefixWidth + wordBreaks[0]! + wordBreaks[1]! + 0.1
 
     const batched = layoutWithLines(prepared, width, LINE_HEIGHT)
@@ -5466,7 +5512,7 @@ describe('layout invariants', () => {
     // end minus the fit epsilon, the text up to there fits with nothing to spare.
     for (let textIndex = 0; textIndex < texts.length; textIndex++) {
       const prepared = prepareWithSegments(texts[textIndex]!, FONT)
-      const { widths: segmentWidths } = prepared as unknown as { widths: number[] }
+      const segmentWidths = prepared.widths
       const widths = [-5, 0]
       for (let width = 1; width <= 400; width += 0.5) widths.push(width)
       let prefix = 0
@@ -5476,8 +5522,8 @@ describe('layout invariants', () => {
       }
       for (let widthIndex = 0; widthIndex < widths.length; widthIndex++) {
         const width = widths[widthIndex]!
-        const counted = countPreparedLines(prepared, width)
-        const walked = walkPreparedLinesRaw(prepared, width)
+        const counted = countPreparedLines(internals(prepared), width)
+        const walked = walkPreparedLinesRaw(internals(prepared), width)
         expect(counted).toBe(walked)
       }
     }
@@ -5506,7 +5552,7 @@ describe('layout invariants', () => {
         for (let textIndex = 0; textIndex < texts.length; textIndex++) {
           const text = texts[textIndex]!
           const prepared = prepareWithSegments(text, FONT)
-          const internal = prepared as unknown as { widths: number[], simpleLineWalkFastPath: boolean, simpleLineCountFastPath: boolean }
+          const internal = internals(prepared)
           // The line APIs take the full walker, and layout() the simple stepper.
           if (textIndex < 3) expect(internal.simpleLineWalkFastPath).toBe(false)
           else if (scan === 'gecko') expect(internal.simpleLineWalkFastPath).toBe(true)
@@ -5521,8 +5567,8 @@ describe('layout invariants', () => {
           }
           for (let widthIndex = 0; widthIndex < widths.length; widthIndex++) {
             const width = widths[widthIndex]!
-            const walked = walkPreparedLinesRaw(prepared, width)
-            expect({ scan, text, width, count: countPreparedLines(prepared, width) }).toEqual({ scan, text, width, count: walked })
+            const walked = walkPreparedLinesRaw(internal, width)
+            expect({ scan, text, width, count: countPreparedLines(internal, width) }).toEqual({ scan, text, width, count: walked })
             expect(layout(compact, width, LINE_HEIGHT).lineCount).toBe(walked)
           }
         }
@@ -5553,8 +5599,8 @@ describe('layout invariants', () => {
         expect(streamed.map(({ text, start, end }) => ({ text, start, end }))).toEqual(
           lines.lines.map(({ text, start, end }) => ({ text, start, end })),
         )
-        expect(countPreparedLines(prepared, width)).toBe(expected.length)
-        expect(walkPreparedLinesRaw(prepared, width)).toBe(expected.length)
+        expect(countPreparedLines(internals(prepared), width)).toBe(expected.length)
+        expect(walkPreparedLinesRaw(internals(prepared), width)).toBe(expected.length)
         expect(layout(compact, width, LINE_HEIGHT)).toEqual({ lineCount: expected.length, height: expected.length * LINE_HEIGHT })
       }
       expect(canvasMeasurementCount).toBe(measured)
@@ -5573,10 +5619,10 @@ describe('layout invariants', () => {
     expect(collectStreamedLines(prepared, width)).toEqual(lines.lines)
     for (const nextWidth of [width + 20, 0, width, width + 20, width]) {
       const ranges = layoutWithLines(prepared, nextWidth, LINE_HEIGHT)
-      expect(countPreparedLines(prepared, nextWidth)).toBe(ranges.lineCount)
+      expect(countPreparedLines(internals(prepared), nextWidth)).toBe(ranges.lineCount)
       expect(layout(compact, nextWidth, LINE_HEIGHT).lineCount).toBe(ranges.lineCount)
     }
-    expect(countPreparedLines(prepared, width)).toBe(expected.length)
+    expect(countPreparedLines(internals(prepared), width)).toBe(expected.length)
     expect(canvasMeasurementCount).toBe(measured)
   })
 
@@ -5599,7 +5645,7 @@ describe('layout invariants', () => {
         const lines = layoutWithLines(prepared, width, LINE_HEIGHT)
         expect(lines.lines.map(line => line.text)).toEqual([...expected])
         expect(collectStreamedLines(prepared, width)).toEqual(lines.lines)
-        expect(countPreparedLines(prepared, width)).toBe(expected.length)
+        expect(countPreparedLines(internals(prepared), width)).toBe(expected.length)
         expect(layout(compact, width, LINE_HEIGHT).lineCount).toBe(expected.length)
       }
       expect(canvasMeasurementCount).toBe(measured)
@@ -5626,7 +5672,7 @@ describe('layout invariants', () => {
       const measured = canvasMeasurementCount
       for (const width of [0, -5]) {
         expect(layoutWithLines(prepared, width, LINE_HEIGHT).lines.map(line => line.text)).toEqual(['abc'])
-        expect(countPreparedLines(prepared, width)).toBe(1)
+        expect(countPreparedLines(internals(prepared), width)).toBe(1)
         expect(layout(compact, width, LINE_HEIGHT).lineCount).toBe(1)
       }
       expect(canvasMeasurementCount).toBe(measured)
@@ -5759,8 +5805,8 @@ describe('layout invariants', () => {
           expect({ text, whiteSpace, width, lines: lines.lines.map(line => line.text), widths: lines.lines.map(line => line.width) })
             .toEqual({ text, whiteSpace, width, lines: expected, widths })
           expect(collectStreamedLines(prepared, width)).toEqual(lines.lines)
-          expect(countPreparedLines(prepared, width)).toBe(expected.length)
-          expect(walkPreparedLinesRaw(prepared, width)).toBe(expected.length)
+          expect(countPreparedLines(internals(prepared), width)).toBe(expected.length)
+          expect(walkPreparedLinesRaw(internals(prepared), width)).toBe(expected.length)
           expect(layout(prepare(text, font, options), width, LINE_HEIGHT).lineCount).toBe(expected.length)
           // The complex walker, for text that leaves the fast path, agrees.
           const complex = { ...prepared, simpleLineWalkFastPath: false } as typeof prepared
@@ -5992,7 +6038,7 @@ describe('layout invariants', () => {
       const lines = layoutWithLines(prepared, width, LINE_HEIGHT)
       expect({ text, width, lines: lines.lines.map(line => line.text), widths: lines.lines.map(line => line.width) })
         .toEqual({ text, width, lines: [...expected], widths: [...widths] })
-      expect(countPreparedLines(prepared, width)).toBe(expected.length)
+      expect(countPreparedLines(internals(prepared), width)).toBe(expected.length)
       expect(layout(prepare(text, FONT), width, LINE_HEIGHT).lineCount).toBe(expected.length)
       // The complex walker, which letter-spaced text takes, hangs the run too.
       const complex = { ...prepared, simpleLineWalkFastPath: false } as typeof prepared
@@ -6018,11 +6064,11 @@ describe('layout invariants', () => {
       const lines = layoutWithLines(prepared, width, LINE_HEIGHT)
       expect(lines.lines.map(line => line.text)).toEqual([...expected])
       expect(collectStreamedLines(prepared, width)).toEqual(lines.lines)
-      expect(countPreparedLines(prepared, width)).toBe(expected.length)
+      expect(countPreparedLines(internals(prepared), width)).toBe(expected.length)
       expect(layout(compact, width, LINE_HEIGHT).lineCount).toBe(expected.length)
       for (const nextWidth of [0, width / 2, width, 0]) {
         const next = layoutWithLines(prepared, nextWidth, LINE_HEIGHT)
-        expect(countPreparedLines(prepared, nextWidth)).toBe(next.lineCount)
+        expect(countPreparedLines(internals(prepared), nextWidth)).toBe(next.lineCount)
         expect(layout(compact, nextWidth, LINE_HEIGHT).lineCount).toBe(next.lineCount)
       }
       expect(canvasMeasurementCount).toBe(measured)

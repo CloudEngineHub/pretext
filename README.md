@@ -147,10 +147,11 @@ layoutNextLine(prepared: PreparedTextWithSegments, start: LayoutCursor, maxWidth
 layoutNextLineRange(prepared: PreparedText, start: LayoutCursor, maxWidth: number): LayoutLineRange | null // same as layoutNextLine(), but without allocating line text strings. Useful for variable-width manual layout, occlusion, and virtualization measurements.
 materializeLineRange(prepared: PreparedTextWithSegments, line: LayoutLineRange): LayoutLine // turns a LayoutLineRange from layoutNextLineRange() or walkLineRanges() into a full line with text
 type PreparedTextWithSegments = PreparedText & {
-  segments: string[] // The text split into segments, e.g. ['hello', ' ', 'world']
-  kinds: SegmentBreakKind[] // Break behavior per segment, e.g. ['text', 'space', 'text']
+  readonly segments: readonly string[] // The text split into segments, e.g. ['hello', ' ', 'world']
+  readonly kinds: readonly ('text' | 'space' | 'preserved-space' | 'tab' | 'zero-width-break' | 'soft-hyphen' | 'zero-width-glue' | 'hard-break' | 'control')[] // Break behavior per segment, e.g. ['text', 'space', 'text']
+  readonly widths: ArrayLike<number> // Width of each segment in px, e.g. [42.5, 4.4, 37.2]
 }
-type SegmentBreakKind = 'text' | 'space' | 'preserved-space' | 'tab' | 'zero-width-break' | 'soft-hyphen' | 'zero-width-glue' | 'hard-break' | 'control' // 'space': a collapsible space; 'preserved-space', 'tab' and 'hard-break': a space, tab or newline kept by `pre-wrap`; 'zero-width-break': a zero-width space the line can break after; 'soft-hyphen': a soft hyphen (U+00AD); 'zero-width-glue': a zero-width space or soft hyphen the browser doesn't break after; 'control': in Safari, a next-line character (U+0085), which takes letter spacing of its own
+// The kinds. 'space': a collapsible space; 'preserved-space', 'tab' and 'hard-break': a space, tab or newline kept by `pre-wrap`; 'zero-width-break': a zero-width space the line can break after; 'soft-hyphen': a soft hyphen (U+00AD); 'zero-width-glue': a zero-width space or soft hyphen the browser doesn't break after; 'control': in Safari, a next-line character (U+0085), which takes letter spacing of its own
 type LineStats = {
   lineCount: number // Number of wrapped lines, e.g. 3
   maxLineWidth: number // Widest wrapped line, e.g. 192.5
@@ -242,7 +243,7 @@ Notes:
 - In `pre-wrap`, rich-inline fragments have no gaps: a fragment's `text` keeps its spaces, and its `occupiedWidth`, like the line's `width`, leaves out what hangs at the line's end. An atomic item's own spaces collapse, as in a chip's `white-space: nowrap` inline-block, so its cursors index its text prepared without `whiteSpace`. A tab counts eight spaces of its own item's font, as Safari does; Chrome and Firefox count the paragraph's, so a tab inside an item in another font, such as inline code in prose, can land on another stop there.
 - A rich-inline item that wraps is charged its whole `extraWidth` on every line it reaches, as CSS `box-decoration-break: clone` pads a span, where CSS's default pads only the span's two ends. Paint each fragment as its own element with the padding on both sides, as the demos do: a padded span the browser wraps itself can break elsewhere, with `clone` too.
 - A rich-inline line is as tall as the paragraph's line height while its text keeps the paragraph font's size, ascent and descent. Text in another size, or in a face whose ascent and descent differ (Helvetica Neue's bold on macOS), makes a line taller, with or without boxes; `line-height: 1` on each fragment's element keeps it inside the line, as the rich-note demo does.
-- Segment widths are browser-canvas widths for line breaking, not enough to position individual characters in Arabic or mixed bidi text.
+- Segment widths are browser-canvas widths for line breaking, not enough to position individual characters in Arabic or mixed bidi text. They don't always add up to a line's width either: a tab's is 0, the letter spacing after a segment's last letter isn't in it, and a line broken at a soft hyphen adds its hyphen. For a width, read the line's `width`, or call `measureNaturalWidth()` for the whole text.
 
 ## Caveats
 

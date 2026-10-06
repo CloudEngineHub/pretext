@@ -247,10 +247,11 @@ a rule by reading it and its unit tests (`rebuild/src/engines/<engine>/`) agains
   don't tell which uses are common (2026-09-26). Don't overfit to today's uses.
 - **The engine work changed no public export**, from #340 to #375. Rich inline has since gained an options argument
   (`wordBreak`, #379; `whiteSpace`, #381, which an editor in #173 was laying out itself) and boxes (`RichInlineBox`,
-  #387, in place of the stand-in characters of #201), and the line functions that return no text take a `prepare()`
-  handle (Decisions Log, 2026-10-06). The API discussion, a review of the whole public API at the end of the project
-  and before any release, has issue #321's `direction` option and `devicePixelRatio` in `layout()` on its list
-  (TODO.md). One bundle serves every engine (Decisions Log, 2026-09-26).
+  #387, in place of the stand-in characters of #201), the line functions that return no text take a `prepare()`
+  handle, and the type of a `prepareWithSegments()` handle shows three fields only (Decisions Log, 2026-10-06, for
+  both). The API discussion, a review of the whole public API at the end of the project and before any release, has
+  issue #321's `direction` option and `devicePixelRatio` in `layout()` on its list (TODO.md). One bundle serves every
+  engine (Decisions Log, 2026-09-26).
 - **No public API that serves no known user (2026-09-29).** A new option or export needs an app or a person who needs
   it. One without is described in an issue, kept simple, with whoever has the use asked there, as #382 asks about
   padding on an item split across lines.
@@ -4273,3 +4274,26 @@ decisions for the maintainer.
   that holds only while both were prepared with the same font, options and language by the same version. Rich inline
   has no such handle, and one can be added later without a break. Reopens if a per-line fact the four return comes to
   need the strings.
+- **2026-10-06: the type of a `prepareWithSegments()` handle shows `segments`, `kinds` and `widths`, read-only, and
+  nothing else**, the maintainer's decision for the first release. The type showed every field the handle holds, 18 on
+  that date, where README documented `segments` and `kinds`. The other 16 are the line walkers' storage
+  (`PreparedLineBreakData`, `src/line-break.ts`), which most engine fixes change: fields left the type and others came
+  between 0.0.9 and that date, and after a release each such change would break the published type. `widths`, one of the
+  16, stays public because apps place segments on a line with it, as the justification demo does, and README now
+  documents it, with where the widths don't add up to a line's width: a tab's is 0, the letter spacing after a segment's
+  last letter isn't in it, and a line broken at a soft hyphen adds its hyphen. The other 15 are hidden. A few outside
+  projects read some of them, and `breakableFitAdvances`, which reads as each letter's width, holds letters, pairs or
+  differences of prefixes by engine. The change is to the types alone: the built code is byte for byte what it was, so
+  code that read a hidden field keeps running and no longer type-checks. Two uses lose typed access with no public way
+  to the same number: each letter's width, and the width of the hyphen a line broken at a soft hyphen ends with
+  (`discretionaryHyphenWidth`), for a painter that places segments itself. `widths` is typed `ArrayLike<number>`, an
+  index and a length, which an array and a typed array both satisfy, so how the widths `layout()` reads are stored stays
+  free; the type can promise more later, an array's or a typed array's methods, without a break, and can't promise less.
+  `segments` and `kinds` are read-only arrays, so one can later be shared between handles or built on first read. Inside
+  the library a handle keeps its whole type, which neither entry point exports: `getInternalPrepared()`
+  (`src/layout.ts`) reads a public handle as it, and the two calls that build line text assert the same in place, where
+  a call would change the built code. A unit test compiles only while the type has the three fields and no other, each
+  read-only and `widths` no array, which `bun run check` enforces and `bun test` doesn't. README writes the kind names
+  out, since `SegmentBreakKind` isn't exported (TODO.md, the API discussion). A hidden field reopens with an app that
+  needs its number and has no public way to it, as an addition to the type or a function, never by showing the walkers'
+  storage again.
