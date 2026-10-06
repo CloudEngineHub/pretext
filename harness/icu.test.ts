@@ -53,7 +53,9 @@ function open(type: number, locale: string): Pointer | null {
 }
 const opened: Uint8Array[] = []
 function openRules(file: string): Pointer | null {
-  const rules = new Uint8Array(readFileSync(join(import.meta.dir, '../scripts/engine-data', SOURCES.chrome.dir, file)))
+  // ICU takes the rules after the file's data header, whose first two bytes are its length.
+  const bytes = new Uint8Array(readFileSync(join(import.meta.dir, '../scripts/engine-data', SOURCES.chrome.dir, file)))
+  const rules = bytes.slice(bytes[0]! | bytes[1]! << 8)
   opened.push(rules)
   status[0] = 0
   const iterator = icu!.ubrk_openBinaryRules(rules, rules.length, NO_TEXT, 0, status)
