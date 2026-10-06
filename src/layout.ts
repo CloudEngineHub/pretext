@@ -105,7 +105,7 @@ function prepareInternal(
   // One language read: break rules and measurement both follow it.
   const language = getPreparationLanguage(engineProfile)
   const analysis = analyzeText(text, engineProfile, options?.whiteSpace, wordBreak, language)
-  return measureAnalysis(analysis, font, includeSegments, letterSpacing, engineProfile, language, true)
+  return measureAnalysis(analysis, font, includeSegments, letterSpacing, engineProfile, language, true, analysis, 0)
 }
 
 // Prepare text for layout. Segments the text, measures each segment via canvas,
