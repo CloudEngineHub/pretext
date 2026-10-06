@@ -7575,3 +7575,35 @@ test('a width is measured under its own font, shaping and language, whatever was
   expect(rowsOf(FIREFOX_USER_AGENT)).toEqual(rows(30, 40, 104, '16px Entry', 97))
   expect(rowsOf(SAFARI_USER_AGENT)).toEqual(rows(27, 40, 104, '20px Test', 50))
 })
+
+test('a line start inside a word asks Canvas for each of its strings once', () => {
+  // The engine profile is computed once per process, so each engine runs in a child process.
+  // In the desktop Chromium and Firefox profiles a line that starts inside a word at an
+  // invisible character takes its widths from Canvas: for a word joiner between `b` and `c`,
+  // the joiner alone and the joiner with `c`. Under no letter spacing those are widths of the
+  // font's segment cache, which has the joiner alone as one of the word's letters, and where
+  // a second word with the same line start finds both.
+  const layoutUrl = new URL('./layout.ts', import.meta.url).href
+  const askedIn = (userAgent: string): unknown => JSON.parse(runInChild(`
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { userAgent: ${JSON.stringify(userAgent)} } })
+    const asked = []
+    class Context {
+      font = ''
+      letterSpacing = '0px'
+      fontKerning = 'auto'
+      measureText(text) {
+        if (text.includes('\\u2060')) asked.push(text)
+        const width = text.replaceAll('\\u2060', '').length * 8
+        return { width, actualBoundingBoxLeft: 0, actualBoundingBoxRight: width }
+      }
+    }
+    globalThis.OffscreenCanvas = class { getContext() { return new Context() } }
+    const { prepare } = await import(${JSON.stringify(layoutUrl)})
+    prepare('ab\\u2060cd', '16px Test')
+    prepare('xb\\u2060cd', '16px Test')
+    console.log(JSON.stringify(asked))
+  `))
+  const asked = ['ab⁠cd', '⁠', '⁠c', 'xb⁠cd']
+  expect(askedIn(CHROME_USER_AGENT)).toEqual(asked)
+  expect(askedIn(FIREFOX_USER_AGENT)).toEqual(asked)
+})
