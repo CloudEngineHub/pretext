@@ -2,7 +2,7 @@
 This page's made to show off our layout APIs:
 - Title lines are measured and placed by our own layout engine, not inferred from DOM flow.
 - Title font size is fit using repeated API calls so whole words survive.
-- The title itself now participates in obstacle routing against the OpenAI logo.
+- The title itself is routed around the OpenAI logo.
 - The author line is placed from the measured title result, and it also respects the OpenAI geometry.
 - The body is one continuous text stream, not two unrelated excerpts.
 - The left column consumes text first, and the right column resumes from the same cursor.
@@ -18,10 +18,10 @@ This page's made to show off our layout APIs:
 - The page is a fixed-height viewport-bound spread:
   - vertical resize changes reflow
   - overflow after the second column truncates
-- The first visible render now waits for both fonts and hull preload, so it uses the real geometry from the start.
+- The first visible render waits for both fonts and hull preload, so it uses the real geometry from the start.
 - There is no DOM text measurement loop feeding layout.
 */
-import { layoutNextLine, prepareWithSegments, walkLineRanges, type LayoutCursor, type PreparedTextWithSegments } from '../../src/layout.ts'
+import { layoutNextLine, measureNaturalWidth, prepareWithSegments, walkLineRanges, type LayoutCursor, type PreparedTextWithSegments } from '../../src/layout.ts'
 import { BODY_COPY } from './dynamic-layout-text.ts'
 import openaiLogoUrl from '../assets/openai-symbol.svg'
 import claudeLogoUrl from '../assets/claude-symbol.svg'
@@ -49,6 +49,7 @@ const HEADLINE_TEXT = 'SITUATIONAL AWARENESS: THE DECADE AHEAD'
 const HEADLINE_FONT_FAMILY = '"Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif'
 const HEADLINE_LETTER_SPACING = 0
 const HINT_PILL_SAFE_TOP = 72
+const MIN_SLOT_WIDTH = 24
 const NARROW_BREAKPOINT = 760
 const NARROW_COLUMN_MAX_WIDTH = 430
 
@@ -225,10 +226,6 @@ const [, openaiLayout, claudeLayout, openaiHit, claudeHit] = await Promise.all([
 const wrapHulls: WrapHulls = { openaiLayout, claudeLayout, openaiHit, claudeHit }
 const preparedBody = getPrepared(BODY_COPY, BODY_FONT, BODY_LETTER_SPACING)
 
-function getTypography(): { font: string, letterSpacing: number, lineHeight: number } {
-  return { font: BODY_FONT, letterSpacing: BODY_LETTER_SPACING, lineHeight: BODY_LINE_HEIGHT }
-}
-
 function getPrepared(text: string, font: string, letterSpacing: number): PreparedTextWithSegments {
   const key = `${font}::${letterSpacing}::${text}`
   const cached = preparedByKey.get(key)
@@ -236,14 +233,6 @@ function getPrepared(text: string, font: string, letterSpacing: number): Prepare
   const prepared = prepareWithSegments(text, font, { letterSpacing })
   preparedByKey.set(key, prepared)
   return prepared
-}
-
-function getPreparedSingleLineWidth(prepared: PreparedTextWithSegments): number {
-  let width = 0
-  walkLineRanges(prepared, 100_000, line => {
-    width = line.width
-  })
-  return width
 }
 
 function headlineBreaksInsideWord(prepared: PreparedTextWithSegments, maxWidth: number): boolean {
@@ -305,6 +294,7 @@ function layoutColumn(
     const slots = carveTextLineSlots(
       { left: region.x, right: region.x + region.width },
       blocked,
+      MIN_SLOT_WIDTH,
     )
     if (slots.length === 0) {
       lineTop += lineHeight
@@ -376,9 +366,9 @@ function projectHeadlineLines(lines: PositionedLine[], font: string, lineHeight:
   }
 }
 
-function projectChromeLayout(layout: PageLayout, contentHeight: number): void {
+function projectChromeLayout(layout: PageLayout): void {
   domCache.page.className = layout.isNarrow ? 'page page--mobile' : 'page'
-  stage.style.height = `${contentHeight}px`
+  stage.style.height = `${layout.pageHeight}px`
 
   domCache.openaiLogo.style.left = `${layout.openaiRect.x}px`
   domCache.openaiLogo.style.top = `${layout.openaiRect.y}px`
@@ -687,7 +677,6 @@ function evaluateLayout(
   creditTop: number
   leftLines: PositionedLine[]
   rightLines: PositionedLine[]
-  contentHeight: number
   hits: LogoHits
 } {
   const { openaiObstacle, claudeObstacle, hits } = getLogoProjection(layout, lineHeight)
@@ -754,8 +743,9 @@ function evaluateLayout(
       right: creditRegion.x + creditRegion.width,
     },
     layout.isNarrow ? creditBlocked.concat(claudeCreditBlocked) : creditBlocked,
+    MIN_SLOT_WIDTH,
   )
-  const creditWidth = Math.ceil(getPreparedSingleLineWidth(getPrepared(CREDIT_TEXT, CREDIT_FONT, layout.creditLetterSpacing)))
+  const creditWidth = Math.ceil(measureNaturalWidth(getPrepared(CREDIT_TEXT, CREDIT_FONT, layout.creditLetterSpacing)))
   // When no slot fits, the credit isn't painted, rather than painted over a logo or past the page.
   let creditLeft: number | null = null
   for (let index = 0; index < creditSlots.length; index++) {
@@ -789,7 +779,6 @@ function evaluateLayout(
       creditTop,
       leftLines: bodyResult.lines,
       rightLines: [],
-      contentHeight: layout.pageHeight,
       hits,
     }
   }
@@ -818,23 +807,21 @@ function evaluateLayout(
     creditTop,
     leftLines: leftResult.lines,
     rightLines: rightResult.lines,
-    contentHeight: layout.pageHeight,
     hits,
   }
 }
 
 function commitFrame(now: number): boolean {
-  const { font, letterSpacing, lineHeight } = getTypography()
   const root = document.documentElement
   const pageWidth = root.clientWidth
   const pageHeight = root.clientHeight
   const animating = updateSpinState(now)
-  const layout = buildLayout(pageWidth, pageHeight, lineHeight)
-  const { headlineLines, creditLeft, creditTop, leftLines, rightLines, contentHeight, hits } = evaluateLayout(layout, lineHeight, preparedBody)
+  const layout = buildLayout(pageWidth, pageHeight, BODY_LINE_HEIGHT)
+  const { headlineLines, creditLeft, creditTop, leftLines, rightLines, hits } = evaluateLayout(layout, BODY_LINE_HEIGHT, preparedBody)
 
   currentLogoHits = hits
 
-  projectChromeLayout(layout, contentHeight)
+  projectChromeLayout(layout)
 
   const bodyLines: ProjectedBodyLine[] = [
     ...leftLines.map(line => ({ ...line, className: 'line line--left' })),
@@ -849,9 +836,9 @@ function commitFrame(now: number): boolean {
     creditLeft,
     creditTop,
     creditLetterSpacing: layout.creditLetterSpacing,
-    bodyFont: font,
-    bodyLetterSpacing: letterSpacing,
-    bodyLineHeight: lineHeight,
+    bodyFont: BODY_FONT,
+    bodyLetterSpacing: BODY_LETTER_SPACING,
+    bodyLineHeight: BODY_LINE_HEIGHT,
     bodyLines,
   }
 
