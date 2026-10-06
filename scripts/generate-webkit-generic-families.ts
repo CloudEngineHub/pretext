@@ -98,12 +98,16 @@ function readFamilies(system: System): Map<string, string[]> {
 const macos = readFamilies('macos')
 const ios = readFamilies('ios')
 
-// Language -> the five Canvas family lists, '' where the keyword stands.
+// Language -> the five Canvas family lists, '' where the keyword stands. The rows are macOS's
+// languages, each of which iOS's dump has to answer for too; a language only iOS's dump lists gets
+// no row, and the summary names it.
 const conflicts = new Map<string, string[]>()
 const pairHeads = new Set<string>()
 const lists = new Map<string, string[]>()
+const iosOnly = [...ios.keys()].filter(language => !macos.has(language))
 for (const [language, mac] of macos) {
-  const phone = ios.get(language) ?? mac
+  const phone = ios.get(language)
+  if (phone === undefined) throw new Error(`the iOS table has no row for ${language}, which the macOS table has`)
   const row: string[] = []
   for (let k = 0; k < KEYWORDS.length; k++) {
     const a = mac[k]!
@@ -189,6 +193,7 @@ const summary = [
   `${languageScripts.size} languages and ${scriptSubtags.length} script subtags`,
   `${macos.size} Core Text languages kept as ${kept.size} rows of ${names.length - 1} families and pairs`,
   `macOS's family kept where iOS has it too: ${[...conflicts].map(([key, where]) => `${key} (${where.length}, e.g. ${where.slice(0, 3).join(' ')})`).join('; ')}`,
+  `languages only iOS lists, left out: ${iosOnly.join(' ') || 'none'}`,
   `module ${nextSource.length} B, ${gzipSync(Buffer.from(nextSource), { level: 9 }).length} B gzipped`,
 ].join('; ')
 
