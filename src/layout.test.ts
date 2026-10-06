@@ -1783,7 +1783,6 @@ describe('engine break scans', () => {
   })
 
   test("Gecko's scan follows its white-space transform, text runs, nsLineBreaker and ICU4X's rules", async () => {
-    const { getGeckoLineBreaks } = await import('./gecko-line-breaks.ts')
     const { removeSkippableSegmentBreaks } = await import('./analysis.ts')
     // Cases from the Gecko break oracle's tests and others, with the oracle's breaks,
     // soft-hyphen breaks included. The scan reads the text after the segment break
@@ -3182,8 +3181,7 @@ describe('prepare invariants', () => {
     expect(measureNaturalWidth(prepareWithSegments('中文 日本語', FONT))).toBeCloseTo(measureWidth('中文日本語', FONT) + measureWidth(' ', FONT), 10)
   })
 
-  test('the WebKit profile names the generic families of the page language in the Canvas font', async () => {
-    const { getEngineProfile } = await import('./measurement.ts')
+  test('the WebKit profile names the generic families of the page language in the Canvas font', () => {
     const profile = getEngineProfile()
     const previous = profile.namesGenericFamiliesByLanguage
     const root = { lang: '' }
