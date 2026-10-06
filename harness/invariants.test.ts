@@ -105,6 +105,8 @@ const PLANTS: ReadonlyArray<readonly [string, Profile, string, string, ReadonlyA
     [[/width \+= item\.extraWidth \?\? 0/, 'width += 2 * (item.extraWidth ?? 0)']], 'rich lines'],
   ['two words in items of their own would touch in Firefox, the space between them given no room', 'gecko', 'gap-joins-every-run', 'gecko-line-breaks.ts',
     [[/const goesOnPastDropped = inWhitespace && i > 0 && isDiscardable\(input\.charCodeAt\(i - 1\), is8bit\)/, 'const goesOnPastDropped = (inWhitespace ||= frameStarts !== null && i > 0 && frameStarts.includes(i))']], 'rich lines'],
+  ['the gap after a styled word would take half the kerning Chrome gives the space with it', 'blink', 'gap-half-kerning', 'prepare.ts',
+    [[/spaceShare = Math\.min\(kerning\.after, 0\)/, 'spaceShare = Math.min(kerning.after, 0) / 2']], 'rich lines'],
   ['a long word would measure every prefix, so preparing it grows with the square of its length', 'webkit', 'prefixes-uncapped', 'measurement.ts',
     [[/const prefixes = mode === 'segment-prefixes' && count <= MAX_PREFIX_FIT_GRAPHEMES/, 'const prefixes = mode === \'segment-prefixes\'']], 'growth'],
   ['a message shown at two letter spacings would take the first one\'s fresh-line geometry at the second', 'blink', 'entry-geometry-ignores-letter-spacing', 'prepare.ts',

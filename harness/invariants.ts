@@ -27,12 +27,12 @@
 // - stepping leaves its start cursor as it was, the ranges a stream gives stay as they were, JSON copies of cursors and
 //   ranges resume the same, and a materialized line passed back as a range gives the same line;
 // - a visitor that edits the range it's given doesn't change the lines after it;
-// - rich lines: a gap is the SPACE advance of the item whose white space made it, sign included, less in the Chromium
-//   profile its kerning with the word beside it in that item, and never a box's; white space between two fragments on
-//   a line makes a gap, but where a line feed lies between them or, in Firefox, where it joins a run of white space
-//   (joinsWhiteSpaceRun); an empty item keeps the other items' indices; a `break: 'never'` item and a box stay whole;
-//   each fragment counts its item's extraWidth once; a line is as wide as its fragments' gaps and widths together, or
-//   0 if they add up to less; pre-wrap makes no gaps;
+// - rich lines: a gap is the SPACE advance of the item whose white space made it, sign included, or in the Chromium
+//   profile that less its kerning with the character beside it in that item, and never a box's; white space between
+//   two fragments on a line makes a gap, but where a line feed lies between them or, in Firefox, where it joins a run
+//   of white space (joinsWhiteSpaceRun); an empty item keeps the other items' indices; a `break: 'never'` item and a
+//   box stay whole; each fragment counts its item's extraWidth once; a line is as wide as its fragments' gaps and
+//   widths together, or 0 if they add up to less; pre-wrap makes no gaps;
 // - held handles, and their structuredClone() copies, lay out as before after the same texts are prepared with letter
 //   spacing 1, after clearCache() and after setLocale(), and prepares with filled caches equal cold ones, at the held
 //   texts' letter spacing and at 1;
@@ -372,10 +372,19 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
               const given = gapItem.letterSpacing ?? 0
               const spacing = gecko ? Math.sign(given) * Math.round(Math.abs(Math.fround(Math.fround(given) * 60))) / 60 : given
               const space = standInWidth(' ', gapItem.font, spacing, 'auto')
-              // The Chromium profile's space takes its kerning with the word beside it in its own item, which
-              // this Canvas tightens by up to 1px at 16px (standInWidth).
-              const kerning = profile === 'blink' || profile === 'unknown' ? Number(/(\d+(?:\.\d+)?)px/.exec(gapItem.font)?.[1] ?? 16) / 16 : 0
-              if (f.gapBefore > space + 1e-6 || f.gapBefore < space - kerning - 1e-6) fail('rich lines', at, `line ${i}'s gap before item ${f.itemIndex} is ${f.gapBefore}; item ${f.gapItemIndex}'s SPACE is ${space}`)
+              // The Chromium profile's space takes its kerning with the character beside it in its own item,
+              // the one after the white space that starts the item or before the white space that ends it,
+              // where the profile kerns the two (getSpaceKerning in src/measurement.ts): a gap is the SPACE
+              // or the SPACE less that kerning, as this Canvas gives it (standInWidth), and nothing between.
+              let kerning = 0
+              if (profile === 'blink' || profile === 'unknown') {
+                const text = gapItem.text
+                const step = f.gapItemIndex === f.itemIndex ? 1 : -1
+                let beside = step === 1 ? 0 : text.length - 1
+                while (beside >= 0 && beside < text.length && ' \t\n\r\f'.includes(text[beside]!)) beside += step
+                if (beside >= 0 && beside < text.length) kerning = text.charCodeAt(beside) % 3 / 2 * Number(/(\d+(?:\.\d+)?)px/.exec(gapItem.font)?.[1] ?? 16) / 16
+              }
+              if (Math.abs(f.gapBefore - space) > 1e-6 && Math.abs(f.gapBefore - (space - kerning)) > 1e-6) fail('rich lines', at, `line ${i}'s gap before item ${f.itemIndex} is ${f.gapBefore}; item ${f.gapItemIndex}'s SPACE is ${space}, and ${space - kerning} with its kerning`)
             }
           }
           if (atomic[f.itemIndex]!) {
