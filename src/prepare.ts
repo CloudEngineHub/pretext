@@ -309,7 +309,7 @@ export function measureAnalysis(
   const hasLetterSpacing = letterSpacing !== 0
   const fontMeasurement = getFontMeasurement(font, language, hasLetterSpacing)
   const emojiCorrection = textMayContainEmoji(normalized) ? getEmojiCorrection(font, fontMeasurement) : 0
-  const spaceWidth = fontMeasurement.spaceWidth ??= getTextWidth(' ', fontMeasurement, emojiCorrection)
+  const spaceWidth = getTextWidth(' ', fontMeasurement, emojiCorrection)
   // The advance between tab stops: eight spaces, each with its letter spacing where the
   // engine counts it (EngineProfile's letterSpaceTabStops). Gecko rounds the space and the
   // letter spacing to app units, sixtieths of a pixel, each on its own
@@ -690,9 +690,8 @@ export function measureAnalysis(
 
   // The hyphen a chosen soft hyphen paints, which only a text that holds one asks for, with
   // the gap before it, plus the hyphen's own spacing where the engine letter-spaces it.
-  const hyphenWidth = discretionaryHyphenContexts === null ? fontMeasurement.hyphenMinusWidth ??= getTextWidth('-', fontMeasurement, emojiCorrection)
-    : getTextWidth(engineProfile.hyphenFromPrimaryFont ? getHyphenText(fontMeasurement) : '\u2010', fontMeasurement, emojiCorrection)
-  const discretionaryHyphenWidth = hyphenWidth +
+  const hyphenText = discretionaryHyphenContexts === null ? '-' : engineProfile.hyphenFromPrimaryFont ? getHyphenText(fontMeasurement) : '\u2010'
+  const discretionaryHyphenWidth = getTextWidth(hyphenText, fontMeasurement, emojiCorrection) +
     (letterSpacing === 0 ? 0 : letterSpacing * (engineProfile.letterSpaceDiscretionaryHyphen ? 2 : 1))
 
   // A segment's width is its width between the text before and after it; one that starts
