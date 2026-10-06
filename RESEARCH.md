@@ -2718,10 +2718,10 @@ repin` shows what), and a fact read in source needs reading again.
   `Bitte die Nebenrollen-`, 153.87px wide, at 159.25-162.5px, the hyphen being 5.33px. Without an opportunity at or
   before the reduced width the item overflows and `HandleOverflow` takes over (#323's family; ENGINE_FOLLOWUPS.md, Line
   edges). Firefox and Safari end the line at such a break where it fits at the full width (`gfxTextRun.cpp:1053-1094`;
-  Safari (WebKit), Soft hyphens). Until #TBD the Chromium profile returned only to a space, a ZWSP or a soft hyphen,
+  Safari (WebKit), Soft hyphens). Until #446 the Chromium profile returned only to a space, a ZWSP or a soft hyphen,
   and kept the hyphen, up to its whole width past the line's end, wherever a break between two text segments lay after
   that target: in #433, `Bitte die Nebenrollen-Ta-`, 178.1px wide, at 172-178px in 16px Helvetica Neue, and a French
-  sentence in 5 lines at 148-152px in 16px Arial, where Chrome has 6. Since #TBD each break the scan gives between two
+  sentence in 5 lines at 148-152px in 16px Arial, where Chrome has 6. Since #446 each break the scan gives between two
   text segments is a target where its line leaves room for the hyphen (`walkPreparedComplexLines`,
   `src/line-break.ts`). Of 34,064 probe layouts the profile agreed with Chrome on 31,620 before and on 33,612 after,
   with a wrong line count on 345 and on 79: the issue's texts in four fonts; a hyphen-minus, U+2010, an en or em dash,
@@ -3162,7 +3162,7 @@ Mostly on main as it was then, measured with the old suite in installed browsers
 - **Soft-hyphen returns**: returning from a soft hyphen to an earlier break works only when isolated widths show the
   overflow and the break returned to is truly the latest. Returning past a break between two text segments, to the
   space or soft hyphen before it, lost 142 Chrome rows (2026-09-12), and the Chromium profile then kept the hyphen
-  wherever such a break lay after its target. Chrome returns to that break itself, which the profile does since #TBD,
+  wherever such a break lay after its target. Chrome returns to that break itself, which the profile does since #446,
   now that each break the scan gives is a segment boundary (Engine Facts, Chrome, Soft hyphens). Both rules for a soft
   hyphen with no fitting opportunity lost hundreds (the #323 entries on `harness/accepted/`'s lists), Firefox's
   (4e6d4dd5, branch `archive/gecko-soft-hyphen-return`) 15 per direction. Those reopen with contextual widths during

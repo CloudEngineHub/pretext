@@ -170,7 +170,7 @@ reasons that cite a `layout.test.ts` line point at the files of main before #340
 name the fonts they run in where that isn't 16px Arial. A fact added after them names its test's line as of the commit
 that added or last changed the fact, which this paragraph names, since a later merge moves the test and a case's family
 and origin keep the line: line 1000 at dbfab0de (#399), Firefox's white space around bidi controls, and line 2140 at
-785e5af2 (#TBD), Chrome's return from an unfit hyphen to a break between two text segments, whose second row runs in
+785e5af2 (#446), Chrome's return from an unfit hyphen to a break between two text segments, whose second row runs in
 16px Hiragino Sans. Such a fact also names the paragraph directions it runs in where a browser's lines turn on them
 (the first of those, both). The facts set has no
 cover, so it keeps the width where a template's words join, which the catalog's cover drops once a narrower change has
