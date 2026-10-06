@@ -1540,24 +1540,30 @@ collapsed space at an item's edge is now measured with its item, so more paragra
 of how a font kerns a space with its neighbours, two strings of printable ASCII, which a page pays once for a font.
 Firefox's and webkit-host's calls and units stay within 0.2% in every set.
 
-Speed, against main at #431 (1f98f317), from the bench's background browsers (Chrome 154.0.8037.57, Firefox 156.0.1,
-webkit-host; 2026-10-05), so hypotheses until the bench times the foreground browsers. A pair of figures is two runs,
-one of three sessions and one of five; the PR's description has every row. Laying out prepared rich text:
-`measureRichInlineStats()` takes 0.20 of main's time in Chrome, 0.39-0.41 in Firefox and 0.23-0.24 in webkit-host;
-`walkRichInlineLineRanges()` reads 28% faster, 11-13% and 22-27%; and `layoutNextRichInlineLineRange()` 25% faster in
-Chrome, 18-24% in webkit-host and level in Firefox (-3.1% and +0.3%, inside its band). Preparing rich text no library
-has seen and counting its lines, the `rich-new` row, reads slower in all three: 9-10% as the bench's medians in Firefox,
-6-17% in Chrome and 10-13% in webkit-host, and over the eleven to fourteen runs of this design's builds 6-26%, 1-17% and
-8-15%. The row times each batch once and its sessions differ by 20 points, so three sessions don't settle it. The
-engines' shells on a stand-in Canvas say where it goes. With the code warm the paragraph costs V8 what the item
-stepper's preparation did (+0.4%), SpiderMonkey 8% less and JavaScriptCore 37% more: every segment's text is a slice of
-the paragraph's joined text, which JavaScriptCore resolves and hashes where an item's own text was a string at hand, a
-paragraph's white space collapses over the whole text, and the WebKit profile scans each item of two units or more. On a
-fresh page the shells read 14-28% slower over the first 14,000 units, which is the bench's row, and SpiderMonkey with
-its interpreters alone 10% faster: the engines reach their compiled speed later on the paragraph's code, and why wasn't
-found. What plain text's rows read is under Keeping Work Bounded: the walker's rules for a paragraph are tests on a
-text's path (Work Done Only Where A Rule Applies), and two forms of the first build cost one engine more than their work
-(JavaScript Engines: how a width is stored, a flag parameter).
+Speed, against main at #450 in the foreground bench (Chrome 154.0.8037.98, Firefox 156.0.1 and installed Safari 27.0,
+2026-10-06): one run of every row in three sessions and one of the `rich` rows in ten, a pair of figures being those
+two runs; the PR's description has every row. Laying out prepared rich text is faster in all three:
+`measureRichInlineStats()` takes 0.20 of main's time in Chrome, 0.39-0.43 in Firefox and 0.23-0.24 in Safari;
+`walkRichInlineLineRanges()` reads 28-30% faster, 12-14% and 21-22%; and `layoutNextRichInlineLineRange()` 25-26%
+faster in Chrome, 18-23% in Safari and level in Firefox (-4.0% and -0.2%, inside its band). Preparing rich text is
+slower in Safari and mixed in the other two. Text no library has seen, the `rich-new` row, read 16.1% and 3.4% slower
+in Chrome, within a band of 18-26% both times; 13.1% slower in Firefox, called in the run of three, and 7.0% in the
+run of ten, 9 of whose sessions read slower; and 15.4% slower in Safari, called, and 10.0%, every one of 13 sessions
+slower. Text prepared again with every width measured, the `rich-seen` row, read 5.7% and 6.2% faster in Chrome and
+5.2% and 6.5% in Firefox, every session faster and the median at the row's 5% floor, and 39.3% slower in Safari,
+called, and 29.9%, every session slower: 79-81 µs per 1,000 units against main's 58-61. The engines' shells on a
+stand-in Canvas said where preparation's cost goes, on the design before main's #435 to #446 (2026-10-05, hypotheses).
+With the code warm the paragraph costs V8 what the item stepper's preparation did (+0.4%), SpiderMonkey 8% less and
+JavaScriptCore 37% more: every segment's text is a slice of the paragraph's joined text, which JavaScriptCore resolves
+and hashes where an item's own text was a string at hand, a paragraph's white space collapses over the whole text, and
+two passes read every unit (`alignToSource()`, `markItemStarts()`). That is Safari's loss, and it is all of the
+`rich-seen` row, where no Canvas call is left to share the time. On a fresh page the shells read 14-28% slower over
+the first 14,000 units, which is the `rich-new` row, and SpiderMonkey with its interpreters alone 10% faster: the
+engines reach their compiled speed later on the paragraph's code (V8 counted 6,039 bytes of bytecode in
+`prepareRichInline()` against 3,331). What plain text's rows read is under Keeping Work Bounded: the walker's rules for a paragraph are tests
+on a text's path (Work Done Only Where A Rule Applies), and three forms cost one engine more than their work
+(JavaScript Engines: how a width is stored, a flag parameter; Dead Ends, Fitting, Cuts And Fast Paths, the font's two
+widths).
 
 #### Joined Text
 
@@ -2354,6 +2360,10 @@ runs (Firefox 156.0.1, bench sessions of 2026-09-27 and 28, unless noted):
   SpiderMonkey's the pre-wrap walk 1.5, so the form stays (Part 1, Engineering, JIT tuning). In preparation, the Gecko
   scan's white-space pass found for every unit where its item ends, which only a white-space run reads: Firefox's shell
   prepared the bench's long breakable runs 3.3% slower than main, and 1.6% with that found where a run starts.
+  In the foreground, on main at #450 (Chrome 154.0.8037.98, Firefox 156.0.1, Safari 27.0, three sessions, 2026-10-06):
+  the soft hyphens' `layout()` read 5.7%, 2.5% and 2.0% slower, none called; pre-wrap chunks' `layout()` and walk 6.5%
+  and 6.6% slower in Safari, called, and under 2.5% in the other two; and letter-spaced CJK `layout()`, the same walker,
+  3.4% slower in Firefox and 8.9% in Safari, called, and 3.9% faster in Chrome, called.
 - **A paragraph's segment breaks, in the Gecko profile**: Gecko transforms segment breaks in each text frame's own text,
   so a paragraph with a line feed had every item cut out of the joined text, transformed and joined again: 8,508 of the
   bench's 14,834 rich items, 199 of which hold a line feed. Cutting out only those, and copying the text between two
@@ -2550,7 +2560,10 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   webkit-host. SpiderMonkey 156.0.1's shell shows the int32 cost (+14% and +8% for the same forced int32) and not the
   default values' effect, so why they keep whole widths int32 in the browser wasn't found. Reopens with a way to store a
   handle's widths as doubles whatever tier made them that costs a short text's preparation nothing: it is worth 12% of
-  `layout()` and of a count of CJK lines in Firefox for text prepared while the code is cold.
+  `layout()` and of a count of CJK lines in Firefox for text prepared while the code is cold. The same loss came back
+  when a font's space width was read off its measurement inside `measureAnalysis()` (Dead Ends, Fitting, Cuts And Fast
+  Paths, 2026-10-06), so what keeps a whole width an int32 there is how the code around it is typed, and default values
+  are one way among others to change that.
 - **A flag parameter, in JavaScriptCore**: `buildLineTextFromRange()` took a last parameter, true by default, for
   whether its range ends a line, and webkit-host read `layoutWithLines()` over the bench's mixed messages 4.0-4.7%
   slower than main in three runs, for one test a line (JavaScriptCore's shell: +2.9%; V8's and SpiderMonkey's level). As
@@ -4607,24 +4620,28 @@ decisions for the maintainer.
   out, since `SegmentBreakKind` isn't exported (TODO.md, the API discussion). A hidden field reopens with an app that
   needs its number and has no public way to it, as an addition to the type or a function, never by showing the walkers'
   storage again.
-- **2026-10-05: rich inline is one paragraph, laid out by the text walkers** (proposed in the change that makes it; it
+- **2026-10-06: rich inline is one paragraph, laid out by the text walkers** (proposed in the change that makes it; it
   changes what rich-inline cursors mean, so it is the maintainer's to rule on, and this entry holds once that change
   merges). One analysis of the items' joined text and one handle replace the item stepper, a second line walker that
   kept drifting from the first (Rich Inline Boundaries, Rich Inline As One Paragraph, has the design and its counts).
   What it settles: a rule about line breaking is written once, in the analysis, the profile or the walker; what an
-  engine does at a span's edge goes on the paragraph's segments, never in a walker of its own; and a rich-inline cursor
-  counts the paragraph's segments, with `sourceStart` and `sourceEnd` on a materialized fragment for its place in the
-  item's text, since no mapping gives a cursor into `prepareWithSegments(item.text)` without analyzing each item
-  again. What it costs: that cursor contract; an atomic item of only white space is an object as wide as its
-  `extraWidth`; the main entry is 1,099 B larger gzipped for what the walker and the analysis carry for a paragraph;
-  and the walker has rules that hold for a paragraph only (`items !== undefined`), where plain text has the same gap
-  and wasn't to move in the same change: a U+3000 run that hangs at an item's end, the breaks before text that a
-  return from an unfit hyphen may take, a soft hyphen beside an object, and a segment of negative advance on a line
-  that overflows. Each is the engine's rule, and the text walkers should take it in a change of their own, which
-  removes the guard. What it gave up, each a named gap with its count (ENGINE_FOLLOWUPS.md, Rich-inline item edges):
-  the Gecko profile's hang of a space before a soft hyphen Firefox drops, which the stepper had as a profile field and
-  the text walker lacks; Chrome's closing mark halted at an item's end; and a line of its own for a ZWSP after content
-  that overflows, which the stepper gave an item of only a ZWSP. It reopens if an app needs cursors into each item's
-  own prepared text; if the bench, which ran with it in the background browsers only, shows the fragment pass slower
-  than the stepper in Firefox in the foreground, where the background runs show the walk 11-13% faster and the stream
-  level; or with kerning across sibling spans, which wants the paragraph measured as well as analyzed whole.
+  engine does at a span's edge goes on the paragraph's segments, never in a walker of its own; and a rich-inline
+  cursor counts the paragraph's segments, with `sourceStart` and `sourceEnd` on a materialized fragment for its place
+  in the item's text, since no mapping gives a cursor into `prepareWithSegments(item.text)` without analyzing each
+  item again. What it costs: that cursor contract; an atomic item of only white space is an object as wide as its
+  `extraWidth`; preparing rich text is slower in Safari, 10-15% for text no library has seen and 30-39% for text
+  prepared again, and 3-16% for new text in Chrome and Firefox, against stats at 0.2-0.4 of the stepper's time and
+  walks 12-30% faster; the main entry is 1,226 B larger gzipped for what the walker and the analysis carry for a
+  paragraph; and the walker has rules that hold for a paragraph only (`items !== undefined`), where plain text has the
+  same gap and wasn't to move in the same change: a U+3000 run that hangs at an item's end, a soft hyphen beside an
+  object, a segment of negative advance on a line that overflows, and a run of preserved spaces that hangs where a
+  line wraps right after it with no break there. Each is the engine's rule, and the text walkers should take it in a
+  change of their own, which removes the guard, as #446 did for the breaks a return from an unfit hyphen may take.
+  What it gave up, each a named gap with its count (ENGINE_FOLLOWUPS.md, Rich-inline item edges): the Gecko profile's
+  hang of a space before a soft hyphen Firefox drops, which the stepper had as a profile field and the text walker
+  lacks; Chrome's closing mark halted at an item's end; a line of its own for a ZWSP after content that overflows,
+  which the stepper gave an item of only a ZWSP; and in Firefox the spaces after a ZWSP or a soft hyphen before a
+  padded item, and a line of only a tab before a padded line feed. It reopens if an app needs cursors into each item's
+  own prepared text; if Safari's cost of preparing rich text shows in an app, where the removals that were measured
+  and left out start (Dead Ends, Fitting, Cuts And Fast Paths); or with kerning across sibling spans, which wants the
+  paragraph measured as well as analyzed whole.
