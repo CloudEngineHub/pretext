@@ -1433,7 +1433,7 @@ describe('boundary-policy regressions', () => {
       for (const engine of ['blink', 'gecko', 'webkit'] as const) {
         const fields = TAB_FIELDS[engine]
         Object.assign(profile, fields)
-        for (const letterSpacing of [-1, -0.5, 2]) {
+        for (const letterSpacing of [-1, -0.5, 2, 4]) {
           // Blink and Gecko put a stop every eight letter-spaced spaces and add no spacing after a
           // tab; WebKit puts one every eight spaces and spaces each tab. The line's last glyph
           // keeps its spacing.
