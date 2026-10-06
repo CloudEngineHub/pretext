@@ -1691,8 +1691,10 @@ one-paragraph design such an item was a collapsed space.
 #### CJK At An Item's Edge
 
 What Chrome's `text-spacing-trim` does with fullwidth punctuation at a span's edge, in Chrome 154.0.8037.57 on macOS
-27.0 at DPR 2, in 16px Hiragino Sans and PingFang SC (2026-09-30 to 10-04), which rich inline follows since #425. A
-halt is the half an em Chrome takes off a fullwidth mark (`src/han-kerning.ts`). Firefox and webkit-host halt no mark.
+27.0 at DPR 2, in 16px Hiragino Sans and PingFang SC (2026-09-30 to 10-04), which rich inline follows since #425: with
+code of its own while it walked item by item, and since the one-paragraph design through the paragraph's analysis,
+which reads the text on both sides of an item's edge (Rich Inline As One Paragraph). A halt is the half an em Chrome
+takes off a fullwidth mark (`src/han-kerning.ts`). Firefox and webkit-host halt no mark.
 - Chrome halts a pair of fullwidth marks that a span edge splits as in one text node, whatever the two spans' weights,
   sizes or families and with padding between them, each mark by the font of its own span, since
   `HanKerning::AppendFontFeatures` reads the paragraph's text on both sides of each shaped run
@@ -1701,15 +1703,17 @@ halt is the half an em Chrome takes off a fullwidth mark (`src/han-kerning.ts`).
   `。と言った` wrapped otherwise than Chrome at 68 of 141 widths from 60 to 200px.
 - A closing mark that Chrome halts at a span's end, where the span fits only so, stays halted where the line goes on:
   `文字」` and a span `i` take one 43.81px line at 44-47px, where their text in one node takes two, of 40px and
-  3.81px. Rich inline did this before #425, and still does. Chrome halts the mark only where a break comes right
+  3.81px. The walk item by item did this, before #425 and with it, as an item's own text ended at the mark; the
+  paragraph halts a mark at a line's end only, as a text does, and gives two lines there (ENGINE_FOLLOWUPS.md,
+  Rich-inline item edges). Chrome halts the mark only where a break comes right
   after it (`ShapingLineBreaker::ShapeLine`, `shaping_line_breaker.cc:342-363`), and its scan gives none before a
   space, a tab or a line feed: `文字）` before a span that starts with a space, or with that space ending its own
   span, or before a span that starts with a line feed in pre-wrap, breaks before `字` at 40-47px, as in one node,
   and so does `設定）` before a space and a box or a chip. A chip's own white space is no such space, where it starts
   the chip's text or is all of it, since its inline-block trims it: a break comes right after the mark, and `設定）`
   before a chip ` @a `, or before a chip of a space, fits 40-47px halted, also where the span after that chip starts
-  with a space. Rich inline had kept `文字）` halted on one line before a space, since an item's own text ends at the
-  mark.
+  with a space. Before #425 the walk item by item had kept `文字）` halted on one line before a space, since an
+  item's own text ended at the mark.
 
 These counts are of probes recorded fresh in two document orders on 2026-10-04, each case predicted with main at #423
 and with #425, and not kept. Styled Japanese and Chinese sentences at 120-600px in nine font stacks go from 5,608 to
@@ -1725,6 +1729,11 @@ longer fits, 12 through a U+3000 run that ends a span, 9 through U+3000 after a 
 padding of a chip of only white space. Of the 14: 10 through U+3000 after a collapsible space, 1 through a U+3000 run
 that ends a span, 2 through a padded span's padding and 1 through a ZWSP that holds a line. A Chrome that stops
 halting across spans, which the rich set's `item-edges` cases would show at a repin, reopens the first fact.
+
+The one-paragraph design gives the pair halt the same lines without that code: of 9,768 layouts of pairs of marks
+across span edges at 16-160px every prediction is the one main with #425 gives, 9,613 of them right, and of 6,348 of
+the styled sentences both pass 6,337 and fail the same 11 (Chrome 154.0.8037.98, 2026-10-06, recorded fresh in two
+document orders; main at #446).
 
 #### Objects Inside A Line
 
