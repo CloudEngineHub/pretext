@@ -2042,7 +2042,7 @@ Safari gains must come from measuring less. Korean, Thai, Khmer, Burmese and Hin
 under system fallback, twice with a named font for the script.
 
 The context's font is set at the first measurement after a font is looked up (`getContext()` in `src/measurement.ts`),
-not at the lookup (#TBD): rich inline looks a font up for every item, and an item whose text is all in the font's cache
+not at the lookup (#445): rich inline looks a font up for every item, and an item whose text is all in the font's cache
 measures nothing. Prepared again, the bench's 147 Latin rich messages, 7,040 items, assigned `context.font` 7,040 times,
 2,310 of them to another font than the context held, and ten dense styled Japanese sentences, 74 items, 74 times and 44;
 now neither assigns any (a stand-in Canvas's counts; a row of the unit test for stale contexts holds the zero). Those
