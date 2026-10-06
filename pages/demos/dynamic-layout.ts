@@ -124,6 +124,7 @@ type PageLayout = {
   headlineLineHeight: number
   creditGap: number
   creditLetterSpacing: number
+  creditWidth: number
   copyGap: number
   openaiRect: Rect
   claudeRect: Rect
@@ -573,6 +574,7 @@ function buildLayout(pageWidth: number, pageHeight: number, lineHeight: number):
       headlineLineHeight,
       creditGap,
       creditLetterSpacing: NARROW_CREDIT_LETTER_SPACING,
+      creditWidth: NARROW_CREDIT_WIDTH,
       copyGap,
       openaiRect,
       claudeRect,
@@ -627,6 +629,7 @@ function buildLayout(pageWidth: number, pageHeight: number, lineHeight: number):
     headlineLineHeight,
     creditGap,
     creditLetterSpacing: CREDIT_LETTER_SPACING,
+    creditWidth: CREDIT_WIDTH,
     copyGap,
     openaiRect,
     claudeRect,
@@ -711,12 +714,11 @@ function evaluateLayout(
     layout.isNarrow ? creditBlocked.concat(claudeCreditBlocked) : creditBlocked,
     MIN_SLOT_WIDTH,
   )
-  const creditWidth = layout.isNarrow ? NARROW_CREDIT_WIDTH : CREDIT_WIDTH
   // When no slot fits, the credit isn't painted, rather than painted over a logo or past the page.
   let creditLeft: number | null = null
   for (let index = 0; index < creditSlots.length; index++) {
     const slot = creditSlots[index]!
-    if (slot.right - slot.left >= creditWidth) {
+    if (slot.right - slot.left >= layout.creditWidth) {
       creditLeft = Math.round(slot.left)
       break
     }
