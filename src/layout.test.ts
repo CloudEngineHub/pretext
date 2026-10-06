@@ -5014,7 +5014,7 @@ describe('layout invariants', () => {
     expect(layout(prepared, width, LINE_HEIGHT).lineCount).toBe(batched.lineCount)
   })
 
-  test('soft-hyphen fallback does not crash when overflow happens on a later space', () => {
+  test('a word that fits past its soft hyphen stays whole, and the overflow after it breaks at the space', () => {
     const prepared = prepareWithSegments('foo trans\u00ADatlantic labels', FONT)
     const width = measureWidth('foo transatlantic', FONT) + 0.1
     const result = layoutWithLines(prepared, width, LINE_HEIGHT)
