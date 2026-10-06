@@ -21,7 +21,7 @@ This page's made to show off our layout APIs:
 - The first visible render waits for both fonts and hull preload, so it uses the real geometry from the start.
 - There is no DOM text measurement loop feeding layout.
 */
-import { layoutNextLine, measureNaturalWidth, prepareWithSegments, type LayoutCursor, type PreparedTextWithSegments } from '../../src/layout.ts'
+import { layoutNextLine, measureNaturalWidth, prepare, prepareWithSegments, type LayoutCursor, type PreparedTextWithSegments } from '../../src/layout.ts'
 import { BODY_COPY } from './dynamic-layout-text.ts'
 import { breaksInsideWord, hasActiveTextSelection, positionedLinesEqual, setNodeCount, type PositionedLine } from './line-nodes.ts'
 import openaiLogoUrl from '../assets/openai-symbol.svg'
@@ -219,6 +219,8 @@ const [, openaiLayout, claudeLayout, openaiHit, claudeHit] = await Promise.all([
 ])
 const wrapHulls: WrapHulls = { openaiLayout, claudeLayout, openaiHit, claudeHit }
 const preparedBody = getPrepared(BODY_COPY, BODY_FONT, BODY_LETTER_SPACING)
+const CREDIT_WIDTH = measureCreditWidth(CREDIT_LETTER_SPACING)
+const NARROW_CREDIT_WIDTH = measureCreditWidth(NARROW_CREDIT_LETTER_SPACING)
 
 function getPrepared(text: string, font: string, letterSpacing: number): PreparedTextWithSegments {
   const key = `${font}::${letterSpacing}::${text}`
@@ -227,6 +229,10 @@ function getPrepared(text: string, font: string, letterSpacing: number): Prepare
   const prepared = prepareWithSegments(text, font, { letterSpacing })
   preparedByKey.set(key, prepared)
   return prepared
+}
+
+function measureCreditWidth(letterSpacing: number): number {
+  return Math.ceil(measureNaturalWidth(prepare(CREDIT_TEXT, CREDIT_FONT, { letterSpacing })))
 }
 
 function getObstacleIntervals(obstacle: BandObstacle, bandTop: number, bandBottom: number): Interval[] {
@@ -705,7 +711,7 @@ function evaluateLayout(
     layout.isNarrow ? creditBlocked.concat(claudeCreditBlocked) : creditBlocked,
     MIN_SLOT_WIDTH,
   )
-  const creditWidth = Math.ceil(measureNaturalWidth(getPrepared(CREDIT_TEXT, CREDIT_FONT, layout.creditLetterSpacing)))
+  const creditWidth = layout.isNarrow ? NARROW_CREDIT_WIDTH : CREDIT_WIDTH
   // When no slot fits, the credit isn't painted, rather than painted over a logo or past the page.
   let creditLeft: number | null = null
   for (let index = 0; index < creditSlots.length; index++) {
