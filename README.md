@@ -51,11 +51,11 @@ The returned height is the crucial last piece for unlocking web UIs:
 - _development time_ verification (especially now with AI) that labels on e.g. buttons don't overflow to the next line, browser-free
 - prevent layout shift when new text loads and you wanna re-anchor the scroll position
 
-With that same `prepare()` handle you can also get the line count & widest line (`measureLineStats()`, no `lineHeight` needed), the natural width (`measureNaturalWidth()`) and each line's width (`walkLineRanges()`, `layoutNextLineRange()`): see use case 2 and the API Glossary below.
+The same `prepare()` handle also works with the APIs below that don't return text (`measureLineStats()`, `measureNaturalWidth()`, `walkLineRanges()`, `layoutNextLineRange()`), e.g. to shrink-wrap a chat bubble to its widest line.
 
 ### 2. Lay out the paragraph lines manually yourself
 
-Switch out `prepare` with `prepareWithSegments`, which the APIs that return a line's text need (`layoutWithLines()`, `layoutNextLine()`, `materializeLineRange()`), then:
+Switch out `prepare` with `prepareWithSegments` (the APIs that return a line's text need it: `layoutWithLines()`, `layoutNextLine()`, `materializeLineRange()`), then:
 
 - `layoutWithLines()` gives you all the lines at a fixed width:
 
@@ -132,7 +132,7 @@ For `white-space: pre-wrap` or `word-break: keep-all` on the paragraph, pass `{ 
 
 Use-case 1 APIs:
 ```ts
-prepare(text: string, font: string, options?: { whiteSpace?: 'normal' | 'pre-wrap', wordBreak?: 'normal' | 'keep-all', letterSpacing?: number }): PreparedText // one-time text analysis + measurement pass, returns an opaque value to pass to `layout()`. Make sure `font` and `letterSpacing` are synced with your CSS for the text you're measuring. `font` is the same format as what you'd use for `myCanvasContext.font = ...`, e.g. `16px Inter`; `letterSpacing` is a CSS pixel value, and must be finite.
+prepare(text: string, font: string, options?: { whiteSpace?: 'normal' | 'pre-wrap', wordBreak?: 'normal' | 'keep-all', letterSpacing?: number }): PreparedText // one-time text analysis + measurement pass, returns an opaque value to pass to `layout()` and to the APIs below that don't return text. Make sure `font` and `letterSpacing` are synced with your CSS for the text you're measuring. `font` is the same format as what you'd use for `myCanvasContext.font = ...`, e.g. `16px Inter`; `letterSpacing` is a CSS pixel value, and must be finite.
 layout(prepared: PreparedText, maxWidth: number, lineHeight: number): { height: number, lineCount: number } // calculates text height given a max width and lineHeight. Make sure `lineHeight` is synced with your css `line-height` declaration for the text you're measuring.
 ```
 
