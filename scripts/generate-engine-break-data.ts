@@ -52,8 +52,9 @@
 //   (u_getIntPropertyValue, intl/components/src/UnicodeProperties.h:75-100), so the map takes a
 //   premise: both hold one Unicode version's values. Firefox 156.0's do, on every code point
 //   (ICU 78.3's propsVectors, intl/icu/source/common/uchar_props_data.h, bits 12-14 of the first
-//   column, uprops.h:159-160; compared on 2026-10-01). Nothing compares a later Firefox's:
-//   `bun harness repin firefox` looks for the line and grapheme data's bytes only.
+//   column, uprops.h:159-160; compared on 2026-10-01). `bun harness repin firefox` looks in XUL
+//   for that file's arrays (chrome-153/ above), so it says when Gecko's values are no longer the
+//   ones compared; nothing compares the crate's again.
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
