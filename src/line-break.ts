@@ -73,6 +73,10 @@ export type PreparedLineData = PreparedLineBreakData & { items?: ParagraphSegmen
 // - `hyphenWidths`, `tabStopAdvances`, `minimumTabAdvances`: the hyphen a soft hyphen paints, the
 //   advance between a tab's stops and the least a tab advances, in the item's font, where two
 //   items differ in one;
+// - `hyphenRooms`: the room a line that ends at the break before the segment leaves for a hyphen,
+//   where it returns there from a soft hyphen whose hyphen doesn't fit, in a paragraph with a soft
+//   hyphen under a profile that leaves such room (getHyphenRooms in src/rich-inline.ts), with one
+//   more entry for the break at the paragraph's end;
 // - `insideExtras`, `fillExtras`: the item's extraWidth where a line that starts inside the
 //   segment pays it, or starts at it and fills it grapheme by grapheme, as a line that starts
 //   with the whole segment pays lineStartExtras;
@@ -91,6 +95,7 @@ export type ParagraphSegmentData = {
   hyphenWidths: number[] | null
   tabStopAdvances: number[] | null
   minimumTabAdvances: number[] | null
+  hyphenRooms: number[] | null
   insideExtras: number[] | null
   fillExtras: number[] | null
   openingEdges: number[] | null
@@ -497,6 +502,7 @@ function walkPreparedComplexLines(
   const segmentCount = segmentFlags.length
   const items = prepared.items
   const hyphenWidths = items === undefined ? null : items.hyphenWidths
+  const hyphenRooms = items === undefined ? null : items.hyphenRooms
   const insideExtras = items === undefined ? null : items.insideExtras
   const fillExtras = items === undefined ? null : items.fillExtras
   const openingEdges = items === undefined ? null : items.openingEdges
@@ -524,7 +530,8 @@ function walkPreparedComplexLines(
   // Preparation records soft-hyphen contexts only where the text has a soft hyphen.
   const retreatsFromUnfitHyphen = prepared.discretionaryHyphenContexts !== null
   // Blink's retry leaves room for the hyphen at every earlier opportunity. Gecko and
-  // WebKit return to any opportunity whose line fits.
+  // WebKit return to any opportunity whose line fits. A rich-inline paragraph has that room per
+  // break (ParagraphSegmentData, hyphenRooms).
   const reservesHyphenWidth = engineProfile.unfitHyphenRetreat === 'reduced-width'
   const reservedHyphenWidth = reservesHyphenWidth ? discretionaryHyphenWidth : 0
   // WebKit's return stops at the line's first opportunity, whatever its hyphen overflows:
@@ -735,7 +742,7 @@ function walkPreparedComplexLines(
                   pendingBreakSegmentIndex = i + 1
                   pendingBreakWidth = hangs ? hangStartWidth : kind === TAB ? lineW : lineW - advance
                 }
-                if (retreatsFromUnfitHyphen && breakAfter && pendingBreakWidth + reservedHyphenWidth <= fitLimit) {
+                if (retreatsFromUnfitHyphen && breakAfter && pendingBreakWidth + (hyphenRooms === null || pendingBreakSegmentIndex < 0 ? reservedHyphenWidth : hyphenRooms[pendingBreakSegmentIndex]!) <= fitLimit) {
                   fitBreakSegmentIndex = pendingBreakSegmentIndex
                   fitBreakPaintWidth = pendingBreakWidth
                 }
@@ -911,7 +918,7 @@ function walkPreparedComplexLines(
               // to it fit when its last segment was admitted, with the letter-spacing gap after
               // it that lineW leaves out, so only Blink's room for the hyphen is tested here.
               if (retreatsFromUnfitHyphen && !breakAfter && (flags & UNBROKEN) === 0 && i > lineStartSegmentIndex &&
-                !breaksAfterKind(segmentFlags[i - 1]! & KIND_BITS) && (!reservesHyphenWidth || lineW + discretionaryHyphenWidth <= fitLimit)) {
+                !breaksAfterKind(segmentFlags[i - 1]! & KIND_BITS) && (!reservesHyphenWidth || lineW + (hyphenRooms === null ? discretionaryHyphenWidth : hyphenRooms[i]!) <= fitLimit)) {
                 fitBreakSegmentIndex = i
                 fitBreakPaintWidth = lineW
               }
@@ -929,7 +936,7 @@ function walkPreparedComplexLines(
                 pendingBreakSegmentIndex = i + 1
                 pendingBreakWidth = hangs ? hangStartWidth : kind === TAB ? lineW : lineW - advance - lineEndTrimmed
               }
-              if (retreatsFromUnfitHyphen && breakAfter && pendingBreakWidth + reservedHyphenWidth <= fitLimit) {
+              if (retreatsFromUnfitHyphen && breakAfter && pendingBreakWidth + (hyphenRooms === null || pendingBreakSegmentIndex < 0 ? reservedHyphenWidth : hyphenRooms[pendingBreakSegmentIndex]!) <= fitLimit) {
                 fitBreakSegmentIndex = pendingBreakSegmentIndex
                 fitBreakPaintWidth = pendingBreakWidth
               }

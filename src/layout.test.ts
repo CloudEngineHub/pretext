@@ -2336,6 +2336,63 @@ describe('prepare invariants', () => {
     }
   })
 
+  test('a rich-inline paragraph leaves Blink\'s room for the hyphen of the item that holds the soft hyphen, and none at the break before that item', () => {
+    const profile = getEngineProfile()
+    const previous = profile.unfitHyphenRetreat
+    const measureText = Object.getOwnPropertyDescriptor(TestCanvasRenderingContext2D.prototype, 'measureText')!
+    const SMALL = '10px Test Sans'
+    const LARGE = '24px Test Sans'
+    // An `i` is 3/16 em wide, narrower than a hyphen.
+    const iWidth = (font: string): number => parseFontSize(font) * 3 / 16
+    Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', {
+      ...measureText,
+      value(this: TestCanvasRenderingContext2D, measured: string) {
+        return { width: measureWidth(measured, this.font) - (measureWidth('i', this.font) - iWidth(this.font)) * (measured.match(/i/g) ?? []).length }
+      },
+    })
+    clearCache()
+    const richLines = (items: { text: string, font: string }[], width: number): string[] => {
+      const prepared = prepareRichInline(items)
+      const lines: string[] = []
+      walkRichInlineLineRanges(prepared, width, range => {
+        lines.push(materializeRichInlineLineRange(prepared, range).fragments.map(fragment => (fragment.gapItemIndex < 0 ? '' : ' ') + fragment.text).join(''))
+      })
+      expect(measureRichInlineStats(prepared, width).lineCount).toBe(lines.length)
+      return lines
+    }
+    try {
+      profile.unfitHyphenRetreat = 'reduced-width'
+      // `x ab-i` fits and its hyphen doesn't. The break after `ab-` is inside the large item, so
+      // it has to leave room for the large hyphen, which it doesn't, though it would for the small
+      // one of the item the paragraph starts with. The break before the large item needs none.
+      const items = [{ text: 'x ', font: SMALL }, { text: 'ab-i\u00ADkes', font: LARGE }]
+      const lead = measureWidth('x ', SMALL) + measureWidth('ab-', LARGE)
+      const smallHyphen = measureWidth('-', SMALL)
+      const largeHyphen = measureWidth('-', LARGE)
+      expect(iWidth(LARGE) + smallHyphen).toBeLessThan(largeHyphen)
+      expect(richLines(items, lead + iWidth(LARGE) + smallHyphen)).toEqual(['x', 'ab-i-', 'kes'])
+      // With room for the large hyphen after `ab-`, the line returns there.
+      expect(richLines(items, lead + largeHyphen)).toEqual(['x ab-', 'ikes'])
+      // The same letters in the small item's font leave room for their own hyphen sooner.
+      const small = [{ text: 'x ', font: LARGE }, { text: 'ab-i\u00ADkes', font: SMALL }]
+      const smallLead = measureWidth('x ', LARGE) + measureWidth('ab-', SMALL)
+      expect(richLines(small, smallLead + smallHyphen)).toEqual(['x ab-', 'ikes'])
+      // A break right before the item that holds the soft hyphen leaves no room: the line goes
+      // back over that item to a break that fits. In one text the break after `ab-` leaves none
+      // for the hyphen and the hyphen stays, overflowing.
+      const width = measureWidth('ab-', FONT) + iWidth(FONT) + 0.1
+      expect(richLines([{ text: 'ab-', font: FONT }, { text: 'i\u00ADk', font: FONT }], width)).toEqual(['ab-', 'ik'])
+      expect(layoutWithLines(prepareWithSegments('ab-i\u00ADk', FONT), width, LINE_HEIGHT).lines.map(line => line.text)).toEqual(['ab-i-', 'k'])
+      // The other engines leave no room anywhere.
+      profile.unfitHyphenRetreat = 'full-width'
+      expect(richLines(items, lead + iWidth(LARGE) + smallHyphen)).toEqual(['x ab-', 'ikes'])
+    } finally {
+      Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', measureText)
+      profile.unfitHyphenRetreat = previous
+      clearCache()
+    }
+  })
+
   test('Blink keeps an unfit hyphen where the text around the soft hyphen measures narrower joined by the overflow', () => {
     const profile = getEngineProfile()
     const previous = profile.unfitHyphenRetreat

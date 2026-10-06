@@ -575,6 +575,7 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
   }
   const segmentData: ParagraphSegmentData = {
     hyphenWidths: segmentHyphenWidths, tabStopAdvances: segmentTabStopAdvances, minimumTabAdvances: segmentMinimumTabAdvances,
+    hyphenRooms: discretionaryHyphenContexts !== null && profile.unfitHyphenRetreat === 'reduced-width' ? getHyphenRooms(hyphenWidths, itemSegments, segmentItems) : null,
     insideExtras: setAt(insideExtras, segmentCount, 0, 0), fillExtras: setAt(fillExtras, segmentCount, 0, 0), openingEdges: setAt(openingEdges, segmentCount, 0, 0),
     emptyObjectSpaces: null, emptyObjectReturns: null,
   }
@@ -615,6 +616,27 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
     sourceStarts, sourceEnds, sourceUnits: setAt(sourceUnits, segmentCount, null, null), text: '',
   } as InternalPreparedRichInline
   return mayNarrow && onlyItem < 0 && narrowsLine(data, itemSegments) ? flow : findWholeLine(flow)
+}
+
+// Per segment, the room a line that ends at the break before it leaves for a hyphen, where the line
+// returns there from a soft hyphen whose hyphen doesn't fit, with a last entry for the break at the
+// paragraph's end. Blink breaks a text item again against the width less the item's own hyphen
+// where the hyphen of the soft hyphen it ends at overflows (LineBreaker::BreakText,
+// line_breaker.cc:1705-1719), so a break inside the item that holds the soft hyphen leaves room
+// for that item's hyphen. Where none in the item does, the line goes back over the items before it
+// to the latest break that fits, with no room (HandleOverflow, :4100-4108), so the break before an
+// item's first segment leaves none. The premise is that a break inside an item is returned to from
+// a soft hyphen of that item: for one inside an earlier item Blink asks only that the line fit
+// (:4124-4136), and this leaves room for that item's hyphen (ENGINE_FOLLOWUPS.md, Rich-inline item
+// edges).
+function getHyphenRooms(hyphenWidths: number[], itemSegments: number[], segmentItems: Int32Array): number[] {
+  const rooms: number[] = []
+  for (let i = 0; i < segmentItems.length; i++) {
+    const index = segmentItems[i]!
+    rooms.push(i === itemSegments[index] ? 0 : hyphenWidths[index]!)
+  }
+  rooms.push(0)
+  return rooms
 }
 
 // A soft hyphen, as a segment of any kind: Gecko drops soft hyphens from a text frame's text
