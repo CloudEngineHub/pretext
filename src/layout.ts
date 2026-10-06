@@ -47,8 +47,9 @@ export type PreparedText = {
 
 type InternalPreparedText = PreparedText & PreparedLineBreakData
 
-// Manual-layout handle that exposes the structural segment data used by
-// range/cursor APIs and custom rendering.
+// The handle that also keeps each segment's text, which the functions that return
+// line text need (layoutWithLines(), layoutNextLine() and materializeLineRange()),
+// and its kind, for the app's own rendering.
 export type PreparedTextWithSegments = InternalPreparedText & {
   segments: string[] // Segment text aligned with the parallel arrays, e.g. ['hello', ' ', 'world']
   kinds: SegmentBreakKind[] // Break behavior per segment, e.g. ['text', 'space', 'text']
@@ -230,8 +231,11 @@ export function materializeLineRange(
 
 // Batch low-level line-range pass. This is the non-materializing counterpart
 // to layoutWithLines(), useful for shrinkwrap and other aggregate stats work.
+// It, measureLineStats(), measureNaturalWidth() and layoutNextLineRange() return
+// widths and cursors and no text, from the line-break data layout() reads, so they
+// take a prepare() handle as well (RESEARCH.md, Decisions Log, 2026-10-06).
 export function walkLineRanges(
-  prepared: PreparedTextWithSegments,
+  prepared: PreparedText,
   maxWidth: number,
   onLine: (line: LayoutLineRange) => void,
 ): number {
@@ -251,7 +255,7 @@ export function walkLineRanges(
 }
 
 export function measureLineStats(
-  prepared: PreparedTextWithSegments,
+  prepared: PreparedText,
   maxWidth: number,
 ): LineStats {
   const stats = { lineCount: 0, maxLineWidth: 0 }
@@ -262,7 +266,7 @@ export function measureLineStats(
 // Intrinsic-width helper for rich/userland layout work. This asks "how wide is
 // the prepared text when container width is not the thing forcing wraps?".
 // Explicit hard breaks still count, so this returns the widest forced line.
-export function measureNaturalWidth(prepared: PreparedTextWithSegments): number {
+export function measureNaturalWidth(prepared: PreparedText): number {
   return measureLineStats(prepared, Number.POSITIVE_INFINITY).maxLineWidth
 }
 
@@ -270,7 +274,7 @@ export function measureNaturalWidth(prepared: PreparedTextWithSegments): number 
 // normalized line start and the line end. Returns the reported width, or null
 // after the last line.
 function stepNextLine(
-  prepared: PreparedTextWithSegments,
+  prepared: PreparedText,
   start: LayoutCursor,
   maxWidth: number,
   lineStart: LayoutCursor,
@@ -308,7 +312,7 @@ export function layoutNextLine(
 }
 
 export function layoutNextLineRange(
-  prepared: PreparedTextWithSegments,
+  prepared: PreparedText,
   start: LayoutCursor,
   maxWidth: number,
 ): LayoutLineRange | null {
