@@ -1443,13 +1443,13 @@ what it was and what it found). It kept drifting from the text walkers: each rul
 copy at item edges (#332), as the halt of a pair of fullwidth marks did (#425). The item stepper, the walker's mode
 for one item's line, the joined windows, the second handle per item and the halts read across two items are gone, and
 three fields of the engine profile with them (`breaksFromItemText`, `collapsesSpaceAcrossSoftHyphens`,
-`spaceBeforeSoftHyphenHangs`). Against main at #450 (2026-10-06), `src/` outside tests is 327 lines shorter, 1,481
-added and 1,808 removed, and 183 lines of code shorter, counting neither blank lines nor comment lines:
-`src/rich-inline.ts` goes from 1,101 lines of code to 792, `src/analysis.ts` from 317 to 414 and `src/line-break.ts`
-from 768 to 794, as the walker's mode for one item's line makes way for what a paragraph's segments carry. The main
-entry's bundle grows by 3,381 B minified (1,226 B gzipped) to 96,562 B (40,559 B), since the walker and the analysis
-are its own, and `@chenglou/pretext/rich-inline` shrinks by 2,707 B minified to 106,564 B and by 344 B gzipped to
-44,457 B (`bun build --minify`, then `gzip -9`).
+`spaceBeforeSoftHyphenHangs`). Against main at #453 (2026-10-06), `src/` outside tests is 259 lines shorter, 1,552
+added and 1,811 removed, and 152 lines of code shorter, counting neither blank lines nor comment lines:
+`src/rich-inline.ts` goes from 1,101 lines of code to 815, `src/analysis.ts` from 317 to 410 and `src/line-break.ts`
+from 768 to 806, as the walker's mode for one item's line makes way for what a paragraph's segments carry. The main
+entry's bundle grows by 3,502 B minified (1,248 B gzipped) to 96,709 B (40,589 B), since the walker and the analysis
+are its own, and `@chenglou/pretext/rich-inline` shrinks by 2,052 B minified to 107,245 B and by 139 B gzipped to
+44,674 B (`bun build --minify`, then `gzip -9`).
 
 What a caller sees change: a fragment's `start` and `end`, and a line's `end`, count segments of the item's part of
 the paragraph, where they were cursors into `prepareWithSegments(item.text)`. The two differ in most paragraphs of
@@ -1466,17 +1466,21 @@ WebKit profiles and 7,329 in the Blink profile; none of the 248 whose items only
 only split an ordinary word. Of paragraphs of one item, none of 1,557 of plain words differs; 50 of 100 with
 `extraWidth` in pre-wrap do; and in the Gecko profile 100 of 1,200 with unusual words do, each where a line's start
 skips a soft hyphen that starts a word: the fragment starts after it, and the line before ends after it, one segment
-later than the item stepper gave. So no mapping keeps the old meaning without each item's own analysis, which the
-design removes. Cursors are for passing back to `layoutNextRichInlineLineRange()` and
+later than the item stepper gave. The same holds for an item of a paragraph of several: of about 38,700 generated
+items outside the kinds above, 173 differ in the Gecko profile and 2 in the Blink profile, each holding a word that
+starts with a soft hyphen. So no mapping keeps the old meaning without each item's own analysis, which the design
+removes. Cursors are for passing back to `layoutNextRichInlineLineRange()` and
 `materializeRichInlineLineRange()`; a materialized fragment has `sourceStart` and `sourceEnd`, UTF-16 offsets in its
 item's `text`. Also: an atomic item of only white space is an object as wide as its `extraWidth`, as every engine lays
 out an inline-block of only white space (Atomic Items' Own White Space), where it was a collapsed space; an item of
 soft hyphens or a ZWSP that a line's start consumes gets no empty fragment on that line; a collapsed space at an
 item's edge is measured with its item, so in the Chromium profile it takes its kerning with the word beside it there,
-and in the WebKit profile a word is measured with the space that ends its item; and an item whose `text` isn't a
-string, which the types rule out, is laid out as the string it joins the paragraph's text as, the same in every
-profile, where the item stepper threw a `TypeError` for a number in every profile and took `null` for an empty item (a
-one-item paragraph and an atomic item of a number still throw in some or all profiles).
+and in the WebKit profile a word is measured with the space that ends its item. An item whose `text` isn't a string,
+which the types rule out, throws a `TypeError` that names the item, in every profile, as the item stepper threw one
+for a number, a boolean, an array or an object, from whichever string method it reached first. `null`, which the
+stepper took for an empty item, and a `String` object, which it laid out, throw too. Without the check a number joins
+the paragraph's text as its digits and is laid out, throws or gives no lines by profile and by how many items the
+paragraph has (TODO.md has what is still open).
 
 A paragraph whose whole width fits is one line, taken without a walk (`findWholeLine()`): most paragraphs of a chat
 are. Every engine tests a line at prefixes of it and lets no content make it narrower (the function cites all three),
@@ -1506,7 +1510,7 @@ Firefox, 16-24% and 10-13% faster in V8's shell and 20-24% and 14-22% in JavaScr
 shells on a stand-in Canvas, so hypotheses until the bench times them; JavaScript Engines has the general rule).
 `createLine()` is written that way.
 
-What it measured, against main at #450 (ef57bdae) in Chrome 154.0.8037.98, Firefox 156.0.1 and webkit-host on WebKit
+What it measured, against main at #453 (d997402c) in Chrome 154.0.8037.98, Firefox 156.0.1 and webkit-host on WebKit
 22625.1.29.11.27, on macOS 27.0 at device pixel ratio 2 (2026-10-06; the PR's description has the tables). No plain
 text moves: with every rich input left out, 19,409 plain inputs of the offline comparison give the same handles, lines
 and `measureText` calls in all four profiles, and no pinned plain prediction differs in any browser, but in one of
@@ -1518,9 +1522,11 @@ whose line on main was right only by the range of an empty fragment, all under 2
 webkit-host; one in each is a word joiner at −1px letter spacing; and the others are a soft hyphen item before a bidi
 control at 1px in Firefox and a line separator at 1 and 8.9px in webkit-host. Two more Chrome cases, at 26 and 26.7px,
 which main fails by a character on another line, fail by their line count on the paragraph, a line short
-(ENGINE_FOLLOWUPS.md, Rich-inline item edges, has the paragraph). The cases that #425, #435 and #446 added keep main's
+(ENGINE_FOLLOWUPS.md, Rich-inline item edges, has the paragraph). In all, the pinned cases with a wrong line count,
+so a wrong height, go from 2,900 to 2,910 in Chrome, from 1,884 to 1,895 in Firefox and from 2,578 to 2,592 in
+webkit-host, each new one narrower than 24px but those two. The cases that #425, #435 and #446 added keep main's
 verdicts in all three. Of the real-usage sample's draws 26, 26 and 38 differ and none changes its verdict. Among cases
-that pass in both, the widest error of a line's width moves nearer the browser's in 46, 33 and 40 and further in 19,
+that pass in both, the widest error of a line's width moves nearer the browser's in 46, 33 and 40 and further in 18,
 63 and 22: nearer where a soft hyphen that ends an item now has its hyphen, further in Firefox where a space before a
 soft hyphen is no longer hung (ENGINE_FOLLOWUPS.md, Rich-inline item edges).
 
@@ -1528,17 +1534,17 @@ Three probes, each layout recorded fresh in two document orders and predicted wi
 kept: 23,757 layouts of Chinese and Japanese text in styled runs, with fullwidth marks and U+3000 at item edges, which
 are PR #425's probes; 8,504 of item edges in Latin text, as padded spans that start with white space or a hard break
 in pre-wrap, soft hyphens before and after items, and chips of white space; and 4,637 of the example shapes
-ENGINE_FOLLOWUPS.md names. Chrome passes 22,936, 7,850 and 3,643 of them, where main, which has #425's halts, passes
+ENGINE_FOLLOWUPS.md names. Chrome passes 22,943, 7,850 and 3,665 of them, where main, which has #425's halts, passes
 22,647, 7,659 and 3,530; Firefox 23,584, 8,443 and 4,089, against 23,412, 7,843 and 3,830; webkit-host 23,671, 8,308
-and 3,935, against 23,606, 8,020 and 3,886. Main passes 235 Chrome, 146 Firefox and 169 webkit-host layouts that the
+and 3,935, against 23,606, 8,020 and 3,886. Main passes 206 Chrome, 146 Firefox and 169 webkit-host layouts that the
 paragraph fails. Of them 94, 74 and 94 hold a line of only a chip of white space, which the recorder doesn't list and
 whose height the paragraph has right where main has it wrong. The rest are gaps ENGINE_FOLLOWUPS.md names, each with
 its count: a ZWSP after a chip wider than the line (51 in Chrome and in webkit-host), a soft hyphen right after a
 U+3000 run (40 in Chrome), a 0px box after a space and a soft hyphen that Firefox drops (31 in Firefox), a 0px box
-between two U+3000 runs (24 in Firefox), a soft hyphen item between preserved spaces and a padded span (22 in Chrome),
-a closing mark halted at an item's end (7 in Chrome), and smaller ones (21, 17 and 24): items of soft hyphens, white
-space and ZWSPs found by fuzzing, a 0px box at −6px letter spacing under 6px, and in Chrome a line feed after padded
-spaces whose span's end edge alone overflows.
+between two U+3000 runs (24 in Firefox), and smaller ones (21, 17 and 24): items of soft hyphens, white space and
+ZWSPs found by fuzzing, a 0px box at −6px letter spacing under 6px, and in Chrome a line feed after padded spaces
+whose span's end edge alone overflows. Two more causes, 29 Chrome layouts, went with the two rules about Blink's text
+items (below).
 
 Two reviews of the design added probes, taken the same way. Of 1,888 layouts of 32 paragraphs (split words, padded
 spans, chips and boxes, pre-wrap tabs, soft hyphens at item ends, Arabic and Hebrew, styled Japanese and Chinese),
@@ -1567,16 +1573,38 @@ prediction, and a unit test holds it.
 
 The halt Chrome gives a pair of fullwidth marks comes with the paragraph's analysis, with no code for it in
 `src/rich-inline.ts`: on the probes above the paragraph gives the lines main's halts across items give (CJK At An
-Item's Edge has the counts). What those halts have and the paragraph doesn't is the mark halted at an item's end
-(above).
+Item's Edge has the counts).
 
-Chrome submits more units to `measureText` for rich cases, by a few more calls: 47,519 against 45,975 over the rich
-set (+3.4%, in 5,413 calls against 5,393), 33,811 against 32,648 over the sample's 241 rich draws and 3,697 against
-2,214 over the catalog's 288 rich cases, which is 0.15% more units and 0.01% more calls over every set together. Of
-the sets `equal` prints, the smoke set grows most, 2,625 units against 2,242, all of it in its three rich cases. A
-collapsed space at an item's edge is now measured with its item, so more paragraphs meet the Chromium profile's probe
-of how a font kerns a space with its neighbours, two strings of printable ASCII, which a page pays once for a font.
-Firefox's and webkit-host's calls and units stay within 0.2% in every set.
+Two of Blink's rules are about its text items, a span's text each, which the paragraph's items stand for, and
+preparation gives the walker each as a list per segment (`ParagraphSegmentData`). Both were found by a review of the
+paragraph against main, in layouts main had right (Chrome 154.0.8037.98, 2026-10-06; ENGINE_FOLLOWUPS.md, Rich-inline
+item edges, has the shapes and what each leaves).
+- The room a line leaves for a hyphen where it returns from a soft hyphen whose hyphen doesn't fit (Engine Facts,
+  Chrome, has the retry). `BreakText` retries one item against the width less that item's own hyphen
+  (`line_breaker.cc:1705-1719`, Chromium 153), and where no break in the item leaves the room, `HandleOverflow` goes
+  back to the latest break before the item that fits, with none (`:4100-4108`). So a break inside an item leaves room
+  for that item's hyphen, and the break before an item's first segment leaves none (`hyphenRooms`). The paragraph
+  first left the first text item's hyphen at every break. Of 1,015 Chrome layouts with a one-letter syllable before
+  the soft hyphen, that form passes 903, main 914 and the rule 954: main's walk left the next item's hyphen at the
+  break before it, and kept an overflowing hyphen in 40 layouts where Chrome ends the line at that break. One pinned
+  prediction moved, a pass both ways: `word `, an item of a soft hyphen and `more text here` at 40px in 16px Arial,
+  whose first line was `word` and a hyphen, 44.45px wide, and is now Chrome's 34.68px. It reopens with a Chrome that
+  reserves the hyphen across items, or with a recording of a break inside an earlier item, the premise left.
+- A closing fullwidth mark halted at its item's end, where the item's text fits its line only so, stays halted where
+  the line goes on (`itemEndHalts`; CJK At An Item's Edge). The walk item by item had this from an item's own text
+  ending at the mark, and the paragraph's walker halts a mark at a line's end only, so it keeps the halt of a mark
+  that ends an item without `extraWidth`, takes it out of the line's width where the line goes on, and gives the
+  fragment the halted width. Of 1,096 Chrome layouts Chrome passes all with the rule, 1,020 without it and 1,088 on
+  main, which kept a padded item's mark halted where Chrome leaves it whole. No pinned prediction moved, and #425's
+  unit test holds main's expectations again. A paragraph with such a mark is laid out by the full walker.
+
+Chrome submits more units to `measureText` for rich cases, by a few more calls: 47,519 against 45,970 over the rich
+set (+3.4%, in 5,413 calls against 5,389), which with the rich cases of the other sets is 0.15% more units and 0.01%
+more calls over every set together (against main at #453). Of the sets `equal` prints, the smoke set grows most, 2,625
+units against 2,242, all of it in its three rich cases. A collapsed space at an item's edge is now measured with its
+item, so more paragraphs meet the Chromium profile's probe of how a font kerns a space with its neighbours, two
+strings of printable ASCII, which a page pays once for a font. Firefox's calls and units stay within 0.2% in every set
+and webkit-host's within 0.3%.
 
 Speed, against main at #450 in the foreground bench (Chrome 154.0.8037.98, Firefox 156.0.1 and installed Safari 27.0,
 2026-10-06): one run of every row in three sessions and one of the `rich` rows in ten, a pair of figures being those
@@ -1771,8 +1799,9 @@ takes off a fullwidth mark (`src/han-kerning.ts`). Firefox and webkit-host halt 
 - A closing mark that Chrome halts at a span's end, where the span fits only so, stays halted where the line goes on:
   `文字」` and a span `i` take one 43.81px line at 44-47px, where their text in one node takes two, of 40px and
   3.81px. The walk item by item did this, before #425 and with it, as an item's own text ended at the mark; the
-  paragraph halts a mark at a line's end only, as a text does, and gives two lines there (ENGINE_FOLLOWUPS.md,
-  Rich-inline item edges). Chrome halts the mark only where a break comes right
+  paragraph, whose walker halts a mark at a line's end only, keeps it by a list of the marks that end an item, but
+  for an item with `extraWidth`, whose text Chrome fits before its end edge (Rich Inline As One Paragraph has the
+  counts). Chrome halts the mark only where a break comes right
   after it (`ShapingLineBreaker::ShapeLine`, `shaping_line_breaker.cc:342-363`), and its scan gives none before a
   space, a tab or a line feed: `文字）` before a span that starts with a space, or with that space ending its own
   span, or before a span that starts with a line feed in pre-wrap, breaks before `字` at 40-47px, as in one node,
@@ -4695,7 +4724,7 @@ decisions for the maintainer.
   change of their own, which removes the guard, as #446 did for the breaks a return from an unfit hyphen may take.
   What it gave up, each a named gap with its count (ENGINE_FOLLOWUPS.md, Rich-inline item edges): the Gecko profile's
   hang of a space before a soft hyphen Firefox drops, which the stepper had as a profile field and the text walker
-  lacks; Chrome's closing mark halted at an item's end; a line of its own for a ZWSP after content that overflows,
+  lacks; a line of its own for a ZWSP after content that overflows,
   which the stepper gave an item of only a ZWSP; and in Firefox the spaces after a ZWSP or a soft hyphen before a
   padded item, and a line of only a tab before a padded line feed. It reopens if an app needs cursors into each item's
   own prepared text; if Safari's cost of preparing rich text shows in an app, where the removals that were measured
