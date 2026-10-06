@@ -1,6 +1,9 @@
 // Prepare text with engine segmentation rules and cached Canvas measurements, then
-// lay it out with arithmetic. Emoji calibration may perform a cached DOM read
-// during preparation; layout itself does no measurement or string work.
+// lay it out with arithmetic. Preparation touches the DOM in three places: the emoji
+// correction's span, read once per font where Canvas measures an emoji wider than its
+// font size; the page's `<html lang>`, unless setLocale() gave a language; and, without
+// OffscreenCanvas, a canvas element never attached. Layout itself does no measurement
+// or string work.
 // Rich APIs add source cursors and text materialization.
 // Browser measurement limitations are documented in README.md and PLATFORM_BUGS.md.
 // Based on Sebastian Markbage's text-layout research (github.com/chenglou/text-layout).
