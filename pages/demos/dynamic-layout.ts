@@ -225,10 +225,6 @@ const [, openaiLayout, claudeLayout, openaiHit, claudeHit] = await Promise.all([
 const wrapHulls: WrapHulls = { openaiLayout, claudeLayout, openaiHit, claudeHit }
 const preparedBody = getPrepared(BODY_COPY, BODY_FONT, BODY_LETTER_SPACING)
 
-function getTypography(): { font: string, letterSpacing: number, lineHeight: number } {
-  return { font: BODY_FONT, letterSpacing: BODY_LETTER_SPACING, lineHeight: BODY_LINE_HEIGHT }
-}
-
 function getPrepared(text: string, font: string, letterSpacing: number): PreparedTextWithSegments {
   const key = `${font}::${letterSpacing}::${text}`
   const cached = preparedByKey.get(key)
@@ -368,9 +364,9 @@ function projectHeadlineLines(lines: PositionedLine[], font: string, lineHeight:
   }
 }
 
-function projectChromeLayout(layout: PageLayout, contentHeight: number): void {
+function projectChromeLayout(layout: PageLayout): void {
   domCache.page.className = layout.isNarrow ? 'page page--mobile' : 'page'
-  stage.style.height = `${contentHeight}px`
+  stage.style.height = `${layout.pageHeight}px`
 
   domCache.openaiLogo.style.left = `${layout.openaiRect.x}px`
   domCache.openaiLogo.style.top = `${layout.openaiRect.y}px`
@@ -679,7 +675,6 @@ function evaluateLayout(
   creditTop: number
   leftLines: PositionedLine[]
   rightLines: PositionedLine[]
-  contentHeight: number
   hits: LogoHits
 } {
   const { openaiObstacle, claudeObstacle, hits } = getLogoProjection(layout, lineHeight)
@@ -781,7 +776,6 @@ function evaluateLayout(
       creditTop,
       leftLines: bodyResult.lines,
       rightLines: [],
-      contentHeight: layout.pageHeight,
       hits,
     }
   }
@@ -810,23 +804,21 @@ function evaluateLayout(
     creditTop,
     leftLines: leftResult.lines,
     rightLines: rightResult.lines,
-    contentHeight: layout.pageHeight,
     hits,
   }
 }
 
 function commitFrame(now: number): boolean {
-  const { font, letterSpacing, lineHeight } = getTypography()
   const root = document.documentElement
   const pageWidth = root.clientWidth
   const pageHeight = root.clientHeight
   const animating = updateSpinState(now)
-  const layout = buildLayout(pageWidth, pageHeight, lineHeight)
-  const { headlineLines, creditLeft, creditTop, leftLines, rightLines, contentHeight, hits } = evaluateLayout(layout, lineHeight, preparedBody)
+  const layout = buildLayout(pageWidth, pageHeight, BODY_LINE_HEIGHT)
+  const { headlineLines, creditLeft, creditTop, leftLines, rightLines, hits } = evaluateLayout(layout, BODY_LINE_HEIGHT, preparedBody)
 
   currentLogoHits = hits
 
-  projectChromeLayout(layout, contentHeight)
+  projectChromeLayout(layout)
 
   const bodyLines: ProjectedBodyLine[] = [
     ...leftLines.map(line => ({ ...line, className: 'line line--left' })),
@@ -841,9 +833,9 @@ function commitFrame(now: number): boolean {
     creditLeft,
     creditTop,
     creditLetterSpacing: layout.creditLetterSpacing,
-    bodyFont: font,
-    bodyLetterSpacing: letterSpacing,
-    bodyLineHeight: lineHeight,
+    bodyFont: BODY_FONT,
+    bodyLetterSpacing: BODY_LETTER_SPACING,
+    bodyLineHeight: BODY_LINE_HEIGHT,
     bodyLines,
   }
 
