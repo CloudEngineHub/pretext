@@ -23,9 +23,6 @@ const config: KnipConfig = {
   ignore: [
     '**/*.test.ts', // Exclude tests so their imports don't count as "usage"
   ],
-  ignoreDependencies: [
-    'tsgolint', // Type-aware checker invoked by `oxlint --type-aware` via oxlint-tsgolint
-  ],
   ignoreBinaries: [
     // Used in package.json scripts
     'lsof',
