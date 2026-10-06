@@ -1,5 +1,6 @@
-// main's engine facts as browser cases. src/layout.test.ts pins 36 rules main learned about the engines (research/TESTS.md
-// §1c in the rebuild), each against a fake Canvas and one engine profile, and 33 of them use texts no browser case holds.
+// main's engine facts as browser cases. src/layout.test.ts pins 36 rules main learned about the engines
+// (rebuild/research/TESTS.md §1c on branch rebuild-20260916), each against a fake Canvas and one engine profile, and 33
+// of them use texts no browser case holds.
 // data/engine-facts.json keeps the texts of the 28 whose tests lay out plain text, taken from the tests once, with the
 // white-space and word-break modes and page languages each test names. Each fact's test name and line number are
 // those of main before #340 (harness/README.md, Adding a case), and the number names its family, so both stay as the
