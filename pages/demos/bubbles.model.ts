@@ -32,14 +32,16 @@ export type BubblesPageGeometry = {
 }
 
 declare global {
-  // Defined by the classic script after the controls in bubbles.html, so the first paint has the
-  // page's geometry and the bubbles' font and padding before this module loads.
+  // Defined by the classic script after the chats in bubbles.html, so the first paint has the
+  // page's geometry, the bubbles' font and padding, and the messages before this module loads.
   const bubblesPage: {
     defaultChatWidth: number
     bubbleFont: string
     bubbleLineHeight: number
     bubblePaddingX: number
     bubblePaddingY: number
+    messages: { side: 'sent' | 'recv', text: string }[]
+    dom: { shrinkBubbles: HTMLDivElement[] }
     getGeometry(viewportWidth: number, requestedChatWidth: number): BubblesPageGeometry
     paint(geometry: BubblesPageGeometry): void
   }

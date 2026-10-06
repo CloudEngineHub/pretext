@@ -6,7 +6,7 @@ import { buildName } from './lib.ts'
 import type { DocResult, Sample } from './page.ts'
 import { report, unconfirmed, verdict, type SessionResults } from './report.ts'
 import { documents, runSessions, type Planned } from './run.ts'
-import { familyText, MESSAGE_FAMILIES, STYLE, units } from './texts.ts'
+import { EMOJI, familyText, MESSAGE_FAMILIES, STYLE, units } from './texts.ts'
 
 describe('the verdict', () => {
   test('a row is slower or faster only outside the band in every session: one noisy session would call a change', () => {
@@ -164,18 +164,20 @@ describe('the sessions', () => {
 
 describe('the texts', () => {
   const docs = documents(['new', 'fresh', 'rich'], 'bench-test', false)
+  // A mixed message may end with a space and an emoji its text doesn't hold, which a batch's end may cut anywhere.
+  const emojiTail = new RegExp(` ?[${EMOJI.join('')}]*$`, 'u')
 
   test('the rows that time new text never prepare a message twice: a warm cache would read as a faster library', () => {
     for (const family of MESSAGE_FAMILIES) {
-      if (family === 'mixed') continue // its messages may end with an emoji the text doesn't hold
       const text = familyText(family)
       let at = 0
       for (const d of docs.filter(x => x.family === family || (x.row === 'rich' && family === 'latin'))) {
         const messages = d.fresh !== undefined ? d.fresh.batches.flat() : d.ops.filter(op => op.batches !== undefined).flatMap(op => op.batches!.flat().map(m => (typeof m === 'string' ? m : (m as Array<{ text: string }>).map(item => item.text).join(''))))
         for (const m of messages) {
-          const found = text.indexOf(m, at)
+          const read = family === 'mixed' ? m.replace(emojiTail, '') : m
+          const found = text.indexOf(read, at)
           expect(found).toBeGreaterThanOrEqual(at)
-          at = found + m.length
+          at = found + read.length
         }
       }
     }
@@ -191,8 +193,7 @@ describe('the texts', () => {
         expect(op.textUnits).toBeGreaterThanOrEqual(20_000)
         const texts = op.texts as string[]
         expect(units(texts)).toBe(op.textUnits!)
-        // The mixed messages may end with an emoji their text doesn't hold.
-        if (family !== 'mixed') for (const message of texts) expect(familyText(family)).toContain(message)
+        for (const message of texts) expect(familyText(family)).toContain(family === 'mixed' ? message.replace(emojiTail, '') : message)
       }
     }
   })

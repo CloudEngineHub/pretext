@@ -1,11 +1,13 @@
 import {
   layoutNextLine,
   layoutWithLines,
+  measureNaturalWidth,
   prepareWithSegments,
   walkLineRanges,
   type LayoutCursor,
   type PreparedTextWithSegments,
 } from '../../src/layout.ts'
+import { carveTextLineSlots, type Interval } from './wrap-geometry.ts'
 
 const BODY_FONT = '18px "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif'
 const BODY_LINE_HEIGHT = 30
@@ -23,11 +25,6 @@ const NARROW_COL_GAP = 20
 const NARROW_BOTTOM_GAP = 16
 const NARROW_ORB_SCALE = 0.58
 const NARROW_ACTIVE_ORBS = 3
-
-type Interval = {
-  left: number
-  right: number
-}
 
 type PositionedLine = {
   x: number
@@ -145,25 +142,6 @@ function getRequiredDiv(id: string): HTMLDivElement {
   const element = document.getElementById(id)
   if (!(element instanceof HTMLDivElement)) throw new Error(`#${id} not found`)
   return element
-}
-
-function carveTextLineSlots(base: Interval, blocked: Interval[]): Interval[] {
-  let slots = [base]
-  for (let blockedIndex = 0; blockedIndex < blocked.length; blockedIndex++) {
-    const interval = blocked[blockedIndex]!
-    const next: Interval[] = []
-    for (let slotIndex = 0; slotIndex < slots.length; slotIndex++) {
-      const slot = slots[slotIndex]!
-      if (interval.right <= slot.left || interval.left >= slot.right) {
-        next.push(slot)
-        continue
-      }
-      if (interval.left > slot.left) next.push({ left: slot.left, right: interval.left })
-      if (interval.right < slot.right) next.push({ left: interval.right, right: slot.right })
-    }
-    slots = next
-  }
-  return slots.filter(slot => slot.right - slot.left >= MIN_SLOT_WIDTH)
 }
 
 function circleIntervalForBand(
@@ -285,12 +263,7 @@ const DROP_CAP_SIZE = BODY_LINE_HEIGHT * DROP_CAP_LINES - 4
 const DROP_CAP_FONT = `700 ${DROP_CAP_SIZE}px ${HEADLINE_FONT_FAMILY}`
 const DROP_CAP_TEXT = BODY_TEXT[0]!
 const preparedDropCap = prepareWithSegments(DROP_CAP_TEXT, DROP_CAP_FONT)
-
-let dropCapWidth = 0
-walkLineRanges(preparedDropCap, 9999, line => {
-  dropCapWidth = line.width
-})
-const DROP_CAP_TOTAL_W = Math.ceil(dropCapWidth) + 10
+const DROP_CAP_TOTAL_W = Math.ceil(measureNaturalWidth(preparedDropCap)) + 10
 
 const dropCapEl = document.createElement('div')
 dropCapEl.className = 'drop-cap'
@@ -443,7 +416,7 @@ function layoutColumn(
       blocked.push({ left: rect.x, right: rect.x + rect.w })
     }
 
-    const slots = carveTextLineSlots({ left: regionX, right: regionX + regionW }, blocked)
+    const slots = carveTextLineSlots({ left: regionX, right: regionX + regionW }, blocked, MIN_SLOT_WIDTH)
     if (slots.length === 0) {
       lineTop += lineHeight
       continue
