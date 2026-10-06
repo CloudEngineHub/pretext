@@ -147,10 +147,11 @@ layoutNextLine(prepared: PreparedTextWithSegments, start: LayoutCursor, maxWidth
 layoutNextLineRange(prepared: PreparedText, start: LayoutCursor, maxWidth: number): LayoutLineRange | null // same as layoutNextLine(), but without allocating line text strings. Useful for variable-width manual layout, occlusion, and virtualization measurements.
 materializeLineRange(prepared: PreparedTextWithSegments, line: LayoutLineRange): LayoutLine // turns a LayoutLineRange from layoutNextLineRange() or walkLineRanges() into a full line with text
 type PreparedTextWithSegments = PreparedText & {
-  segments: string[] // The text split into segments, e.g. ['hello', ' ', 'world']
-  kinds: SegmentBreakKind[] // Break behavior per segment, e.g. ['text', 'space', 'text']
+  readonly segments: readonly string[] // The text split into segments, e.g. ['hello', ' ', 'world']
+  readonly kinds: readonly ('text' | 'space' | 'preserved-space' | 'tab' | 'zero-width-break' | 'soft-hyphen' | 'zero-width-glue' | 'hard-break' | 'control')[] // Break behavior per segment, e.g. ['text', 'space', 'text']
+  readonly widths: ArrayLike<number> // Width of each segment in px, e.g. [42.5, 4.4, 37.2]
 }
-type SegmentBreakKind = 'text' | 'space' | 'preserved-space' | 'tab' | 'zero-width-break' | 'soft-hyphen' | 'zero-width-glue' | 'hard-break' | 'control' // 'space': a collapsible space; 'preserved-space', 'tab' and 'hard-break': a space, tab or newline kept by `pre-wrap`; 'zero-width-break': a zero-width space the line can break after; 'soft-hyphen': a soft hyphen (U+00AD); 'zero-width-glue': a zero-width space or soft hyphen the browser doesn't break after; 'control': in Safari, a next-line character (U+0085), which takes letter spacing of its own
+// The kinds. 'space': a collapsible space; 'preserved-space', 'tab' and 'hard-break': a space, tab or newline kept by `pre-wrap`; 'zero-width-break': a zero-width space the line can break after; 'soft-hyphen': a soft hyphen (U+00AD); 'zero-width-glue': a zero-width space or soft hyphen the browser doesn't break after; 'control': in Safari, a next-line character (U+0085), which takes letter spacing of its own
 type LineStats = {
   lineCount: number // Number of wrapped lines, e.g. 3
   maxLineWidth: number // Widest wrapped line, e.g. 192.5
