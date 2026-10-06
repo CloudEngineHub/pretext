@@ -2,7 +2,7 @@ import {
   computeBubbleRender,
   formatPixelCount,
   prepareBubbleTexts,
-} from './bubbles-shared.ts'
+} from './bubbles.model.ts'
 
 type State = {
   requestedChatWidth: number
