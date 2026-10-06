@@ -978,7 +978,7 @@ function countLigaturesOnFirstLetter(seg: string, ends: Int32Array, advances: nu
 function isLigature(pair: string, measurement: FontMeasurement): boolean {
   let ligature = measurement.ligaturePairs.get(pair)
   if (ligature === undefined) {
-    const context = measurement.state.context
+    const context = getContext(measurement)
     const width = getSegmentMetrics(pair, measurement).width
     context.letterSpacing = LETTER_SPACED_SHAPING
     ligature = context.measureText(pair).width !== width
@@ -1066,7 +1066,7 @@ export function getFontMeasurement(font: string, language: string | null, letter
 // setting, whatever was looked up or prepared in between, and a lookup that measures
 // nothing, as of text that is all cached, sets nothing. What changes the context after
 // that puts it back before it returns (getHyphenText, measureWithLetterSpacing,
-// getFontSpaceKerning).
+// getFontSpaceKerning, isLigature).
 export function getContext(measurement: FontMeasurement): CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D {
   const state = measurement.state
   if (state.font !== measurement.canvasFont) state.context.font = state.font = measurement.canvasFont

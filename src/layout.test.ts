@@ -6973,14 +6973,22 @@ test('a width is measured under its own font, shaping and language, whatever was
     width('s', b)
     width('ab\\u2060cd', '16px Entry', 2)
     rows.entry = measuredIn
+    // Whether two letters are a ligature is asked of the context without its ligatures, here first asked with the
+    // word, its letters and the pair all cached, after letter-spaced text in a font whose \`fi\` without the ligature
+    // is as wide as this font's with it. Then the letter-spaced text measured next has no ligature either.
+    rich([{ text: 'f i fi', font: '100px Liga', break: 'never' }])
+    width('x', '97px Test', 1)
+    rows.ligature = [measureRichInlineStats(prepareRichInline([{ text: 'fi', font: '100px Liga' }]), 60).maxLineWidth, width('fix', '16px Liga', 2)]
     console.log(JSON.stringify(rows))
   `))
   // `fin` under letter spacing is 24px and its three spacings where the context drops the
   // ligature, and 21px and them in the WebKit profile, which measures with it. Two contexts
   // are made for the two language changes and none for the four clearCache() calls. Only the
   // Chromium profile asks for kerning with the space and for halts, and the WebKit profile
-  // observes no line starts inside a word, so its last measurement is the 20px text's.
-  const rows = (fin: number, kerned: number, halted: number, entry: string): unknown => ({
+  // observes no line starts inside a word, so its last measurement is the 20px text's. Only
+  // the Gecko profile asks for ligatures: a line that cuts \`fi\` has the ligature's 97px on its
+  // \`f\`, and the others the letter's 50px.
+  const rows = (fin: number, kerned: number, halted: number, entry: string, cutLigature: number): unknown => ({
     fonts: [52, 56],
     spacing: [21 + fin + 21, 21 + fin, fin + 21],
     language: [fin - 3, (fin - 6) * 0.75 + 3, 15.75, 21, 2],
@@ -6991,8 +6999,9 @@ test('a width is measured under its own font, shaping and language, whatever was
     halt: halted,
     hyphen: halted === 92 ? 72 : 80,
     entry,
+    ligature: [cutLigature, fin],
   })
-  expect(rowsOf(CHROME_USER_AGENT)).toEqual(rows(30, 39, 92, '16px Entry'))
-  expect(rowsOf(FIREFOX_USER_AGENT)).toEqual(rows(30, 40, 104, '16px Entry'))
-  expect(rowsOf(SAFARI_USER_AGENT)).toEqual(rows(27, 40, 104, '20px Test'))
+  expect(rowsOf(CHROME_USER_AGENT)).toEqual(rows(30, 39, 92, '16px Entry', 50))
+  expect(rowsOf(FIREFOX_USER_AGENT)).toEqual(rows(30, 40, 104, '16px Entry', 97))
+  expect(rowsOf(SAFARI_USER_AGENT)).toEqual(rows(27, 40, 104, '20px Test', 50))
 })
