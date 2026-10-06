@@ -193,7 +193,7 @@ const summary = [
   `${languageScripts.size} languages and ${scriptSubtags.length} script subtags`,
   `${macos.size} Core Text languages kept as ${kept.size} rows of ${names.length - 1} families and pairs`,
   `macOS's family kept where iOS has it too: ${[...conflicts].map(([key, where]) => `${key} (${where.length}, e.g. ${where.slice(0, 3).join(' ')})`).join('; ')}`,
-  `languages only iOS lists, left out: ${iosOnly.join(' ') || 'none'}`,
+  `languages only iOS lists, left out: ${iosOnly.length > 0 ? iosOnly.join(' ') : 'none'}`,
   `module ${nextSource.length} B, ${gzipSync(Buffer.from(nextSource), { level: 9 }).length} B gzipped`,
 ].join('; ')
 
