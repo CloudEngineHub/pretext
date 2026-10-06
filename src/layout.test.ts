@@ -6870,11 +6870,13 @@ test('a width is measured under its own font, shaping and language, whatever was
     let contexts = 0
     let measuredIn = ''
     let added = false
+    let assignments = 0
     class Context {
       assigned = '10px sans-serif'
       late = false
       get font() { return this.assigned }
       set font(value) {
+        assignments++
         this.assigned = value
         this.late = added
       }
@@ -6914,6 +6916,10 @@ test('a width is measured under its own font, shaping and language, whatever was
     const a = '16px Test', b = '20px Test'
     rich([{ text: 'aa', font: a }, { text: 'bb', font: b }, { text: 'aa', font: a }])
     rows.fonts = [rich([{ text: 'aa', font: a }, { text: 'bb', font: b }, { text: 'cc', font: a }]), rich([{ text: 'bb', font: b }, { text: 'aa', font: a }, { text: 'dd', font: b }])]
+    // Prepared again, with every segment cached, the items measure nothing and assign no font.
+    const assigned = assignments
+    rich([{ text: 'aa', font: a }, { text: 'bb', font: b }, { text: 'cc', font: a }])
+    rows.again = assignments - assigned
 
     // One font, with and without letter spacing: new text each time, then new text after a cached item of the other kind.
     const spaced = '16px Spaced'
@@ -6990,6 +6996,7 @@ test('a width is measured under its own font, shaping and language, whatever was
   // \`f\`, and the others the letter's 50px.
   const rows = (fin: number, kerned: number, halted: number, entry: string, cutLigature: number): unknown => ({
     fonts: [52, 56],
+    again: 0,
     spacing: [21 + fin + 21, 21 + fin, fin + 21],
     language: [fin - 3, (fin - 6) * 0.75 + 3, 15.75, 21, 2],
     cleared: [fin, 21, fin, 20, 16, 0],
