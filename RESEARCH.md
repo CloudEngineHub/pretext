@@ -1606,30 +1606,25 @@ item, so more paragraphs meet the Chromium profile's probe of how a font kerns a
 strings of printable ASCII, which a page pays once for a font. Firefox's calls and units stay within 0.2% in every set
 and webkit-host's within 0.3%.
 
-Speed, against main at #450 in the foreground bench (Chrome 154.0.8037.98, Firefox 156.0.1 and installed Safari 27.0,
-2026-10-06): one run of every row in three sessions and one of the `rich` rows in ten, a pair of figures being those
-two runs; the PR's description has every row. Laying out prepared rich text is faster in all three:
-`measureRichInlineStats()` takes 0.20 of main's time in Chrome, 0.39-0.43 in Firefox and 0.23-0.24 in Safari;
-`walkRichInlineLineRanges()` reads 28-30% faster, 12-14% and 21-22%; and `layoutNextRichInlineLineRange()` 25-26%
-faster in Chrome, 18-23% in Safari and level in Firefox (-4.0% and -0.2%, inside its band). Preparing rich text is
-slower in Safari and mixed in the other two. Text no library has seen, the `rich-new` row, read 16.1% and 3.4% slower
-in Chrome, within a band of 18-26% both times; 13.1% slower in Firefox, called in the run of three, and 7.0% in the
-run of ten, 9 of whose sessions read slower; and 15.4% slower in Safari, called, and 10.0%, every one of 13 sessions
-slower. Text prepared again with every width measured, the `rich-seen` row, read 5.7% and 6.2% faster in Chrome and
-5.2% and 6.5% in Firefox, every session faster and the median at the row's 5% floor, and 39.3% slower in Safari,
-called, and 29.9%, every session slower: 79-81 µs per 1,000 units against main's 58-61. The engines' shells on a
-stand-in Canvas said where preparation's cost goes, on the design before main's #435 to #446 (2026-10-05, hypotheses).
-With the code warm the paragraph costs V8 what the item stepper's preparation did (+0.4%), SpiderMonkey 8% less and
-JavaScriptCore 37% more: every segment's text is a slice of the paragraph's joined text, which JavaScriptCore resolves
-and hashes where an item's own text was a string at hand, a paragraph's white space collapses over the whole text, and
-two passes read every unit (`alignToSource()`, `markItemStarts()`). That is Safari's loss, and it is all of the
-`rich-seen` row, where no Canvas call is left to share the time. On a fresh page the shells read 14-28% slower over
-the first 14,000 units, which is the `rich-new` row, and SpiderMonkey with its interpreters alone 10% faster: the
-engines reach their compiled speed later on the paragraph's code (V8 counted 6,039 bytes of bytecode in
-`prepareRichInline()` against 3,331). What plain text's rows read is under Keeping Work Bounded: the walker's rules for a paragraph are tests
-on a text's path (Work Done Only Where A Rule Applies), and three forms cost one engine more than their work
-(JavaScript Engines: how a width is stored, a flag parameter; Dead Ends, Fitting, Cuts And Fast Paths, the font's two
-widths).
+Speed, in the foreground bench (Chrome 154.0.8037.98, Firefox 156.0.1 and installed Safari 27.0, 2026-10-06; the PR's
+description has every row). The numbers the decision rests on, each the range of two runs, of three and of ten
+sessions: counting a prepared paragraph's lines takes 0.20 of main's time in Chrome, 0.23-0.24 in Safari and 0.39-0.43
+in Firefox, and walking them reads 12-30% faster in all three; `prepareRichInline()` is slower in Safari, 10-15% on
+text no library has seen and 30-39% on text prepared again, slower in every one of 13 sessions; new rich text reads
+3-16% slower in Chrome and 7-13% in Firefox, which the bench called once, in Firefox; and text prepared again reads
+5-6% faster in Chrome and Firefox in every session, which the bench didn't call. These are of the branch at 9659e267
+against main at #450, before the two rules about Blink's text items and the check of an item's `text`, which a bench of
+the head didn't time: its page lost focus twice. Safari's loss is JavaScriptCore's. The engines' shells on a stand-in
+Canvas said where preparation's cost goes (2026-10-05, on the design before main's #435 to #446; hypotheses): with the
+code warm the paragraph costs V8 what the item stepper's preparation did, SpiderMonkey 8% less and JavaScriptCore 37%
+more, since every segment's text is a slice of the paragraph's joined text, which JavaScriptCore resolves and hashes
+where an item's own text was a string at hand, a paragraph's white space collapses over the whole text, and two passes
+read every unit (`alignToSource()`, `markItemStarts()`). On a fresh page the shells read 14-28% slower over the first
+14,000 units, as the engines reach their compiled speed later on the paragraph's larger function. It reopens with a
+way to prepare a paragraph that doesn't slice its joined text, or with a bench of the head that moves one of these
+figures. What plain text's rows read is under Keeping Work Bounded: the walker's rules for a paragraph are tests on a
+text's path (Work Done Only Where A Rule Applies), and three forms cost one engine more than their work (JavaScript
+Engines: how a width is stored, a flag parameter; Dead Ends, Fitting, Cuts And Fast Paths, the font's two widths).
 
 #### Joined Text
 
