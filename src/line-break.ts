@@ -634,7 +634,7 @@ function walkPreparedComplexLines(
           const w = kind !== TAB ? widths[i]!
             : items === undefined ? getTabAdvance(lineW + leadingSpacing, tabStopAdvance, minimumTabAdvance, tabsInAppUnits)
             : getItemTabAdvance(prepared, items, i, hasContent ? lineW + leadingSpacing : lineStartExtras === null ? 0 : lineStartExtras[i]!, tabsInAppUnits)
-          const advance = leadingSpacing + w
+          let advance = leadingSpacing + w
           const endTrim = lineEndTrims === null ? 0 : lineEndTrims[i]!
 
           if (kind === SOFT_HYPHEN && startGraphemeIndex === 0) {
@@ -742,7 +742,7 @@ function walkPreparedComplexLines(
                 if (hangs) hangStartWidth += startExtra
                 lineEndTrimmed = fitAdvance + startExtra > fitLimit && kind !== OBJECT ? startTrim : 0
                 // A mark halted at its item's end stays halted where the line goes on (below).
-                if (lineEndTrimmed !== 0 && itemEndHalts !== null && itemEndHalts[i]! !== 0) {
+                if (itemEndHalts !== null && lineEndTrimmed !== 0 && itemEndHalts[i]! !== 0) {
                   lineW -= lineEndTrimmed
                   lineEndTrimmed = 0
                 }
@@ -762,7 +762,7 @@ function walkPreparedComplexLines(
           } else {
             // A run of preserved spaces and tabs fits where the text before it fits, and after an
             // object however far the line overflows (staysAfterObject).
-            const newFitW = hangs ? hangStartWidth - hangEdgesWidth : lineW + fitAdvance
+            let newFitW = hangs ? hangStartWidth - hangEdgesWidth : lineW + fitAdvance
             // Whether the segment ends the line. What only a rich-inline paragraph has is under one
             // test, as at a soft hyphen (above).
             let overflows = newFitW - endTrim > fitLimit
@@ -789,6 +789,13 @@ function walkPreparedComplexLines(
               // negative than it is wide, doesn't bring a line that overflows back.
               const narrowsOverflow = fitAdvance < 0 && lineW - lineEndTrimmed > fitLimit
               overflows = (overflows || narrowsOverflow) && !(hangs && hangStays) && !placesEmptyObject
+              // A closing mark that ends its item and fits the line only halted stays halted where
+              // the line goes on: the line takes it at its halted width, and what follows fits
+              // after that (ParagraphSegmentData, itemEndHalts).
+              if (itemEndHalts !== null && itemEndHalts[i]! !== 0 && !overflows && newFitW > fitLimit) {
+                advance -= endTrim
+                newFitW -= endTrim
+              }
             }
             if (overflows) {
               // A break segment hangs with the gap before it, after the content before
@@ -942,13 +949,6 @@ function walkPreparedComplexLines(
               // A segment that takes no room at the line end, as a space, leaves the glyph
               // before it last on the line, with its trim.
               if (fitAdvance !== 0 && !hangs) lineEndTrimmed = newFitW > fitLimit && kind !== OBJECT ? endTrim : 0
-              // In a rich-inline paragraph, a closing mark that ends its item and fits the line
-              // only halted stays halted where the line goes on: what follows it fits after the
-              // halted mark (ParagraphSegmentData, itemEndHalts).
-              if (lineEndTrimmed !== 0 && itemEndHalts !== null && itemEndHalts[i]! !== 0) {
-                lineW -= lineEndTrimmed
-                lineEndTrimmed = 0
-              }
               if (breakAfter && (i + 1 === segmentCount || (segmentFlags[i + 1]! & UNBROKEN) === 0)) {
                 pendingBreakSegmentIndex = i + 1
                 pendingBreakWidth = hangs ? hangStartWidth : kind === TAB ? lineW : lineW - advance - lineEndTrimmed
