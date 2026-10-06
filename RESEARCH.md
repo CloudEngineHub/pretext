@@ -2010,7 +2010,7 @@ again.
 Small operations turn quadratic when they repeat over growing user text (engineering.md, Control Flow). Browsers break
 lines in linear time, so exactness forces nothing worse: the rebuild's slow giant paragraphs came from its own rescans
 to the text's end from every line start. Ratios below are `bun harness bench`'s, two sessions per browser, against main
-before each change.
+before each change, unless an entry names its own sessions, build or shell.
 
 #### Quadratic Traps
 
