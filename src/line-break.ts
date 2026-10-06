@@ -77,6 +77,9 @@ export type PreparedLineData = PreparedLineBreakData & { items?: ParagraphSegmen
 //   where it returns there from a soft hyphen whose hyphen doesn't fit, in a paragraph with a soft
 //   hyphen under a profile that leaves such room (getHyphenRooms in src/rich-inline.ts), with one
 //   more entry for the break at the paragraph's end;
+// - `itemEndHalts`: the line-end trim of a segment that ends its item with a closing mark Blink
+//   halts at a line's end, which the mark keeps where the line goes on after it (getItemEndHalt in
+//   src/rich-inline.ts);
 // - `insideExtras`, `fillExtras`: the item's extraWidth where a line that starts inside the
 //   segment pays it, or starts at it and fills it grapheme by grapheme, as a line that starts
 //   with the whole segment pays lineStartExtras;
@@ -96,6 +99,7 @@ export type ParagraphSegmentData = {
   tabStopAdvances: number[] | null
   minimumTabAdvances: number[] | null
   hyphenRooms: number[] | null
+  itemEndHalts: number[] | null
   insideExtras: number[] | null
   fillExtras: number[] | null
   openingEdges: number[] | null
@@ -503,6 +507,7 @@ function walkPreparedComplexLines(
   const items = prepared.items
   const hyphenWidths = items === undefined ? null : items.hyphenWidths
   const hyphenRooms = items === undefined ? null : items.hyphenRooms
+  const itemEndHalts = items === undefined ? null : items.itemEndHalts
   const insideExtras = items === undefined ? null : items.insideExtras
   const fillExtras = items === undefined ? null : items.fillExtras
   const openingEdges = items === undefined ? null : items.openingEdges
@@ -736,6 +741,11 @@ function walkPreparedComplexLines(
                 // What the line pays at its start stays where the white space it starts with hangs.
                 if (hangs) hangStartWidth += startExtra
                 lineEndTrimmed = fitAdvance + startExtra > fitLimit && kind !== OBJECT ? startTrim : 0
+                // A mark halted at its item's end stays halted where the line goes on (below).
+                if (lineEndTrimmed !== 0 && itemEndHalts !== null && itemEndHalts[i]! !== 0) {
+                  lineW -= lineEndTrimmed
+                  lineEndTrimmed = 0
+                }
                 // The break segment hangs with the gap before it, a run of preserved
                 // spaces and tabs hangs whole, and a tab that doesn't hang counts whole.
                 if (breakAfter && (i + 1 === segmentCount || (segmentFlags[i + 1]! & UNBROKEN) === 0)) {
@@ -932,6 +942,13 @@ function walkPreparedComplexLines(
               // A segment that takes no room at the line end, as a space, leaves the glyph
               // before it last on the line, with its trim.
               if (fitAdvance !== 0 && !hangs) lineEndTrimmed = newFitW > fitLimit && kind !== OBJECT ? endTrim : 0
+              // In a rich-inline paragraph, a closing mark that ends its item and fits the line
+              // only halted stays halted where the line goes on: what follows it fits after the
+              // halted mark (ParagraphSegmentData, itemEndHalts).
+              if (lineEndTrimmed !== 0 && itemEndHalts !== null && itemEndHalts[i]! !== 0) {
+                lineW -= lineEndTrimmed
+                lineEndTrimmed = 0
+              }
               if (breakAfter && (i + 1 === segmentCount || (segmentFlags[i + 1]! & UNBROKEN) === 0)) {
                 pendingBreakSegmentIndex = i + 1
                 pendingBreakWidth = hangs ? hangStartWidth : kind === TAB ? lineW : lineW - advance - lineEndTrimmed

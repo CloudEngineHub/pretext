@@ -6370,14 +6370,18 @@ describe('layout invariants', () => {
       expect(measureRichInlineStats(prepareRichInline([{ text: '中」', font }, { width: 0 }, { text: '。中', font }]), 1e5).maxLineWidth).toBe(64)
       expect(measureRichInlineStats(prepareRichInline([{ text: '中」', font }, { text: '。', font, break: 'never' }, { text: '中', font }]), 1e5).maxLineWidth).toBe(64)
       expect(measureRichInlineStats(prepareRichInline([{ text: '中」 ', font }, { text: '。中', font }]), 1e5).maxLineWidth).toBe(69.28)
-      // A closing mark that ends an item before a box halts at a line's end there, as a break
-      // comes right after it. Blink then goes on with the box on that line, the mark staying
-      // halted, where the line ends after the mark here, as in one text (ENGINE_FOLLOWUPS.md,
-      // Rich-inline item edges).
+      // A closing mark that Blink halts at its item's end, where the item doesn't fit otherwise,
+      // stays halted, and the line goes on after it, where one text node ends the line: `中中」`
+      // and a 5px box take one 45px line at 46px.
       const halted = prepareRichInline([{ text: '中中」', font }, { width: 5 }])
-      expect(measureRichInlineStats(halted, 46)).toEqual({ lineCount: 2, maxLineWidth: 40 })
+      expect(measureRichInlineStats(halted, 46)).toEqual({ lineCount: 1, maxLineWidth: 45 })
       expect(measureRichInlineStats(halted, 53)).toEqual({ lineCount: 1, maxLineWidth: 53 })
       expect(measureRichInlineStats(halted, 52)).toEqual({ lineCount: 2, maxLineWidth: 48 })
+      // Its fragment is as wide as the halted text, and the line's fragments add up to the line.
+      expect(layoutNextRichInlineLineRange(halted, 46)!.fragments.map(fragment => fragment.occupiedWidth)).toEqual([40, 5])
+      // An item with extraWidth keeps the halt at a line's end only: Blink fits its text before
+      // its end edge.
+      expect(richLines([{ text: '中中」', extraWidth: 8 }, { width: 5 }], 54)).toEqual(['中中」:48', ':5'])
       // Blink halts it only where a break comes right after it, and its scan gives none before
       // a space, so before its item's own trailing space, the next item's leading one or an item
       // of one, the mark keeps its width, as in one text; before a letter it halts.
@@ -6429,16 +6433,16 @@ describe('layout invariants', () => {
         expect({ items, lines: richLines(items, 46) }).toEqual({ items, lines: ['中:16', '中」:42.28'] })
         expect({ items, lines: richLines(items, 48) }).toEqual({ items, lines: ['中中」:48', ':5'] })
       }
-      expect(richLines([{ text: '中中」' }, { width: 5 }], 46)).toEqual(['中中」:40', ':5'])
+      expect(richLines([{ text: '中中」' }, { width: 5 }], 46)).toEqual(['中中」:45'])
       for (const text of [' @a ', ' @a', '@a']) {
         expect({ text, lines: richLines([{ text: '中中」' }, { text, break: 'never', extraWidth: 8 }, { text: '中' }], 46) }).toEqual({ text, lines: ['中中」:40', '@a中:43.2'] })
       }
       // Nor is the white space of a chip that holds nothing else, an object as wide as its
-      // extraWidth, before text or a box.
-      expect(richLines([{ text: '中中」' }, { text: ' ', break: 'never', extraWidth: 5 }, { text: '中' }], 46)).toEqual(['中中」:40', '中:21'])
-      expect(richLines([{ text: '中中」' }, { text: ' ', break: 'never', extraWidth: 5 }, { width: 5 }], 46)).toEqual(['中中」:40', ':10'])
+      // extraWidth, before text or a box: it fits after the halted mark, as a box does.
+      expect(richLines([{ text: '中中」' }, { text: ' ', break: 'never', extraWidth: 5 }, { text: '中' }], 46)).toEqual(['中中」:45', '中:16'])
+      expect(richLines([{ text: '中中」' }, { text: ' ', break: 'never', extraWidth: 5 }, { width: 5 }], 46)).toEqual(['中中」:45', ':5'])
       // Nor is a space that starts the item after such a chip, which the chip comes before.
-      expect(richLines([{ text: '中中」' }, { text: ' ', break: 'never', extraWidth: 5 }, { text: ' 中' }], 46)).toEqual(['中中」:40', '中:26.28'])
+      expect(richLines([{ text: '中中」' }, { text: ' ', break: 'never', extraWidth: 5 }, { text: ' 中' }], 46)).toEqual(['中中」:45', '中:16'])
       expect(richLines([{ text: '中中」 ' }, { text: ' ', break: 'never', extraWidth: 5 }, { text: '中' }], 46)).toEqual(['中:16', '中」:42.28', '中:16'])
       expect(richLines([{ text: '中中」' }, { text: ' ' }, { text: ' ', break: 'never', extraWidth: 5 }, { text: ' 中' }], 46)).toEqual(['中:16', '中」:42.28', '中:16'])
     } finally {

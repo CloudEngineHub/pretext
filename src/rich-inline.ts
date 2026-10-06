@@ -314,6 +314,7 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
   let lineStartExtras: number[] | null = null
   let lineEndTrims: number[] | null = null
   let overflowLineEndTrims: number[] | null = null
+  let itemEndHalts: number[] | null = null
   // A line returns from a soft hyphen whose hyphen doesn't fit on a handle with soft-hyphen
   // contexts, which an item's measurement makes for text with one.
   let discretionaryHyphenContexts: number[] | null = null
@@ -534,7 +535,27 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
       if (sub.breakableLineStartExtras !== null) breakableLineStartExtras = setAt(breakableLineStartExtras, at, sub.breakableLineStartExtras[s]!, null)
       const startExtra = (sub.lineStartExtras === null ? 0 : sub.lineStartExtras[s]!) + (i > first ? extraWidth : 0)
       if (startExtra !== 0) lineStartExtras = setAt(lineStartExtras, at, startExtra, 0)
-      if (sub.lineEndTrims !== null) lineEndTrims = setAt(lineEndTrims, at, sub.lineEndTrims[s]!, 0)
+      if (sub.lineEndTrims !== null) {
+        const endTrim = sub.lineEndTrims[s]!
+        lineEndTrims = setAt(lineEndTrims, at, endTrim, 0)
+        // A closing mark that ends its item, halted at a line's end, stays halted where the line
+        // goes on. Blink breaks an item's text that doesn't fit its line, and where the text fits
+        // with its last mark halted, which it tries where a break comes right after the mark, that
+        // is the item's result, and the line takes what follows after it
+        // (ShapingLineBreaker::ShapeLine, shaping_line_breaker.cc:342-363; LineBreaker::BreakText,
+        // line_breaker.cc:1736-1758): in 16px Hiragino Sans, Chrome 154 lays out `文字」` and a span
+        // `i` as one 43.81px line at 44-47px. A run of U+3000 that ends the item has a line-end
+        // trim too, its hang, which is no halt. An item with extraWidth keeps the halt at a line's
+        // end only: Blink fits its text before its end edge, which the extraWidth doesn't split
+        // off, so Chrome leaves the mark of a span `文字」` with 4px of padding on each side whole at
+        // 52-55px, where the text fits with its start edge, and wraps the `i` after it. The
+        // walkers that take every boundary for a break end the line after a trimmed segment, so
+        // the paragraph isn't theirs.
+        if (endTrim !== 0 && i === to - 1 && to < count && extraWidth === 0 && !analysis.texts[i]!.endsWith('\u3000')) {
+          itemEndHalts = setAt(itemEndHalts, at, endTrim, 0)
+          simple = false
+        }
+      }
       if (sub.overflowLineEndTrims !== null) overflowLineEndTrims = setAt(overflowLineEndTrims, at, sub.overflowLineEndTrims[s]!, 0)
       if (sub.discretionaryHyphenContexts !== null) discretionaryHyphenContexts = setAt(discretionaryHyphenContexts ?? [], at, sub.discretionaryHyphenContexts[s]!, 0)
       if (i >= first && first < to) insideExtras = setAt(insideExtras, at, extraWidth, 0)
@@ -579,6 +600,7 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
   }
   const segmentData: ParagraphSegmentData = {
     hyphenWidths: segmentHyphenWidths, tabStopAdvances: segmentTabStopAdvances, minimumTabAdvances: segmentMinimumTabAdvances,
+    itemEndHalts: setAt(itemEndHalts, segmentCount, 0, 0),
     hyphenRooms: discretionaryHyphenContexts !== null && profile.unfitHyphenRetreat === 'reduced-width' ? getHyphenRooms(hyphenWidths, itemSegments, segmentItems) : null,
     insideExtras: setAt(insideExtras, segmentCount, 0, 0), fillExtras: setAt(fillExtras, segmentCount, 0, 0), openingEdges: setAt(openingEdges, segmentCount, 0, 0),
     emptyObjectSpaces: null, emptyObjectReturns: null,
@@ -909,6 +931,7 @@ function createLine(
   const endItemIndex = endSegmentIndex >= segmentItems.length ? itemCount : segmentItems[endSegmentIndex]!
   const end: RichInlineCursor = { itemIndex: endItemIndex, segmentIndex: endSegmentIndex - itemSegments[endItemIndex]!, graphemeIndex: endGraphemeIndex }
   const tabsInAppUnits = getEngineProfile().tabsInAppUnits
+  const itemEndHalts = items.itemEndHalts
   const fragments: RichInlineFragmentRange[] = []
   const lastSegmentIndex = endGraphemeIndex > 0 ? endSegmentIndex : endSegmentIndex - 1
   const firstPartWidth = startSegmentIndex <= lastSegmentIndex && (startGraphemeIndex > 0 || startSegmentIndex === endSegmentIndex)
@@ -937,6 +960,9 @@ function createLine(
     } else {
       w = i === startSegmentIndex ? firstPartWidth : lastPartWidth
     }
+    // A mark that ends its item was halted where the line went on after it: the line is then
+    // narrower than its segments up to the mark (ParagraphSegmentData, itemEndHalts).
+    if (itemEndHalts !== null && itemEndHalts[i]! !== 0 && lineW + gap + w - width > 1e-6) w -= itemEndHalts[i]!
     if (gapSegments[i]! !== 0) {
       gap = w
       gapItemIndex = itemIndex
