@@ -21,9 +21,9 @@ This page's made to show off our layout APIs:
 - The first visible render waits for both fonts and hull preload, so it uses the real geometry from the start.
 - There is no DOM text measurement loop feeding layout.
 */
-import { layoutNextLine, measureNaturalWidth, prepareWithSegments, walkLineRanges, type LayoutCursor, type PreparedTextWithSegments } from '../../src/layout.ts'
+import { layoutNextLine, measureNaturalWidth, prepareWithSegments, type LayoutCursor, type PreparedTextWithSegments } from '../../src/layout.ts'
 import { BODY_COPY } from './dynamic-layout-text.ts'
-import { hasActiveTextSelection, positionedLinesEqual, setNodeCount, type PositionedLine } from './line-nodes.ts'
+import { breaksInsideWord, hasActiveTextSelection, positionedLinesEqual, setNodeCount, type PositionedLine } from './line-nodes.ts'
 import openaiLogoUrl from '../assets/openai-symbol.svg'
 import claudeLogoUrl from '../assets/claude-symbol.svg'
 import {
@@ -227,14 +227,6 @@ function getPrepared(text: string, font: string, letterSpacing: number): Prepare
   const prepared = prepareWithSegments(text, font, { letterSpacing })
   preparedByKey.set(key, prepared)
   return prepared
-}
-
-function headlineBreaksInsideWord(prepared: PreparedTextWithSegments, maxWidth: number): boolean {
-  let breaksInsideWord = false
-  walkLineRanges(prepared, maxWidth, line => {
-    if (line.end.graphemeIndex !== 0) breaksInsideWord = true
-  })
-  return breaksInsideWord
 }
 
 function getObstacleIntervals(obstacle: BandObstacle, bandTop: number, bandBottom: number): Interval[] {
@@ -447,7 +439,7 @@ function fitHeadlineFontSize(headlineWidth: number, pageWidth: number): number {
     const size = Math.floor((low + high) / 2)
     const font = `700 ${size}px ${HEADLINE_FONT_FAMILY}`
     const headlinePrepared = getPrepared(HEADLINE_TEXT, font, HEADLINE_LETTER_SPACING)
-    if (!headlineBreaksInsideWord(headlinePrepared, headlineWidth)) {
+    if (!breaksInsideWord(headlinePrepared, headlineWidth)) {
       best = size
       low = size + 1
     } else {

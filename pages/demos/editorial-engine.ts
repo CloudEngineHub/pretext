@@ -1,13 +1,13 @@
 import {
+  layout,
   layoutNextLine,
   layoutWithLines,
   measureNaturalWidth,
   prepareWithSegments,
-  walkLineRanges,
   type LayoutCursor,
   type PreparedTextWithSegments,
 } from '../../src/layout.ts'
-import { hasActiveTextSelection, positionedLinesEqual, setNodeCount, type PositionedLine } from './line-nodes.ts'
+import { breaksInsideWord, hasActiveTextSelection, positionedLinesEqual, setNodeCount, type PositionedLine } from './line-nodes.ts'
 import { carveTextLineSlots, type Interval } from './wrap-geometry.ts'
 
 const BODY_FONT = '18px "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif'
@@ -328,16 +328,7 @@ function fitHeadline(maxWidth: number, maxHeight: number, maxSize: number = 92):
     const font = `700 ${size}px ${HEADLINE_FONT_FAMILY}`
     const lineHeight = Math.round(size * 0.93)
     const prepared = prepareWithSegments(HEADLINE_TEXT, font, { letterSpacing: HEADLINE_LETTER_SPACING })
-    let brokenWords = 0
-    let lineCount = 0
-
-    walkLineRanges(prepared, maxWidth, line => {
-      lineCount++
-      if (line.end.graphemeIndex !== 0) brokenWords++
-    })
-
-    const totalHeight = lineCount * lineHeight
-    if (brokenWords === 0 && totalHeight <= maxHeight) {
+    if (!breaksInsideWord(prepared, maxWidth) && layout(prepared, maxWidth, lineHeight).height <= maxHeight) {
       best = size
       const result = layoutWithLines(prepared, maxWidth, lineHeight)
       bestLines = result.lines.map((line, index) => ({

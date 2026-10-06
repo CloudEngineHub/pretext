@@ -1,11 +1,22 @@
-// What the dynamic-layout and editorial-engine pages share to paint their lines: one absolutely positioned node per
-// line, made when the line appears and removed when it goes. The justification page keeps its river marks the same way.
+// What the dynamic-layout and editorial-engine pages share: the test their headline fits ask of each font size, and
+// what paints their lines, one absolutely positioned node per line, made when the line appears and removed when it
+// goes. The justification page keeps its river marks the same way.
+import { walkLineRanges, type PreparedTextWithSegments } from '../../src/layout.ts'
 
 export type PositionedLine = {
   x: number
   y: number
   width: number
   text: string
+}
+
+// Whether a line ends partway into a segment at this width: a word wider than the line, broken between two graphemes.
+export function breaksInsideWord(prepared: PreparedTextWithSegments, maxWidth: number): boolean {
+  let breaksInsideWord = false
+  walkLineRanges(prepared, maxWidth, line => {
+    if (line.end.graphemeIndex !== 0) breaksInsideWord = true
+  })
+  return breaksInsideWord
 }
 
 export function positionedLinesEqual(a: PositionedLine[], b: PositionedLine[]): boolean {
