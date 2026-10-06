@@ -7114,6 +7114,43 @@ test('the Chromium profile cuts a word as lines shaped alone', () => {
   }
 })
 
+test('a rich-inline paragraph cuts a kerned word as its text is cut, and the fragment that starts a line inside the word takes the width a line start adds', () => {
+  // The Chromium profile and the Canvas of the test above: letters are 8px, a full stop kerns
+  // 4px under the letter before it and `To` 3px. The word is 81px, so it is fit as Chrome's
+  // lines are shaped: its second line starts with `o` alone, 8px where the `o` after `T` is
+  // 5px. That line's first fragment holds those 3px, and the item after it its own width.
+  const layoutUrl = new URL('./layout.ts', import.meta.url).href
+  const richUrl = new URL('./rich-inline.ts', import.meta.url).href
+  const out: unknown = JSON.parse(runInChild(`
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36' } })
+    class Context {
+      font = ''
+      letterSpacing = '0px'
+      fontKerning = 'auto'
+      measureText(text) {
+        return { width: [...text].length * 8 - 4 * (text.split('.').length - 1) - 3 * (text.split('To').length - 1) }
+      }
+    }
+    globalThis.OffscreenCanvas = class { getContext() { return new Context() } }
+    const { prepareWithSegments, layoutWithLines } = await import(${JSON.stringify(layoutUrl)})
+    const { prepareRichInline, walkRichInlineLineRanges, materializeRichInlineLineRange, measureRichInlineStats } = await import(${JSON.stringify(richUrl)})
+    const font = '16px Test'
+    const plain = layoutWithLines(prepareWithSegments('To.To.To.To.To b', font), 60, 20).lines.map(line => [line.text, line.width])
+    const prepared = prepareRichInline([{ text: 'To.To.To.To.To', font }, { text: ' b', font }])
+    const rich = []
+    walkRichInlineLineRanges(prepared, 60, range => {
+      const line = materializeRichInlineLineRange(prepared, range)
+      rich.push([line.fragments.map(fragment => [fragment.text, fragment.gapBefore, fragment.occupiedWidth]), line.width])
+    })
+    console.log(JSON.stringify([plain, rich, measureRichInlineStats(prepared, 60)]))
+  `))
+  expect(out).toEqual([
+    [['To.To.To.T', 59], ['o.To b', 41]],
+    [[[['To.To.To.T', 0, 59]], 59], [[['o.To', 0, 25], ['b', 8, 8]], 41]],
+    { lineCount: 2, maxLineWidth: 59 },
+  ])
+})
+
 test('the Firefox profile counts a ligature whole on its first letter where it cuts a word', () => {
   // The engine profile is computed once per process, so each engine runs in a child
   // process. Every letter is 8px. `fi` is a ligature, 3px narrower than its letters, which
