@@ -27,6 +27,7 @@
 - Pretext loads about 0.4 ms faster on each page in Chrome and Firefox: the regular expressions that most text never needs are now built the first time a text needs one, where Chrome and Firefox spent that time on all of them as the library loaded (#407).
 - `setLocale(locale)` now sets the language that later `prepare()`, `prepareWithSegments()` and `prepareRichInline()` calls break lines and measure under, in place of the page's `<html lang>`, which a worker doesn't have; `setLocale()` without a locale goes back to `<html lang>`. It no longer passes the locale to `Intl.Segmenter`, whose word boundaries Pretext now reads only inside Thai, Lao, Khmer and Myanmar text, where no locale changes them (#340, #356).
 - `prepare()`, `prepareWithSegments()` and `prepareRichInline()` now throw a `RangeError` for a `letterSpacing` that isn't finite, such as `NaN` or `Infinity`, which gave lines of width `NaN`, or a line per grapheme (#356).
+- `prepareRichInline()` is faster on text it has measured before, as when a list prepares its messages again: about 21% in Chrome and Firefox and 56% in Safari on chat messages with inline code, since an item whose text is all measured no longer sets the Canvas font (#445).
 
 ### Removed
 
