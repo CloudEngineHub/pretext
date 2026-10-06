@@ -661,25 +661,6 @@ describe('boundary-policy regressions', () => {
     expect(visargas.flags[0]! & ONE_CLUSTER).toBe(0)
   })
 
-  test('small kana and U+30FC stay with the text before them where the profile resolves them to NS', () => {
-    const profile = getEngineProfile()
-    const previous = { ...profile }
-    const segments = (text: string) => prepareWithSegments(text, FONT).segments.join('|')
-    const texts = ['a xxxxーb', '約3ヶ月', '日本abcァア']
-    try {
-      // Chromium's normal line rules, on every page.
-      expect(texts.map(text => segments(text))).toEqual(['a| |xxxx|ー|b', '約|3|ヶ|月', '日|本|abc|ァ|ア'])
-      // libicucore's strict rules, on pages other than ja and ko.
-      profile.lineBreakScan = 'webkit'
-      expect(texts.map(text => segments(text))).toEqual(['a| |xxxxー|b', '約|3ヶ|月', '日|本|abcァ|ア'])
-      // Gecko's strict rules.
-      profile.lineBreakScan = 'gecko'
-      expect(texts.map(text => segments(text))).toEqual(['a| |xxxxー|b', '約|3ヶ|月', '日|本|abcァ|ア'])
-    } finally {
-      Object.assign(profile, previous)
-    }
-  })
-
   test('the Gecko profile keeps a hyphen with the number after it', () => {
     const gecko = geckoProfile
     // ICU4X keeps a hyphen-minus (HY) with a following number (NU), ASCII or not
@@ -2659,16 +2640,16 @@ describe('prepare invariants', () => {
     const previous = { ...profile }
     const segments = (text: string, wordBreak: 'normal' | 'keep-all' = 'normal') =>
       prepareWithSegments(text, FONT, { wordBreak }).segments.join('|')
-    const texts = ['\u65E5\u672C\u30A1\u30A2', '\u65E5\u672C\u30FC\u30FC', '\u307F\u305D\u30E9\u30FC\u30E1\u30F3', '\u65E5\u672C\uFF01\u30FC\u30FC']
+    const texts = ['\u65E5\u672C\u30A1\u30A2', '\u65E5\u672C\u30FC\u30FC', '\u307F\u305D\u30E9\u30FC\u30E1\u30F3', '\u65E5\u672C\uFF01\u30FC\u30FC', 'a xxxxーb', '約3ヶ月', '日本abcァア']
     try {
       // ICU's normal rules resolve CJ to ID, as Chromium does on every page, so both
-      // may start a line after ideographs, kana and EX.
-      expect(texts.map(text => segments(text))).toEqual(['\u65E5|\u672C|\u30A1|\u30A2', '\u65E5|\u672C|\u30FC|\u30FC', '\u307F|\u305D|\u30E9|\u30FC|\u30E1|\u30F3', '\u65E5|\u672C\uFF01|\u30FC|\u30FC'])
+      // may start a line after ideographs, kana and EX, and after a word or a number.
+      expect(texts.map(text => segments(text))).toEqual(['\u65E5|\u672C|\u30A1|\u30A2', '\u65E5|\u672C|\u30FC|\u30FC', '\u307F|\u305D|\u30E9|\u30FC|\u30E1|\u30F3', '\u65E5|\u672C\uFF01|\u30FC|\u30FC', 'a| |xxxx|ー|b', '約|3|ヶ|月', '日|本|abc|ァ|ア'])
       // A closing bracket (CL) keeps NS after it but not ID (LB16).
       expect(segments('\u65E5\u672C\u300D\u30A1\u30A2', 'keep-all')).toBe('\u65E5\u672C\u300D|\u30A1\u30A2')
       // Strict rules resolve CJ to NS, as libicucore does on pages other than ja and
       // ko, and Gecko on every page, so neither may.
-      const strict = ['\u65E5|\u672C\u30A1|\u30A2', '\u65E5|\u672C\u30FC\u30FC', '\u307F|\u305D|\u30E9\u30FC|\u30E1|\u30F3', '\u65E5|\u672C\uFF01\u30FC\u30FC']
+      const strict = ['\u65E5|\u672C\u30A1|\u30A2', '\u65E5|\u672C\u30FC\u30FC', '\u307F|\u305D|\u30E9\u30FC|\u30E1|\u30F3', '\u65E5|\u672C\uFF01\u30FC\u30FC', 'a| |xxxxー|b', '約|3ヶ|月', '日|本|abcァ|ア']
       profile.lineBreakScan = 'webkit'
       expect(texts.map(text => segments(text))).toEqual(strict)
       profile.lineBreakScan = 'gecko'
