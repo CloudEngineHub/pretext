@@ -2119,7 +2119,17 @@ runs (Firefox 156.0.1, bench sessions of 2026-09-27 and 28, unless noted):
   desktop Chrome and Firefox (`src/entry-geometry.ts`), is observed only for segments of up to 96 graphemes, and an
   empty observation is kept as a found one is: since #368 a segment ending in a long run of controls is a few clusters,
   not one per control, so it falls within that bound, and observing again at every prepare made Firefox prepare the
-  invisible tails 6% slower.
+  invisible tails 6% slower. Under no letter spacing the strings an observation asks Canvas, up to three per line start,
+  are widths of the font's segment cache (#446), which often has them already, the invisible character alone being one
+  of the word's letters, and which words with the same line start then share. Asked at every observation, as before,
+  they were 418 of the 32,861 `measureText` calls Firefox 156.0.1 makes for Chromium's 7,000 interface labels, 231 of
+  the 1,236 for Persian's 200 alone and 184 of Telugu's 1,657, both written with ZWNJ, and 265 of Persian's 1,246 in
+  Chrome 154.0.8037.57; on the harness's own cases 0.04% of Firefox's calls and 0.07% of Chrome's, with no prediction
+  changed (counted in the browsers, 2026-10-06). The calls saved repeat strings the browser was asked before, and little
+  time goes with them: Persian's new labels read 6.1% faster in Firefox, in two sessions of three, and 3.5% in Chrome,
+  no more than two copies of one build differ by there (foreground, 30 rounds a language, 2026-10-06). Under a letter
+  spacing the widths are Canvas's own spacing of each string, asked at every observation, which no harness text repeats;
+  a cache per spacing reopens with text that does.
 - **The cursive rule's pretest** (#397): a letter-spaced text is asked once, by a regular expression of the cursive
   scripts' properties, whether it holds a character of a cursive run, and only then takes the script tests per
   grapheme. In Node 23's V8 that expression takes 6-19 ns per UTF-16 unit of CJK text, about ten times a class of
