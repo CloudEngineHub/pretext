@@ -10,7 +10,7 @@ import {
 } from '../../src/layout.ts'
 
 // Local layout model for this demo: where a truncated line is cut, from Pretext's line
-// stream. Userland structure on the public API, not a new core abstraction.
+// stream. Userland structure on the public API.
 
 // Every value Pretext measures or a width depends on. The painter writes them inline, and
 // CSS doesn't restate them.

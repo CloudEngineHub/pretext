@@ -2,7 +2,7 @@
 This page's made to show off our layout APIs:
 - Title lines are measured and placed by our own layout engine, not inferred from DOM flow.
 - Title font size is fit using repeated API calls so whole words survive.
-- The title itself now participates in obstacle routing against the OpenAI logo.
+- The title itself is routed around the OpenAI logo.
 - The author line is placed from the measured title result, and it also respects the OpenAI geometry.
 - The body is one continuous text stream, not two unrelated excerpts.
 - The left column consumes text first, and the right column resumes from the same cursor.
@@ -18,7 +18,7 @@ This page's made to show off our layout APIs:
 - The page is a fixed-height viewport-bound spread:
   - vertical resize changes reflow
   - overflow after the second column truncates
-- The first visible render now waits for both fonts and hull preload, so it uses the real geometry from the start.
+- The first visible render waits for both fonts and hull preload, so it uses the real geometry from the start.
 - There is no DOM text measurement loop feeding layout.
 */
 import { layoutNextLine, measureNaturalWidth, prepareWithSegments, walkLineRanges, type LayoutCursor, type PreparedTextWithSegments } from '../../src/layout.ts'
