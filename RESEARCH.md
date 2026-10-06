@@ -2699,10 +2699,11 @@ repin` shows what), and a fact read in source needs reading again.
   of the 29 a hyphen line the profile reports past the width and Chrome fits, by kerning across segments measured apart
   (7) or without a padded span's end edge (22), which agreed before only because the profile kept the hyphen
   (ENGINE_FOLLOWUPS.md, Line edges, has them). No prediction of the Gecko or WebKit profile moved on those layouts in
-  Firefox or webkit-host. Of the harness's pinned cases 7 Chrome predictions moved, each to Chrome's lines, one a
-  real-usage Japanese draw, and none moved in Firefox or webkit-host. The per-engine rebuild, which ports `BreakText`
-  whole, agreed with Chrome on all 17,535 of the probe's layouts it could take. A break opportunity that isn't a
-  segment boundary, or a fit in Chrome's 1/64px units, would reopen it. (Chromium 153.0.8010.48 source; Chrome
+  Firefox or webkit-host. Of the harness's cases 12 Chrome predictions moved, each from a failure to Chrome's lines: 4
+  facts cases and a real-usage Japanese draw that were on the accepted list, the issue's two texts, and 5 of the 36
+  facts cases added with the change. None moved in Firefox or webkit-host. The per-engine rebuild, which ports
+  `BreakText` whole, agreed with Chrome on all 17,535 of the probe's layouts it could take. A break opportunity that
+  isn't a segment boundary, or a fit in Chrome's 1/64px units, would reopen it. (Chromium 153.0.8010.48 source; Chrome
   154.0.8037.57, Firefox 156.0.1, webkit-host, 2026-10-05.)
 - **Languages.** `--lang` is ignored on macOS; `navigator.language` follows the accept languages, not the UI; DevTools
   locale emulation (Playwright's `locale`) moves `Intl`'s default locale, not Blink's, a disagreement no user meets.
