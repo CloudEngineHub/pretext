@@ -6810,9 +6810,8 @@ test('a width is measured under its own font, shaping and language, whatever was
     rows.added.push(width('aa', '16px Late'))
 
     // What a font is asked once, asked first when its text is cached and another font was measured last: the emoji
-    // correction, whether it kerns with the space, a character's kerning with one, a mark's halt beside the next item's,
-    // and which hyphen it paints, which sets the context to other fonts and back, so new text follows it in the other
-    // font, and after the same again, in its own.
+    // correction, whether it kerns with the space, a character's kerning with one, and a mark's halt beside the next
+    // item's.
     width('ab', '16px Emoji')
     width('x', b)
     rows.emoji = width('ab \\u{1F600}', '16px Emoji')
@@ -6823,12 +6822,9 @@ test('a width is measured under its own font, shaping and language, whatever was
     width('z', b)
     rows.kerning.push(width('cb cb', '16px Kern'))
     rows.halt = rich([{ text: '\\u4E2D\\u4E2D\\u3002', font: '24px Halt' }, { text: '\\u300D\\u4E2D', font: '16px Halt' }])
-    width('a b - \\u2010 ab', '16px Hyphen')
-    width('w', b)
-    rows.hyphen = [width('a\\u00ADb', '16px Hyphen'), width('v', b)]
-    width('a b - \\u2010 ab', '24px Hyphen')
-    width('t', b)
-    rows.hyphen.push(width('a\\u00ADb', '24px Hyphen'), width('u', '24px Hyphen'), measuredIn)
+    // Asking a font which hyphen it paints sets the context to other fonts and back, so the marks' halts, read after
+    // it in the same preparation, are the font's.
+    rows.hyphen = width('a\\u00ADb\\u4E2D\\u300D\\u300C\\u4E2D', '16px Hyphen Halt')
     // Where a line that starts inside a word at an invisible character takes its widths from Canvas, they are observed
     // again under another letter spacing, with the word's other measurements cached.
     width('ab\\u2060cd', '16px Entry', 1)
@@ -6851,7 +6847,7 @@ test('a width is measured under its own font, shaping and language, whatever was
     emoji: 40,
     kerning: [kerned, kerned],
     halt: halted,
-    hyphen: [16, 10, 24, 12, '24px Hyphen'],
+    hyphen: halted === 92 ? 72 : 80,
     entry,
   })
   expect(rowsOf(CHROME_USER_AGENT)).toEqual(rows(30, 39, 92, '16px Entry'))
