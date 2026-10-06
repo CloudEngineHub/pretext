@@ -137,17 +137,18 @@ function graphemeBoundaries(table: 'chromium/char' | 'apple/char', text: string)
 }
 
 describe.skipIf(icu === null)('the ICU port against the system\'s ICU', () => {
-  // An ICU that no longer reads Chrome's compiled rules can't judge them: their tests are skipped.
+  // An ICU that no longer reads one of Chrome's compiled rule files can't judge it: that file's test is skipped.
   const LINE_TABLES = ['chromium/line_normal', 'chromium/line_normal_cj'] satisfies LineTable[]
-  const lineIterators = LINE_TABLES.map(table => (icu === null ? null : openRules(`${table.slice('chromium/'.length)}.brk`)))
   const characterIterator = icu === null ? null : openRules('char.brk')
 
-  test.skipIf(lineIterators.includes(null))('Chrome\'s line rules give ICU\'s boundaries through the port\'s state machine and tries: a wrong transition would move breaks in Chrome and Edge that no recorded case holds', () => {
-    for (let i = 0; i < LINE_TABLES.length; i++) {
-      const rules = getBreakRules(LINE_TABLES[i]!)
-      expect(differences(randomTexts(LINE_TABLES[i]!, 30_000), lineIterators[i]!, text => lineBoundaries(text, rules))).toEqual([])
-    }
-  })
+  for (const table of LINE_TABLES) {
+    const file = `${table.slice('chromium/'.length)}.brk`
+    const iterator = icu === null ? null : openRules(file)
+    test.skipIf(iterator === null)(`Chrome's line rules in ${file} give ICU's boundaries through the port's state machine and tries: a wrong transition would move breaks in Chrome and Edge that no recorded case holds`, () => {
+      const rules = getBreakRules(table)
+      expect(differences(randomTexts(table, 30_000), iterator!, text => lineBoundaries(text, rules))).toEqual([])
+    })
+  }
 
   test.skipIf(characterIterator === null)('the grapheme scan gives ICU\'s clusters on Chrome\'s character rules: a line broken between graphemes would split one', () => {
     expect(differences(randomTexts('chromium/char', 30_000), characterIterator!, text => graphemeBoundaries('chromium/char', text))).toEqual([])
