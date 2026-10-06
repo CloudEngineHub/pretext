@@ -586,12 +586,14 @@ export function zeros(count: number): number[] {
   return out
 }
 
-// A direct measurement under letter spacing, borrowing the font's context for the
-// synchronous call. It never enters a segment cache, and letterSpacing is restored
-// even when assignment or measurement fails. Null where the context can't take the
-// spacing.
+// A text's width as Canvas spaces it under a letter spacing, or null where the context
+// can't take the spacing. Under none, that is the text's width in the font, which the
+// font's segment cache asks once. Under a spacing it is asked each time, borrowing the
+// font's context for the synchronous call, never enters a segment cache, and
+// letterSpacing is restored even when assignment or measurement fails.
 export function measureWithLetterSpacing(text: string, letterSpacing: number, emojiCorrection: number, measurement: FontMeasurement): number | null {
   if (!measurement.state.takesLetterSpacing) return null
+  if (letterSpacing === 0) return getTextWidth(text, measurement, emojiCorrection)
   // Counted before the spacing is set: the count measures stretches into the font's segment cache.
   const corrected = emojiCorrection === 0 ? 0 : countEmojiGlyphs(text, measurement) * emojiCorrection
   const context = getContext(measurement)

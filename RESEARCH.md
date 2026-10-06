@@ -758,7 +758,8 @@ the corpora and 91% more where every preparation starts cold (Firefox 155, 2026-
 So the Gecko profile takes prefixes only in segments at least 80px wide (`prefixFitMinWidth`) and sums graphemes below.
 A cold Firefox preparation of real paragraphs then took 88 Canvas calls a paragraph (113 for prefixes everywhere, 86 for
 sums everywhere, 79 before #340) and lost nothing to prefixes everywhere at 80px and over, where sums everywhere lost 58
-line counts (Firefox 156.0, 2026-09-23).
+line counts (Firefox 156.0, 2026-09-23). Prose has few words that wide. Interface labels in languages with long words
+have many, and Firefox prepares their new labels slower than 0.0.9 did for it (below, against the released 0.0.9).
 
 The 80px has no browser reason: it was the old suite's boundary for narrow widths. Remeasured in Firefox 156
 (2026-09-27, #367), a floor at 24px, below which the harness accepts made-up cases as narrower than real layouts
@@ -895,13 +896,47 @@ samples and reran German in Chrome). In Chrome, 31 of the 35 languages are faste
 and Hebrew (3%), which are among the costliest, 160-235 µs a label where a Latin-script one takes 10-26. Telugu was 6.7%
 slower than 0.0.9 on main already. Against main the same batches take 22% more time in German, 17% in Russian, 11% in
 English and 43% in Tamil, 8% over the 35 languages mixed, and read level for Japanese, Chinese, Korean, Thai and Hindi,
-whose labels ask almost no pair (0-1.4% more calls). In Firefox eight languages' labels are slower than 0.0.9 with the
-fit, Armenian by 34%, Tamil 27%, Telugu 24%, Georgian 23%, Finnish 22%, Greek 19%, German 14% and Bulgarian 10%, and
-Dutch and Russian lean slower (9% and 5%), where English is 17% faster and the 35 languages mixed 6.5%; nearly all of
-that is main's, which asks Firefox's Canvas 6.59 times a German label where 0.0.9 asked 3.10, and the fit adds to main
-only in Finnish (8.5%) and Armenian (6.6%). What on main added those calls isn't traced. In Safari no language is slower
-than 0.0.9, and the fit makes main's calls exactly. The script that timed them isn't in the repository. A trace of
-main's Firefox calls, or a release whose labels must not be slower than 0.0.9's in any language, would reopen this.
+whose labels ask almost no pair (0-1.4% more calls). In Safari no language is slower than 0.0.9, and the fit makes
+main's calls exactly. The script that timed them isn't in the repository.
+
+In Firefox eight languages' labels are slower than 0.0.9 with the fit, Armenian by 33%, Telugu 27%, Tamil 26%, Georgian
+23%, Finnish 22%, Greek 19%, German 14% and Bulgarian 10%, and Dutch and Russian lean slower (9% and 5%), where English
+is 17% faster and the 35 languages mixed 6.7% (each against the mean of 0.0.9's two copies in its round). Two changes
+made that, traced on 2026-10-05 in Firefox 156.0.1. Most of the cost is #340's: since it the Gecko profile fits every
+word of 80px or wider from its prefixes (above), one `measureText` call per letter, each a string Firefox hasn't shaped
+before. German's 200 labels, on a library that has prepared nothing, take 725 calls on 0.0.9 and on the commit before
+#340 (6d1d2106), 1,491 from #340 (f26640eb) on, 1,557 with #435's ligature questions (664082af), and 733 at 664082af
+with the profile's floor at Infinity, so with no prefix fit: everything else between 0.0.9 and #435 adds 8 (counted in
+Firefox, the commit before #340 on Firefox's logged widths). Of the 824 calls the fit makes there, 760 are prefixes and
+64 the ligature questions. In the batches the timing times, main before #435 asks Firefox's Canvas 6.59 times a German
+label where 0.0.9 asked 3.10. Timed with the floor at Infinity, 664082af prepares a German label in 13.1 µs, where it
+takes 21.0 µs as it is and 0.0.9 takes 18.0: the fit, its prefixes and its ligature questions together, is about 36% of
+the label's time, and without it main would be 29% faster than 0.0.9 there (foreground, three sessions of ten rounds).
+The rest came with #435. Main before it (ab63d041) read German 14% slower than 0.0.9, as with it, Tamil 25% and Telugu
+27%, about as with it, and Finnish 14%, Armenian 23%, Georgian 18%, Greek 8%, Bulgarian 3% and Dutch 4%, so in Greek,
+Bulgarian and Dutch half or more of the slowdown came with #435; the timing called the difference in Finnish (8.5%) and
+Armenian (6.6%) and left the others inside their noise bands, where Greek read slower with the fit in 23 of 24 rounds.
+How much of that the ligature questions cost isn't traced: English labels read 7.2% slower with #435 for no more calls
+in the batch timed, the build timed with #435 lacked #425, which main had, and part of a label's time follows what the
+library prepared before it, not the label's own calls. A list of labels laid out at 320px reads nothing those calls
+measure: plain text reads a word's cut advances only in a box narrower than the word, and no word of the 7,000 labels
+reaches 240px. No fit that asks Firefox less gives the same advances in every font, since a call returns one width and a
+new word's prefixes are unknowns no other word determines. One fit that asks less on a premise was built and isn't in
+the library (Firefox 156.0.1, 2026-10-06, a build that isn't in the repository): a word's letter pairs asked before its
+prefixes, each letter alone and after the letter before it, strings every word of a font shares, and taken for the
+prefix advances where they add up to the word's width in Firefox's units of 1/60px. Its premise is that such a word has
+nothing shaped across three letters. With the words that engine rules exclude left to their prefixes (a letter shaped
+with both its neighbours, a joined script, a right-to-left letter or bidi control, small capitals), none of Firefox's
+44,363 harness predictions differed from main's, the fit made 50% fewer calls on German's 200 labels and 51% fewer on
+all 7,000, and a new label's first `prepare()` took 22.5% less time in German, 26.5% in Finnish and 25.9% in Armenian,
+and 7.3% more in Telugu (foreground, three sessions of ten rounds). Real fonts break the premise where a font's rule
+reaches past the neighbouring letter: Caveat in 1.0% to 3.9% of the Latin words tried, `system-ui`'s colon after a digit
+or capital in bold and italic, and some three-letter string in 229 of 710 faces probed. In a box narrower than such a
+word the cut then lands a letter away from Firefox's, where the prefixes have it right. A premise real fonts break isn't
+taken for speed (Part 1, The Correctness Stance), so the Gecko profile keeps its prefixes. The scripts that counted and
+timed the prefix fit aren't in the repository either. A fit that asks less on a premise no real font breaks, an option
+that tells `prepare()` a text is never cut inside a word (TODO.md, the API discussion), or a release whose labels must
+not be slower than 0.0.9's in any language, would reopen this.
 
 What the labels get for it, on 13,090 probe layouts of one word a paragraph: 390 words of 78px or wider from those
 labels, Latin, Cyrillic and Greek in 13px Helvetica Neue, 13px Inter and 14px Roboto and Tamil in 13px Tamil Sangam MN,
@@ -2130,7 +2165,20 @@ runs (Firefox 156.0.1, bench sessions of 2026-09-27 and 28, unless noted):
   desktop Chrome and Firefox (`src/entry-geometry.ts`), is observed only for segments of up to 96 graphemes, and an
   empty observation is kept as a found one is: since #368 a segment ending in a long run of controls is a few clusters,
   not one per control, so it falls within that bound, and observing again at every prepare made Firefox prepare the
-  invisible tails 6% slower.
+  invisible tails 6% slower. Under no letter spacing the strings an observation asks Canvas, up to three per line start,
+  are widths of the font's segment cache (#453), which often has the first already, one grapheme of the word that its
+  cut-word fit measured (a letter with its ZWNJ, a word joiner alone), and which words with the same line start then
+  share. Asked at every observation, as before, 418 of the 32,861 `measureText` calls Firefox 156.0.1 makes for
+  Chromium's 7,000 interface labels asked a string again, 231 of the 1,236 for Persian's 200 alone and 184 of Telugu's
+  1,657, both written with ZWNJ, and 265 of Persian's 1,246 in Chrome 154.0.8037.98; on the harness's own cases 0.04% of
+  Firefox's calls and 0.07% of Chrome's, with no prediction changed (counted in the browsers, 2026-10-06). The calls
+  saved repeat strings the browser was asked before, and little time goes with them. Persian's new labels read about 6%
+  faster in Firefox, 6.1% and 6.6% in two foreground runs and faster in five sessions of six, about what 231 calls cost
+  there; Telugu's lean faster, 4.2% and 1.2%, inside what two copies of one build differ by; and in Chrome 154.0.8037.57
+  Persian's read 3.5% faster in one run, where German's, with 4 calls fewer of 841, read 3.1% faster (30 rounds a
+  language in each run, 2026-10-06). Under a letter spacing the widths are Canvas's own spacing of each string, asked at
+  every observation. The harness's texts repeat one in two made-up catalog cases, once each (the Blink profile, offline
+  on a stand-in Canvas), and a cache per spacing reopens with text that repeats more.
 - **The cursive rule's pretest** (#397): a letter-spaced text is asked once, by a regular expression of the cursive
   scripts' properties, whether it holds a character of a cursive run, and only then takes the script tests per
   grapheme. In Node 23's V8 that expression takes 6-19 ns per UTF-16 unit of CJK text, about ten times a class of
@@ -4230,9 +4278,14 @@ decisions for the maintainer.
   in 0.0.9 in Chrome, the bench's row of mixed labels reads level with 0.0.9 in Chrome and in Firefox, where main before
   the rule read it 18.7% faster in Chrome, and of one language's labels at a time in Chrome, 31 of 35 languages are
   faster than in 0.0.9 and Tamil, Telugu, Armenian and Hebrew are 31%, 13%, 12% and 3% slower; in Firefox eight
-  languages' labels are slower than in 0.0.9, nearly all of it main's cost and not the rule's (Break Opportunities
-  From Engine Data has the figures, their builds and date; #435's description has the tables). The rule lands with that
-  known. `layout()` pays where words are cut: the bench's long breakable runs read
+  languages' labels are slower than in 0.0.9. Most of that cost is #340's prefix fit for words of 80px or wider, about
+  36% of a German label's time there with this rule's ligature questions in it, and the rest came with this rule: German
+  reads 14% slower than 0.0.9 with and without it, Finnish 22% for 14%, Greek 19% for 8% and Armenian 33% for 23%, and
+  how much of that the ligature questions cost isn't traced (Break Opportunities From Engine Data has the figures, their
+  builds and date, and the trace; #435's description has the tables). The rule landed on a first reading of those
+  labels, that nearly all of Firefox's cost was main's and the rule added to it only in Finnish and Armenian; the trace,
+  made after, found that more came with the rule, as above. `layout()` pays where words are cut: the bench's long
+  breakable runs read
   7.9% and 9.7% slower in Chrome 154 in two foreground runs, for one number read at each line that starts inside a word,
   and 8.2% and 13.9% slower in Firefox 156.0.1 with the ligature rule, which is none of the rule's work and is left as
   one JIT's (Keeping Work Bounded, JavaScript Engines). Firefox adds up the advances a word's letters have in the word
