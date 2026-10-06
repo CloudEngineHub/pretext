@@ -21,7 +21,7 @@ This page's made to show off our layout APIs:
 - The first visible render now waits for both fonts and hull preload, so it uses the real geometry from the start.
 - There is no DOM text measurement loop feeding layout.
 */
-import { layoutNextLine, prepareWithSegments, walkLineRanges, type LayoutCursor, type PreparedTextWithSegments } from '../../src/layout.ts'
+import { layoutNextLine, measureNaturalWidth, prepareWithSegments, walkLineRanges, type LayoutCursor, type PreparedTextWithSegments } from '../../src/layout.ts'
 import { BODY_COPY } from './dynamic-layout-text.ts'
 import openaiLogoUrl from '../assets/openai-symbol.svg'
 import claudeLogoUrl from '../assets/claude-symbol.svg'
@@ -236,14 +236,6 @@ function getPrepared(text: string, font: string, letterSpacing: number): Prepare
   const prepared = prepareWithSegments(text, font, { letterSpacing })
   preparedByKey.set(key, prepared)
   return prepared
-}
-
-function getPreparedSingleLineWidth(prepared: PreparedTextWithSegments): number {
-  let width = 0
-  walkLineRanges(prepared, 100_000, line => {
-    width = line.width
-  })
-  return width
 }
 
 function headlineBreaksInsideWord(prepared: PreparedTextWithSegments, maxWidth: number): boolean {
@@ -755,7 +747,7 @@ function evaluateLayout(
     },
     layout.isNarrow ? creditBlocked.concat(claudeCreditBlocked) : creditBlocked,
   )
-  const creditWidth = Math.ceil(getPreparedSingleLineWidth(getPrepared(CREDIT_TEXT, CREDIT_FONT, layout.creditLetterSpacing)))
+  const creditWidth = Math.ceil(measureNaturalWidth(getPrepared(CREDIT_TEXT, CREDIT_FONT, layout.creditLetterSpacing)))
   // When no slot fits, the credit isn't painted, rather than painted over a logo or past the page.
   let creditLeft: number | null = null
   for (let index = 0; index < creditSlots.length; index++) {
