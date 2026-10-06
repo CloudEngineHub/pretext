@@ -3,10 +3,12 @@ import { beforeAll, beforeEach, describe, expect, test } from 'bun:test'
 import type { AnalysisProfile } from './analysis.ts'
 import type { RichInlineBox, RichInlineItem } from './rich-inline.ts'
 
-// Keep the permanent suite small and durable. These tests exercise the shipped
-// prepare/layout exports with a deterministic fake canvas backend. For narrow
-// browser-specific investigations, prefer throwaway probes and browser checkers
-// over mirroring the full implementation here.
+// Unit checks over a deterministic fake canvas backend: the shipped prepare/layout
+// and rich-inline exports, and the rules behind them (the engines' break scans, the
+// engine profile's fields, the line walkers), which a test of one engine's rule sets
+// by hand on the cached profile. What a browser does is settled in the harness
+// (harness/README.md), not here: for narrow browser-specific investigations, prefer
+// throwaway probes and harness cases over mirroring the full implementation here.
 
 const FONT = '16px Test Sans'
 const LINE_HEIGHT = 19
