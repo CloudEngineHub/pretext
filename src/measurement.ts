@@ -910,10 +910,11 @@ export function getSegmentFit(
   return metrics.fit = { mode, advances, lineStartProhibitions: prohibitions, entryGeometry: null }
 }
 
-// What preparation measures a font's text through, with the context set to measure it.
-// Text under letter spacing has a measurement of its own where the context shapes it as
-// the page does: its widths, prefixes and line-edge facts all come from that shaping.
-export function getFontMeasurement(font: string, language: string | null, letterSpaced: boolean): FontMeasurement {
+// What preparation measures a font's text through, with the context set to measure it,
+// unless the caller only reads what the font keeps (`measures` false). Text under letter
+// spacing has a measurement of its own where the context shapes it as the page does: its
+// widths, prefixes and line-edge facts all come from that shaping.
+export function getFontMeasurement(font: string, language: string | null, letterSpaced: boolean, measures = true): FontMeasurement {
   // Preparation starts here, with the language it resolved. After that language
   // changes, start again with a new context and empty caches; clearing the caches
   // alone would re-measure with fonts resolved under the old language.
@@ -927,6 +928,7 @@ export function getFontMeasurement(font: string, language: string | null, letter
     measurement = { state, canvasFont, metrics: new Map(), followingSpaceMetrics: new Map(), spaceKerning: undefined, emojiCorrection: null, emojiWidth: 0, hyphenText: null, hanKerning: undefined }
     fonts.set(font, measurement)
   }
+  if (!measures) return measurement
   state.context.font = measurement.canvasFont
   if (state.letterSpaced !== shaped) {
     state.context.letterSpacing = shaped ? LETTER_SPACED_SHAPING : '0px'
