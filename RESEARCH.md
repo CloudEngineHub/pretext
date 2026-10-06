@@ -2042,17 +2042,34 @@ Safari gains must come from measuring less. Korean, Thai, Khmer, Burmese and Hin
 under system fallback, twice with a named font for the script.
 
 The context's font is set at the first measurement after a font is looked up (`getContext()` in `src/measurement.ts`),
-not at the lookup: rich inline looks a font up for every item, and an item whose text is all in the font's cache
+not at the lookup (#TBD): rich inline looks a font up for every item, and an item whose text is all in the font's cache
 measures nothing. Prepared again, the bench's 147 Latin rich messages, 7,040 items, assigned `context.font` 7,040 times,
 2,310 of them to another font than the context held, and ten dense styled Japanese sentences, 74 items, 74 times and 44;
-now neither assigns any (a stand-in Canvas's counts). Those messages prepared again read 20% faster in Chrome
-154.0.8037.57, 12% in Firefox 156.0.1 and 57% in Safari 27.0, the sentences 11%, 4% and 30%, CJK prose with bold
-quotations 3%, 1% and 9%, and the same messages as plain text in one font within 2% (foreground, five pages a browser
-that time main, the change and a second copy of main by turns, 2026-10-05). The bench's rich rows prepare new text, and
-it called one of them: Safari's `rich: latin rich-new`, 8% faster. Every measurement still follows an assignment of its
-font made since the font was looked up, as it did before; only an assignment that no measurement follows is gone. That
-changes one thing: Safari's kept context was healed by a font change, which preparing cached text in another font no
-longer makes (PLATFORM_BUGS.md, Safari: a kept Canvas context misses a loaded `FontFace`). A build that set the font
+now neither assigns any (a stand-in Canvas's counts; a row of the unit test for stale contexts holds the zero). Those
+messages prepared again are the bench's `rich: latin rich-seen`, which read 20.9% faster in Chrome 154.0.8037.57, 21.7%
+in Firefox 156.0.1 and 56.0% in Safari 27.0 (foreground, three sessions, 2026-10-05, against main at #435; against main
+before #435 Firefox read 12%, on the page below, and what widened it wasn't looked for). On a page that times main, the
+change and a second copy of main by turns, the sentences read 11%, 5% and 31% faster, CJK prose with bold quotations 3%,
+2% and 9%, and the same messages as plain text in one font within 2% (foreground, five pages a browser, 2026-10-05).
+
+What it costs: 5 code lines, and in Safari the two worst-case rows that prepare cached CJK text. `worst:
+cjk-brackets-keep-all prepare` read above base in 19 of 19 foreground sessions, by 0.6% to 2.8%, 1.7% at the median, so
+mostly under the row's 2% floor, and `worst: cjk-letter-spaced prepare` in 8 of 8 against main at #435, by 0.7% to 5.2%,
+its control up to 4.8% from base. Not assigning the font isn't what costs: the same build with the font also assigned at
+every lookup, as before, read the keep-all row 2.3% to 3.0% slower in five of five sessions, so the assignment left out
+gives about 1.5% of that row back, and a build one unused binding apart read it 1.4% to 5.3% slower. Preparing that
+row's 120 texts again measures nothing, and where main assigned the context's font and compared a flag it makes one
+store, so it is taken as how Safari compiles the bundle, with the cause not found (Safari 27.0, foreground, five
+sessions a build, 2026-10-05).
+
+Every measurement still follows an assignment of its font made since the font was looked up, as it did before; only an
+assignment that no measurement follows is gone. That moves one thing in the pinned browsers, in Safari: a kept context
+that missed a late face takes it when its font string changes, which now follows the font measured last and not the font
+looked up last. So cached text in another font no longer heals it, and cached text of the late family, prepared after
+text measured in another font, no longer keeps it from healing (PLATFORM_BUGS.md, Safari: a kept Canvas context misses a
+loaded `FontFace`; webkit-host, with Chrome 154.0.8037.57 and Firefox 156.0.1 taking the face in every order,
+2026-10-05). Firefox before 156, where an assignment could still heal a context stuck on a late family name
+(PLATFORM_BUGS.md, Firefox: the late family names), wasn't run and may differ the same way. A build that set the font
 only where the context held another lost Firefox a face added after its font was measured (Engine Facts, Firefox).
 Reopens if an engine needs a font assigned where nothing is measured.
 
