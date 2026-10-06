@@ -104,9 +104,10 @@ export function endsLineBefore(previousKind: number, kind: number, unbroken: boo
   return (breaksAfterKind(previousKind) || !breaksAfterKind(kind)) && !unbroken
 }
 
-// End cursors consume source. A terminal SHY is not a selected wrap, even
-// though it is the final consumed segment. Rendering derives that distinction
-// from the endpoint instead of treating every consumed SHY as visible.
+// A line ends at a chosen soft hyphen, and paints its hyphen, where the line's end
+// cursor is the start of the segment after one. A soft hyphen that ends the text is
+// consumed with its line and chosen by no wrap, so the cursor at the text's end
+// paints none.
 export function isDiscretionaryLineEnd(
   segmentFlags: Uint8Array,
   endSegmentIndex: number,
@@ -803,8 +804,10 @@ function walkPreparedComplexLines(
           // Entry geometry describes whole segment tails on a fresh line.
           const freshWhole = hasContent ? null : getSegmentEntryWidth(entry, fillStart, fitCount)
           if (freshWhole !== null) {
-            // Admission, ordered emergency prefixes and continuing pen are distinct.
-            // The first real grapheme is mandatory source progress, even when unfit.
+            // getFreshLineEnd() reads a width for each question: the entry's admissionFit
+            // for whether the whole tail fits, the fresh prefixes for where the line ends
+            // where it doesn't, and the tail's fresh width for the line that goes on. The
+            // line takes its first grapheme even where that doesn't fit, so it advances.
             const end = getFreshLineEnd(entry!, fillStart, fitCount, fitLimit)
             hasContent = true
             if (end <= fitCount) {
