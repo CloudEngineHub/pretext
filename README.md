@@ -51,9 +51,11 @@ The returned height is the crucial last piece for unlocking web UIs:
 - _development time_ verification (especially now with AI) that labels on e.g. buttons don't overflow to the next line, browser-free
 - prevent layout shift when new text loads and you wanna re-anchor the scroll position
 
+The same `prepare()` handle also works with the APIs below that don't return text (`measureLineStats()`, `measureNaturalWidth()`, `walkLineRanges()`, `layoutNextLineRange()`), e.g. to shrink-wrap a chat bubble to its widest line.
+
 ### 2. Lay out the paragraph lines manually yourself
 
-Switch out `prepare` with `prepareWithSegments`, then:
+Switch out `prepare` with `prepareWithSegments` (the APIs that return a line's text need it: `layoutWithLines()`, `layoutNextLine()`, `materializeLineRange()`), then:
 
 - `layoutWithLines()` gives you all the lines at a fixed width:
 
@@ -130,7 +132,7 @@ For `white-space: pre-wrap` or `word-break: keep-all` on the paragraph, pass `{ 
 
 Use-case 1 APIs:
 ```ts
-prepare(text: string, font: string, options?: { whiteSpace?: 'normal' | 'pre-wrap', wordBreak?: 'normal' | 'keep-all', letterSpacing?: number }): PreparedText // one-time text analysis + measurement pass, returns an opaque value to pass to `layout()`. Make sure `font` and `letterSpacing` are synced with your CSS for the text you're measuring. `font` is the same format as what you'd use for `myCanvasContext.font = ...`, e.g. `16px Inter`; `letterSpacing` is a CSS pixel value, and must be finite.
+prepare(text: string, font: string, options?: { whiteSpace?: 'normal' | 'pre-wrap', wordBreak?: 'normal' | 'keep-all', letterSpacing?: number }): PreparedText // one-time text analysis + measurement pass, returns an opaque value to pass to `layout()` and to the APIs below that don't return text. Make sure `font` and `letterSpacing` are synced with your CSS for the text you're measuring. `font` is the same format as what you'd use for `myCanvasContext.font = ...`, e.g. `16px Inter`; `letterSpacing` is a CSS pixel value, and must be finite.
 layout(prepared: PreparedText, maxWidth: number, lineHeight: number): { height: number, lineCount: number } // calculates text height given a max width and lineHeight. Make sure `lineHeight` is synced with your css `line-height` declaration for the text you're measuring.
 ```
 
@@ -138,17 +140,18 @@ Use-case 2 APIs:
 ```ts
 prepareWithSegments(text: string, font: string, options?: { whiteSpace?: 'normal' | 'pre-wrap', wordBreak?: 'normal' | 'keep-all', letterSpacing?: number }): PreparedTextWithSegments // same as `prepare()`, but returns a richer structure for manual line layout needs
 layoutWithLines(prepared: PreparedTextWithSegments, maxWidth: number, lineHeight: number): { height: number, lineCount: number, lines: LayoutLine[] } // high-level api for manual layout needs. Accepts a fixed max width for all lines. Similar to `layout()`'s return, but additionally returns the lines info
-walkLineRanges(prepared: PreparedTextWithSegments, maxWidth: number, onLine: (line: LayoutLineRange) => void): number // low-level api for manual layout needs. Accepts a fixed max width for all lines. Calls `onLine` once per line with its actual calculated line width and start/end cursors, without building line text strings. Very useful for certain cases where you wanna speculatively test a few width and height boundaries (e.g. binary search a nice width value by repeatedly calling walkLineRanges and checking the line count, and therefore height, is "nice" too). You can have text messages shrinkwrap and balanced text layout this way. After walkLineRanges calls, you'd call layoutWithLines once, with your satisfying max width, to get the actual lines info.
-measureLineStats(prepared: PreparedTextWithSegments, maxWidth: number): { lineCount: number, maxLineWidth: number } // returns only how many lines this width produces, and how wide the widest one is. Avoids line/string allocations.
-measureNaturalWidth(prepared: PreparedTextWithSegments): number // Returns the width of the widest line when only explicit line breaks apply.
+walkLineRanges(prepared: PreparedText, maxWidth: number, onLine: (line: LayoutLineRange) => void): number // low-level api for manual layout needs. Accepts a fixed max width for all lines. Calls `onLine` once per line with its actual calculated line width and start/end cursors, without building line text strings. Very useful for certain cases where you wanna speculatively test a few width and height boundaries (e.g. binary search a nice width value by repeatedly calling walkLineRanges and checking the line count, and therefore height, is "nice" too). You can have text messages shrinkwrap and balanced text layout this way. After walkLineRanges calls, you'd call layoutWithLines once, with your satisfying max width, to get the actual lines info.
+measureLineStats(prepared: PreparedText, maxWidth: number): { lineCount: number, maxLineWidth: number } // returns only how many lines this width produces, and how wide the widest one is. Avoids line/string allocations.
+measureNaturalWidth(prepared: PreparedText): number // Returns the width of the widest line when only explicit line breaks apply.
 layoutNextLine(prepared: PreparedTextWithSegments, start: LayoutCursor, maxWidth: number): LayoutLine | null // iterator-like api for laying out each line with a different width! Returns the LayoutLine starting from `start`, or `null` when the paragraph's exhausted. Pass the previous line's `end` cursor as the next `start`.
-layoutNextLineRange(prepared: PreparedTextWithSegments, start: LayoutCursor, maxWidth: number): LayoutLineRange | null // same as layoutNextLine(), but without allocating line text strings. Useful for variable-width manual layout, occlusion, and virtualization measurements.
+layoutNextLineRange(prepared: PreparedText, start: LayoutCursor, maxWidth: number): LayoutLineRange | null // same as layoutNextLine(), but without allocating line text strings. Useful for variable-width manual layout, occlusion, and virtualization measurements.
 materializeLineRange(prepared: PreparedTextWithSegments, line: LayoutLineRange): LayoutLine // turns a LayoutLineRange from layoutNextLineRange() or walkLineRanges() into a full line with text
 type PreparedTextWithSegments = PreparedText & {
-  segments: string[] // The text split into segments, e.g. ['hello', ' ', 'world']
-  kinds: SegmentBreakKind[] // Break behavior per segment, e.g. ['text', 'space', 'text']
+  readonly segments: readonly string[] // The text split into segments, e.g. ['hello', ' ', 'world']
+  readonly kinds: readonly ('text' | 'space' | 'preserved-space' | 'tab' | 'zero-width-break' | 'soft-hyphen' | 'zero-width-glue' | 'hard-break' | 'control')[] // Break behavior per segment, e.g. ['text', 'space', 'text']
+  readonly widths: ArrayLike<number> // Width of each segment in px, e.g. [42.5, 4.4, 37.2]
 }
-type SegmentBreakKind = 'text' | 'space' | 'preserved-space' | 'tab' | 'zero-width-break' | 'soft-hyphen' | 'zero-width-glue' | 'hard-break' | 'control' // 'space': a collapsible space; 'preserved-space', 'tab' and 'hard-break': a space, tab or newline kept by `pre-wrap`; 'zero-width-break': a zero-width space the line can break after; 'soft-hyphen': a soft hyphen (U+00AD); 'zero-width-glue': a zero-width space or soft hyphen the browser doesn't break after; 'control': in Safari, a next-line character (U+0085), which takes letter spacing of its own
+// The kinds. 'space': a collapsible space; 'preserved-space', 'tab' and 'hard-break': a space, tab or newline kept by `pre-wrap`; 'zero-width-break': a zero-width space the line can break after; 'soft-hyphen': a soft hyphen (U+00AD); 'zero-width-glue': a zero-width space or soft hyphen the browser doesn't break after; 'control': in Safari, a next-line character (U+0085), which takes letter spacing of its own
 type LineStats = {
   lineCount: number // Number of wrapped lines, e.g. 3
   maxLineWidth: number // Widest wrapped line, e.g. 192.5
@@ -243,7 +246,7 @@ Notes:
 - In `pre-wrap`, rich-inline fragments have no gaps: a fragment's `text` keeps its spaces, and its `occupiedWidth`, like the line's `width`, leaves out what hangs at the line's end. An atomic item's own spaces collapse, as in a chip's `white-space: nowrap` inline-block. A tab counts eight spaces of its own item's font, as Safari does; Chrome and Firefox count the paragraph's, so a tab inside an item in another font, such as inline code in prose, can land on another stop there.
 - A rich-inline item that wraps is charged its whole `extraWidth` on every line it reaches, as CSS `box-decoration-break: clone` pads a span, where CSS's default pads only the span's two ends. Paint each fragment as its own element with the padding on both sides, as the demos do: a padded span the browser wraps itself can break elsewhere, with `clone` too.
 - A rich-inline line is as tall as the paragraph's line height while its text keeps the paragraph font's size, ascent and descent. Text in another size, or in a face whose ascent and descent differ (Helvetica Neue's bold on macOS), makes a line taller, with or without boxes; `line-height: 1` on each fragment's element keeps it inside the line, as the rich-note demo does.
-- Segment widths are browser-canvas widths for line breaking, not enough to position individual characters in Arabic or mixed bidi text.
+- Segment widths are browser-canvas widths for line breaking, not enough to position individual characters in Arabic or mixed bidi text. They don't always add up to a line's width either: a tab's is 0, the letter spacing after a segment's last letter isn't in it, and a line broken at a soft hyphen adds its hyphen. For a width, read the line's `width`, or call `measureNaturalWidth()` for the whole text.
 
 ## Caveats
 
