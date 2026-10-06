@@ -446,15 +446,11 @@ facts-1fe27e7853d9044e breaks
 facts-2464e56e85f810a3 count
 facts-25a8722c305b4f97 count
 facts-26f2e5a1ad671eb1 breaks
-facts-27169629dc7293ed breaks
 facts-3529f7f7a5f8bdf4 count
 facts-3c22e58cfce60993 breaks
 facts-440ced509df2d3f1 breaks
 facts-5b71f005fcfe128a breaks
-facts-6d224b34ed76519a breaks
-facts-992ad3e2cac24507 breaks
 facts-b0d939ba4135eb20 count
-facts-b346a98dcaf21070 breaks
 facts-bdd0486cdef5c133 breaks
 facts-cb726fe075c99028 count
 facts-d586e19a99606fb9 count
@@ -2984,11 +2980,13 @@ catalog-ff47daf5a0938642 count
 catalog-ffa9651fd6cd2369 count
 facts-010cd794346e04fc count
 facts-035bbb35c6e81dba count
+facts-04644e7b44f018db count
 facts-0ddf325bd8abfccc count
 facts-0ed74272b2fa2c74 count
 facts-1564387085f2ca33 count
 facts-1945c789bdf13a4b count
 facts-1aac752cc8ef26c8 count
+facts-1c2586019051612d count
 facts-21a16b8e65116bcf count
 facts-21afc42741a7fe13 count
 facts-2201b1f61283823d count
@@ -3008,6 +3006,7 @@ facts-46e103bf142a6b39 count
 facts-4824eaef1a6a9cda count
 facts-4859e8de92154112 count
 facts-4bd70c5097dd6770 count
+facts-4be2a82943042210 count
 facts-55baf946aff1af58 count
 facts-57cd75abe3cabcaf count
 facts-59d5120a908a1400 count
@@ -3758,7 +3757,6 @@ sample-6f8970d165201513 breaks
 sample-c11591c08197d852 breaks
 
 ## Real usage: soft hyphens; Chrome breaks before the syllable where the library takes the soft hyphen, or at another one (main before #340 too)
-sample-347ac514160904d0 breaks
 sample-b440ccf29c8506b7 breaks
 
 ## Real usage: table cells 25-125 px wide holding IDs, phone numbers and formulas; Chrome breaks at hyphens, brackets and between digits otherwise than the library (main before #340 too)
