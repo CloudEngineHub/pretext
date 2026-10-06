@@ -8,6 +8,7 @@ import {
   type QualityMetrics,
   type RiverIndicator,
 } from './justification-comparison.model.ts'
+import { setNodeCount } from './line-nodes.ts'
 
 type CanvasSurface = {
   element: HTMLCanvasElement
@@ -98,7 +99,7 @@ export function syncCssRiverOverlay(
   normalSpaceWidth: number,
 ): void {
   if (!controls.showIndicators) {
-    hideUnusedRiverMarks(dom.cssRiverMarks, 0)
+    setNodeCount(dom.cssRiverMarks, 0, createRiverMark, dom.cssRiverOverlay)
     return
   }
 
@@ -142,17 +143,15 @@ export function syncCssRiverOverlay(
     }
   }
 
-  ensureRiverMarkCount(dom.cssRiverMarks, dom.cssRiverOverlay, riverMarks.length)
+  setNodeCount(dom.cssRiverMarks, riverMarks.length, createRiverMark, dom.cssRiverOverlay)
   for (let index = 0; index < riverMarks.length; index++) {
     const mark = dom.cssRiverMarks[index]!
     const riverMark = riverMarks[index]!
-    mark.style.display = 'block'
     mark.style.left = `${riverMark.left}px`
     mark.style.top = `${riverMark.top}px`
     mark.style.width = `${riverMark.width}px`
     mark.style.background = riverMark.color
   }
-  hideUnusedRiverMarks(dom.cssRiverMarks, riverMarks.length)
 }
 
 function getHtmlElement(id: string): HTMLElement {
@@ -345,25 +344,12 @@ function paintLine(
   }
 }
 
-function ensureRiverMarkCount(
-  marks: HTMLDivElement[],
-  overlay: HTMLElement,
-  count: number,
-): void {
-  while (marks.length < count) {
-    const mark = document.createElement('div')
-    mark.style.position = 'absolute'
-    mark.style.pointerEvents = 'none'
-    mark.style.height = `${LINE_HEIGHT}px`
-    overlay.appendChild(mark)
-    marks.push(mark)
-  }
-}
-
-function hideUnusedRiverMarks(marks: HTMLDivElement[], fromIndex: number): void {
-  for (let index = fromIndex; index < marks.length; index++) {
-    marks[index]!.style.display = 'none'
-  }
+function createRiverMark(): HTMLDivElement {
+  const mark = document.createElement('div')
+  mark.style.position = 'absolute'
+  mark.style.pointerEvents = 'none'
+  mark.style.height = `${LINE_HEIGHT}px`
+  return mark
 }
 
 function toRgba(indicator: RiverIndicator): string {

@@ -1,5 +1,5 @@
 // What the dynamic-layout and editorial-engine pages share to paint their lines: one absolutely positioned node per
-// line, made when the line appears and removed when it goes.
+// line, made when the line appears and removed when it goes. The justification page keeps its river marks the same way.
 
 export type PositionedLine = {
   x: number
