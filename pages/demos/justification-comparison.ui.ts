@@ -122,6 +122,8 @@ export function syncCssRiverOverlay(
 
       dom.cssRange.setStart(textNode, charIndex)
       dom.cssRange.setEnd(textNode, charIndex + 1)
+      // The CSS column is the browser's layout, so its rivers are marked from the browser's own spaces, read here,
+      // not from Pretext's lines as the two canvas columns are.
       const rects = dom.cssRange.getClientRects()
       if (rects.length !== 1) continue
 
