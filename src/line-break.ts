@@ -24,7 +24,8 @@ const BREAK_AFTER_KINDS = 1 << SPACE | 1 << ZERO_WIDTH_BREAK | 1 << SOFT_HYPHEN 
 export type PreparedLineBreakData = {
   widths: number[] // Segment widths, e.g. [42.5, 4.4, 37.2]
   // Per segment, its flags byte, e.g. [TEXT, SPACE, TEXT]. A JSON copy of the handle turns it into an
-  // object with no length, on which the walkers never finish (RESEARCH.md, Decisions Log)
+  // object with no length, on which the walkers never finish (RESEARCH.md, Decisions Log,
+  // 2026-09-24)
   segmentFlags: Uint8Array
   // Normal text can use the simple line stepper across all layout APIs, and layout()
   // counts it with one numeric loop where it has no overflow trims
@@ -109,9 +110,10 @@ export function breaksAfterKind(kind: number): boolean {
   return (1 << kind & BREAK_AFTER_KINDS) !== 0
 }
 
-// End cursors consume source. A terminal SHY is not a selected wrap, even
-// though it is the final consumed segment. Rendering derives that distinction
-// from the endpoint instead of treating every consumed SHY as visible.
+// A line ends at a chosen soft hyphen, and paints its hyphen, where the line's end
+// cursor is the start of the segment after one. A soft hyphen that ends the text is
+// consumed with its line and chosen by no wrap, so the cursor at the text's end
+// paints none.
 export function isDiscretionaryLineEnd(
   segmentFlags: Uint8Array,
   endSegmentIndex: number,
@@ -124,7 +126,7 @@ export function isDiscretionaryLineEnd(
 // At a paragraph or hard-break start, ZWSP is real source: it establishes the
 // line and offers a break after it. UAX #14 forbids an ordinary break before
 // ZWSP. After a forced overflow break browsers can still give ZWSP its own line;
-// that start is consumed here, as before.
+// that start is consumed here.
 function consumesAtLineStart(kind: number, atChunkStart: boolean): boolean {
   return kind === SPACE || kind === SOFT_HYPHEN || (kind === ZERO_WIDTH_BREAK && !atChunkStart)
 }
@@ -310,7 +312,8 @@ export function walkPreparedLinesRaw(
 // cursor and no per-line call. Every segment boundary of a fast-path handle is
 // a break, so an overflowing space or ZWSP ends its line and any other segment
 // starts the next one. The full walker costs three to five times as much per
-// segment, so one walker for all text was rejected (RESEARCH.md, Decisions Log).
+// segment, so one walker for all text was rejected (RESEARCH.md, Decisions Log,
+// 2026-09-24).
 export function countPreparedLines(prepared: PreparedLineData, maxWidth: number): number {
   // The loop takes no overflow trims, which the stepper takes for a line's first segment.
   if (!prepared.simpleLineWalkFastPath || prepared.overflowLineEndTrims !== null) {
@@ -941,8 +944,11 @@ function walkPreparedComplexLines(
           // Entry geometry describes whole segment tails on a fresh line.
           const freshWhole = hasContent ? null : getSegmentEntryWidth(entry, fillStart, fitCount)
           if (freshWhole !== null) {
-            // Admission, ordered emergency prefixes and continuing pen are distinct.
-            // The first real grapheme is mandatory source progress, even when unfit.
+            // This branch reads a width for each question: in getFreshLineEnd(), the entry's
+            // admissionFit for whether the whole tail fits and the fresh prefixes for where
+            // the line ends where it doesn't; then the tail's fresh width, freshWhole, for the
+            // line that goes on. The line takes its first grapheme even where that doesn't
+            // fit, so it advances.
             const end = getFreshLineEnd(entry!, fillStart, fitCount, fitLimit)
             hasContent = true
             if (end <= fitCount) {

@@ -131,9 +131,9 @@ export function getRectIntervalsForBand(
 // and the returned intervals are the candidate text slots for that row.
 //
 // This helper is intentionally page-oriented, not pure geometry:
-// it also discards absurdly narrow leftover slivers that we would never
-// want to hand to text layout.
-export function carveTextLineSlots(base: Interval, blocked: Interval[]): Interval[] {
+// it also discards leftover slivers narrower than `minWidth`, which a page
+// would never want to hand to text layout.
+export function carveTextLineSlots(base: Interval, blocked: Interval[], minWidth: number): Interval[] {
   let slots: Interval[] = [base]
 
   for (let blockedIndex = 0; blockedIndex < blocked.length; blockedIndex++) {
@@ -151,7 +151,7 @@ export function carveTextLineSlots(base: Interval, blocked: Interval[]): Interva
     slots = next
   }
 
-  return slots.filter(slot => slot.right - slot.left >= 24)
+  return slots.filter(slot => slot.right - slot.left >= minWidth)
 }
 
 async function makeWrapHull(src: string, options: WrapHullOptions): Promise<Point[]> {

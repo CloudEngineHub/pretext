@@ -29,6 +29,7 @@ import {
   stepPreparedLineGeometryFromStart,
   walkPreparedLinesRaw,
   type ParagraphSegmentData,
+  type PreparedLineData,
 } from './line-break.js'
 import { getEngineProfile, getFontMeasurement, getPreparationLanguage, getTextWidth, readLetterSpacing, zeros, type EngineProfile } from './measurement.js'
 import { measureAnalysis } from './prepare.js'
@@ -596,7 +597,7 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
     tabStopAdvance: firstTextItem < 0 ? 0 : tabStopAdvances[firstTextItem]!,
     minimumTabAdvance: firstTextItem < 0 ? 0 : minimumTabAdvances[firstTextItem]!,
     items: segmentData,
-  } as PreparedSegments
+  } satisfies PreparedLineData as PreparedSegments
   data.segments = segments
   if (hasEmptyObject && profile.emptyAtomicAlwaysFits) setEmptyObjectFacts(segmentData, data, items, itemSegments, segmentItems, source, starts)
 

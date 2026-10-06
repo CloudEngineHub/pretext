@@ -724,7 +724,7 @@ export function measureAnalysis(
     overflowLineEndTrims: hanKerning.overflowLineEndTrims,
     tabStopAdvance,
     minimumTabAdvance,
-  } as unknown as PreparedText & PreparedSegments
+  } satisfies PreparedLineBreakData as unknown as PreparedText & PreparedSegments
   if (segments !== null) prepared.segments = segments
   return prepared
 }

@@ -86,7 +86,8 @@ export type EngineProfile = {
   // Blink's 80px is a premise, not a browser rule: the fit costs Canvas calls for each new
   // word, most of the calls a lower floor adds are in words 24-80px wide, and taking them
   // from 24px or everywhere fixed adversarial lines at 24-80px but made Firefox prepare new
-  // text much slower (RESEARCH.md, Break Opportunities From Engine Data; Decisions Log).
+  // text much slower (RESEARCH.md, Break Opportunities From Engine Data; Decisions Log,
+  // 2026-09-27 and 2026-10-05).
   prefixFitMinWidth: number
   // Gecko shapes a word once, whole, and never again (gfxTextRun::SetLineBreaks does nothing,
   // gfxTextRun.cpp:1292-1301), so a line adds up the advances its letters have in that one
@@ -236,7 +237,7 @@ export type EngineProfile = {
   // font description (OffscreenCanvasRenderingContext2D.cpp:93-130) and WebKit has no
   // canvas `lang` (WebKit #285993). The WebKit profile names the page's families in
   // the Canvas font (getWebKitGenericFamilies), from a table rather than a `<canvas>`
-  // element, whose contexts force style updates (RESEARCH.md, Decisions Log).
+  // element, whose contexts force style updates (RESEARCH.md, Decisions Log, 2026-09-24).
   namesGenericFamiliesByLanguage: boolean
   // Release Gecko draws C0 and C1 controls, U+2028 and U+2029 with no advance plus letter
   // spacing (gfxFont.cpp:3877-3892), where its Canvas measures VT, FS-US, NEL and U+2029 as a
@@ -729,7 +730,8 @@ export function getEngineProfile(): EngineProfile {
 
 function buildEngineProfile(): EngineProfile {
   const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent
-  // Engines Pretext doesn't recognize take Blink's profile (RESEARCH.md, Decisions Log).
+  // Engines Pretext doesn't recognize take Blink's profile (RESEARCH.md, Decisions Log,
+  // 2026-09-26).
   const engine = getLayoutEngine(ua) ?? 'blink'
   // Fresh-entry observations are verified only for desktop Blink and Gecko.
   const isDesktop = /Windows NT|Macintosh|X11/.test(ua) && !/Android|Mobile|iPhone|iPad|iPod/.test(ua)

@@ -19,8 +19,8 @@
 //   only inside a cluster, or after a space inside one: for example at a vowel killer of a
 //   left-to-right script after an Arabic letter, or at a ZWJ that ends the paragraph after a
 //   Hebrew letter, which rule L1 puts at the paragraph's level. Both ports were removed on
-//   purpose (RESEARCH.md, Decisions Log; ENGINE_FOLLOWUPS.md, Bidi levels, direction and script
-//   runs).
+//   purpose (RESEARCH.md, Decisions Log, 2026-09-24 and 2026-10-01; ENGINE_FOLLOWUPS.md, Bidi
+//   levels, direction and script runs).
 // - Inside runs of Thai, Lao, Khmer and Myanmar letters, Intl.Segmenter word boundaries stand
 //   in for ICU4X's LSTM models (line.rs:445-451, complex/mod.rs:135-156). Firefox's own
 //   Intl.Segmenter answers as those models there once breaks inside grapheme clusters are

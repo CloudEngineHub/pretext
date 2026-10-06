@@ -689,7 +689,7 @@ describe('the commands, with a stand-in browser', () => {
     const list = cases(['pass', 'fail', 'label']).map(c => (c.id === 'label' ? c : { ...c, sample: { group: 'chat', weight: c.id === 'fail' ? 0.25 : 0.75 } }))
     const first = await check('chrome', list, options, io)
     expect([first.blocked, first.newFailures.map(c => c.id)]).toEqual([true, ['fail']])
-    expect(io.printed()).toContain('  Canvas: 232.6 measureText calls per 1,000 units while preparing')
+    expect(io.printed()).toContain('  Canvas: 232.6 measureText calls per 1,000 units of text while preparing')
     await check('chrome', list, { ...options, accept: 'a written reason' }, io)
     expect([...readAccepted(acceptedPath(root, 'chrome')).keys()]).toEqual(['fail'])
     // Accepted losses print under their reason, with the share of real paragraphs they cover.
@@ -850,6 +850,17 @@ describe('the commands, with a stand-in browser', () => {
       .then(() => '', (error: Error) => error.message)
     expect(refused).toContain('the other recordings were made under test; record every case')
     expect([...readRecordings(recordingsPath(root, 'chrome'))!.recordings.keys()]).toEqual(['kept', 'new'])
+  })
+
+  test('check and record refuse a page-history file written under another environment than the recordings: the cases a file from another build lists would go unpinned, and a regression on them pass', async () => {
+    const root = folder('history-env', { pass: laidOut, fail: laidOut })
+    writeHistory(historyPath(root, 'chrome'), { env: 'another build', cases: new Map([['fail', [laidOut, other]]]) })
+    const io = browser(root, c => (c.id === 'fail' ? wrong : right))
+    const list = cases(['pass', 'fail', 'new'])
+    const refused = (command: Promise<unknown>): Promise<string> => command.then(() => '', (error: Error) => error.message)
+    expect(await refused(check('chrome', list, options, io))).toContain('was written under\n  another build\nbut its recordings under\n  test')
+    expect(await refused(record('chrome', list, { ...options, onlyNew: true }, io))).toContain('was written under\n  another build')
+    expect(readHistory(historyPath(root, 'chrome'))!.env).toBe('another build')
   })
 
   test('repin records every case into a scratch copy, reports what changed, keeps the page history a new build\'s two orders miss, and writes only when asked: a browser update would read as library regressions, or the next check pin page history', async () => {
@@ -1057,7 +1068,7 @@ describe('the library through the adapter', () => {
     expect([edges.starts[0], edges.ends[1]]).toEqual([1, 3])
   })
 
-  test('layout() counting other lines than the walk blocks: a virtualized list would size a row for lines it doesn\'t paint (the review\'s D1: an overflowing space starts the next line in layout()\'s counter)', async () => {
+  test('layout() counting other lines than the walk blocks: a virtualized list would size a row for lines it doesn\'t paint (an overflowing space starts the next line in layout()\'s counter)', async () => {
     const text = 'aaaa bbbb cccc'
     // "aaaa" fits exactly, so each space overflows and must hang.
     const c = paragraph(text, library.measureNaturalWidth(library.prepareWithSegments('aaaa', '16px Harness Test')))
