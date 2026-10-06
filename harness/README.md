@@ -322,7 +322,10 @@ of the third sessions' 145 documents in the 19 runs above. Nothing timed is chec
 ## Browsers and pins
 
 Builds are read from the app bundles, since a user agent names only the major version. Each Firefox copy gets its update
-policy before its first launch, since a pinned Firefox once updated itself (`browsers.ts` has how). Safari can't be
+policy before its first launch, since a pinned Firefox once updated itself (`browsers.ts` has how). A Chrome copy has
+no such guard: Google's updater updated the pinned copy of 154.0.8037.57 in place to 154.0.8037.98 (2026-10-06), after
+which `record`, `check` and `gate` refuse until a repin. That build recorded all 43,203 cases as 154.0.8037.57 had,
+lines, widths and height, and holds the same break data. Safari can't be
 pinned, and a macOS update moves all three browsers (system fonts, Core Text, ICU, emoji). `repin` records every case
 with the new build into a scratch copy of the recordings and prints the cases laid out otherwise, the new page history,
 and whether the browser still holds the break data and character properties in `scripts/engine-data/`.
