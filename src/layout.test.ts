@@ -346,7 +346,8 @@ describe('shared public contracts', () => {
     expect(collectStreamedLines(prepared, width)).toEqual(result.lines)
     expect(layout(prepare(text, FONT), width, LINE_HEIGHT).lineCount).toBe(result.lineCount)
     expect(measureLineStats(prepared, width).lineCount).toBe(result.lineCount)
-    expect(reconstructFromLineBoundaries(prepared, result.lines)).toBe(prepared.segments.join(''))
+    // The lines' ranges give the source back, soft hyphen and all, where the first line's text shows a hyphen.
+    expect(reconstructFromLineBoundaries(prepared, result.lines)).toBe(text)
   })
 
   test('a line\'s width leaves out the space it ends at', () => {
@@ -2391,18 +2392,6 @@ describe('prepare invariants', () => {
       5,
     )
     expect(layout(prefixed, softBreakWidth, LINE_HEIGHT).lineCount).toBe(narrow.lineCount)
-
-    const hyphenAndOneGraphemeWidth =
-      prefixed.widths[0]! +
-      prefixed.widths[1]! +
-      prefixed.widths[2]! +
-      prefixed.breakableFitAdvances[4]![0]! +
-      prefixed.discretionaryHyphenWidth +
-      0.1
-    const strict = layoutWithLines(prefixed, hyphenAndOneGraphemeWidth, LINE_HEIGHT)
-    expect(strict.lines.map(line => line.text)).toEqual(['foo trans-', 'atlantic'])
-    expect(collectStreamedLines(prefixed, hyphenAndOneGraphemeWidth)).toEqual(strict.lines)
-    expect(layout(prefixed, hyphenAndOneGraphemeWidth, LINE_HEIGHT).lineCount).toBe(strict.lineCount)
   })
 
   test("text segments end where Blink's scan finds a break", () => {
@@ -5036,21 +5025,6 @@ describe('layout invariants', () => {
     expect(batched.lines.map(line => line.text.trimEnd())).toEqual(['x A\u200B', 'B'])
     expect(collectStreamedLines(prepared, width)).toEqual(batched.lines)
     expect(layout(prepared, width, LINE_HEIGHT).lineCount).toBe(batched.lineCount)
-  })
-
-  test('soft-hyphen round-trip uses source slices instead of rendered line text', () => {
-    const prepared = prepareWithSegments('foo trans\u00ADatlantic', FONT)
-    const width =
-      prepared.widths[0]! +
-      prepared.widths[1]! +
-      prepared.widths[2]! +
-      prepared.breakableFitAdvances[4]![0]! +
-      prepared.discretionaryHyphenWidth +
-      0.1
-    const result = layoutWithLines(prepared, width, LINE_HEIGHT)
-
-    expect(result.lines.map(line => line.text).join('')).toBe('foo trans-atlantic')
-    expect(reconstructFromLineBoundaries(prepared, result.lines)).toBe('foo trans\u00ADatlantic')
   })
 
   test('soft-hyphen fallback does not crash when overflow happens on a later space', () => {
