@@ -2890,7 +2890,7 @@ describe('prepare invariants', () => {
       ['Mozilla/5.0 (Android 14; Mobile; rv:156.0) Gecko/156.0 Firefox/156.0', profileOf(3, 'disabled')],
       ['Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148', profileOf(2)],
       // Engines Pretext doesn't recognize take Blink's profile: a desktop web view without a Blink
-      // token takes desktop Chrome's whole.
+      // token takes desktop Chrome's, entry fits and all.
       ['Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Safari/537.36', profileOf(1)],
       ['Bun/1.4.0', profileOf(1, 'disabled')],
     ] as const) {
