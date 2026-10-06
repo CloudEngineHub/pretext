@@ -634,7 +634,7 @@ function walkPreparedComplexLines(
           const w = kind !== TAB ? widths[i]!
             : items === undefined ? getTabAdvance(lineW + leadingSpacing, tabStopAdvance, minimumTabAdvance, tabsInAppUnits)
             : getItemTabAdvance(prepared, items, i, hasContent ? lineW + leadingSpacing : lineStartExtras === null ? 0 : lineStartExtras[i]!, tabsInAppUnits)
-          let advance = leadingSpacing + w
+          const advance = leadingSpacing + w
           const endTrim = lineEndTrims === null ? 0 : lineEndTrims[i]!
 
           if (kind === SOFT_HYPHEN && startGraphemeIndex === 0) {
@@ -762,7 +762,7 @@ function walkPreparedComplexLines(
           } else {
             // A run of preserved spaces and tabs fits where the text before it fits, and after an
             // object however far the line overflows (staysAfterObject).
-            let newFitW = hangs ? hangStartWidth - hangEdgesWidth : lineW + fitAdvance
+            const newFitW = hangs ? hangStartWidth - hangEdgesWidth : lineW + fitAdvance
             // Whether the segment ends the line. What only a rich-inline paragraph has is under one
             // test, as at a soft hyphen (above).
             let overflows = newFitW - endTrim > fitLimit
@@ -790,11 +790,24 @@ function walkPreparedComplexLines(
               const narrowsOverflow = fitAdvance < 0 && lineW - lineEndTrimmed > fitLimit
               overflows = (overflows || narrowsOverflow) && !(hangs && hangStays) && !placesEmptyObject
               // A closing mark that ends its item and fits the line only halted stays halted where
-              // the line goes on: the line takes it at its halted width, and what follows fits
-              // after that (ParagraphSegmentData, itemEndHalts).
+              // the line goes on: the line takes it here at its halted width, as it takes text
+              // below, with the break the scan gives before it, and what follows fits after that
+              // (ParagraphSegmentData, itemEndHalts).
               if (itemEndHalts !== null && itemEndHalts[i]! !== 0 && !overflows && newFitW > fitLimit) {
-                advance -= endTrim
-                newFitW -= endTrim
+                if ((flags & RETURNABLE) !== 0 && pendingBreakSegmentIndex !== i) {
+                  pendingBreakSegmentIndex = i
+                  pendingBreakWidth = lineW
+                }
+                if (retreatsFromUnfitHyphen && (flags & UNBROKEN) === 0 && i > lineStartSegmentIndex && !breaksAfterKind(segmentFlags[i - 1]! & KIND_BITS) &&
+                  (!reservesHyphenWidth || lineW + (hyphenRooms === null ? discretionaryHyphenWidth : hyphenRooms[i]!) <= fitLimit)) {
+                  fitBreakSegmentIndex = i
+                  fitBreakPaintWidth = lineW
+                }
+                lineW += advance - endTrim
+                lineEndSegmentIndex = i + 1
+                lineEndGraphemeIndex = 0
+                lineEndTrimmed = 0
+                continue
               }
             }
             if (overflows) {

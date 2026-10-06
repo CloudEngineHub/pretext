@@ -2421,7 +2421,18 @@ runs (Firefox 156.0.1, bench sessions of 2026-09-27 and 28, unless noted):
   pre-wrap chunks level, where it read them 6-9% slower, and V8's shell then read the soft hyphens 2 points slower and
   SpiderMonkey's the pre-wrap walk 1.5, so the form stays (Part 1, Engineering, JIT tuning). In preparation, the Gecko
   scan's white-space pass found for every unit where its item ends, which only a white-space run reads: Firefox's shell
-  prepared the bench's long breakable runs 3.3% slower than main, and 1.6% with that found where a run starts.
+  prepared the bench's long breakable runs 3.3% slower than main, and 1.6% with that found where a run starts. A rule
+  written outside those tests showed the same way, in two engines in turn: the halt of a mark that ends an item (Rich
+  Inline As One Paragraph), on the bench's worst-case `layout()` rows in the background, three sessions a build, against
+  main (2026-10-06). As two tests after every segment a line lets in, of a trim that is nearly always 0, Firefox
+  156.0.1 read letter-spaced CJK text 11.3% slower, where the commit before the rule read 1.7%, and webkit-host read
+  it as before. Applied among the paragraph's tests by changing the segment's advance, which made that advance and
+  the width the line fits two variables in place of two constants, Firefox read 0.8%, and webkit-host read pre-wrap
+  chunks' `layout()` and walk 16.0% and 15.8% slower, where the commit before read 9.5% and 5.9%. With the segment let
+  in inside the paragraph's test, its advance less the halt, and the two constants as they were, both read the commit
+  before's figures: 3.9% against 2.9% in Firefox for letter-spaced CJK, 9.0% against 8.8% and 7.2% against 7.2% in
+  webkit-host for pre-wrap chunks. So what only a paragraph does goes whole inside its test, the lines that let a
+  segment in written a second time there.
   In the foreground, on main at #450 (Chrome 154.0.8037.98, Firefox 156.0.1, Safari 27.0, three sessions, 2026-10-06):
   the soft hyphens' `layout()` read 5.7%, 2.5% and 2.0% slower, none called; pre-wrap chunks' `layout()` and walk 6.5%
   and 6.6% slower in Safari, called, and under 2.5% in the other two; and letter-spaced CJK `layout()`, the same walker,
