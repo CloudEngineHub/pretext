@@ -686,10 +686,10 @@ Log, 2026-09-26; the entry of 2026-10-01 has why a shorter form was taken up aft
 Firefox's East_Asian_Width map takes a premise. Gecko asks its ICU4C for that property (`u_getIntPropertyValue`,
 `intl/components/src/UnicodeProperties.h:75-100`), and the map ships the values of icu_properties, an ICU4X crate
 Firefox vendors (`properties.json`). The two agree while both hold one Unicode version's values: Firefox 156.0's do, on
-every code point (ICU 78.3's `uchar_props_data.h` against `properties.json`, 2026-10-01). Nothing compares a later
-Firefox's, since `bun harness repin firefox` looks for the line and grapheme data's bytes only; if they came
-apart, the code points whose width changed between the two versions would keep or lose a newline between East Asian
-characters where Firefox doesn't.
+every code point (ICU 78.3's `uchar_props_data.h` against `properties.json`, 2026-10-01). `bun harness repin firefox`
+looks in XUL for that file's arrays, which hold East_Asian_Width, so it says when Gecko's values are no longer the ones
+the map was compared with; nothing compares the crate's again. If they came apart, the code points whose width changed
+between the two versions would keep or lose a newline between East Asian characters where Firefox doesn't.
 
 In Line_Break=SA runs (Thai, Lao, Khmer, Myanmar, and in the Blink and WebKit scans also Tai Le, New Tai Lue, Tai Tham,
 Tai Viet and Ahom), `Intl.Segmenter` words stand in for the engines' dictionaries. Chrome 153's equal those of
