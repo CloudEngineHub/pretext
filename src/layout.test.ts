@@ -346,7 +346,8 @@ describe('shared public contracts', () => {
     expect(collectStreamedLines(prepared, width)).toEqual(result.lines)
     expect(layout(prepare(text, FONT), width, LINE_HEIGHT).lineCount).toBe(result.lineCount)
     expect(measureLineStats(prepared, width).lineCount).toBe(result.lineCount)
-    expect(reconstructFromLineBoundaries(prepared, result.lines)).toBe(prepared.segments.join(''))
+    // The lines' ranges give the source back, soft hyphen and all, where the first line's text shows a hyphen.
+    expect(reconstructFromLineBoundaries(prepared, result.lines)).toBe(text)
   })
 
   test('a line\'s width leaves out the space it ends at', () => {
@@ -503,7 +504,7 @@ describe('entry geometry', () => {
   })
 })
 
-describe('boundary-policy regressions', () => {
+describe('boundary rules', () => {
   const baseProfile = {
     lineBreakScan: 'blink' as const,
     graphemeTable: 'chromium/char' as const,
@@ -659,25 +660,6 @@ describe('boundary-policy regressions', () => {
     const visargas = analyzeText('a\u200E\u1038\u1038', geckoProfile)
     expect(visargas.texts).toEqual(['a\u200E\u1038\u1038'])
     expect(visargas.flags[0]! & ONE_CLUSTER).toBe(0)
-  })
-
-  test('small kana and U+30FC stay with the text before them where the profile resolves them to NS', () => {
-    const profile = getEngineProfile()
-    const previous = { ...profile }
-    const segments = (text: string) => prepareWithSegments(text, FONT).segments.join('|')
-    const texts = ['a xxxxーb', '約3ヶ月', '日本abcァア']
-    try {
-      // Chromium's normal line rules, on every page.
-      expect(texts.map(text => segments(text))).toEqual(['a| |xxxx|ー|b', '約|3|ヶ|月', '日|本|abc|ァ|ア'])
-      // libicucore's strict rules, on pages other than ja and ko.
-      profile.lineBreakScan = 'webkit'
-      expect(texts.map(text => segments(text))).toEqual(['a| |xxxxー|b', '約|3ヶ|月', '日|本|abcァ|ア'])
-      // Gecko's strict rules.
-      profile.lineBreakScan = 'gecko'
-      expect(texts.map(text => segments(text))).toEqual(['a| |xxxxー|b', '約|3ヶ|月', '日|本|abcァ|ア'])
-    } finally {
-      Object.assign(profile, previous)
-    }
   })
 
   test('the Gecko profile keeps a hyphen with the number after it', () => {
@@ -1450,7 +1432,7 @@ describe('boundary-policy regressions', () => {
       for (const engine of ['blink', 'gecko', 'webkit'] as const) {
         const fields = TAB_FIELDS[engine]
         Object.assign(profile, fields)
-        for (const letterSpacing of [-1, -0.5, 2]) {
+        for (const letterSpacing of [-1, -0.5, 2, 4]) {
           // Blink and Gecko put a stop every eight letter-spaced spaces and add no spacing after a
           // tab; WebKit puts one every eight spaces and spaces each tab. The line's last glyph
           // keeps its spacing.
@@ -1800,7 +1782,6 @@ describe('engine break scans', () => {
   })
 
   test("Gecko's scan follows its white-space transform, text runs, nsLineBreaker and ICU4X's rules", async () => {
-    const { getGeckoLineBreaks } = await import('./gecko-line-breaks.ts')
     const { removeSkippableSegmentBreaks } = await import('./analysis.ts')
     // Cases from the Gecko break oracle's tests and others, with the oracle's breaks,
     // soft-hyphen breaks included. The scan reads the text after the segment break
@@ -2105,24 +2086,7 @@ describe('prepare invariants', () => {
     expect(layout(prepared, alphaWidth + 0.1, LINE_HEIGHT).lineCount).toBe(2)
   })
 
-  test('every engine returns from an unfit hyphen its own way, and only Blink paints the hyphen unspaced', async () => {
-    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
-    try {
-      for (const [index, userAgent, unfitHyphenRetreat, letterSpaceDiscretionaryHyphen] of [
-        [0, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36', 'reduced-width', false],
-        [1, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5.2 Safari/605.1.15', 'full-width-or-first', true],
-        [2, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:155.0) Gecko/20100101 Firefox/155.0', 'full-width', true],
-      ] as const) {
-        Object.defineProperty(globalThis, 'navigator', { value: { userAgent }, configurable: true, writable: true })
-        const specifier = `./measurement.ts?unfit-hyphen-${index}`
-        const fresh = await import(specifier) as MeasurementModule
-        expect(fresh.getEngineProfile()).toMatchObject({ unfitHyphenRetreat, letterSpaceDiscretionaryHyphen })
-      }
-    } finally {
-      if (descriptor === undefined) Reflect.deleteProperty(globalThis, 'navigator')
-      else Object.defineProperty(globalThis, 'navigator', descriptor)
-    }
-
+  test('a letter-spaced hyphen takes one more spacing where letterSpaceDiscretionaryHyphen is set', () => {
     const profile = getEngineProfile()
     const previous = profile.letterSpaceDiscretionaryHyphen
     try {
@@ -2466,18 +2430,6 @@ describe('prepare invariants', () => {
       5,
     )
     expect(layout(prefixed, softBreakWidth, LINE_HEIGHT).lineCount).toBe(narrow.lineCount)
-
-    const hyphenAndOneGraphemeWidth =
-      prefixed.widths[0]! +
-      prefixed.widths[1]! +
-      prefixed.widths[2]! +
-      prefixed.breakableFitAdvances[4]![0]! +
-      prefixed.discretionaryHyphenWidth +
-      0.1
-    const strict = layoutWithLines(prefixed, hyphenAndOneGraphemeWidth, LINE_HEIGHT)
-    expect(strict.lines.map(line => line.text)).toEqual(['foo trans-', 'atlantic'])
-    expect(collectStreamedLines(prefixed, hyphenAndOneGraphemeWidth)).toEqual(strict.lines)
-    expect(layout(prefixed, hyphenAndOneGraphemeWidth, LINE_HEIGHT).lineCount).toBe(strict.lineCount)
   })
 
   test("text segments end where Blink's scan finds a break", () => {
@@ -2678,19 +2630,6 @@ describe('prepare invariants', () => {
     }
   })
 
-  test('engines Pretext doesn\'t recognize take Blink\'s whole profile', () => {
-    // The engine profile is computed once per process, so each user agent runs in a child process.
-    const measurementUrl = new URL('./measurement.ts', import.meta.url).href
-    const profileOf = (userAgent: string): unknown => JSON.parse(runInChild(`
-      Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { userAgent: ${JSON.stringify(userAgent)} } })
-      const { getEngineProfile } = await import(${JSON.stringify(measurementUrl)})
-      console.log(JSON.stringify(getEngineProfile()))
-    `))
-    const system = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko)'
-    // A desktop web view without a Blink token, and Chrome on the same system.
-    expect(profileOf(`${system} Safari/537.36`)).toEqual(profileOf(`${system} Chrome/153.0.0.0 Safari/537.36`))
-  })
-
   test('the library has no regex lookbehind, which a JavaScriptCore without it refuses to load', async () => {
     // JavaScriptCore checks every regex literal when it parses a module, so where it can't
     // parse a lookbehind, one stops the whole library from loading, whichever engine's path
@@ -2728,16 +2667,16 @@ describe('prepare invariants', () => {
     const previous = { ...profile }
     const segments = (text: string, wordBreak: 'normal' | 'keep-all' = 'normal') =>
       prepareWithSegments(text, FONT, { wordBreak }).segments.join('|')
-    const texts = ['\u65E5\u672C\u30A1\u30A2', '\u65E5\u672C\u30FC\u30FC', '\u307F\u305D\u30E9\u30FC\u30E1\u30F3', '\u65E5\u672C\uFF01\u30FC\u30FC']
+    const texts = ['\u65E5\u672C\u30A1\u30A2', '\u65E5\u672C\u30FC\u30FC', '\u307F\u305D\u30E9\u30FC\u30E1\u30F3', '\u65E5\u672C\uFF01\u30FC\u30FC', 'a xxxxーb', '約3ヶ月', '日本abcァア']
     try {
       // ICU's normal rules resolve CJ to ID, as Chromium does on every page, so both
-      // may start a line after ideographs, kana and EX.
-      expect(texts.map(text => segments(text))).toEqual(['\u65E5|\u672C|\u30A1|\u30A2', '\u65E5|\u672C|\u30FC|\u30FC', '\u307F|\u305D|\u30E9|\u30FC|\u30E1|\u30F3', '\u65E5|\u672C\uFF01|\u30FC|\u30FC'])
+      // may start a line after ideographs, kana and EX, and after a word or a number.
+      expect(texts.map(text => segments(text))).toEqual(['\u65E5|\u672C|\u30A1|\u30A2', '\u65E5|\u672C|\u30FC|\u30FC', '\u307F|\u305D|\u30E9|\u30FC|\u30E1|\u30F3', '\u65E5|\u672C\uFF01|\u30FC|\u30FC', 'a| |xxxx|ー|b', '約|3|ヶ|月', '日|本|abc|ァ|ア'])
       // A closing bracket (CL) keeps NS after it but not ID (LB16).
       expect(segments('\u65E5\u672C\u300D\u30A1\u30A2', 'keep-all')).toBe('\u65E5\u672C\u300D|\u30A1\u30A2')
       // Strict rules resolve CJ to NS, as libicucore does on pages other than ja and
       // ko, and Gecko on every page, so neither may.
-      const strict = ['\u65E5|\u672C\u30A1|\u30A2', '\u65E5|\u672C\u30FC\u30FC', '\u307F|\u305D|\u30E9\u30FC|\u30E1|\u30F3', '\u65E5|\u672C\uFF01\u30FC\u30FC']
+      const strict = ['\u65E5|\u672C\u30A1|\u30A2', '\u65E5|\u672C\u30FC\u30FC', '\u307F|\u305D|\u30E9\u30FC|\u30E1|\u30F3', '\u65E5|\u672C\uFF01\u30FC\u30FC', 'a| |xxxxー|b', '約|3ヶ|月', '日|本|abcァ|ア']
       profile.lineBreakScan = 'webkit'
       expect(texts.map(text => segments(text))).toEqual(strict)
       profile.lineBreakScan = 'gecko'
@@ -2989,7 +2928,9 @@ describe('prepare invariants', () => {
       ['Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Mobile Safari/537.36', profileOf(1, 'disabled')],
       ['Mozilla/5.0 (Android 14; Mobile; rv:156.0) Gecko/156.0 Firefox/156.0', profileOf(3, 'disabled')],
       ['Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148', profileOf(2)],
-      // Engines Pretext doesn't recognize take Blink's profile.
+      // Engines Pretext doesn't recognize take Blink's profile: a desktop web view without a Blink
+      // token takes desktop Chrome's, entry fits and all.
+      ['Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Safari/537.36', profileOf(1)],
       ['Bun/1.4.0', profileOf(1, 'disabled')],
     ] as const) {
       const built: unknown = await engineProfileUnder(userAgent)
@@ -3185,16 +3126,6 @@ describe('prepare invariants', () => {
     }
   })
 
-  test('locale can be reset without disturbing later prepares', () => {
-    setLocale('th')
-    const thai = prepare('ภาษาไทยภาษาไทย', FONT)
-    expect(layout(thai, 80, LINE_HEIGHT).lineCount).toBeGreaterThan(0)
-
-    setLocale(undefined)
-    const latin = prepare('hello world', FONT)
-    expect(layout(latin, 200, LINE_HEIGHT)).toEqual({ lineCount: 1, height: LINE_HEIGHT })
-  })
-
   test('setLocale() gives later prepares the language a worker lacks, in place of <html lang>', () => {
     // Like Chrome's and Firefox's, this context resolves fonts under its own lang.
     const contexts: Array<{ lang: string }> = []
@@ -3289,8 +3220,7 @@ describe('prepare invariants', () => {
     expect(measureNaturalWidth(prepareWithSegments('中文 日本語', FONT))).toBeCloseTo(measureWidth('中文日本語', FONT) + measureWidth(' ', FONT), 10)
   })
 
-  test('the WebKit profile names the generic families of the page language in the Canvas font', async () => {
-    const { getEngineProfile } = await import('./measurement.ts')
+  test('the WebKit profile names the generic families of the page language in the Canvas font', () => {
     const profile = getEngineProfile()
     const previous = profile.namesGenericFamiliesByLanguage
     const root = { lang: '' }
@@ -5048,19 +4978,10 @@ describe('layout invariants', () => {
     expect(lines[1]!.width).toBeCloseTo(measureWidth('B', FONT) + spacing, 5)
   })
 
-  test('letterSpacing participates in pre-wrap tab positioning', () => {
-    const spacing = 4
-    const text = 'A\tB'
-    const prepared = prepareWithSegments(text, FONT, { whiteSpace: 'pre-wrap', letterSpacing: spacing })
-    const line = layoutWithLines(prepared, 200, LINE_HEIGHT).lines[0]!
-    // The tab ends on the first stop of eight letter-spaced spaces, with no spacing after it.
-    const expected = 8 * (measureWidth(' ', FONT) + spacing) + measureWidth('B', FONT) + spacing
-
-    expect(line.text).toBe(text)
-    expect(line.width).toBeCloseTo(expected, 5)
-  })
-
-  // Contextual shaping and discretionary breaks can make this false in general.
+  // False in general, in the browsers themselves: contextual shaping and discretionary breaks can make a wider box
+  // take more lines, and where not even a first character fits, WebKit keeps the characters after it that can't start
+  // a line, so a box narrower than a glyph can take fewer lines than one a glyph wide (RESEARCH.md, A Wider Box Never
+  // Needs More Lines; ENGINE_FOLLOWUPS.md, Emergency breaks inside a word).
   test('ordinary positive-width words gain lines as the container shrinks', () => {
     const prepared = prepare('The quick brown fox jumps over the lazy dog', FONT)
     let previous = 0
@@ -5132,22 +5053,7 @@ describe('layout invariants', () => {
     expect(layout(prepared, width, LINE_HEIGHT).lineCount).toBe(batched.lineCount)
   })
 
-  test('soft-hyphen round-trip uses source slices instead of rendered line text', () => {
-    const prepared = prepareWithSegments('foo trans\u00ADatlantic', FONT)
-    const width =
-      prepared.widths[0]! +
-      prepared.widths[1]! +
-      prepared.widths[2]! +
-      prepared.breakableFitAdvances[4]![0]! +
-      prepared.discretionaryHyphenWidth +
-      0.1
-    const result = layoutWithLines(prepared, width, LINE_HEIGHT)
-
-    expect(result.lines.map(line => line.text).join('')).toBe('foo trans-atlantic')
-    expect(reconstructFromLineBoundaries(prepared, result.lines)).toBe('foo trans\u00ADatlantic')
-  })
-
-  test('soft-hyphen fallback does not crash when overflow happens on a later space', () => {
+  test('a word that fits past its soft hyphen stays whole, and the overflow after it breaks at the space', () => {
     const prepared = prepareWithSegments('foo trans\u00ADatlantic labels', FONT)
     const width = measureWidth('foo transatlantic', FONT) + 0.1
     const result = layoutWithLines(prepared, width, LINE_HEIGHT)

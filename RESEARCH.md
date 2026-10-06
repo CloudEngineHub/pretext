@@ -1664,7 +1664,23 @@ preparing again on each resize costs them.
 
 #### A Wider Box Never Needs More Lines
 
-A line count that rises with the width is a bug: four raw-width fit checks in `src/rich-inline.ts` gave 11 lines at
+The rule holds for ordinary words and is no invariant across widths: the browsers' own line counts rise with the width
+in some paragraphs. Of the paragraphs the checked-in recordings pin at two or more widths, a wider box takes more lines
+in 22 of 4,503 plain ones and 1 of 234 rich ones in Chrome 154.0.8037.57, 4 of 4,503 plain ones in Firefox 156.0.1, 266
+of 4,496 in webkit-host and 2 of 195 in Safari 27.0 (the recordings on 2026-10-06). In 243 of those 294 plain paragraphs
+the box with fewer lines is narrower than a quarter of the font size: no character fits, and an engine keeps with a
+line's first character what can't start a line (WebKit's rule: ENGINE_FOLLOWUPS.md, Emergency breaks inside a word) or
+what shapes with it. `x ffiffiffiffiffiffi y` in 24px Hoefler Text is 14 lines in Chrome at 8.023px and 20 at 8.055px,
+where an `f` fits alone. Nine of the other 51 hold a soft hyphen, a break that starts to fit and leaves more lines after
+it: `بب ببب`, a soft hyphen, U+0650, `ببب بب` in 24px Geeza Pro is 4 lines in Firefox at 30.001px and 5 at 30.017px,
+where `ببب` fits with its hyphen and the word takes three lines for two. The profiles do the same on the offline
+invariants' stand-in Canvas (`harness/invariants.ts`): of 3,000 plain cases drawn from the sets, each laid out at 201
+widths from a quarter of its own width to twice it, the count rises in 378 under the WebKit profile, 375 of them from a
+box narrower than a glyph, in 5 under Gecko's, a rise Firefox doesn't have (ENGINE_FOLLOWUPS.md, Line edges), and in
+none under Blink's (2026-10-06). So no check sweeps widths for a rise, which would fail on ported rules, and the unit
+test of the rule lays out one sentence of ordinary words (`src/layout.test.ts`).
+
+A rise the browser doesn't have is a bug: four raw-width fit checks in `src/rich-inline.ts` gave 11 lines at
 115px, 12 at 115.1px (#281, 2026-09-14). An item ending at an unfit soft hyphen with no earlier break wrapped before the
 item (items `T` and `po\u00add` gave `T` / `pod`, where `Tpo\u00add` gives `Tpo-` / `d`; #323). Blink retries the item
 at the width less the hyphen, then rewinds earlier items at the full width; subtracting the hyphen left sub-1e-6px

@@ -52,7 +52,7 @@ export function familyText(family: Exclude<Family, 'labels'>): string {
 }
 
 const BOUNDARY = /[\s。，、！？；」』]/u
-const EMOJI = ['👍', '🎉', '👩‍💻', '❤️', '😂']
+export const EMOJI = ['👍', '🎉', '👩‍💻', '❤️', '😂']
 
 export function units(list: readonly string[]): number {
   let n = 0

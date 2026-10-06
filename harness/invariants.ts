@@ -26,10 +26,11 @@
 // - stepping leaves its start cursor as it was, the ranges a stream gives stay as they were, JSON copies of cursors and
 //   ranges resume the same, and a materialized line passed back as a range gives the same line;
 // - a visitor that edits the range it's given doesn't change the lines after it;
-// - rich lines: a gap is the SPACE advance of the item whose white space made it, sign included, and never a box's; an
-//   empty item keeps the other items' indices; a `break: 'never'` item and a box stay whole; each fragment counts its
-//   item's extraWidth once; a line is as wide as its fragments' gaps and widths together, or 0 if they add up to less;
-//   pre-wrap makes no gaps;
+// - rich lines: a gap is the SPACE advance of the item whose white space made it, sign included, and never a box's, or
+//   nothing in Firefox where that white space joins a run of white space (joinsWhiteSpaceRun); an empty item keeps the
+//   other items' indices; a `break: 'never'` item and a box stay whole; each fragment counts its item's extraWidth
+//   once; a line is as wide as its fragments' gaps and widths together, or 0 if they add up to less; pre-wrap makes no
+//   gaps;
 // - held handles, and their structuredClone() copies, lay out as before after the same texts are prepared with letter
 //   spacing 1, after clearCache() and after setLocale(), and prepares with filled caches equal cold ones, at the held
 //   texts' letter spacing and at 1;
@@ -145,6 +146,33 @@ function* drawnCases(dir: string, seed: string, plain: number, rich: number): Ge
       got++
     }
   }
+}
+
+// Whether the white space of item `gapItem` that makes the gap before item `after` joins a run of white space in
+// Firefox, where it takes no room. Firefox drops soft hyphens and bidi controls before it collapses white space, so
+// white space collapses into a space or tab or line feed before it with only those characters between them, in one
+// item or from the end of one into the start of the next with text; an atomic item and a box end the run
+// (whitespaceRunOpen in src/rich-inline.ts). The white space that makes a gap is the item's leading white space where
+// the gap is before the item itself, all of an item of only white space, and else its trailing white space, which
+// starts after the last character that is neither white space nor a bidi control.
+const COLLAPSIBLE = /[ \t\n\r\f]/
+const COLLAPSIBLE_OR_BIDI_CONTROL = /[ \t\n\r\f\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/
+function joinsWhiteSpaceRun(items: ReadonlyArray<RichInlineItem | RichInlineBox>, gapItem: number, after: number): boolean {
+  const text = items[gapItem]!.text!
+  let leading = 0
+  while (leading < text.length && COLLAPSIBLE.test(text[leading]!)) leading++
+  let start = 0
+  if (gapItem !== after && leading < text.length) {
+    start = text.length
+    for (let i = text.length - 1; i >= leading && COLLAPSIBLE_OR_BIDI_CONTROL.test(text[i]!); i--) if (COLLAPSIBLE.test(text[i]!)) start = i
+  }
+  let before = text.slice(0, start)
+  for (let i = gapItem - 1; start === 0 && before === '' && i >= 0; i--) {
+    const item = items[i]!
+    if (item.text === undefined || item.break === 'never') return false
+    before = item.text
+  }
+  return /[ \t\n][\u00AD\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]+$/.test(before)
 }
 
 type Failures = { list: string[]; counts: Record<string, number> }
@@ -302,9 +330,8 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
         for (const f of lines[i]!.fragments) {
           occupied += f.gapBefore + f.occupiedWidth
           spans[f.itemIndex]!.push([offsets[f.itemIndex]!(f.start), offsets[f.itemIndex]!(f.end)])
-          // A gap is the SPACE of the item whose white space made it, or none where Gecko's run of
-          // white space took that white space in (whitespaceRunOpen in src/rich-inline.ts). Nothing
-          // collapses in pre-wrap.
+          // A gap is the SPACE of the item whose white space made it, or none where Firefox's run of
+          // white space took that white space in. Nothing collapses in pre-wrap.
           if (options.whiteSpace === 'pre-wrap' && (f.gapBefore !== 0 || f.gapItemIndex !== -1)) fail('rich lines', at, `line ${i} has a gap of ${f.gapBefore} before item ${f.itemIndex} in pre-wrap`)
           if (f.gapItemIndex >= 0) {
             const gapItem = items[f.gapItemIndex]!
@@ -316,7 +343,7 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
               const given = gapItem.letterSpacing ?? 0
               const spacing = gecko ? Math.sign(given) * Math.round(Math.abs(Math.fround(Math.fround(given) * 60))) / 60 : given
               const space = standInWidth(' ', gapItem.font, spacing, 'auto')
-              if (Math.abs(f.gapBefore - space) > 1e-6 && !(profile === 'gecko' && f.gapBefore === 0)) fail('rich lines', at, `line ${i}'s gap before item ${f.itemIndex} is ${f.gapBefore}; item ${f.gapItemIndex}'s SPACE is ${space}`)
+              if (Math.abs(f.gapBefore - space) > 1e-6 && !(gecko && f.gapBefore === 0 && joinsWhiteSpaceRun(items, f.gapItemIndex, f.itemIndex))) fail('rich lines', at, `line ${i}'s gap before item ${f.itemIndex} is ${f.gapBefore}; item ${f.gapItemIndex}'s SPACE is ${space}`)
             }
           }
           const segments = segmentsOf[f.itemIndex]!.length
@@ -417,6 +444,11 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
   plainInput('fixed a WJ U+0301 bc x16', 'a\u2060\u0301bc '.repeat(16), FONT, { letterSpacing: -1 }, widthsOf(27, false), 20)
   // A SPACE is 4px here: the gap's sign changes at letter spacing -4.
   for (const letterSpacing of [-10, -4.1, -4, -3.9, 0, 2]) rich(`fixed a gap at letter spacing ${letterSpacing}`, [{ text: 'x ', font: FONT, letterSpacing }, { text: 'y', font: FONT, letterSpacing }], Infinity)
+  // White space after white space and a soft hyphen takes no room in Firefox, in the next item or in the same one, but
+  // keeps it after a soft hyphen that starts its item.
+  for (const texts of [['see', ' \u00AD', ' this word'], ['see \u00AD ', 'this word'], ['see ', '\u00AD ', 'this word']]) {
+    for (const width of [30, Infinity]) rich('fixed white space after a soft hyphen', texts.map(text => ({ text, font: FONT })), width)
+  }
   rich('fixed empty and blank items', ['', 'AB', ' ', 'CD', ''].map(text => ({ text, font: FONT })), 16.1)
   rich('fixed one item a line', ['A', 'B', 'C'].map(text => ({ text, font: FONT })), 8.1)
   const pill: RichInlineItem = { text: 'ABCD', font: FONT, break: 'never', extraWidth: 18 }
