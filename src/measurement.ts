@@ -376,6 +376,10 @@ export type FontMeasurement = {
   emojiCorrection: number | null // Probed for the first text that may hold emoji
   emojiWidth: number // Canvas's width of one glyph of the emoji font, measured with the correction
   hyphenText: string | null // Asked for the first text with a soft hyphen (getHyphenText)
+  // The widths every text reads, each asked at the first: of the space, for the tab stops, and
+  // of the hyphen-minus, the hyphen of a text with no soft hyphen. Neither takes an emoji correction.
+  spaceWidth: number | null
+  hyphenMinusWidth: number | null
   hanKerning: HanKerningFontData | null | undefined // Read for the first text that may kern
   ligaturePairs: Map<string, boolean> // Whether two neighbouring graphemes are a ligature, once asked (isLigature)
 }
@@ -1044,7 +1048,7 @@ export function getFontMeasurement(font: string, language: string | null, letter
   let measurement = fonts.get(font)
   if (measurement === undefined) {
     const canvasFont = state.genericFamilies === null ? font : getCanvasFont(font, state.genericFamilies)
-    measurement = { state, canvasFont, letterSpacing: shaped ? LETTER_SPACED_SHAPING : '0px', metrics: new Map(), followingSpaceMetrics: new Map(), spaceKerning: undefined, emojiCorrection: null, emojiWidth: 0, hyphenText: null, hanKerning: undefined, ligaturePairs: new Map() }
+    measurement = { state, canvasFont, letterSpacing: shaped ? LETTER_SPACED_SHAPING : '0px', metrics: new Map(), followingSpaceMetrics: new Map(), spaceKerning: undefined, emojiCorrection: null, emojiWidth: 0, hyphenText: null, spaceWidth: null, hyphenMinusWidth: null, hanKerning: undefined, ligaturePairs: new Map() }
     fonts.set(font, measurement)
   }
   // The first measurement after a lookup sets the font again, the same string too: Firefox's
