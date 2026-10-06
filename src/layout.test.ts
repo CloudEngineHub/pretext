@@ -6379,6 +6379,13 @@ describe('layout invariants', () => {
       expect(measureRichInlineStats(halted, 52)).toEqual({ lineCount: 2, maxLineWidth: 48 })
       // Its fragment is as wide as the halted text, and the line's fragments add up to the line.
       expect(layoutNextRichInlineLineRange(halted, 46)!.fragments.map(fragment => fragment.occupiedWidth)).toEqual([40, 5])
+      // Under letter spacing the halted fragment keeps the spacing after each of its characters.
+      for (const [letterSpacing, width, widths] of [[1, 50, [43, 5.8]], [-1, 43, [37, 3.8]]] as const) {
+        const spaced = prepareRichInline([{ text: '中中」', font, letterSpacing }, { text: 'i', font: `8px ${font.slice(font.indexOf(' ') + 1)}`, letterSpacing }, { text: ' 中', font, letterSpacing }])
+        const line = layoutNextRichInlineLineRange(spaced, width)!
+        expect({ letterSpacing, widths: line.fragments.map(fragment => Math.round(fragment.occupiedWidth * 100) / 100) }).toEqual({ letterSpacing, widths: [...widths] })
+        expect(line.width).toBeCloseTo(widths[0] + widths[1], 9)
+      }
       // An item with extraWidth keeps the halt at a line's end only: Blink fits its text before
       // its end edge.
       expect(richLines([{ text: '中中」', extraWidth: 8 }, { width: 5 }], 54)).toEqual(['中中」:48', ':5'])
