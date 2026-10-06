@@ -4,6 +4,7 @@ import {
   layout,
   layoutWithLines,
   measureNaturalWidth,
+  prepare,
   prepareWithSegments,
   type LayoutLine,
   type PreparedTextWithSegments,
@@ -796,7 +797,7 @@ function measureMarkerWidth(text: string): number {
   const cached = markerWidthCache.get(text)
   if (cached !== undefined) return cached
 
-  const width = measureNaturalWidth(prepareWithSegments(text, MARKER_FONT))
+  const width = measureNaturalWidth(prepare(text, MARKER_FONT))
   markerWidthCache.set(text, width)
   return width
 }

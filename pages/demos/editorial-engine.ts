@@ -3,6 +3,7 @@ import {
   layoutNextLine,
   layoutWithLines,
   measureNaturalWidth,
+  prepare,
   prepareWithSegments,
   type LayoutCursor,
   type PreparedTextWithSegments,
@@ -256,8 +257,7 @@ const pullquoteSpecs: PullquoteSpec[] = [
 const DROP_CAP_SIZE = BODY_LINE_HEIGHT * DROP_CAP_LINES - 4
 const DROP_CAP_FONT = `700 ${DROP_CAP_SIZE}px ${HEADLINE_FONT_FAMILY}`
 const DROP_CAP_TEXT = BODY_TEXT[0]!
-const preparedDropCap = prepareWithSegments(DROP_CAP_TEXT, DROP_CAP_FONT)
-const DROP_CAP_TOTAL_W = Math.ceil(measureNaturalWidth(preparedDropCap)) + 10
+const DROP_CAP_TOTAL_W = Math.ceil(measureNaturalWidth(prepare(DROP_CAP_TEXT, DROP_CAP_FONT))) + 10
 
 const dropCapEl = document.createElement('div')
 dropCapEl.className = 'drop-cap'

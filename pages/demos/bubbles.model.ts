@@ -1,4 +1,4 @@
-import { layout, prepareWithSegments, walkLineRanges, type PreparedTextWithSegments } from '../../src/layout.ts'
+import { layout, prepare, walkLineRanges, type PreparedText } from '../../src/layout.ts'
 
 export type WrapMetrics = {
   lineCount: number
@@ -7,7 +7,7 @@ export type WrapMetrics = {
 }
 
 export type PreparedBubble = {
-  prepared: PreparedTextWithSegments
+  prepared: PreparedText
 }
 
 export type BubbleRenderWidths = {
@@ -55,11 +55,11 @@ export const PADDING_V = bubblesPage.bubblePaddingY
 
 export function prepareBubbleTexts(texts: string[]): PreparedBubble[] {
   return texts.map(text => ({
-    prepared: prepareWithSegments(text, FONT),
+    prepared: prepare(text, FONT),
   }))
 }
 
-export function collectWrapMetrics(prepared: PreparedTextWithSegments, maxWidth: number): WrapMetrics {
+export function collectWrapMetrics(prepared: PreparedText, maxWidth: number): WrapMetrics {
   let maxLineWidth = 0
   const lineCount = walkLineRanges(prepared, maxWidth, line => {
     if (line.width > maxLineWidth) maxLineWidth = line.width
@@ -71,7 +71,7 @@ export function collectWrapMetrics(prepared: PreparedTextWithSegments, maxWidth:
   }
 }
 
-export function findTightWrapMetrics(prepared: PreparedTextWithSegments, maxWidth: number): WrapMetrics {
+export function findTightWrapMetrics(prepared: PreparedText, maxWidth: number): WrapMetrics {
   const initial = collectWrapMetrics(prepared, maxWidth)
   let lo = 1
   let hi = Math.max(1, Math.ceil(maxWidth))
