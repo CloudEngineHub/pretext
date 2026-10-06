@@ -2730,13 +2730,21 @@ repin` shows what), and a fact read in source needs reading again.
   pre-wrap, keep-all, letter spacing and a right-to-left paragraph; and rich items. 2,021 were fixed and 29 lost, each
   of the 29 a hyphen line the profile reports past the width and Chrome fits, by kerning across segments measured apart
   (7) or without a padded span's end edge (22), which agreed before only because the profile kept the hyphen
-  (ENGINE_FOLLOWUPS.md, Line edges, has them). No prediction of the Gecko or WebKit profile moved on those layouts in
-  Firefox or webkit-host. Of the harness's cases 12 Chrome predictions moved, each from a failure to Chrome's lines: 4
-  facts cases and a real-usage Japanese draw that were on the accepted list, the issue's two texts, and 5 of the 36
-  facts cases added with the change. None moved in Firefox or webkit-host. The per-engine rebuild, which ports
-  `BreakText` whole, agreed with Chrome on all 17,535 of the probe's layouts it could take. A break opportunity that
-  isn't a segment boundary, or a fit in Chrome's 1/64px units, would reopen it. (Chromium 153.0.8010.48 source; Chrome
-  154.0.8037.57, Firefox 156.0.1, webkit-host, 2026-10-05.)
+  (ENGINE_FOLLOWUPS.md, Line edges, has them). The Gecko and WebKit profiles' return is as it was: there such a break
+  is a target with no width test, since the line fit when it reached the break. The room for the hyphen is tested in
+  the Chromium profile alone, because the line's width at the break leaves out the letter-spacing gap after its last
+  letter, which the hyphen's width carries: tested at the full width in the other two profiles, it lost the return
+  under letter spacing negative enough to give the next syllable a negative advance, 90 of 3,816 layouts at -4px to
+  -6px in 16px Arial and Georgia in Firefox and 80 in webkit-host, with 8 gained there. No prediction of either
+  profile moved on the 34,064 layouts, on those 3,816 or on 13,060 more, in Firefox or webkit-host. Of the harness's
+  cases 20 Chrome predictions moved, 19 of them from a failure to Chrome's lines: 4 facts cases and a real-usage
+  Japanese draw that were on the accepted list, the issue's two texts, and 9 of the 47 facts cases and 3 of the 46
+  rich cases added with the change. The twentieth, a padded span's, went from Chrome's lines to a failure
+  (ENGINE_FOLLOWUPS.md, Line edges). None moved in Firefox or webkit-host. The per-engine rebuild, which ports
+  `BreakText` whole, agreed with Chrome on all 17,535 of the first probe's layouts it could take. A break opportunity
+  that isn't a segment boundary, or a fit in Chrome's 1/64px units, would reopen it. (Chromium 153.0.8010.48 source;
+  the probes in Chrome 154.0.8037.57, the harness's cases in 154.0.8037.98, Firefox 156.0.1, webkit-host, 2026-10-05
+  and 2026-10-06.)
 - **Languages.** `--lang` is ignored on macOS; `navigator.language` follows the accept languages, not the UI; DevTools
   locale emulation (Playwright's `locale`) moves `Intl`'s default locale, not Blink's, a disagreement no user meets.
   Generic `serif` follows the process languages (16px `Hamburgefonstiv`: 114.40 px under zh-CN, 111.70 under en-US). The
