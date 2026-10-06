@@ -47,8 +47,9 @@ export type PreparedText = {
 
 type InternalPreparedText = PreparedText & PreparedLineBreakData
 
-// The handle that also keeps each segment's text and kind, for the functions that
-// return line text: layoutWithLines(), layoutNextLine() and materializeLineRange().
+// The handle that also keeps each segment's text, which the functions that return
+// line text need (layoutWithLines(), layoutNextLine() and materializeLineRange()),
+// and its kind, for the app's own rendering.
 export type PreparedTextWithSegments = InternalPreparedText & {
   segments: string[] // Segment text aligned with the parallel arrays, e.g. ['hello', ' ', 'world']
   kinds: SegmentBreakKind[] // Break behavior per segment, e.g. ['text', 'space', 'text']
