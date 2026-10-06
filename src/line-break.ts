@@ -806,10 +806,11 @@ function walkPreparedComplexLines(
           // Entry geometry describes whole segment tails on a fresh line.
           const freshWhole = hasContent ? null : getSegmentEntryWidth(entry, fillStart, fitCount)
           if (freshWhole !== null) {
-            // getFreshLineEnd() reads a width for each question: the entry's admissionFit
-            // for whether the whole tail fits, the fresh prefixes for where the line ends
-            // where it doesn't, and the tail's fresh width for the line that goes on. The
-            // line takes its first grapheme even where that doesn't fit, so it advances.
+            // This branch reads a width for each question: in getFreshLineEnd(), the entry's
+            // admissionFit for whether the whole tail fits and the fresh prefixes for where
+            // the line ends where it doesn't; then the tail's fresh width, freshWhole, for the
+            // line that goes on. The line takes its first grapheme even where that doesn't
+            // fit, so it advances.
             const end = getFreshLineEnd(entry!, fillStart, fitCount, fitLimit)
             hasContent = true
             if (end <= fitCount) {
