@@ -83,8 +83,10 @@ export type AnalysisProfile = {
 // transforms segment breaks in each item's text apart (EngineProfile,
 // transformsSegmentBreaksAcrossItems). Every item starts a segment, and an atomic item is a segment
 // with a break on both sides. The analysis leaves in `sourceOffsets` the offset in the text that
-// each unit of its normalized text comes from.
+// each unit of its normalized text comes from. `items` holds the items themselves, whose own texts
+// WebKit's scan reads (getWebKitParagraphBreaks).
 export type ParagraphItems = {
+  items: readonly { text?: string }[]
   starts: number[]
   atomic: boolean[]
   ownSegmentBreaks: boolean
@@ -597,9 +599,12 @@ function markItemStarts(text: string, normalized: string, breaks: Uint8Array, pa
 // box from that box's own text, and at a boundary between boxes from the scan over the next box's
 // text with the last two characters before it as prior context (TextUtil.cpp:374-396), so a
 // paragraph's breaks are each item's own scan, joined by that check (getWebKitBreakBetweenItems).
-// Collapsible white space on either side of a boundary breaks there, as inside a text.
+// Collapsible white space on either side of a boundary breaks there, as inside a text. The source
+// is the items' texts joined as they are, an atomic item as one U+FFFC, which is never scanned
+// (removeItemsSkippableSegmentBreaks leaves WebKit's text alone), so a scan takes an item's own
+// text and nothing is cut out of the source.
 function getWebKitParagraphBreaks(source: string, paragraph: ParagraphItems, preserve: boolean, keepAll: boolean, language: string | null): Uint8Array {
-  const { starts, atomic } = paragraph
+  const { items, starts, atomic } = paragraph
   const breaks = new Uint8Array(source.length + 1)
   let previous = -1
   for (let k = 0; k < starts.length; k++) {
@@ -611,12 +616,12 @@ function getWebKitParagraphBreaks(source: string, paragraph: ParagraphItems, pre
     // (getWebKitLineBreaks), so only those are scanned.
     const first = source.charCodeAt(start)
     if (end - start > 1 || first === 0x2028 || first === 0x2029) {
-      const itemBreaks = getWebKitLineBreaks(source.slice(start, end), preserve, keepAll, language)
+      const itemBreaks = getWebKitLineBreaks(items[k]!.text!, preserve, keepAll, language)
       for (let i = 1; i <= end - start; i++) breaks[start + i] = itemBreaks[i]!
     }
     if (previous >= 0 && !atomic[k] && !atomic[previous]) {
       const collapses = !preserve && (isCollapsibleSpaceCode(first) || isCollapsibleSpaceCode(source.charCodeAt(start - 1)))
-      if (collapses || getWebKitBreakBetweenItems(source.slice(Math.max(starts[previous]!, start - 2), start), source.slice(start, end), keepAll, language)) breaks[start] = breaks[start]! | BREAK
+      if (collapses || getWebKitBreakBetweenItems(items[previous]!.text!, items[k]!.text!, keepAll, language)) breaks[start] = breaks[start]! | BREAK
     }
     previous = k
   }

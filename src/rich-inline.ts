@@ -289,7 +289,7 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
     if (isAtomic || (item.extraWidth ?? 0) !== 0) paddedOrObject = true
     if ((item.extraWidth ?? 0) < 0) mayNarrow = true
   }
-  const paragraph: ParagraphItems = { starts, atomic, ownSegmentBreaks: !profile.transformsSegmentBreaksAcrossItems, sourceOffsets: null }
+  const paragraph: ParagraphItems = { items, starts, atomic, ownSegmentBreaks: !profile.transformsSegmentBreaksAcrossItems, sourceOffsets: null }
   const analysis = analyzeText(source, profile, whiteSpace, wordBreak, language, paragraph)
   const offsets = paragraph.sourceOffsets!
   const count = analysis.flags.length
