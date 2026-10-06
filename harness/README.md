@@ -243,7 +243,7 @@ harness/invariants.test.ts`) and the bench's floors.
   path of a font that kerns nothing with it, which `src/layout.test.ts` and the browsers run.
 - Without the invariants' desktop user agent and string `letterSpacing` (`invariants.ts`), a planted defect in reusing
   a prepared handle went unseen in 500 draws.
-- Without the stand-in's kerning and ligatures between neighbouring letters (#TBD), every word measured as its letters
+- Without the stand-in's kerning and ligatures between neighbouring letters (#435), every word measured as its letters
   do alone, so the fits of a word cut between letters all gave one answer: a planted defect that overwrote the advances
   a held handle keeps when its word was fit another way went unseen in 600 draws of every profile. With them, the
   unknown profile, whose context takes no `letterSpacing`, fails it in 84 draws of 600. The WebKit profile's takes none
