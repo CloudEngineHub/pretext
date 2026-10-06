@@ -439,7 +439,10 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
         // takes as a line feed. So spaces after a tab or a hard break, which is a line feed in the
         // one profile that reads this, follow no text. A ZWNJ, the other such character, starts a
         // text item and is text in it (:1112-1118), as it is here. An item of only spaces after its
-        // own start edge follows none either.
+        // own start edge follows none either. Blink also ends a text item where a bidi run ends
+        // inside it (InlineItem::SetBidiLevel, inline_item.cc:207-236), which no profile resolves:
+        // the premise is that the spaces are at the level of the text before them, and its gap is
+        // spaces after right-to-left text (ENGINE_FOLLOWUPS.md, Rich-inline item edges).
         const afterTextSpaces = at - 1 > previousItemStart && (flags[at - 1]! & KIND_BITS) === PRESERVED_SPACE && (1 << (flags[at - 2]! & KIND_BITS) & (1 << TAB | 1 << HARD_BREAK)) === 0 &&
           (openingEdges === null || at - 2 >= openingEdges.length || openingEdges[at - 2] === 0)
         const fit = getOpeningFit(sub.segmentFlags, extraWidth, afterTextSpaces, profile)
