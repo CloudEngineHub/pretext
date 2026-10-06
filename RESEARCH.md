@@ -1521,7 +1521,9 @@ text and their line doesn't trail into the opening (Box Edges And Pre-wrap, belo
 3,329 layouts that put a line feed, CRLF, a lone CR or FF, a tab, a ZWNJ, a ZWSP or nothing before the spaces, Chrome
 passes 2,727, 72 more than without it and none fewer, where main passes 2,682; and of 6,028 in 64 more shapes around
 it (other control and format characters, a tab and a line feed together, the line feed in later items, other fonts and
-paddings, normal white space) it passes 5,639 to main's 5,551 and loses none. Firefox and webkit-host, which read no
+paddings, normal white space) it passes 5,639 to main's 5,551 and loses none. Those are passes: 22 of the 6,028 that
+fail either way went from a wrong break to a wrong line count with the rule, where the count before it came out right
+by two errors cancelling, and 18 of them have a wrong count on main too. Firefox and webkit-host, which read no
 such rule, pass 2,745 and 2,937 of the 3,329, against 2,634 and 2,825, and 5,734 and 5,849 of the 6,028, against 5,077
 and 5,494; they lose 145 and 12 layouts of two shapes neither had been recorded in, a ZWSP or a soft hyphen before the
 spaces that end the text before the padded item, and in Firefox a line of only a tab before a padded line feed
