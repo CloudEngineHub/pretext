@@ -206,10 +206,10 @@ a rule by reading it and its unit tests (`rebuild/src/engines/<engine>/`) agains
   Speed work has no fixed stop threshold: judge by where returns decay, the absolute gain and the complexity. Write down
   a change whose gain is small next to its cost in speed or complexity as such, so the maintainer can weigh those
   changes together (2026-09-20).
-- **Plain objects with fixed shapes** (AGENTS.md) and, in new code, indexed `for` loops over `for...of`, `.forEach` and
-  allocating `.map` chains, stricter than engineering.md, Control Flow, which allows one `forEach` or `map`. The rest of
-  engineering.md holds as written; per-browser behavior goes in the one place its Data Modeling asks for, the engine
-  profile.
+- **Plain objects and functions, not classes** (AGENTS.md, Implementation notes), their shapes fixed, and, in new code,
+  indexed `for` loops over `for...of`, `.forEach` and allocating `.map` chains, stricter than engineering.md, Control
+  Flow, which allows one `forEach` or `map`. The rest of engineering.md holds as written; per-browser behavior goes in
+  the one place its Data Modeling asks for, the engine profile.
 - **Cater to the worst case** (engineering.md, Control Flow), in time per frame, GC pauses counted with computation.
   Speed has improved enough that the worst case may regress slightly for a real gain: the rule is to cater to it, not
   that it can never regress (2026-09-26). The width memo, handles remembering which widths gave their last lines, made
@@ -340,9 +340,9 @@ a rule by reading it and its unit tests (`rebuild/src/engines/<engine>/`) agains
 - **README**, the one user-facing doc, gets extra care: illustrative and to the point, only caveats app developers act
   on, its API glossary kept, examples correct on their own and ordered simple to complex, every term defined, every
   claim true of the algorithm and confirmed in real browsers, no change beyond what the task at hand asks.
-- **Voice**: short, nuances kept, each document in its own tone (AGENTS.md) and `thoughts.md` in the maintainer's. A
-  rewrite keeps technical meaning and opinions and loses pseudo-jargon, common words in uncommon senses, vague pronouns
-  and slogans, but not words that carry meaning, such as "regression". Concrete cases over a general warning.
+- **Voice**: short, nuances kept, each document in its own tone and `thoughts.md` in the maintainer's. A rewrite keeps
+  technical meaning and opinions and loses pseudo-jargon, common words in uncommon senses, vague pronouns and slogans,
+  but not words that carry meaning, such as "regression". Concrete cases over a general warning.
 - **A PR's story stays in the PR.** Its full account (the rounds, the probes, every case it moved) goes in its
   description; this file gets the durable fact: the claim, its number, build and date, its source and what would
   reopen it. Six PRs in a row appended about 7,500 words here before the docs took this rule in #374. Length alone
