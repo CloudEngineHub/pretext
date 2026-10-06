@@ -506,8 +506,8 @@ function walkPreparedComplexLines(
     // The opportunity the line returns to when a selected discretionary hyphen does
     // not fit, with that line's painted width: the latest whose line leaves room for
     // the hyphen, which Blink's retry against the width minus the hyphen finds, or
-    // the latest that fits at the full width (retreatsAtFullWidth). Under
-    // keepsFirstBreak it is the line's first soft hyphen, whatever its hyphen
+    // in Gecko and WebKit the latest that fits at the full width (reservedHyphenWidth).
+    // Under keepsFirstBreak it is the line's first soft hyphen, whatever its hyphen
     // overflows, until a later opportunity fits.
     let fitBreakSegmentIndex = fitBreakBefore
     let fitBreakPaintWidth = 0
@@ -757,8 +757,8 @@ function walkPreparedComplexLines(
                 pendingBreakSegmentIndex = i
                 pendingBreakWidth = lineW
               }
-              // A break between two text segments, as after `-` or between ideographs, is an
-              // opportunity like any other.
+              // A break the scan gives between two text segments, as after `-` or between
+              // ideographs, is an opportunity the line returns to like any other.
               if (retreatsFromUnfitHyphen && !breakAfter && (flags & UNBROKEN) === 0 && i > lineStartSegmentIndex &&
                 !breaksAfterKind(segmentFlags[i - 1]! & KIND_BITS) && lineW + reservedHyphenWidth <= fitLimit) {
                 fitBreakSegmentIndex = i
