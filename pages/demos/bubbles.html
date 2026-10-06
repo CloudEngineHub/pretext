@@ -198,9 +198,9 @@
       <section class="panel" id="panel-shrink">
         <h2>Pretext shrinkwrap</h2>
         <p>
-          Uses <code>walkLineRanges()</code> to binary-search the tightest width
-          that produces the same line count. Zero wasted pixels. No DOM text
-          measurement in the resize path.
+          Uses <code>layout()</code> to binary-search the tightest width with
+          the same line count, and <code>walkLineRanges()</code> for its widest
+          line. Zero wasted pixels. No DOM text measurement in the resize path.
         </p>
         <div class="metric">Wasted pixels: <span id="shrink-waste">0</span></div>
         <div class="chat" id="chat-shrink"></div>
@@ -301,7 +301,7 @@
         produces exactly 3 lines.” That requires
         <strong>measuring the text at multiple widths and comparing line
         counts</strong>, which is exactly what Pretext's
-        <code>walkLineRanges()</code> does, without DOM text measurement in the
+        <code>layout()</code> does, without DOM text measurement in the
         resize path. Pure arithmetic, no reflows, instant results.
       </p>
     </section>
