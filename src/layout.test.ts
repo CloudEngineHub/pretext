@@ -483,8 +483,7 @@ describe('shared public contracts', () => {
     // 3px narrower, fullwidth marks halt as in Chrome's Canvas, and the context takes a
     // letterSpacing. For each text and set of options, the prepare() handle holds the data
     // of the prepareWithSegments() one less `segments` and `kinds`, and at each width the
-    // four functions give the same lines, widths and cursors from both. `unfilled` names the
-    // fields null in every text, which are the ones that engine's profile never fills.
+    // four functions give the same lines, widths and cursors from both.
     const texts = [
       "Just tried the new update and it's so much better, especially on older devices.",
       '这是一段中文文本，用于测试「文本布局」库。每个字符之间都可以断行。',
@@ -543,8 +542,6 @@ describe('shared public contracts', () => {
       }
       let compared = 0
       const different = []
-      const filled = new Set()
-      const fields = new Set()
       for (const text of ${JSON.stringify(texts)}) for (const options of [
         undefined,
         { whiteSpace: 'pre-wrap' },
@@ -556,21 +553,17 @@ describe('shared public contracts', () => {
         const { segments, kinds, ...data } = prepareWithSegments(text, '16px Test', options)
         compared++
         if (JSON.stringify(light) !== JSON.stringify(data)) different.push([text, options, 'handle'])
-        for (const key of Object.keys(light)) {
-          fields.add(key)
-          if (light[key] !== null) filled.add(key)
-        }
         for (const width of [0, 9, 28, 40, 85.5, 160, 320, Infinity]) {
           compared++
           if (linesOf(light, text, width) !== linesOf(prepareWithSegments(text, '16px Test', options), text, width)) different.push([text, options, width])
         }
       }
-      console.log(JSON.stringify({ compared, different, unfilled: [...fields].filter(key => !filled.has(key)).sort() }))
+      console.log(JSON.stringify({ compared, different }))
     `))
     const compared = texts.length * 5 * 9
-    expect(rowsOf(CHROME_USER_AGENT)).toEqual({ compared, different: [], unfilled: ['lineStartProhibitions'] })
-    expect(rowsOf(FIREFOX_USER_AGENT)).toEqual({ compared, different: [], unfilled: ['breakableLineStartExtras', 'lineStartExtras', 'lineStartProhibitions', 'overflowLineEndTrims'] })
-    expect(rowsOf(SAFARI_USER_AGENT)).toEqual({ compared, different: [], unfilled: ['breakableLineStartExtras', 'entryGeometry', 'lineEndTrims', 'lineStartExtras', 'overflowLineEndTrims'] })
+    for (const userAgent of [CHROME_USER_AGENT, FIREFOX_USER_AGENT, SAFARI_USER_AGENT]) {
+      expect(rowsOf(userAgent)).toEqual({ compared, different: [] })
+    }
   })
 
   test('emergency wrapping preserves complete graphemes inside continuous words', () => {
