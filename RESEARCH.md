@@ -882,15 +882,20 @@ it took #425, which changes nothing that plain `prepare()` does). The bench's ro
 than 0.0.9 in Chrome, 26-39% in Firefox with Thai inside noise, and 13-37% in Safari with Arabic inside noise. Its `new:
 labels` row, 35 languages mixed, reads level with 0.0.9 in Chrome (5.2% less time, inside its ±11.2% of noise) and in
 Firefox (4.8% less, inside ±8.3%) and 11.1% faster in Safari; main before the fit read that row 18.7% faster than 0.0.9
-in Chrome. One language's 200 labels at a time in Chrome, each batch timed in a process of its own that had prepared
-only other scripts' labels: faster than 0.0.9 for 31 of the 35 languages (46% less time in English, 39% in German, 31%
-in Russian, 55% in Japanese), level for Hebrew, and slower for Tamil (31% more time), Telugu (13%) and Armenian (12%),
-which are among the costliest, 160-235 µs a label where a Latin-script one takes 10-26. Telugu was 6.7% slower than
-0.0.9 on main already. Against main the same batches take 22% more time in German, 17% in Russian, 11% in English and
-43% in Tamil, 8% over the 35 languages mixed, and read level for Japanese, Chinese, Korean, Thai and Hindi, whose labels
-ask almost no pair (0-1.4% more calls). The times by language are one run's, in Chrome alone, from a script that isn't
-in the repository, and no second reader has checked them; that check, or the same run in Firefox and Safari, would
-settle them.
+in Chrome. One language's 200 labels at a time, each batch timed in a process of its own that had prepared only other
+scripts' labels (three sessions in Chrome and Safari, four in Firefox; a second reader recomputed every figure from the
+samples and reran German in Chrome). In Chrome, 31 of the 35 languages are faster than 0.0.9 (46% less time in English,
+39% in German, 31% in Russian, 55% in Japanese) and four are slower: Tamil (31% more time), Telugu (13%), Armenian (12%)
+and Hebrew (3%), which are among the costliest, 160-235 µs a label where a Latin-script one takes 10-26. Telugu was 6.7%
+slower than 0.0.9 on main already. Against main the same batches take 22% more time in German, 17% in Russian, 11% in
+English and 43% in Tamil, 8% over the 35 languages mixed, and read level for Japanese, Chinese, Korean, Thai and Hindi,
+whose labels ask almost no pair (0-1.4% more calls). In Firefox eight languages' labels are slower than 0.0.9 with the
+fit, Armenian by 34%, Tamil 27%, Telugu 24%, Georgian 23%, Finnish 22%, Greek 19%, German 14% and Bulgarian 10%, and
+Dutch and Russian lean slower (9% and 5%), where English is 17% faster and the 35 languages mixed 6.5%; nearly all of
+that is main's, which asks Firefox's Canvas 6.59 times a German label where 0.0.9 asked 3.10, and the fit adds to main
+only in Finnish (8.5%) and Armenian (6.6%). What on main added those calls isn't traced. In Safari no language is slower
+than 0.0.9, and the fit makes main's calls exactly. The script that timed them isn't in the repository. A trace of
+main's Firefox calls, or a release whose labels must not be slower than 0.0.9's in any language, would reopen this.
 
 What the labels get for it, on 13,090 probe layouts of one word a paragraph: 390 words of 78px or wider from those
 labels, Latin, Cyrillic and Greek in 13px Helvetica Neue, 13px Inter and 14px Roboto and Tamil in 13px Tamil Sangam MN,
@@ -4115,9 +4120,10 @@ decisions for the maintainer.
   text, most new text still prepares faster with the rule, though not all of it: new prose takes 33-58% less time than
   in 0.0.9 in Chrome, the bench's row of mixed labels reads level with 0.0.9 in Chrome and in Firefox, where main before
   the rule read it 18.7% faster in Chrome, and of one language's labels at a time in Chrome, 31 of 35 languages are
-  faster than in 0.0.9, Hebrew is level, and Tamil, Telugu and Armenian are 31%, 13% and 12% slower (Break Opportunities
-  From Engine Data has the figures, their builds and date, and what is still unchecked in them; #TBD's description has
-  the tables). The rule lands with that known. `layout()` pays where words are cut: the bench's long breakable runs read
+  faster than in 0.0.9 and Tamil, Telugu, Armenian and Hebrew are 31%, 13%, 12% and 3% slower; in Firefox eight
+  languages' labels are slower than in 0.0.9, nearly all of it main's cost and not the rule's (Break Opportunities
+  From Engine Data has the figures, their builds and date; #TBD's description has the tables). The rule lands with that
+  known. `layout()` pays where words are cut: the bench's long breakable runs read
   7.9% and 9.7% slower in Chrome 154 in two foreground runs, for one number read at each line that starts inside a word,
   and 8.2% and 13.9% slower in Firefox 156.0.1 with the ligature rule, which is none of the rule's work and is left as
   one JIT's (Keeping Work Bounded, JavaScript Engines). Firefox adds up the advances a word's letters have in the word
