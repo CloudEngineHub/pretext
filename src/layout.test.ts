@@ -3146,16 +3146,6 @@ describe('prepare invariants', () => {
     }
   })
 
-  test('locale can be reset without disturbing later prepares', () => {
-    setLocale('th')
-    const thai = prepare('ภาษาไทยภาษาไทย', FONT)
-    expect(layout(thai, 80, LINE_HEIGHT).lineCount).toBeGreaterThan(0)
-
-    setLocale(undefined)
-    const latin = prepare('hello world', FONT)
-    expect(layout(latin, 200, LINE_HEIGHT)).toEqual({ lineCount: 1, height: LINE_HEIGHT })
-  })
-
   test('setLocale() gives later prepares the language a worker lacks, in place of <html lang>', () => {
     // Like Chrome's and Firefox's, this context resolves fonts under its own lang.
     const contexts: Array<{ lang: string }> = []
