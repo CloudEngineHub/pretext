@@ -430,7 +430,9 @@ harness), and the Chromium and WebKit profiles ask that way where the two hyphen
 (`getHyphenText()` in `src/measurement.ts`; 17px Inter's U+2010 is 6.09px and its `-` 7.82px). Firefox asks the first
 listed font that has one, else its default font, and paints what Canvas measures for U+2010, so the Gecko profile
 measures that (`hyphenFromPrimaryFont`; Engine Facts, Firefox). Every profile measured `-` before #396.
-ENGINE_FOLLOWUPS.md, Line edges, has what the check's premises get wrong. Only Safari letter-spaces the hyphen.
+ENGINE_FOLLOWUPS.md, Line edges, has what the check's premises get wrong. Safari and Firefox letter-space the hyphen and
+Chrome doesn't (`letterSpaceDiscretionaryHyphen`; Gecko adds the spacing to the hyphen's width in `GetHyphenWidth`,
+`nsTextFrame.cpp:4388-4399`).
 
 Every page shapes text under any non-zero letter spacing without its optional ligatures: Blink turns off `liga`, `clig`
 and `calt` (`font_features.cc:52-86`), Gecko and WebKit `liga`, `clig`, `dlig` and `hlig` (`gfxFont.cpp:672-685`;
