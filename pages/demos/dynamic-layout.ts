@@ -49,6 +49,7 @@ const HEADLINE_TEXT = 'SITUATIONAL AWARENESS: THE DECADE AHEAD'
 const HEADLINE_FONT_FAMILY = '"Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif'
 const HEADLINE_LETTER_SPACING = 0
 const HINT_PILL_SAFE_TOP = 72
+const MIN_SLOT_WIDTH = 24
 const NARROW_BREAKPOINT = 760
 const NARROW_COLUMN_MAX_WIDTH = 430
 
@@ -293,6 +294,7 @@ function layoutColumn(
     const slots = carveTextLineSlots(
       { left: region.x, right: region.x + region.width },
       blocked,
+      MIN_SLOT_WIDTH,
     )
     if (slots.length === 0) {
       lineTop += lineHeight
@@ -741,6 +743,7 @@ function evaluateLayout(
       right: creditRegion.x + creditRegion.width,
     },
     layout.isNarrow ? creditBlocked.concat(claudeCreditBlocked) : creditBlocked,
+    MIN_SLOT_WIDTH,
   )
   const creditWidth = Math.ceil(measureNaturalWidth(getPrepared(CREDIT_TEXT, CREDIT_FONT, layout.creditLetterSpacing)))
   // When no slot fits, the credit isn't painted, rather than painted over a logo or past the page.
