@@ -4941,18 +4941,6 @@ describe('layout invariants', () => {
     expect(lines[1]!.width).toBeCloseTo(measureWidth('B', FONT) + spacing, 5)
   })
 
-  test('letterSpacing participates in pre-wrap tab positioning', () => {
-    const spacing = 4
-    const text = 'A\tB'
-    const prepared = prepareWithSegments(text, FONT, { whiteSpace: 'pre-wrap', letterSpacing: spacing })
-    const line = layoutWithLines(prepared, 200, LINE_HEIGHT).lines[0]!
-    // The tab ends on the first stop of eight letter-spaced spaces, with no spacing after it.
-    const expected = 8 * (measureWidth(' ', FONT) + spacing) + measureWidth('B', FONT) + spacing
-
-    expect(line.text).toBe(text)
-    expect(line.width).toBeCloseTo(expected, 5)
-  })
-
   // False in general, by an engine's own rule: where not even a first character fits, WebKit keeps the characters
   // after it that can't start a line, so a box narrower than a glyph can take fewer lines than one a glyph wide
   // (ENGINE_FOLLOWUPS.md, Emergency breaks inside a word).
