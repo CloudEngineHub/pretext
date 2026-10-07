@@ -2487,8 +2487,12 @@ runs (Firefox 156.0.1, bench sessions of 2026-09-27 and 28, unless noted):
   cell, which read this walker against main's as the foreground does: jsc 7.9%, 9.0% and 7.1% slower on letter-spaced
   CJK and on pre-wrap chunks' `layout()` and walk, SpiderMonkey 4.3% on the soft hyphens, V8 level or faster). Main's
   walker in this build's `src/` gives all of it back, and so does this walker with every paragraph statement out, so
-  the gap is the walker's and not the handles'. One group shows alone, the second clause of `hangs`: 4.1% and 2.8% of
-  jsc's pre-wrap rows. Each of the others reads within 2% in jsc and SpiderMonkey: the paragraph's test before the
+  the gap is the walker's and not the handles'. In the foreground that last walker reads against this one (three
+  sessions, the worst-case rows): Safari's pre-wrap chunks 7.1% and 5.8% faster, letter-spaced CJK 4.3% and the
+  control characters 5.6%, all called; Firefox's pre-wrap chunks 4.0% and 4.1%, called, letter-spaced CJK 3.9% and the
+  soft hyphens 2.6%; Chrome's pre-wrap `layout()` 3.6%, called, and the soft hyphens 4.9%, with its pre-wrap walk
+  2.1% slower in every session. One group shows alone, the second clause of `hangs`: 4.1% and 2.8% of jsc's pre-wrap
+  rows. Each of the others reads within 2% in jsc and SpiderMonkey: the paragraph's test before the
   overflow decision, the hang past an object of width 0, the tests of a run of hanging spaces, a fresh line's, a soft
   hyphen's, those under letter spacing and those where a segment overflows; SpiderMonkey's soft hyphens follow none
   of them, only all together (2.9%). Six restructurings that take those sites off a text's path and keep a
