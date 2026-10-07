@@ -1606,25 +1606,24 @@ item, so more paragraphs meet the Chromium profile's probe of how a font kerns a
 strings of printable ASCII, which a page pays once for a font. Firefox's calls and units stay within 0.2% in every set
 and webkit-host's within 0.3%.
 
-Speed, in the foreground bench (Chrome 154.0.8037.98, Firefox 156.0.1 and installed Safari 27.0, 2026-10-06; the PR's
-description has every row). The numbers the decision rests on, each the range of two runs, of three and of ten
-sessions: counting a prepared paragraph's lines takes 0.20 of main's time in Chrome, 0.23-0.24 in Safari and 0.39-0.43
-in Firefox, and walking them reads 12-30% faster in all three; `prepareRichInline()` is slower in Safari, 10-15% on
-text no library has seen and 30-39% on text prepared again, slower in every one of 13 sessions; new rich text reads
-3-16% slower in Chrome and 7-13% in Firefox, which the bench called once, in Firefox; and text prepared again reads
-5-6% faster in Chrome and Firefox in every session, which the bench didn't call. These are of the branch at 9659e267
-against main at #450, before the two rules about Blink's text items and the check of an item's `text`, which a bench of
-the head didn't time: its page lost focus twice. Safari's loss is JavaScriptCore's. The engines' shells on a stand-in
-Canvas said where preparation's cost goes (2026-10-05, on the design before main's #435 to #446; hypotheses): with the
-code warm the paragraph costs V8 what the item stepper's preparation did, SpiderMonkey 8% less and JavaScriptCore 37%
-more, since every segment's text is a slice of the paragraph's joined text, which JavaScriptCore resolves and hashes
-where an item's own text was a string at hand, a paragraph's white space collapses over the whole text, and two passes
-read every unit (`alignToSource()`, `markItemStarts()`). On a fresh page the shells read 14-28% slower over the first
-14,000 units, as the engines reach their compiled speed later on the paragraph's larger function. It reopens with a
-way to prepare a paragraph that doesn't slice its joined text, or with a bench of the head that moves one of these
-figures. What plain text's rows read is under Keeping Work Bounded: the walker's rules for a paragraph are tests on a
-text's path (Work Done Only Where A Rule Applies), and three forms cost one engine more than their work (JavaScript
-Engines: how a width is stored, a flag parameter; Dead Ends, Fitting, Cuts And Fast Paths, the font's two widths).
+Speed, against main at #453 in the foreground bench (Chrome 154.0.8037.98, Firefox 156.0.1 and installed Safari 27.0,
+2026-10-06; the PR's description has every row). The numbers the decision rests on, each the range of two runs, of
+three and of ten sessions: counting a prepared paragraph's lines takes 0.20 of main's time in Chrome, 0.24-0.25 in
+Safari and 0.40-0.42 in Firefox, and walking them reads 11-29% faster in all three; `prepareRichInline()` is slower in
+Safari, 10-16% on text no library has seen and 25-38% on text prepared again, called in both runs; new rich text
+reads 8-15% slower in Chrome and 7-9% in Firefox, which the bench called once, in Firefox; and text prepared again
+reads 2-5% faster in Chrome and Firefox in every session, which the bench didn't call. Safari's loss is
+JavaScriptCore's. The engines' shells on a stand-in Canvas said where preparation's cost goes (2026-10-05, on the
+design before main's #435 to #446; hypotheses): with the code warm the paragraph costs V8 what the item stepper's
+preparation did, SpiderMonkey 8% less and JavaScriptCore 37% more, since every segment's text is a slice of the
+paragraph's joined text, which JavaScriptCore resolves and hashes where an item's own text was a string at hand, a
+paragraph's white space collapses over the whole text, and two passes read every unit (`alignToSource()`,
+`markItemStarts()`). On a fresh page the shells read 14-28% slower over the first 14,000 units, as the engines reach
+their compiled speed later on the paragraph's larger function. It reopens with a way to prepare a paragraph that
+doesn't slice its joined text. What plain text's rows read is under Keeping Work Bounded: the walker's rules for a
+paragraph are tests on a text's path (Work Done Only Where A Rule Applies), and three forms cost one engine more than
+their work (JavaScript Engines: how a width is stored, a flag parameter; Dead Ends, Fitting, Cuts And Fast Paths, the
+font's two widths).
 
 #### Joined Text
 
@@ -2431,12 +2430,13 @@ runs (Firefox 156.0.1, bench sessions of 2026-09-27 and 28, unless noted):
   chunks' `layout()` and walk 16.0% and 15.8% slower, where the commit before read 9.5% and 5.9%. With the segment let
   in inside the paragraph's test, its advance less the halt, and the two constants as they were, both read the commit
   before's figures: 3.9% against 2.9% in Firefox for letter-spaced CJK, 9.0% against 8.8% and 7.2% against 7.2% in
-  webkit-host for pre-wrap chunks. So what only a paragraph does goes whole inside its test, the lines that let a
-  segment in written a second time there.
-  In the foreground, on main at #450 (Chrome 154.0.8037.98, Firefox 156.0.1, Safari 27.0, three sessions, 2026-10-06):
-  the soft hyphens' `layout()` read 5.7%, 2.5% and 2.0% slower, none called; pre-wrap chunks' `layout()` and walk 6.5%
-  and 6.6% slower in Safari, called, and under 2.5% in the other two; and letter-spaced CJK `layout()`, the same walker,
-  3.4% slower in Firefox and 8.9% in Safari, called, and 3.9% faster in Chrome, called.
+  webkit-host for pre-wrap chunks. The foreground bench called the first two forms' losses too: 9.2% in Firefox for
+  the first, and 14.8% and 13.2% in Safari for the second. So what only a paragraph does goes whole inside its test,
+  the lines that let a segment in written a second time there.
+  In the foreground, on main at #453 (Chrome 154.0.8037.98, Firefox 156.0.1, Safari 27.0, three sessions, 2026-10-06):
+  the soft hyphens' `layout()` read 2.1%, 4.8% and 0.9% slower, Firefox's called; pre-wrap chunks' `layout()` and walk
+  7.5% and 7.7% slower in Safari, called, and under 2.5% in the other two; and letter-spaced CJK `layout()`, the same
+  walker, 7.3% slower in Safari, called, 3.0% in Firefox, not called, and 3.2% faster in Chrome, called.
 - **A paragraph's segment breaks, in the Gecko profile**: Gecko transforms segment breaks in each text frame's own text,
   so a paragraph with a line feed had every item cut out of the joined text, transformed and joined again: 8,508 of the
   bench's 14,834 rich items, 199 of which hold a line feed. Cutting out only those, and copying the text between two
@@ -4720,9 +4720,9 @@ decisions for the maintainer.
   cursor counts the paragraph's segments, with `sourceStart` and `sourceEnd` on a materialized fragment for its place
   in the item's text, since no mapping gives a cursor into `prepareWithSegments(item.text)` without analyzing each
   item again. What it costs: that cursor contract; an atomic item of only white space is an object as wide as its
-  `extraWidth`; preparing rich text is slower in Safari, 10-15% for text no library has seen and 30-39% for text
-  prepared again, and 3-16% for new text in Chrome and Firefox, against stats at 0.2-0.4 of the stepper's time and
-  walks 12-30% faster; the main entry is 1,276 B larger gzipped for what the walker and the analysis carry for a
+  `extraWidth`; preparing rich text is slower in Safari, 10-16% for text no library has seen and 25-38% for text
+  prepared again, and 7-15% for new text in Chrome and Firefox, against stats at 0.2-0.4 of the stepper's time and
+  walks 11-29% faster; the main entry is 1,276 B larger gzipped for what the walker and the analysis carry for a
   paragraph; and the walker has rules that hold for a paragraph only (`items !== undefined`), where plain text has the
   same gap and wasn't to move in the same change: a U+3000 run that hangs at an item's end, a soft hyphen beside an
   object, a segment of negative advance on a line that overflows, and a run of preserved spaces that hangs where a
