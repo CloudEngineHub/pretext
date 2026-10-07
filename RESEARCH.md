@@ -4454,7 +4454,7 @@ decisions for the maintainer.
   reasons. The change serves the commoner side: every proportional font, Courier New, `ui-monospace` and every web font,
   fixed pitch or not, where the class is font lists led by one of six system families. No draw of the sample is in one:
   its two fixed-pitch font lists (`"SF Mono", ui-monospace, Menlo, Monaco, monospace` and `"Courier New", Courier,
-  monospace`, 472 of its 11,901 draws) take no shortcut, since a list goes by its first family that is present. The
+  monospace`, 467 of its 11,901 draws) take no shortcut, since a list goes by its first family that is present. The
   match in the class was two rules meeting, not the shortcut modelled: the shortcut also gives a character's width to
   each of two CRs in a row, to a CR beside white space and to the CR of a CRLF, where the profile was wrong before too,
   on 3,535 of 9,069 layouts over all the second probe's texts in those three fonts (5,546 now). And keeping both sides
