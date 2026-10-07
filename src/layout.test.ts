@@ -1608,6 +1608,9 @@ describe('boundary rules', () => {
       // its own, so the line ends there (under letter spacing, the test of where a line ends).
       expect(lines('ab \rcd', measureWidth('ab', FONT) + 0.5)).toEqual(['ab ', 'cd'])
       expect(analyzeText('ab \rcd', profile).hasUnbroken).toBe(false)
+      // The mark after the text's last unit moves with the units, so a line separator that ends
+      // the text is still a hard break.
+      expect(prepareWithSegments('a\rb\u2028', FONT).kinds).toEqual(['text', 'hard-break'])
       // White space on its two sides is one space, where Safari keeps two.
       expect(segments('ab \r cd')).toEqual(['ab', ' ', 'cd'])
       // A text of only CRs and white space has no lines.
