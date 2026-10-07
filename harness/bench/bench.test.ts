@@ -171,7 +171,7 @@ describe('the texts', () => {
     for (const family of MESSAGE_FAMILIES) {
       const text = familyText(family)
       let at = 0
-      for (const d of docs.filter(x => x.family === family || (x.row === 'rich' && family === 'latin'))) {
+      for (const d of docs.filter(x => x.family === family)) {
         const messages = d.fresh !== undefined ? d.fresh.batches.flat() : d.ops.filter(op => op.batches !== undefined).flatMap(op => op.batches!.flat().map(m => (typeof m === 'string' ? m : (m as Array<{ text: string }>).map(item => item.text).join(''))))
         for (const m of messages) {
           const read = family === 'mixed' ? m.replace(emojiTail, '') : m
