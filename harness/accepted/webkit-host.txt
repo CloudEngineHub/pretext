@@ -1,6 +1,14 @@
 ## #421, "AV" nine times in 16 px Helvetica Neue at 85 px, a word cut twice: WebKit measures a line that starts inside a cut word from that line's own start (TextUtil::breakWord, TextUtil.cpp:242-365) and gives the rest of the word the width left over (AbstractLineBuilder.cpp:92-96), so its second line, whose nine letters measure 85.06 px alone, keeps eight; the library takes every line from the differences of the word's prefixes, in which that line's first "A" keeps its kerning with the "V" before it, so the nine are 84.32 px and fit; the rest of a cut word carries its width from line to line, which the cursor has no field for, so the rule isn't ported (the right line count, main too; ENGINE_FOLLOWUPS.md, Emergency breaks inside a word)
 report-aa5ba7c12d9ff140 breaks
 
+## A lone CR between letters in normal white space in 16 px Menlo, a font on WebKit's fixed-pitch shortcut, at 24 px and wider: Safari measures such text as its character count times a space, the CR counted (widthForSimpleTextWithFixedPitch, FontCascade.cpp:414-421), where the library takes the CR out of the text, so its line is a character narrow; main passed these with the CR as a space no line ends at, and the loss is accepted (RESEARCH.md, Decisions Log, 2026-10-06; ENGINE_FOLLOWUPS.md, White space and controls)
+facts-4bce41466e91ce4f breaks
+facts-52fc37530b0c0032 breaks
+facts-5381df9cdeb43d01 breaks
+facts-5d9fdeae578f0f62 breaks
+facts-aac4af3733ed6ee0 breaks
+facts-d02e400865822a9e count
+
 ## A padded rich pre-wrap span that starts on the line it ends inside, at a line feed or after spaces that hang, at 24 px and wider: Safari fits that line without the span's end edge, the library with it, as Firefox does (ENGINE_FOLLOWUPS.md)
 rich-f7c605f19ec5d469 breaks
 
@@ -328,7 +336,6 @@ catalog-07aa606bfce4d47b count
 catalog-07c4da50325b2c93 count
 catalog-07f4fe85b5aebdc9 count
 catalog-07fb475df12dfe01 count
-catalog-0837264b69ca7974 count
 catalog-085ffe6f4ad3e9fe count
 catalog-08710d6ba44ea0cc breaks
 catalog-0888b22723b33158 breaks
@@ -2675,6 +2682,7 @@ facts-c2189ac992e9299c count
 facts-c2a6f5fa327edac2 count
 facts-cb2d5cc303747edb count
 facts-cc939d224ccd4816 count
+facts-ce9251eef6a8ada0 count
 facts-d4c268eb14035270 count
 facts-d54d8ea957f40c11 count
 facts-d5a3d937459712e1 count
@@ -3181,16 +3189,12 @@ catalog-0eea6db3879f5f02 count
 catalog-109b3ff3d215f1cc count
 catalog-10b04eac49740daa count
 catalog-111c7054001cbb16 count
-catalog-112da411b2f453ff breaks
 catalog-15016fafde512289 count
 catalog-19864e450690f6db count
 catalog-1d0e3b3717b4955a count
 catalog-21d6a3b9f19f2613 count
-catalog-279af6d0af390960 breaks
-catalog-2857745be266a421 count
 catalog-2d79a4fc2ae2b2d0 count
 catalog-2f45a169ca8e6ae0 count
-catalog-31e8be313e8324a8 count
 catalog-33a8611fefcc0ebd count
 catalog-35ebbec4719c00ef count
 catalog-38dc219e3589830b count
@@ -3219,7 +3223,6 @@ catalog-688f72cf91f9b3aa count
 catalog-69d68896eaf83b7c count
 catalog-6de3182bbf064a98 count
 catalog-700f195731348242 count
-catalog-75a5d400059be388 count
 catalog-772481cb6d3d8b70 count
 catalog-791b9e98ae83820b breaks
 catalog-7d4352711462aadf count
@@ -3261,7 +3264,6 @@ catalog-b6ec3bcfb4fd8fa2 count
 catalog-b740a8042b3d7b0b count
 catalog-b79929b59bcea6a9 breaks
 catalog-b9118243c2593dd6 count
-catalog-ba9daa75bb697526 breaks
 catalog-c2658e4fe55b6fe0 count
 catalog-c7fc830af740765d count
 catalog-c96296e1f0605cf9 count
@@ -3275,7 +3277,6 @@ catalog-d7903e9e5b5fa013 breaks
 catalog-d8c52aa767816ef5 count
 catalog-dce1dc4872a76d64 breaks
 catalog-e0cbd3ecda7cbb2b count
-catalog-e1c21e56e44dd464 count
 catalog-e24daa6771924acf count
 catalog-e366b12177ca97a9 count
 catalog-e5fc88abda777106 count

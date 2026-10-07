@@ -169,10 +169,12 @@ reasons that cite a `layout.test.ts` line point at the files of main before #340
 `git show 6d1d2106:<path>`. The two facts #396 added (lines 1948 and 2015) point at that pull request's `layout.test.ts`, and
 name the fonts they run in where that isn't 16px Arial. A fact added after them names its test's line as of the commit
 that added or last changed the fact, which this paragraph names, since a later merge moves the test and a case's family
-and origin keep the line: line 1000 at dbfab0de (#399), Firefox's white space around bidi controls, and line 2140 at
+and origin keep the line: line 1000 at dbfab0de (#399), Firefox's white space around bidi controls, line 2140 at
 785e5af2 (#446), Chrome's return from an unfit hyphen to a break between two text segments, whose second row runs in
-16px Hiragino Sans. Such a fact also names the paragraph directions it runs in where a browser's lines turn on them
-(the first of those, both). The facts set has no
+16px Hiragino Sans, and line 1575 at f2e54d1b (#455), the WebKit profile's lone carriage return, which runs in 16px
+Menlo alone: there Safari gives the carriage return a character's width, the profile gives it none, and webkit-host's
+six failures at 24 px and wider are accepted (`RESEARCH.md`, Decisions Log, 2026-10-06). Such a fact also names the
+paragraph directions it runs in where a browser's lines turn on them (the first of those, both). The facts set has no
 cover, so it keeps the width where a template's words join, which the catalog's cover drops once a narrower change has
 shown that kind of break: a fact that rests on a line's width, such as one space against two, goes there.
 ENGINE_FOLLOWUPS.md, Harness debt, has what to prune when the sets are made again. The oracle set's origins point at
@@ -314,6 +316,10 @@ row times the line functions on mixed, Latin and CJK messages, each family in a 
   16.8% and 8.7% slower under #406, two unrelated changes timed against the same main on the same day (Firefox 156.0.1,
   three sessions each, 2026-10-02), so they move with unrelated changes to the bundle and want a second change's table
   before being blamed on one.
+- **Safari's `resize: latin layout at widths seen before`** read 9-15% slower in six sessions of a build whose
+  `layout()` code was main's, and within noise for the same code one top-level binding apart (Safari 27.0, 2026-10-06;
+  `RESEARCH.md`, JavaScript Engines). Where it alone reads slower or faster with no change to code `layout()` runs,
+  time a build one binding apart before blaming the change.
 - **A verdict on one of those three rows** prints "(moves with the bundle)" in Firefox's table (`MOVES_WITH_BUNDLE`,
   `bench/report.ts`). The list is Firefox 156's: after a pin bump a row stays on it only while unrelated changes still
   move it.
