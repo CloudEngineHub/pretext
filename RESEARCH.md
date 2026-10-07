@@ -1531,9 +1531,19 @@ replaced: `chat-styled` walked 32%, 18% and 26% faster and stepped 31%, 17% and 
 86% of its paragraphs are one item, which was one fragment already) walked 15%, 7% and 11% faster; the stress items 5%,
 11% and 14%; counting lines and preparing read level, as did every plain row. Against main, by the two ratios
 multiplied, `chat-styled` then walks 19%, 25% and 13% faster and steps 13%, 12% and 5% faster, and the stress items walk
-30%, 21% and 31% faster. Safari's `chat` is what stays slower than main, its walk by 5% and its step by 4%: by lines, a
-line of a one-item paragraph costs it about 36 ns there against main's 31, which JavaScriptCore's shell doesn't show (it
-runs that path in 3-6% fewer instructions than main's).
+30%, 21% and 31% faster.
+
+Safari's `chat` stayed slower than main with that, its walk by 5% and its step by 4%: by lines, a line of a one-item
+paragraph cost it about 36 ns against main's 31, which JavaScriptCore's shell doesn't show (it runs that path in 3-6%
+fewer instructions than main's). That line was a branch at the top of `createLine()`, a function too long for an engine
+to inline, where main has a function for it. With `createOnlyItemLine()`, which the walk and the stream pick for each
+line, Safari walks `chat` 20% faster than before these changes and steps it 19% faster, 9 and 10 points more than
+without it and 6% and 8% faster than main, and Chrome walks it 20% faster, 5 points more (foreground, 10 sessions). It
+costs Chrome's walk of the stress items 6 points, which then reads 1.8% slower than before these changes, in 8 of 10
+sessions, and 26% faster than main. Three forms of the split cost it alike (the several-item builder called from
+`createLine()`, a closure for each kind of paragraph, one closure that picks), so it is how V8 compiles the walk's
+callback once a second builder is in it; its inlining there wasn't traced. Firefox's `chat-styled` gains 2 points less
+with it, 16% against 18%.
 
 Three other forms were measured (2026-10-07; a shell figure is instructions retired a pass on a stand-in Canvas, a
 hypothesis):

@@ -904,6 +904,36 @@ function getPartWidth(data: PreparedSegments, i: number, from: number, to: numbe
   return w
 }
 
+// A line of a paragraph whose only item with segments has no extraWidth (onlyItem), as most of a
+// chat's are: one fragment of that item, as wide as the line. A function of its own, which the walk
+// and the stream call for such a paragraph: as a branch of createLine(), which is too long for an
+// engine to inline, Safari walked and stepped the chat demo's paragraphs 11% and 12% slower and
+// Chrome walked them 6% slower (RESEARCH.md, Rich Inline As One Paragraph).
+function createOnlyItemLine(
+  flow: InternalPreparedRichInline,
+  width: number,
+  startSegmentIndex: number,
+  startGraphemeIndex: number,
+  endSegmentIndex: number,
+  endGraphemeIndex: number,
+): RichInlineLineRange {
+  const { onlyItem, itemSegments } = flow
+  const first = itemSegments[onlyItem]!
+  const ended = endSegmentIndex >= itemSegments[onlyItem + 1]!
+  return {
+    fragments: [{
+      itemIndex: onlyItem,
+      gapBefore: 0,
+      gapItemIndex: -1,
+      occupiedWidth: width,
+      start: { segmentIndex: startSegmentIndex - first, graphemeIndex: startGraphemeIndex },
+      end: { segmentIndex: endSegmentIndex - first, graphemeIndex: endGraphemeIndex },
+    }],
+    width: Math.max(0, width),
+    end: { itemIndex: ended ? itemSegments.length - 1 : onlyItem, segmentIndex: ended ? 0 : endSegmentIndex - first, graphemeIndex: endGraphemeIndex },
+  }
+}
+
 // A line of the paragraph from the text walkers' line: its segments cut into fragments where the
 // item changes. A collapsed space at an item's start or end is no fragment's text but the gap
 // before the next fragment on the line, as that item's white space made it. Each fragment's width
@@ -929,24 +959,7 @@ function createLine(
   endSegmentIndex: number,
   endGraphemeIndex: number,
 ): RichInlineLineRange {
-  const { data, onlyItem, itemSegments } = flow
-  if (onlyItem >= 0) {
-    const first = itemSegments[onlyItem]!
-    const ended = endSegmentIndex >= itemSegments[onlyItem + 1]!
-    return {
-      fragments: [{
-        itemIndex: onlyItem,
-        gapBefore: 0,
-        gapItemIndex: -1,
-        occupiedWidth: width,
-        start: { segmentIndex: startSegmentIndex - first, graphemeIndex: startGraphemeIndex },
-        end: { segmentIndex: endSegmentIndex - first, graphemeIndex: endGraphemeIndex },
-      }],
-      width: Math.max(0, width),
-      end: { itemIndex: ended ? itemSegments.length - 1 : onlyItem, segmentIndex: ended ? 0 : endSegmentIndex - first, graphemeIndex: endGraphemeIndex },
-    }
-  }
-
+  const { data, itemSegments } = flow
   const { widths, segmentFlags, lineStartExtras, letterSpacing } = data
   const items = data.items!
   const segmentItems = flow.segmentItems!
@@ -1088,13 +1101,17 @@ export function layoutNextRichInlineLineRange(
 ): RichInlineLineRange | null {
   const flow = getInternalPreparedRichInline(prepared)
   const safeWidth = Math.max(1, maxWidth)
-  if (start.itemIndex === 0 && start.segmentIndex === 0 && start.graphemeIndex === 0 && fitsWhole(flow, safeWidth)) return createLine(flow, flow.wholeWidth!, flow.wholeStart, 0, flow.wholeEnd, 0)
+  if (start.itemIndex === 0 && start.segmentIndex === 0 && start.graphemeIndex === 0 && fitsWhole(flow, safeWidth)) {
+    return flow.onlyItem >= 0 ? createOnlyItemLine(flow, flow.wholeWidth!, flow.wholeStart, 0, flow.wholeEnd, 0) : createLine(flow, flow.wholeWidth!, flow.wholeStart, 0, flow.wholeEnd, 0)
+  }
   const lineEnd: LayoutCursor = { segmentIndex: getSegmentIndex(flow, start), graphemeIndex: start.graphemeIndex }
   if (!normalizePreparedLineStart(flow.data, lineEnd)) return null
   const startSegmentIndex = lineEnd.segmentIndex
   const startGraphemeIndex = lineEnd.graphemeIndex
   const width = stepPreparedLineGeometryFromStart(flow.data, lineEnd, safeWidth)
-  return width === null ? null : createLine(flow, width, startSegmentIndex, startGraphemeIndex, lineEnd.segmentIndex, lineEnd.graphemeIndex)
+  if (width === null) return null
+  return flow.onlyItem >= 0 ? createOnlyItemLine(flow, width, startSegmentIndex, startGraphemeIndex, lineEnd.segmentIndex, lineEnd.graphemeIndex)
+    : createLine(flow, width, startSegmentIndex, startGraphemeIndex, lineEnd.segmentIndex, lineEnd.graphemeIndex)
 }
 
 // Where units [from, to) of a paragraph's normalized text are in the text of the item that starts
@@ -1193,11 +1210,12 @@ export function walkRichInlineLineRanges(
   const flow = getInternalPreparedRichInline(prepared)
   const safeWidth = Math.max(1, normalizeMaxWidth(maxWidth))
   if (fitsWhole(flow, safeWidth)) {
-    onLine(createLine(flow, flow.wholeWidth!, flow.wholeStart, 0, flow.wholeEnd, 0))
+    onLine(flow.onlyItem >= 0 ? createOnlyItemLine(flow, flow.wholeWidth!, flow.wholeStart, 0, flow.wholeEnd, 0) : createLine(flow, flow.wholeWidth!, flow.wholeStart, 0, flow.wholeEnd, 0))
     return 1
   }
   return walkPreparedLinesRaw(flow.data, safeWidth, (width, startSegmentIndex, startGraphemeIndex, endSegmentIndex, endGraphemeIndex) => {
-    onLine(createLine(flow, width, startSegmentIndex, startGraphemeIndex, endSegmentIndex, endGraphemeIndex))
+    onLine(flow.onlyItem >= 0 ? createOnlyItemLine(flow, width, startSegmentIndex, startGraphemeIndex, endSegmentIndex, endGraphemeIndex)
+      : createLine(flow, width, startSegmentIndex, startGraphemeIndex, endSegmentIndex, endGraphemeIndex))
   })
 }
 

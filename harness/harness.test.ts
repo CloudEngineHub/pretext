@@ -1179,7 +1179,7 @@ describe('the library through the adapter', () => {
 
   test('walkRichInlineLineRanges giving line ends that stepping doesn\'t blocks: a rich list resuming from a walked line\'s end would skip to the paragraph\'s end', async () => {
     const c = spans(['A message ', 'long enough ', 'to wrap at a few widths'], 120)
-    const walk = await planted('rich-walk-end', 'rich-inline.ts', /onLine\((createLine\(flow, width, startSegmentIndex, startGraphemeIndex, endSegmentIndex, endGraphemeIndex\))\)/, 'onLine({ ...$1, end: { itemIndex: flow.itemSegments.length - 1, segmentIndex: 0, graphemeIndex: 0 } })')
+    const walk = await planted('rich-walk-end', 'rich-inline.ts', /: (createLine\(flow, width, startSegmentIndex, startGraphemeIndex, endSegmentIndex, endGraphemeIndex\))\)/, ': { ...$1, end: { itemIndex: flow.itemSegments.length - 1, segmentIndex: 0, graphemeIndex: 0 } })')
     expect(disagreement(walk.predict(c))).toStartWith('layoutNextRichInlineLineRange line 0 differs')
   })
 
