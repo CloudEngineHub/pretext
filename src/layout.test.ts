@@ -1572,6 +1572,63 @@ describe('boundary rules', () => {
     }
   })
 
+  test('the WebKit profile takes a lone carriage return out of normal white space, with the breaks its scan found around it', () => {
+    const profile = getEngineProfile()
+    const previous = profile.lineBreakScan
+    // The Blink profile's CR is a space.
+    expect(prepareWithSegments('ab\rcd', FONT).segments).toEqual(['ab', ' ', 'cd'])
+    profile.lineBreakScan = 'webkit'
+    try {
+      const segments = (text: string, options?: { whiteSpace?: 'pre-wrap', letterSpacing?: number }) => prepareWithSegments(text, FONT, options).segments
+      const lines = (text: string, width: number) => {
+        const prepared = prepareWithSegments(text, FONT)
+        const result = layoutWithLines(prepared, width, LINE_HEIGHT)
+        expect(collectStreamedLines(prepared, width)).toEqual(result.lines)
+        expect(layout(prepare(text, FONT), width, LINE_HEIGHT).lineCount).toBe(result.lineCount)
+        return result.lines.map(line => line.text)
+      }
+      // It takes no room, no letter spacing and no segment: the word lays out as without it.
+      for (const [text, without] of [['ab\rcd ef', 'abcd ef'], ['ab\r\rcd', 'abcd'], ['\rab\r', 'ab'], ['ab\r cd', 'ab cd'], ['ab \rcd', 'ab cd']] as const) {
+        expect(segments(text)).toEqual(segments(without))
+        for (const letterSpacing of [0, 2]) expect(prepareWithSegments(text, FONT, { letterSpacing }).widths).toEqual(prepareWithSegments(without, FONT, { letterSpacing }).widths)
+      }
+      expect(prepareWithSegments('ab\rcd', FONT).kinds).toEqual(['text'])
+      // The scan read the source, so a CR keeps the break before it from the letter after it:
+      // none after the hyphen, where the text without the CR has one.
+      expect(segments('ab-cd')).toEqual(['ab-', 'cd'])
+      expect(segments('ab-\rcd')).toEqual(['ab-cd'])
+      // Beside a character above U+00FF, ICU breaks after the CR, and the line can end there.
+      expect(segments('\u0431\u0432\u0433\u0434')).toEqual(['\u0431\u0432\u0433\u0434'])
+      for (const [text, halves] of [['\u0431\u0432\r\u0433\u0434', ['\u0431\u0432', '\u0433\u0434']], ['ab\r\u0433\u0434', ['ab', '\u0433\u0434']], ['\u0431\u0432\rcd', ['\u0431\u0432', 'cd']]] as const) {
+        expect(segments(text)).toEqual([...halves])
+        expect(lines(text, measureWidth(halves[0], FONT) + 0.5)).toEqual([...halves])
+      }
+      expect(segments('\u00E9t\u00E9\rcd')).toEqual(['\u00E9t\u00E9cd'])
+      // The break before a CR after white space goes to the unit after it, which has none of
+      // its own, so the line ends there (under letter spacing, the test of where a line ends).
+      expect(lines('ab \rcd', measureWidth('ab', FONT) + 0.5)).toEqual(['ab ', 'cd'])
+      expect(analyzeText('ab \rcd', profile).hasUnbroken).toBe(false)
+      // White space on its two sides is one space, where Safari keeps two.
+      expect(segments('ab \r cd')).toEqual(['ab', ' ', 'cd'])
+      // A text of only CRs and white space has no lines.
+      for (const text of ['\r', '\r\r', '\r\n', ' \r ', '\t\r\t', '\r\n\r\n', '\r \r', '\f\r']) {
+        expect({ text, ...layout(prepare(text, FONT), 200, LINE_HEIGHT) }).toEqual({ text, lineCount: 0, height: 0 })
+        expect(lines(text, 200)).toEqual([])
+      }
+      // The CR of a CRLF collapses into the line feed's space, as before.
+      expect(segments('ab\r\ncd')).toEqual(['ab', ' ', 'cd'])
+      expect(segments('ab\r\n\r\ncd ef\r\n')).toEqual(['ab', ' ', 'cd', ' ', 'ef'])
+      expect(segments('ab\r\r\ncd')).toEqual(['ab', ' ', 'cd'])
+      expect(segments('ab\rcd\r\nef gh')).toEqual(['abcd', ' ', 'ef', ' ', 'gh'])
+      expect(lines('ab\r\ncd', measureWidth('ab', FONT) + 0.5)).toEqual(['ab ', 'cd'])
+      // Pre-wrap keeps its hard break (README, Caveats).
+      expect(segments('ab\rcd', { whiteSpace: 'pre-wrap' })).toEqual(['ab', '\n', 'cd'])
+    } finally {
+      profile.lineBreakScan = previous
+      clearCache()
+    }
+  })
+
   test('each engine profile counts its own tab stops under letter spacing', () => {
     // At 20px the fake Canvas's widths are whole app units, as Firefox's are.
     const LARGE = '20px Test Sans'
