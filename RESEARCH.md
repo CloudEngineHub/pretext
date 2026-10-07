@@ -2162,7 +2162,7 @@ runs (Firefox 156.0.1, bench sessions of 2026-09-27 and 28, unless noted):
   only in text whose white space collapsed, which the collapse has tested already, since a CR always collapses, so text
   with single spaces between its words runs nothing new. Offline in Bun on a stand-in Canvas, 60 words with CRLF at
   every sixth prepare and lay out in main's time, and with a lone CR between two words there `prepare()` takes about
-  0.85 of main's time, `layout()` 0.7 and `walkLineRanges()` 0.2, since main's space that no line ends at took the text
+  0.9 of main's time, `layout()` 0.75 and `walkLineRanges()` 0.2, since main's space that no line ends at took the text
   off the simple walk (a hypothesis for Safari, 2026-10-06).
 - **Graphemes past dropped characters**: the Gecko profile's grapheme table tests only code points in the rules'
   Control category for what the text run drops; testing every code point made Firefox prepare CJK and Arabic 2-3%
@@ -2967,11 +2967,12 @@ repin` shows what), and a fact read in source needs reading again.
   profile's does since #399, with the breaks the scan found around it; an FF is still a collapsed space, and pre-wrap
   takes both as hard breaks (README). ENGINE_FOLLOWUPS.md, White space and controls, has what that leaves and the
   probes' counts; keeping the CR as zero-width glue was built and not taken (Dead Ends, Invisible Characters, Controls
-  And Soft Hyphens). (webkit-host, WebKit 22625.1.29.11.27, 2026-10-06; installed Safari 27.0 agreed with webkit-host on
-  the 8,387 layouts of two earlier probes of that day, in Arial, Times New Roman and Georgia, and wasn't run on the
-  fixed-pitch fonts, the web fonts or beside the other scripts. Reopens with a Canvas fact that tells which fonts take
-  the fixed-pitch shortcut or which glyph a font gives U+000D, or with normal white space that keeps two spaces that
-  touch.)
+  And Soft Hyphens). (webkit-host, WebKit 22625.1.29.11.27, 2026-10-06. Installed Safari 27.0 agreed with webkit-host on
+  the 8,387 layouts of two earlier probes of that day, in Arial, Times New Roman and Georgia, on all 2,820 widths of a
+  page of these facts in 30 font settings, the fixed-pitch and web fonts among them, and on the lines and widths of
+  1,623 layouts of a sample in Arial, Menlo and Courier New; the larger probes ran in webkit-host alone. Reopens with a
+  Canvas fact that tells which fonts take the fixed-pitch shortcut or which glyph a font gives U+000D, or with normal
+  white space that keeps two spaces that touch.)
 - **Emoji and the segmenter.** DOM emoji equal OffscreenCanvas's at the CSS size, bit for bit at 8-32px (a "size × DPR ÷
   DPR" recipe is up to 3.5 px off), and OffscreenCanvas gives a space before U+FE0F the emoji's width
   (ENGINE_FOLLOWUPS.md). Safari's `Intl.Segmenter` doesn't mark digit strings as words where Bun's does, so Bun is no
@@ -3359,19 +3360,19 @@ Mostly on main as it was then, measured with the old suite in installed browsers
   the text left the source, and an FF became a control segment measured as U+0001. It is Safari's model where #TBD's,
   which takes the CR out, is a premise with gaps: the build keeps a space on each side of a CR, as on a blank line of
   CRLF text, counts a space before a CR that a line ends after, and gives the CR a line of its own in a box narrower
-  than a letter. On the probe ENGINE_FOLLOWUPS.md describes, of texts without an FF in fonts that aren't fixed pitch to
-  WebKit, its lines are wrong on 197 of 44,880 layouts at 24px and wider where #TBD's are on 335 (among the differences,
-  123 fewer on CRLF text with a blank line or a space before a CRLF and 40 more on texts of only white space and CRs),
-  and on 200 of 2,388 under 24px against 809; of the pinned cases with a CR it passed 33 that main fails, 7 at 24px and
-  wider, where #TBD passes 8, the same 7. But glue has no break before it, so text with a CR between letters leaves the
-  simple line walk: offline in Bun, 60 words with a CR between two at every sixth take about three times main's
-  `layout()` time, a hypothesis for Safari, where #TBD's take about 0.7 of it; a text of only CRs and white space got a
-  line where Safari has none; and it took a second set of white-space expressions, a second meaning for
-  `'zero-width-glue'` that apps see in `kinds`, and a change to the harness's alignment of segments with their source.
-  In a fixed-pitch font it is wrong where main is right, as #TBD is. So #TBD takes the character out, as #399 does for
-  Firefox: one test and one loop, in text that holds a lone CR, no new segment, and the simple walk kept. It reopens
-  with a report where Safari's two spaces around a CR matter, as in CRLF text with blank lines, or with a segment kind
-  that takes no room and no break and stays on the simple walk.
+  than a letter. On the first probe ENGINE_FOLLOWUPS.md describes, of texts without an FF in fonts off WebKit's
+  fixed-pitch shortcut, its lines are wrong on 197 of 44,880 layouts at 24px and wider where #TBD's are on 335 (among
+  the differences, 123 fewer on CRLF text with a blank line or a space before a CRLF and 40 more on texts of only white
+  space and CRs), and on 200 of 2,388 under 24px against 809; of the pinned cases with a CR it passed 33 that main
+  fails, 7 at 24px and wider, where #TBD passes 8, the same 7. But glue has no break before it, so text with a CR
+  between letters leaves the simple line walk: offline in Bun, 60 words with a CR between two at every sixth take about
+  three times main's `layout()` time, a hypothesis for Safari, where #TBD's take about 0.75 of it; a text of only CRs
+  and white space got a line where Safari has none; and it took a second set of white-space expressions, a second
+  meaning for `'zero-width-glue'` that apps see in `kinds`, and a change to the harness's alignment of segments with
+  their source. In a font on the fixed-pitch shortcut it is wrong where main is right, as #TBD is. So #TBD takes the
+  character out, as #399 does for Firefox: one test and one loop, in text that holds a lone CR, no new segment, and the
+  simple walk kept. It reopens with a report where Safari's two spaces around a CR matter, as in CRLF text with blank
+  lines, or with a segment kind that takes no room and no break and stays on the simple walk.
 
 #### Arabic And Joined Scripts
 
