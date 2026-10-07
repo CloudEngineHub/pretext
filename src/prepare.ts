@@ -37,6 +37,7 @@ import {
   getSegmentFit,
   getSegmentMetrics,
   getSpaceKerning,
+  getSpaceWidth,
   getTextWidth,
   measureWithLetterSpacing,
   noSpaceKerning,
@@ -309,7 +310,7 @@ export function measureAnalysis(
   const hasLetterSpacing = letterSpacing !== 0
   const fontMeasurement = getFontMeasurement(font, language, hasLetterSpacing)
   const emojiCorrection = textMayContainEmoji(normalized) ? getEmojiCorrection(font, fontMeasurement) : 0
-  const spaceWidth = getTextWidth(' ', fontMeasurement, emojiCorrection)
+  const spaceWidth = getSpaceWidth(fontMeasurement)
   // The advance between tab stops: eight spaces, each with its letter spacing where the
   // engine counts it (EngineProfile's letterSpaceTabStops). Gecko rounds the space and the
   // letter spacing to app units, sixtieths of a pixel, each on its own

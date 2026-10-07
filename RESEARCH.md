@@ -1656,6 +1656,10 @@ removal says otherwise (2026-10-07).
   lists of an entry per item, and three more of an entry per segment in the 1,550 of the 2,432 styled chat paragraphs
   that hold a code span, whose font is another family and size (1,988 on the stand-in Canvas, where a bold face
   differs too).
+- **The font's space width.** A font's space, which the measurement of every text and of every rich item asks for,
+  and which an item of only white space is, is kept on the font's measurement from the first ask, beside its Map of
+  widths (`getSpaceWidth()`): one Map lookup less for every text and every rich item. It is the space half of the
+  font's two widths, which were taken out together (Dead Ends, Fitting, Cuts And Fast Paths).
 
 #### Joined Text
 

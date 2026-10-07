@@ -31,7 +31,7 @@ import {
   type ParagraphSegmentData,
   type PreparedLineData,
 } from './line-break.js'
-import { getEngineProfile, getFontMeasurement, getPreparationLanguage, getTextWidth, readLetterSpacing, zeros, type EngineProfile } from './measurement.js'
+import { getEngineProfile, getFontMeasurement, getPreparationLanguage, getSpaceWidth, readLetterSpacing, zeros, type EngineProfile } from './measurement.js'
 import { measureAnalysis } from './prepare.js'
 
 // Helper for rich-text inline flow under `white-space: normal` or `pre-wrap`: one paragraph's text
@@ -397,7 +397,7 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
       // An item of only collapsible white space, as between two styled words: its one space, as
       // measureAnalysis() measures one.
       if (letterSpacing !== 0) simple = false
-      widths.push(getTextWidth(' ', getFontMeasurement(item.font, language, letterSpacing !== 0), 0) + (spacingsDiffer ? letterSpacing : 0))
+      widths.push(getSpaceWidth(getFontMeasurement(item.font, language, letterSpacing !== 0)) + (spacingsDiffer ? letterSpacing : 0))
       flags.push(SPACE | (analysis.flags[from]! & (UNBROKEN | RETURNABLE)) | (letterSpacing !== 0 ? SPACED : 0))
       segments.push(' ')
       breakableFitAdvances.push(null)

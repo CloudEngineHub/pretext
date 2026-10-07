@@ -377,6 +377,7 @@ export type FontMeasurement = {
   emojiCorrection: number | null // Probed for the first text that may hold emoji
   emojiWidth: number // Canvas's width of one glyph of the emoji font, measured with the correction
   hyphenText: string | null // Asked for the first text with a soft hyphen (getHyphenText)
+  spaceWidth: number | null // The space's width, which every text asks for, kept from the first (getSpaceWidth)
   hanKerning: HanKerningFontData | null | undefined // Read for the first text that may kern
   ligaturePairs: Map<string, boolean> // Whether two neighbouring graphemes are a ligature, once asked (isLigature)
 }
@@ -690,6 +691,12 @@ export function getSpaceKerning(seg: string, metrics: SegmentMetrics, measuremen
   const before = first < last && hasProperty(seg.charCodeAt(first + 1), MARK) ? 0 : getCharacterSpaceKerning(seg.charCodeAt(first), true, measurement, kernings)
   const after = getCharacterSpaceKerning(seg.charCodeAt(last), false, measurement, kernings)
   return metrics.spaceKerning = after === 0 && before === 0 ? noSpaceKerning : { after, before }
+}
+
+// The font's space, which holds no emoji. Every text asks for it, so it is kept beside the font's
+// Map, which still answers the first one.
+export function getSpaceWidth(measurement: FontMeasurement): number {
+  return measurement.spaceWidth ??= getSegmentMetrics(' ', measurement).width
 }
 
 // A text's width in the font, less the emoji correction.
@@ -1048,7 +1055,7 @@ export function getFontMeasurement(font: string, language: string | null, letter
   let measurement = fonts.get(font)
   if (measurement === undefined) {
     const canvasFont = state.genericFamilies === null ? font : getCanvasFont(font, state.genericFamilies)
-    measurement = { state, canvasFont, letterSpacing: shaped ? LETTER_SPACED_SHAPING : '0px', metrics: new Map(), followingSpaceMetrics: new Map(), spaceKerning: undefined, emojiCorrection: null, emojiWidth: 0, hyphenText: null, hanKerning: undefined, ligaturePairs: new Map() }
+    measurement = { state, canvasFont, letterSpacing: shaped ? LETTER_SPACED_SHAPING : '0px', metrics: new Map(), followingSpaceMetrics: new Map(), spaceKerning: undefined, emojiCorrection: null, emojiWidth: 0, hyphenText: null, spaceWidth: null, hanKerning: undefined, ligaturePairs: new Map() }
     fonts.set(font, measurement)
   }
   // The first measurement after a lookup sets the font again, the same string too: Firefox's
