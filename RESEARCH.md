@@ -2538,31 +2538,88 @@ runs (Firefox 156.0.1, bench sessions of 2026-09-27 and 28, unless noted):
   tabs hang, read `layout()` 3.3-3.7% slower in Firefox and 7.1-8.6% in webkit-host for the same reason. JavaScriptCore
   reads the first of those tests dearer than its work: with the hanging kinds picked by one select its shell read
   pre-wrap chunks level, where it read them 6-9% slower, and V8's shell then read the soft hyphens 2 points slower and
-  SpiderMonkey's the pre-wrap walk 1.5, so the form stays (Part 1, Engineering, JIT tuning). In preparation, the Gecko
-  scan's white-space pass found for every unit where its item ends, which only a white-space run reads: Firefox's shell
-  prepared the bench's long breakable runs 3.3% slower than main, and 1.6% with that found where a run starts. A rule
-  written outside those tests showed the same way, in two engines in turn: the halt of a mark that ends an item (Rich
-  Inline As One Paragraph), on the bench's worst-case `layout()` rows in the background, three sessions a build, against
-  main (2026-10-06). As two tests after every segment a line lets in, of a trim that is nearly always 0, Firefox
-  156.0.1 read letter-spaced CJK text 11.3% slower, where the commit before the rule read 1.7%, and webkit-host read
-  it as before. Applied among the paragraph's tests by changing the segment's advance, which made that advance and
-  the width the line fits two variables in place of two constants, Firefox read 0.8%, and webkit-host read pre-wrap
-  chunks' `layout()` and walk 16.0% and 15.8% slower, where the commit before read 9.5% and 5.9%. With the segment let
+  SpiderMonkey's the pre-wrap walk 1.5, so the select was left out (Part 1, Engineering, JIT tuning; the form the
+  clause has since is at this entry's end). In preparation, the Gecko scan's white-space pass found for every unit
+  where its item ends, which only a white-space run reads: Firefox's shell prepared the bench's long breakable runs
+  3.3% slower than main, and 1.6% with that found where a run starts. A rule written outside those tests showed the
+  same way, in two engines in turn: the halt of a mark that ends an item (Rich Inline As One Paragraph), on the
+  bench's worst-case `layout()` rows in the background, three sessions a build, against main (2026-10-06). As two
+  tests after every segment a line lets in, of a trim that is nearly always 0, Firefox 156.0.1 read letter-spaced CJK
+  text 11.3% slower, where the commit before the rule read 1.7%, and webkit-host read it as before. Applied among the
+  paragraph's tests by changing the segment's advance, which made that advance and the width the line fits two
+  variables in place of two constants, Firefox read 0.8%, and webkit-host read pre-wrap chunks' `layout()` and walk
+  16.0% and 15.8% slower, where the commit before read 9.5% and 5.9%. With the segment let
   in inside the paragraph's test, its advance less the halt, and the two constants as they were, both read the commit
   before's figures: 3.9% against 2.9% in Firefox for letter-spaced CJK, 9.0% against 8.8% and 7.2% against 7.2% in
   webkit-host for pre-wrap chunks. The foreground bench called the first two forms' losses too: 9.2% in Firefox for
-  the first, and 14.8% and 13.2% in Safari for the second. The third form is the one the walker has. It writes the
-  admission of a text segment a second time, 11 of its 16 lines, the room for a hyphen among them, where the first form
-  is four lines after the admission, as a fresh line has them. The two give the same lines on every probe layout and
-  unit test, and the first form's cost is one JIT's: Firefox's row above, with pre-wrap chunks' `layout()` 3.2% against
-  1.0% in Firefox and their walk 3.2% against 0.9% in Chrome in the same foreground runs, one of three sessions for
-  each form. Part 1 (Engineering, JIT tuning) allows no rule written out twice for such a gain, so the third form
-  stays only if the maintainer rules so with the change (the PR's description has the two side by side); otherwise the
-  first form takes its place and its cost is the one to note here.
+  the first, and 14.8% and 13.2% in Safari for the second. The third form wrote the admission of a text segment a
+  second time, 11 of its 16 lines, the room for a hyphen among them, and Part 1 (Engineering, JIT tuning) allows no
+  rule written out twice for such a gain, so the walker has the rule once (2026-10-07): where a line with content adds
+  a segment's advance, a mark that ends its item and overflows without its halt is added at its halted width, in one
+  sum, with the paragraph's list tested first, so a text pays one test of a list it doesn't have for each segment a
+  line lets in. That is the third form's rule and its arithmetic. On a stand-in Canvas that halts a pair of fullwidth
+  marks by half an em, 0 of 100,000 random paragraphs whose items end in closing marks differ from it in a line, a
+  range or a width (a fuzz that isn't checked in), and 0 of 64,378 Chrome probe predictions do. In the foreground it
+  reads level with it (Chrome 154.0.8037.98, Firefox 156.0.1, Safari 27.0; the worst-case, `lines` and `resize` rows,
+  three sessions, 2026-10-07): no row called, and the rows the first form moved at +0.1%, +0.1% and +1.0% in Firefox
+  (`layout()` of letter-spaced CJK, pre-wrap chunks and the soft hyphens), +0.1% in Chrome (the pre-wrap walk) and
+  +0.6%, -0.7% and -1.1% in Safari (letter-spaced CJK, pre-wrap `layout()` and walk). The first form's four lines after
+  the admission read level too once the list is tested before the trim (+0.3%, -0.2% and -1.1%; +0.1%; +4.2% beside a
+  control at +5.3% and +5.8%, +0.4% and +1.1%), so what Firefox read 9.2% slower was the order of its two tests. A
+  third arrangement, with the fit tested before the list where the line adds the advance, cost by that order too:
+  Chrome's count of CJK lines read 2.6% slower, called, and Firefox's letter-spaced CJK 3.2%, in every session. The
+  four lines aren't the walker's for what they compute. As a fresh line has them they ask whether the segment set a
+  trim, which a mark with no fit advance never does, as under a letter spacing of minus its width, where the third
+  form halted such a mark on a line that overflowed by less than the halt: 4 of 30,000 of the fuzz's paragraphs laid
+  out otherwise. And a halt subtracted after the advance is added differs from the one sum in a width's last bits, in
+  about 75 of 10,000.
   In the foreground, on main at #453 (Chrome 154.0.8037.98, Firefox 156.0.1, Safari 27.0, three sessions, 2026-10-06):
   the soft hyphens' `layout()` read 2.1%, 4.8% and 0.9% slower, Firefox's called; pre-wrap chunks' `layout()` and walk
   7.5% and 7.7% slower in Safari, called, and under 2.5% in the other two; and letter-spaced CJK `layout()`, the same
   walker, 7.3% slower in Safari, called, 3.0% in Firefox, not called, and 3.2% faster in Chrome, called.
+  Which of those tests cost the rows was then found by removal, one group of sites at a time, from a walker that only
+  has to be right for a text (2026-10-07; d8 15.4.80, the SpiderMonkey shell and Safari 27.0's jsc on a stand-in
+  Canvas, the bench's own bundles and rounds with base, candidate and a control copy in one realm, 5 to 12 processes a
+  cell, which read this walker against main's as the foreground does: jsc 7.9%, 9.0% and 7.1% slower on letter-spaced
+  CJK and on pre-wrap chunks' `layout()` and walk, SpiderMonkey 4.3% on the soft hyphens, V8 level or faster). Main's
+  walker in this build's `src/` gives all of it back, and so does this walker with every paragraph statement out, so
+  the gap is the walker's and not the handles'. In the foreground that last walker reads against this one (three
+  sessions, the worst-case rows): Safari's pre-wrap chunks 7.1% and 5.8% faster, letter-spaced CJK 4.3% and the
+  control characters 5.6%, all called; Firefox's pre-wrap chunks 4.0% and 4.1%, called, letter-spaced CJK 3.9% and the
+  soft hyphens 2.6%; Chrome's pre-wrap `layout()` 3.6%, called, and the soft hyphens 4.9%, with its pre-wrap walk
+  2.1% slower in every session. One group shows alone, the second clause of `hangs`: 4.1% and 2.8% of jsc's pre-wrap
+  rows. Each of the others reads within 2% in jsc and SpiderMonkey: the paragraph's test before the
+  overflow decision, the hang past an object of width 0, the tests of a run of hanging spaces, a fresh line's, a soft
+  hyphen's, those under letter spacing and those where a segment overflows; SpiderMonkey's soft hyphens follow none
+  of them, only all together (2.9%). Six restructurings that take those sites off a text's path and keep a
+  paragraph's lines (the paragraph's lists read behind one test, the object's hang inside the paragraph's test, a
+  run's tests under one, a fresh line's two under tests it already makes, the last gap's list handed in by the
+  walker) read level one by one and together, and one step of them read jsc's soft hyphens 3.4% slower, so none was
+  taken: 18 lines for nothing measured. What the `hangs` clause costs is not its tests but their form. As two
+  statements, `let hangs` from the hanging kinds and then the same three tests in the same order in an `if`, which
+  asks a segment that hangs one test more than the `||` did, the foreground reads the full walker faster (Chrome
+  154.0.8037.98, Firefox 156.0.1, Safari 27.0; two runs of three sessions, against the walker with the `||` and
+  against the walker before both of this entry's changes, 2026-10-07). Pre-wrap chunks' walk: 3.9% and 3.6% in
+  Chrome, 3.3% and 5.7% in Safari, called in all four, and 0.9% and 0.2% in Firefox; their `layout()` 3.7% and 5.0%
+  in Safari, the second called, 1.8% and 1.6% in Firefox, and 2.5% faster then 0.5% slower in Chrome. Letter-spaced
+  CJK `layout()`: 2.1% and 2.4% in Chrome, in every session, 2.9% and 4.4% in Safari, 4.3% and 0.9% in Firefox. No
+  worst-case row was called slower. The second run called Safari's `lines: latin walk` 2.0% slower, a row of the
+  simple stepper, which neither change touches and jsc's shell reads level. A third run, of the same code one
+  top-level binding apart, read that row level and called no row, so it moved with the bundle; and it read the two
+  statements' rows faster by less in Chrome and Safari: pre-wrap chunks' `layout()` and walk 1.5% and 1.6% in Chrome,
+  2.5% and 1.3% in Firefox, 1.5% and 0.6% in Safari, in every session, where jsc's shell reads the two builds alike
+  (pre-wrap chunks' `layout()` 4.0% and 5.4% faster than with the `||`, their walk 2.6% in both). So what the two
+  statements give in a browser is between 1% and 5%, part of it the bundle's. The shells had shown the gain in jsc
+  alone (4.1%, 5.3% and 2.9% on the three rows, SpiderMonkey and V8 level), and two other spellings as trades: with
+  the kind tested first SpiderMonkey's shell read 1.4-2.9% slower, and folded into the line-start prefix's test of
+  the kind V8's read letter-spaced CJK 2.0% slower. So the walker has the two statements, three lines more with their
+  comment. Against main at #455 the walker with both changes reads (three sessions, 2026-10-07): in Safari
+  letter-spaced CJK `layout()` 3.7% slower, called, and pre-wrap chunks' `layout()` and walk 2.0% and 3.2%, where
+  the build before them read 7.3%, 7.5% and 7.7% against main at #453; in Firefox the soft hyphens 3.5%, called,
+  where it read 4.8%; in Chrome letter-spaced CJK 5.4% faster, called, and pre-wrap chunks 2.9% and 3.2% slower, in
+  every session and not called. No row of new text, of text prepared again or of rich text was called against the
+  walker before both changes. In that bundle it is about half of Safari's gap; the rest goes only with everything a
+  paragraph adds.
 - **A paragraph's segment breaks, in the Gecko profile**: Gecko transforms segment breaks in each text frame's own text,
   so a paragraph with a line feed had every item cut out of the joined text, transformed and joined again: 8,508 of the
   bench's 14,834 rich items, 199 of which hold a line feed. Cutting out only those, and copying the text between two
