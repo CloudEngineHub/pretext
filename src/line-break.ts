@@ -790,26 +790,6 @@ function walkPreparedComplexLines(
               // negative than it is wide, doesn't bring a line that overflows back.
               const narrowsOverflow = fitAdvance < 0 && lineW - lineEndTrimmed > fitLimit
               overflows = (overflows || narrowsOverflow) && !(hangs && hangStays) && !placesEmptyObject
-              // A closing mark that ends its item and fits the line only halted stays halted where
-              // the line goes on: the line takes it here at its halted width, as it takes text
-              // below, with the break the scan gives before it, and what follows fits after that
-              // (ParagraphSegmentData, itemEndHalts).
-              if (itemEndHalts !== null && itemEndHalts[i]! !== 0 && !overflows && newFitW > fitLimit) {
-                if ((flags & RETURNABLE) !== 0 && pendingBreakSegmentIndex !== i) {
-                  pendingBreakSegmentIndex = i
-                  pendingBreakWidth = lineW
-                }
-                if (retreatsFromUnfitHyphen && (flags & UNBROKEN) === 0 && i > lineStartSegmentIndex && !breaksAfterKind(segmentFlags[i - 1]! & KIND_BITS) &&
-                  (!reservesHyphenWidth || lineW + (hyphenRooms === null ? discretionaryHyphenWidth : hyphenRooms[i]!) <= fitLimit)) {
-                  fitBreakSegmentIndex = i
-                  fitBreakPaintWidth = lineW
-                }
-                lineW += advance - endTrim
-                lineEndSegmentIndex = i + 1
-                lineEndGraphemeIndex = 0
-                lineEndTrimmed = 0
-                continue
-              }
             }
             if (overflows) {
               // A break segment hangs with the gap before it, after the content before
@@ -958,16 +938,24 @@ function walkPreparedComplexLines(
                 fitBreakSegmentIndex = i
                 fitBreakPaintWidth = lineW
               }
-              lineW += advance
               lineEndSegmentIndex = i + 1
               lineEndGraphemeIndex = 0
-              if (hangGoesOnPastEmpty && hangEndSegmentIndex === i && kind === OBJECT && w === 0) {
-                hangEndSegmentIndex = i + 1
-                hangStartWidth = Math.max(hangStartWidth, Math.min(lineW, availableWidth))
+              if (itemEndHalts !== null && newFitW > fitLimit && itemEndHalts[i]! !== 0) {
+                // A closing mark that ends its item and fits the line only halted stays halted where
+                // the line goes on: the line takes it at its halted width, and what follows fits
+                // after that (ParagraphSegmentData, itemEndHalts).
+                lineW += advance - endTrim
+                lineEndTrimmed = 0
+              } else {
+                lineW += advance
+                if (hangGoesOnPastEmpty && hangEndSegmentIndex === i && kind === OBJECT && w === 0) {
+                  hangEndSegmentIndex = i + 1
+                  hangStartWidth = Math.max(hangStartWidth, Math.min(lineW, availableWidth))
+                }
+                // A segment that takes no room at the line end, as a space, leaves the glyph
+                // before it last on the line, with its trim.
+                if (fitAdvance !== 0 && !hangs) lineEndTrimmed = newFitW > fitLimit && kind !== OBJECT ? endTrim : 0
               }
-              // A segment that takes no room at the line end, as a space, leaves the glyph
-              // before it last on the line, with its trim.
-              if (fitAdvance !== 0 && !hangs) lineEndTrimmed = newFitW > fitLimit && kind !== OBJECT ? endTrim : 0
               if (breakAfter && (i + 1 === segmentCount || (segmentFlags[i + 1]! & UNBROKEN) === 0)) {
                 pendingBreakSegmentIndex = i + 1
                 pendingBreakWidth = hangs ? hangStartWidth : kind === TAB ? lineW : lineW - advance - lineEndTrimmed

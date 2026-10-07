@@ -257,6 +257,10 @@ harness/invariants.test.ts`) and the bench's floors.
   either, and it failed in 1 of the 600 drawn before the cut-word cases joined the sets and in none of those drawn
   since; the Blink and Gecko profiles measure letter-spaced text apart, so no word there is fit two ways. A planted miss
   of a line-start width in `layout()`'s count fails the Blink profile's agreement check in 3 draws of 600.
+- The stand-in halts a closing fullwidth mark by a few tenths of a pixel, so almost no line there fits only by a halt:
+  with the halt that a mark at a rich item's end keeps on a line with content (`itemEndHalts`) taken out of the walker,
+  0 of 21,251 inputs differed in every profile (2026-10-07). A change to that rule rests on the unit tests and on
+  predictions in Chrome.
 - Canvas-call counts before #355 aren't comparable with later ones: the harness's adapter (`run.ts`) stopped calling
   `setLocale()` per case, cutting its calls 20-25% with no prediction change (2026-09-26).
 

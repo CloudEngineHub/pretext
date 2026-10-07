@@ -2455,14 +2455,25 @@ runs (Firefox 156.0.1, bench sessions of 2026-09-27 and 28, unless noted):
   in inside the paragraph's test, its advance less the halt, and the two constants as they were, both read the commit
   before's figures: 3.9% against 2.9% in Firefox for letter-spaced CJK, 9.0% against 8.8% and 7.2% against 7.2% in
   webkit-host for pre-wrap chunks. The foreground bench called the first two forms' losses too: 9.2% in Firefox for
-  the first, and 14.8% and 13.2% in Safari for the second. The third form is the one the walker has. It writes the
-  admission of a text segment a second time, 11 of its 16 lines, the room for a hyphen among them, where the first form
-  is four lines after the admission, as a fresh line has them. The two give the same lines on every probe layout and
-  unit test, and the first form's cost is one JIT's: Firefox's row above, with pre-wrap chunks' `layout()` 3.2% against
-  1.0% in Firefox and their walk 3.2% against 0.9% in Chrome in the same foreground runs, one of three sessions for
-  each form. Part 1 (Engineering, JIT tuning) allows no rule written out twice for such a gain, so the third form
-  stays only if the maintainer rules so with the change (the PR's description has the two side by side); otherwise the
-  first form takes its place and its cost is the one to note here.
+  the first, and 14.8% and 13.2% in Safari for the second. The third form wrote the admission of a text segment a
+  second time, 11 of its 16 lines, the room for a hyphen among them, and Part 1 (Engineering, JIT tuning) allows no
+  rule written out twice for such a gain, so the walker has the rule once (2026-10-07): where a line with content adds
+  a segment's advance, a mark that ends its item and overflows without its halt is added at its halted width, in one
+  sum, with the paragraph's list tested first, so a text pays one test of a list it doesn't have for each segment a
+  line lets in. That is the third form's rule and its arithmetic. On a stand-in Canvas that halts a pair of fullwidth
+  marks by half an em, 0 of 100,000 random paragraphs whose items end in closing marks differ from it in a line, a
+  range or a width (a fuzz that isn't checked in), and 0 of 64,378 Chrome probe predictions do. In the foreground it
+  reads level with it (Chrome 154.0.8037.98, Firefox 156.0.1, Safari 27.0; the worst-case, `lines` and `resize` rows,
+  three sessions, 2026-10-07): no row called, and the rows the first form moved at +0.1%, +0.1% and +1.0% in Firefox
+  (`layout()` of letter-spaced CJK, pre-wrap chunks and the soft hyphens), +0.1% in Chrome (the pre-wrap walk) and
+  +0.6%, -0.7% and -1.1% in Safari (letter-spaced CJK, pre-wrap `layout()` and walk). The first form's four lines after
+  the admission read level too once the list is tested before the trim (+0.3%, -0.2% and -1.1%; +0.1%; +4.2% beside a
+  control at +5.3% and +5.8%, +0.4% and +1.1%), so what Firefox read 9.2% slower was the order of its two tests. The
+  four lines aren't the walker's for what they compute. As a fresh line has them they ask whether the segment set a
+  trim, which a mark with no fit advance never does, as under a letter spacing of minus its width, where the third
+  form halted such a mark on a line that overflowed by less than the halt: 4 of 30,000 of the fuzz's paragraphs laid
+  out otherwise. And a halt subtracted after the advance is added differs from the one sum in a width's last bits, in
+  about 75 of 10,000.
   In the foreground, on main at #453 (Chrome 154.0.8037.98, Firefox 156.0.1, Safari 27.0, three sessions, 2026-10-06):
   the soft hyphens' `layout()` read 2.1%, 4.8% and 0.9% slower, Firefox's called; pre-wrap chunks' `layout()` and walk
   7.5% and 7.7% slower in Safari, called, and under 2.5% in the other two; and letter-spaced CJK `layout()`, the same
