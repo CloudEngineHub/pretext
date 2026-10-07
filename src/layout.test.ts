@@ -6394,6 +6394,19 @@ describe('layout invariants', () => {
         const flat = layoutWithLines(prepareWithSegments(first + second, font), width, LINE_HEIGHT).lines.map(line => `${line.text.replace(/ $/, '')}:${Math.round(line.width * 100) / 100}`)
         expect({ first, second, width, lines: flat }).toEqual({ first, second, width, lines: expected })
       }
+      // Before a period, which gives no break either, the mark halts only on a line broken
+      // between graphemes too, and there the mark that ends its item stays halted and the line
+      // goes on: `中」` halted and the period take 30.4px. So does a mark alone in its item
+      // after text with no break on its line.
+      expect(richLines([{ text: '中中」' }, { text: '.中' }], 30)).toEqual(['中:16', '中」:24', '.中:22.4'])
+      expect(richLines([{ text: '中中」' }, { text: '.中' }], 31)).toEqual(['中:16', '中」.:30.4', '中:16'])
+      expect(richLines([{ text: '中中」' }, { text: '.中' }], 32)).toEqual(['中:16', '中」:32', '.中:22.4'])
+      expect(richLines([{ text: 'ab' }, { text: '」' }, { text: '.x' }], 33)).toEqual(['ab」:27.2', '.x:16'])
+      expect(richLines([{ text: 'ab' }, { text: '」' }, { text: '.x' }], 34)).toEqual(['ab」.:33.6', 'x:9.6'])
+      expect(layoutNextRichInlineLineRange(prepareRichInline([{ text: 'ab', font }, { text: '」', font }, { text: '.x', font }]), 34)!.fragments.map(fragment => Math.round(fragment.occupiedWidth * 100) / 100)).toEqual([19.2, 8, 6.4])
+      // Not after an item with extraWidth: where its text fits before its end edge, as with 1px
+      // on each side at 33px, Blink leaves the mark whole and the period wraps.
+      expect(richLines([{ text: '中中」', extraWidth: 2 }, { text: '.中' }], 33).map(line => line.slice(0, line.indexOf(':')))).toEqual(['中', '中」', '.中'])
       // A run of U+3000 that ends an item hangs whatever the next item starts with, where a
       // text's run hangs only before a break its scan gives (ENGINE_FOLLOWUPS.md, Line edges).
       for (const second of ['\u200B中', '」中', { width: 0 }]) {

@@ -542,17 +542,34 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
         // line_breaker.cc:1736-1758): in 16px Hiragino Sans, Chrome 154 lays out `文字」` and a span
         // `i` as one 43.81px line at 44-47px. A run of U+3000 that ends the item has a line-end
         // trim too, its hang, which is no halt. An item with extraWidth keeps the halt at a line's
-        // end only: Blink fits its text before its end edge, which the extraWidth doesn't split
-        // off, so Chrome leaves the mark of a span `文字」` with 4px of padding on each side whole at
-        // 52-55px, where the text fits with its start edge, and wraps the `i` after it. The
-        // walkers that take every boundary for a break end the line after a trimmed segment, so
-        // the paragraph isn't theirs.
+        // end only. Blink fits its text before its end edge: where the text fits there the mark
+        // stays whole though the edge overflows, so Chrome leaves the mark of a span `文字」` with
+        // 4px of padding on each side whole at 52-55px and wraps the `i` after it, and where it
+        // doesn't the mark is halted and the line goes on, as at 51.81-51.94px, where the `i`
+        // fits after it. The extraWidth doesn't split the end edge off, so the line can't tell
+        // the two and takes the first for both. Its gap is what follows such a mark and is
+        // narrower than the halt less that edge, which wraps where Chrome keeps it
+        // (ENGINE_FOLLOWUPS.md, Rich-inline item edges). The walkers that take every boundary for
+        // a break end the line after a trimmed segment, so the paragraph isn't theirs.
         if (endTrim !== 0 && i === to - 1 && to < count && extraWidth === 0 && !analysis.texts[i]!.endsWith('\u3000')) {
           itemEndHalts = setAt(itemEndHalts, at, endTrim, 0)
           simple = false
         }
       }
-      if (sub.overflowLineEndTrims !== null) overflowLineEndTrims = setAt(overflowLineEndTrims, at, sub.overflowLineEndTrims[s]!, 0)
+      if (sub.overflowLineEndTrims !== null) {
+        const retryTrim = sub.overflowLineEndTrims[s]!
+        overflowLineEndTrims = setAt(overflowLineEndTrims, at, retryTrim, 0)
+        // Where no break comes after the mark, as before a period or a no-break space that starts
+        // the next item, Blink halts it only on a line it lays out again with a break after every
+        // grapheme (HandleOverflow, line_breaker.cc:4259-4264), and there too the halted text is the
+        // item's result and the line goes on: Chrome 154 lays out `文字」`, a span `.` and `字` as
+        // `文` / `字」.` / `字` at 28.5-31.75px, where their text in one node ends the second line
+        // after the mark.
+        if (retryTrim !== 0 && i === to - 1 && to < count && extraWidth === 0) {
+          itemEndHalts = setAt(itemEndHalts, at, retryTrim, 0)
+          simple = false
+        }
+      }
       if (sub.discretionaryHyphenContexts !== null) discretionaryHyphenContexts = setAt(discretionaryHyphenContexts ?? [], at, sub.discretionaryHyphenContexts[s]!, 0)
       if (i >= first && first < to) insideExtras = setAt(insideExtras, at, extraWidth, 0)
       if (i > first && first < to) fillExtras = setAt(fillExtras, at, extraWidth, 0)
@@ -957,7 +974,11 @@ function createLine(
       w = i === startSegmentIndex ? firstPartWidth : lastPartWidth
     }
     // A mark that ends its item was halted where the line went on after it: the line is then
-    // narrower than its segments up to the mark (ParagraphSegmentData, itemEndHalts).
+    // narrower than its segments up to the mark (ParagraphSegmentData, itemEndHalts), since what
+    // follows a halted mark fits in less than the halt. Premise: what follows a mark on its line
+    // takes no less than no room. Its gap is an item after the mark whose letter spacing is more
+    // negative than its letters are wide, where a mark that wasn't halted gives its halt to the
+    // line's last fragment; the line's width and breaks are the walker's either way.
     if (itemEndHalts !== null && itemEndHalts[i]! !== 0 && lineW + gap + w - width > 1e-6) w -= itemEndHalts[i]!
     if (gapSegments[i]! !== 0) {
       gap = w

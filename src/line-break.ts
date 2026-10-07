@@ -78,8 +78,9 @@ export type PreparedLineData = PreparedLineBreakData & { items?: ParagraphSegmen
 //   hyphen under a profile that leaves such room (getHyphenRooms in src/rich-inline.ts), with one
 //   more entry for the break at the paragraph's end;
 // - `itemEndHalts`: the line-end trim of a segment that ends its item with a closing mark Blink
-//   halts at a line's end, which the mark keeps where the line goes on after it (prepareRichInline()
-//   in src/rich-inline.ts);
+//   halts at a line's end, or the trim its retry between graphemes gives one (overflowLineEndTrims),
+//   which the mark keeps where the line goes on after it (prepareRichInline() in
+//   src/rich-inline.ts);
 // - `insideExtras`, `fillExtras`: the item's extraWidth where a line that starts inside the
 //   segment pays it, or starts at it and fills it grapheme by grapheme, as a line that starts
 //   with the whole segment pays lineStartExtras;
@@ -876,12 +877,17 @@ function walkPreparedComplexLines(
                 returnsFromHyphen = true
                 break decided
               }
-              // Blink's retry halts the segment where that lets it fit, and the line ends after it.
+              // Blink's retry halts the segment where that lets it fit, and the line ends after it,
+              // but where the segment ends its item, whose mark stays halted while the line goes on.
               if (overflowLineEndTrims !== null && newFitW - overflowLineEndTrims[i]! <= fitLimit) {
                 lineW += advance
                 lineEndSegmentIndex = i + 1
                 lineEndGraphemeIndex = 0
                 lineEndTrimmed = overflowLineEndTrims[i]!
+                if (itemEndHalts !== null && itemEndHalts[i]! !== 0) {
+                  lineW -= lineEndTrimmed
+                  lineEndTrimmed = 0
+                }
                 continue
               }
               // Where the line of such an edge has no break to return to, the line ends before
