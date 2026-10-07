@@ -1636,6 +1636,17 @@ paragraph are tests on a text's path (Work Done Only Where A Rule Applies), and 
 their work (JavaScript Engines: how a width is stored, a flag parameter; Dead Ends, Fitting, Cuts And Fast Paths, the
 font's two widths).
 
+Preparation then lost work that changes no result. With each removal below, 200,000 random paragraphs, the bench's
+stress paragraphs and its styled chat paragraphs give the same lines, stats, ranges, materialized lines, streams and
+`measureText` calls in the Blink, WebKit and Gecko profiles on the stand-in Canvas, and the same handle unless the
+removal says otherwise (2026-10-07).
+- **An item's own string.** An item that is one segment holding all of its text, as a styled word between two spaces,
+  is measured by the item's own string in place of the equal slice of the paragraph's text: a font's widths are kept by
+  text, and the string the caller holds keeps the hash an engine gave it when the item was first prepared, where the
+  slice is a new string to make and hash at every preparation. That is 5,750 of the 5,855 text items the bench's stress
+  document measures and 2,453 of the 8,390 its styled chat paragraphs do; an item of several words is still measured by
+  slices.
+
 #### Joined Text
 
 Chrome's and Firefox's items break by the joined text, a font change ending only Gecko's shaped run (Firefox 155 wrapped

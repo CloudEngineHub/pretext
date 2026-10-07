@@ -404,6 +404,10 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
       from = to
       continue
     }
+    // An item that is one segment holding all of its text, as a styled word, is measured by the
+    // item's own string, not the equal slice of the paragraph's text: a font's widths are kept by
+    // text, and the caller's string keeps its hash, where a slice is made and hashed each time.
+    if (to === from + 1 && analysis.texts[from] === item.text) analysis.texts[from] = item.text
     const sub = measureAnalysis(sliceAnalysis(analysis, from, to), item.font, false, letterSpacing, profile, language, true, analysis, from)
     simple &&= sub.simpleLineCountFastPath
     // The gap before the hyphen is the letter spacing after the grapheme before it.
