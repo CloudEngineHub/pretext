@@ -2158,6 +2158,12 @@ runs (Firefox 156.0.1, bench sessions of 2026-09-27 and 28, unless noted):
   1.1. The scan doesn't mark the CR of a CRLF: collapsing adjacent white space already joins it to the line feed's
   space, and marking it, which builds the source again for every text with CRLF line ends, read 1.2 to 1.3 for the same
   lines (0 of 700,000 random strings differ between the two).
+- **Safari's lone CR** (#TBD; Engine Facts, Safari (WebKit), CR and FF): the WebKit profile's analysis looks for one
+  only in text whose white space collapsed, which the collapse has tested already, since a CR always collapses, so text
+  with single spaces between its words runs nothing new. Offline in Bun on a stand-in Canvas, 60 words with CRLF at
+  every sixth prepare and lay out in main's time, and with a lone CR between two words there `prepare()` takes about
+  0.85 of main's time, `layout()` 0.7 and `walkLineRanges()` 0.2, since main's space that no line ends at took the text
+  off the simple walk (a hypothesis for Safari, 2026-10-06).
 - **Graphemes past dropped characters**: the Gecko profile's grapheme table tests only code points in the rules'
   Control category for what the text run drops; testing every code point made Firefox prepare CJK and Arabic 2-3%
   slower (#368).
@@ -2472,6 +2478,14 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   again. Offline, the SpiderMonkey shell read the Latin cost as that loop's slower state, picked now by the code and
   not by the names, so numbers end the luck of the names and not the state. The names stay something to know when
   reading a bench table, not something to code around.
+- **What a bundle declares, in Safari**: Safari 27.0 read `resize: latin layout at widths seen before` 9-15% slower in
+  six of six sessions, three of them of the resize rows alone, for a build of #TBD whose `layout()` code and prepared
+  handles are main's: the change is in `analyzeText()`, which the row never runs, and the bench's Latin messages hold no
+  CR. The same code with one more top-level binding, a counter nothing reads, read the row +4.6%, +1.9% and -4.5%, and
+  with its two regular expressions written at their uses in place of two top-level constants, the form that landed,
+  +4.3%, -7.5% and +7.1%, each within noise beside a control 0.6-8.6% from base. So that row moves in Safari with what a
+  bundle declares, as Firefox's does with its names; why wasn't traced in JavaScriptCore. (Three sessions a build
+  against main at #453, foreground, 2026-10-06.)
 - **`%` on numbers that aren't whole** is a call: V8 works a remainder out inline only for two positive whole numbers
   and otherwise calls the C library's `fmod` (`MacroAssembler::Float64Mod`, `macro-assembler-arm64.cc:3028-3081`, V8
   15.3). A tab's advance took one, and it was what a tab's arithmetic cost. With the remainder from a division and a
@@ -2915,6 +2929,38 @@ repin` shows what), and a fact read in source needs reading again.
   (`FontCascadeInlines.h:76-93`, read 2026-09-27), as the profile does; recorded tab-only lines are eight spaces plus
   one letter-spacing gap (harness recordings at commit b1fd05fc, webkit-host). CSS Text's minimum, as in Gecko, is half
   a `0`. Stops use the font of the tab's inline box (WebKit #230339, open since 2021; Safari 26.5.2, 2026-09-12).
+- **CR and FF.** Neither is white space to WebKit, whose white space is space, tab and a line feed that isn't preserved
+  (`moveToNextNonWhitespacePosition`, `InlineItemsBuilder.cpp:55-73`), so one ends a white-space run and stays in its
+  text item, in pre-wrap too, where neither forces a break. A CR takes the ZWSP's glyph and so no advance
+  (`Font.cpp:362`; `applyCSSVisibilityRules`, `WidthIterator.cpp:792-800`; the complex path at
+  `ComplexTextController.cpp:762-768`) and no letter spacing, which goes only to a character that advances
+  (`WidthIterator.cpp:508-516`); an FF is drawn as `.notdef` at its advance, set after the letter spacing
+  (`WidthIterator.cpp:813-822`). In 16px Arial `ab`, CR, `cd ef` is 52.48px wide, as `abcd ef`, and 64.48px with an FF,
+  `.notdef` being 12px; `see`, CR, `this` at 1px letter spacing is 57.70px, seven gaps. White space on both sides of a
+  CR stays two spaces, a line feed among it: `ab`, space, CR, space, `cd ef` is 61.38px, and `ab`, CRLF, CRLF, `cd`
+  43.59px where `ab`, LF, LF, `cd` is 39.14px. The letters on its two sides kern with it as with a space (`A`, CR, `A`
+  19.58px, `AA` 21.34px), and in Arabic it ends joining. No break comes beside a CR where the characters on its two
+  sides are up to U+00FF, as none comes beside any control there (`BreakablePositions.h:179-187`); where either is above
+  U+00FF, ICU decides and breaks after the CR (`:238-251`), so a line can end after one between Cyrillic, Greek, Arabic,
+  Hebrew, Thai, Devanagari, Hangul, kana or Han characters, or between one of them and an ASCII letter, and not in
+  `été`, CR, `cd`. A text node of only space, tab, LF, CR and FF has no renderer, so no lines
+  (`RenderTreeUpdater::textRendererIsNeeded`, `RenderTreeUpdater.cpp:536-594`). In a font Core Text calls fixed pitch,
+  but for Courier New and fonts the user installed (`Font::determinePitch`, `FontCoreText.cpp:753-785`), a text box on
+  simplified measuring is as wide as its characters are many (`widthForSimpleTextWithFixedPitch`,
+  `FontCascade.cpp:414-421`; `TextUtil.cpp:80-86`), and a CR or LF doesn't take a box off it
+  (`characterCanUseSimplifiedTextMeasuring`, `WidthIterator.cpp:694-742`), so there a CR is one space wide, the CR of a
+  CRLF too: in 16px Menlo `ab`, CR, `cd` is 48.17px and `abcd` 38.53px, as by a space in Monaco and Courier and at 13
+  and 20px, and `ab`, CRLF, `cd` 57.80px where `ab`, LF, `cd` is 48.17px. Letter spacing takes the box off simplified
+  measuring (`TextUtil.cpp:716-745`), as does a ZWSP, an NBSP, another control or a character of another font anywhere
+  in the text, and the CR then takes nothing. Every Canvas measures CR and FF as a space and U+0001 as `.notdef`. Since
+  #TBD the WebKit profile's analysis takes a lone CR out of the text, as the Gecko profile's does since #399, with the
+  breaks the scan found around it; an FF is still a collapsed space, and pre-wrap takes both as hard breaks (README).
+  ENGINE_FOLLOWUPS.md, White space and controls, has what that leaves and the probe's counts; keeping the CR as
+  zero-width glue was built and not taken (Dead Ends, Invisible Characters, Controls And Soft Hyphens). (webkit-host,
+  WebKit 22625.1.29.11.27, 2026-10-06; installed Safari 27.0 agreed with webkit-host on the 8,387 layouts of two earlier
+  probes of that day, in Arial, Times New Roman and Georgia, and wasn't run on the fixed-pitch fonts or beside the other
+  scripts. Reopens with a Canvas fact that tells Core Text's fixed-pitch trait, or with normal white space that keeps
+  two spaces that touch.)
 - **Emoji and the segmenter.** DOM emoji equal OffscreenCanvas's at the CSS size, bit for bit at 8-32px (a "size × DPR ÷
   DPR" recipe is up to 3.5 px off), and OffscreenCanvas gives a space before U+FE0F the emoji's width
   (ENGINE_FOLLOWUPS.md). Safari's `Intl.Segmenter` doesn't mark digit strings as words where Bun's does, so Bun is no
@@ -3226,7 +3272,8 @@ Mostly on main as it was then, measured with the old suite in installed browsers
 - **Lone CR, FF and VT per engine in pre-wrap** (2026-09-11): two prototypes lost 150-228 results each, as did deleting
   CR or making it a zero-width break; CR reaches every layer, so apps normalize line endings (README). Reopens with a
   model traced from the engines' line builders. In normal white space, where no engine breaks a line at one, the Gecko
-  profile takes CR and FF out since #399 (Engine Facts, Firefox, CR and FF).
+  profile takes CR and FF out since #399 (Engine Facts, Firefox, CR and FF) and the WebKit profile a lone CR since #TBD
+  (Engine Facts, Safari (WebKit), CR and FF).
 - **Folding invisibles into their neighbors** (2026-09-15/16) lost 776 real rows in an offline replay, as controls got
   zero width where browsers give them width and soft hyphens and ZWSPs took spacing and width the page doesn't give
   them, and 1,887 Chrome and Safari rows in the old suite run in installed browsers, such as `a`, U+00AD, U+0301,
@@ -3294,6 +3341,26 @@ Mostly on main as it was then, measured with the old suite in installed browsers
   hypothesis for Firefox. So #399 takes the character out: fewer lines, no case lost to a line of its own, and text with
   CRLF on the simple walk. It reopens with a segment kind that hangs and trims at line edges without collapsing into the
   white space beside it, or with a report where Firefox's two spaces around a CR matter.
+- **A CR kept as zero-width glue in the WebKit profile's normal white space** (branch `cr-line-end`, 1a199d6c,
+  2026-10-06; webkit-host, WebKit 22625.1.29.11.27). WebKit keeps a CR in its text item with no advance (Engine Facts,
+  Safari (WebKit), CR and FF), and the build did the same: the profile's normal white space collapsed spaces, tabs and
+  line feeds only, a CR stayed in the text as a zero-width glue segment, one that ended text before white space or ended
+  the text left the source, and an FF became a control segment measured as U+0001. It is Safari's model where #TBD's,
+  which takes the CR out, is a premise with gaps: the build keeps a space on each side of a CR, as on a blank line of
+  CRLF text, counts a space before a CR that a line ends after, and gives the CR a line of its own in a box narrower
+  than a letter. On the probe ENGINE_FOLLOWUPS.md describes, of texts without an FF in fonts that aren't fixed pitch to
+  WebKit, its lines are wrong on 197 of 44,880 layouts at 24px and wider where #TBD's are on 335 (among the differences,
+  123 fewer on CRLF text with a blank line or a space before a CRLF and 40 more on texts of only white space and CRs),
+  and on 200 of 2,388 under 24px against 809; of the pinned cases with a CR it passed 33 that main fails, 7 at 24px and
+  wider, where #TBD passes 8, the same 7. But glue has no break before it, so text with a CR between letters leaves the
+  simple line walk: offline in Bun, 60 words with a CR between two at every sixth take about three times main's
+  `layout()` time, a hypothesis for Safari, where #TBD's take about 0.7 of it; a text of only CRs and white space got a
+  line where Safari has none; and it took a second set of white-space expressions, a second meaning for
+  `'zero-width-glue'` that apps see in `kinds`, and a change to the harness's alignment of segments with their source.
+  In a fixed-pitch font it is wrong where main is right, as #TBD is. So #TBD takes the character out, as #399 does for
+  Firefox: one test and one loop, in text that holds a lone CR, no new segment, and the simple walk kept. It reopens
+  with a report where Safari's two spaces around a CR matter, as in CRLF text with blank lines, or with a segment kind
+  that takes no room and no break and stays on the simple walk.
 
 #### Arabic And Joined Scripts
 

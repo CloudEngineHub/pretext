@@ -314,6 +314,10 @@ row times the line functions on mixed, Latin and CJK messages, each family in a 
   16.8% and 8.7% slower under #406, two unrelated changes timed against the same main on the same day (Firefox 156.0.1,
   three sessions each, 2026-10-02), so they move with unrelated changes to the bundle and want a second change's table
   before being blamed on one.
+- **Safari's `resize: latin layout at widths seen before`** read 9-15% slower in six sessions of a build whose
+  `layout()` code was main's, and within noise for the same code one top-level binding apart (Safari 27.0, 2026-10-06;
+  `RESEARCH.md`, JavaScript Engines). Where it alone reads slower or faster with no change to code `layout()` runs,
+  time a build one binding apart before blaming the change.
 - **A verdict on one of those three rows** prints "(moves with the bundle)" in Firefox's table (`MOVES_WITH_BUNDLE`,
   `bench/report.ts`). The list is Firefox 156's: after a pin bump a row stays on it only while unrelated changes still
   move it.
