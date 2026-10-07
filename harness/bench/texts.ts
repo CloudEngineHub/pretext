@@ -167,6 +167,7 @@ export function itemReader(lists: RichInlineItem[][]): { batch: (n: number) => R
     batch(n) {
       const out: RichInlineItem[][] = []
       for (let total = 0; total < n;) {
+        if (carry === null && at === lists.length) throw new Error('itemReader: the lists hold fewer units than the batches read')
         const items: RichInlineItem[] = carry ?? lists[at++]!
         const head: RichInlineItem[] = []
         const tail: RichInlineItem[] = []

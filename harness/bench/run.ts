@@ -25,6 +25,11 @@ const TARGET_MS = 50
 const SEEN_UNITS: Record<(typeof MESSAGE_FAMILIES)[number], number> = { latin: 40_000, cjk: 15_000, arabic: 40_000, thai: 30_000, mixed: 40_000 }
 const FRESH_UNITS: Record<(typeof MESSAGE_FAMILIES)[number], number> = { latin: 1000, cjk: 200, arabic: 1000, thai: 650, mixed: 1000 }
 const RICH_UNITS = 1000
+// A new batch of the chat documents holds four times the stress document's, whose size Gatsby's length caps. A round
+// compares three batches, one a library, and 1,000 units of the demo's paragraphs cost 180 to 1,900 µs per 1,000 units
+// in Chrome by what they held, where batches of prose are alike: main read 15-49% slower than itself in three sessions
+// (harness/README.md, Bench).
+const CHAT_UNITS = 4000
 const NEW_BATCHES = LABELS.length * (WARM + ROUNDS.new)
 const FRESH_ROUNDS = WARM + ROUNDS.fresh
 
@@ -77,12 +82,16 @@ export function documents(rows: readonly string[], seed: string, focus: boolean)
       { op: 'rich-seen', texts, textUnits: itemUnits(texts), widths: [220] },
     ])
     // The stress items, a word or a space each; then the chat demo's messages as it prepares them, most of them one
-    // item, and its styled paragraphs alone, which no document before them prepared (texts.ts, chatItems).
+    // item, and its styled paragraphs alone, which no document before them prepared (texts.ts, chatItems). Each chat
+    // document's kept paragraphs are read before its new batches, so a batch's size doesn't decide which paragraphs
+    // the line operations run on.
     rich('latin', batches, kept)
     const chat = itemReader(chatItems())
-    rich('chat', Array.from({ length: NEW_BATCHES }, () => chat.batch(RICH_UNITS)), chat.batch(20_000))
+    const chatKept = chat.batch(20_000)
+    rich('chat', Array.from({ length: NEW_BATCHES }, () => chat.batch(CHAT_UNITS)), chatKept)
     const styled = itemReader(chat.rest().filter(items => items.length > 1))
-    rich('chat-styled', Array.from({ length: NEW_BATCHES }, () => styled.batch(RICH_UNITS)), styled.batch(20_000))
+    const styledKept = styled.batch(20_000)
+    rich('chat-styled', Array.from({ length: NEW_BATCHES }, () => styled.batch(CHAT_UNITS)), styledKept)
   }
   for (const family of MESSAGE_FAMILIES) {
     const texts = reader(family).batch(SEEN_UNITS[family])!
