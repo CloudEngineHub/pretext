@@ -687,7 +687,10 @@ function walkPreparedComplexLines(
             const contribution = w + (spaced ? letterSpacing : 0)
             if (contribution !== 0) fitAdvance = leadingSpacing + contribution
           }
-          const hangs = (1 << kind & hangingKinds) !== 0 || (hangGoesOnPastEmpty && kind === ZERO_WIDTH_BREAK && hangEndSegmentIndex === i)
+          // Two statements: with the same tests in one `||` expression, letter-spaced and pre-wrap
+          // text laid out 1 to 4% slower in all three browsers (RESEARCH.md, Keeping Work Bounded).
+          let hangs = (1 << kind & hangingKinds) !== 0
+          if (hangGoesOnPastEmpty && kind === ZERO_WIDTH_BREAK && hangEndSegmentIndex === i) hangs = true
           if (hangs) {
             if (hangEndSegmentIndex !== i) {
               hangStartWidth = lineW - lineEndTrimmed + leadingSpacing
