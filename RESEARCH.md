@@ -3363,19 +3363,20 @@ Mostly on main as it was then, measured with the old suite in installed browsers
   the text left the source, and an FF became a control segment measured as U+0001. It is Safari's model where #TBD's,
   which takes the CR out, is a premise with gaps: the build keeps a space on each side of a CR, as on a blank line of
   CRLF text, counts a space before a CR that a line ends after, and gives the CR a line of its own in a box narrower
-  than a letter. On the first probe ENGINE_FOLLOWUPS.md describes, of texts without an FF in fonts off WebKit's
-  fixed-pitch shortcut, its lines are wrong on 197 of 44,880 layouts at 24px and wider where #TBD's are on 335 (among
-  the differences, 123 fewer on CRLF text with a blank line or a space before a CRLF and 40 more on texts of only white
-  space and CRs), and on 200 of 2,388 under 24px against 809; of the pinned cases with a CR it passed 33 that main
-  fails, 7 at 24px and wider, where #TBD passes 8, the same 7. But glue has no break before it, so text with a CR
-  between letters leaves the simple line walk: offline in Bun, 60 words with a CR between two at every sixth take about
-  three times main's `layout()` time, a hypothesis for Safari, where #TBD's take about 0.75 of it; a text of only CRs
-  and white space got a line where Safari has none; and it took a second set of white-space expressions, a second
-  meaning for `'zero-width-glue'` that apps see in `kinds`, and a change to the harness's alignment of segments with
-  their source. In a font on the fixed-pitch shortcut it is wrong where main is right, as #TBD is. So #TBD takes the
-  character out, as #399 does for Firefox: one test and one loop, in text that holds a lone CR, no new segment, and the
-  simple walk kept. It reopens with a report where Safari's two spaces around a CR matter, as in CRLF text with blank
-  lines, or with a segment kind that takes no room and no break and stays on the simple walk.
+  than a letter. On the first probe ENGINE_FOLLOWUPS.md describes, layouts of texts built to hold a lone CR, of those
+  without an FF in fonts off WebKit's fixed-pitch shortcut, its lines are wrong on 197 of 44,880 layouts at 24px and
+  wider where #TBD's are on 335 (among the differences, 123 fewer on CRLF text with a blank line or a space before a
+  CRLF and 40 more on texts of only white space and CRs), and on 200 of 2,388 under 24px against 809; of the pinned
+  cases with a CR it passed 33 that main fails, 7 at 24px and wider, where #TBD passes 8, the same 7. But glue has no
+  break before it, so text with a CR between letters leaves the simple line walk: offline in Bun, 60 words with a CR
+  between two at every sixth take about three times main's `layout()` time, a hypothesis for Safari, where #TBD's take
+  about 0.75 of it; a text of only CRs and white space got a line where Safari has none; and it took a second set of
+  white-space expressions, a second meaning for `'zero-width-glue'` that apps see in `kinds`, and a change to the
+  harness's alignment of segments with their source. In a font on the fixed-pitch shortcut it is wrong where main is
+  right, as #TBD is. So #TBD takes the character out, as #399 does for Firefox: one test and one loop, in text that
+  holds a lone CR, no new segment, and the simple walk kept. It reopens with a report where Safari's two spaces around a
+  CR matter, as in CRLF text with blank lines, or with a segment kind that takes no room and no break and stays on the
+  simple walk.
 
 #### Arabic And Joined Scripts
 
