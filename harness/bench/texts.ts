@@ -16,6 +16,7 @@ import type { PrepareOptions } from '../../src/layout.ts'
 import type { RichInlineItem } from '../../src/rich-inline.ts'
 import { TEXTS } from '../../src/test-data.ts'
 import { createRng } from '../sets/build.ts'
+import { demoBlocks } from '../sets/sample.ts'
 
 const CORPORA = join(import.meta.dir, '../../corpora')
 const corpus = (id: string): string => readFileSync(join(CORPORA, `${id}.txt`), 'utf8').trim()
@@ -132,6 +133,58 @@ export function richItems(text: string, font: string): RichInlineItem[] {
     else items.push({ text: token, font: style === 7 ? `italic ${font}` : font })
   }
   return items
+}
+
+// The Markdown chat demo's messages as it hands them to prepareRichInline(): a paragraph, list item or heading each, in
+// the demo's order and fonts (pages/demos/markdown-chat.model.ts), with its padded code spans and image chips, from the
+// blocks the real-usage sample reads out of the demo's generated messages. Rich text as an app has it, where the stress
+// items aren't: most paragraphs are one item, a styled one is a few items of several words each, and in a third of
+// those an item starts inside a word, as the full stop after a bold run does.
+const CHAT_FAMILY = 'Helvetica, Arial, sans-serif'
+export function chatItems(): RichInlineItem[][] {
+  const out: RichInlineItem[][] = []
+  for (const block of demoBlocks(10_000, true)) {
+    if (block.kind === 'code') continue
+    const heading = block.kind !== 'heading' || block.depth > 2 ? 0 : block.depth === 1 ? 20 : 17
+    // Every item carries every property, as the demo's do.
+    out.push(block.pieces.map((piece): RichInlineItem => {
+      if (piece.style === 'code') return { text: piece.text, font: CODE, letterSpacing: 0, break: 'normal', extraWidth: 12 }
+      if (piece.style === 'image') return { text: piece.text, font: `700 11px ${CHAT_FAMILY}`, letterSpacing: 0, break: 'never', extraWidth: 14 }
+      const italic = piece.style === 'italic' || piece.style === 'bold-italic' ? 'italic ' : ''
+      if (heading > 0) return { text: piece.text, font: `${italic}700 ${heading}px "Iowan Old Style", Georgia, "Times New Roman", serif`, letterSpacing: -heading / 100, break: 'normal', extraWidth: 0 }
+      return { text: piece.text, font: `${italic}${piece.style === 'bold' || piece.style === 'bold-italic' ? 700 : 400} 14px ${CHAT_FAMILY}`, letterSpacing: 0, break: 'normal', extraWidth: 0 }
+    }))
+  }
+  return out
+}
+
+// Reads item lists forward as reader() reads messages: `batch(n)` returns lists holding exactly n units, the last one
+// cut, its rest starting the next batch; `rest()` is what no batch has read.
+export function itemReader(lists: RichInlineItem[][]): { batch: (n: number) => RichInlineItem[][]; rest: () => RichInlineItem[][] } {
+  let at = 0
+  let carry: RichInlineItem[] | null = null
+  return {
+    batch(n) {
+      const out: RichInlineItem[][] = []
+      for (let total = 0; total < n;) {
+        const items: RichInlineItem[] = carry ?? lists[at++]!
+        const head: RichInlineItem[] = []
+        const tail: RichInlineItem[] = []
+        for (const item of items) {
+          let cut = Math.min(item.text.length, n - total)
+          if (cut < item.text.length && (item.text.charCodeAt(cut - 1) & 0xfc00) === 0xd800) cut--
+          if (cut > 0) head.push(cut === item.text.length ? item : { ...item, text: item.text.slice(0, cut) })
+          if (cut < item.text.length) tail.push(cut === 0 ? item : { ...item, text: item.text.slice(cut) })
+          total += cut
+          if (cut < item.text.length) total = n
+        }
+        carry = tail.length === 0 ? null : tail
+        out.push(head)
+      }
+      return out
+    },
+    rest: () => (carry === null ? lists.slice(at) : [carry, ...lists.slice(at)]),
+  }
 }
 
 // ---- Worst-case shapes ----

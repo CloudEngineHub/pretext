@@ -14,7 +14,8 @@ import { benchBundle, buildName, srcOf } from './lib.ts'
 import type { Doc, DocResult, OpSpec } from './page.ts'
 import { report, unconfirmed, type SessionResults } from './report.ts'
 import { createRng } from '../sets/build.ts'
-import { familyText, labels, MESSAGE_FAMILIES, reader, richItems, shapes, STYLE, units } from './texts.ts'
+import type { RichInlineItem } from '../../src/rich-inline.ts'
+import { chatItems, familyText, itemReader, labels, MESSAGE_FAMILIES, reader, richItems, shapes, STYLE, units } from './texts.ts'
 
 export const ROWS = ['new', 'fresh', 'rich', 'seen', 'resize', 'lines', 'worst'] as const
 const LABELS = ['base', 'candidate', 'control'] as const
@@ -68,13 +69,20 @@ export function documents(rows: readonly string[], seed: string, focus: boolean)
     const latin = readers.get('latin')!
     const batches = Array.from({ length: NEW_BATCHES }, () => latin.batch(RICH_UNITS)!.map(m => richItems(m, STYLE.latin.font)))
     const kept = reader('latin').batch(20_000)!.map(m => richItems(m, STYLE.latin.font))
-    const keptUnits = 20_000
-    doc('rich', 'latin', 'en', STYLE.latin.font, {}, [
-      { op: 'rich-new', batches, batchUnits: batches.map(items => items.reduce((n, list) => n + list.reduce((m, item) => m + item.text.length, 0), 0)), widths: [220] },
-      ...['rich-stats', 'rich-walk', 'rich-stream'].map(op => ({ op, texts: kept, textUnits: keptUnits, handles: 'rich' as const, widths: [180, 220, 260] })),
+    const itemUnits = (lists: RichInlineItem[][]): number => lists.reduce((n, list) => n + list.reduce((m, item) => m + item.text.length, 0), 0)
+    const rich = (family: string, newBatches: RichInlineItem[][][], texts: RichInlineItem[][]): void => doc('rich', family, 'en', STYLE.latin.font, {}, [
+      { op: 'rich-new', batches: newBatches, batchUnits: newBatches.map(itemUnits), widths: [220] },
+      ...['rich-stats', 'rich-walk', 'rich-stream'].map(op => ({ op, texts, textUnits: itemUnits(texts), handles: 'rich' as const, widths: [180, 220, 260] })),
       // The kept messages prepared again, where every item looks its font up and measures nothing.
-      { op: 'rich-seen', texts: kept, textUnits: keptUnits, widths: [220] },
+      { op: 'rich-seen', texts, textUnits: itemUnits(texts), widths: [220] },
     ])
+    // The stress items, a word or a space each; then the chat demo's messages as it prepares them, most of them one
+    // item, and its styled paragraphs alone, which no document before them prepared (texts.ts, chatItems).
+    rich('latin', batches, kept)
+    const chat = itemReader(chatItems())
+    rich('chat', Array.from({ length: NEW_BATCHES }, () => chat.batch(RICH_UNITS)), chat.batch(20_000))
+    const styled = itemReader(chat.rest().filter(items => items.length > 1))
+    rich('chat-styled', Array.from({ length: NEW_BATCHES }, () => styled.batch(RICH_UNITS)), styled.batch(20_000))
   }
   for (const family of MESSAGE_FAMILIES) {
     const texts = reader(family).batch(SEEN_UNITS[family])!

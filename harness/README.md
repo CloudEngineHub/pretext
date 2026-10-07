@@ -267,7 +267,12 @@ on every resize. The `new` rows time text no library or browser has laid out: Fi
 font, shared by every canvas and the DOM, so a fresh canvas doesn't make text new. The `fresh` rows are the one kind
 with no same-document ratio: each document holds one library, and times compiling its bundle, running it and its first
 two batches of new messages, which the table after the rows gives as medians per library, with no verdict. The `rich`
-row's `rich-seen` prepares its kept messages again, where every item looks its font up and measures nothing. The `lines`
+row has three documents: `latin`, the stress items, a word or a space each; `chat`, the Markdown chat demo's messages
+as it prepares them, most of them one item; and `chat-styled`, only its paragraphs of several items, where an item is
+several words and a third of the paragraphs hold an item that starts inside a word. A change can read faster on one and
+slower on another: the stress items never start inside a word and have a segment an item. Each one's `rich-seen`
+prepares its kept messages again, where every item looks its font up and measures nothing; the two chat documents take
+the `rich` floor, which was fitted to the stress items. The `lines`
 row times the line functions on mixed, Latin and CJK messages, each family in a document of its own.
 
 - **A control copy.** Each document runs base, the candidate and a second copy of base, shuffled each round, since only
