@@ -171,7 +171,7 @@ name the fonts they run in where that isn't 16px Arial. A fact added after them 
 that added or last changed the fact, which this paragraph names, since a later merge moves the test and a case's family
 and origin keep the line: line 1000 at dbfab0de (#399), Firefox's white space around bidi controls, line 2140 at
 785e5af2 (#446), Chrome's return from an unfit hyphen to a break between two text segments, whose second row runs in
-16px Hiragino Sans, and line 1575 at f2e54d1b (#TBD), the WebKit profile's lone carriage return, which runs in 16px
+16px Hiragino Sans, and line 1575 at f2e54d1b (#455), the WebKit profile's lone carriage return, which runs in 16px
 Menlo alone: there Safari gives the carriage return a character's width, the profile gives it none, and webkit-host's
 six failures at 24 px and wider are accepted (`RESEARCH.md`, Decisions Log, 2026-10-06). Such a fact also names the
 paragraph directions it runs in where a browser's lines turn on them (the first of those, both). The facts set has no
