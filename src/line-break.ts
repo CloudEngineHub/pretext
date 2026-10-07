@@ -72,7 +72,9 @@ export type PreparedLineData = PreparedLineBreakData & { items?: ParagraphSegmen
 // segment has a value of its own:
 // - `hyphenWidths`, `tabStopAdvances`, `minimumTabAdvances`: the hyphen a soft hyphen paints, the
 //   advance between a tab's stops and the least a tab advances, in the item's font, where two
-//   items differ in one;
+//   items differ in one. A walk reads them, and the handle's own three, at a soft hyphen, under
+//   soft-hyphen contexts and at a tab, so a paragraph whose text holds no soft hyphen and no
+//   preserved tab has none, and its handle's own three are 0;
 // - `hyphenRooms`: the room a line that ends at the break before the segment leaves for a hyphen,
 //   where it returns there from a soft hyphen whose hyphen doesn't fit, in a paragraph with a soft
 //   hyphen under a profile that leaves such room (getHyphenRooms in src/rich-inline.ts), with one

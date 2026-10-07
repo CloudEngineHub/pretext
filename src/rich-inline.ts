@@ -318,10 +318,12 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
   let fillExtras: number[] | null = null
   let openingEdges: number[] | null = null
   // Each text item's hyphen width, tab stop advance and least tab advance, and whether two items
-  // differ in one.
-  const hyphenWidths: number[] = zeros(items.length)
-  const tabStopAdvances: number[] = zeros(items.length)
-  const minimumTabAdvances: number[] = zeros(items.length)
+  // differ in one, in a paragraph whose text has what reads them: a soft hyphen or, preserved, a
+  // tab (ParagraphSegmentData). Another paragraph keeps none, and its handle's own are 0.
+  const readsItemFonts = source.includes('\u00AD') || (preserve && source.includes('\t'))
+  const hyphenWidths: number[] = zeros(readsItemFonts ? items.length : 0)
+  const tabStopAdvances: number[] = zeros(readsItemFonts ? items.length : 0)
+  const minimumTabAdvances: number[] = zeros(readsItemFonts ? items.length : 0)
   let firstTextItem = -1
   let fontsDiffer = false
   let simple = !analysis.hasUnbroken
@@ -410,12 +412,14 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
     if (to === from + 1 && analysis.texts[from] === item.text) analysis.texts[from] = item.text
     const sub = measureAnalysis(sliceAnalysis(analysis, from, to), item.font, false, letterSpacing, profile, language, true, analysis, from)
     simple &&= sub.simpleLineCountFastPath
-    // The gap before the hyphen is the letter spacing after the grapheme before it.
-    hyphenWidths[index] = spacingsDiffer ? sub.discretionaryHyphenWidth - letterSpacing : sub.discretionaryHyphenWidth
-    tabStopAdvances[index] = sub.tabStopAdvance
-    minimumTabAdvances[index] = sub.minimumTabAdvance
-    if (firstTextItem < 0) firstTextItem = index
-    else if (hyphenWidths[index] !== hyphenWidths[firstTextItem] || tabStopAdvances[index] !== tabStopAdvances[firstTextItem] || minimumTabAdvances[index] !== minimumTabAdvances[firstTextItem]) fontsDiffer = true
+    if (readsItemFonts) {
+      // The gap before the hyphen is the letter spacing after the grapheme before it.
+      hyphenWidths[index] = spacingsDiffer ? sub.discretionaryHyphenWidth - letterSpacing : sub.discretionaryHyphenWidth
+      tabStopAdvances[index] = sub.tabStopAdvance
+      minimumTabAdvances[index] = sub.minimumTabAdvance
+      if (firstTextItem < 0) firstTextItem = index
+      else if (hyphenWidths[index] !== hyphenWidths[firstTextItem] || tabStopAdvances[index] !== tabStopAdvances[firstTextItem] || minimumTabAdvances[index] !== minimumTabAdvances[firstTextItem]) fontsDiffer = true
+    }
 
     // Every line the item reaches pays its extraWidth, as its fragment on that line paints it
     // (box-decoration-break: clone). The first of its segments whose width a line counts, after

@@ -1646,6 +1646,16 @@ removal says otherwise (2026-10-07).
   slice is a new string to make and hash at every preparation. That is 5,750 of the 5,855 text items the bench's stress
   document measures and 2,453 of the 8,390 its styled chat paragraphs do; an item of several words is still measured by
   slices.
+- **Item font lists where a paragraph reads them.** The lists of each text item's hyphen width, tab stop advance and
+  least tab advance, and the three per segment made from them where two items differ in one, are made only for a
+  paragraph whose text holds a soft hyphen or, under pre-wrap, a tab: a walk reads them, and the handle's own three, at
+  a soft-hyphen segment, under soft-hyphen contexts and at a tab segment, and nowhere else
+  (`walkPreparedComplexLines()`, `getItemTabAdvance()`). Any other paragraph's handle holds none and its own three are
+  0, where they were the first text item's: the one difference in a handle, which a later reader of those fields has to
+  know (`ParagraphSegmentData`). No paragraph of the bench's three rich documents reads them, where each had three
+  lists of an entry per item, and three more of an entry per segment in the 1,550 of the 2,432 styled chat paragraphs
+  that hold a code span, whose font is another family and size (1,988 on the stand-in Canvas, where a bold face
+  differs too).
 
 #### Joined Text
 
