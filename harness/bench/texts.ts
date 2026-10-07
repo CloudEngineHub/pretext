@@ -137,9 +137,11 @@ export function richItems(text: string, font: string): RichInlineItem[] {
 
 // The Markdown chat demo's messages as it hands them to prepareRichInline(): a paragraph, list item or heading each, in
 // the demo's order and fonts (pages/demos/markdown-chat.model.ts), with its padded code spans and image chips, from the
-// blocks the real-usage sample reads out of the demo's generated messages. Rich text as an app has it, where the stress
-// items aren't: most paragraphs are one item, a styled one is a few items of several words each, and in a third of
-// those an item starts inside a word, as the full stop after a bold run does.
+// blocks the real-usage sample reads out of the demo's generated messages. The sample's reading differs from the demo's
+// own in 427 of the 17,242 lists: a list item's nested list stays in the item's text as Markdown (223), and
+// struck-through text joins its neighbours (204). Rich text as an app has it, where the stress items aren't: most
+// paragraphs are one item, a styled one is a few items of several words each, and in 37% of those an item starts inside
+// a word, as the full stop after a bold run does.
 const CHAT_FAMILY = 'Helvetica, Arial, sans-serif'
 export function chatItems(): RichInlineItem[][] {
   const out: RichInlineItem[][] = []
@@ -158,8 +160,9 @@ export function chatItems(): RichInlineItem[][] {
   return out
 }
 
-// Reads item lists forward as reader() reads messages: `batch(n)` returns lists holding exactly n units, the last one
-// cut, its rest starting the next batch; `rest()` is what no batch has read.
+// Reads item lists forward as reader() reads messages: `batch(n)` returns lists holding exactly n units (one fewer
+// where the cut would split a surrogate pair), the last one cut, its rest starting the next batch; `rest()` is what no
+// batch has read. It throws once the lists run out.
 export function itemReader(lists: RichInlineItem[][]): { batch: (n: number) => RichInlineItem[][]; rest: () => RichInlineItem[][] } {
   let at = 0
   let carry: RichInlineItem[] | null = null

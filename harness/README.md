@@ -267,18 +267,22 @@ on every resize. The `new` rows time text no library or browser has laid out: Fi
 font, shared by every canvas and the DOM, so a fresh canvas doesn't make text new. The `fresh` rows are the one kind
 with no same-document ratio: each document holds one library, and times compiling its bundle, running it and its first
 two batches of new messages, which the table after the rows gives as medians per library, with no verdict. The `rich`
-row has three documents: `latin`, the stress items, a word or a space each; `chat`, the Markdown chat demo's messages
-as it prepares them, 86% of them one item; and `chat-styled`, only its paragraphs of several items, where an item is
-several words and a third of the paragraphs hold an item that starts inside a word. A change can read faster on one and
-slower on another: the stress items never start inside a word and have a segment an item. Each one's `rich-new` gives
-every library a batch of its own a round: 1,000 units of the stress items, which Gatsby's length caps, and 4,000 of the
-demo's paragraphs, which differ more from one batch to the next than prose does. The demo repeats sentences, so its
-batches are new paragraphs of words mostly seen. Each one's `rich-seen` prepares its kept messages again, where every
-item looks its font up and measures nothing. Each one's `rich-walk` and `rich-stream` keep every line they are handed,
-in one variable outside the loop, as an app that paints its lines keeps them: both demos pass each line they walk to
-`materializeRichInlineLineRange()`. A callback that reads only the line's width times less than an app pays, and not
-the same less for every library, since an engine that inlines a library's line builder into the walk then never makes
-the line. So a `rich-walk` or `rich-stream` figure from before #TBD isn't comparable with one after it, on the stress
+row has three documents: `latin`, the stress items, a word or a space each; `chat`, the Markdown chat demo's paragraphs,
+list items and headings as it prepares them, 86% of them one item; and `chat-styled`, only its paragraphs of several
+items, where an item is several words and 37% of the paragraphs (40% of the ones the line operations run on) hold an
+item that starts inside a word, with no space on either side of its start: punctuation right after a styled run (a
+comma, a full stop, a closing bracket) or a code run right after an opening bracket, never a letter after a letter. A
+change can read faster on one and slower on another: the stress items never start inside a word and have a segment an
+item. Each one's `rich-new` gives every library a batch of its own a round: 1,000 units of the stress items, which the
+length of the Latin text caps (The Great Gatsby's opening, which the `new` and `fresh` rows read forward too), and 4,000
+of the demo's paragraphs, which differ more from one batch to the next than prose does. The demo repeats sentences, so
+its batches are paragraphs of words mostly seen, and 6% of `chat`'s repeat an earlier paragraph whole. Each one's
+`rich-seen` prepares its kept messages again, where every item looks its font up and measures nothing. Each one's
+`rich-walk` and `rich-stream` keep every line they are handed, in one variable outside the loop, as an app that paints
+its lines keeps them: both rich demos, the Markdown chat and the rich note, pass each line they walk to
+`materializeRichInlineLineRange()`. A callback that reads only the line's width times less than an app pays, and not the
+same less for every library, since an engine that inlines a library's line builder into the walk then never makes the
+line. So a `rich-walk` or `rich-stream` figure from before #TBD isn't comparable with one after it, on the stress
 document either (`RESEARCH.md`, Evaluation Traps, Timing, has the numbers behind the batches and the kept line). The
 `lines` row times the line functions on mixed, Latin and CJK messages, each family in a document of its own.
 
@@ -311,7 +315,9 @@ document either (`RESEARCH.md`, Evaluation Traps, Timing, has the numbers behind
   stress document's `rich-walk` and `rich-stream`. Main against itself read Safari's stress `rich-stream` 12-15% slower
   in all three sessions of one run, which called it slower, and Chrome's `chat-styled rich-seen` 10-13% slower in 7
   sessions of 11 (2026-10-07; `RESEARCH.md`, Evaluation Traps, Timing). Read such an entry over ten sessions, and by
-  each copy's own cost in the saved samples.
+  each copy's own cost in the saved samples: the line a run prints as it starts names their folder,
+  `.artifacts/harness-bench/<time>/`, a file a browser and session with each round's `ms` and `units` by `label`, and
+  the table prints base's and the candidate's medians only.
 - **Floors**, the noise threshold under which a row's ratio isn't called a change (1-6% by row, `FLOORS` in
   `bench/report.ts`, with the builds and machine they came from), are the largest deviation held in one direction in all
   three sessions of a calibration of HEAD against itself; calibrate again, with `bun harness bench HEAD --sessions=3`,
@@ -324,10 +330,14 @@ document either (`RESEARCH.md`, Evaluation Traps, Timing, has the numbers behind
   (#416), take the row's (`ENGINE_FOLLOWUPS.md`, Harness debt). The `rich` row's was fitted to the stress items with a
   callback that read only a line's width; with the kept line and the two chat documents, main against itself was called
   on none of the row's 45 entries in a run of eight sessions of the row and in one of three sessions of every row
-  (e1c6ed68, 2026-10-07), so the row keeps it. By the letter of the fitting rule that run of three would give 7%, from
-  the control's copy on Safari's stress `rich-walk` (6.2%, 15.4% and 20.9% over base), an entry where a copy keeps a
-  speed: the band covers a control's copy, and no floor short of the distance between two speeds covers a candidate's
-  (the bullet above).
+  (e1c6ed68, 2026-10-07), so the row keeps it. A verdict needs every session to agree, so a run of eight says less than
+  a run of three: three at a time, those eleven sessions call a chat entry in Chrome in 37 of their 165 sets
+  (`chat-styled rich-seen` in 35, 20 of them `chat-styled rich-new` too: the slow copy was the candidate's in 7 of the
+  11 sessions, where an even shuffle makes it a third of them and a call once in 27 runs), a rich entry in Safari in 12
+  (the stress `rich-stream` in 10) and in Firefox in 2. By the letter of the fitting rule that run of three would give
+  7%, from the control's copy on Safari's stress `rich-walk` (6.2%, 15.4% and 20.9% over base), an entry where a copy
+  keeps a speed: the band covers a control's copy, and no floor short of the distance between two speeds covers a
+  candidate's (the bullet above).
 - **The builds.** The first line of the output names base and the candidate with their commits and dates, and says
   when this tree's `src/` has uncommitted changes, so a pasted table says what it compared.
 - **WebKit's width cache** samples one Canvas call in 21 after a run of misses, so a prepare that submits n strings
@@ -350,9 +360,9 @@ document either (`RESEARCH.md`, Evaluation Traps, Timing, has the numbers behind
   `bench/report.ts`). The list is Firefox 156's: after a pin bump a row stays on it only while unrelated changes still
   move it.
 - **Chrome's `lines: mixed stats`** read the candidate's copy about 1% over base's on identical code, in 15 of 16
-  sessions of main against itself and with the bench's entry code of before and after #TBD (Chrome 154.0.8037.98,
-  2026-10-07; `RESEARCH.md`, Evaluation Traps, Timing), and the row's floor is 1%. A reading of about 1% slower there,
-  alone, is this.
+  sessions of main against itself and with the code the bench wraps a library in (`ENTRY`, `bench/lib.ts`) as it was
+  before and after #TBD (Chrome 154.0.8037.98, 2026-10-07; `RESEARCH.md`, Evaluation Traps, Timing), and the row's floor
+  is 1%. A reading of about 1% slower there, alone, is this.
 
 A session of every row takes 96 s in Chrome, 117 s in Firefox and 98 s in Safari (six sessions each, 2026-10-07; a
 document that loses focus waits a minute and starts again): a little over ten minutes for the default two, and then the

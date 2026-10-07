@@ -219,7 +219,7 @@ describe('the texts', () => {
   test('each family\'s new batches hold the same units: a longer batch would read as a slower library', () => {
     for (const d of docs) {
       const sizes = d.fresh !== undefined ? d.fresh.batches.map(units) : d.ops[0]!.batchUnits!
-      // One unit more where a cut would split a surrogate pair.
+      // One unit more, or one fewer in the item lists, where a cut would split a surrogate pair.
       expect(Math.max(...sizes) - Math.min(...sizes)).toBeLessThanOrEqual(1)
       if (d.row === 'new' && d.family !== 'labels') expect(Math.min(...sizes)).toBeGreaterThan(200)
     }
