@@ -226,7 +226,7 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
     onlyIndex = index
   }
   const only = onlyIndex < 0 ? undefined : items[onlyIndex]!
-  if (only !== undefined && typeof only.text === 'string' && only.break !== 'never' && (only.extraWidth ?? 0) === 0) {
+  if (only !== undefined && only.text !== undefined && only.break !== 'never' && (only.extraWidth ?? 0) === 0) {
     const analysis = analyzeText(only.text, profile, whiteSpace, wordBreak, language)
     const data = measureAnalysis(analysis, only.font, true, readLetterSpacing(only.letterSpacing, profile), profile, language, true, analysis, 0) as PreparedSegments
     const itemSegments: number[] = []
@@ -274,10 +274,6 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
       paddedOrObject = true
       continue
     }
-    // The types rule out a text that isn't a string. An untyped caller's number would join the
-    // paragraph's text as its digits and fail later, or not, by engine profile.
-    const text: unknown = item.text
-    if (typeof text !== 'string') throw new TypeError(`Item ${index}'s text must be a string, not ${text === null ? 'null' : typeof text}`)
     const isAtomic = item.break === 'never' && item.text !== ''
     atomic.push(isAtomic)
     if (isAtomic) {

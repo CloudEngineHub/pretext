@@ -1451,36 +1451,30 @@ entry's bundle grows by 3,638 B minified (1,276 B gzipped) to 96,845 B (40,617 B
 are its own, and `@chenglou/pretext/rich-inline` shrinks by 1,914 B minified to 107,383 B and by 106 B gzipped to
 44,707 B (`bun build --minify`, then `gzip -9`).
 
-What a caller sees change: a fragment's `start` and `end`, and a line's `end`, count segments of the item's part of
-the paragraph, where they were cursors into `prepareWithSegments(item.text)`. The two differ in most paragraphs of
-several items: an item that starts with white space after another item's text keeps that space as the first segment of
-its part, where its own analysis dropped it, so each of its cursors is one higher; an atomic item is one segment, so
-the chip `New York` ends at segment 1, where it ended at 3; an item that starts inside a word is cut otherwise where
-the scan's breaks depend on the whole word, as a Thai word's do in the Blink and Gecko profiles; an item with
-`extraWidth` that opens with a zero-width space, or in pre-wrap with spaces, a tab or a line feed, has its start edge
-for a first segment; and Firefox's white-space run reads through an item's start. Only a paragraph of one text item
-without `extraWidth`, which is that text's own handle, keeps its text's cursors. Over 20,000 generated paragraphs of
-one to four items on the stand-in Canvas, main's cursors against this design's at five widths (2026-10-06): of the
-10,090 that hold an atomic item or an item that starts with a space after another item, 7,279 differ in the Gecko and
-WebKit profiles and 7,329 in the Blink profile; none of the 248 whose items only end with a space, nor of the 547 that
-only split an ordinary word. Of paragraphs of one item, none of 1,557 of plain words differs; 50 of 100 with
-`extraWidth` in pre-wrap do; and in the Gecko profile 100 of 1,200 with unusual words do, each where a line's start
-skips a soft hyphen that starts a word: the fragment starts after it, and the line before ends after it, one segment
-later than the item stepper gave. The same holds for an item of a paragraph of several: of about 38,700 generated
-items outside the kinds above, 173 differ in the Gecko profile and 2 in the Blink profile, each holding a word that
-starts with a soft hyphen. So no mapping keeps the old meaning without each item's own analysis, which the design
-removes. Cursors are for passing back to `layoutNextRichInlineLineRange()` and
-`materializeRichInlineLineRange()`; a materialized fragment has `sourceStart` and `sourceEnd`, UTF-16 offsets in its
-item's `text`. Also: an atomic item of only white space is an object as wide as its `extraWidth`, as every engine lays
-out an inline-block of only white space (Atomic Items' Own White Space), where it was a collapsed space; an item of
-soft hyphens or a ZWSP that a line's start consumes gets no empty fragment on that line; a collapsed space at an
-item's edge is measured with its item, so in the Chromium profile it takes its kerning with the word beside it there,
-and in the WebKit profile a word is measured with the space that ends its item. An item whose `text` isn't a string,
-which the types rule out, throws a `TypeError` that names the item, in every profile, as the item stepper threw one
-for a number, a boolean, an array or an object, from whichever string method it reached first. `null`, which the
-stepper took for an empty item, and a `String` object, which it laid out, throw too. Without the check a number joins
-the paragraph's text as its digits and is laid out, throws or gives no lines by profile and by how many items the
-paragraph has (TODO.md has what is still open).
+What a caller sees change: a fragment's `start` and `end`, and a line's `end`, count segments of the item's part of the
+paragraph, where they were cursors into `prepareWithSegments(item.text)`. The two differ in most paragraphs of several
+items: an item that starts with white space after another item's text keeps that space as the first segment of its part,
+where its own analysis dropped it, so each of its cursors is one higher; an atomic item is one segment, so the chip `New
+York` ends at segment 1, where it ended at 3; an item that starts inside a word is cut otherwise where the scan's breaks
+depend on the whole word, as a Thai word's do in the Blink and Gecko profiles; an item with `extraWidth` that opens with
+a zero-width space, or in pre-wrap with spaces, a tab or a line feed, has its start edge for a first segment; and
+Firefox's white-space run reads through an item's start. Only a paragraph of one text item without `extraWidth`, which
+is that text's own handle, keeps its text's cursors. Over 20,000 generated paragraphs of one to four items on the
+stand-in Canvas, main's cursors against this design's at five widths (2026-10-06): of the 10,090 that hold an atomic
+item or an item that starts with a space after another item, 7,279 differ in the Gecko and WebKit profiles and 7,329 in
+the Blink profile; none of the 248 whose items only end with a space, nor of the 547 that only split an ordinary word.
+Of paragraphs of one item, none of 1,557 of plain words differs; 50 of 100 with `extraWidth` in pre-wrap do; and in the
+Gecko profile 100 of 1,200 with unusual words do, each where a line's start skips a soft hyphen that starts a word: the
+fragment starts after it, and the line before ends after it, one segment later than the item stepper gave. The same
+holds for an item of a paragraph of several: of about 38,700 generated items outside the kinds above, 173 differ in the
+Gecko profile and 2 in the Blink profile, each holding a word that starts with a soft hyphen. So no mapping keeps the
+old meaning without each item's own analysis, which the design removes. Cursors are for passing back to
+`layoutNextRichInlineLineRange()` and `materializeRichInlineLineRange()`; a materialized fragment has `sourceStart` and
+`sourceEnd`, UTF-16 offsets in its item's `text`. Also: an atomic item of only white space is an object as wide as its
+`extraWidth`, as every engine lays out an inline-block of only white space (Atomic Items' Own White Space), where it was
+a collapsed space; an item of soft hyphens or a ZWSP that a line's start consumes gets no empty fragment on that line; a
+collapsed space at an item's edge is measured with its item, so in the Chromium profile it takes its kerning with the
+word beside it there, and in the WebKit profile a word is measured with the space that ends its item.
 
 A paragraph whose whole width fits is one line, taken without a walk (`findWholeLine()`): most paragraphs of a chat
 are. Every engine tests a line at prefixes of it and lets no content make it narrower (the function cites all three),
@@ -4711,6 +4705,13 @@ decisions for the maintainer.
   out, since `SegmentBreakKind` isn't exported (TODO.md, the API discussion). A hidden field reopens with an app that
   needs its number and has no public way to it, as an addition to the type or a function, never by showing the walkers'
   storage again.
+- **2026-10-06: the library is written for well-typed TypeScript, and checks no argument's type at runtime**, the
+  maintainer's decision, for the whole codebase. A caller the types rule out, a number for a text or `null` for an
+  item's `text`, gets whatever the code does with it, which may differ by engine profile and may change between
+  versions; no code, test or doc line is spent on it. The checks of a value its type allows stay: a `letterSpacing`
+  (#356) and a box's width (#387) that aren't finite numbers throw when preparing, since a typed caller can pass
+  `NaN`. A `TypeError` for a rich-inline item whose `text` isn't a string was written for the change that makes rich
+  inline one paragraph and taken out under this rule. Reopens if the library ships an API meant for untyped callers.
 - **2026-10-06: rich inline is one paragraph, laid out by the text walkers** (proposed in the change that makes it; it
   changes what rich-inline cursors mean, so it is the maintainer's to rule on, and this entry holds once that change
   merges). One analysis of the items' joined text and one handle replace the item stepper, a second line walker that
