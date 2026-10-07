@@ -349,6 +349,10 @@ document either (`RESEARCH.md`, Evaluation Traps, Timing, has the numbers behind
 - **A verdict on one of those three rows** prints "(moves with the bundle)" in Firefox's table (`MOVES_WITH_BUNDLE`,
   `bench/report.ts`). The list is Firefox 156's: after a pin bump a row stays on it only while unrelated changes still
   move it.
+- **Chrome's `lines: mixed stats`** read the candidate's copy about 1% over base's on identical code, in 15 of 16
+  sessions of main against itself and with the bench's entry code of before and after #TBD (Chrome 154.0.8037.98,
+  2026-10-07; `RESEARCH.md`, Evaluation Traps, Timing), and the row's floor is 1%. A reading of about 1% slower there,
+  alone, is this.
 
 A session of every row takes 96 s in Chrome, 117 s in Firefox and 98 s in Safari (six sessions each, 2026-10-07; a
 document that loses focus waits a minute and starts again): a little over ten minutes for the default two, and then the

@@ -4089,6 +4089,13 @@ widths: both measure Pretext, not a browser.
   its mix's new batches and 75% of its styled paragraphs' were in an earlier batch in the same font, against 57% of
   the stress document's. The styled paragraphs the mix's document leaves hold 1.1 times what the styled document
   reads, so a larger batch needs more text.
+- **The candidate's copy can lean on identical code.** In Chrome 154.0.8037.98, with main at #455 against itself, the
+  candidate's copy read `lines: mixed stats` over base's in 15 of 16 sessions, by 0.2 to 1.9% (two runs of three
+  sessions of every row and two of five of the row alone, with the bench's entry code of before and after #TBD;
+  2026-10-07), and the control's copy in 10. One of the runs of three was called slower, +1.2%: the row's floor is 1%.
+  The copies are evaluated base first, then the candidate, then the control, and each round runs them in a shuffled
+  order, which is even (each first, second and third a third of the time over 200,000 seeds); what leans wasn't found.
+  A reading of about 1% slower on that entry in Chrome, alone, is this until a calibration shows it gone.
 - **Headless Chrome isn't installed Chrome.** With `deviceScaleFactor: 2` it most likely lays out at zoom 1 while
   reporting DPR 2, as its measurements show, and headless Chrome 153 crashed or hung on one input installed Chrome
   handled (the report in Part 1, Merge Bars And Landing, whose own page crashes headed Chrome too).
