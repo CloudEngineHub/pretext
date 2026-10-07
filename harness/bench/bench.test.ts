@@ -198,6 +198,24 @@ describe('the texts', () => {
     }
   })
 
+  test('the rich row times the chat demo\'s paragraphs beside the stress items, and its styled ones alone: a change that slows items of several words would be read only on items of a word each', () => {
+    type Items = Array<{ text: string }>
+    const rich = docs.filter(d => d.row === 'rich')
+    expect(rich.map(d => `${d.family} ${d.ops.map(op => op.op).join(' ')}`)).toEqual(['latin', 'chat', 'chat-styled'].map(family => `${family} rich-new rich-stats rich-walk rich-stream rich-seen`))
+    const [stress, chat, styled] = rich.map(d => ({ kept: d.ops[1]!.texts as Items[], batch: Math.max(...d.ops[0]!.batchUnits!) }))
+    const share = (lists: Items[], of: (items: Items) => boolean): number => lists.filter(of).length / lists.length
+    // The stress items are a word or a space each. Most of the demo's paragraphs are one item, as 86% of all it
+    // prepares are; its styled ones are several, with an item of several words in most.
+    expect(share(stress!.kept, items => items.every(item => !/\S\s|\s\S/.test(item.text)))).toBe(1)
+    expect(share(chat!.kept, items => items.length === 1)).toBeGreaterThan(0.8)
+    expect(share(chat!.kept, items => items.length === 1)).toBeLessThan(0.92)
+    expect(share(styled!.kept, items => items.length > 1)).toBeGreaterThan(0.98)
+    expect(share(styled!.kept, items => items.some(item => /\S\s+\S/.test(item.text)))).toBeGreaterThan(0.9)
+    // A round of new text compares three batches, and the demo's paragraphs differ more than prose does: a batch of
+    // them is four of the stress document's (harness/README.md, Bench).
+    expect([stress!.batch, chat!.batch, styled!.batch]).toEqual([1000, 4000, 4000])
+  })
+
   test('each family\'s new batches hold the same units: a longer batch would read as a slower library', () => {
     for (const d of docs) {
       const sizes = d.fresh !== undefined ? d.fresh.batches.map(units) : d.ops[0]!.batchUnits!

@@ -28,7 +28,7 @@ const RICH_UNITS = 1000
 // A new batch of the chat documents holds four times the stress document's, whose size Gatsby's length caps. A round
 // compares three batches, one a library, and 1,000 units of the demo's paragraphs cost 180 to 1,900 µs per 1,000 units
 // in Chrome by what they held, where batches of prose are alike: main read 15-49% slower than itself in three sessions
-// (harness/README.md, Bench).
+// (RESEARCH.md, Evaluation Traps, Timing).
 const CHAT_UNITS = 4000
 const NEW_BATCHES = LABELS.length * (WARM + ROUNDS.new)
 const FRESH_ROUNDS = WARM + ROUNDS.fresh
