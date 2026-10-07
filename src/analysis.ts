@@ -74,8 +74,6 @@ export type AnalysisProfile = {
 
 const collapsibleWhitespaceRunRe = /[ \t\n\r\f]+/g
 const needsWhitespaceNormalizationRe = /[\t\n\r\f]| {2,}|^ | $/
-const loneCarriageReturnRe = /\r(?!\n)/
-const loneCarriageReturnsRe = /\r(?!\n)/g
 
 function isSegmentBreakRunSpace(code: number, scan: AnalysisProfile['lineBreakScan']): boolean {
   return code === 0x20 || code === 0x09 || code === 0x0A || (code === 0x0D && scan === 'blink')
@@ -430,14 +428,14 @@ export function analyzeText(
       // WebKit's simplified measuring is as wide as its characters are many, the CR among them
       // (widthForSimpleTextWithFixedPitch, FontCascade.cpp:414-421), which Canvas can't show and
       // the profile doesn't model (ENGINE_FOLLOWUPS.md, White space and controls).
-      if (!preserve && source !== normalized && loneCarriageReturnRe.test(source)) {
+      if (!preserve && source !== normalized && /\r(?!\n)/.test(source)) {
         let count = 0
         for (let i = 0; i < source.length; i++) {
           if (source.charCodeAt(i) !== 0x0D || source.charCodeAt(i + 1) === 0x0A) sourceBreaks[count++] = sourceBreaks[i]!
           else sourceBreaks[i + 1] = sourceBreaks[i + 1]! | sourceBreaks[i]!
         }
         sourceBreaks[count] = sourceBreaks[source.length]!
-        source = source.replace(loneCarriageReturnsRe, '')
+        source = source.replace(/\r(?!\n)/g, '')
         normalized = collapseWhitespaceNormal(source)
       }
     } else {
