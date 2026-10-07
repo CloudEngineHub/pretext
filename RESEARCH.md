@@ -2967,14 +2967,15 @@ repin` shows what), and a fact read in source needs reading again.
   another control or a character of another font anywhere in the text, and the CR then takes nothing. Every Canvas
   measures CR and FF as a space and U+0001 as `.notdef`. Since #TBD the WebKit profile's analysis takes a lone CR out of
   the text, as the Gecko profile's does since #399, with the breaks the scan found around it; an FF is still a collapsed
-  space, and pre-wrap takes both as hard breaks (README). ENGINE_FOLLOWUPS.md, White space and controls, has what that
-  leaves and the probes' counts; keeping the CR as zero-width glue was built and not taken (Dead Ends, Invisible
-  Characters, Controls And Soft Hyphens). (webkit-host, WebKit 22625.1.29.11.27, 2026-10-06. Installed Safari 27.0
-  agreed with webkit-host on the 8,387 layouts of two earlier probes of that day, in Arial, Times New Roman and Georgia,
-  on all 2,820 widths of a page of these facts in 30 font settings, the fixed-pitch and web fonts among them, and on the
-  lines and widths of 1,623 layouts of a sample in Arial, Menlo and Courier New; the larger probes ran in webkit-host
-  alone. Reopens with a Canvas fact that tells which fonts take the fixed-pitch shortcut or which glyph a font gives
-  U+000D, or with normal white space that keeps two spaces that touch.)
+  space, and pre-wrap takes both as hard breaks (README). That gives up the fonts on the fixed-pitch shortcut, where the
+  profile's space had matched one CR between two letters, by decision (Decisions Log, 2026-10-06). ENGINE_FOLLOWUPS.md,
+  White space and controls, has what the change leaves and the probes' counts; keeping the CR as zero-width glue was
+  built and not taken (Dead Ends, Invisible Characters, Controls And Soft Hyphens). (webkit-host, WebKit
+  22625.1.29.11.27, 2026-10-06. Installed Safari 27.0 agreed with webkit-host on the 8,387 layouts of two earlier probes
+  of that day, in Arial, Times New Roman and Georgia, on all 2,820 widths of a page of these facts in 30 font settings,
+  the fixed-pitch and web fonts among them, and on the lines and widths of 1,623 layouts of a sample in Arial, Menlo and
+  Courier New; the larger probes ran in webkit-host alone. Reopens with a Canvas fact that tells which fonts take the
+  fixed-pitch shortcut or which glyph a font gives U+000D, or with normal white space that keeps two spaces that touch.)
 - **Emoji and the segmenter.** DOM emoji equal OffscreenCanvas's at the CSS size, bit for bit at 8-32px (a "size × DPR ÷
   DPR" recipe is up to 3.5 px off), and OffscreenCanvas gives a space before U+FE0F the emoji's width
   (ENGINE_FOLLOWUPS.md). Safari's `Intl.Segmenter` doesn't mark digit strings as words where Bun's does, so Bun is no
@@ -4432,3 +4433,36 @@ decisions for the maintainer.
   out, since `SegmentBreakKind` isn't exported (TODO.md, the API discussion). A hidden field reopens with an app that
   needs its number and has no public way to it, as an addition to the type or a function, never by showing the walkers'
   storage again.
+- **2026-10-06: the WebKit profile takes a lone CR out of normal white space, and gives up the fonts on WebKit's
+  fixed-pitch shortcut for it** (#TBD), the maintainer's decision. A lone CR is a carriage return with no line feed
+  after it. In normal white space Safari gives it no room, and ends a line after it only where a character beside it is
+  above U+00FF (Engine Facts, Safari (WebKit), CR and FF). The profile had it as a space that no line ends at, and now
+  takes it out of the text. In one class of fonts that is a loss: where the first installed family of a font list is
+  Menlo, Monaco, Courier, Andale Mono, PT Mono or the generic `monospace`, WebKit measures text on its simplified path
+  as its character count times a space, the CR counted, so Safari gives the CR a character's width there. The profile's
+  space matched that for one CR between two characters that aren't white space, and a CR that is gone doesn't: 16px
+  Menlo `ab`, CR, `cd ef` is 77.06px wide in Safari, was in the profile, and is 67.43px now, so a line can measure a
+  character narrow and a paragraph come out a line short. Real usage, as the harness samples it, is on neither side: no
+  draw of the sample's 11,901 holds a CR, and its two fixed-pitch font lists (`"SF Mono", ui-monospace, Menlo, Monaco,
+  monospace` and `"Courier New", Courier, monospace`, 472 draws) take no shortcut, since a list goes by its first family
+  that is present. The counts are from two probes, layouts of texts built to hold a lone CR, at 24px and wider
+  (webkit-host, WebKit 22625.1.29.11.27, 2026-10-06; ENGINE_FOLLOWUPS.md, White space and controls, describes them). In
+  proportional fonts, Courier New and a web font, the profile had wrong lines on 4,136 of the first probe's 44,880
+  layouts and 8,897 of the second's 32,986, and has them on 335 and 1,499; of the first probe's, a wrong line count, so
+  a wrong height, on 1,869 before and 203 now. In Menlo, Monaco and Courier, on texts with one CR between two characters
+  that aren't white space, it had wrong lines on 293 of 4,196 layouts and every line's width right on 3,903, and has
+  wrong lines on 2,260 and a line a character narrow on the rest. The class is given up for three reasons. The change
+  serves the commoner side: every proportional font, Courier New, `ui-monospace` and every web font, fixed pitch or not,
+  where the class is font lists led by one of six system families, and no draw of the sample is in one. The match in the
+  class was two rules meeting, not the shortcut modelled: the shortcut also gives a character's width to each of two CRs
+  in a row, to a CR beside white space and to the CR of a CRLF, where the profile was wrong before too, on 3,535 of
+  9,069 layouts over all the second probe's texts in those three fonts (5,546 now). And keeping both sides would take
+  the font's name or the Core Text trait behind the shortcut, which Canvas doesn't show. Equal advances don't tell it,
+  since Courier New, `ui-monospace` and fixed-pitch web fonts have them and take no shortcut: a premise that a font of
+  equal advances keeps the space would be wrong for those, as the profile was before, and would bring the font, the
+  letter spacing and what takes text off simplified measuring into an analysis that reads none of them. Nothing in
+  Pretext is keyed on a font's name (AGENTS.md, Fixing a mismatch). The harness holds the gap as one template of the
+  facts set, `ab`, CR, `cd ef` in 16px Menlo: webkit-host fails its 6 cases from 34 to 77.03px, which main passed, 1
+  with a wrong line count, and they are on its accepted list under this decision. Reopens with a Canvas fact that tells
+  which fonts take the shortcut, or with a report of text with lone CRs laid out in such a font; `pre-wrap`, where a
+  lone CR is a hard break, is as it was.

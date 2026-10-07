@@ -429,8 +429,8 @@ export function analyzeText(
       // shortcut, Menlo and so the generic monospace among them, text on simplified measuring is
       // as wide as its characters are many, the CR among them (Font::determinePitch,
       // FontCoreText.cpp:753-785; widthForSimpleTextWithFixedPitch, FontCascade.cpp:414-421),
-      // which Canvas can't show and the profile doesn't model (ENGINE_FOLLOWUPS.md, White space
-      // and controls).
+      // which Canvas can't show, so the profile gives those fonts up (RESEARCH.md, Decisions Log,
+      // 2026-10-06; ENGINE_FOLLOWUPS.md, White space and controls).
       if (!preserve && source !== normalized && /\r(?!\n)/.test(source)) {
         let count = 0
         for (let i = 0; i < source.length; i++) {
