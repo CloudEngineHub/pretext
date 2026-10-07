@@ -205,12 +205,14 @@ describe('the texts', () => {
     const [stress, chat, styled] = rich.map(d => ({ kept: d.ops[1]!.texts as Items[], batch: Math.max(...d.ops[0]!.batchUnits!) }))
     const share = (lists: Items[], of: (items: Items) => boolean): number => lists.filter(of).length / lists.length
     // The stress items are a word or a space each. Most of the demo's paragraphs are one item, as 86% of all it
-    // prepares are; its styled ones are several, with an item of several words in most.
+    // prepares are; its styled ones are several, with an item of several words in most, and in two in five an item
+    // that starts inside a word, with no white space on either side of its start.
     expect(share(stress!.kept, items => items.every(item => !/\S\s|\s\S/.test(item.text)))).toBe(1)
     expect(share(chat!.kept, items => items.length === 1)).toBeGreaterThan(0.8)
     expect(share(chat!.kept, items => items.length === 1)).toBeLessThan(0.92)
     expect(share(styled!.kept, items => items.length > 1)).toBeGreaterThan(0.98)
     expect(share(styled!.kept, items => items.some(item => /\S\s+\S/.test(item.text)))).toBeGreaterThan(0.9)
+    expect(share(styled!.kept, items => items.some((item, i) => i > 0 && !/\s/.test(item.text[0]!) && !/\s/.test(items[i - 1]!.text.at(-1)!)))).toBeGreaterThan(0.3)
     // A round of new text compares three batches, and the demo's paragraphs differ more than prose does: a batch of
     // them is four of the stress document's (harness/README.md, Bench).
     expect([stress!.batch, chat!.batch, styled!.batch]).toEqual([1000, 4000, 4000])
