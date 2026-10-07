@@ -416,18 +416,21 @@ export function analyzeText(
     if (profile.lineBreakScan === 'webkit') {
       sourceBreaks = getWebKitLineBreaks(source, preserve, keepAll, language)
       // A CR is no white space to WebKit (moveToNextNonWhitespacePosition, InlineItemsBuilder.cpp:
-      // 55-73) and stays in its text item with no advance and no letter spacing: it takes the
-      // ZWSP's glyph (Font.cpp:362; applyCSSVisibilityRules, WidthIterator.cpp:792-800), and only
+      // 55-73) and stays in its text item with no advance and no letter spacing: Core Text's
+      // shaping gives its glyph none (CTFontShapeGlyphs, from Font::applyTransforms,
+      // FontCoreText.cpp:617-699; the complex path at ComplexTextController.cpp:762-768), and only
       // a character that advances is spaced (WidthIterator.cpp:508-516). Every Canvas measures
       // it as a space, so the source leaves it out, as the Gecko profile's does below, and white
       // space on its two sides is one space, where Safari keeps two. The scan read it, so the
       // unit after it keeps its own break, none where the characters on the CR's two sides are
       // up to U+00FF and ICU's, after the CR, where one is above (BreakablePositions.h:179-187,
       // 238-251), and takes the CR's, the one after white space. The CR of a CRLF stays, to
-      // collapse into the line feed's space. In a font Core Text calls fixed pitch, text on
-      // WebKit's simplified measuring is as wide as its characters are many, the CR among them
-      // (widthForSimpleTextWithFixedPitch, FontCascade.cpp:414-421), which Canvas can't show and
-      // the profile doesn't model (ENGINE_FOLLOWUPS.md, White space and controls).
+      // collapse into the line feed's space. In the installed fonts that take WebKit's fixed-pitch
+      // shortcut, Menlo and so the generic monospace among them, text on simplified measuring is
+      // as wide as its characters are many, the CR among them (Font::determinePitch,
+      // FontCoreText.cpp:753-785; widthForSimpleTextWithFixedPitch, FontCascade.cpp:414-421),
+      // which Canvas can't show and the profile doesn't model (ENGINE_FOLLOWUPS.md, White space
+      // and controls).
       if (!preserve && source !== normalized && /\r(?!\n)/.test(source)) {
         let count = 0
         for (let i = 0; i < source.length; i++) {

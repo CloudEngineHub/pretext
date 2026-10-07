@@ -2931,36 +2931,47 @@ repin` shows what), and a fact read in source needs reading again.
   a `0`. Stops use the font of the tab's inline box (WebKit #230339, open since 2021; Safari 26.5.2, 2026-09-12).
 - **CR and FF.** Neither is white space to WebKit, whose white space is space, tab and a line feed that isn't preserved
   (`moveToNextNonWhitespacePosition`, `InlineItemsBuilder.cpp:55-73`), so one ends a white-space run and stays in its
-  text item, in pre-wrap too, where neither forces a break. A CR takes the ZWSP's glyph and so no advance
-  (`Font.cpp:362`; `applyCSSVisibilityRules`, `WidthIterator.cpp:792-800`; the complex path at
-  `ComplexTextController.cpp:762-768`) and no letter spacing, which goes only to a character that advances
-  (`WidthIterator.cpp:508-516`); an FF is drawn as `.notdef` at its advance, set after the letter spacing
-  (`WidthIterator.cpp:813-822`). In 16px Arial `ab`, CR, `cd ef` is 52.48px wide, as `abcd ef`, and 64.48px with an FF,
+  text item, in pre-wrap too, where neither forces a break. A CR keeps the glyph its font gives U+000D
+  (`GlyphPage::fill`, `GlyphPageCoreText.cpp:51-73`), and Core Text's shaping gives that glyph no advance
+  (`CTFontShapeGlyphs`, called from `Font::applyTransforms`, `FontCoreText.cpp:617-699`: called alone on 16px Arial
+  `ab`, CR, `cd`, it takes the CR's advance from 4.45px to 0; the complex path sets it to 0 at
+  `ComplexTextController.cpp:762-768`), so it gets no letter spacing either, which goes only to a character that
+  advances (`WidthIterator.cpp:508-516`); an FF is drawn as `.notdef` at its advance, set after the letter spacing
+  (`WidthIterator.cpp:816-823`). In 16px Arial `ab`, CR, `cd ef` is 52.48px wide, as `abcd ef`, and 64.48px with an FF,
   `.notdef` being 12px; `see`, CR, `this` at 1px letter spacing is 57.70px, seven gaps. White space on both sides of a
   CR stays two spaces, a line feed among it: `ab`, space, CR, space, `cd ef` is 61.38px, and `ab`, CRLF, CRLF, `cd`
-  43.59px where `ab`, LF, LF, `cd` is 39.14px. The letters on its two sides kern with it as with a space (`A`, CR, `A`
-  19.58px, `AA` 21.34px), and in Arabic it ends joining. No break comes beside a CR where the characters on its two
-  sides are up to U+00FF, as none comes beside any control there (`BreakablePositions.h:179-187`); where either is above
+  43.59px where `ab`, LF, LF, `cd` is 39.14px. White space between a CR and the text's start or end stays too, since the
+  CR is content and keeps it from the line's edge: CR, space, `foo bar` and `foo bar`, space, CR are 54.26px where
+  `foo bar` is 49.81px. The letters on a CR's two sides kern with its glyph and not with each other. Where that is the
+  font's space glyph, as in Arial, Times New Roman and Trebuchet MS, they kern as with a space (16px Arial `A`, CR, `A`
+  19.58px, `AA` 21.34px); where the font has a glyph of its own for U+000D, as Helvetica, Helvetica Neue, Times and
+  Palatino do, nothing kerns with it (16px Helvetica `A`, CR, `V` 21.34px, `AV` 20.16px, and `A`, CR, space, `B`
+  25.79px, `A B` 24.91px). In Arabic a CR ends joining. No break comes beside a CR where the characters on its two sides
+  are up to U+00FF, as none comes beside any control there (`BreakablePositions.h:179-187`); where either is above
   U+00FF, ICU decides and breaks after the CR (`:238-251`), so a line can end after one between Cyrillic, Greek, Arabic,
   Hebrew, Thai, Devanagari, Hangul, kana or Han characters, or between one of them and an ASCII letter, and not in
   `été`, CR, `cd`. A text node of only space, tab, LF, CR and FF has no renderer, so no lines
-  (`RenderTreeUpdater::textRendererIsNeeded`, `RenderTreeUpdater.cpp:536-594`). In a font Core Text calls fixed pitch,
-  but for Courier New and fonts the user installed (`Font::determinePitch`, `FontCoreText.cpp:753-785`), a text box on
-  simplified measuring is as wide as its characters are many (`widthForSimpleTextWithFixedPitch`,
-  `FontCascade.cpp:414-421`; `TextUtil.cpp:80-86`), and a CR or LF doesn't take a box off it
-  (`characterCanUseSimplifiedTextMeasuring`, `WidthIterator.cpp:694-742`), so there a CR is one space wide, the CR of a
-  CRLF too: in 16px Menlo `ab`, CR, `cd` is 48.17px and `abcd` 38.53px, as by a space in Monaco and Courier and at 13
-  and 20px, and `ab`, CRLF, `cd` 57.80px where `ab`, LF, `cd` is 48.17px. Letter spacing takes the box off simplified
-  measuring (`TextUtil.cpp:716-745`), as does a ZWSP, an NBSP, another control or a character of another font anywhere
-  in the text, and the CR then takes nothing. Every Canvas measures CR and FF as a space and U+0001 as `.notdef`. Since
-  #TBD the WebKit profile's analysis takes a lone CR out of the text, as the Gecko profile's does since #399, with the
-  breaks the scan found around it; an FF is still a collapsed space, and pre-wrap takes both as hard breaks (README).
-  ENGINE_FOLLOWUPS.md, White space and controls, has what that leaves and the probe's counts; keeping the CR as
-  zero-width glue was built and not taken (Dead Ends, Invisible Characters, Controls And Soft Hyphens). (webkit-host,
-  WebKit 22625.1.29.11.27, 2026-10-06; installed Safari 27.0 agreed with webkit-host on the 8,387 layouts of two earlier
-  probes of that day, in Arial, Times New Roman and Georgia, and wasn't run on the fixed-pitch fonts or beside the other
-  scripts. Reopens with a Canvas fact that tells Core Text's fixed-pitch trait, or with normal white space that keeps
-  two spaces that touch.)
+  (`RenderTreeUpdater::textRendererIsNeeded`, `RenderTreeUpdater.cpp:536-594`). A font Core Text calls fixed pitch takes
+  WebKit's fixed-pitch shortcut, but for Courier New and fonts the user installed (`Font::determinePitch`,
+  `FontCoreText.cpp:753-785`): a text box on simplified measuring is as wide as its characters are many
+  (`widthForSimpleTextWithFixedPitch`, `FontCascade.cpp:414-421`; `TextUtil.cpp:80-86`), and a CR or LF doesn't take a
+  box off it (`characterCanUseSimplifiedTextMeasuring`, `WidthIterator.cpp:694-742`), so there each CR is one space
+  wide, the CR of a CRLF and a CR beside white space too: in 16px Menlo `ab`, CR, `cd` is 48.17px and `abcd` 38.53px,
+  two CRs there take 19.27px, and `ab`, CRLF, `cd` is 57.80px where `ab`, LF, `cd` is 48.17px. Measured, the fonts that
+  take it are Menlo, Monaco, Courier, Andale Mono, PT Mono and the generic `monospace`, which draws Menlo, at 11 to
+  28px, bold and italic. A CR takes nothing in Courier New, and by measurement alone, not traced in the source, in
+  `ui-monospace` and in a web font, the files of Menlo, Monaco and Andale Mono loaded with `FontFace` among them. Letter
+  spacing takes the box off simplified measuring (`TextUtil.cpp:716-745`), as does a ZWSP, an NBSP, another control or a
+  character of another font anywhere in the text, and the CR then takes nothing. Every Canvas measures CR and FF as a
+  space and U+0001 as `.notdef`. Since #TBD the WebKit profile's analysis takes a lone CR out of the text, as the Gecko
+  profile's does since #399, with the breaks the scan found around it; an FF is still a collapsed space, and pre-wrap
+  takes both as hard breaks (README). ENGINE_FOLLOWUPS.md, White space and controls, has what that leaves and the
+  probes' counts; keeping the CR as zero-width glue was built and not taken (Dead Ends, Invisible Characters, Controls
+  And Soft Hyphens). (webkit-host, WebKit 22625.1.29.11.27, 2026-10-06; installed Safari 27.0 agreed with webkit-host on
+  the 8,387 layouts of two earlier probes of that day, in Arial, Times New Roman and Georgia, and wasn't run on the
+  fixed-pitch fonts, the web fonts or beside the other scripts. Reopens with a Canvas fact that tells which fonts take
+  the fixed-pitch shortcut or which glyph a font gives U+000D, or with normal white space that keeps two spaces that
+  touch.)
 - **Emoji and the segmenter.** DOM emoji equal OffscreenCanvas's at the CSS size, bit for bit at 8-32px (a "size × DPR ÷
   DPR" recipe is up to 3.5 px off), and OffscreenCanvas gives a space before U+FE0F the emoji's width
   (ENGINE_FOLLOWUPS.md). Safari's `Intl.Segmenter` doesn't mark digit strings as words where Bun's does, so Bun is no
