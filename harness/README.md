@@ -272,9 +272,19 @@ row has three documents: `latin`, the stress items, a word or a space each; `cha
 as it prepares them, most of them one item; and `chat-styled`, only its paragraphs of several items, where an item is
 several words and a third of the paragraphs hold an item that starts inside a word. A change can read faster on one and
 slower on another: the stress items never start inside a word and have a segment an item. Each one's `rich-seen`
-prepares its kept messages again, where every item looks its font up and measures nothing; the two chat documents take
-the `rich` floor, which was fitted to the stress items. The `lines`
-row times the line functions on mixed, Latin and CJK messages, each family in a document of its own.
+prepares its kept messages again, where every item looks its font up and measures nothing. Each one's `rich-walk` and
+`rich-stream` keep every line they are handed, in one variable outside the loop, as an app that paints its lines keeps
+them: both demos pass each line they walk to `materializeRichInlineLineRange()`. A callback that reads only the line's
+width, as these two had, times less than an app pays, and not the same less for every library: an engine that inlines a
+library's line builder into the walk then never makes the line. V8 inlines main's builder for a paragraph of one item, a
+small function, and not one over its size limit, as that of a build that lays rich inline out as one paragraph is
+(branch `rich-paragraph-3`). Counted as instructions retired a pass over the `chat` document's handles, that build's
+walk read 31% over main's with the width-only callback and 17% with the line kept in V8's shell, and 21% and 11% in
+JavaScriptCore's (544c0ce6 against main at #453 on a stand-in Canvas, one run each, a count of work with no clock,
+2026-10-07). So a `rich-walk` or `rich-stream` figure from before this isn't comparable with one after it, on the stress
+document either. The `rich` floor was fitted to the stress items with the width-only callback, and all three documents
+take it until a calibration run. The `lines` row times the line functions on mixed, Latin and CJK messages, each family
+in a document of its own.
 
 - **A control copy.** Each document runs base, the candidate and a second copy of base, shuffled each round, since only
   same-document ratios survive drift between sessions (`RESEARCH.md`, Evaluation Traps, has the numbers behind this and
