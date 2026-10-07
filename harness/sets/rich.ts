@@ -73,7 +73,10 @@
 //   full stop and a colon before an opening bracket, which Chrome's text-spacing-trim halts as in one text node; and a
 //   bold span that ends with a closing bracket before a space and a Latin word, where Chrome doesn't halt the bracket
 //   at a line's end, since no break comes right after it. The word doesn't break, so the cut reaches the width where
-//   the bracket stops fitting whole;
+//   the bracket stops fitting whole. And a bold span that ends with a closing bracket before a letter, where Chrome
+//   keeps the bracket halted and the line goes on after it, and before a period, where it halts the bracket only on a
+//   line it lays out again between graphemes (itemEndHalts in src/line-break.ts). Each is three or four characters, so
+//   that the three widest changes the cut takes are the ones around the halt;
 // - a soft hyphen whose hyphen doesn't fit after a break between two text segments, to which Chrome's line returns
 //   (unfitHyphenRetreat in src/measurement.ts; #433): the break right after a `-` at an item's edge, inside a bold
 //   word, and between two ideographs at an item's edge, each before a syllable long enough that a width the cut takes
@@ -294,6 +297,8 @@ export function richTemplates(): Template[] {
     ['punctuation-pair', ['これは', span('「引用」', BOLD(JAPANESE)), '。と言った']],
     ['punctuation-pair', [span('注意：', BOLD(JAPANESE)), '「これは引用」です']],
     ['closing-mark', ['まず', span('「設定」', BOLD(JAPANESE)), ' Settings']],
+    ['closing-mark', [span('設定」', BOLD(JAPANESE)), 'i']],
+    ['closing-mark', [span('字」', BOLD(JAPANESE)), '.字']],
   ]
   for (let i = 0; i < edges.length; i++) {
     const [family, parts] = edges[i]!
