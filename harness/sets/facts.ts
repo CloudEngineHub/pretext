@@ -9,6 +9,9 @@
 // test is now "a tab nearer its stop than the engine's minimum takes the stop after". The fact of Firefox's tab that
 // doesn't hang has a second row too: a word, a tab, a space and a tab after a break, where Firefox ends no line inside
 // the run of white space, so its line returns to the break or, on a line without one, wraps before the second tab.
+// The fact of the WebKit profile's lone carriage return runs in Menlo alone, a font on WebKit's fixed-pitch shortcut,
+// where Safari gives the carriage return a character's width and the profile none: the catalog holds the rule in
+// proportional fonts, and this row holds the fonts it gives up (RESEARCH.md, Decisions Log, 2026-10-06).
 // The ones that lay out rich items are in rich.ts, and three read only the user agent. A fact added since keeps its
 // test's line as of the pull request or commit that added it, which harness/README.md names (Adding a case), and names
 // the paragraph directions it runs in where a browser's lines turn on them (left-to-right otherwise). Here each text
