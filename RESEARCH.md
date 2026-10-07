@@ -2960,19 +2960,21 @@ repin` shows what), and a fact read in source needs reading again.
   two CRs there take 19.27px, and `ab`, CRLF, `cd` is 57.80px where `ab`, LF, `cd` is 48.17px. Measured, the fonts that
   take it are Menlo, Monaco, Courier, Andale Mono, PT Mono and the generic `monospace`, which draws Menlo, at 11 to
   28px, bold and italic. A CR takes nothing in Courier New, and by measurement alone, not traced in the source, in
-  `ui-monospace` and in a web font, the files of Menlo, Monaco and Andale Mono loaded with `FontFace` among them. Letter
-  spacing takes the box off simplified measuring (`TextUtil.cpp:716-745`), as does a ZWSP, an NBSP, another control or a
-  character of another font anywhere in the text, and the CR then takes nothing. Every Canvas measures CR and FF as a
-  space and U+0001 as `.notdef`. Since #TBD the WebKit profile's analysis takes a lone CR out of the text, as the Gecko
-  profile's does since #399, with the breaks the scan found around it; an FF is still a collapsed space, and pre-wrap
-  takes both as hard breaks (README). ENGINE_FOLLOWUPS.md, White space and controls, has what that leaves and the
-  probes' counts; keeping the CR as zero-width glue was built and not taken (Dead Ends, Invisible Characters, Controls
-  And Soft Hyphens). (webkit-host, WebKit 22625.1.29.11.27, 2026-10-06. Installed Safari 27.0 agreed with webkit-host on
-  the 8,387 layouts of two earlier probes of that day, in Arial, Times New Roman and Georgia, on all 2,820 widths of a
-  page of these facts in 30 font settings, the fixed-pitch and web fonts among them, and on the lines and widths of
-  1,623 layouts of a sample in Arial, Menlo and Courier New; the larger probes ran in webkit-host alone. Reopens with a
-  Canvas fact that tells which fonts take the fixed-pitch shortcut or which glyph a font gives U+000D, or with normal
-  white space that keeps two spaces that touch.)
+  `ui-monospace` and in a web font, the files of Menlo, Monaco and Andale Mono loaded with `FontFace` among them. A font
+  list goes by its first family that is present (`FontCascadeFonts.cpp:140-154, 165-198`): `Menlo, Monaco, monospace`
+  takes the shortcut, and `"SF Mono", ui-monospace, Menlo, Monaco, monospace` and `"Courier New", Courier, monospace`
+  don't. Letter spacing takes the box off simplified measuring (`TextUtil.cpp:716-745`), as does a ZWSP, an NBSP,
+  another control or a character of another font anywhere in the text, and the CR then takes nothing. Every Canvas
+  measures CR and FF as a space and U+0001 as `.notdef`. Since #TBD the WebKit profile's analysis takes a lone CR out of
+  the text, as the Gecko profile's does since #399, with the breaks the scan found around it; an FF is still a collapsed
+  space, and pre-wrap takes both as hard breaks (README). ENGINE_FOLLOWUPS.md, White space and controls, has what that
+  leaves and the probes' counts; keeping the CR as zero-width glue was built and not taken (Dead Ends, Invisible
+  Characters, Controls And Soft Hyphens). (webkit-host, WebKit 22625.1.29.11.27, 2026-10-06. Installed Safari 27.0
+  agreed with webkit-host on the 8,387 layouts of two earlier probes of that day, in Arial, Times New Roman and Georgia,
+  on all 2,820 widths of a page of these facts in 30 font settings, the fixed-pitch and web fonts among them, and on the
+  lines and widths of 1,623 layouts of a sample in Arial, Menlo and Courier New; the larger probes ran in webkit-host
+  alone. Reopens with a Canvas fact that tells which fonts take the fixed-pitch shortcut or which glyph a font gives
+  U+000D, or with normal white space that keeps two spaces that touch.)
 - **Emoji and the segmenter.** DOM emoji equal OffscreenCanvas's at the CSS size, bit for bit at 8-32px (a "size × DPR ÷
   DPR" recipe is up to 3.5 px off), and OffscreenCanvas gives a space before U+FE0F the emoji's width
   (ENGINE_FOLLOWUPS.md). Safari's `Intl.Segmenter` doesn't mark digit strings as words where Bun's does, so Bun is no
