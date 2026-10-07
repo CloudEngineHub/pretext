@@ -2495,14 +2495,23 @@ runs (Firefox 156.0.1, bench sessions of 2026-09-27 and 28, unless noted):
   walker) read level one by one and together, and one step of them read jsc's soft hyphens 3.4% slower, so none was
   taken: 18 lines for nothing measured. What the `hangs` clause costs is not its tests but their form. As two
   statements, `let hangs` from the hanging kinds and then the same three tests in the same order in an `if`, which
-  asks a segment that hangs one test more than the `||` did, the foreground reads the full walker faster in all three
-  browsers (Chrome 154.0.8037.98, Firefox 156.0.1, Safari 27.0; three sessions against the walker with the `||`,
-  2026-10-07): letter-spaced CJK `layout()` 2.1%, 4.3% and 2.9%, in every session of each; pre-wrap chunks' walk
-  3.9%, 0.9% and 3.3%, Chrome's and Safari's called, and their `layout()` 2.5%, 1.8% and 3.7%; the control characters
-  4.7% in Safari; no worst-case row called slower. The shells had shown it in jsc alone (4.1%, 5.3% and 2.9% on the
-  three rows, SpiderMonkey and V8 level), and two other spellings as trades: with the kind tested first SpiderMonkey's
-  shell read 1.4-2.9% slower, and folded into the line-start prefix's test of the kind V8's read letter-spaced CJK
-  2.0% slower. So the walker has the two statements, three lines more with their comment. That is about half of
+  asks a segment that hangs one test more than the `||` did, the foreground reads the full walker faster (Chrome
+  154.0.8037.98, Firefox 156.0.1, Safari 27.0; two runs of three sessions, against the walker with the `||` and
+  against the walker before both of this entry's changes, 2026-10-07). Pre-wrap chunks' walk: 3.9% and 3.6% in
+  Chrome, 3.3% and 5.7% in Safari, called in all four, and 0.9% and 0.2% in Firefox; their `layout()` 3.7% and 5.0%
+  in Safari, the second called, 1.8% and 1.6% in Firefox, and 2.5% faster then 0.5% slower in Chrome. Letter-spaced
+  CJK `layout()`: 2.1% and 2.4% in Chrome, in every session, 2.9% and 4.4% in Safari, 4.3% and 0.9% in Firefox. No
+  worst-case row was called slower. The second run called Safari's `lines: latin walk` 2.0% slower, a row of the
+  simple stepper, which neither change touches and jsc's shell reads level: it moves with the bundle, and a build one
+  binding apart wasn't timed. The shells had shown the gain in jsc alone (4.1%, 5.3% and 2.9% on the three rows,
+  SpiderMonkey and V8 level), and two other spellings as trades: with the kind tested first SpiderMonkey's shell read
+  1.4-2.9% slower, and folded into the line-start prefix's test of the kind V8's read letter-spaced CJK 2.0% slower.
+  So the walker has the two statements, three lines more with their comment. Against main at #455 the walker with
+  both changes reads (three sessions, 2026-10-07): in Safari letter-spaced CJK `layout()` 3.7% slower, called, and
+  pre-wrap chunks' `layout()` and walk 2.0% and 3.2%, where the build before them read 7.3%, 7.5% and 7.7% against
+  main at #453; in Firefox the soft hyphens 3.5%, called, where it read 4.8%; in Chrome letter-spaced CJK 5.4%
+  faster, called, and pre-wrap chunks 2.9% and 3.2% slower, in every session and not called. No row of new text, of
+  text prepared again or of rich text was called against the walker before both changes. That is about half of
   Safari's gap; the other half goes only with everything a paragraph adds.
 - **A paragraph's segment breaks, in the Gecko profile**: Gecko transforms segment breaks in each text frame's own text,
   so a paragraph with a line feed had every item cut out of the joined text, transformed and joined again: 8,508 of the
