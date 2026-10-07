@@ -33,8 +33,8 @@ builds widths are compared exactly: to `equal <ref>` a line width that differs a
 `measureLineStats()`, `walkLineRanges()`, `layoutNextLineRange()`, `layoutNextLine()`, `layoutWithLines()`,
 `materializeLineRange()` and their rich-inline counterparts) must agree on lines, widths and text, and none may call
 `measureText` after preparing. A rich fragment's text is its item's text between the fragment's `sourceStart` and
-`sourceEnd` as painted, white space collapsed and invisible breaks left out, with the hyphen of a soft hyphen its line
-ends at (`fragmentProblem()`). A box is a visible
+`sourceEnd` as painted, white space collapsed, invisible breaks and what the engine profile's analysis takes out of
+the text left out, with the hyphen of a soft hyphen its line ends at (`fragmentProblem()`). A box is a visible
 character whatever its width, placed by its top. Every case is laid out start-aligned in an element with no text
 decoration or background, so a browser rule that depends on those is recorded on one side only: Chrome keeps a word's
 kerning with a hanging space in such text and drops it in the others (`RESEARCH.md`, Kerning At Line Edges).

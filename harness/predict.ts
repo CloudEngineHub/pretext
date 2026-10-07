@@ -58,12 +58,13 @@ const COLLAPSIBLE = /^[ \t\n\r\f]$/
 
 // For each UTF-16 unit of the library's segment stream, the source range it stands for. Normalization only rewrites or
 // removes white space (normal: a run of SPACE, TAB, LF, CR and FF becomes one SPACE, a leading and a trailing one go,
-// some engines remove a run with LF next to a ZWSP, and the Gecko profile takes out white space after a character
-// Firefox drops and a CR or FF; pre-wrap: CRLF, CR and FF become LF), so a greedy walk aligns the two. null when they
-// don't align. White space the stream leaves out after a unit is in that unit's range, as white space that ends a line
-// is in its line: Firefox gives such a space a box at the end of a line whose text frame it doesn't trim, where the
-// space is the line's last visible character (`(see)`, space, U+00AD, space, `[this]` in a right-to-left paragraph at
-// 60px). A text's leading and trailing white space is in no unit's: a rich item's is the gap of the fragment after it.
+// some engines remove a run with LF next to a ZWSP, the Gecko profile takes out white space after a character Firefox
+// drops and a CR or FF, and the WebKit profile a lone CR; pre-wrap: CRLF, CR and FF become LF), so a greedy walk aligns
+// the two. null when they don't align. White space the stream leaves out after a unit is in that unit's range, as white
+// space that ends a line is in its line: Firefox gives such a space a box at the end of a line whose text frame it
+// doesn't trim, where the space is the line's last visible character (`(see)`, space, U+00AD, space, `[this]` in a
+// right-to-left paragraph at 60px). A text's leading and trailing white space is in no unit's: a rich item's is the gap
+// of the fragment after it.
 export function alignStream(source: string, stream: string, whiteSpace: 'normal' | 'pre-wrap'): { starts: Int32Array; ends: Int32Array } | null {
   const starts = new Int32Array(stream.length)
   const ends = new Int32Array(stream.length)
@@ -278,24 +279,30 @@ export function richDisagreement(api: LineApis, prepared: ReturnType<typeof prep
 
 const UNPAINTED = /[\u00AD\u2028\u2029]/g
 const DROPPED = /^[\u00AD\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]$/
+// A run of what an engine profile's analysis takes out of normal white space with nothing in its place: a CR or FF in
+// the Gecko profile, a lone CR in the WebKit profile (src/analysis.ts, analyzeText). The Blink profile collapses both.
+const REMOVED = { blink: null, webkit: /^\r+$/, gecko: /^[\r\f]+$/ }
 
 // Whether `text` is `source`, a stretch of an item's text, as painted: without soft hyphens and what ends a line. In
 // normal white space each run of white space is one space, or nothing where the engine removes it: at either end, where
 // it can collapse into white space outside the stretch; where it holds a line feed, which the segment break
-// transformation can remove, as Firefox does between two ideographs; and next to a soft hyphen or a bidi control, which
-// Firefox's white-space run reads through. In pre-wrap the bidi controls that end the stretch after a line feed paint
-// nothing either: the Gecko analysis keeps those that end a paragraph in its last line feed's segment.
+// transformation can remove, as Firefox does between two ideographs; next to a soft hyphen or a bidi control, which
+// Firefox's white-space run reads through; and where it is only what the profile takes out (REMOVED). In pre-wrap the
+// bidi controls that end the stretch after a line feed paint nothing either: the Gecko analysis keeps those that end a
+// paragraph in its last line feed's segment.
 function paints(source: string, text: string, whiteSpace: 'normal' | 'pre-wrap'): boolean {
   if (whiteSpace === 'pre-wrap') return text.replace(/[\u00AD\u2028\u2029\n\r\f]/g, '') === source.replace(/([\n\r\f\u2028\u2029])[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]+$/, '$1').replace(/[\u00AD\u2028\u2029\n\r\f]/g, '')
   const painted = text.replace(UNPAINTED, '')
+  const removed = REMOVED[getEngineProfile().lineBreakScan]
   let t = 0
   for (let s = 0; s < source.length;) {
     const ch = source[s]!
     if (COLLAPSIBLE.test(ch)) {
       let end = s + 1
       while (end < source.length && COLLAPSIBLE.test(source[end]!)) end++
+      const run = source.slice(s, end)
       if (painted[t] === ' ') t++
-      else if (s > 0 && end < source.length && !source.slice(s, end).includes('\n') && !DROPPED.test(source[s - 1]!) && !DROPPED.test(source[end]!)) return false
+      else if (s > 0 && end < source.length && !run.includes('\n') && !DROPPED.test(source[s - 1]!) && !DROPPED.test(source[end]!) && !(removed !== null && removed.test(run))) return false
       s = end
       continue
     }
