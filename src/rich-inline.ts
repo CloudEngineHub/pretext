@@ -914,11 +914,12 @@ function getPartWidth(data: PreparedSegments, i: number, from: number, to: numbe
 // hyphen the line ends at, goes to the last one. One loop over the line's segments: where a
 // fragment or a gap starts, the paragraph's lists give where that fragment ends, so every other
 // segment only adds its width. A line where no segment's width depends on the line (`bare`), as
-// nearly every line of styled prose is, has a loop of its own that adds bare widths: beside the
-// widths that tabs, letter spacing, halts and a line's edges need, Chrome and Safari ran them a
-// third slower. The widths of the two segments a line can start or end inside are found before
-// the loops, and neither holds another loop or a search: a search for the item, or a call or a
-// loop inside one for a width it rarely needs, cost Firefox a third to a half of a walk's time
+// nearly every line of styled prose is, has a loop of its own that adds bare widths: in one loop
+// with the widths that tabs, letter spacing, halts and a line's edges need, Chrome walked such
+// lines 18% slower and Safari 8%. The widths of the two segments a line can start or end inside
+// are found before the loops, and neither holds another loop or a search: a search for the item,
+// or a call or a loop inside one for a width it rarely needs, cost Firefox a third to a half of a
+// walk's time, and a loop inside for each fragment's widths 9% on items of one segment
 // (RESEARCH.md, Rich Inline As One Paragraph).
 function createLine(
   flow: InternalPreparedRichInline,

@@ -1504,6 +1504,54 @@ Firefox, 16-24% and 10-13% faster in V8's shell and 20-24% and 14-22% in JavaScr
 shells on a stand-in Canvas, so hypotheses until the bench times them; JavaScript Engines has the general rule).
 `createLine()` is written that way.
 
+That pass was still most of what walking and stepping lines cost on text shaped as apps have it, which the stress items,
+a segment an item, hid. On the chat demo's styled paragraphs (the bench's `chat-styled` document: about 3.5 items a
+paragraph, 8 segments and 1.4 fragments a line at the bench's widths) the paragraph walked lines 21% slower than main at
+#455 in Chrome 154 and 18% slower in Safari 27.0, and stepped them 27% and 26% slower, where it counted them twice as
+fast; Firefox 156.0.1 walked them 8% faster and stepped them 7% slower (foreground, 9-10 sessions a browser,
+2026-10-07). Counted as instructions retired in the engines' shells, a walk of that document was a quarter to two fifths
+finding the lines and the rest building them: in V8, JavaScriptCore and SpiderMonkey 14-18% for the callback, the cursor
+and the line object, 22-27% for the fragment objects with the stores into them, and 35%, 29% and 22% for the loop over
+the line's segments, about 120, 75 and 95 instructions a segment, as each segment tested its item, a gap, an open
+fragment, a tab, letter spacing and a halt, and wrote the fragment's end. Main stepped item by item and had no such
+pass; building a line cost it a third to a half of that.
+
+`createLine()` now finds where a fragment ends when it makes one, from the paragraph's lists (`itemSegments`, and
+`gapSegments` at the item's two edges), so the other segments only add their widths. A line where every segment is as
+wide as its width has a loop of its own that adds bare widths (`bare`: the paragraph has no tab, no letter spacing the
+handle adds and no halted mark, `plainWidths`, and the line starts and ends between segments and adds nothing at its
+start), as 2,387 of that document's 2,444 lines are; the others keep the widths that tabs, letter spacing, halts and a
+line's edges need. The lines, widths and cursors are the same for every input: against the loop it replaced, a fuzz of
+the bench's 1,916 rich paragraphs and 200,000 random ones differs in none in each of the three engine profiles, with
+every handle field, line, range, materialized line, stream and `measureText` call compared, and `equal --offline`'s
+21,251 inputs in none in four.
+
+Foreground, in Chrome 154.0.8037.98, Firefox 156.0.1 and Safari 27.0, 13 sessions each (2026-10-07), against the loop it
+replaced: `chat-styled` walked 32%, 18% and 26% faster and stepped 31%, 17% and 25% faster; the demo's own mix (`chat`;
+86% of its paragraphs are one item, which was one fragment already) walked 15%, 7% and 11% faster; the stress items 5%,
+11% and 14%; counting lines and preparing read level, as did every plain row. Against main, by the two ratios
+multiplied, `chat-styled` then walks 19%, 25% and 13% faster and steps 13%, 12% and 5% faster, and the stress items walk
+30%, 21% and 31% faster. Safari's `chat` is what stays slower than main, its walk by 5% and its step by 4%: by lines, a
+line of a one-item paragraph costs it about 36 ns there against main's 31, which JavaScriptCore's shell doesn't show (it
+runs that path in 3-6% fewer instructions than main's).
+
+Three other forms were measured (2026-10-07; a shell figure is instructions retired a pass on a stand-in Canvas, a
+hypothesis):
+- **One loop for every line**, the bare width picked by a test in it, is 22 lines shorter and walked `chat-styled` 20%,
+  17% and 21% faster than the pass it replaced in Chrome, Firefox and Safari (13 foreground sessions), against 32%, 18%
+  and 26% for the two loops: with the general widths' code in the loop every engine ran the bare segments slower, and
+  the stress items 4, 8 and 7 points slower.
+- **A loop of bare widths for each fragment, inside the loop over the line's fragments**, walked `chat-styled` 35%, 15%
+  and 28% faster and the stress items 3% slower in Chrome and 9.5% slower in Firefox (5.1 to 5.6 µs per 1,000 units,
+  every one of six foreground sessions). SpiderMonkey runs the loop over fragments slower once a loop is compiled inside
+  it, about 100 instructions a fragment in its shell whether the inner loop runs or not, and an item of one segment
+  gains nothing back (JavaScript Engines has the first case of this).
+- **Fragment widths as differences of sums stored per segment** take the pass away: `chat-styled` walked 36%, 24% and
+  31% faster (five foreground sessions). A fragment's width then differs from its segments' sum in the last bits (by
+  1.6e-12 at most over 600,000 fuzzed paragraphs, in 46-48% of them, the fragments still adding up to the line's width),
+  and making the list of sums cost Chrome 2.4-3.5% of preparing a paragraph again. Reopens if fragment widths may differ
+  in their last bits.
+
 What it measured, against main at #453 (d997402c) in Chrome 154.0.8037.98, Firefox 156.0.1 and webkit-host on WebKit
 22625.1.29.11.27, on macOS 27.0 at device pixel ratio 2 (2026-10-06; the PR's description has the tables). No plain
 text moves: with every rich input left out, 19,409 plain inputs of the offline comparison give the same handles, lines
@@ -2657,6 +2705,12 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   `--ion-licm=off`, `--ion-range-analysis=off`, `--ion-scalar-replacement=off`, `--ion-osr=off`; the JIT's source
   wasn't read). Finding those widths before the loop, at most two a line, is also less work, so it isn't code shaped to
   one JIT (2026-10-05; Rich Inline Boundaries, Rich Inline As One Paragraph).
+  A loop on a path most iterations take costs the same way: with a loop of bare widths for each fragment inside the
+  loop over a line's fragments, SpiderMonkey's shell ran about 100 more instructions a fragment whether the inner loop
+  ran or not, and Firefox 156.0.1 walked and stepped text of one segment an item 9% slower (5.1 to 5.6 µs per 1,000
+  units of the bench's stress items, every one of six foreground sessions), where Safari 27.0 read 8% faster and
+  Chrome 154 3% slower. So that pass's two loops each run over the line's segments, with none inside (2026-10-07;
+  Rich Inline As One Paragraph has what that gave up).
 - **How a width is stored, in SpiderMonkey**: Firefox's full walker is slower over a handle whose whole widths are
   stored as int32 values than over one whose widths are all doubles, and which one a handle gets depends on how
   `measureAnalysis()` ran when it was made. Canvas gives a whole width, as an ideograph's 16px, as an int32. Main with
