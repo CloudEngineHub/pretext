@@ -1402,7 +1402,7 @@ line may end; the *handle* is what preparation gives the walkers (`PreparedLineD
 
 `prepareRichInline()` joins the items' texts, an atomic item (`break: 'never'`) or a box as one U+FFFC, and analyzes
 that text once, as `prepare()` analyzes a text, with a segment starting wherever an item does (`ParagraphItems` and
-`ITEM_START` in `src/analysis.ts`). It measures each item's segments in the item's font and copies them into one handle,
+`ITEM_START` in `src/analysis.ts`). It measures each item's segments in the item's font onto the lists of one handle,
 which `walkPreparedLinesRaw()` and the steppers of `src/line-break.ts` lay out as they lay out a text. A line's
 fragments are its segments cut where the item changes (`createLine()`). A paragraph of one text item without
 `extraWidth`, or whose other items are empty, is that text's own handle.
@@ -1633,8 +1633,8 @@ paragraph's white space collapses over the whole text, and two passes read every
 their compiled speed later on the paragraph's larger function. It reopens with a way to prepare a paragraph that
 doesn't slice its joined text. What plain text's rows read is under Keeping Work Bounded: the walker's rules for a
 paragraph are tests on a text's path (Work Done Only Where A Rule Applies), and three forms cost one engine more than
-their work (JavaScript Engines: how a width is stored, a flag parameter; Dead Ends, Fitting, Cuts And Fast Paths, the
-font's two widths).
+their work (JavaScript Engines: how a width is stored, a list made where it is filled, a flag parameter; Dead Ends,
+Fitting, Cuts And Fast Paths, the font's two widths).
 
 Preparation then lost work that changes no result. With each removal below, 200,000 random paragraphs, the bench's
 stress paragraphs and its styled chat paragraphs give the same lines, stats, ranges, materialized lines, streams and
@@ -1660,6 +1660,17 @@ removal says otherwise (2026-10-07).
   and which an item of only white space is, is kept on the font's measurement from the first ask, beside its Map of
   widths (`getSpaceWidth()`): one Map lookup less for every text and every rich item. It is the space half of the
   font's two widths, which were taken out together (Dead Ends, Fitting, Cuts And Fast Paths).
+- **Measuring in place.** `measureAnalysis()` measures a range of an analysis's segments, and for an item of a
+  paragraph it adds their widths, flags and advances to the paragraph's own lists (`ParagraphLists`). Before, each text
+  item got a copy of its part of the paragraph's analysis (an object, three lists and a slice of the text), a handle
+  with lists and a byte array of its own, and a loop that copied those into the paragraph's lists. What measurement
+  asks of a whole text, as whether it may hold emoji, a space to kern with or a mark to halt, it asks of the item's
+  text as before: its one segment's text, or one slice of the paragraph's. Per 42,000 units of the stress document
+  that is 29,386 fewer array literals, 5,855 fewer typed arrays and 27,845 fewer pushes (counted in V8's shell under
+  the WebKit profile, at an earlier head of the branch, 544c0ce6). The handle is the same in every field. A text's own
+  lists are still made inside `measureAnalysis()`, where they are filled: a first form that had every caller make
+  them cost Chrome 5-11% of preparing long texts and Firefox 4% and 12% of counting and walking CJK lines (Keeping
+  Work Bounded, JavaScript Engines, under A list made where it is filled).
 
 What they measured, in the foreground bench's `rich` rows (Chrome 154.0.8037.98, Firefox 156.0.1 and installed Safari
 27.0 on macOS 27.0, 2026-10-07; each a build against the build without the removal; these gains are under the row's 5%
@@ -1681,6 +1692,45 @@ from the first. Safari's stream over the styled chat paragraphs reads 0.3% slowe
 units, in a row that runs none of the changed code. And Chrome's line count of the stress document reads 1.6% slower
 under the space width alone in 7 of 7 sessions, over handles that are the same in both builds, where the three
 together read it 0.3% slower in 8 of 15.
+
+What measuring in place measured, against the build without it, in the foreground bench (the same browsers,
+2026-10-07; 13 sessions of the `rich` rows in three runs and three sessions of every other row a browser; both builds
+also stored each width through a one-cell `Float64Array`, so that every width is a double, a separate change that is
+not on this branch; the PR's description has the tables). Real text first. The styled chat paragraphs prepared again
+read 7.8% faster in Safari (53.2 to 49.0 µs per 1,000 units), 5.6% in Chrome and 3.8% in Firefox, in every session of
+each, and the bench called
+Safari's in all three runs; the chat mix reads 1.9% faster in Safari (40.6 to 39.9), in 12 of 13 sessions, and about 1%
+in Chrome and Firefox. The stress document prepared again reads 5.3% faster in Safari (68.8 to 64.6), 5.8% in Chrome
+and 2.8% in Firefox, in every session. New text stays within noise on all three documents, Safari's stress document
+at 3.9% faster in 10 of 13 sessions, and counting, walking and stepping lines read within 1.3%, but for Firefox's count
+of the chat mix, a cell whose copies run at two speeds. Plain text: Chrome reads `seen: cjk seen` 3.0% slower, called
+(104.5 to 107.8 µs per 1,000 units; +2.7%, +3.0% and +3.3%), a row that moves with how `measureAnalysis()` is written
+more than with what it does: partial forms of the change read it 2.1% to 7.9% slower in background Chrome, and V8's
+shell reads the whole change 3.1% or 0.4% slower by how many libraries share its page. Firefox's `new: arabic new`
+was called once, 9.2% slower in three sessions, and read 1.4% faster over eight more sessions of the row and 1.5%
+faster against main, so it isn't the change's. No other row is called.
+Without that cell, as this branch is, the same form reads Firefox's CJK lines level, counted 0.1% faster, walked 0.3%
+faster and stepped 0.5% slower over eight sessions, with no row called in three sessions of every row, and the rich
+rows gain what they gain with it (Safari's styled chat paragraphs 8.2% faster and its stress document 6.7%, both
+called, five sessions). So measuring in place doesn't rest on that cell. Its first form did, and failed three of
+Chrome's rows as well (JavaScript Engines, A list made where it is filled).
+
+A build with the three removals, measuring in place and that cell reads against main at #455 as follows (three
+foreground sessions of every row, 2026-10-07; the PR's description has the table). Real rich text prepared
+again is faster than main in all three browsers: the chat mix by 3.6% in Safari (41.5 to 39.7 µs per 1,000 units), 8.3%
+in Firefox and 6.4% in Chrome, and the styled chat paragraphs by 2.7% in Safari (50.9 to 48.9), 16.8% in Firefox and
+0.9% in Chrome; their new text is within noise. Counting their lines takes 0.68-0.81 of main's time on the mix and
+0.43-0.52 on the styled paragraphs. Walking and stepping lines is the cost that stays: on the styled paragraphs 20.4%
+and 26.4% slower in Chrome and 17.9% and 26.5% in Safari, on the mix 16.0% and 13.8% slower in Safari, all called, and
+5.3% and 2.4% in Chrome; Firefox walks the styled paragraphs 7.1% faster and the rest within 5.5%. The stress document
+prepared again reads 15.2% faster in Chrome and 12.4% in Firefox; in Safari it takes 64.2-67.2 µs per 1,000 units,
+where main's two copies ran at 54.5-57.5 or at 60.5-64.9 and the design first took 78-79. Its new text reads 9.5%
+slower in Chrome, in all three sessions (+1.2%, +11.3% and +6.2%), 3.1% in Safari and 2.0% in Firefox, none called.
+Plain text: text seen before prepares 1.8-3.9% faster in Chrome and Safari (Latin, Arabic and mixed, called), Chrome's
+`seen: cjk seen` reads 4.3% slower, called, Firefox counts the bench's CJK lines 13.1% faster and steps them 5.4%
+faster, which is that cell's and not this branch's, and Safari's worst-case `layout()` rows read as they did
+(letter-spaced CJK +6.4%, controls +5.6%, pre-wrap chunks +7.2% and their walk +6.9%, called; Keeping Work Bounded,
+Work Done Only Where A Rule Applies).
 
 #### Joined Text
 
@@ -2726,7 +2776,57 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   when a font's space and hyphen-minus widths were read off its measurement inside `measureAnalysis()` (Dead Ends,
   Fitting, Cuts And Fast Paths, 2026-10-06), and not when only the space's was (Rich Inline As One Paragraph,
   2026-10-07), so what keeps a whole width an int32 there is how the code around it is typed, and default values are one
-  way among others to change that.
+  way among others to change that. A third way is a text's lists made by the caller of `measureAnalysis()` (A list
+  made where it is filled, below).
+- **A list made where it is filled** (2026-10-07): a text's three lists, its widths, flags and advances, are made
+  inside `measureAnalysis()`, the function that fills them. A first form of measuring a rich-inline item in place
+  (Rich Inline Boundaries, Rich Inline As One Paragraph) had every caller make the lists and pass them in, and cost
+  two engines with no work added. Chrome 154.0.8037.98 prepared the bench's pre-wrap chunks 11.3% slower with it, its
+  long breakable runs 4.9% and its Arabic book 4.8%, each in all three foreground sessions and called; those are the
+  bench's documents of 12, 1 and 1 texts, and no row of shorter texts moved. Safari 27.0 read the Arabic book 2.8%
+  slower, called. Those two were read on builds that also stored each width through a one-cell `Float64Array`, so
+  that every width is a double, a separate change that is not on this branch. Without that cell, as this branch is,
+  Firefox 156.0.1 counted the bench's CJK lines 4.3% slower and walked them 11.6% slower, called in all five foreground
+  sessions: the loss of the entry above. With a text's lists made inside again, and only a rich item's passed in, its
+  paragraph's (`ParagraphLists`), Chrome reads the three rows 1.0% faster and 0.7% and 1.3% slower, Safari 0.4%, 0.2%
+  and 0.5% slower, all within noise, on builds with that cell, and Firefox without it counts and walks those lines
+  within 0.3% over eight sessions.
+
+  V8's part is traced. V8 makes a list from `[]` in its small-integer form until it has a record, kept for that
+  `[]`, of what lists made there came to hold, and a function has no such record before it has run about eight
+  times, or sooner where a loop of its own runs long (the handler of `CreateEmptyArrayLiteral` without a feedback
+  vector, `src/interpreter/interpreter-generator.cc:2645-2672`; `TieringManager::InterruptBudgetFor()`,
+  `src/execution/tiering-manager.cc:245-254`, with `invocation_count_for_feedback_allocation`,
+  `src/flags/flag-definitions.h:1176`; V8 15.3.76.12, Chromium 153's). Compiled code that pushes a number other than
+  a small integer onto such a list fails the check of the push's small-integer branch (`CheckSmi`,
+  `IteratingArrayBuiltinReducerAssembler::ReduceArrayPrototypePush()`, `src/compiler/js-call-reducer.cc:1603-1611`),
+  the function is deoptimized, and V8 marks that call so that no later compile speculates there
+  (`TranslatedState::DoUpdateFeedback()`, `src/deoptimizer/translated-state.cc:2897-2915`): from then on the push is a
+  call to the generic builtin (`JSCallReducer::ReduceArrayPrototypePush()`, `src/compiler/js-call-reducer.cc:6573-6578`;
+  Maglev's `TryReduceArrayPrototypePush()`, `src/maglev/maglev-graph-builder.cc:10141-10143`), for as long as the page
+  lives. `measureAnalysis()` runs a loop a segment long, so where a page's first texts are long V8 compiles it within
+  the first few calls, while a function that only makes the lists and calls it has run fewer than eight times and
+  still makes them in the small-integer form. A page whose texts are short never meets this: the caller has run
+  hundreds of times before the loop is compiled. d8 15.4.80 on a stand-in Canvas reads the three rows 8.3%, 2.9% and
+  5.7% slower for the first form, 7.6%, 2.7% and 6.3% slower with nothing but the three lists moved to the caller,
+  and level once the widths and advances lists are made inside again (-0.3%, +0.4% and +0.4%). Its trace shows
+  `measureAnalysis()` deoptimized once, "not a Smi", in Maglev's code at a push, and never where the lists are made
+  inside. With Maglev off the pre-wrap row reads level, as the optimizing compiler then comes after the caller's
+  first calls, and the Arabic book, one text, stays 5-6% slower (2026-10-07; 4-8 passes with every library in one
+  realm; a hypothesis, as every shell reading is).
+
+  Why SpiderMonkey keeps whole widths as integers under the first form wasn't found. Background probes of that form
+  read Firefox's loss only where the lists were the caller's and the function's whole-text questions were asked of a
+  second string than the analysis's; the caller's lists alone read level there, and the second string alone is the
+  form that landed.
+
+  A paragraph's lists are still made by `prepareRichInline()` and filled by `measureAnalysis()`. Three orders of a
+  page's first texts that might bring V8's deoptimization to them were run in d8 and didn't: rich paragraphs first on
+  a page whose plain text is warm, where every build reads plain text 2% slower a second later, the build that copies
+  an item's lists too; a first rich paragraph with one item of 40,000 units; and the same after ten plain texts. In
+  the first, the item's measurement leaves the compiled code where it takes a branch only an item takes, before any
+  push. A list made by the function that fills it is the plainer allocation pattern in any engine, so this isn't code
+  shaped to one JIT (Part 1, Engineering).
 - **A flag parameter, in JavaScriptCore**: `buildLineTextFromRange()` took a last parameter, true by default, for
   whether its range ends a line, and webkit-host read `layoutWithLines()` over the bench's mixed messages 4.0-4.7%
   slower than main in three runs, for one test a line (JavaScriptCore's shell: +2.9%; V8's and SpiderMonkey's level). As
@@ -4929,9 +5029,14 @@ decisions for the maintainer.
   cursor counts the paragraph's segments, with `sourceStart` and `sourceEnd` on a materialized fragment for its place
   in the item's text, since no mapping gives a cursor into `prepareWithSegments(item.text)` without analyzing each
   item again. What it costs: that cursor contract; an atomic item of only white space is an object as wide as its
-  `extraWidth`; preparing rich text is slower in Safari, 10-16% for text no library has seen and 25-38% for text
-  prepared again, and 7-15% for new text in Chrome and Firefox, against stats at 0.2-0.4 of the stepper's time and
-  walks 11-29% faster; the main entry is 1,281 B larger gzipped for what the walker and the analysis carry for a
+  `extraWidth`; on the bench's stress items, a word or a space each, Safari prepares rich text again in 64-67 µs per
+  1,000 units for main's 55-65, and new text reads 2-10% slower in the three browsers, none called, against a line count
+  at 0.2-0.4 of the stepper's time and walks 13-29% faster; on real chat text, preparing again is 1-17% faster than main
+  in all three, and walking and stepping the lines of styled paragraphs is 18-27% slower in Chrome and Safari
+  (foreground, 2026-10-07, on a build with that day's removals that also stored each width through a one-cell
+  `Float64Array`, a separate change that is not on this branch; Rich Inline Boundaries, Rich Inline As One Paragraph,
+  has the first figures, 25-38% slower in Safari on text prepared again, and what took them down); the main entry is
+  1,281 B larger gzipped for what the walker and the analysis carry for a
   paragraph; and the walker has rules that hold for a paragraph only (`items !== undefined`), where plain text has the
   same gap and wasn't to move in the same change: a U+3000 run that hangs at an item's end, a soft hyphen beside an
   object, a segment of negative advance on a line that overflows, and a run of preserved spaces that hangs where a

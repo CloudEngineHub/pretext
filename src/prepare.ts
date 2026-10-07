@@ -323,9 +323,10 @@ export function measureAnalysis(
   // is asked of it, and places in it count from its start.
   const ownStart = from === 0 ? 0 : starts[from]!
   const own = from === 0 && to === flags.length ? normalized : to === from + 1 ? texts[from]! : normalized.slice(ownStart, to < flags.length ? starts[to]! : normalized.length)
-  // A text's lists are made here, where they are filled, and not by its caller
-  // (RESEARCH.md, Keeping Work Bounded, JavaScript Engines, under A list made where it is
-  // filled).
+  // A text's lists are made here, where they are filled, and not by its caller: with every
+  // caller making them, Chrome prepared long texts 5-11% slower and Firefox walked CJK lines
+  // 12% slower (RESEARCH.md, Keeping Work Bounded, JavaScript Engines, under A list made
+  // where it is filled).
   const widths: number[] = paragraph === null ? [] : paragraph.widths
   // An engine's scan makes one prepared segment per analysis segment, whose flags the
   // walkers, layout()'s count and rich-inline layout read where the scan gives no break.
