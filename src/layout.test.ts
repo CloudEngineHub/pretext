@@ -4300,6 +4300,120 @@ describe('rich-inline invariants', () => {
     }
   })
 
+  test('a carriage return in a rich paragraph is what its text has in one item: a space in the Blink profile, and nothing in the Gecko and WebKit profiles, with the breaks each scan finds around it', () => {
+    const BOLD = '700 16px Test Sans'
+    const item = (text: string, font = FONT): RichInlineItem => ({ text, font })
+    // Each line's fragments as their items, their texts, their items' texts from sourceStart to
+    // sourceEnd and the items whose space is the gap before them, or -1. The stream from each
+    // line's end gives the walk's next line, and the stats its line count.
+    const lines = (items: RichInlineItem[], maxWidth: number) => {
+      const prepared = prepareRichInline(items)
+      const out: Array<Array<[number, string, string, number]>> = []
+      const ends: Array<NonNullable<ReturnType<typeof layoutNextRichInlineLineRange>>['end']> = []
+      walkRichInlineLineRanges(prepared, maxWidth, range => {
+        ends.push(range.end)
+        out.push(materializeRichInlineLineRange(prepared, range).fragments.map(f => [f.itemIndex, f.text, items[f.itemIndex]!.text.slice(f.sourceStart, f.sourceEnd), f.gapItemIndex]))
+      })
+      let range = layoutNextRichInlineLineRange(prepared, maxWidth)
+      for (let i = 0; i < ends.length; i++) {
+        expect(range!.end).toEqual(ends[i]!)
+        range = layoutNextRichInlineLineRange(prepared, maxWidth, range!.end)
+      }
+      expect(range).toBeNull()
+      expect(measureRichInlineStats(prepared, maxWidth).lineCount).toBe(out.length)
+      return out
+    }
+    // Each line's end, as its item, segment and grapheme.
+    const ends = (items: RichInlineItem[], maxWidth: number) => {
+      const out: string[] = []
+      walkRichInlineLineRanges(prepareRichInline(items), maxWidth, range => out.push(`${range.end.itemIndex}:${range.end.segmentIndex}:${range.end.graphemeIndex}`))
+      return out
+    }
+    // A text cut into items of one font has the lines of the text in one item, the gaps as spaces.
+    const expectLinesOfOneItem = (parts: readonly string[]) => {
+      for (const width of [1, 20, 30, 40, 50, 60, Infinity]) {
+        const rich = lines(parts.map(text => item(text)), width).map(line => line.map(f => (f[3] < 0 ? '' : ' ') + f[1]).join('').trimEnd())
+        expect({ parts, width, rich }).toEqual({ parts, width, rich: lines([item(parts.join(''))], width).map(line => line[0]![1].trimEnd()) })
+      }
+    }
+    // A CR inside an item, one that ends an item, one that starts an item, one that is an item
+    // between two others, and a CRLF whose line feed starts the next item.
+    const inside = [item('x '), item('ab\rcd', BOLD), item(' y')]
+    const atEnd = [item('ab\r'), item('cd ef', BOLD)]
+    const atStart = [item('ab'), item('\rcd ef', BOLD)]
+    const between = [item('ab'), item('\r', BOLD), item('cd ef')]
+    const split = [item('ab\r'), item('\ncd ef', BOLD)]
+    const cuts = [['x ', 'ab\rcd', ' y'], ['ab\r', 'cd ef'], ['ab', '\rcd ef'], ['ab', '\r', 'cd ef'], ['ab\r', '\ncd ef'], ['ab\r\n', 'cd ef'], ['ab', '\r\ncd ef'], ['ab\r', ' cd'], ['ab ', '\rcd'], ['ab\r', '\rcd']] as const
+    // `abc` fits and `abcd` doesn't.
+    const narrow = measureWidth('abc', FONT) + 1
+    const profile = getEngineProfile()
+    const previous = profile.lineBreakScan
+    try {
+      // To Blink a CR is white space: one space with the white space around it, the gap of the
+      // item it ends or starts where that is its edge, and a break.
+      profile.lineBreakScan = 'blink'
+      clearCache()
+      expect(lines(inside, Infinity)).toEqual([[[0, 'x', 'x', -1], [1, 'ab cd', 'ab\rcd', 0], [2, 'y', 'y', 2]]])
+      expect(lines(atEnd, Infinity)).toEqual([[[0, 'ab', 'ab', -1], [1, 'cd ef', 'cd ef', 0]]])
+      expect(lines(atStart, Infinity)).toEqual([[[0, 'ab', 'ab', -1], [1, 'cd ef', 'cd ef', 1]]])
+      expect(lines(between, Infinity)).toEqual([[[0, 'ab', 'ab', -1], [2, 'cd ef', 'cd ef', 1]]])
+      expect(lines(split, Infinity)).toEqual([[[0, 'ab', 'ab', -1], [1, 'cd ef', 'cd ef', 0]]])
+      expect(lines(atEnd, narrow)).toEqual([[[0, 'ab', 'ab', -1]], [[1, 'cd ', 'cd ', -1]], [[1, 'ef', 'ef', -1]]])
+      for (const parts of [...cuts, ['\u0431\u0432\r', 'cd'], ['ab\r', '\u0433\u0434']]) expectLinesOfOneItem(parts)
+
+      // The WebKit profile takes a lone CR out wherever it is in its item, and one that is an
+      // item leaves no fragment. No line ends where it was between characters up to U+00FF: the
+      // word goes on across the items, and a narrow line cuts it between graphemes. A fragment's
+      // place in its item spans a CR inside it and stops short of one at its item's edge.
+      profile.lineBreakScan = 'webkit'
+      clearCache()
+      expect(lines(inside, Infinity)).toEqual([[[0, 'x', 'x', -1], [1, 'abcd', 'ab\rcd', 0], [2, 'y', 'y', 2]]])
+      expect(lines(inside, narrow)).toEqual([[[0, 'x', 'x', -1]], [[1, 'abc', 'ab\rc', -1]], [[1, 'd', 'd', -1], [2, 'y', 'y', 2]]])
+      expect(ends(inside, narrow)).toEqual(['1:0:0', '1:0:3', '3:0:0'])
+      expect(lines(atEnd, Infinity)).toEqual([[[0, 'ab', 'ab', -1], [1, 'cd ef', 'cd ef', -1]]])
+      expect(lines(atEnd, narrow)).toEqual([[[0, 'ab', 'ab', -1], [1, 'c', 'c', -1]], [[1, 'd ', 'd ', -1]], [[1, 'ef', 'ef', -1]]])
+      expect(ends(atEnd, narrow)).toEqual(['1:0:1', '1:2:0', '2:0:0'])
+      expect(lines(atStart, Infinity)).toEqual([[[0, 'ab', 'ab', -1], [1, 'cd ef', 'cd ef', -1]]])
+      expect(lines(atStart, narrow)).toEqual([[[0, 'ab', 'ab', -1], [1, 'c', 'c', -1]], [[1, 'd ', 'd ', -1]], [[1, 'ef', 'ef', -1]]])
+      expect(lines(between, Infinity)).toEqual([[[0, 'ab', 'ab', -1], [2, 'cd ef', 'cd ef', -1]]])
+      expect(lines(between, narrow)).toEqual([[[0, 'ab', 'ab', -1], [2, 'c', 'c', -1]], [[2, 'd ', 'd ', -1]], [[2, 'ef', 'ef', -1]]])
+      expect(ends(between, narrow)).toEqual(['2:0:1', '2:2:0', '3:0:0'])
+      // The CR of a CRLF collapses into the line feed's space, in the next item too, and that
+      // space is the gap of the item that holds the CR.
+      expect(lines(split, Infinity)).toEqual([[[0, 'ab', 'ab', -1], [1, 'cd ef', 'cd ef', 0]]])
+      expect(lines(split, narrow)).toEqual([[[0, 'ab', 'ab', -1]], [[1, 'cd ', 'cd ', -1]], [[1, 'ef', 'ef', -1]]])
+      for (const parts of cuts) expectLinesOfOneItem(parts)
+      // WebKit decides a boundary between two boxes from the next box's text with the last two
+      // characters before it (getWebKitBreakBetweenItems), where the pair of a CR and a
+      // character up to U+00FF has no break, so there only the character after the CR brings
+      // ICU's break: a text breaks after a CR that follows a Cyrillic letter, and items cut
+      // right after that CR don't, as Safari lays out the spans.
+      for (const parts of [['ab\r', '\u0433\u0434'], ['ab', '\r\u0433\u0434'], ['\u0431\u0432\r', '\u0433\u0434']]) expectLinesOfOneItem(parts)
+      expect(lines([item('ab\r'), item('\u0433\u0434', BOLD)], narrow)).toEqual([[[0, 'ab', 'ab', -1]], [[1, '\u0433\u0434', '\u0433\u0434', -1]]])
+      expect(lines([item('\u0431\u0432\rcd')], narrow)).toEqual([[[0, '\u0431\u0432', '\u0431\u0432', -1]], [[0, 'cd', 'cd', -1]]])
+      expect(lines([item('\u0431\u0432\r'), item('cd', BOLD)], narrow)).toEqual([[[0, '\u0431\u0432', '\u0431\u0432', -1], [1, 'c', 'c', -1]], [[1, 'd', 'd', -1]]])
+
+      // The Gecko profile takes it out too, and a line can end where it was.
+      profile.lineBreakScan = 'gecko'
+      clearCache()
+      expect(lines(inside, Infinity)).toEqual([[[0, 'x', 'x', -1], [1, 'abcd', 'ab\rcd', 0], [2, 'y', 'y', 2]]])
+      expect(lines(inside, narrow)).toEqual([[[0, 'x', 'x', -1]], [[1, 'ab', 'ab', -1]], [[1, 'cd', 'cd', -1]], [[2, 'y', 'y', -1]]])
+      expect(ends(inside, narrow)).toEqual(['1:0:0', '1:1:0', '2:1:0', '3:0:0'])
+      expect(lines(atEnd, Infinity)).toEqual([[[0, 'ab', 'ab', -1], [1, 'cd ef', 'cd ef', -1]]])
+      expect(lines(atEnd, narrow)).toEqual([[[0, 'ab', 'ab', -1]], [[1, 'cd ', 'cd ', -1]], [[1, 'ef', 'ef', -1]]])
+      expect(lines(atStart, Infinity)).toEqual([[[0, 'ab', 'ab', -1], [1, 'cd ef', 'cd ef', -1]]])
+      expect(lines(atStart, narrow)).toEqual([[[0, 'ab', 'ab', -1]], [[1, 'cd ', 'cd ', -1]], [[1, 'ef', 'ef', -1]]])
+      expect(lines(between, Infinity)).toEqual([[[0, 'ab', 'ab', -1], [2, 'cd ef', 'cd ef', -1]]])
+      expect(lines(between, narrow)).toEqual([[[0, 'ab', 'ab', -1]], [[2, 'cd ', 'cd ', -1]], [[2, 'ef', 'ef', -1]]])
+      expect(ends(between, narrow)).toEqual(['2:0:0', '2:2:0', '3:0:0'])
+      expect(lines(split, Infinity)).toEqual([[[0, 'ab', 'ab', -1], [1, 'cd ef', 'cd ef', 0]]])
+      for (const parts of [...cuts, ['\u0431\u0432\r', 'cd'], ['ab\r', '\u0433\u0434']]) expectLinesOfOneItem(parts)
+    } finally {
+      profile.lineBreakScan = previous
+      clearCache()
+    }
+  })
+
   test('a rich fragment\'s sourceStart never passes its sourceEnd where a padded item\'s start edge comes before the space or soft hyphens that lead it', () => {
     // The start edge of a padded item's opening is the item's first segment, before a collapsed space
     // or soft hyphens that lead its text, so a fragment that holds the edge and that space starts at

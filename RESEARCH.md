@@ -3309,7 +3309,14 @@ repin` shows what), and a fact read in source needs reading again.
   are up to U+00FF, as none comes beside any control there (`BreakablePositions.h:179-187`); where either is above
   U+00FF, ICU decides and breaks after the CR (`:238-251`), so a line can end after one between Cyrillic, Greek, Arabic,
   Hebrew, Thai, Devanagari, Hangul, kana or Han characters, or between one of them and an ASCII letter, and not in
-  `été`, CR, `cd`. A text node of only space, tab, LF, CR and FF has no renderer, so no lines
+  `été`, CR, `cd`. At the edge of an inline box the break is the one the check between two boxes finds, from the next
+  box's text with the two characters before it (`TextUtil::mayBreakInBetween`, `TextUtil.cpp:367-396`): there the pair
+  of a CR and a character up to U+00FF is looked up alone, so a line ends after a CR that ends, starts or is a box only
+  where the character right after it is above U+00FF. Spans `бв`, CR and `cd ef` in 16px Arial at 28 and 32px are `бв`
+  and `c`, then `d ef`, where their text in one node is `бв`, `cd`, `ef`; and a CR at a span's edge takes no room
+  either: `see`, CR and a bold 20px `this word` are 114.68px wide. The analysis of a rich-inline paragraph follows both
+  (webkit-host, 2026-10-07; ENGINE_FOLLOWUPS.md, White space and controls, has the probe and what it leaves). A text
+  node of only space, tab, LF, CR and FF has no renderer, so no lines
   (`RenderTreeUpdater::textRendererIsNeeded`, `RenderTreeUpdater.cpp:536-594`). A font Core Text calls fixed pitch takes
   WebKit's fixed-pitch shortcut, but for Courier New and fonts the user installed (`Font::determinePitch`,
   `FontCoreText.cpp:753-785`): a text box on simplified measuring is as wide as its characters are many

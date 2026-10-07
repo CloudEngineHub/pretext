@@ -457,12 +457,14 @@ export function analyzeText(
       // unit after it keeps its own break, none where the characters on the CR's two sides are
       // up to U+00FF and ICU's, after the CR, where one is above (BreakablePositions.h:179-187,
       // 238-251), and takes the CR's, the one after white space. The CR of a CRLF stays, to
-      // collapse into the line feed's space. In the installed fonts that take WebKit's fixed-pitch
-      // shortcut, Menlo and so the generic monospace among them, text on simplified measuring is
-      // as wide as its characters are many, the CR among them (Font::determinePitch,
-      // FontCoreText.cpp:753-785; widthForSimpleTextWithFixedPitch, FontCascade.cpp:414-421),
-      // which Canvas can't show, so the profile gives those fonts up (RESEARCH.md, Decisions Log,
-      // 2026-10-06; ENGINE_FOLLOWUPS.md, White space and controls).
+      // collapse into the line feed's space; in a paragraph that is also a CR that ends an item
+      // before a line feed that starts the next, whose space is then the CR's item's
+      // (alignToSource). In the installed fonts that take WebKit's fixed-pitch shortcut, Menlo
+      // and so the generic monospace among them, text on simplified measuring is as wide as its
+      // characters are many, the CR among them (Font::determinePitch, FontCoreText.cpp:753-785;
+      // widthForSimpleTextWithFixedPitch, FontCascade.cpp:414-421), which Canvas can't show, so
+      // the profile gives those fonts up (RESEARCH.md, Decisions Log, 2026-10-06;
+      // ENGINE_FOLLOWUPS.md, White space and controls).
       if (!preserve && source !== normalized && /\r(?!\n)/.test(source)) {
         let count = 0
         for (let i = 0; i < source.length; i++) {
@@ -581,9 +583,12 @@ function removeItemsSkippableSegmentBreaks(text: string, starts: number[], profi
 }
 
 // The offset in `source` that each unit of `normalized` comes from. Normalization only removes
-// white space and, in the Gecko profile, a CR or FF, turns a run of white space into one space,
-// which comes from the run's first unit, and turns CR, CRLF and FF into LF, so a greedy walk aligns
-// the two.
+// white space and, in the Gecko profile, a CR or FF, and in the WebKit profile a lone CR, turns a
+// run of white space into one space, which comes from the run's first unit, and turns CR, CRLF
+// and FF into LF, so a greedy walk aligns the two. The walk takes a CR or FF that left the text
+// right before white space for that run's first unit: the space gets its offset, and at an
+// item's edge its item, where the engine has the space in the item that holds it
+// (ENGINE_FOLLOWUPS.md, White space and controls).
 export function alignToSource(source: string, normalized: string): Int32Array {
   const offsets = new Int32Array(normalized.length)
   let i = 0
@@ -625,10 +630,15 @@ function markItemStarts(text: string, normalized: string, breaks: Uint8Array, pa
 // box from that box's own text, and at a boundary between boxes from the scan over the next box's
 // text with the last two characters before it as prior context (TextUtil.cpp:374-396), so a
 // paragraph's breaks are each item's own scan, joined by that check (getWebKitBreakBetweenItems).
-// Collapsible white space on either side of a boundary breaks there, as inside a text. The source
-// is the items' texts joined as they are, an atomic item as one U+FFFC, which is never scanned
-// (removeItemsSkippableSegmentBreaks leaves WebKit's text alone), so a scan takes an item's own
-// text and nothing is cut out of the source.
+// Collapsible white space on either side of a boundary breaks there, as inside a text, but a CR,
+// which is no white space to WebKit: beside one the check decides. It takes the pair of a CR and
+// a character up to U+00FF from its table, which has no break for it, so at a boundary only a
+// character above U+00FF right after the CR brings ICU's break, where inside a text one on
+// either side of the CR does. The analysis then takes a lone CR out with the breaks found
+// around it (analyzeText). The source is the items' texts joined as they are, an atomic item
+// as one U+FFFC, which is never scanned (removeItemsSkippableSegmentBreaks leaves WebKit's text
+// alone), so a scan takes an item's own text and nothing is cut out of the source before the
+// scans.
 function getWebKitParagraphBreaks(source: string, paragraph: ParagraphItems, preserve: boolean, keepAll: boolean, language: string | null): Uint8Array {
   const { items, starts, atomic } = paragraph
   const breaks = new Uint8Array(source.length + 1)
@@ -646,7 +656,8 @@ function getWebKitParagraphBreaks(source: string, paragraph: ParagraphItems, pre
       for (let i = 1; i <= end - start; i++) breaks[start + i] = itemBreaks[i]!
     }
     if (previous >= 0 && !atomic[k] && !atomic[previous]) {
-      const collapses = !preserve && (isCollapsibleSpaceCode(first) || isCollapsibleSpaceCode(source.charCodeAt(start - 1)))
+      const last = source.charCodeAt(start - 1)
+      const collapses = !preserve && ((first !== 0x0D && isCollapsibleSpaceCode(first)) || (last !== 0x0D && isCollapsibleSpaceCode(last)))
       if (collapses || getWebKitBreakBetweenItems(items[previous]!.text!, items[k]!.text!, keepAll, language)) breaks[start] = breaks[start]! | BREAK
     }
     previous = k
