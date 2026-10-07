@@ -89,7 +89,7 @@ const PLANTS: ReadonlyArray<readonly [string, Profile, string, string, ReadonlyA
     [[/return width === null \? null : \{ width, start: lineStart, end \}/, 'return width === null ? null : { width, start: Object.assign(sharedRangeStart, lineStart), end }'],
       [/(export function layoutNextLineRange\()/, 'const sharedRangeStart = { segmentIndex: 0, graphemeIndex: 0 }\n$1']], 'cursors'],
   ['a rich fragment that ends its item at segment Infinity would name no place in the item\'s text', 'unknown', 'rich-infinite-end', 'rich-inline.ts',
-    [[/fragment\.end\.segmentIndex = \(whole \? i \+ 1 : i\) - itemSegments\[itemIndex\]!/, 'fragment.end.segmentIndex = whole && i + 1 === itemSegments[itemIndex + 1] ? Infinity : (whole ? i + 1 : i) - itemSegments[itemIndex]!']], 'agreement'],
+    [[/end: \{ segmentIndex: to - first, graphemeIndex: 0 \}/, 'end: { segmentIndex: to === itemSegments[itemIndex + 1] ? Infinity : to - first, graphemeIndex: 0 }']], 'agreement'],
   ['a visitor that edits the range walkLineRanges gives it would change the lines after it', 'unknown', 'walk-resumes-from-visited', 'layout.ts',
     [[/return walkPreparedLinesRaw\(\n\s*getInternalPrepared\(prepared\),\n\s*normalizeMaxWidth\(maxWidth\),\n\s*\(width, startSegmentIndex, startGraphemeIndex, endSegmentIndex, endGraphemeIndex\) => \{\n\s*onLine\(createLayoutLineRange\([\s\S]*?\n\s*\)\)\n\s*\},\n\s*\)/,
       'let count = 0\n  for (let range = layoutNextLineRange(prepared, { segmentIndex: 0, graphemeIndex: 0 }, maxWidth); range !== null; range = layoutNextLineRange(prepared, range.end, maxWidth)) {\n    onLine(range)\n    count++\n  }\n  return count']], 'visitors'],

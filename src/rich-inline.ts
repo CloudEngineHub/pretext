@@ -153,6 +153,11 @@ type InternalPreparedRichInline = PreparedRichInline & {
   // text's handle.
   segmentItems: Int32Array | null
   gapSegments: Uint8Array | null
+  // Whether each segment of such a paragraph is as wide on a line as its width, but the one a line
+  // starts with or ends inside (createLine): no letter spacing the handle adds after a segment's
+  // graphemes, no mark halted at its item's end, and no tab, whose advance depends on where the
+  // line reaches it.
+  plainWidths: boolean
   // Per segment, where its text starts and ends in its item's text, and, for a segment whose text
   // isn't one stretch of its item's, as where white space inside it was removed, where each of
   // its units is there, else null (null too where no segment has any). A paragraph of one text
@@ -205,7 +210,7 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
     const itemSegments: number[] = []
     for (let index = 0; index <= items.length; index++) itemSegments.push(index <= onlyIndex ? 0 : data.segmentFlags.length)
     return findWholeLine({
-      data, onlyItem: onlyIndex, wholeWidth: null, wholeStart: 0, wholeEnd: 0, itemSegments, segmentItems: null, gapSegments: null,
+      data, onlyItem: onlyIndex, wholeWidth: null, wholeStart: 0, wholeEnd: 0, itemSegments, segmentItems: null, gapSegments: null, plainWidths: false,
       sourceStarts: null, sourceEnds: null, sourceUnits: null, text: only.text,
     } as InternalPreparedRichInline)
   }
@@ -638,6 +643,7 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
   }
   const flow = {
     data, onlyItem, wholeWidth: null, wholeStart: 0, wholeEnd: 0, itemSegments, segmentItems, gapSegments,
+    plainWidths: data.letterSpacing === 0 && itemEndHalts === null && !(preserve && source.includes('\t')),
     sourceStarts, sourceEnds, sourceUnits: setAt(sourceUnits, segmentCount, null, null), text: '',
   } as InternalPreparedRichInline
   return mayNarrow && onlyItem < 0 && narrowsLine(data, itemSegments) ? flow : findWholeLine(flow)
@@ -884,6 +890,36 @@ function getPartWidth(data: PreparedSegments, i: number, from: number, to: numbe
   return w
 }
 
+// A line of a paragraph whose only item with segments has no extraWidth (onlyItem), as most of a
+// chat's are: one fragment of that item, as wide as the line. A function of its own, which the walk
+// and the stream call for such a paragraph: as a branch of createLine(), which is too long for an
+// engine to inline, Safari walked and stepped the chat demo's paragraphs 11% and 12% slower and
+// Chrome walked them 6% slower (RESEARCH.md, Rich Inline As One Paragraph).
+function createOnlyItemLine(
+  flow: InternalPreparedRichInline,
+  width: number,
+  startSegmentIndex: number,
+  startGraphemeIndex: number,
+  endSegmentIndex: number,
+  endGraphemeIndex: number,
+): RichInlineLineRange {
+  const { onlyItem, itemSegments } = flow
+  const first = itemSegments[onlyItem]!
+  const ended = endSegmentIndex >= itemSegments[onlyItem + 1]!
+  return {
+    fragments: [{
+      itemIndex: onlyItem,
+      gapBefore: 0,
+      gapItemIndex: -1,
+      occupiedWidth: width,
+      start: { segmentIndex: startSegmentIndex - first, graphemeIndex: startGraphemeIndex },
+      end: { segmentIndex: endSegmentIndex - first, graphemeIndex: endGraphemeIndex },
+    }],
+    width: Math.max(0, width),
+    end: { itemIndex: ended ? itemSegments.length - 1 : onlyItem, segmentIndex: ended ? 0 : endSegmentIndex - first, graphemeIndex: endGraphemeIndex },
+  }
+}
+
 // A line of the paragraph from the text walkers' line: its segments cut into fragments where the
 // item changes. A collapsed space at an item's start or end is no fragment's text but the gap
 // before the next fragment on the line, as that item's white space made it. Each fragment's width
@@ -891,11 +927,16 @@ function getPartWidth(data: PreparedSegments, i: number, from: number, to: numbe
 // width leaves out at its end comes out of the last fragments and the gaps before them, from the
 // line's end back, as white space that hangs there, but never out of the edge of a padded item's
 // opening, which the line paints whole (getOpeningFit), and what it adds, the hyphen of a soft
-// hyphen the line ends at, goes to the last one. The loop over the line's segments reads each one's
-// item and whether it is a gap from the paragraph's lists, and the widths of the two segments a
-// line can start or end inside are found before it: a search for the item, or a call inside the
-// loop for a width it rarely needs, cost Firefox a third to a half of a walk's time (RESEARCH.md,
-// Rich Inline As One Paragraph).
+// hyphen the line ends at, goes to the last one. One loop over the line's segments: where a
+// fragment or a gap starts, the paragraph's lists give where that fragment ends, so every other
+// segment only adds its width. A line where no segment's width depends on the line (`bare`), as
+// nearly every line of styled prose is, has a loop of its own that adds bare widths: in one loop
+// with the widths that tabs, letter spacing, halts and a line's edges need, Chrome walked such
+// lines 18% slower and Safari 8%. The widths of the two segments a line can start or end inside
+// are found before the loops, and neither holds another loop or a search: a search for the item,
+// or a call or a loop inside one for a width it rarely needs, cost Firefox a third to a half of a
+// walk's time, and a loop inside for each fragment's widths 9% on items of one segment
+// (RESEARCH.md, Rich Inline As One Paragraph).
 function createLine(
   flow: InternalPreparedRichInline,
   width: number,
@@ -904,24 +945,7 @@ function createLine(
   endSegmentIndex: number,
   endGraphemeIndex: number,
 ): RichInlineLineRange {
-  const { data, onlyItem, itemSegments } = flow
-  if (onlyItem >= 0) {
-    const first = itemSegments[onlyItem]!
-    const ended = endSegmentIndex >= itemSegments[onlyItem + 1]!
-    return {
-      fragments: [{
-        itemIndex: onlyItem,
-        gapBefore: 0,
-        gapItemIndex: -1,
-        occupiedWidth: width,
-        start: { segmentIndex: startSegmentIndex - first, graphemeIndex: startGraphemeIndex },
-        end: { segmentIndex: endSegmentIndex - first, graphemeIndex: endGraphemeIndex },
-      }],
-      width: Math.max(0, width),
-      end: { itemIndex: ended ? itemSegments.length - 1 : onlyItem, segmentIndex: ended ? 0 : endSegmentIndex - first, graphemeIndex: endGraphemeIndex },
-    }
-  }
-
+  const { data, itemSegments } = flow
   const { widths, segmentFlags, lineStartExtras, letterSpacing } = data
   const items = data.items!
   const segmentItems = flow.segmentItems!
@@ -936,61 +960,94 @@ function createLine(
   const firstPartWidth = startSegmentIndex <= lastSegmentIndex && (startGraphemeIndex > 0 || startSegmentIndex === endSegmentIndex)
     ? getPartWidth(data, startSegmentIndex, startGraphemeIndex, startSegmentIndex < endSegmentIndex ? -1 : endGraphemeIndex, true) : 0
   const lastPartWidth = endGraphemeIndex > 0 && endSegmentIndex > startSegmentIndex ? getPartWidth(data, endSegmentIndex, 0, endGraphemeIndex, false) : 0
-  let itemIndex = -1
-  let fragment: RichInlineFragmentRange | null = null
+  // Whether each of the line's segments is as wide on it as its width: in a paragraph of plain
+  // widths, a line that starts and ends between segments and adds nothing at its start.
+  const bare = flow.plainWidths && startGraphemeIndex === 0 && endGraphemeIndex === 0 && (lineStartExtras === null || lineStartExtras[startSegmentIndex] === 0)
   // The line's width so far, and the gap that waits for a fragment.
   let lineW = 0
   let gap = 0
   let gapItemIndex = -1
-  for (let i = startSegmentIndex; i <= lastSegmentIndex; i++) {
-    if (segmentItems[i]! !== itemIndex) {
-      itemIndex = segmentItems[i]!
-      fragment = null
-    }
-    const from = i === startSegmentIndex ? startGraphemeIndex : 0
-    const whole = i < endSegmentIndex
-    // A segment's width on the line, with the letter spacing after each of its graphemes, as a
-    // fragment's width counts it.
-    let w: number
-    if (from === 0 && whole) {
-      const startExtra = i === startSegmentIndex && lineStartExtras !== null ? lineStartExtras[i]! : 0
-      w = startExtra + ((segmentFlags[i]! & KIND_BITS) !== TAB ? widths[i]! : getItemTabAdvance(data, items, i, lineW + startExtra, tabsInAppUnits))
-      if (letterSpacing !== 0 && (segmentFlags[i]! & SPACED) !== 0) w += letterSpacing
-    } else {
-      w = i === startSegmentIndex ? firstPartWidth : lastPartWidth
-    }
-    // A mark that ends its item was halted where the line went on after it: the line is then
-    // narrower than its segments up to the mark (ParagraphSegmentData, itemEndHalts), since what
-    // follows a halted mark fits in less than the halt. Premise: what follows a mark on its line
-    // takes no less than no room. Its gap is an item after the mark whose letter spacing is more
-    // negative than its letters are wide, where a mark that wasn't halted gives its halt to the
-    // line's last fragment; the line's width and breaks are the walker's either way.
-    if (itemEndHalts !== null && itemEndHalts[i]! !== 0 && lineW + gap + w - width > 1e-6) w -= itemEndHalts[i]!
-    if (gapSegments[i]! !== 0) {
-      gap = w
-      gapItemIndex = itemIndex
-      fragment = null
-      continue
-    }
-    if (fragment === null) {
-      fragment = {
-        itemIndex,
-        gapBefore: gap,
-        gapItemIndex,
-        occupiedWidth: 0,
-        start: { segmentIndex: i - itemSegments[itemIndex]!, graphemeIndex: from },
-        end: { segmentIndex: 0, graphemeIndex: 0 },
+  // The last fragment made, its width so far, and the segment after its last.
+  let fragment: RichInlineFragmentRange | null = null
+  let occupiedWidth = 0
+  let to = startSegmentIndex
+  if (bare) {
+    for (let i = startSegmentIndex; i <= lastSegmentIndex; i++) {
+      if (i === to) {
+        if (fragment !== null) fragment.occupiedWidth = occupiedWidth
+        const itemIndex = segmentItems[i]!
+        if (gapSegments[i]! !== 0) {
+          gap = widths[i]!
+          gapItemIndex = itemIndex
+          to = i + 1
+          continue
+        }
+        const first = itemSegments[itemIndex]!
+        to = Math.min(itemSegments[itemIndex + 1]!, lastSegmentIndex + 1)
+        if (gapSegments[to - 1]! !== 0) to--
+        fragment = { itemIndex, gapBefore: gap, gapItemIndex, occupiedWidth: 0, start: { segmentIndex: i - first, graphemeIndex: 0 }, end: { segmentIndex: to - first, graphemeIndex: 0 } }
+        fragments.push(fragment)
+        lineW += gap
+        gap = 0
+        gapItemIndex = -1
+        occupiedWidth = 0
       }
-      fragments.push(fragment)
-      lineW += gap
-      gap = 0
-      gapItemIndex = -1
+      occupiedWidth += widths[i]!
+      lineW += widths[i]!
     }
-    fragment.occupiedWidth += w
-    fragment.end.segmentIndex = (whole ? i + 1 : i) - itemSegments[itemIndex]!
-    fragment.end.graphemeIndex = whole ? 0 : endGraphemeIndex
-    lineW += w
+  } else {
+    for (let i = startSegmentIndex; i <= lastSegmentIndex; i++) {
+      if (i === to) {
+        if (fragment !== null) fragment.occupiedWidth = occupiedWidth
+        const itemIndex = segmentItems[i]!
+        if (gapSegments[i]! !== 0) {
+          // A collapsed space is no tab and no halted mark, and no line starts with one or ends inside one.
+          gap = widths[i]! + (letterSpacing !== 0 && (segmentFlags[i]! & SPACED) !== 0 ? letterSpacing : 0)
+          gapItemIndex = itemIndex
+          to = i + 1
+          continue
+        }
+        // The fragment's segments end at `to`: the item's on the line, less the collapsed space that ends it.
+        const first = itemSegments[itemIndex]!
+        to = Math.min(itemSegments[itemIndex + 1]!, lastSegmentIndex + 1)
+        if (gapSegments[to - 1]! !== 0) to--
+        const endsInside = to > endSegmentIndex
+        fragment = {
+          itemIndex,
+          gapBefore: gap,
+          gapItemIndex,
+          occupiedWidth: 0,
+          start: { segmentIndex: i - first, graphemeIndex: i === startSegmentIndex ? startGraphemeIndex : 0 },
+          end: { segmentIndex: (endsInside ? endSegmentIndex : to) - first, graphemeIndex: endsInside ? endGraphemeIndex : 0 },
+        }
+        fragments.push(fragment)
+        lineW += gap
+        gap = 0
+        gapItemIndex = -1
+        occupiedWidth = 0
+      }
+      // A segment's width on the line, with the letter spacing after each of its graphemes, as a
+      // fragment's width counts it.
+      let w: number
+      if ((i > startSegmentIndex || startGraphemeIndex === 0) && i < endSegmentIndex) {
+        const startExtra = i === startSegmentIndex && lineStartExtras !== null ? lineStartExtras[i]! : 0
+        w = startExtra + ((segmentFlags[i]! & KIND_BITS) !== TAB ? widths[i]! : getItemTabAdvance(data, items, i, lineW + startExtra, tabsInAppUnits))
+        if (letterSpacing !== 0 && (segmentFlags[i]! & SPACED) !== 0) w += letterSpacing
+      } else {
+        w = i === startSegmentIndex ? firstPartWidth : lastPartWidth
+      }
+      // A mark that ends its item was halted where the line went on after it: the line is then
+      // narrower than its segments up to the mark (ParagraphSegmentData, itemEndHalts), since what
+      // follows a halted mark fits in less than the halt. Premise: what follows a mark on its line
+      // takes no less than no room. Its gap is an item after the mark whose letter spacing is more
+      // negative than its letters are wide, where a mark that wasn't halted gives its halt to the
+      // line's last fragment; the line's width and breaks are the walker's either way.
+      if (itemEndHalts !== null && itemEndHalts[i]! !== 0 && lineW + w - width > 1e-6) w -= itemEndHalts[i]!
+      occupiedWidth += w
+      lineW += w
+    }
   }
+  if (fragment !== null) fragment.occupiedWidth = occupiedWidth
 
   let rest = lineW - width
   if (rest < 0 && fragments.length > 0) fragments[fragments.length - 1]!.occupiedWidth -= rest
@@ -1030,13 +1087,17 @@ export function layoutNextRichInlineLineRange(
 ): RichInlineLineRange | null {
   const flow = getInternalPreparedRichInline(prepared)
   const safeWidth = Math.max(1, maxWidth)
-  if (start.itemIndex === 0 && start.segmentIndex === 0 && start.graphemeIndex === 0 && fitsWhole(flow, safeWidth)) return createLine(flow, flow.wholeWidth!, flow.wholeStart, 0, flow.wholeEnd, 0)
+  if (start.itemIndex === 0 && start.segmentIndex === 0 && start.graphemeIndex === 0 && fitsWhole(flow, safeWidth)) {
+    return flow.onlyItem >= 0 ? createOnlyItemLine(flow, flow.wholeWidth!, flow.wholeStart, 0, flow.wholeEnd, 0) : createLine(flow, flow.wholeWidth!, flow.wholeStart, 0, flow.wholeEnd, 0)
+  }
   const lineEnd: LayoutCursor = { segmentIndex: getSegmentIndex(flow, start), graphemeIndex: start.graphemeIndex }
   if (!normalizePreparedLineStart(flow.data, lineEnd)) return null
   const startSegmentIndex = lineEnd.segmentIndex
   const startGraphemeIndex = lineEnd.graphemeIndex
   const width = stepPreparedLineGeometryFromStart(flow.data, lineEnd, safeWidth)
-  return width === null ? null : createLine(flow, width, startSegmentIndex, startGraphemeIndex, lineEnd.segmentIndex, lineEnd.graphemeIndex)
+  if (width === null) return null
+  return flow.onlyItem >= 0 ? createOnlyItemLine(flow, width, startSegmentIndex, startGraphemeIndex, lineEnd.segmentIndex, lineEnd.graphemeIndex)
+    : createLine(flow, width, startSegmentIndex, startGraphemeIndex, lineEnd.segmentIndex, lineEnd.graphemeIndex)
 }
 
 // Where units [from, to) of a paragraph's normalized text are in the text of the item that starts
@@ -1135,11 +1196,12 @@ export function walkRichInlineLineRanges(
   const flow = getInternalPreparedRichInline(prepared)
   const safeWidth = Math.max(1, normalizeMaxWidth(maxWidth))
   if (fitsWhole(flow, safeWidth)) {
-    onLine(createLine(flow, flow.wholeWidth!, flow.wholeStart, 0, flow.wholeEnd, 0))
+    onLine(flow.onlyItem >= 0 ? createOnlyItemLine(flow, flow.wholeWidth!, flow.wholeStart, 0, flow.wholeEnd, 0) : createLine(flow, flow.wholeWidth!, flow.wholeStart, 0, flow.wholeEnd, 0))
     return 1
   }
   return walkPreparedLinesRaw(flow.data, safeWidth, (width, startSegmentIndex, startGraphemeIndex, endSegmentIndex, endGraphemeIndex) => {
-    onLine(createLine(flow, width, startSegmentIndex, startGraphemeIndex, endSegmentIndex, endGraphemeIndex))
+    onLine(flow.onlyItem >= 0 ? createOnlyItemLine(flow, width, startSegmentIndex, startGraphemeIndex, endSegmentIndex, endGraphemeIndex)
+      : createLine(flow, width, startSegmentIndex, startGraphemeIndex, endSegmentIndex, endGraphemeIndex))
   })
 }
 
