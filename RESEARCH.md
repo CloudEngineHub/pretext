@@ -4075,7 +4075,7 @@ widths: both measure Pretext, not a browser.
   the page's that leaves no copy slow (one batch that every copy prepares before the first round, and handles prepared a
   paragraph at a time in turn, are untried); reopen the verdict rule if copies made afresh each round, or a fourth copy,
   prove cheap.
-- **A callback that keeps nothing lets an engine skip the work.** Until #TBD the bench's rich walk and stream read only
+- **A callback that keeps nothing lets an engine skip the work.** Until #456 the bench's rich walk and stream read only
   each line's width. V8 inlines main's line builder for a paragraph of one item (`createOnlyItemLine()`, 166 bytes of
   bytecode; `--trace-turbo-inlining` in d8, V8's shell, on the unminified bundle) into the walk and then never makes the
   line: main's walk over the chat demo's paragraphs read 1.44 µs per 1,000 units that way and 1.85 with each line kept
@@ -4099,7 +4099,7 @@ widths: both measure Pretext, not a browser.
   over 13 sessions a browser a copy's ratio to base on that entry, the candidate's or the control's, moved by up to 49%
   in Chrome, 22% in Firefox and 39% in Safari. With batches of 4,000 units it moved by up to 24%, 11% and 17% over 11
   sessions, where the stress document's moved by up to 30%, 19% and 8%, and no run called either (Chrome 154.0.8037.98,
-  Firefox 156.0.1, Safari 27.0; #TBD, 2026-10-07). The demo repeats sentences: 80% of the words of its mix's new batches
+  Firefox 156.0.1, Safari 27.0; #456, 2026-10-07). The demo repeats sentences: 80% of the words of its mix's new batches
   and 75% of its styled paragraphs' had come earlier in the document's new batches in the same font (86% of the styled
   paragraphs' counting the mix's document, which a session times just before), against 57% of the stress document's. The
   styled paragraphs the mix's document leaves hold 1.1 times what the styled document reads, so a larger batch needs
@@ -4108,7 +4108,7 @@ widths: both measure Pretext, not a browser.
 - **The candidate's copy can lean on identical code.** In Chrome 154.0.8037.98, with main at #455 against itself, the
   candidate's copy read `lines: mixed stats` over base's in 15 of 16 sessions, by 0.2 to 1.9% (two runs of three
   sessions of every row and two of five of the row alone, with the code the bench wraps a library in (`ENTRY`,
-  `harness/bench/lib.ts`) as it was before and after #TBD; 2026-10-07), and the control's copy in 10. One of the runs of
+  `harness/bench/lib.ts`) as it was before and after #456; 2026-10-07), and the control's copy in 10. One of the runs of
   three was called slower, +1.2%: the row's floor is 1%. The copies are evaluated base first, then the candidate, then
   the control, and each round runs them in a shuffled order, which is even (each first, second and third a third of the
   time over 200,000 seeds); what leans wasn't found. A reading of about 1% slower on that entry in Chrome, alone, is
@@ -4545,7 +4545,7 @@ decisions for the maintainer.
   which fonts take the shortcut, or with a report of text with lone CRs laid out in such a font; `pre-wrap`, where a
   lone CR is a hard break, is as it was.
 - **2026-10-07: the bench's rich walk and stream keep each line they are handed, and its rich row times the chat
-  demo's paragraphs beside the stress items**, the maintainer's decisions (#TBD). An app that paints its lines keeps
+  demo's paragraphs beside the stress items**, the maintainer's decisions (#456). An app that paints its lines keeps
   them, as both rich demos do, and a callback that read only a line's width let Chrome skip making main's one-item
   line, so main's walk over the demo's paragraphs read 22% under what an app pays. The stress items are a word or a
   space each and never start inside a word, so a change to how lines are cut across items can read one way on them and

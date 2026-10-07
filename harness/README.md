@@ -282,7 +282,7 @@ one's `rich-walk` and `rich-stream` keep every line they are handed, in one vari
 paints its lines keeps them: both rich demos, the Markdown chat and the rich note, pass each line they walk to
 `materializeRichInlineLineRange()`. A callback that reads only the line's width times less than an app pays, and not the
 same less for every library, since an engine that inlines a library's line builder into the walk then never makes the
-line. So a `rich-walk` or `rich-stream` figure from before #TBD isn't comparable with one after it, on the stress
+line. So a `rich-walk` or `rich-stream` figure from before #456 isn't comparable with one after it, on the stress
 document either (`RESEARCH.md`, Evaluation Traps, Timing, has the numbers behind the batches and the kept line). The
 `lines` row times the line functions on mixed, Latin and CJK messages, each family in a document of its own.
 
@@ -361,7 +361,7 @@ document either (`RESEARCH.md`, Evaluation Traps, Timing, has the numbers behind
   move it.
 - **Chrome's `lines: mixed stats`** read the candidate's copy about 1% over base's on identical code, in 15 of 16
   sessions of main against itself and with the code the bench wraps a library in (`ENTRY`, `bench/lib.ts`) as it was
-  before and after #TBD (Chrome 154.0.8037.98, 2026-10-07; `RESEARCH.md`, Evaluation Traps, Timing), and the row's floor
+  before and after #456 (Chrome 154.0.8037.98, 2026-10-07; `RESEARCH.md`, Evaluation Traps, Timing), and the row's floor
   is 1%. A reading of about 1% slower there, alone, is this.
 
 A session of every row takes 96 s in Chrome, 117 s in Firefox and 98 s in Safari (six sessions each, 2026-10-07; a
