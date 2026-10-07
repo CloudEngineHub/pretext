@@ -4082,10 +4082,13 @@ widths: both measure Pretext, not a browser.
   Chrome's `chat rich-new` 41%, 15% and 49% slower in three sessions and the bench called it; over 13 sessions a
   browser its ratio moved by up to 49% in Chrome, 18% in Firefox and 39% in Safari. With batches of 4,000 units it
   moved by up to 24%, 10% and 17% over 11 sessions, where the stress document's moved by up to 30%, 9% and 8%, and no
-  run called either (#TBD, 2026-10-07). The demo repeats sentences: 80% of the words of its mix's new batches and 75%
-  of its styled paragraphs' were in an earlier batch in the same font, against 57% of the stress document's. The
-  styled paragraphs the mix's document leaves hold 1.1 times what the styled document reads, so a larger batch needs
-  more text.
+  run called either (#TBD, 2026-10-07). One lean is left unexplained: on the styled paragraphs' new text in Chrome,
+  base's copy was the fastest of the three in 12 of the 24 sessions of both sizes, and the candidate's read 3.9% over
+  it on average (standard error 1.4), the control's 1.8%. On the mix's new text there the same lean is within its
+  error (4.4%, standard error 3.4), and Firefox and Safari show none. The demo repeats sentences: 80% of the words of
+  its mix's new batches and 75% of its styled paragraphs' were in an earlier batch in the same font, against 57% of
+  the stress document's. The styled paragraphs the mix's document leaves hold 1.1 times what the styled document
+  reads, so a larger batch needs more text.
 - **Headless Chrome isn't installed Chrome.** With `deviceScaleFactor: 2` it most likely lays out at zoom 1 while
   reporting DPR 2, as its measurements show, and headless Chrome 153 crashed or hung on one input installed Chrome
   handled (the report in Part 1, Merge Bars And Landing, whose own page crashes headed Chrome too).
