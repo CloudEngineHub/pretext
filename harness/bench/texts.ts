@@ -7,6 +7,8 @@
 //   mixed   paragraphs in turn from رسالة الغفران, the Korean, Hebrew and Hindi stories and mixed-app-text; a fifth of the
 //           messages end with an emoji. One font list for every message, as a chat sets one font on its bubbles.
 //   labels  Chromium's translated UI strings in 35 languages (harness/sets/data/ui-strings.json), one label a call.
+//   chat    the Markdown chat demo's paragraphs as item lists, for the rich row's chat documents (chatItems(), below).
+//           The demo repeats sentences, so a new batch of them can hold a paragraph an earlier batch held.
 // Messages take the rebuild's chat lengths: a quarter 5-19 units, half 20-100, a quarter 101-400. The worst-case shapes
 // come from the old benchmark page: its shape rows, its pre-wrap chunks, its long breakable runs and a book-length
 // Arabic paragraph.

@@ -2289,8 +2289,8 @@ no `extraWidth`, not atomic, no hard break, and nothing a line start consumes at
 10,000 messages are one item. The chat's height pass, `layoutConversation()`, reads 25-26% faster in Chrome 154, 23-24%
 in Firefox 156.0.1 and 17-22% in Safari 27 (2026-09-29). The results are the rich stepper's field by field, on the
 stand-in Canvas over 6,267 inputs at 13 widths in all four profiles, and in Chrome, Firefox and webkit-host with every
-plain case in white-space: normal predicted as one item. The bench's rich rows, whose paragraphs have an item per word,
-read within noise.
+plain case in white-space: normal predicted as one item. The bench's rich rows, whose paragraphs had an item per word
+then, read within noise.
 
 Continuing rich lines in the full walker (#369, 2026-09-27) moved rows whose code didn't change, accepted as each JIT's
 placement of the changed bundle (Part 1, Engineering): Chrome 154's letter-spaced CJK `layout()` and pre-wrap chunks
@@ -4049,70 +4049,62 @@ widths: both measure Pretext, not a browser.
   checked against; giving such a row no verdict took 173. Reopen if a re-time takes back a verdict on a row whose
   control sat that far.
 - **One slow copy reads as a change when it is the candidate's.** On the bench's two chat documents (`chat`, the
-  Markdown chat demo's paragraphs as it prepares them, list items and headings among them, its mix below, and
-  `chat-styled`, its paragraphs of several items alone, beside `latin`, the stress items, a word or a space each; main
-  at #455 against itself, Chrome 154.0.8037.98, eleven foreground sessions, 2026-10-07) one copy of three ran
+  Markdown chat demo's paragraphs as it prepares them, list items and headings among them, called the demo's mix below,
+  and `chat-styled`, its paragraphs of several items alone, beside `latin`, the stress items, a word or a space each;
+  main at #455 against itself, Chrome 154.0.8037.98, eleven foreground sessions, 2026-10-07) one copy of three ran
   `rich-seen` slower than the other two in 21 of 22 documents, steady over its rounds: 53.1-54.6 µs per 1,000 units
   against 47.0-49.8 on the demo's mix, and 64.8-67.5 against 57.4-60.8 on its styled paragraphs. The slow copy was
   base's in 2 and 2 sessions, the candidate's in 3 and 7, the control's in 5 and 2. The band is the control's distance
   from base, so it covers a session only when the slow copy isn't the candidate's: the styled paragraphs' `rich-seen`
-  read 10-13% slower in 7 sessions of the 11, and in every session of 35 of the 165 sets of three. If the slow copy is
-  any of the three, three sessions agree once in 27 runs. Safari 27 does the same on the stress items' walk and stream
-  (the stream at 4.0 or 4.5-4.7 µs per 1,000 units): one run of three sessions read main's stream 12.0%, 14.9% and 11.7%
-  slower than itself with the control at -1.7%, +12.8% and -3.9%, and the bench called it. Which copy is slow follows
-  the order the page ran the copies in earlier in the document, recomputed from each session's seed. In Safari it is the
-  copy that prepared that operation's handles first: on the stream in all 24 sessions of main against itself saved that
-  day (the eleven and the thirteen before them, five of those with the width-only callback of the next entry; the stress
-  document is the same in all 24; in 4 a second copy was as slow), on the walk in 22 of them (Allocation order, above,
-  where Chrome's slow copy was the last to prepare). In Chrome it is the copy that prepared one batch of the first round
-  the document runs, an untimed round of `rich-new`: the first batch on the styled paragraphs, in all 11 sessions, and
-  the third on the mix, in the 10 that had a slow copy. That copy also prepares new text 3 to 7% slower than the other
-  two, by how a copy's cost is taken, and counts and walks lines within 1% of them. The copies take that round's batches
-  in the order they run, so the place and the batch can't be told apart; which copy is slow follows neither the order in
-  which the copies first prepared the kept paragraphs nor the order of `rich-seen`'s own first rounds, and why that
-  round slows a copy isn't known. Such an entry is read over ten sessions and by each copy's own cost in the saved
-  samples. Reopen with the cause, or with an order of the page's that leaves no copy slow (one batch that every copy
-  prepares before the first round, and handles prepared a paragraph at a time in turn, are untried); reopen the verdict
-  rule if copies made afresh each round, or a fourth copy, prove cheap.
+  read 10-13% slower in 7 sessions of the 11, and in every session of 35 of the 165 sets of three sessions the eleven
+  make. Were each copy as likely to be the slow one, it would be the candidate's in all three sessions once in 27 runs.
+  Safari 27 does the same on the stress items' walk and stream (the stream at 4.0 or 4.5-4.7 µs per 1,000 units): one
+  run of three sessions read main's stream 12.0%, 14.9% and 11.7% slower than itself with the control at -1.7%, +12.8%
+  and -3.9%, and the bench called it. Which copy is slow follows the order the page ran the copies in earlier in the
+  document, recomputed from each session's seed. In Safari it is the copy that prepared that operation's handles first:
+  on the stream in all 24 sessions of main against itself saved that day (the eleven and the thirteen before them, five
+  of those with the width-only callback of the next entry; the stress document is the same in all 24; in 4 a second copy
+  was as slow), on the walk in 22 of them (Allocation order, above, where Chrome's slow copy was the last to prepare).
+  In Chrome it is the copy that prepared one batch of the first round the document runs, an untimed round of `rich-new`:
+  the first batch on the styled paragraphs, in all 11 sessions, and the third on the mix, in the 10 that had a slow
+  copy. That copy also prepares new text 3 to 7% slower than the other two, by how a copy's cost is taken, and counts
+  and walks lines within 1% of them. The copies take that round's batches in the order they run, so the place and the
+  batch can't be told apart; Chrome's slow copy follows neither the order in which the copies first prepared the kept
+  paragraphs nor the order of `rich-seen`'s own first rounds, and why that round slows a copy isn't known. Such an entry
+  is read over ten sessions and by each copy's own cost in the saved samples. Reopen with the cause, or with an order of
+  the page's that leaves no copy slow (one batch that every copy prepares before the first round, and handles prepared a
+  paragraph at a time in turn, are untried); reopen the verdict rule if copies made afresh each round, or a fourth copy,
+  prove cheap.
 - **A callback that keeps nothing lets an engine skip the work.** Until #TBD the bench's rich walk and stream read only
   each line's width. V8 inlines main's line builder for a paragraph of one item (`createOnlyItemLine()`, 166 bytes of
   bytecode; `--trace-turbo-inlining` in d8, V8's shell, on the unminified bundle) into the walk and then never makes the
   line: main's walk over the chat demo's paragraphs read 1.44 µs per 1,000 units that way and 1.85 with each line kept
-  in one variable outside the loop (the 239 paragraphs the `chat` document kept then, read after its new batches, 82% of
-  them one item; the 265 it keeps since they are read first, 86% of them one item, read 1.72 with the line kept over
-  eleven sessions and weren't timed without), and its stream 1.67 and 1.78 (Chrome 154.0.8037.98); in Safari 27.0 the
-  walk read 1.38 and 1.50. The other walk and stream entries of the three rich documents moved 4.1% or less in Chrome
-  and 3.1% or less in Safari, and all six 2% or less in Firefox 156.0.1 (main at #455, five foreground sessions each
-  way, back to back, in which counting lines, which no callback touches, moved 1% or less in all three; 2026-10-07). A
-  library whose builder is over V8's inlining limit makes the line under either callback, so the width-only one read its
-  walk further over main's than an app sees: both rich demos pass each line they walk to
+  in one variable outside the loop, and its stream 1.67 and 1.78 (Chrome 154.0.8037.98); in Safari 27.0 the walk read
+  1.38 and 1.50. Those were the 239 paragraphs the `chat` document kept while it read them after its new batches, 82% of
+  them one item; the 265 it keeps now that it reads them first, 86% of them one item, read 1.72 in Chrome with the line
+  kept, over eleven sessions, and weren't timed without. The other walk and stream entries of the three rich documents
+  moved 4.1% or less in Chrome and 3.1% or less in Safari, and all six 2% or less in Firefox 156.0.1 (main at #455, five
+  foreground sessions each way, back to back, in which counting lines, which no callback touches, moved 1% or less in
+  all three; 2026-10-07). A library whose builder is over V8's inlining limit makes the line under either callback, so
+  the width-only one read its walk further over main's than an app sees: both rich demos pass each line they walk to
   `materializeRichInlineLineRange()`. The plain `lines` rows keep their width-only callbacks, which is how the README
   and the plain demos use `walkLineRanges()`. The bench reads the last kept line once a run, so the store isn't dead.
   Reopen if an engine learns to drop it anyway.
 - **A round of new text compares three texts.** `new` and `rich-new` give each library a batch of its own each round.
-  Batches of prose cost alike: 1,000 units of the stress items differed by up to 1.9 times within a round in Chrome.
-  1,000 units of the chat demo's paragraphs cost 180 to 1,900 µs per 1,000 units there by what they held (text that
-  takes another font, words an earlier batch had), much the same in every session whichever copy drew them, and up to 4
-  times apart within a round, so a session's median of twelve ratios was mostly the draw. Main against itself read
-  Chrome's `chat rich-new` 41%, 15% and 49% slower in three sessions and the bench called it; over 13 sessions a browser
-  a copy's ratio to base on that entry, the candidate's or the control's, moved by up to 49% in Chrome, 22% in Firefox
-  and 39% in Safari. With batches of 4,000 units it moved by up to 24%, 11% and 17% over 11 sessions, where the stress
-  document's moved by up to 30%, 19% and 8%, and no run called either (Chrome 154.0.8037.98, Firefox 156.0.1, Safari
-  27.0; #TBD, 2026-10-07). One lean is explained only in part: on the styled paragraphs' new text in Chrome, base's copy
-  was the fastest of the three, or level with the fastest, in 12 of the 24 sessions of both sizes, and the candidate's
-  read 3.9% over it on average (standard error 1.4), the control's 1.8%. With 4,000-unit batches it is the slow copy two
-  entries above (One slow copy), the one that ran first in the document's first round: the candidate's in 7 sessions of
-  the 11 and base's in 2. The candidate's copy read 6.3% over base's on average in those 7, in 6 of them by 5.9 to
-  10.8%, outside the band, and 6.8% under it in base's 2, and all 20 of the 165 sets of three that call the styled new
-  text slower are among the 35 that call its `rich-seen`. With 1,000-unit batches the copy that ran first there was the
-  candidate's in 2 sessions of 13 and base's in 4, and the candidate's still read 5.0% over base's (standard error 1.8);
-  that part is unexplained. On the mix's new text there the same lean is within its error (4.4%, standard error 3.4),
-  and Firefox and Safari show none. The demo repeats sentences: 80% of the words of its mix's new batches and 75% of its
-  styled paragraphs' had come earlier in the document's new batches in the same font (86% of the styled paragraphs'
-  counting the mix's document, which a session times just before), against 57% of the stress document's. The styled
-  paragraphs the mix's document leaves hold 1.1 times what the styled document reads, so a larger batch needs more text.
-  Reopen the batch size if the demo's generator gains text, or if a run of main against itself calls a chat document's
-  new text.
+  Batches of prose differ less than the demo's paragraphs do: 1,000 units of the stress items differed by up to 1.9
+  times within a round in Chrome. 1,000 units of the chat demo's paragraphs cost 180 to 1,900 µs per 1,000 units there
+  by what they held (text that takes another font, words an earlier batch had), much the same in every session whichever
+  copy drew them, and up to 4 times apart within a round, so a session's median of twelve ratios was mostly the draw.
+  Main against itself read Chrome's `chat rich-new` 41%, 15% and 49% slower in three sessions and the bench called it;
+  over 13 sessions a browser a copy's ratio to base on that entry, the candidate's or the control's, moved by up to 49%
+  in Chrome, 22% in Firefox and 39% in Safari. With batches of 4,000 units it moved by up to 24%, 11% and 17% over 11
+  sessions, where the stress document's moved by up to 30%, 19% and 8%, and no run called either (Chrome 154.0.8037.98,
+  Firefox 156.0.1, Safari 27.0; #TBD, 2026-10-07). The demo repeats sentences: 80% of the words of its mix's new batches
+  and 75% of its styled paragraphs' had come earlier in the document's new batches in the same font (86% of the styled
+  paragraphs' counting the mix's document, which a session times just before), against 57% of the stress document's. The
+  styled paragraphs the mix's document leaves hold 1.1 times what the styled document reads, so a larger batch needs
+  more text. Reopen the batch size if the demo's generator gains text, or if a run of main against itself calls a chat
+  document's new text.
 - **The candidate's copy can lean on identical code.** In Chrome 154.0.8037.98, with main at #455 against itself, the
   candidate's copy read `lines: mixed stats` over base's in 15 of 16 sessions, by 0.2 to 1.9% (two runs of three
   sessions of every row and two of five of the row alone, with the code the bench wraps a library in (`ENTRY`,
@@ -4120,6 +4112,17 @@ widths: both measure Pretext, not a browser.
   three was called slower, +1.2%: the row's floor is 1%. The copies are evaluated base first, then the candidate, then
   the control, and each round runs them in a shuffled order, which is even (each first, second and third a third of the
   time over 200,000 seeds); what leans wasn't found. A reading of about 1% slower on that entry in Chrome, alone, is
+  this until a calibration shows it gone. A second lean in Chrome is explained only in part: on the styled paragraphs'
+  new text (`chat-styled rich-new`), base's copy was the fastest of the three, or level with the fastest, in 12 of the
+  24 sessions of both batch sizes (the 13 and the 11 of the entry above), and the candidate's read 3.9% over it on
+  average (standard error 1.4), the control's 1.8%. With 4,000-unit batches it is the slow copy three entries above (One
+  slow copy), the one that ran first in the document's first round: the candidate's in 7 sessions of the 11 and base's
+  in 2. The candidate's copy read 6.3% over base's on average in those 7, in 6 of them by 5.9 to 10.8%, outside the
+  band, and 6.8% under it in base's 2, and all 20 of the 165 sets of three sessions that call the styled new text slower
+  are among the 35 that call its `rich-seen`. With 1,000-unit batches the copy that ran first there was the candidate's
+  in 2 sessions of 13 and base's in 4, and the candidate's still read 5.0% over base's (standard error 1.8); that part
+  is unexplained. On the demo's mix (`chat rich-new`) the same lean is within its error (4.4%, standard error 3.4), and
+  Firefox and Safari show none. A reading of a few percent slower on `chat-styled rich-new` in Chrome, alone, may be
   this until a calibration shows it gone.
 - **Headless Chrome isn't installed Chrome.** With `deviceScaleFactor: 2` it most likely lays out at zoom 1 while
   reporting DPR 2, as its measurements show, and headless Chrome 153 crashed or hung on one input installed Chrome

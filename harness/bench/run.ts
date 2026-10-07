@@ -25,10 +25,10 @@ const TARGET_MS = 50
 const SEEN_UNITS: Record<(typeof MESSAGE_FAMILIES)[number], number> = { latin: 40_000, cjk: 15_000, arabic: 40_000, thai: 30_000, mixed: 40_000 }
 const FRESH_UNITS: Record<(typeof MESSAGE_FAMILIES)[number], number> = { latin: 1000, cjk: 200, arabic: 1000, thai: 650, mixed: 1000 }
 const RICH_UNITS = 1000
-// A new batch of the chat documents holds four times the stress document's, whose size Gatsby's length caps. A round
-// compares three batches, one a library, and 1,000 units of the demo's paragraphs cost 180 to 1,900 µs per 1,000 units
-// in Chrome by what they held, where batches of prose are alike: main read 15-49% slower than itself in three sessions
-// (RESEARCH.md, Evaluation Traps, Timing).
+// A new batch of the chat documents holds four times the stress document's, whose size the length of the Latin text
+// caps (The Great Gatsby's opening, texts.ts). A round compares three batches, one a library, and 1,000 units of the
+// demo's paragraphs cost 180 to 1,900 µs per 1,000 units in Chrome by what they held, where batches of prose differ
+// less: main read 15-49% slower than itself in three sessions (RESEARCH.md, Evaluation Traps, Timing).
 const CHAT_UNITS = 4000
 const NEW_BATCHES = LABELS.length * (WARM + ROUNDS.new)
 const FRESH_ROUNDS = WARM + ROUNDS.fresh

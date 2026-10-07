@@ -167,7 +167,9 @@ describe('the texts', () => {
   // A mixed message may end with a space and an emoji its text doesn't hold, which a batch's end may cut anywhere.
   const emojiTail = new RegExp(` ?[${EMOJI.join('')}]*$`, 'u')
 
-  test('the rows that time new text never prepare a message twice: a warm cache would read as a faster library', () => {
+  test('the rows that time new text never prepare a message of the corpora twice: a warm cache would read as a faster library', () => {
+    // The chat documents are left out: the demo repeats sentences, and 6% of `chat`'s new paragraphs repeat an earlier
+    // one whole (harness/README.md, Bench).
     for (const family of MESSAGE_FAMILIES) {
       const text = familyText(family)
       let at = 0
