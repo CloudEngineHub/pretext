@@ -1661,6 +1661,27 @@ removal says otherwise (2026-10-07).
   widths (`getSpaceWidth()`): one Map lookup less for every text and every rich item. It is the space half of the
   font's two widths, which were taken out together (Dead Ends, Fitting, Cuts And Fast Paths).
 
+What they measured, in the foreground bench's `rich` rows (Chrome 154.0.8037.98, Firefox 156.0.1 and installed Safari
+27.0 on macOS 27.0, 2026-10-07; each a build against the build without the removal; these gains are under the row's 5%
+floor, so each session's median is read for its sign; the PR's description has the tables). The three together, over
+15 sessions in three runs: the stress document prepared again reads 8.0% faster in Safari (77.4 to 70.9 µs per 1,000
+units), 5.2% in Firefox and 4.1% in Chrome, faster in every session of each, and the bench called it in Safari in two
+of the runs and in Firefox in one; the styled chat paragraphs prepared again read 3.5% faster in Safari (55.2 to 53.2)
+and the chat mix 2.0% (41.5 to 40.7), in every session, and both within 1.3% in Chrome and Firefox; new text, and
+counting, walking and stepping lines, stay within noise on all three documents. Each alone, over 7 or 8 sessions: the
+own string takes 3.5% off Safari's stress document in every session, 2.5% off Firefox's and 0.8% off Chrome's, and
+nothing the chat documents show; the lists take 3.7%, 1.7% and 2.1% off it, and are the one removal real text shows,
+2.5% off Safari's styled chat paragraphs and 1.9% off its chat mix, in every session; the space width takes 1.6%, 2.0%
+and 0.7% off it, in 6, 7 and 6 of 7 sessions, nothing off the chat documents, and is 8 lines for that. In a run of
+every row, three sessions, no plain row is called: Firefox counts, walks and steps the bench's CJK lines within 0.6%,
+where the two widths together had cost 4% and 11%, a loss the space half alone doesn't bring back. Three cells read
+slower in most sessions and aren't these changes' work. Chrome's new chat text reads 5.7% slower over the 15 sessions,
+10 of them, in a cell whose sessions run from 30% faster to 43% slower and whose second copy of the base sits as far
+from the first. Safari's stream over the styled chat paragraphs reads 0.3% slower in 12 of 15, 0.01 µs per 1,000
+units, in a row that runs none of the changed code. And Chrome's line count of the stress document reads 1.6% slower
+under the space width alone in 7 of 7 sessions, over handles that are the same in both builds, where the three
+together read it 0.3% slower in 8 of 15.
+
 #### Joined Text
 
 Chrome's and Firefox's items break by the joined text, a font change ending only Gecko's shaped run (Firefox 155 wrapped
@@ -2702,9 +2723,10 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   default values' effect, so why they keep whole widths int32 in the browser wasn't found. Reopens with a way to store a
   handle's widths as doubles whatever tier made them that costs a short text's preparation nothing: it is worth 12% of
   `layout()` and of a count of CJK lines in Firefox for text prepared while the code is cold. The same loss came back
-  when a font's space width was read off its measurement inside `measureAnalysis()` (Dead Ends, Fitting, Cuts And Fast
-  Paths, 2026-10-06), so what keeps a whole width an int32 there is how the code around it is typed, and default values
-  are one way among others to change that.
+  when a font's space and hyphen-minus widths were read off its measurement inside `measureAnalysis()` (Dead Ends,
+  Fitting, Cuts And Fast Paths, 2026-10-06), and not when only the space's was (Rich Inline As One Paragraph,
+  2026-10-07), so what keeps a whole width an int32 there is how the code around it is typed, and default values are one
+  way among others to change that.
 - **A flag parameter, in JavaScriptCore**: `buildLineTextFromRange()` took a last parameter, true by default, for
   whether its range ends a line, and webkit-host read `layoutWithLines()` over the bench's mixed messages 4.0-4.7%
   slower than main in three runs, for one test a line (JavaScriptCore's shell: +2.9%; V8's and SpiderMonkey's level). As
@@ -4031,8 +4053,15 @@ below 256 px, Canvas totals are exact (Engine Facts, Chrome).
   and level in the others on the bench's text, whose fonts agree, and 2.1% and 3.7% slower in V8's and
   JavaScriptCore's shells where a bold word makes them differ. And where each segment sits in its item's text, found
   when a line is first materialized, read 2.0% faster in webkit-host and about 2% and 1% in Firefox and Chrome, and
-  made the first materialize 41-50% slower. Those two are trades, not taken. The font's two widths reopen with a
-  handle whose widths are doubles whatever made them; the others with an app whose rich text is new on most frames.
+  made the first materialize 41-50% slower. Those two are trades, not taken. The font's two widths reopened in part
+  on 2026-10-07 (Rich Inline As One Paragraph): the space's width alone is kept on the font's measurement, and
+  Firefox's CJK line rows read level with it, so the loss came with the hyphen-minus and not, as read above, from the
+  space's width in each segment's width. The hyphen-minus stays out whatever stores a handle's widths: with it,
+  JavaScriptCore's shell kept failing one type check of `measureAnalysis()` in its middle tier, where the hyphen-minus
+  is a whole number of pixels in some fonts and a fraction in others, and read rich text prepared again 13-18% slower
+  in 5 of 6 processes (2026-10-06, a hypothesis). The hyphen and tab lists came back the same day in a form that is no
+  trade: made only for a paragraph whose text holds a soft hyphen or a preserved tab, which is all a walk reads them
+  for, so a paragraph whose fonts differ makes none. The rest reopen with an app whose rich text is new on most frames.
 
 #### DOM And Canvas-Element Paths
 
