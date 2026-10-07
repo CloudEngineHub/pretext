@@ -1443,13 +1443,13 @@ what it was and what it found). It kept drifting from the text walkers: each rul
 copy at item edges (#332), as the halt of a pair of fullwidth marks did (#425). The item stepper, the walker's mode
 for one item's line, the joined windows, the second handle per item and the halts read across two items are gone, and
 three fields of the engine profile with them (`breaksFromItemText`, `collapsesSpaceAcrossSoftHyphens`,
-`spaceBeforeSoftHyphenHangs`). Against main at #453 (2026-10-06), `src/` outside tests is 246 lines shorter, 1,565
-added and 1,811 removed, and 140 lines of code shorter, counting neither blank lines nor comment lines:
-`src/rich-inline.ts` goes from 1,101 lines of code to 815, `src/analysis.ts` from 317 to 410 and `src/line-break.ts`
-from 768 to 818, as the walker's mode for one item's line makes way for what a paragraph's segments carry. The main
-entry's bundle grows by 3,638 B minified (1,276 B gzipped) to 96,845 B (40,617 B), since the walker and the analysis
-are its own, and `@chenglou/pretext/rich-inline` shrinks by 1,914 B minified to 107,383 B and by 106 B gzipped to
-44,707 B (`bun build --minify`, then `gzip -9`).
+`spaceBeforeSoftHyphenHangs`). Against main at #453 (2026-10-06), `src/` outside tests is 223 lines shorter, 1,589
+added and 1,812 removed, and 131 lines of code shorter, counting neither blank lines nor comment lines:
+`src/rich-inline.ts` goes from 1,101 lines of code to 820, `src/analysis.ts` from 317 to 410 and `src/line-break.ts`
+from 768 to 822, as the walker's mode for one item's line makes way for what a paragraph's segments carry. The main
+entry's bundle grows by 3,669 B minified (1,281 B gzipped) to 96,876 B (40,622 B), since the walker and the analysis
+are its own, and `@chenglou/pretext/rich-inline` shrinks by 1,951 B minified to 107,346 B and by 148 B gzipped to
+44,665 B (`bun build --minify`, then `gzip -9`).
 
 What a caller sees change: a fragment's `start` and `end`, and a line's `end`, count segments of the item's part of the
 paragraph, where they were cursors into `prepareWithSegments(item.text)`. The two differ in most paragraphs of several
@@ -1577,23 +1577,36 @@ item edges, has the shapes and what each leaves).
   Chrome, has the retry). `BreakText` retries one item against the width less that item's own hyphen
   (`line_breaker.cc:1705-1719`, Chromium 153), and where no break in the item leaves the room, `HandleOverflow` goes
   back to the latest break before the item that fits, with none (`:4105-4112`). So a break inside an item leaves room
-  for that item's hyphen, and the break before an item's first segment leaves none (`hyphenRooms`). The paragraph
-  first left the first text item's hyphen at every break. Of 1,015 Chrome layouts with a one-letter syllable before
-  the soft hyphen, that form passes 903, main 914 and the rule 954: main's walk left the next item's hyphen at the
-  break before it, and kept an overflowing hyphen in 40 layouts where Chrome ends the line at that break. One pinned
-  prediction moved, a pass both ways: `word `, an item of a soft hyphen and `more text here` at 40px in 16px Arial,
-  whose first line was `word` and a hyphen, 44.45px wide, and is now Chrome's 34.68px. It reopens with a Chrome that
-  reserves the hyphen across items, or with a recording of a break inside an earlier item, the premise left.
-- A closing fullwidth mark halted at its item's end, where the item's text fits its line only so, stays halted where
-  the line goes on (`itemEndHalts`; CJK At An Item's Edge). The walk item by item had this from an item's own text
-  ending at the mark, and the paragraph's walker halts a mark at a line's end only, so it keeps the halt of a mark
-  that ends an item without `extraWidth`, takes it out of the line's width where the line goes on, and gives the
-  fragment the halted width. Of 1,096 Chrome layouts Chrome passes all with the rule, 1,020 without it and 1,088 on
-  main, which kept a padded item's mark halted where Chrome leaves it whole. No pinned prediction moved, and #425's
-  unit test holds main's expectations again. A paragraph with such a mark is laid out by the full walker.
+  for that item's hyphen, and the break before an item's first segment leaves none (`hyphenRooms`). The paragraph first
+  left the first text item's hyphen at every break. Of 1,015 Chrome layouts with a one-letter syllable before the soft
+  hyphen, that form passes 903, main 914 and the rule 954: main's walk left the next item's hyphen at the break before
+  it, and kept an overflowing hyphen in 40 layouts where Chrome ends the line at that break. One pinned prediction
+  moved, a pass both ways: `word `, an item of a soft hyphen and `more text here` at 40px in 16px Arial, whose first
+  line was `word` and a hyphen, 44.45px wide, and is now Chrome's 34.68px. A review's two probes of 31,603 more layouts
+  read the same way, and recorded the premise the rule takes: a break inside an earlier item than the soft hyphen's
+  leaves room for that item's hyphen, where Blink asks only that the line fit (`:4138-4158`). It shows in one font size
+  wherever the soft hyphen starts the next item or is an item alone, in 29 layouts a line too many, where main had the
+  right count with a wrong break (ENGINE_FOLLOWUPS.md has the shapes and counts). The walker keeps one latest break with
+  room; Blink's return is to the latest break inside the soft hyphen's item with room, and else to the latest before
+  that item that fits. It reopens with a Chrome that reserves the hyphen across items.
+- A closing fullwidth mark halted at its item's end, where the item's text fits its line only so, stays halted where the
+  line goes on (`itemEndHalts`; CJK At An Item's Edge). The walk item by item had this from an item's own text ending at
+  the mark, and the paragraph's walker halts a mark at a line's end only, so it keeps the halt of a mark that ends an
+  item without `extraWidth`, takes it out of the line's width where the line goes on, and gives the fragment the halted
+  width. That is the halt of a line's first layout, made where a break comes right after the mark, and the halt of
+  Blink's second layout of a line with no break to return to, which has a break after every grapheme, so before a period
+  or a no-break space too. Of 1,096 Chrome layouts Chrome passes all with the rule, 1,020 without it and 1,088 on main.
+  Of 32,775 more, 28,211 are 24px and wider: Chrome passes 27,646 of those, main 27,402, and the rule with the first
+  layout's halts only 27,129. What main passes there and the rule fails is 94 layouts of a padded item's mark. Blink
+  fits a span's text before the span's end edge and keeps the halt where the text doesn't fit there, and `extraWidth`
+  doesn't split that edge off, so the rule leaves padded items out: it fails those 94, where what follows the mark is
+  narrower than the halt less the edge, and passes 124 that main fails, where main kept a mark halted that Chrome leaves
+  whole (ENGINE_FOLLOWUPS.md). No pinned case held such a mark before a letter or a period; two templates of the rich
+  set's `item-edges/closing-mark` family now do, 23 cases a browser. #425's unit test holds main's expectations again. A
+  paragraph with such a mark is laid out by the full walker.
 
-Chrome submits more units to `measureText` for rich cases, by a few more calls: 47,519 against 45,970 over the rich
-set (+3.4%, in 5,413 calls against 5,389), which with the rich cases of the other sets is 0.15% more units and 0.01%
+Chrome submits more units to `measureText` for rich cases, by a few more calls: 47,524 against 45,975 over the rich
+set (+3.4%, in 5,417 calls against 5,393), which with the rich cases of the other sets is 0.15% more units and 0.01%
 more calls over every set together (against main at #453). Of the sets `equal` prints, the smoke set grows most, 2,625
 units against 2,242, all of it in its three rich cases. A collapsed space at an item's edge is now measured with its
 item, so more paragraphs meet the Chromium profile's probe of how a font kerns a space with its neighbours, two
@@ -1601,7 +1614,11 @@ strings of printable ASCII, which a page pays once for a font. Firefox's calls a
 and webkit-host's within 0.3%.
 
 Speed, against main at #453 in the foreground bench (Chrome 154.0.8037.98, Firefox 156.0.1 and installed Safari 27.0,
-2026-10-06; the PR's description has every row). The numbers the decision rests on, each the range of two runs, of
+2026-10-06; the PR's description has every row). It timed the `src/` two commits before the halt of Blink's second
+layout (above), which adds ten lines where a paragraph is prepared and five on the walker's path for a segment that
+overflows a line with no break: in the background, three sessions a build, the worst-case and rich rows read that
+`src/` with the halt and the commit before it alike in Firefox, webkit-host and Chrome (hypotheses), and a foreground
+run with it is owed. The numbers the decision rests on, each the range of two runs, of
 three and of ten sessions: counting a prepared paragraph's lines takes 0.20 of main's time in Chrome, 0.24-0.25 in
 Safari and 0.40-0.42 in Firefox, and walking them reads 11-29% faster in all three; `prepareRichInline()` is slower in
 Safari, 10-16% on text no library has seen and 25-38% on text prepared again, called in both runs; new rich text
@@ -1797,7 +1814,14 @@ takes off a fullwidth mark (`src/han-kerning.ts`). Firefox and webkit-host halt 
   the chip's text or is all of it, since its inline-block trims it: a break comes right after the mark, and `設定）`
   before a chip ` @a `, or before a chip of a space, fits 40-47px halted, also where the span after that chip starts
   with a space. Before #425 the walk item by item had kept `文字）` halted on one line before a space, since an
-  item's own text ended at the mark.
+  item's own text ended at the mark. A line with no break to return to is laid out again with a break after every
+  grapheme (`LineBreaker::HandleOverflow`, `line_breaker.cc:4259-4264`), and then a break does come right after the
+  mark: `文字」`, a span `.` and `字` are `文` / `字」.` / `字` at 28.5-31.75px, the mark halted at its span's end and
+  the period after it, where the same text in one node ends that line after the halted mark, as the halt there only
+  moves the line's end past the mark. A padded span's text is fitted before the span's end edge: a span `文字」` with
+  4px of padding on each side before `i` keeps its mark whole from 52px, where the text fits after the start edge
+  though the end edge doesn't until 56px, and wraps the `i`, and at 51.81-51.94px its mark is halted and the `i`
+  stays on the line (Chrome 154.0.8037.98, 2026-10-06).
 
 These counts are of probes recorded fresh in two document orders on 2026-10-04, each case predicted with main at #423
 and with #425, and not kept. Styled Japanese and Chinese sentences at 120-600px in nine font stacks go from 5,608 to
@@ -2425,8 +2449,14 @@ runs (Firefox 156.0.1, bench sessions of 2026-09-27 and 28, unless noted):
   in inside the paragraph's test, its advance less the halt, and the two constants as they were, both read the commit
   before's figures: 3.9% against 2.9% in Firefox for letter-spaced CJK, 9.0% against 8.8% and 7.2% against 7.2% in
   webkit-host for pre-wrap chunks. The foreground bench called the first two forms' losses too: 9.2% in Firefox for
-  the first, and 14.8% and 13.2% in Safari for the second. So what only a paragraph does goes whole inside its test,
-  the lines that let a segment in written a second time there.
+  the first, and 14.8% and 13.2% in Safari for the second. The third form is the one the walker has. It writes the
+  admission of a text segment a second time, 11 of its 16 lines, the room for a hyphen among them, where the first form
+  is four lines after the admission, as a fresh line has them. The two give the same lines on every probe layout and
+  unit test, and the first form's cost is one JIT's: Firefox's row above, with pre-wrap chunks' `layout()` 3.2% against
+  1.0% in Firefox and their walk 3.2% against 0.9% in Chrome in the same foreground runs, one of three sessions for
+  each form. Part 1 (Engineering, JIT tuning) allows no rule written out twice for such a gain, so the third form
+  stays only if the maintainer rules so with the change (the PR's description has the two side by side); otherwise the
+  first form takes its place and its cost is the one to note here.
   In the foreground, on main at #453 (Chrome 154.0.8037.98, Firefox 156.0.1, Safari 27.0, three sessions, 2026-10-06):
   the soft hyphens' `layout()` read 2.1%, 4.8% and 0.9% slower, Firefox's called; pre-wrap chunks' `layout()` and walk
   7.5% and 7.7% slower in Safari, called, and under 2.5% in the other two; and letter-spaced CJK `layout()`, the same
@@ -4723,7 +4753,7 @@ decisions for the maintainer.
   item again. What it costs: that cursor contract; an atomic item of only white space is an object as wide as its
   `extraWidth`; preparing rich text is slower in Safari, 10-16% for text no library has seen and 25-38% for text
   prepared again, and 7-15% for new text in Chrome and Firefox, against stats at 0.2-0.4 of the stepper's time and
-  walks 11-29% faster; the main entry is 1,276 B larger gzipped for what the walker and the analysis carry for a
+  walks 11-29% faster; the main entry is 1,281 B larger gzipped for what the walker and the analysis carry for a
   paragraph; and the walker has rules that hold for a paragraph only (`items !== undefined`), where plain text has the
   same gap and wasn't to move in the same change: a U+3000 run that hangs at an item's end, a soft hyphen beside an
   object, a segment of negative advance on a line that overflows, and a run of preserved spaces that hangs where a
