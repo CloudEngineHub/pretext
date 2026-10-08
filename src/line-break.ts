@@ -798,6 +798,10 @@ function walkPreparedComplexLines(
               // negative than it is wide, doesn't bring a line that overflows back.
               const narrowsOverflow = fitAdvance < 0 && lineW - lineEndTrimmed > fitLimit
               overflows = (overflows || narrowsOverflow) && !(hangs && hangStays) && !placesEmptyObject
+              if (hangGoesOnPastEmpty && !overflows && hangEndSegmentIndex === i && kind === OBJECT && w === 0) {
+                hangEndSegmentIndex = i + 1
+                hangStartWidth = Math.max(hangStartWidth, Math.min(lineW + advance, availableWidth))
+              }
             }
             if (overflows) {
               // A break segment hangs with the gap before it, after the content before
@@ -956,10 +960,6 @@ function walkPreparedComplexLines(
                 lineEndTrimmed = 0
               } else {
                 lineW += advance
-                if (hangGoesOnPastEmpty && hangEndSegmentIndex === i && kind === OBJECT && w === 0) {
-                  hangEndSegmentIndex = i + 1
-                  hangStartWidth = Math.max(hangStartWidth, Math.min(lineW, availableWidth))
-                }
                 // A segment that takes no room at the line end, as a space, leaves the glyph
                 // before it last on the line, with its trim.
                 if (fitAdvance !== 0 && !hangs) lineEndTrimmed = newFitW > fitLimit && kind !== OBJECT ? endTrim : 0
