@@ -226,7 +226,9 @@ export function isCollapsibleSpaceCode(code: number): boolean {
 // break before what the run became. A break before a later unit, as before a CR after a
 // space, follows white space, so it is a break after what the run became. A mark without a
 // break goes with its unit: Gecko's cluster start, which only a unit that stays text reads,
-// and WebKit's forced break after a separator, which keeps its mark at the end too.
+// and WebKit's forced break after a separator, which keeps its mark at the end too, also
+// where the white space that ends the text starts at a break: at an item's edge in a
+// paragraph, or after a lone CR the analysis took out.
 // Fills spaceSources, when given, in normal white space.
 function mapSourceLineBreaks(source: string, normalizedLength: number, sourceBreaks: Uint8Array, whiteSpace: WhiteSpaceMode, spaceSources: Uint16Array | null): Uint8Array {
   const breaks = new Uint8Array(normalizedLength + 1)
@@ -258,7 +260,7 @@ function mapSourceLineBreaks(source: string, normalizedLength: number, sourceBre
     }
     normalizedIndex++
   }
-  if ((sourceBreaks[i]! & BREAK) === 0) breaks[normalizedLength] = sourceBreaks[i]!
+  breaks[normalizedLength] = (sourceBreaks[i]! & BREAK) === 0 ? sourceBreaks[i]! : sourceBreaks[i]! & FORCED_BREAK
   return breaks
 }
 

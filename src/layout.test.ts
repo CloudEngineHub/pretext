@@ -4392,6 +4392,11 @@ describe('rich-inline invariants', () => {
       expect(lines([item('ab\r'), item('\u0433\u0434', BOLD)], narrow)).toEqual([[[0, 'ab', 'ab', -1]], [[1, '\u0433\u0434', '\u0433\u0434', -1]]])
       expect(lines([item('\u0431\u0432\rcd')], narrow)).toEqual([[[0, '\u0431\u0432', '\u0431\u0432', -1]], [[0, 'cd', 'cd', -1]]])
       expect(lines([item('\u0431\u0432\r'), item('cd', BOLD)], narrow)).toEqual([[[0, '\u0431\u0432', '\u0431\u0432', -1], [1, 'c', 'c', -1]], [[1, 'd', 'd', -1]]])
+      // A line separator that ends an item ends its line as in one item where only white-space
+      // items follow to the paragraph's end: the paragraph's scan has a break where such an item
+      // starts, and the separator's forced break keeps its mark beside it (mapSourceLineBreaks).
+      expectLinesOfOneItem(['ab\u2028', ' '])
+      expectLinesOfOneItem(['ab\u2028', '\n'])
 
       // The Gecko profile takes it out too, and a line can end where it was.
       profile.lineBreakScan = 'gecko'
