@@ -154,8 +154,12 @@ New cases mustn't pile up as the old suite's did, a hand-written repro per bug.
 3. `make.ts cut <set>` writes `cases/<set>.ndjson`. It keeps only the frozen `main/*` cases and the templates the saved
    search holds, so it refuses a search that doesn't cover every template of the set (a cut after a partial search
    dropped 8,926 generated cases with no word at b1fd05fc); search the whole set before cutting, then remove
-   `.artifacts/harness-sets/<set>/`. A template added to an existing family should bring its older cases back byte for
-   byte, and a whole-catalog search derives every generated case again, so a browser's drift lands in the PR.
+   `.artifacts/harness-sets/<set>/`. The rich set is the exception: its earlier templates' widths were searched in older
+   browser builds, so each later group of its templates is searched and cut on its own, with the harness's own
+   `recordFirst`, `select`, `bisect` and `cut` over the new templates alone, and its cases added to the file
+   (`sets/rich.ts`'s header; ENGINE_FOLLOWUPS.md, Harness debt, has the additions to the catalog and the facts set that
+   weren't a whole cut either). A template added to an existing family should bring its older cases back byte for byte,
+   and a whole-catalog search derives every generated case again, so a browser's drift lands in the PR.
 4. `bun harness record --only-new`, then `bun harness check`; a new failure the change doesn't fix goes on the accepted
    list with `check --accept="<reason>"`.
 
