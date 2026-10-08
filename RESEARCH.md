@@ -1725,10 +1725,12 @@ removal says otherwise (2026-10-07).
   asks of a whole text, as whether it may hold emoji, a space to kern with or a mark to halt, it asks of the item's
   text as before: its one segment's text, or one slice of the paragraph's. Per 42,000 units of the stress document
   that is 29,386 fewer array literals, 5,855 fewer typed arrays and 27,845 fewer pushes (counted in V8's shell under
-  the WebKit profile, at an earlier head of the branch, 544c0ce6). The handle is the same in every field. A text's own
-  lists are still made inside `measureAnalysis()`, where they are filled: a first form that had every caller make
-  them cost Chrome 5-11% of preparing long texts and Firefox 4% and 12% of counting and walking CJK lines (Keeping
-  Work Bounded, JavaScript Engines, under A list made where it is filled).
+  the WebKit profile, at an earlier head of the branch, 544c0ce6). The handle is the same in every field. A paragraph's
+  widths and advances have since taken one push and one pop each where they are made, two of each a paragraph that this
+  count doesn't have (Keeping Work Bounded, JavaScript Engines, under A list made where it is filled). A text's own
+  lists are still made inside `measureAnalysis()`, where they are filled: a first form that had every caller make them
+  cost Chrome 5-11% of preparing long texts and Firefox 4% and 12% of counting and walking CJK lines (Keeping Work
+  Bounded, JavaScript Engines, under A list made where it is filled).
 
 What they measured, in the foreground bench's `rich` rows (Chrome 154.0.8037.98, Firefox 156.0.1 and installed Safari
 27.0 on macOS 27.0, 2026-10-07; each a build against the build without the removal; these gains are under the row's 5%
@@ -2941,13 +2943,42 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   second string than the analysis's; the caller's lists alone read level there, and the second string alone is the
   form that landed.
 
-  A paragraph's lists are still made by `prepareRichInline()` and filled by `measureAnalysis()`. Three orders of a
-  page's first texts that might bring V8's deoptimization to them were run in d8 and didn't: rich paragraphs first on
-  a page whose plain text is warm, where every build reads plain text 2% slower a second later, the build that copies
-  an item's lists too; a first rich paragraph with one item of 40,000 units; and the same after ten plain texts. In
-  the first, the item's measurement leaves the compiled code where it takes a branch only an item takes, before any
-  push. A list made by the function that fills it is the plainer allocation pattern in any engine, so this isn't code
-  shaped to one JIT (Part 1, Engineering).
+  A paragraph's lists are made by `prepareRichInline()` and filled by `measureAnalysis()`, so `prepareRichInline()`
+  gives each its final form where it makes it: one push and one pop of a fraction onto the widths and of a null onto
+  the advances, which change no value. Without them one order of a page's texts brings V8's deoptimization to the
+  widths' push: a page that prepares most of its text with `prepare()` and a rich paragraph now and then, whose first
+  rich paragraph is short, two items of three words each here. `prepareRichInline()` has then not run long enough to
+  have its record when it makes the lists of the page's first three paragraphs, and `measureAnalysis()`, compiled
+  again after the first of them, fails at the third ("not a Smi" in Maglev's code, "lost precision or NaN" in
+  TurboFan's). Between the second paragraph and the third the order needs enough plain text for V8 to compile the
+  function again and the time that takes in the background, 1.5 ms for Maglev's code and 11-13 ms for TurboFan's in d8
+  15.4.80, which a page whose paragraphs come seconds apart always has.
+
+  Chrome 154.0.8037.98 shows the loss (foreground, five sessions a build, 2026-10-07). In a scratch copy of the bench,
+  each copy of the library in a document prepared 1,000 plain texts and then three such paragraphs, 100 ms and 200
+  plain texts apart, and the document then timed plain text prepared again, against main at #457; a twin document did
+  the same with no paragraph. Without the push and pop the bench's long pre-wrap texts read 5.9% slower than main
+  where the twin read 1.4% faster, and its CJK messages 8.7% slower against 3.8%, each in all five sessions; its Latin
+  messages read level against 2.6% faster. With them each document reads as its twin: 0.4% faster and 0.4% faster,
+  3.2% slower and 3.8%, 3.4% faster and 4.2%. With no wait between the paragraphs the loss comes only where the plain
+  texts between them take long enough: on the pre-wrap texts in two background sessions of three, and not on the
+  messages. d8 reads the same on a stand-in Canvas, a hypothesis: alone in a process, the build without the push and
+  pop left the compiled push at the third paragraph in 40 of 48 processes, all but the eight where 200 CJK messages
+  gave TurboFan no time, and then prepared plain text 8-10% (pre-wrap), 3-4% (Latin) and 3% (CJK) slower than before;
+  the build with them did in none of 24, main in none of 24, and no build in any of 96 on a page without paragraphs.
+  Where the push and pop run they cost nothing the bench reads: against the build without them, rich text prepared
+  again read 0.2% faster to 0.6% slower in Chrome and 0.4% faster to 1.3% slower in Firefox over ten foreground
+  sessions each, and 0.3% faster to 0.7% slower in webkit-host over ten background ones, none called. The bench has no
+  document with this order (ENGINE_FOLLOWUPS.md, Cost).
+
+  Three other orders of a page's first texts don't bring the deoptimization to a paragraph's lists: rich paragraphs
+  first on a page whose plain text is warm, where every build reads plain text 2% slower a second later, the build
+  that copies an item's lists too, and the item's measurement leaves the compiled code where it takes a branch only an
+  item takes, before any push; a first rich paragraph with one item of 40,000 units; and the same after ten plain
+  texts. A text's lists made by the function that fills them are the plainer allocation pattern in any engine, so that
+  isn't code shaped to one JIT (Part 1, Engineering). The push and pop are there for V8 alone: they do none of the
+  library's work and force each list's type where it is made, and they are dead code once a paragraph's lists are made
+  inside `measureAnalysis()` too, or once V8 compiles a push inline again after it failed there.
 - **A flag parameter, in JavaScriptCore**: `buildLineTextFromRange()` took a last parameter, true by default, for
   whether its range ends a line, and webkit-host read `layoutWithLines()` over the bench's mixed messages 4.0-4.7%
   slower than main in three runs, for one test a line (JavaScriptCore's shell: +2.9%; V8's and SpiderMonkey's level). As
