@@ -892,7 +892,11 @@ function getPartWidth(data: PreparedSegments, i: number, from: number, to: numbe
 }
 
 // A line of a paragraph whose only item with segments has no extraWidth (onlyItem), as most of a
-// chat's are: one fragment of that item, as wide as the line. A function of its own, which the
+// chat's are: one fragment of that item, as wide as the line. Every segment is that item's, so its
+// first is the paragraph's first and a place in the paragraph is the same place in the item: the
+// item's first segment, read from the paragraph's lists for every line and taken off each cursor,
+// cost Safari 27 3.9% of its walk of CJK paragraphs of one item (the median of five foreground
+// sessions of the bench, four of them slower with it). A function of its own, which the
 // walk and the stream call for such a paragraph: with it Safari walked and streamed the chat
 // demo's paragraphs 8.0% and 8.6% faster than with that line as a branch of createLine(), and
 // Chrome walked them 4.2% faster. It cost Chrome's walk of items that are a word or a space each
@@ -909,20 +913,19 @@ function createOnlyItemLine(
   endSegmentIndex: number,
   endGraphemeIndex: number,
 ): RichInlineLineRange {
-  const { onlyItem, itemSegments } = flow
-  const first = itemSegments[onlyItem]!
-  const ended = endSegmentIndex >= itemSegments[onlyItem + 1]!
+  const { onlyItem } = flow
+  const ended = endSegmentIndex >= flow.data.segmentFlags.length
   return {
     fragments: [{
       itemIndex: onlyItem,
       gapBefore: 0,
       gapItemIndex: -1,
       occupiedWidth: width,
-      start: { segmentIndex: startSegmentIndex - first, graphemeIndex: startGraphemeIndex },
-      end: { segmentIndex: endSegmentIndex - first, graphemeIndex: endGraphemeIndex },
+      start: { segmentIndex: startSegmentIndex, graphemeIndex: startGraphemeIndex },
+      end: { segmentIndex: endSegmentIndex, graphemeIndex: endGraphemeIndex },
     }],
     width: Math.max(0, width),
-    end: { itemIndex: ended ? itemSegments.length - 1 : onlyItem, segmentIndex: ended ? 0 : endSegmentIndex - first, graphemeIndex: endGraphemeIndex },
+    end: { itemIndex: ended ? flow.itemSegments.length - 1 : onlyItem, segmentIndex: ended ? 0 : endSegmentIndex, graphemeIndex: endGraphemeIndex },
   }
 }
 
