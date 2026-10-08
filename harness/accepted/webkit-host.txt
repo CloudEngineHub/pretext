@@ -1771,9 +1771,13 @@ catalog-1e09fb14909f48c4 count
 catalog-32b37afd7007a194 count
 catalog-5535b5abb35ad415 count
 
+## Narrower than real layouts: width 1, a U+2028 that ends a span after a word broken between letters and a space: Safari gives the separator a line of its own after the space, as where a separator starts a span after such a word, up to the width of the letter before the space, where the text walkers hang the space and end that letter's line at the separator; not traced in WebKit's source
+rich-a754e777bff36f43 count
+
 ## Narrower than real layouts: width 1, a lone CR that ends a rich item or is one, after a letter: Safari gives the CR a line of its own, as it does in one text node, where the library takes the CR out of the text and has no line for it (ENGINE_FOLLOWUPS.md, White space and controls)
 rich-08cb7be091f8670a count
 rich-4023eec373259eef count
+rich-551f44ac3209ff8c count
 rich-5c844a5c3c13fdac count
 
 ## Narrower than real layouts: width 1, where nothing fits and WebKit keeps spaces, marks, controls or zero-width characters with the character before them otherwise than the library
