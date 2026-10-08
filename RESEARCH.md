@@ -2971,22 +2971,22 @@ repin` shows what), and a fact read in source needs reading again.
   another control or a character of another font anywhere in the text, and the CR then takes nothing. Every Canvas
   measures CR and FF as a space and U+0001 as `.notdef`. Since #455 the WebKit profile's analysis takes a lone CR out of
   the text, as the Gecko profile's does since #399, with the breaks the scan found around it; an FF is still a collapsed
-  space, and pre-wrap takes both as hard breaks (README). #455 lost one of those breaks, the forced break of a U+2028 or
-  U+2029 right before lone CRs and then white space that ends the text, whose separator was laid out as a control, and
-  as a rich item let the item after it follow on its line; #TBD (2026-10-07) keeps it, as main before #455 did. Offline
-  on the stand-in Canvas, of 200,000 random texts built to hold separators, lone CRs, CRLFs and white space at the end,
-  27,383 differ from main in the WebKit profile, every one of that shape and laid out as the same text without those CRs
-  is, and none in the other profiles; in Safari such a plain text stays a line short for the CR's own line, as it was
-  before #455 (ENGINE_FOLLOWUPS.md, White space and controls). That gives up the fonts on the fixed-pitch shortcut,
-  where the profile's space had matched one CR between two letters, by decision (Decisions Log, 2026-10-06).
-  ENGINE_FOLLOWUPS.md, White space and controls, has what the change leaves and the probes' counts; keeping the CR as
-  zero-width glue was built and not taken (Dead Ends, Invisible Characters, Controls And Soft Hyphens). (webkit-host,
-  WebKit 22625.1.29.11.27, 2026-10-06. Installed Safari 27.0 agreed with webkit-host on the 8,387 layouts of two earlier
-  probes of that day, in Arial, Times New Roman and Georgia, on all 2,820 widths of a page of these facts in 30 font
-  settings, the fixed-pitch and web fonts among them, and on the lines and widths of 1,623 layouts of a sample in Arial,
-  Menlo and Courier New; the larger probes ran in webkit-host alone. Reopens with a Canvas fact that tells which fonts
-  take the fixed-pitch shortcut or which glyph a font gives U+000D, or with normal white space that keeps two spaces
-  that touch.)
+  space, and pre-wrap takes both as hard breaks (README). That gives up the fonts on the fixed-pitch shortcut, where the
+  profile's space had matched one CR between two letters, by decision (Decisions Log, 2026-10-06). ENGINE_FOLLOWUPS.md,
+  White space and controls, has what the change leaves and the probes' counts; keeping the CR as zero-width glue was
+  built and not taken (Dead Ends, Invisible Characters, Controls And Soft Hyphens). #455 lost one of the breaks the scan
+  found around a lone CR, the forced break of a U+2028 or U+2029 right before lone CRs and then white space that ends
+  the text, whose separator was laid out as a control, and as a rich item let the item after it follow on its line; #TBD
+  (2026-10-07) keeps it, as main before #455 did. Offline on the stand-in Canvas, of 200,000 random texts built to hold
+  separators, lone CRs, CRLFs and white space at the end, 27,383 differ from main in the WebKit profile, every one of
+  that shape and laid out as the same text without those CRs is, and none in the other profiles; in Safari such a plain
+  text stays a line short for the CR's own line (ENGINE_FOLLOWUPS.md, White space and controls), as it was before #455.
+  (webkit-host, WebKit 22625.1.29.11.27, 2026-10-06. Installed Safari 27.0 agreed with webkit-host on the 8,387 layouts
+  of two earlier probes of that day, in Arial, Times New Roman and Georgia, on all 2,820 widths of a page of these facts
+  in 30 font settings, the fixed-pitch and web fonts among them, and on the lines and widths of 1,623 layouts of a
+  sample in Arial, Menlo and Courier New; the larger probes ran in webkit-host alone. Reopens with a Canvas fact that
+  tells which fonts take the fixed-pitch shortcut or which glyph a font gives U+000D, or with normal white space that
+  keeps two spaces that touch.)
 - **Emoji and the segmenter.** DOM emoji equal OffscreenCanvas's at the CSS size, bit for bit at 8-32px (a "size × DPR ÷
   DPR" recipe is up to 3.5 px off), and OffscreenCanvas gives a space before U+FE0F the emoji's width
   (ENGINE_FOLLOWUPS.md). Safari's `Intl.Segmenter` doesn't mark digit strings as words where Bun's does, so Bun is no
