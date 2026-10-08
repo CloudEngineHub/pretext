@@ -689,8 +689,11 @@ function walkPreparedComplexLines(
             const contribution = w + (spaced ? letterSpacing : 0)
             if (contribution !== 0) fitAdvance = leadingSpacing + contribution
           }
-          // Two statements: as one `||` expression the same tests ran this walker 1 to 5% slower on
-          // pre-wrap and letter-spaced text in all three browsers (RESEARCH.md, Keeping Work Bounded).
+          // Two statements, for how the engines compile them: with them Safari laid pre-wrap text out
+          // 4.3% faster than with the same tests as one `||` and Chrome letter-spaced CJK text 2.8%,
+          // each in all ten foreground sessions of the bench, and Firefox within 1.5% either way.
+          // They stay by decision, which reopens if that timing shows no gain or calls a loss once a
+          // pinned browser moves (RESEARCH.md, Keeping Work Bounded; Decisions Log, 2026-10-08).
           let hangs = (1 << kind & hangingKinds) !== 0
           if (hangGoesOnPastEmpty && kind === ZERO_WIDTH_BREAK && hangEndSegmentIndex === i) hangs = true
           if (hangs) {

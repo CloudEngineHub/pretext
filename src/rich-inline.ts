@@ -282,12 +282,12 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
   // fraction and a null. It changes no value: both lists are empty again before anything reads
   // them. It is there for V8, which makes a list from `[]` in its form for small integers until
   // this function has run a few times: compiled measureAnalysis() fails once where it pushes a
-  // fraction onto such a list, and V8 never compiles that push inline again, so plain text
+  // fraction or null onto such a list, and V8 never compiles that push inline again, so plain text
   // prepares slower from then on too (RESEARCH.md, Keeping Work Bounded, JavaScript Engines,
   // under A list made where it is filled). With the push and pop each list has its final form
-  // before measureAnalysis() sees it. They are dead code once these lists are made inside
-  // measureAnalysis(), as a text's are, or once V8 compiles a push inline again after it failed
-  // there once.
+  // before measureAnalysis() sees it. They stay by decision (RESEARCH.md, Decisions Log,
+  // 2026-10-07, a paragraph's lists) and go once these lists are made inside measureAnalysis(),
+  // as a text's are, or once V8 compiles a push inline again after it failed there once.
   const widths: number[] = []
   widths.push(0.5)
   widths.pop()
@@ -475,7 +475,8 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
     }
     // An item that is one segment holding all of its text, as a styled word, is measured by the
     // item's own string, not the equal slice of the paragraph's text: a font's widths are kept by
-    // text, and the caller's string keeps its hash, where a slice is made and hashed each time.
+    // text, and a string the caller hands in again keeps its hash, where the slice is hashed anew
+    // at every preparation.
     if (to === from + 1 && analysis.texts[from] === item.text) analysis.texts[from] = item.text
     // The item's segments, measured in its font onto the end of the paragraph's lists; `sub` holds
     // what else measurement gives them, from the item's first segment.
@@ -905,10 +906,15 @@ function getPartWidth(data: PreparedSegments, i: number, from: number, to: numbe
 }
 
 // A line of a paragraph whose only item with segments has no extraWidth (onlyItem), as most of a
-// chat's are: one fragment of that item, as wide as the line. A function of its own, which the walk
-// and the stream call for such a paragraph: as a branch of createLine(), which is too long for an
-// engine to inline, Safari walked and stepped the chat demo's paragraphs 11% and 12% slower and
-// Chrome walked them 6% slower (RESEARCH.md, Rich Inline As One Paragraph).
+// chat's are: one fragment of that item, as wide as the line. A function of its own, which the
+// walk and the stream call for such a paragraph: with it Safari walked and streamed the chat
+// demo's paragraphs 8.0% and 8.6% faster than with that line as a branch of createLine(), and
+// Chrome walked them 4.2% faster. It cost Chrome's walk of items that are a word or a space each
+// 5.3% and Firefox's walk of the demo's styled paragraphs 2.2% (each in all ten foreground
+// sessions of the bench). V8 inlines this function where createLine() is over its limit; what
+// Safari gains by, and what those two walks lose by, isn't known. It stays by decision, which
+// reopens if that timing shows no gain or calls a loss once a pinned browser moves (RESEARCH.md,
+// Rich Inline As One Paragraph; Decisions Log, 2026-10-08).
 function createOnlyItemLine(
   flow: InternalPreparedRichInline,
   width: number,
@@ -945,12 +951,12 @@ function createOnlyItemLine(
 // fragment or a gap starts, the paragraph's lists give where that fragment ends, so every other
 // segment only adds its width. A line where no segment's width depends on the line (`bare`), as
 // nearly every line of styled prose is, has a loop of its own that adds bare widths: in one loop
-// with the widths that tabs, letter spacing, halts and a line's edges need, Chrome walked such
-// lines 18% slower and Safari 8%. The widths of the two segments a line can start or end inside
-// are found before the loops, and neither holds another loop or a search: a search for the item,
-// or a call or a loop inside one for a width it rarely needs, cost Firefox a third to a half of a
-// walk's time, and a loop inside for each fragment's widths 9% on items of one segment
-// (RESEARCH.md, Rich Inline As One Paragraph).
+// with the widths that tabs, letter spacing, halts and a line's edges need, Chrome walked the chat
+// demo's styled paragraphs about 19% slower and Safari 8% (two runs against one build). The widths
+// of the two segments a line can start or end inside are found before the loops, and neither holds
+// another loop or a search: a search for the item, or a call or a loop inside one for a width it
+// rarely needs, cost Firefox a third to a half of a walk's time, and a loop inside for each
+// fragment's widths 9% on items of one segment (RESEARCH.md, Rich Inline As One Paragraph).
 function createLine(
   flow: InternalPreparedRichInline,
   width: number,

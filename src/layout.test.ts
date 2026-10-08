@@ -4516,8 +4516,9 @@ describe('rich-inline invariants', () => {
       // item's, in that item's font and letter spacing: Safari lays those spans out 120.24px
       // wide, with the bold space, and on three lines at 66px, where `see this` is 66.91px wide
       // and would be 65.80px with the 16px space. A fragment that ends with that space ends
-      // after it in its item's text, past the CR, in a paragraph of one item or of several. An
-      // FF is the profile's white space still.
+      // after it in its item's text, past the CR, in a paragraph of one item or of several, and
+      // one that starts with it starts at it, which no expectation here pins. An FF is the
+      // profile's white space still.
       profile.lineBreakScan = 'webkit'
       clearCache()
       expect(lines(space, Infinity)).toEqual([[[0, 'ab', 'ab', -1, 0], [1, 'cd ef', 'cd ef', 1, big]]])
@@ -4551,7 +4552,8 @@ describe('rich-inline invariants', () => {
   test('a rich fragment\'s sourceStart never passes its sourceEnd where a padded item\'s start edge comes before the space or soft hyphens that lead it', () => {
     // The start edge of a padded item's opening is the item's first segment, before a collapsed space
     // or soft hyphens that lead its text, so a fragment that holds the edge and that space starts at
-    // the item's start.
+    // the item's start, or, where a CR (an FF too in the Gecko profile) starts the item, at the white
+    // space after it in the WebKit and Gecko profiles.
     const ranges = (items: RichInlineItem[], options: Parameters<typeof prepareRichInline>[1], maxWidth: number) => {
       const prepared = prepareRichInline(items, options)
       const out: Array<[number, number, number]> = []

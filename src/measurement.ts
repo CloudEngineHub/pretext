@@ -601,9 +601,13 @@ export function measureWithLetterSpacing(text: string, letterSpacing: number, em
   }
 }
 
-// The lookup is the first to hash seg and internalizes it, so V8 hands Canvas a Latin-1
-// segment one-byte, which Chrome measures as Latin (RESEARCH.md, Keeping Work Bounded,
-// String Storage).
+// The lookup internalizes seg, and a string V8 hashes for the first time there gets a one-byte
+// copy where its units fit, so Canvas is handed a Latin-1 segment one-byte, which Chrome measures
+// as Latin (RESEARCH.md, Keeping Work Bounded, String Storage). A segment cut from a longer text
+// is a new string, so the lookup is its first hash. A text that is one segment is the caller's
+// own string, since a slice of a whole string is that string, and so is a rich item that is one
+// segment (prepareRichInline() in src/rich-inline.ts): a two-byte one that something hashed
+// before without internalizing it, as a RegExp made from it does, stays two-byte.
 export function getSegmentMetrics(seg: string, measurement: FontMeasurement): SegmentMetrics {
   return measurement.metrics.get(seg) ?? addMetrics(measurement.metrics, seg, seg, measurement)
 }

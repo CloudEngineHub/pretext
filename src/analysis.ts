@@ -598,9 +598,10 @@ function removeItemsSkippableSegmentBreaks(text: string, starts: number[], profi
 // Gecko transforms a frame at a time from the white-space state the frame before it left, which
 // a CR or FF clears (nsTextFrameUtils.cpp:286-309, 382-386). So the space after a CR that ends
 // an item is the next item's, as is the line feed of a CRLF split there, and a fragment that
-// ends with a space after a CR ends after that space in its item's text. To Blink a CR is white
-// space (Character::IsCollapsibleSpace, platform/text/character.h:150-153), its run's first
-// unit, and an FF is still a space in the Blink and WebKit profiles.
+// ends with a space after a CR ends after that space in its item's text, and one that starts
+// with such a space starts at it. To Blink a CR is white space (Character::IsCollapsibleSpace,
+// platform/text/character.h:150-153), its run's first unit, and an FF is still a space in the
+// Blink and WebKit profiles.
 export function alignToSource(source: string, normalized: string, scan: AnalysisProfile['lineBreakScan']): Int32Array {
   const offsets = new Int32Array(normalized.length)
   // The units no space comes from under `scan`, or -1.
