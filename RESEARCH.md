@@ -2547,16 +2547,58 @@ Part 1, Engineering, says when an engine fact may shape code. These did, or move
   a slower state, about 7% apart, far more often: 15 of 18 background readings of the row, against 7 of 48 for main and
   1 of 18 for the same build with the zero written as -0. A build that stores every whole-number advance as an integer
   was not slow, so the cost is not an integer's but that of one stray integer among doubles, for a reason not found.
-  That SpiderMonkey holds the 0 as an integer and -0 as a double is inferred from how those builds read, since neither a
-  page nor the engine's shell shows how a number is held. The slow state also appears with no such number, in a quarter
-  to a third of processes, so three sessions of this row in Firefox are weak evidence either way. Two ways out, neither
-  taken: the zero written as -0 removes it, and is a constant chosen for one engine's number tags; the advances in typed
-  arrays, which have no tags, remove it in SpiderMonkey's shell and read about 40% slower than main in V8's. So it is
-  left as a regression one JIT alone explains (Part 1, Engineering, JIT tuning). The two foreground runs read `worst:
-  arabic-book layout` 2.6% and 3.3% slower in every session, and the build with the Blink profile's fit alone had read
-  it 3.7% slower with main's code in the Gecko profile, so that row isn't the ligature rule's; it wasn't traced. Reopens
-  with `getTextClusters()` in Firefox, which would take the rule's place, if typed arrays are taken for another reason,
-  or if cut words in real text show the cost.
+  SpiderMonkey holds the 0 as an integer and -0 as a double: a page can't show how a number is held, and the engine's
+  shell can, with `valueAsRawBits()` (2026-10-07; Every width stored as a double, below). The slow state also appears
+  with no such number, in a quarter to a third of processes, so three sessions of this row in Firefox are weak evidence
+  either way. Two ways out, neither taken: the zero written as -0 removes it, and is a constant chosen for one engine's
+  number tags; the advances in typed arrays, which have no tags, remove it in SpiderMonkey's shell and read about 40%
+  slower than main in V8's. So it is left as a regression one JIT alone explains (Part 1, Engineering, JIT tuning). The
+  two foreground runs read `worst: arabic-book layout` 2.6% and 3.3% slower in every session, and the build with the
+  Blink profile's fit alone had read it 3.7% slower with main's code in the Gecko profile, so that row isn't the
+  ligature rule's; it wasn't traced. Reopens with `getTextClusters()` in Firefox, which would take the rule's place, if
+  typed arrays are taken for another reason, or if cut words in real text show the cost.
+- **Every width stored as a double, measured and left out** (2026-10-07; Decisions Log, 2026-10-07). A JavaScript engine
+  holds a number as a small integer or as a double, a 64-bit float, and Canvas hands back a whole width, as a 16px
+  ideograph's 16, as an integer (Firefox's `JS::Value::setNumber()`, `js/public/Value.h:676-684`). Three lines in
+  `src/prepare.ts` that passed each width through a one-cell `Float64Array` on its way into the handle's `widths`
+  changed no value and made every engine store a double (local branch `widths-as-doubles-3`, 6f735f8e, against main at
+  #455). Doubles are not faster than small integers: in SpiderMonkey and JavaScriptCore, line walkers that have laid out
+  only integers are the fastest, and what main pays is integers read by walkers already compiled for doubles. A letter,
+  a digit or a space measures a fraction, walkers that have laid such text out are compiled for doubles, and
+  SpiderMonkey's code then unboxes a double inline and converts an integer out of line (`visitUnboxFloatingPoint()`,
+  `js/src/jit/CodeGenerator.cpp:17830-17854`, Firefox 156.0.1).
+
+  In the browsers, in the foreground (2026-10-07): with the change, on a page that has laid out a width that isn't
+  whole, Firefox 156.0.1 counted the lines of the bench's CJK messages (`lines: cjk stats`) 12.2% faster over eight
+  sessions, by the bench's verdict, and no row of the bench read slower by its verdict in Firefox, Chrome 154.0.8037.98
+  (eight sessions) or Safari 27.0 (five). On a page whose every width is whole, the same messages cut down to the
+  characters 16px PingFang TC draws a whole number of pixels wide (three probe documents on local branch
+  `widths-as-doubles-3-probe`, 42c65c5a; the bench has none), Firefox read `measureLineStats()`, `walkLineRanges()` and
+  `layoutNextLineRange()` 39-40% slower and `layout()` 19-22% slower, each a verdict of slower over five sessions, and
+  Chrome read the page level. Safari ran those three line functions at one of two speeds there, 26-31% apart: main's two
+  copies at the faster in 4 of their 10 readings over five sessions and the change's copy at the slower in all 5, which
+  five sessions would do by chance about one time in thirteen, so the bench gave no verdict.
+
+  In the engines' shells, each JavaScript engine run alone over a stand-in Canvas, so hypotheses (2026-10-07):
+  SpiderMonkey 156.0.1's read `measureLineStats()` over the whole-width messages at 2.31 µs per 1,000 units on integers
+  alone, 3.2 on the same widths as doubles, and 3.58 on the integers once Latin text had been laid out too.
+  JavaScriptCore's (the system `jsc`) read the three line functions 31-34% slower on doubles, in each of three
+  processes; V8's, which stores doubles on main too once a font's space is a fraction, read doubles level or a little
+  faster. Latin text in a fixed-pitch font whose advance is exactly 0.6 em, whole at 10, 15 and 20px, was timed in
+  shells only: SpiderMonkey's read its line functions 13-21% slower on doubles.
+
+  Text of only whole widths is real: 519 of the real-usage sample's 11,901 draws are Chinese or Japanese text of
+  whole-width characters alone at a whole font size, each line Firefox recorded for them as wide as its characters times
+  that size. Only macOS was measured: Firefox rounds glyph advances to whole pixels on Linux under full hinting and on
+  Windows with ClearType off (`gfx/thebes/gfxFT2FontBase.cpp:616-636`, `gfxDWriteFonts.cpp:376-384`; read, not run),
+  where every page would be a page of only whole widths. Two other forms were not taken. A variant that used the
+  one-cell array only once the page had stored a fraction, kept on no branch, read that page level in Firefox and the
+  bench's CJK line count 5.7% faster, in one foreground run of five sessions; it was left out because code keyed on
+  whether the page has stored a fraction follows one engine's state, not the text. `widths` as a `Float64Array`
+  (2026-10-06, local branches off main at #447) read Firefox's line functions over CJK and mixed text 29-43% faster and
+  Chrome's CJK `layout()` 13-16% slower, the same way in every foreground session: a trade between engines, which the
+  maintainer dropped that day and which reopens if Chrome stops paying. The handle's other number lists that hold
+  integers beside fractions (`lineEndTrims`, `discretionaryHyphenContexts`, a cut word's advances) were not touched.
 - **Firefox's `rich: latin rich-new` read slower in one run, for no work found** (#435, Firefox 156.0.1, 2026-10-05):
   the second foreground run of the cut-word change, with #425 in both builds, read the row 13.6% slower than main in
   every session (13.8%, 11.8% and 15.6%; 520 µs per 1,000 units for 460), where the first run had read it level (0.0%,
@@ -4577,3 +4619,15 @@ decisions for the maintainer.
   or redundant code kept because one JIT runs it faster still goes, whatever the regression, and no rule is written out
   twice for one JIT. A small regression that only such a heuristic explains is still accepted, its cost noted (Part 1,
   Engineering, JIT tuning).
+- **2026-10-07: a handle's widths stay as Canvas returns them, not every one stored as a double**, the maintainer's
+  decision. Passing each segment's width through a one-cell `Float64Array` on its way into the handle changes no value
+  and makes every engine store a double; the rule on code written for speed allows such a trick, measured and commented
+  (the entry before this one), and it was built and measured. It stays out on the measurement: Firefox counts the lines
+  of CJK text faster with it once a page has laid out a width that isn't whole, but a page whose every width is whole,
+  Chinese or Japanese text alone at a whole font size, lays out slower with it, by more, in Firefox and, as far as five
+  sessions and its engine's shell show, in Safari; and nothing else needs every width a double (Keeping Work Bounded,
+  JavaScript Engines, Every width stored as a double, has each reading, a browser's or a shell's, and the two other
+  forms not taken). Reopens if Firefox comes to read doubles as fast as integers on a page of only whole widths, or with
+  a second change that needs every width a double. A retry owes two timings this one lacked or had only as a probe:
+  Linux and Windows, where Firefox can round every advance to whole pixels, so that every page would be such a page, and
+  a page of only whole widths, which the bench has no document of.
