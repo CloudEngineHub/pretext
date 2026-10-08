@@ -216,13 +216,20 @@ a rule by reading it and its unit tests (`rebuild/src/engines/<engine>/`) agains
   new widths up to 26% slower in Chrome, which isn't slight, so it stays parked (Dead Ends, Caching, State And API
   Designs). Layout stays on the main thread, workers a last resort.
 - **JIT tuning.** As a general preference for every change, don't optimize for JIT behavior that varies with the
-  browser, its version or the machine (2026-09-25). As a rule, never keep code only because one JIT likes it
-  (2026-09-26): dead or redundant code kept only because one JIT runs it faster is an accident that code written cleanly
-  wouldn't reproduce, so it goes whatever the regression, its cost noted; that reversed the 2026-09-24 decision to keep
-  `countPreparedLines()`'s leading-space skip (#364). No rule is written out twice for a small JIT gain, though a small
-  split of live code is fine if it reads as ordinary code and a comment says why. The precedent is #365: one shared
-  helper was kept over two copies at a 2-5% cost in Firefox (Bidi Levels; Decisions Log, 2026-09-26, no dead code for
-  one JIT). Report a speed fix's cost in lines beside its gain, and what a percentage is of.
+  browser, its version or the machine (2026-09-25), since browser JITs are moving targets. For speed, aim at what stays
+  true across engines and versions (2026-10-07; engineering.md, Control Flow): stable types, good allocation patterns
+  and plain C-like code, such as a number array made to hold only floats instead of a mix of integers and floats, or one
+  preallocated buffer filled instead of an allocation per item. Tricks of that kind are fine, small ones above all,
+  provided they are measured, with no optimizing for show, and a comment says what they are for. Stable types (numbers,
+  fixed object shapes) are less a matter of JITs than of ordinary good practice. What the code aims at decides: a
+  property that holds across engines and versions is fine, one JIT's moving heuristics are not. As a rule, never keep
+  code only because one JIT likes it (2026-09-26): dead or redundant code kept only because one JIT runs it faster is an
+  accident that code written cleanly wouldn't reproduce, so it goes whatever the regression, its cost noted; that
+  reversed the 2026-09-24 decision to keep `countPreparedLines()`'s leading-space skip (#364). No rule is written out
+  twice for a small JIT gain, though a small split of live code is fine if it reads as ordinary code and a comment says
+  why. The precedent is #365: one shared helper was kept over two copies at a 2-5% cost in Firefox (Bidi Levels;
+  Decisions Log, 2026-09-26, no dead code for one JIT, widened on 2026-10-07). Report a speed fix's cost in lines beside
+  its gain, and what a percentage is of.
 
 ### Caching And API Design
 
@@ -4261,7 +4268,8 @@ decisions for the maintainer.
   work, so count the work it skips before calling a slowdown one JIT's. Nor is a rule written out twice for one JIT: the
   Gecko scan's two text-run setups share one word-end test, whose call makes Firefox 156 prepare four kinds of row 2 to
   5% slower than two copies would (#365; Bidi Levels has the rows). That was judged a good trade on 2026-09-27; the
-  second setup left with the level splits (2026-10-01).
+  second setup left with the level splits (2026-10-01). Widened on 2026-10-07, below: code that holds to stable types,
+  good allocation patterns and plain C-like code isn't code for one JIT.
 - **2026-09-26: one bundle serves every engine, for now.** An app can't import a bundle made for one browser, since its
   users run them all, and fetching one engine's tables at runtime would make the first `prepare()` asynchronous, so
   every browser downloads every engine's tables.
@@ -4558,3 +4566,14 @@ decisions for the maintainer.
   called main slower than itself: the chat documents' new batches hold 4,000 units, and their kept paragraphs are read
   before the batches (Evaluation Traps, Timing, has the numbers for all three). The plain `lines` rows keep their
   width-only callbacks; that reopens if the README or a plain demo comes to keep the lines it walks.
+- **2026-10-07: for speed, tricks that hold the code to stable types, good allocation patterns and plain C-like code are
+  fine, small ones above all**, the maintainer's decision. A number array made to hold only floats instead of a mix of
+  integers and floats is one, and one preallocated buffer filled instead of an allocation per item another: what they
+  aim at stays true across engines and versions, where a JIT's heuristics move with both (engineering.md, Control Flow,
+  has the general rule). Each trick is measured, with no optimizing for show, and marked by a comment that says what it
+  is for. This widens the entry of 2026-09-26, no dead code for one JIT, under which lines that change no result and
+  only hold a list to one number type counted as redundant code kept for one JIT. That entry stands for the rest. What
+  stays out is code shaped to one JIT's heuristics, those that vary with the browser, its version or the machine: dead
+  or redundant code kept because one JIT runs it faster still goes, whatever the regression, and no rule is written out
+  twice for one JIT. A small regression that only such a heuristic explains is still accepted, its cost noted (Part 1,
+  Engineering, JIT tuning).
