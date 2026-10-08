@@ -2095,6 +2095,18 @@ across span edges at 16-160px every prediction is the one main with #425 gives, 
 the styled sentences both pass 6,337 and fail the same 11 (Chrome 154.0.8037.98, 2026-10-06, recorded fresh in two
 document orders; main at #446).
 
+Three of the six gaps counted above are closed (ENGINE_FOLLOWUPS.md, Rich-inline item edges, has the other three), each
+example recorded again the same way, with the paragraph and with main at #446. A run of U+3000 that ends an item and
+hangs ends its line, as Chrome and Firefox end it, whatever the next item starts with (Rich Inline As One Paragraph has
+the rule), where the item stepper kept the item's width without the run and went on to the next item from there, so a
+narrow next item sat on the run: `文字`, U+3000 and a span `i` pass all 25 layouts at 30-54px, 11 on main, and `あ文字`, two
+U+3000, a span `「文` and `です` pass 48 of the 49 widths from 14px to 158px, 43 on main. A chip of only white space is an
+object as wide as its `extraWidth`, with no gap, and the space that starts the item after it stays on the next line, as
+Chrome lays out the empty inline-block (Atomic Items' Own White Space): `設定）`, a chip of a space with 4px of padding on
+each side and a span ` 次` pass all 51 layouts at 30-80px, 17 on main. And since #446, on main too, a soft hyphen whose
+hyphen doesn't fit after a pair an item edge splits returns to the break between two ideographs before it: `文字』` and a
+span of `「引用」`, U+00AD and `ょ東京` pass all 101 layouts at 60-160px.
+
 #### Objects Inside A Line
 
 A box (`RichInlineBox`, `{ width }`, #387, 2026-09-30) is an object the app sizes and paints inside a line: an image, a
