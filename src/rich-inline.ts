@@ -1114,7 +1114,7 @@ function getSourceUnits(offsets: Int32Array, from: number, to: number, itemStart
 // Per segment of a paragraph of one text item, where its text starts and ends in the item's.
 function findSegmentSources(flow: InternalPreparedRichInline): void {
   const { segments } = flow.data
-  const offsets = alignToSource(flow.text, segments.join(''))
+  const offsets = alignToSource(flow.text, segments.join(''), getEngineProfile().lineBreakScan)
   const sourceStarts: number[] = []
   const sourceEnds: number[] = []
   const sourceUnits: (number[] | null)[] = []
