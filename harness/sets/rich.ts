@@ -82,7 +82,14 @@
 //   word, and between two ideographs at an item's edge, each before a syllable long enough that a width the cut takes
 //   inside a layout is one where the text before the soft hyphen fits and its hyphen doesn't; and #433's rich row, a
 //   box and a padded span that holds such a word, where Chrome keeps a hyphen that fits without the span's end edge and
-//   rich inline, which counts that edge, returns (ENGINE_FOLLOWUPS.md, Line edges).
+//   rich inline, which counts that edge, returns (ENGINE_FOLLOWUPS.md, Line edges);
+// - a lone carriage return at an item's edge in normal white space, which Safari and Firefox give no room: one that ends
+//   a span of Cyrillic before a span of Latin, where Safari breaks the word between letters and one text node breaks
+//   after the carriage return (getWebKitParagraphBreaks in src/analysis.ts), one that ends a span before a bold 20px
+//   span, and one that is a span of its own; and a line separator that ends a span before the paragraph's last span, of
+//   one space, at which Safari's line ends (mapSourceLineBreaks in src/analysis.ts). White space right after a carriage
+//   return that ends its item has no template yet: it is measured in the carriage return's item's font
+//   (ENGINE_FOLLOWUPS.md, White space and controls).
 import { TEXTS } from '../../src/test-data.ts'
 import type { CssFont, Paragraph, TextRun } from '../types.ts'
 import { box, codePoints, createRng, font, paragraph, span } from './build.ts'
@@ -314,6 +321,16 @@ export function richTemplates(): Template[] {
   for (let i = 0; i < returns.length; i++) {
     const [family, base, parts, lang] = returns[i]!
     out.push(template(`soft-hyphen-return/${family}`, 'a soft hyphen whose hyphen doesn\'t fit after a break between two text segments (#433; src/layout.test.ts, Blink returns an unfit soft hyphen to the latest earlier break that leaves room for the hyphen)', base, parts, lang))
+  }
+  const controls: ReadonlyArray<readonly [string, readonly TextRun[]]> = [
+    ['carriage-return', [item('бв\r'), item('cd ef')]],
+    ['carriage-return', [item('see\r'), span('this word', BOLD({ ...ARIAL, size: 20 }))]],
+    ['carriage-return', [item('see'), item('\r'), item('this word')]],
+    ['separator-before-space', [item('abc\u{2028}'), item(' ')]],
+  ]
+  for (let i = 0; i < controls.length; i++) {
+    const [family, parts] = controls[i]!
+    out.push(template(`item-edges/${family}`, 'a lone carriage return, or a line separator before white space, at an item\'s edge in normal white space (src/layout.test.ts, a carriage return in a rich paragraph is what its text has in one item)', ARIAL, parts))
   }
   return out
 }
