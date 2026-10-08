@@ -13,7 +13,10 @@
 //   that can break (pages/demos/rich-note.model.ts, markdown-chat.model.ts);
 // - items that continue the line before them instead of starting one (#369), each shape beside a neighbour: a soft
 //   hyphen that starts an item after other text, after an ideograph or emoji, before a combining mark or after a space,
-//   two soft hyphens that start an item, and a line separator in an item or after a collapsed space before one; an item
+//   two soft hyphens that start an item, a line separator in an item or after a collapsed space before one, and one
+//   before a lone carriage return and a space that end its item, where the WebKit profile ends the line too (#459),
+//   before an item that starts with a second separator, since Safari gives the carriage return the line between the
+//   two, which Pretext has only between two hard breaks (ENGINE_FOLLOWUPS.md, White space and controls); an item
 //   holding only a soft hyphen between a break and a run that continues it, or after a collapsed space, a newline next
 //   to a ZWSP in another item, and a soft hyphen after a space in an item that continues a run from an earlier item,
 //   which Chrome breaks at the space (ENGINE_FOLLOWUPS.md); white space after such an item's soft hyphen, white space
@@ -187,6 +190,7 @@ export function richTemplates(): Template[] {
     ['two-soft-hyphens', ['文文', '\u{AD}\u{AD}ab'], 'zh'], ['two-soft-hyphens', ['hello', '\u{AD}\u{AD}world again']],
     ['soft-hyphen-after-space', ['see', ' \u{AD}this', 'word']], ['soft-hyphen-after-space', ['中', ' \u{AD}حبا', 'cd']],
     ['separator', ['first\u{2028}', 'second line']], ['separator', ['hello ', '\u{2028}world']],
+    ['separator-before-carriage-return', ['first\u{2028}\r ', '\u{2028}second line']],
     ['consumed-soft-hyphen', ['text\u{200B}', '\u{AD}', '\u{2013}more words']], ['consumed-soft-hyphen', ['中文\u{200B}中\u{200B}', '\u{AD}', '-'], 'zh'],
     ['space-before-consumed-item', ['word ', '\u{AD}', 'more text here']], ['space-before-consumed-item', ['see', ' \u{AD}', 'this word']],
     ['segment-break-by-zwsp', ['ab\u{200B}', '\n\u{AD}\ncd ef']], ['segment-break-by-zwsp', ['word\n', '\u{200B}next words']],
