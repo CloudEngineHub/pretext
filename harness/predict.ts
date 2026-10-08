@@ -301,8 +301,11 @@ function paints(source: string, text: string, whiteSpace: 'normal' | 'pre-wrap')
       let end = s + 1
       while (end < source.length && COLLAPSIBLE.test(source[end]!)) end++
       const run = source.slice(s, end)
-      if (painted[t] === ' ') t++
-      else if (s > 0 && end < source.length && !run.includes('\n') && !DROPPED.test(source[s - 1]!) && !DROPPED.test(source[end]!) && !(removed !== null && removed.test(run))) return false
+      // What the profile takes out paints nothing, not even a space.
+      if (!(s > 0 && end < source.length && removed !== null && removed.test(run))) {
+        if (painted[t] === ' ') t++
+        else if (s > 0 && end < source.length && !run.includes('\n') && !DROPPED.test(source[s - 1]!) && !DROPPED.test(source[end]!)) return false
+      }
       s = end
       continue
     }

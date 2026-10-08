@@ -30,9 +30,9 @@
 // - rich lines: a gap is the SPACE advance of the item whose white space made it, sign included, or in the Chromium
 //   profile that less its kerning with the character beside it in that item, and never a box's; white space between
 //   two fragments on a line makes a gap, but where a line feed lies between them or, in Firefox, where it joins a run
-//   of white space (joinsWhiteSpaceRun); an empty item keeps the other items' indices; a `break: 'never'` item and a
-//   box stay whole; each fragment counts its item's extraWidth once; a line is as wide as its fragments' gaps and
-//   widths together, or 0 if they add up to less; pre-wrap makes no gaps;
+//   of white space (joinsWhiteSpaceRun), or where it is only what the profile takes out; an empty item keeps the other
+//   items' indices; a `break: 'never'` item and a box stay whole; each fragment counts its item's extraWidth once; a
+//   line is as wide as its fragments' gaps and widths together, or 0 if they add up to less; pre-wrap makes no gaps;
 // - held handles, and their structuredClone() copies, lay out as before after the same texts are prepared with letter
 //   spacing 1, after clearCache() and after setLocale(), and prepares with filled caches equal cold ones, at the held
 //   texts' letter spacing and at 1;
@@ -154,15 +154,17 @@ function* drawnCases(dir: string, seed: string, plain: number, rich: number): Ge
 // items' texts: after the earlier fragment's text in its item, in an item between the two, or before the later one's
 // text in its item; -1 without any, and where a line feed lies between them, which the segment break transformation
 // can remove with the white space around it, as next to a ZWSP. An atomic item's own white space is none of the
-// paragraph's.
-function whiteSpaceBetween(items: ReadonlyArray<RichInlineItem | RichInlineBox>, earlier: RichInlineFragment, later: RichInlineFragment): number {
+// paragraph's. What the profile's analysis takes out of the text with nothing in its place is no white space either: a
+// CR or FF in the Gecko profile, a CR in the WebKit profile. A CR before a line feed never gets this far, since a line
+// feed between the fragments ends the search.
+function whiteSpaceBetween(items: ReadonlyArray<RichInlineItem | RichInlineBox>, earlier: RichInlineFragment, later: RichInlineFragment, removed: RegExp | null): number {
   let holder = -1
   for (let index = earlier.itemIndex; index <= later.itemIndex; index++) {
     const item = items[index]!
     if (item.text === undefined || item.break === 'never') continue
     const text = item.text.slice(index === earlier.itemIndex ? earlier.sourceEnd : 0, index === later.itemIndex ? later.sourceStart : item.text.length)
     if (text.includes('\n')) return -1
-    if (holder < 0 && COLLAPSIBLE.test(text)) holder = index
+    if (holder < 0 && COLLAPSIBLE.test(removed === null ? text : text.replace(removed, ''))) holder = index
   }
   return holder
 }
@@ -211,6 +213,7 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
   // Firefox bidi controls too, which it leaves out of its text runs, and in WebKit a U+2028 or U+2029, which its scan
   // makes a hard break in normal white space as a line feed is one in pre-wrap.
   const gecko = profile === 'gecko'
+  const removed = gecko ? /[\r\f]/g : profile === 'webkit' ? /\r/g : null
   const unpaintedNormal = gecko ? /^[ \u00AD\u200B\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]*$/ : profile === 'webkit' ? /^[ \u00AD\u200B\u2028\u2029]*$/ : /^[ \u00AD\u200B]*$/
   const unpaintedPreWrap = gecko ? /^[\n\u00AD\u200B\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]*$/ : /^[\n\u00AD\u200B]*$/
   // The same in a rich item's own text, which white space hasn't been normalized in.
@@ -353,7 +356,7 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
           // White space between two fragments makes a gap before the later one, or none where Firefox's run of
           // white space took it in.
           if (before !== null && whiteSpace !== 'pre-wrap' && f.gapItemIndex === -1) {
-            const holder = whiteSpaceBetween(items, before, f)
+            const holder = whiteSpaceBetween(items, before, f, removed)
             if (holder >= 0 && !(gecko && joinsWhiteSpaceRun(items, holder, f.itemIndex))) fail('rich lines', at, `line ${i} has no gap before item ${f.itemIndex}, after item ${holder}'s white space`)
           }
           before = f
