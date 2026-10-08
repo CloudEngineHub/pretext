@@ -78,7 +78,7 @@ walkLineRanges(prepared, 320, line => { if (line.width > maxW) maxW = line.width
 // maxW is now the widest line — the tightest container width that still fits the text! This multiline "shrink wrap" has been missing from web
 ```
 
-Size an element to `Math.ceil(maxW)`, capped at the `maxWidth` you passed, as the `/demos/bubbles` demo does. At the exact fractional width the browser can wrap the widest line. Without the cap the element can come out a pixel wider than `maxWidth`, where the browser can break its lines elsewhere: a line that just fits can measure up to 1/64px over `maxWidth`.
+Size an element to `Math.ceil(maxW)`, capped at the `maxWidth` you passed, as the `/demos/bubbles` demo does. At the exact fractional width the browser can wrap the widest line. Without the cap the element can come out a pixel wider than `maxWidth`, where the browser can break its lines elsewhere: a line that just fits can measure slightly over `maxWidth`.
 
 - `layoutNextLineRange()` lets you route text one row at a time when width changes as you go:
 
@@ -104,7 +104,7 @@ while (true) {
 
 See the `/demos/dynamic-layout` demo for a richer example, and the `/demos/ellipsis` demo for a paragraph clamped to a number of lines with an ellipsis, as CSS `-webkit-line-clamp` does, and a path cut in its middle.
 
-For hyphenation, insert soft hyphens before calling `prepare()` or `prepareWithSegments()`. They stay invisible unless the line breaks there, in which case it ends with `-`. For mixed-language or user-generated app text, prefer conservative, locale-aware insertion over aggressive pattern hyphenation.
+For hyphenation, insert soft hyphens before calling `prepare()` or `prepareWithSegments()`. They stay invisible unless the line breaks there, in which case the line ends with a hyphen, which its `width` counts. For mixed-language or user-generated app text, prefer conservative, locale-aware insertion over aggressive pattern hyphenation.
 
 To lay out text with mixed fonts, code spans, mentions, chips or images, use `@chenglou/pretext/rich-inline`:
 
@@ -125,6 +125,8 @@ walkRichInlineLineRanges(prepared, 320, range => {
 ```
 
 Pass a flat list of items. For an image, a custom emoji, a formula or a badge inside a line, pass a box, `{ width }`: its element's margin box, padding and border included, in whole or quarter pixels, since browsers round other widths to their layout unit. A line can break on either side of a box, as at an `<img>`, and its fragment has no text; a box is an item with no `text`. For a size not known yet, prepare with a placeholder and again when it arrives; for an image capped at `max-width: 100%`, pass `min(its width, the paragraph's width)` and prepare again when that changes. Heights are yours: give each box `vertical-align: top`, and each line is as tall as the paragraph's line height or its tallest box, whichever is taller.
+
+A line count is a height only while no item grows its line. A line is as tall as the paragraph's line height while its text keeps the paragraph font's size, ascent and descent; text in another size, or in a face whose ascent and descent differ (Helvetica Neue's bold on macOS), makes its line taller. Give each item's element `line-height: 1`, as the rich-note demo does, and the count times the paragraph's line height is the block's height.
 
 For `white-space: pre-wrap` or `word-break: keep-all` on the paragraph, pass `{ whiteSpace: 'pre-wrap' }` or `{ wordBreak: 'keep-all' }` as the second argument; it applies to every item. In `pre-wrap` every item but an atomic one keeps its spaces, tabs and newlines: spaces at a line's end hang past it whichever items hold them, tab stops count from the line's start, and a newline ends its line. Paint each line with `white-space: pre`: a line painted alone in `pre-wrap` is its paragraph's last line, where spaces at its end hang only if they don't fit and a padded item's end after them can wrap. This is not a general CSS inline formatting engine.
 
@@ -184,7 +186,7 @@ type RichInlineItem = {
   text: string // raw text, including leading/trailing collapsible spaces
   font: string // canvas font shorthand for this item
   letterSpacing?: number // extra horizontal spacing between graphemes, in CSS px
-  break?: 'normal' | 'never' // `never` keeps the item atomic (aka on one line), like a chip
+  break?: 'normal' | 'never' // `never` makes the item atomic: one box that can't break inside, as CSS `display: inline-block` does. A line can break on either side of it, whatever touches it
   extraWidth?: number // extra width around the text, e.g. padding and borders
 }
 type RichInlineBox = {
@@ -242,10 +244,10 @@ Notes:
 - Browsers let the spaces at a line's end run past it without counting toward its width, which CSS calls hanging. A line's `width` leaves out what hangs: all of it where the line wraps, and in `pre-wrap`, before a newline or at the end of the text, only the part that doesn't fit in `maxWidth`. Chrome and Safari hang tabs the same way; Firefox counts them in the width. `measureNaturalWidth()` still counts spaces before a newline, like CSS max-content.
 - `layout()` with an empty string returns `{ lineCount: 0, height: 0 }`, as an empty block is 0 tall, and a newline at the very end of `pre-wrap` text adds no line. A `<textarea>` shows one more line in both cases, so add one to `lineCount` when its value is empty or ends with `\n`.
 - Pretext doesn't give bidi levels or a visual order. If you're drawing mixed bidi text, like English and Arabic, render each paragraph as one DOM element with its direction set, and the browser orders every line. In `pre-wrap` text every newline starts a paragraph: set `unicode-bidi: plaintext` on the element, or prepare and paint each paragraph apart, so that each takes its own direction. An English paragraph inside a right-to-left element can paint a line wider than Pretext measures it, which then wraps. If you draw lines separately, such as with Canvas `fillText()`, each line is ordered as its own paragraph, so numbers or punctuation next to a line break, or bidi controls that span lines (invisible direction characters such as U+202A-U+202E or U+2066-U+2069), can come out in a different order.
+- Paint a `never` item as `display: inline-block; white-space: nowrap`. A span with only `white-space: nowrap` stays in the text's flow, so the browser keeps a `:` or `'s` right after it on its line, where Pretext can break before them.
 - A rich-inline fragment's `gapBefore` is a space in the font and letter spacing of item `gapItemIndex`: the fragment's own item, the previous fragment's item, or an item holding only whitespace, which gets no fragment. The space is measured with the text beside it in that item, so in Chrome `gapBefore` holds the kerning between the two, as a browser draws a space next to a word, and can be narrower than a space alone. An atomic item's own leading and trailing white space makes no gap, as browsers trim it inside the item's inline-block, and an atomic item of only white space is an empty box as wide as its `extraWidth`. Draw the space inside that item's element so it paints at that width.
 - In `pre-wrap`, rich-inline fragments have no gaps: a fragment's `text` keeps its spaces, and its `occupiedWidth`, like the line's `width`, leaves out what hangs at the line's end. An atomic item's own spaces collapse, as in a chip's `white-space: nowrap` inline-block. A tab counts eight spaces of its own item's font, as Safari does; Chrome and Firefox count the paragraph's, so a tab inside an item in another font, such as inline code in prose, can land on another stop there.
 - A rich-inline item that wraps is charged its whole `extraWidth` on every line it reaches, as CSS `box-decoration-break: clone` pads a span, where CSS's default pads only the span's two ends. Paint each fragment as its own element with the padding on both sides, as the demos do: a padded span the browser wraps itself can break elsewhere, with `clone` too.
-- A rich-inline line is as tall as the paragraph's line height while its text keeps the paragraph font's size, ascent and descent. Text in another size, or in a face whose ascent and descent differ (Helvetica Neue's bold on macOS), makes a line taller, with or without boxes; `line-height: 1` on each fragment's element keeps it inside the line, as the rich-note demo does.
 - Segment widths are browser-canvas widths for line breaking, not enough to position individual characters in Arabic or mixed bidi text. They don't always add up to a line's width either: a tab's is 0, the letter spacing after a segment's last letter isn't in it, and a line broken at a soft hyphen adds its hyphen. For a width, read the line's `width`, or call `measureNaturalWidth()` for the whole text.
 
 ## Caveats
@@ -263,10 +265,11 @@ Pretext doesn't try to be a full font rendering engine (yet?). It currently targ
 - Prepare text once its web font has loaded: `await document.fonts.load('16px Inter', text)`, passing the text, since a family split by `unicode-range` loads only the parts that text needs, and `document.fonts.ready` doesn't wait for a font nothing has used yet. Add a `FontFace` to `document.fonts` before it loads, or Safari can keep the fallback font's widths even after `clearCache()`.
 - In Chrome and Firefox on macOS, a small emoji's painted width depends on `devicePixelRatio`, and Pretext reads its correction once per font. When the ratio changes, as when the page is zoomed, call `clearCache()` and prepare text with emoji again ([#418](https://github.com/chenglou/pretext/issues/418)).
 - Runtime requires Canvas 2D text measurement and Unicode property escapes (`\p{...}`), and `Intl.Segmenter` for text in Thai, Lao, Khmer, Myanmar and the other Southeast Asian scripts written without spaces. Browsers without these features aren't supported. Without Unicode property escapes, Pretext can't load and throws a `SyntaxError`; without `Intl.Segmenter`, preparing such text throws.
-- Pretext uses the canvas `font` string. Separate CSS settings such as `font-optical-sizing`, `font-feature-settings`, and `font-variation-settings` aren't supported. Variable-font settings only apply when expressed through that string, such as font weight.
+- Pretext uses the canvas `font` string. Separate CSS settings such as `font-variant-numeric`, `font-optical-sizing`, `font-feature-settings`, and `font-variation-settings` aren't supported. Variable-font settings only apply when expressed through that string, such as font weight.
 - Pass font sizes in px. If your CSS sizes text in `rem` or `em`, resolve them to px once, higher up in your app (for example, when the root font size changes), and pass that string to Pretext. Firefox measures canvas text at a rounded font size, so a fractional size like `13.33px` can wrap differently there; prefer whole-pixel sizes.
-- Round a width you compute, such as a share of a column, to whole or quarter pixels before passing it to Pretext and to CSS. Browsers round other widths to their layout unit, and a line that just fits the width you passed may not fit the element.
+- `maxWidth` is the content width you set on the element, in CSS px. Pass the number you set, not one read back from the page, which is rounded, and scaled under zoom. Round a width you compute, such as a share of a column, to whole or quarter pixels before passing it to Pretext and to CSS. Browsers round other widths to their layout unit, and a line that just fits the width you passed may not fit the element.
 - Pretext assumes default font kerning and word spacing. Text painted with a different `font-kerning` or `word-spacing`, including word spacing inherited from the page, can wrap differently.
+- Pretext predicts the browser's default wrapping. Text painted with `text-wrap: balance` or `pretty`, `hyphens: auto`, `hanging-punctuation` or `text-rendering: optimizeLegibility` can wrap differently.
 - Chrome and Firefox let people set a minimum font size. Text below it paints at the minimum, while Pretext measures the size you pass. If your app uses small sizes, measure the height of an element with `font-size: 1px; line-height: 1` once and pass Pretext the larger size.
 - iPhone Safari can enlarge the text of a block wider than the screen. Set `-webkit-text-size-adjust: 100%` on the page.
 

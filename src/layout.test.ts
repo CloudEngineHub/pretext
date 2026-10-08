@@ -1631,6 +1631,50 @@ describe('boundary rules', () => {
     }
   })
 
+  test('the WebKit profile ends a line at a separator where a lone carriage return and then white space end the text', () => {
+    const profile = getEngineProfile()
+    const previous = profile.lineBreakScan
+    // The white space that ends the text starts with a space or a tab, where the scan has a
+    // break, and takes the mark of the carriage returns the analysis took out before it: the
+    // separator's forced break.
+    const texts = ['ab\u2028\r ', 'ab\u2029\r ', 'ab\u2028\r\t', 'ab\u2028\r \n', 'ab\u2028\r\r ']
+    const narrow = measureWidth('ab', FONT) + 0.5
+    try {
+      for (const scan of ['blink', 'gecko', 'webkit'] as const) {
+        profile.lineBreakScan = scan
+        clearCache()
+        // Only WebKit's items builder makes a separator a forced break. In the Blink and Gecko
+        // profiles it is a control character, laid out as text.
+        for (const text of texts) expect({ scan, text, kinds: prepareWithSegments(text, FONT).kinds }).toEqual({ scan, text, kinds: ['text', scan === 'webkit' ? 'hard-break' : 'text'] })
+      }
+      // The line ends at the separator and nothing follows it, where the separator as a control,
+      // which the fake Canvas gives a width, took a line more at this width. Safari has a second
+      // line here too, for the carriage return itself, which the profile takes out
+      // (ENGINE_FOLLOWUPS.md, White space and controls).
+      for (const text of texts) {
+        const prepared = prepareWithSegments(text, FONT)
+        const result = layoutWithLines(prepared, narrow, LINE_HEIGHT)
+        expect({ text, lines: result.lines.map(line => line.text) }).toEqual({ text, lines: ['ab'] })
+        expect(collectStreamedLines(prepared, narrow)).toEqual(result.lines)
+        expect(layout(prepare(text, FONT), narrow, LINE_HEIGHT).lineCount).toBe(1)
+      }
+      // The CR of a CRLF stays in the text and starts that white space, with the separator's
+      // mark alone.
+      expect(prepareWithSegments('ab\u2028\r\n', FONT).kinds).toEqual(['text', 'hard-break'])
+      // The same text as a rich item ends its line before the item after it. The item's white
+      // space doesn't end the paragraph's text, so the separator's mark there is the scan's
+      // own, kept without this rule.
+      const prepared = prepareRichInline([{ text: 'ab\u2028\r ', font: FONT }, { text: 'cd', font: FONT }])
+      const richLines: string[] = []
+      walkRichInlineLineRanges(prepared, 1000, range => { richLines.push(materializeRichInlineLineRange(prepared, range).fragments.map(fragment => fragment.text).join('|')) })
+      expect(richLines).toEqual(['ab', 'cd'])
+      expect(measureRichInlineStats(prepared, 1000).lineCount).toBe(2)
+    } finally {
+      profile.lineBreakScan = previous
+      clearCache()
+    }
+  })
+
   test('each engine profile counts its own tab stops under letter spacing', () => {
     // At 20px the fake Canvas's widths are whole app units, as Firefox's are.
     const LARGE = '20px Test Sans'

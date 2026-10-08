@@ -228,7 +228,7 @@ export function isCollapsibleSpaceCode(code: number): boolean {
 // break goes with its unit: Gecko's cluster start, which only a unit that stays text reads,
 // and WebKit's forced break after a separator, which keeps its mark at the end too, also
 // where the white space that ends the text starts at a break: at an item's edge in a
-// paragraph, or after a lone CR the analysis took out.
+// paragraph, or after a lone CR the analysis took out, whose mark it took.
 // Fills spaceSources, when given, in normal white space.
 function mapSourceLineBreaks(source: string, normalizedLength: number, sourceBreaks: Uint8Array, whiteSpace: WhiteSpaceMode, spaceSources: Uint16Array | null): Uint8Array {
   const breaks = new Uint8Array(normalizedLength + 1)
