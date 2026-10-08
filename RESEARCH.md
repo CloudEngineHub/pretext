@@ -3031,7 +3031,7 @@ repin` shows what), and a fact read in source needs reading again.
   White space and controls, has what the change leaves and the probes' counts; keeping the CR as zero-width glue was
   built and not taken (Dead Ends, Invisible Characters, Controls And Soft Hyphens). #455 lost one of the breaks the scan
   found around a lone CR, the forced break of a U+2028 or U+2029 right before lone CRs and then white space that ends
-  the text, whose separator was laid out as a control, and as a rich item let the item after it follow on its line; #TBD
+  the text, whose separator was laid out as a control, and as a rich item let the item after it follow on its line; #459
   (2026-10-07) keeps it, as main before #455 did. Offline on the stand-in Canvas, of 200,000 random texts built to hold
   separators, lone CRs, CRLFs and white space at the end, 27,383 differ from main in the WebKit profile, every one of
   that shape and laid out as the same text without those CRs is, and none in the other profiles; in Safari such a plain

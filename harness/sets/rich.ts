@@ -14,7 +14,7 @@
 // - items that continue the line before them instead of starting one (#369), each shape beside a neighbour: a soft
 //   hyphen that starts an item after other text, after an ideograph or emoji, before a combining mark or after a space,
 //   two soft hyphens that start an item, a line separator in an item or after a collapsed space before one, and one
-//   before a lone carriage return and a space that end its item, where the WebKit profile ends the line too (#TBD),
+//   before a lone carriage return and a space that end its item, where the WebKit profile ends the line too (#459),
 //   before an item that starts with a second separator, since Safari gives the carriage return the line between the
 //   two, which Pretext has only between two hard breaks (ENGINE_FOLLOWUPS.md, White space and controls); an item
 //   holding only a soft hyphen between a break and a run that continues it, or after a collapsed space, a newline next
