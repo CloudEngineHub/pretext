@@ -460,7 +460,7 @@ export function analyzeText(
       // up to U+00FF and ICU's, after the CR, where one is above (BreakablePositions.h:179-187,
       // 238-251), and takes the CR's, the one after white space. The CR of a CRLF stays, to
       // collapse into the line feed's space; in a paragraph that is also a CR that ends an item
-      // before a line feed that starts the next, whose space is then the CR's item's
+      // before a line feed that starts the next, whose space is the line feed's item's
       // (alignToSource). In the installed fonts that take WebKit's fixed-pitch shortcut, Menlo
       // and so the generic monospace among them, text on simplified measuring is as wide as its
       // characters are many, the CR among them (Font::determinePitch, FontCoreText.cpp:753-785;
@@ -553,7 +553,7 @@ export function analyzeText(
     if (profile.lineBreakScan === 'webkit' && !preserve && source !== normalized) spaceSources = new Uint16Array(normalized.length)
     breaks = source === normalized ? sourceBreaks : mapSourceLineBreaks(source, normalized.length, sourceBreaks, whiteSpace, spaceSources)
   }
-  if (paragraph !== null) markItemStarts(text, normalized, breaks, paragraph)
+  if (paragraph !== null) markItemStarts(text, normalized, breaks, paragraph, profile.lineBreakScan)
   return segmentAtLineBreaks(normalized, spaceSources, breaks, whiteSpace, profile.lineBreakScan, profile.hangTabs, dropsBidiControl)
 }
 
@@ -587,18 +587,31 @@ function removeItemsSkippableSegmentBreaks(text: string, starts: number[], profi
 // The offset in `source` that each unit of `normalized` comes from. Normalization only removes
 // white space and, in the Gecko profile, a CR or FF, and in the WebKit profile a lone CR, turns a
 // run of white space into one space, which comes from the run's first unit, and turns CR, CRLF
-// and FF into LF, so a greedy walk aligns the two. The walk takes a CR or FF that left the text
-// right before white space for that run's first unit: the space gets its offset, and at an
-// item's edge its item, where the engine has the space in the item that holds it
-// (ENGINE_FOLLOWUPS.md, White space and controls).
-export function alignToSource(source: string, normalized: string): Int32Array {
+// and FF into LF, so a greedy walk aligns the two. Under the WebKit and Gecko scans no space
+// comes from a CR, nor under Gecko's from an FF, one right before the white space included:
+// neither is white space to that engine (moveToNextNonWhitespacePosition,
+// InlineItemsBuilder.cpp:55-73; IsSpaceOrTabOrSegmentBreak, nsTextFrameUtils.cpp:51-57), so the
+// run starts after it, and the box that holds the run's first character has its space, in that
+// box's font and letter spacing. WebKit makes a white-space item of its text box, as wide as
+// that box's space (InlineItemsBuilder.cpp:947, 963-987), and takes out only white space that
+// follows other white space, an earlier box's too (Line::appendText, InlineLine.cpp:357-365);
+// Gecko transforms a frame at a time from the white-space state the frame before it left, which
+// a CR or FF clears (nsTextFrameUtils.cpp:286-309, 382-386). So the space after a CR that ends
+// an item is the next item's, as is the line feed of a CRLF split there, and a fragment that
+// ends with a space after a CR ends after that space in its item's text. To Blink a CR is white
+// space (Character::IsCollapsibleSpace, platform/text/character.h:150-153), its run's first
+// unit, and an FF is still a space in the Blink and WebKit profiles.
+export function alignToSource(source: string, normalized: string, scan: AnalysisProfile['lineBreakScan']): Int32Array {
   const offsets = new Int32Array(normalized.length)
+  // The units no space comes from under `scan`, or -1.
+  const cr = scan === 'blink' ? -1 : 0x0D
+  const ff = scan === 'gecko' ? 0x0C : -1
   let i = 0
   for (let j = 0; j < normalized.length; j++) {
     const unit = normalized.charCodeAt(j)
     while (i < source.length) {
       const code = source.charCodeAt(i)
-      if (code === unit || (isCollapsibleSpaceCode(code) && (unit === 0x20 || unit === 0x0A))) break
+      if (code === unit || (isCollapsibleSpaceCode(code) && (unit === 0x20 ? code !== cr && code !== ff : unit === 0x0A))) break
       i++
     }
     offsets[j] = i++
@@ -614,8 +627,8 @@ export function alignToSource(source: string, normalized: string): Int32Array {
 // and CanBreakAfter, line_breaker.cc:1168-1263 in core/layout/inline), WebKit finds a soft wrap
 // opportunity on either side of one (InlineFormattingUtils.cpp:445-449), and Gecko records a break
 // after one and breaks before one that doesn't fit (nsLineLayout.cpp:1057-1068, 1339-1340).
-function markItemStarts(text: string, normalized: string, breaks: Uint8Array, paragraph: ParagraphItems): void {
-  const offsets = paragraph.sourceOffsets = alignToSource(text, normalized)
+function markItemStarts(text: string, normalized: string, breaks: Uint8Array, paragraph: ParagraphItems, scan: AnalysisProfile['lineBreakScan']): void {
+  const offsets = paragraph.sourceOffsets = alignToSource(text, normalized, scan)
   const { starts, atomic } = paragraph
   for (let k = 0, j = 0; k < starts.length; k++) {
     while (j < normalized.length && offsets[j]! < starts[k]!) j++

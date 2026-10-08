@@ -4379,8 +4379,10 @@ describe('rich-inline invariants', () => {
       expect(lines(between, narrow)).toEqual([[[0, 'ab', 'ab', -1], [2, 'c', 'c', -1]], [[2, 'd ', 'd ', -1]], [[2, 'ef', 'ef', -1]]])
       expect(ends(between, narrow)).toEqual(['2:0:1', '2:2:0', '3:0:0'])
       // The CR of a CRLF collapses into the line feed's space, in the next item too, and that
-      // space is the gap of the item that holds the CR.
-      expect(lines(split, Infinity)).toEqual([[[0, 'ab', 'ab', -1], [1, 'cd ef', 'cd ef', 0]]])
+      // space is the gap of the item that holds the line feed, the pair's only white space to
+      // WebKit: Safari lays out 16px Arial spans `see`, CR and LF, `this word`, the second in
+      // bold 20px, 120.24px wide, with the bold space, and `see`, CR, LF and `this word` 119.13px.
+      expect(lines(split, Infinity)).toEqual([[[0, 'ab', 'ab', -1], [1, 'cd ef', 'cd ef', 1]]])
       expect(lines(split, narrow)).toEqual([[[0, 'ab', 'ab', -1]], [[1, 'cd ', 'cd ', -1]], [[1, 'ef', 'ef', -1]]])
       for (const parts of cuts) expectLinesOfOneItem(parts)
       // WebKit decides a boundary between two boxes from the next box's text with the last two
@@ -4411,8 +4413,91 @@ describe('rich-inline invariants', () => {
       expect(lines(between, Infinity)).toEqual([[[0, 'ab', 'ab', -1], [2, 'cd ef', 'cd ef', -1]]])
       expect(lines(between, narrow)).toEqual([[[0, 'ab', 'ab', -1]], [[2, 'cd ', 'cd ', -1]], [[2, 'ef', 'ef', -1]]])
       expect(ends(between, narrow)).toEqual(['2:0:0', '2:2:0', '3:0:0'])
-      expect(lines(split, Infinity)).toEqual([[[0, 'ab', 'ab', -1], [1, 'cd ef', 'cd ef', 0]]])
+      // The space of a CRLF split across two items is the line feed's item's here too: Firefox
+      // has those spans 120.22px and 119.12px wide.
+      expect(lines(split, Infinity)).toEqual([[[0, 'ab', 'ab', -1], [1, 'cd ef', 'cd ef', 1]]])
       for (const parts of [...cuts, ['\u0431\u0432\r', 'cd'], ['ab\r', '\u0433\u0434']]) expectLinesOfOneItem(parts)
+    } finally {
+      profile.lineBreakScan = previous
+      clearCache()
+    }
+  })
+
+  test('white space right after a carriage return that ends a rich item is the next item\'s in the WebKit and Gecko profiles, as after a form feed in the Gecko profile, in that item\'s font and letter spacing; in the Blink profile, where a CR is white space, it is the CR\'s item\'s', () => {
+    const BIG = '32px Test Sans'
+    const item = (text: string, font = FONT, letterSpacing = 0): RichInlineItem => ({ text, font, letterSpacing })
+    // Each line's fragments as their items, their texts, their items' texts from sourceStart to
+    // sourceEnd, the items whose space is the gap before them, or -1, and that gap.
+    const lines = (items: RichInlineItem[], maxWidth: number) => {
+      const prepared = prepareRichInline(items)
+      const out: Array<Array<[number, string, string, number, number]>> = []
+      walkRichInlineLineRanges(prepared, maxWidth, range => {
+        out.push(materializeRichInlineLineRange(prepared, range).fragments.map(f => [f.itemIndex, f.text, items[f.itemIndex]!.text.slice(f.sourceStart, f.sourceEnd), f.gapItemIndex, f.gapBefore]))
+      })
+      expect(measureRichInlineStats(prepared, maxWidth).lineCount).toBe(out.length)
+      return out
+    }
+    const small = measureWidth(' ', FONT)
+    const big = measureWidth(' ', BIG)
+    // A CR that ends an item before a space that starts the next, whose font has a wider space;
+    // a CRLF split there; a CR that is an item, in that font, before such a space; a form feed
+    // for the CR; and the next item in the first one's font under letter spacing.
+    const space = [item('ab\r'), item(' cd ef', BIG)]
+    const feed = [item('ab\r'), item('\ncd ef', BIG)]
+    const alone = [item('ab'), item('\r', BIG), item(' cd ef')]
+    const formFeed = [item('ab\f'), item(' cd ef', BIG)]
+    const spaced = [item('ab\r'), item(' cd ef', FONT, 3)]
+    // `ab cd` fits with the first item's space and not with the second's.
+    const turn = measureWidth('ab', FONT) + (small + big) / 2 + measureWidth('cd', BIG)
+    // `ab` and a space fit and `ab cd` doesn't.
+    const narrow = measureWidth('ab ', FONT) + 1
+    const profile = getEngineProfile()
+    const previous = profile.lineBreakScan
+    try {
+      // To Blink the CR is the run's first white space, so the space is its item's: Chrome lays
+      // out 16px Arial spans `see`, CR and space, `this word`, the second in bold 20px, 119.13px
+      // wide, with the 16px space and none of the second span's letter spacing. An FF is the
+      // profile's white space too.
+      profile.lineBreakScan = 'blink'
+      clearCache()
+      expect(lines(space, Infinity)).toEqual([[[0, 'ab', 'ab', -1, 0], [1, 'cd ef', 'cd ef', 0, small]]])
+      expect(lines(feed, Infinity)).toEqual([[[0, 'ab', 'ab', -1, 0], [1, 'cd ef', 'cd ef', 0, small]]])
+      expect(lines(alone, Infinity)).toEqual([[[0, 'ab', 'ab', -1, 0], [2, 'cd ef', 'cd ef', 1, big]]])
+      expect(lines(formFeed, Infinity)).toEqual([[[0, 'ab', 'ab', -1, 0], [1, 'cd ef', 'cd ef', 0, small]]])
+      expect(lines(spaced, Infinity)).toEqual([[[0, 'ab', 'ab', -1, 0], [1, 'cd ef', 'cd ef', 0, small]]])
+      expect(lines(space, turn).map(line => line.map(f => f[1]))).toEqual([['ab', 'cd '], ['ef']])
+      expect(lines([item('ab\r cd')], narrow)).toEqual([[[0, 'ab ', 'ab\r', -1, 0]], [[0, 'cd', 'cd', -1, 0]]])
+
+      // To WebKit a CR is no white space, so the run starts after it and its space is the next
+      // item's, in that item's font and letter spacing: Safari lays those spans out 120.24px
+      // wide, with the bold space, and on three lines at 66px, where `see this` is 66.91px wide
+      // and would be 65.80px with the 16px space. A fragment that ends with that space ends
+      // after it in its item's text, past the CR, in a paragraph of one item or of several. An
+      // FF is the profile's white space still.
+      profile.lineBreakScan = 'webkit'
+      clearCache()
+      expect(lines(space, Infinity)).toEqual([[[0, 'ab', 'ab', -1, 0], [1, 'cd ef', 'cd ef', 1, big]]])
+      expect(lines(feed, Infinity)).toEqual([[[0, 'ab', 'ab', -1, 0], [1, 'cd ef', 'cd ef', 1, big]]])
+      expect(lines(alone, Infinity)).toEqual([[[0, 'ab', 'ab', -1, 0], [2, 'cd ef', 'cd ef', 2, small]]])
+      expect(lines(formFeed, Infinity)).toEqual([[[0, 'ab', 'ab', -1, 0], [1, 'cd ef', 'cd ef', 0, small]]])
+      expect(lines(spaced, Infinity)).toEqual([[[0, 'ab', 'ab', -1, 0], [1, 'cd ef', 'cd ef', 1, small + 3]]])
+      expect(lines(space, turn).map(line => line.map(f => f[1]))).toEqual([['ab'], ['cd '], ['ef']])
+      expect(lines([item('ab\r cd')], narrow)).toEqual([[[0, 'ab ', 'ab\r ', -1, 0]], [[0, 'cd', 'cd', -1, 0]]])
+      expect(lines([item('ab\r cd'), item('ef', BIG)], narrow)[0]).toEqual([[0, 'ab ', 'ab\r ', -1, 0]])
+      expect(lines([item('ab\r\ncd')], narrow)).toEqual([[[0, 'ab ', 'ab\r\n', -1, 0]], [[0, 'cd', 'cd', -1, 0]]])
+
+      // Nor is a CR white space to Gecko, or an FF: Firefox lays the spans out 120.22px wide,
+      // and so with a form feed for the CR.
+      profile.lineBreakScan = 'gecko'
+      clearCache()
+      expect(lines(space, Infinity)).toEqual([[[0, 'ab', 'ab', -1, 0], [1, 'cd ef', 'cd ef', 1, big]]])
+      expect(lines(feed, Infinity)).toEqual([[[0, 'ab', 'ab', -1, 0], [1, 'cd ef', 'cd ef', 1, big]]])
+      expect(lines(alone, Infinity)).toEqual([[[0, 'ab', 'ab', -1, 0], [2, 'cd ef', 'cd ef', 2, small]]])
+      expect(lines(formFeed, Infinity)).toEqual([[[0, 'ab', 'ab', -1, 0], [1, 'cd ef', 'cd ef', 1, big]]])
+      expect(lines(spaced, Infinity)).toEqual([[[0, 'ab', 'ab', -1, 0], [1, 'cd ef', 'cd ef', 1, small + 3]]])
+      expect(lines(space, turn).map(line => line.map(f => f[1]))).toEqual([['ab'], ['cd '], ['ef']])
+      expect(lines([item('ab\r cd')], narrow)).toEqual([[[0, 'ab ', 'ab\r ', -1, 0]], [[0, 'cd', 'cd', -1, 0]]])
+      expect(lines([item('ab\f cd'), item('ef', BIG)], narrow)[0]).toEqual([[0, 'ab ', 'ab\f ', -1, 0]])
     } finally {
       profile.lineBreakScan = previous
       clearCache()
