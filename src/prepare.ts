@@ -471,13 +471,7 @@ export function measureAnalysis(
     markBaseStart = baseStart
     if (baseStart < 0) return null
     const start = starts[analysisIndex]!
-    return start - baseStart > MARK_CHAIN_CONTEXT_UNITS ? getLongMarkChainContext(baseStart, start) : normalized.slice(baseStart, start)
-  }
-  // Apart from getMarkContext() so that V8 can inline that one: it inlines a function
-  // only while its bytecode stays under about 460 bytes, whether or not the source is
-  // minified, and with this loop inside getMarkContext() takes over 500 (RESEARCH.md,
-  // Keeping Work Bounded, JavaScript Engines).
-  function getLongMarkChainContext(baseStart: number, start: number): string {
+    if (start - baseStart <= MARK_CHAIN_CONTEXT_UNITS) return normalized.slice(baseStart, start)
     // The kept part starts after the grapheme or a run of marks, moves only forward and
     // never holds fewer than MARK_CHAIN_CONTEXT_UNITS.
     for (let k = markChainKept + 1; start - starts[k]! >= MARK_CHAIN_CONTEXT_UNITS; k++) {
