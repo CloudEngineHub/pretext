@@ -201,6 +201,7 @@ function getOverflowingFirstGraphemeEnd(
 
 function getTerminalLetterSpacing(
   prepared: PreparedLineData,
+  openingEdges: number[] | null,
   hangingKinds: number,
   startSegmentIndex: number,
   startGraphemeIndex: number,
@@ -209,7 +210,6 @@ function getTerminalLetterSpacing(
 ): number {
   const { letterSpacing, segmentFlags } = prepared
   if (letterSpacing === 0) return 0
-  const openingEdges = prepared.items === undefined ? null : prepared.items.openingEdges
 
   if (endGraphemeIndex > 0) return (segmentFlags[endSegmentIndex]! & SPACED) !== 0 ? letterSpacing : 0
 
@@ -226,7 +226,7 @@ function getTerminalLetterSpacing(
     // shaped on the grapheme before them, leave that grapheme's gap last. A tab
     // that takes none follows that gap, which its stop counts from. An object
     // leaves none after itself, nor does the edge of a padded opening.
-    if (kind === SPACE || (kind !== CONTROL && kind !== TAB && kind !== OBJECT && (flags & SPACED) === 0 && (openingEdges === null || openingEdges[i]! === 0))) continue
+    if (kind === SPACE || (kind !== CONTROL && kind !== TAB && (flags & SPACED) === 0 && kind !== OBJECT && (openingEdges === null || openingEdges[i]! === 0))) continue
 
     if (i === startSegmentIndex && startGraphemeIndex > 0) return letterSpacing
 
@@ -1087,7 +1087,7 @@ function walkPreparedComplexLines(
           (endSegmentIndex === hangEndSegmentIndex || endSegmentIndex === hangEndSegmentIndex + 1) &&
           (hangEndSegmentIndex === segmentCount || (segmentFlags[hangEndSegmentIndex]! & KIND_BITS) === HARD_BREAK)
         const paintWidth = (hangsWhereUnfit ? lineW - lineEndTrimmed : endWidth) +
-          getTerminalLetterSpacing(prepared, hangingKinds, lineStartSegmentIndex, lineStartGraphemeIndex, endSegmentIndex, endGraphemeIndex)
+          getTerminalLetterSpacing(prepared, openingEdges, hangingKinds, lineStartSegmentIndex, lineStartGraphemeIndex, endSegmentIndex, endGraphemeIndex)
         lineWidth = hangsWhereUnfit ? Math.max(hangStartWidth, Math.min(paintWidth, availableWidth)) : paintWidth
       }
     }
