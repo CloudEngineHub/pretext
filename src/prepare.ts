@@ -448,8 +448,9 @@ export function measureAnalysis(
   let markBaseStart = -1 // where that run's grapheme starts in the normalized text, or -1
   let markChainStart = -1 // the segment after that grapheme
   let markChainKept = -1 // the first segment of the chain the context keeps
+  // Asked only for a text segment no break comes before.
   function getMarkContext(analysisIndex: number, text: string): string | null {
-    if ((flags[analysisIndex]! & UNBROKEN) === 0 || !markRunRe.test(text)) return null
+    if (!markRunRe.test(text)) return null
     let baseStart = -1
     for (let k = analysisIndex - 1; k >= from; k--) {
       const kind = flags[k]! & KIND_BITS
@@ -472,13 +473,10 @@ export function measureAnalysis(
     const start = starts[analysisIndex]!
     return start - baseStart > MARK_CHAIN_CONTEXT_UNITS ? getLongMarkChainContext(baseStart, start) : normalized.slice(baseStart, start)
   }
-  // Apart from getMarkContext(), which prepare() calls for every segment, so that V8
-  // still inlines that one there (RESEARCH.md, Keeping Work Bounded). V8 inlines a
-  // function only while its bytecode stays under about 460 bytes, whether or not the
-  // source is minified: with this loop inside, getMarkContext() took 519 bytes and
-  // Chrome 154's prepare() ran 0.4-2.6% slower; without it, 374 (Node 23, V8 12.9). Before
-  // growing getMarkContext(), check it with node --print-bytecode and
-  // --trace-turbo-inlining, and bench Chrome's prepare() rows against main.
+  // Apart from getMarkContext() so that V8 can inline that one: it inlines a function
+  // only while its bytecode stays under about 460 bytes, whether or not the source is
+  // minified, and with this loop inside getMarkContext() takes over 500 (RESEARCH.md,
+  // Keeping Work Bounded, JavaScript Engines).
   function getLongMarkChainContext(baseStart: number, start: number): string {
     // The kept part starts after the grapheme or a run of marks, moves only forward and
     // never holds fewer than MARK_CHAIN_CONTEXT_UNITS.
@@ -573,8 +571,11 @@ export function measureAnalysis(
           break
         }
         // Such a run of marks adds its context with the marks, minus the context, and
-        // takes no letter spacing of its own.
-        const markContext = getMarkContext(mi, text)
+        // takes no letter spacing of its own. Only a segment no break comes before can be
+        // one, and the test is here so that the others make no call: with a call for every
+        // text segment, Chrome 154 prepared CJK text again 2.6% slower where V8 didn't
+        // inline it (RESEARCH.md, Keeping Work Bounded, JavaScript Engines).
+        const markContext = (segment & UNBROKEN) === 0 ? null : getMarkContext(mi, text)
         if (markContext !== null) {
           width = engineProfile.shapesMarksAcrossSoftHyphen && texts[mi - 1] === '\u00AD' && nonspacingMarkRunRe.test(text)
             ? 0
