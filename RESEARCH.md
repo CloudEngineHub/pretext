@@ -5925,9 +5925,12 @@ decisions for the maintainer.
   negative as they are wide. A paragraph of ordinary text and items of no width breaks at 0 where it broke at the floor,
   and reports a pre-wrap line of only spaces that hang as 0px wide where it reported 1px. A paragraph of one text item
   now has its text's lines at every width but for the whole fit's gap: 2 of the 75 on the stand-in differ from their
-  text at every width, where 29 did at 0 on main (28 in the Gecko profile). On the probe the width given passes 640, 838
-  and 820 layouts that the floor failed, and fails 55, 40 and 13 that it passed, each of which main fails the same way
-  at 16 times the size or the recorder can't see (ENGINE_FOLLOWUPS.md, Rich-inline item edges, a box narrower than 1px).
-  The clamp could sit in the fit alone, since the walkers clamp for themselves; the functions' entries were timed
-  statement by statement (Dead Ends, Simplifications Held Back), so they keep their form and the constant changes.
-  Reopens with a whole fit that takes the walkers' lines under negative letter spacing, when the clamp can go.
+  text at every width, where 29 did at 0 on main (28 in the Gecko profile). The rich set holds five such paragraphs,
+  searched from 0px (`harness/sets/rich.ts`): main fails 13, 15 and 13 of their 28, 30 and 27 cases in Chrome, Firefox
+  and webkit-host, each with a wrong line count, the change passes all, and no other prediction of the 43,394, 44,495
+  and 44,928 differs from main's. On the probe the width given passes 640, 838 and 820 layouts that the floor failed,
+  and fails 55, 40 and 13 that it passed, each of which main fails the same way at 16 times the size or the recorder
+  can't see (ENGINE_FOLLOWUPS.md, Rich-inline item edges, a box narrower than 1px). The clamp could sit in the fit
+  alone, since the walkers clamp for themselves; the functions' entries were timed statement by statement (Dead Ends,
+  Simplifications Held Back), so they keep their form and the constant changes. Reopens with a whole fit that takes the
+  walkers' lines under negative letter spacing, when the clamp can go.
