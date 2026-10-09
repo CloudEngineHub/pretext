@@ -14,7 +14,7 @@
 // - items that continue the line before them instead of starting one (#369), each shape beside a neighbour: a soft
 //   hyphen that starts an item after other text, after an ideograph or emoji, before a combining mark or after a space,
 //   two soft hyphens that start an item, a line separator in an item or after a collapsed space before one, and one
-//   before a lone carriage return and a space that end its item, where the WebKit profile ends the line too (#459),
+//   before a lone carriage return and a space that end its item (#459), where the WebKit profile ends the line too,
 //   before an item that starts with a second separator, since Safari gives the carriage return the line between the
 //   two, which Pretext has only between two hard breaks (ENGINE_FOLLOWUPS.md, White space and controls); an item
 //   holding only a soft hyphen between a break and a run that continues it, or after a collapsed space, a newline next
@@ -64,8 +64,8 @@
 //   widths and one taller than the line; a box inside a keep-all Korean word; in pre-wrap, preserved spaces split
 //   across items after a box, which stay on its line, a line feed and a tab after one; and a box of width 0 past a
 //   line's end, after a space that doesn't fit and after a box wider than the line, which Chrome and Safari move to the
-//   next line and Firefox keeps unless text comes right after it, not after a space (getKeptEmptyEnd in
-//   src/rich-inline.ts), and two of them after a pre-wrap space that hangs, which Firefox has inside the line;
+//   next line and Firefox keeps unless text comes right after it, not after a space (setEmptyObjectFacts
+//   in src/rich-inline.ts), and two of them after a pre-wrap space that hangs, which Firefox has inside the line;
 // - shapes whose rule only a unit test held: a padded code span alone in its paragraph, which the adapter still lays
 //   out with rich-inline, for its padding; in pre-wrap, a box about as wide as the words after it before preserved
 //   spaces that start their item, which stay on its line however far it overflows; and a Korean message under keep-all
@@ -76,13 +76,25 @@
 //   full stop and a colon before an opening bracket, which Chrome's text-spacing-trim halts as in one text node; and a
 //   bold span that ends with a closing bracket before a space and a Latin word, where Chrome doesn't halt the bracket
 //   at a line's end, since no break comes right after it. The word doesn't break, so the cut reaches the width where
-//   the bracket stops fitting whole;
+//   the bracket stops fitting whole. And a bold span that ends with a closing bracket before a letter, where Chrome
+//   keeps the bracket halted and the line goes on after it, and before a period, where it halts the bracket only on a
+//   line it lays out again between graphemes (itemEndHalts in src/line-break.ts). Each is three or four characters, so
+//   that the three widest changes the cut takes are the ones around the halt;
 // - a soft hyphen whose hyphen doesn't fit after a break between two text segments, to which Chrome's line returns
 //   (unfitHyphenRetreat in src/measurement.ts; #433): the break right after a `-` at an item's edge, inside a bold
 //   word, and between two ideographs at an item's edge, each before a syllable long enough that a width the cut takes
 //   inside a layout is one where the text before the soft hyphen fits and its hyphen doesn't; and #433's rich row, a
 //   box and a padded span that holds such a word, where Chrome keeps a hyphen that fits without the span's end edge and
-//   rich inline, which counts that edge, returns (ENGINE_FOLLOWUPS.md, Line edges).
+//   rich inline, which counts that edge, returns (ENGINE_FOLLOWUPS.md, Line edges);
+// - a lone carriage return at an item's edge in normal white space, which Safari and Firefox give no room: one that ends
+//   a span of Cyrillic before a span of Latin, where Safari breaks the word between letters and one text node breaks
+//   after the carriage return (getWebKitParagraphBreaks in src/analysis.ts), one that ends a span before a bold 20px
+//   span, one that is a span of its own, and one that ends a span before a bold 20px span that starts with a space,
+//   which Safari and Firefox draw in the bold span's font and Chrome, to which a carriage return is white space, in
+//   the first span's (alignToSource in src/analysis.ts; ENGINE_FOLLOWUPS.md, White space and controls); and a line
+//   separator that ends a span before the paragraph's last span, of one space, at which Safari's line ends
+//   (mapSourceLineBreaks in src/analysis.ts), right after a word and after a space: there the cut takes the width at
+//   which the word fits and the space doesn't, where the separator laid out as a control took a line of its own.
 import { TEXTS } from '../../src/test-data.ts'
 import type { CssFont, Paragraph, TextRun } from '../types.ts'
 import { box, codePoints, createRng, font, paragraph, span } from './build.ts'
@@ -298,6 +310,8 @@ export function richTemplates(): Template[] {
     ['punctuation-pair', ['これは', span('「引用」', BOLD(JAPANESE)), '。と言った']],
     ['punctuation-pair', [span('注意：', BOLD(JAPANESE)), '「これは引用」です']],
     ['closing-mark', ['まず', span('「設定」', BOLD(JAPANESE)), ' Settings']],
+    ['closing-mark', [span('設定」', BOLD(JAPANESE)), 'i']],
+    ['closing-mark', [span('字」', BOLD(JAPANESE)), '.字']],
   ]
   for (let i = 0; i < edges.length; i++) {
     const [family, parts] = edges[i]!
@@ -313,6 +327,18 @@ export function richTemplates(): Template[] {
   for (let i = 0; i < returns.length; i++) {
     const [family, base, parts, lang] = returns[i]!
     out.push(template(`soft-hyphen-return/${family}`, 'a soft hyphen whose hyphen doesn\'t fit after a break between two text segments (#433; src/layout.test.ts, Blink returns an unfit soft hyphen to the latest earlier break that leaves room for the hyphen)', base, parts, lang))
+  }
+  const controls: ReadonlyArray<readonly [string, readonly TextRun[], string?]> = [
+    ['carriage-return', [item('бв\r'), item('cd ef')]],
+    ['carriage-return', [item('see\r'), span('this word', BOLD({ ...ARIAL, size: 20 }))]],
+    ['carriage-return', [item('see'), item('\r'), item('this word')]],
+    ['separator-before-space', [item('abc\u{2028}'), item(' ')]],
+    ['carriage-return', [item('see\r'), span(' this word', BOLD({ ...ARIAL, size: 20 }))], 'white space right after a carriage return that ends a rich item is the next item\'s in the WebKit and Gecko profiles'],
+    ['separator-before-space', [item('abc \u{2028}'), item(' ')]],
+  ]
+  for (let i = 0; i < controls.length; i++) {
+    const [family, parts, test = 'a carriage return in a rich paragraph is what its text has in one item'] = controls[i]!
+    out.push(template(`item-edges/${family}`, `a lone carriage return, or a line separator before white space, at an item's edge in normal white space (src/layout.test.ts, ${test})`, ARIAL, parts))
   }
   return out
 }

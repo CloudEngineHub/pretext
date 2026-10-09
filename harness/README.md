@@ -32,8 +32,9 @@ builds widths are compared exactly: to `equal <ref>` a line width that differs a
 (Proving "no change"). The library's consistency blocks on every case, recorded or not: the line APIs (`layout()`,
 `measureLineStats()`, `walkLineRanges()`, `layoutNextLineRange()`, `layoutNextLine()`, `layoutWithLines()`,
 `materializeLineRange()` and their rich-inline counterparts) must agree on lines, widths and text, and none may call
-`measureText` after preparing. A rich fragment's text is `materializeLineRange()`'s over its cursors in its item's own
-prepared text, but for the hyphen of a soft hyphen it ends at, which the text the items join decides. A box is a visible
+`measureText` after preparing. A rich fragment's text is its item's text between the fragment's `sourceStart` and
+`sourceEnd` as painted, white space collapsed, invisible breaks and what the engine profile's analysis takes out of
+the text left out, with the hyphen of a soft hyphen its line ends at (`fragmentProblem()`). A box is a visible
 character whatever its width, placed by its top. Every case is laid out start-aligned in an element with no text
 decoration or background, so a browser rule that depends on those is recorded on one side only: Chrome keeps a word's
 kerning with a hanging space in such text and drops it in the others (`RESEARCH.md`, Kerning At Line Edges).
@@ -96,7 +97,7 @@ layouts" (the narrowest real-usage draw is 25 px).
 | `reports.ndjson` | Filed reports with the text, font and width as filed (`sets/exact.ts`) | `make.ts write` |
 | `catalog.ndjson` | Families of templates, from the engines' rules, the UAX #14 classes between the scripts apps mix, the shapes `ENGINE_FOLLOWUPS.md` names, bidi controls where Firefox's line breaking looks past them, CJK marks Chrome halts next to other punctuation, letter-spaced words whose ligatures the browsers turn off, emoji characters a named font draws itself and one word wider than its line, kerned or joined, that each browser cuts between letters its own way, plus adversarial `main/*` cases taken from the old test suite | the width search |
 | `facts.ndjson` | The engine facts `src/layout.test.ts` checks on plain text, in a browser | the width search |
-| `rich.ndjson` | Rich-inline paragraphs: styled runs, span edges, chips, padded code spans, boxes (an empty inline-block of a width and a height, top-aligned), the shapes whose lines changed when items began to continue the line (#369), keep-all and pre-wrap paragraphs, fullwidth punctuation at an item's edge, a line's return from an unfit soft hyphen to a break between two text segments, plus `main/*` cases | the width search |
+| `rich.ndjson` | Rich-inline paragraphs: styled runs, span edges, chips, padded code spans, boxes (an empty inline-block of a width and a height, top-aligned), the shapes whose lines changed when items began to continue the line (#369), keep-all and pre-wrap paragraphs, fullwidth punctuation at an item's edge, a line's return from an unfit soft hyphen to a break between two text segments, a lone carriage return at an item's edge and a line separator that ends an item before white space, plus `main/*` cases | the width search |
 | `census.ndjson`, `books.ndjson`, `smoke.ndjson` | Real paragraphs of `corpora/` at several widths, and whole books, from the per-engine rebuild | taken once |
 | `oracles.ndjson` | The mode oracles (pre-wrap, keep-all, symbols, letter spacing, soft hyphens) the old test suite ran | taken once |
 | `followups.ndjson` | Two fuzz strings `ENGINE_FOLLOWUPS.md` names | taken once |
@@ -153,8 +154,13 @@ New cases mustn't pile up as the old suite's did, a hand-written repro per bug.
 3. `make.ts cut <set>` writes `cases/<set>.ndjson`. It keeps only the frozen `main/*` cases and the templates the saved
    search holds, so it refuses a search that doesn't cover every template of the set (a cut after a partial search
    dropped 8,926 generated cases with no word at b1fd05fc); search the whole set before cutting, then remove
-   `.artifacts/harness-sets/<set>/`. A template added to an existing family should bring its older cases back byte for
-   byte, and a whole-catalog search derives every generated case again, so a browser's drift lands in the PR.
+   `.artifacts/harness-sets/<set>/`. The rich set is the exception: its earlier templates' widths were searched in older
+   browser builds, so each later group of its templates is searched and cut on its own, by calling `sets/widths.ts`'s
+   `recordFirst`, `select`, `bisect` and `cut` over the new templates alone (no `make.ts` command takes part of a set),
+   and its cases are added to the file (`sets/rich.ts`'s header; ENGINE_FOLLOWUPS.md, Harness debt, has the additions to
+   the catalog and the facts set that weren't a whole cut either). A template added to an existing family should bring
+   its older cases back byte for byte, and a whole-catalog search derives every generated case again, so a browser's
+   drift lands in the PR.
 4. `bun harness record --only-new`, then `bun harness check`; a new failure the change doesn't fix goes on the accepted
    list with `check --accept="<reason>"`.
 
@@ -256,6 +262,10 @@ harness/invariants.test.ts`) and the bench's floors.
   either, and it failed in 1 of the 600 drawn before the cut-word cases joined the sets and in none of those drawn
   since; the Blink and Gecko profiles measure letter-spaced text apart, so no word there is fit two ways. A planted miss
   of a line-start width in `layout()`'s count fails the Blink profile's agreement check in 3 draws of 600.
+- The stand-in halts a closing fullwidth mark by a few tenths of a pixel, so almost no line there fits only by a halt:
+  with the halt that a mark at a rich item's end keeps on a line with content (`itemEndHalts`) taken out of the walker,
+  0 of 21,251 inputs differed in every profile (2026-10-07). A change to that rule rests on the unit tests and on
+  predictions in Chrome.
 - Canvas-call counts before #355 aren't comparable with later ones: the harness's adapter (`run.ts`) stopped calling
   `setLocale()` per case, cutting its calls 20-25% with no prediction change (2026-09-26).
 
@@ -291,7 +301,10 @@ document either (`RESEARCH.md`, Evaluation Traps, Timing, has the numbers behind
   the next three).
 - **Focus and a quiet machine.** Background windows' timers are slowed, so Chrome and Safari need a visible, focused
   window throughout. Using the machine spoils the sessions it overlaps, and only those; a loaded machine spoils them
-  all.
+  all. Time on mains, from an adapter that charges the machine under load, or on a battery above 20% charge: at 20%
+  and under the machine throttles, some operations more than others, so the ratios of a run that starts or ends there
+  are void as well as its times (`RESEARCH.md`, Evaluation Traps, Timing; a run prints its power source and charge as
+  it starts and as it ends).
 - **Two sessions and a confirming one.** A row reads slower or faster only when it does so in every session, and the
   floors are fitted to three, where two agree by chance: in the 19 runs of three sessions saved on 2026-10-02, the
   first two called 74 of 322 rows and the third took 22 of them back. So after the default two sessions each browser
@@ -476,7 +489,9 @@ the widest, as in a fifth of the sample's pre-wrap draws, and webkit-host's `nar
 The harness doesn't see re-layout at a line's own width; several rules of the Gecko profile's analysis of bidi
 controls (`ENGINE_FOLLOWUPS.md`, Harness debt); an emoji modifier split from its
 base across rich items; a rich paragraph of one item, which the adapter writes as plain text, so `src/layout.test.ts`
-checks its line functions against the rich stepper; Chrome's UI language, and so its `zh` table for pages without a
+checks its line functions against the same item with an empty item after it; a line that holds only an atomic item of
+white space, which has no text for the recorder to list, so a prediction with that line is scored as a line too many
+though the recorded height has it; Chrome's UI language, and so its `zh` table for pages without a
 `lang`; rendering other than macOS's and an iOS simulator's (Other ratios and phones), though Android and Windows are
 65% of page views (`weights.json`); text chat users wrote (the sample's chat draws are stand-ins; written prompts and replies in their place moved the
 headline by 0.03 points or less, RESEARCH.md, Decisions Log, 2026-10-05); or the demos' painted
