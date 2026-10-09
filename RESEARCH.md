@@ -4021,25 +4021,37 @@ repin` shows what), and a fact read in source needs reading again.
   with a space (16px Arial `A`, CR, `A` 19.58px, `AA` 21.34px); where the font has a glyph of its own for U+000D, as
   Helvetica, Helvetica Neue, Times and Palatino do, nothing kerns with it (16px Helvetica `A`, CR, `V` 21.34px, `AV`
   20.16px, and `A`, CR, space, `B` 25.79px, `A B` 24.91px). In Arabic a CR ends joining. No break comes beside a CR
-  where the characters on its two sides are up to U+00FF, as none comes beside any control there
-  (`BreakablePositions.h:179-187`); where either is above U+00FF, ICU decides and breaks after the CR (`:238-251`), so a
-  line can end after one between Cyrillic, Greek, Arabic, Hebrew, Thai, Devanagari, Hangul, kana or Han characters, or
-  between one of them and an ASCII letter, and not in `été`, CR, `cd`. At the edge of an inline box the break is the one
-  the check between two boxes finds, from the next box's text with the two characters before it
-  (`TextUtil::mayBreakInBetween`, `TextUtil.cpp:367-396`): there the pair of a CR and a character up to U+00FF is looked
-  up alone, so a line ends after a CR that ends, starts or is a box only where the character right after it is above
-  U+00FF. Spans `бв`, CR and `cd ef` in 16px Arial at 28 and 32px are `бв` and `c`, then `d ef`, where their text in one
-  node is `бв`, `cd`, `ef`; and a CR at a span's edge takes no room either: `see`, CR and a bold 20px `this word` are
-  114.68px wide. The analysis of a rich-inline paragraph follows both (webkit-host, 2026-10-07; ENGINE_FOLLOWUPS.md,
-  White space and controls, has the probe and what it leaves). White space right after a CR that ends a box, or is a
-  box, belongs to the box that holds it. The CR is no white space, so the run starts after it, and WebKit makes a
-  white-space item of the text box that holds the run's first character, as wide as that box's space
-  (`InlineItemsBuilder.cpp:947`, `963-987`), and takes out only white space that follows other white space, an earlier
-  box's too (`Line::appendText`, `InlineLine.cpp:357-365`). Spans `see`, CR and a bold 20px one of a space and `this
-  word` are 120.24px wide, with the bold space, and three lines at 66px, their `see this` being 66.91px. Firefox has
-  120.22px, with an FF for the CR too: its transform takes a frame at a time from the white-space state the frame before
-  left, which a CR or FF clears (`nsTextFrameUtils.cpp:286-309`, `382-386`). Chrome has 119.13px, with the first span's
-  16px space, a CR being white space to Blink, its run's first unit (`Character::IsCollapsibleSpace`,
+  where WebKit's break scan (`nextBreakablePosition`, `BreakablePositions.h:142-255`) takes the CR's pairs with the
+  characters on its two sides from its table, which has none beside a control (`:179-187`): where both are up to U+00FF,
+  as in `été`, CR, `cd`, but for the one case below. The pair of a CR and a letter above U+00FF after it goes to ICU,
+  which breaks after a CR (`:238-251`). The pair of a letter above U+00FF and the CR after it goes to ICU too, whose
+  break is then one unit ahead, and the scan steps on to it only over units above U+00FF and ASCII letters: before any
+  other unit it stops, and that unit's pair with the CR is the table's again (`:241-249`). So after a letter above
+  U+00FF a line ends after the CR before an ASCII letter, as in `бв`, CR, `cd`, and not before another character up to
+  U+00FF, a digit, punctuation or a letter such as `ê`: not in `бв`, CR, `12`, in `бв`, CR, `(x` or in `бв`, CR, `êë`.
+  The one case: the scan doesn't read the units it steps over, so where ASCII letters before the CR follow text it asked
+  ICU about, as Thai, it still holds a character of that text as the one before the CR, and a line ends after the CR in
+  `ไทยe`, CR, `cd`, between two ASCII letters, though not in `ไทยe`, CR, `12`. None ends in `бвe`, CR, `cd`, a Cyrillic
+  and a Latin letter being a pair the scan decides without ICU. So a line can end after a CR between Cyrillic, Greek,
+  Arabic, Hebrew, Thai, Devanagari, Hangul, kana or Han characters, or between one of them and an ASCII letter.
+  webkit-host lays the eight texts named here out so, as the scan's port in `src/line-breaks.ts` predicts, and `ab`, CR,
+  `漢。` with a break after the CR: each in 16px Arial in a box 1px narrower than the text, where the line ends after the
+  CR if a line may end there and before the text's last character if none may (WebKit 22625.1.29.11.27, 2026-10-09). At
+  the edge of an inline box the break is the one the check between two boxes finds, from the next box's text with the
+  two characters before it (`TextUtil::mayBreakInBetween`, `TextUtil.cpp:367-396`): there the pair of a CR and a
+  character up to U+00FF is looked up alone, so a line ends after a CR that ends, starts or is a box only where the
+  character right after it is above U+00FF. Spans `бв`, CR and `cd ef` in 16px Arial at 28 and 32px are `бв` and `c`,
+  then `d ef`, where their text in one node is `бв`, `cd`, `ef`; and a CR at a span's edge takes no room either: `see`,
+  CR and a bold 20px `this word` are 114.68px wide. The analysis of a rich-inline paragraph follows both (webkit-host,
+  2026-10-07; ENGINE_FOLLOWUPS.md, White space and controls, has the probe and what it leaves). White space right after
+  a CR that ends a box, or is a box, belongs to the box that holds it. The CR is no white space, so the run starts after
+  it, and WebKit makes a white-space item of the text box that holds the run's first character, as wide as that box's
+  space (`InlineItemsBuilder.cpp:947`, `963-987`), and takes out only white space that follows other white space, an
+  earlier box's too (`Line::appendText`, `InlineLine.cpp:357-365`). Spans `see`, CR and a bold 20px one of a space and
+  `this word` are 120.24px wide, with the bold space, and three lines at 66px, their `see this` being 66.91px. Firefox
+  has 120.22px, with an FF for the CR too: its transform takes a frame at a time from the white-space state the frame
+  before left, which a CR or FF clears (`nsTextFrameUtils.cpp:286-309`, `382-386`). Chrome has 119.13px, with the first
+  span's 16px space, a CR being white space to Blink, its run's first unit (`Character::IsCollapsibleSpace`,
   `character.h:150-153`). A rich-inline paragraph's source offsets follow each: in the WebKit and Gecko profiles no
   space comes from a CR, nor from an FF in the Gecko profile, so the space after one that ends an item is the next
   item's, in its font and letter spacing (`alignToSource()`, `src/analysis.ts`; webkit-host, Firefox 156.0.1 and Chrome
