@@ -5915,7 +5915,7 @@ decisions for the maintainer.
   signed width, which is under 0 where letter spacing is more negative than the letters are wide, so against a width
   under 0 as given such a paragraph is one line at 0 and down to its own width, and walked under it, into the lines the
   walkers give its text, where the fit has a gap (ENGINE_FOLLOWUPS.md, Negative letter spacing and hanging spaces): a
-  width under 0 would then lay out otherwise than 0. On the stand-in Canvas, 3,109 paragraphs of such content at 19
+  width under 0 would then lay out otherwise than 0. On the stand-in Canvas, 3,109 paragraphs of such content at 16
   widths from −100 to 1.5px and at `NaN`, `undefined` and `Infinity`, in each of the four profiles, the functions
   without the clamp give 3 paragraphs other lines at −100 than at 0, and with it none; a unit test holds one. Either
   form differs from main on 2,068 of the paragraphs at 0 (2,000 in the Gecko profile), on 1,693 at 0.5 (1,680 in the
