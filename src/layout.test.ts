@@ -3947,6 +3947,52 @@ describe('rich-inline invariants', () => {
     }
   })
 
+  test('the Gecko profile ends a line at the white space before an item that starts with bidi controls and a space, where text follows that space in its item', () => {
+    // The first line's width, and its fragments' texts with a space for each gap.
+    const firstLine = (parts: readonly string[], maxWidth: number, whiteSpace: 'normal' | 'pre-wrap' = 'normal'): [number, string] => {
+      const prepared = prepareRichInline(parts.map(text => ({ text, font: FONT })), { whiteSpace })
+      const range = layoutNextRichInlineLineRange(prepared, maxWidth)!
+      let text = ''
+      for (const fragment of materializeRichInlineLineRange(prepared, range).fragments) text += (fragment.gapBefore === 0 ? '' : ' ') + fragment.text
+      return [range.width, text]
+    }
+    const profile = getEngineProfile()
+    const previous = { lineBreakScan: profile.lineBreakScan, transformsSegmentBreaksAcrossItems: profile.transformsSegmentBreaksAcrossItems, hangTabs: profile.hangTabs }
+    try {
+      profile.lineBreakScan = 'gecko'
+      profile.transformsSegmentBreaksAcrossItems = false
+      profile.hangTabs = false
+      clearCache()
+      const see = measureWidth('see', FONT)
+      const aa = measureWidth('aa', FONT)
+      const aaSee = measureWidth('aa see', FONT)
+      // A box that holds the word before the item and half of the space after it.
+      const half = measureWidth(' ', FONT) / 2
+      for (const control of ['\u200E', '\u200F', '\u202A', '\u2066']) {
+        // The scan gives the two spaces around the controls one break, after the second, and
+        // Firefox still ends the line at the first, trimming it: the word stays on its line, which
+        // is as wide as the word, in pre-wrap too, where the space hangs. So it is where the
+        // controls are an item of their own before one that starts with the space, and where
+        // another control comes between that space and the text.
+        for (const rest of [[control + ' this word'], [control, ' this word'], [control + ' ' + control + 'this word']]) {
+          expect(firstLine(['see ', ...rest], see + half)).toEqual([see, 'see'])
+          expect(firstLine(['aa see ', ...rest], aaSee + half)).toEqual([aaSee, 'aa see'])
+          expect(firstLine(['aa see ', ...rest], aaSee + half, 'pre-wrap')).toEqual([aaSee, 'aa see '])
+        }
+        // Where the space after the controls ends its item, Firefox's line goes back to its last
+        // break, and the word goes down with the controls.
+        for (const rest of [[control + ' ', 'this word'], [control, ' ', 'this word'], [control + ' ' + control, 'this word']]) {
+          expect(firstLine(['aa see ', ...rest], aaSee + half)).toEqual([aa, 'aa '])
+        }
+        // So it does in pre-wrap where that space runs into a tab, which Firefox doesn't hang.
+        expect(firstLine(['aa see ', control + ' \tthis word'], aaSee + half, 'pre-wrap')).toEqual([aa, 'aa '])
+      }
+    } finally {
+      Object.assign(profile, previous)
+      clearCache()
+    }
+  })
+
   test('rich ordinary break rights survive zero and negative SPACE advances', () => {
     for (const gap of [-2, 0, 2]) {
       const prepared = prepareRichInline([

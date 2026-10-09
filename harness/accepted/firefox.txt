@@ -25,6 +25,11 @@ catalog-26d0c58f4b1a737e count
 catalog-3cf193e86082144e count
 catalog-7cf32037f7604eb3 count
 
+## A bidi control that starts an item between two spaces, at 28 px, where the word before the first space starts its line and the word after the second doesn't fit beside that space: Firefox leaves the control and both spaces on the first word's line, where they take no room, and starts the next line at the second word; the Gecko profile starts a line with the control and its space, which hold that line alone, a line too many, as before the one-paragraph design (ENGINE_FOLLOWUPS.md, Rich-inline item edges)
+rich-1a756c0429cffa1d count
+rich-9600fb89ae2dc5d4 count
+rich-a2bdbe6aca58bf4b count
+
 ## A soft hyphen whose hyphen doesn't fit, where rich items split its word, at 24 px and wider: Firefox breaks the word between letters, the library at the soft hyphen, as it does for the text in one node (ENGINE_FOLLOWUPS.md)
 rich-4635ddffedd43c84 breaks
 rich-8736e842495c21ea count
@@ -1950,6 +1955,7 @@ rich-2ba96631579775f7 count
 rich-2d09e453d98924b9 count
 rich-34075de5f2f50824 count
 rich-3f6c610251935b3f count
+rich-68048ed99559fcfc count
 rich-8acb5b79e29743bd count
 rich-8d3626fe8bbced7a count
 rich-9caad05a8d6ec08d count
@@ -1957,6 +1963,7 @@ rich-a560650dfbeafe72 count
 rich-ab169565a9c0a88b count
 rich-c4a883b30ad5ddaf count
 rich-cd0ee47c06b6cf6d count
+rich-db66be2507e4c7cc count
 rich-eac5e4eee615b1b8 count
 rich-eafa066368d2585d count
 
