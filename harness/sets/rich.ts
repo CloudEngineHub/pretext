@@ -101,11 +101,11 @@
 //   text's; two items with a collapsed space between them; two boxes 0.5px wide; a ZWSP in an item of its own before
 //   a 0.5px box, which holds a line where the box doesn't fit after it; and in pre-wrap a preserved space, which
 //   hangs, before a word that breaks between its letters. Each is searched from 0px, by its own widths, where the
-//   search starts every other template at 1px. In Firefox the pre-wrap one's cases at 0.001px, which Firefox lays out
-//   in a box of no width, and at 0.032px pin the same three lines: Firefox clips a space that hangs to the box, the
-//   recorder lists none clipped to nothing, and the search took that for a change of lines. None holds a padded span
-//   or a chip, whose edges and width the browsers fit their own ways at every size (ENGINE_FOLLOWUPS.md, Rich-inline
-//   item edges).
+//   search starts every other template at 1px. The cut pins no case at 0px itself, where each template's lines are
+//   those of its narrowest case. In Firefox the pre-wrap one's cases at 0.001px, which Firefox lays out in a box of no
+//   width, and at 0.032px pin the same three lines: Firefox clips a space that hangs to the box, the recorder lists
+//   none clipped to nothing, and the search took that for a change of lines. None holds a padded span or a chip, whose
+//   edges and width the browsers fit their own ways at every size (ENGINE_FOLLOWUPS.md, Rich-inline item edges).
 import { TEXTS } from '../../src/test-data.ts'
 import type { CssFont, Paragraph, TextRun } from '../types.ts'
 import { box, codePoints, createRng, font, paragraph, span } from './build.ts'
