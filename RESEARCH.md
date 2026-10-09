@@ -4015,43 +4015,44 @@ repin` shows what), and a fact read in source needs reading again.
   `foo bar` is 49.81px. For the same reason a CR right after a U+2028 or U+2029, which ends its line
   (`handleSegmentBreak`, `InlineItemsBuilder.cpp:954-962`), is the content of a line of its own, where white space alone
   leads a line and collapses away (`Line::appendText`, `InlineLine.cpp:346-373`): `ab`, U+2028, CR is 2 lines at any
-  width that fits `ab`, the second with nothing visible, with or without white space after the CR, and `ab`, U+2028,
-  space is 1 (eight fonts, in webkit-host alone, 2026-10-07). The letters on a CR's two sides kern with its glyph and
-  not with each other. Where that is the font's space glyph, as in Arial, Times New Roman and Trebuchet MS, they kern as
-  with a space (16px Arial `A`, CR, `A` 19.58px, `AA` 21.34px); where the font has a glyph of its own for U+000D, as
-  Helvetica, Helvetica Neue, Times and Palatino do, nothing kerns with it (16px Helvetica `A`, CR, `V` 21.34px, `AV`
-  20.16px, and `A`, CR, space, `B` 25.79px, `A B` 24.91px). In Arabic a CR ends joining. No break comes beside a CR
-  where WebKit's break scan (`nextBreakablePosition`, `BreakablePositions.h:142-255`) takes the CR's pairs with the
-  characters on its two sides from its table, which has none beside a control (`:179-187`): where both are up to U+00FF,
-  as in `été`, CR, `cd`, but for the one case below. The pair of a CR and a letter above U+00FF after it goes to ICU,
-  which breaks after a CR (`:238-251`). The pair of a letter above U+00FF and the CR after it goes to ICU too, whose
-  break is then one unit ahead, and the scan steps on to it only over units above U+00FF and ASCII letters: before any
-  other unit it stops, and that unit's pair with the CR is the table's again (`:241-249`). So after a letter above
-  U+00FF a line ends after the CR before an ASCII letter, as in `бв`, CR, `cd`, and not before another character up to
-  U+00FF, a digit, punctuation or a letter such as `ê`: not in `бв`, CR, `12`, in `бв`, CR, `(x` or in `бв`, CR, `êë`.
-  The one case: the scan doesn't read the units it steps over, so where ASCII letters before the CR follow text it asked
-  ICU about, as Thai, it still holds a character of that text as the one before the CR, and a line ends after the CR in
-  `ไทยe`, CR, `cd`, between two ASCII letters, though not in `ไทยe`, CR, `12`. None ends in `бвe`, CR, `cd`, a Cyrillic
-  and a Latin letter being a pair the scan decides without ICU. So a line can end after a CR between Cyrillic, Greek,
-  Arabic, Hebrew, Thai, Devanagari, Hangul, kana or Han characters, or between one of them and an ASCII letter.
-  webkit-host lays the eight texts named here out so, as the scan's port in `src/line-breaks.ts` predicts, and `ab`, CR,
-  `漢。` with a break after the CR: each in 16px Arial in a box 1px narrower than the text, where the line ends after the
-  CR if a line may end there and before the text's last character if none may (WebKit 22625.1.29.11.27, 2026-10-09). At
-  the edge of an inline box the break is the one the check between two boxes finds, from the next box's text with the
-  two characters before it (`TextUtil::mayBreakInBetween`, `TextUtil.cpp:367-396`): there the pair of a CR and a
-  character up to U+00FF is looked up alone, so a line ends after a CR that ends, starts or is a box only where the
-  character right after it is above U+00FF. Spans `бв`, CR and `cd ef` in 16px Arial at 28 and 32px are `бв` and `c`,
-  then `d ef`, where their text in one node is `бв`, `cd`, `ef`; and a CR at a span's edge takes no room either: `see`,
-  CR and a bold 20px `this word` are 114.68px wide. The analysis of a rich-inline paragraph follows both (webkit-host,
-  2026-10-07; ENGINE_FOLLOWUPS.md, White space and controls, has the probe and what it leaves). White space right after
-  a CR that ends a box, or is a box, belongs to the box that holds it. The CR is no white space, so the run starts after
-  it, and WebKit makes a white-space item of the text box that holds the run's first character, as wide as that box's
-  space (`InlineItemsBuilder.cpp:947`, `963-987`), and takes out only white space that follows other white space, an
-  earlier box's too (`Line::appendText`, `InlineLine.cpp:357-365`). Spans `see`, CR and a bold 20px one of a space and
-  `this word` are 120.24px wide, with the bold space, and three lines at 66px, their `see this` being 66.91px. Firefox
-  has 120.22px, with an FF for the CR too: its transform takes a frame at a time from the white-space state the frame
-  before left, which a CR or FF clears (`nsTextFrameUtils.cpp:286-309`, `382-386`). Chrome has 119.13px, with the first
-  span's 16px space, a CR being white space to Blink, its run's first unit (`Character::IsCollapsibleSpace`,
+  width that fits `ab`, the second with nothing visible but in Menlo, where the CR is a character wide by the
+  fixed-pitch shortcut (below), with or without white space after the CR, and `ab`, U+2028, space is 1 (eight fonts, in
+  webkit-host alone, 2026-10-07). The letters on a CR's two sides kern with its glyph and not with each other. Where
+  that is the font's space glyph, as in Arial, Times New Roman and Trebuchet MS, they kern as with a space (16px Arial
+  `A`, CR, `A` 19.58px, `AA` 21.34px); where the font has a glyph of its own for U+000D, as Helvetica, Helvetica Neue,
+  Times and Palatino do, nothing kerns with it (16px Helvetica `A`, CR, `V` 21.34px, `AV` 20.16px, and `A`, CR, space,
+  `B` 25.79px, `A B` 24.91px). In Arabic a CR ends joining. No break comes beside a CR where WebKit's break scan
+  (`nextBreakablePosition`, `BreakablePositions.h:142-255`) takes the CR's pairs with the characters on its two sides
+  from its table, which has none beside a control (`:179-187`): where both are up to U+00FF, as in `été`, CR, `cd`, but
+  for the one case below. The pair of a CR and a letter above U+00FF after it goes to ICU, which breaks after a CR
+  (`:238-251`). The pair of a letter above U+00FF and the CR after it goes to ICU too, whose break is then one unit
+  ahead, and the scan steps on to it only over units above U+00FF and ASCII letters: before any other unit it stops, and
+  that unit's pair with the CR is the table's again (`:241-249`). So after a letter above U+00FF a line ends after the
+  CR before an ASCII letter, as in `бв`, CR, `cd`, and not before another character up to U+00FF, a digit, punctuation
+  or a letter such as `ê`: not in `бв`, CR, `12`, in `бв`, CR, `(x` or in `бв`, CR, `êë`. The one case: the scan doesn't
+  read the units it steps over, so where ASCII letters before the CR follow text it asked ICU about, as Thai, it still
+  holds a character of that text as the one before the CR, and a line ends after the CR in `ไทยe`, CR, `cd`, between two
+  ASCII letters, though not in `ไทยe`, CR, `12`. None ends in `бвe`, CR, `cd`, a Cyrillic and a Latin letter being a
+  pair the scan decides without ICU. So a line can end after a CR between Cyrillic, Greek, Arabic, Hebrew, Thai,
+  Devanagari, Hangul, kana or Han characters, or between one of them and an ASCII letter. webkit-host lays the eight
+  texts named here out so, as the scan's port in `src/line-breaks.ts` predicts, and `ab`, CR, `漢。` with a break after
+  the CR: each in 16px Arial in a box 1px narrower than the text, where the line ends after the CR if a line may end
+  there and before the text's last character if none may (WebKit 22625.1.29.11.27, 2026-10-09). At the edge of an inline
+  box the break is the one the check between two boxes finds, from the next box's text with the two characters before it
+  (`TextUtil::mayBreakInBetween`, `TextUtil.cpp:367-396`): there the pair of a CR and a character up to U+00FF is looked
+  up alone, so a line ends after a CR that ends, starts or is a box only where the character right after it is above
+  U+00FF. Spans `бв`, CR and `cd ef` in 16px Arial at 28 and 32px are `бв` and `c`, then `d ef`, where their text in one
+  node is `бв`, `cd`, `ef`; and a CR at a span's edge takes no room either: `see`, CR and a bold 20px `this word` are
+  114.68px wide. The analysis of a rich-inline paragraph follows both (webkit-host, 2026-10-07; ENGINE_FOLLOWUPS.md,
+  White space and controls, has the probe and what it leaves). White space right after a CR that ends a box, or is a
+  box, belongs to the box that holds it. The CR is no white space, so the run starts after it, and WebKit makes a
+  white-space item of the text box that holds the run's first character, as wide as that box's space
+  (`InlineItemsBuilder.cpp:947`, `963-987`), and takes out only white space that follows other white space, an earlier
+  box's too (`Line::appendText`, `InlineLine.cpp:357-365`). Spans `see`, CR and a bold 20px one of a space and `this
+  word` are 120.24px wide, with the bold space, and three lines at 66px, their `see this` being 66.91px. Firefox has
+  120.22px, with an FF for the CR too: its transform takes a frame at a time from the white-space state the frame before
+  left, which a CR or FF clears (`nsTextFrameUtils.cpp:286-309`, `382-386`). Chrome has 119.13px, with the first span's
+  16px space, a CR being white space to Blink, its run's first unit (`Character::IsCollapsibleSpace`,
   `character.h:150-153`). A rich-inline paragraph's source offsets follow each: in the WebKit and Gecko profiles no
   space comes from a CR, nor from an FF in the Gecko profile, so the space after one that ends an item is the next
   item's, in its font and letter spacing (`alignToSource()`, `src/analysis.ts`; webkit-host, Firefox 156.0.1 and Chrome
@@ -4089,16 +4090,16 @@ repin` shows what), and a fact read in source needs reading again.
   `abc` fits and its space doesn't (webkit-host, 2026-10-07; two templates of the rich set's
   `item-edges/separator-before-space` family, whose webkit-host cases at 1px and at 25.80px fail without the rule; on
   the stand-in Canvas the rule changes 117 and 107 of 200,000 random paragraphs in the WebKit profile alone, each by one
-  separator that ends its line where it was painted). Offline on the stand-in Canvas, of 200,000 random texts built to
-  hold separators, lone CRs, CRLFs and white space at the end, 27,383 differ from main in the WebKit profile, every one
-  of that shape and laid out as the same text without those CRs is, and none in the other profiles; in Safari such a
-  plain text stays a line short for the CR's own line (ENGINE_FOLLOWUPS.md, White space and controls), as it was before
-  #455. (webkit-host, WebKit 22625.1.29.11.27, 2026-10-06. Installed Safari 27.0 agreed with webkit-host on the 8,387
-  layouts of two earlier probes of that day, in Arial, Times New Roman and Georgia, on all 2,820 widths of a page of
-  these facts in 30 font settings, the fixed-pitch and web fonts among them, and on the lines and widths of 1,623
-  layouts of a sample in Arial, Menlo and Courier New; the larger probes ran in webkit-host alone. Reopens with a Canvas
-  fact that tells which fonts take the fixed-pitch shortcut or which glyph a font gives U+000D, or with normal white
-  space that keeps two spaces that touch.)
+  separator that ends its line where it was painted). Offline on the stand-in Canvas, in a fuzz that isn't checked in,
+  of 200,000 random texts built to hold separators, lone CRs, CRLFs and white space at the end, 27,383 differ from main
+  before #459 in the WebKit profile, every one of that shape and laid out as the same text without those CRs is, and
+  none in the other profiles; in Safari such a plain text stays a line short for the CR's own line (ENGINE_FOLLOWUPS.md,
+  White space and controls), as it was before #455. (webkit-host, WebKit 22625.1.29.11.27, 2026-10-06. Installed Safari
+  27.0 agreed with webkit-host on the 8,387 layouts of two earlier probes of that day, in Arial, Times New Roman and
+  Georgia, on all 2,820 widths of a page of these facts in 30 font settings, the fixed-pitch and web fonts among them,
+  and on the lines and widths of 1,623 layouts of a sample in Arial, Menlo and Courier New; the larger probes ran in
+  webkit-host alone. Reopens with a Canvas fact that tells which fonts take the fixed-pitch shortcut or which glyph a
+  font gives U+000D, or with normal white space that keeps two spaces that touch.)
 - **Emoji and the segmenter.** DOM emoji equal OffscreenCanvas's at the CSS size, bit for bit at 8-32px (a "size × DPR ÷
   DPR" recipe is up to 3.5 px off), and OffscreenCanvas gives a space before U+FE0F the emoji's width
   (ENGINE_FOLLOWUPS.md). Safari's `Intl.Segmenter` doesn't mark digit strings as words where Bun's does, so Bun is no
