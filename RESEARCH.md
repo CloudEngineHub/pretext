@@ -4031,10 +4031,10 @@ repin` shows what), and a fact read in source needs reading again.
   the CR is the table's again (`:241-249`). So where the character held is above U+00FF a line ends after the CR before
   an ASCII letter, as in `бв`, CR, `cd`, and not before another character up to U+00FF, a digit, punctuation or a letter
   such as `ê`: not in `бв`, CR, `12`, in `бв`, CR, `(x` or in `бв`, CR, `êë`. The character held is the one before the
-  CR in the text unless the scan stepped over that one: it reads no unit on its steps to an ICU break, so where the CR
-  stops them it still holds the second character of the pair it asked ICU about. Where that one is above U+00FF a line
-  ends after the CR between two ASCII letters, as in `ไทยe`, CR, `cd`, where the scan asked about `ไท`, though not in
-  `ไทยe`, CR, `12`; where it is up to U+00FF no line ends after a letter above U+00FF and before an ASCII one, as in
+  CR in the text unless the scan stepped over that one: it reads no new pair on its steps to an ICU break, so where the
+  CR stops them it still holds the second character of the pair it asked ICU about. Where that one is above U+00FF a
+  line ends after the CR between two ASCII letters, as in `ไทยe`, CR, `cd`, where the scan asked about `ไท`, though not
+  in `ไทยe`, CR, `12`; where it is up to U+00FF no line ends after a letter above U+00FF and before an ASCII one, as in
   `т.е`, CR, `cd` and `б(в`, CR, `cd`, where it asked about `т.` and `б(`, nor between the ASCII letters of `ทab`, CR,
   `cd`, where it asked about `ทa`. A pair the scan decides without ICU starts no such steps: a Cyrillic and a Latin
   letter are one, so no line ends in `бвe`, CR, `cd`, and a letter and a quotation mark another, so one does in `б"в`,
