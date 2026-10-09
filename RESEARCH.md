@@ -2833,8 +2833,9 @@ runs (Firefox 156.0.1, bench sessions of 2026-09-27 and 28, unless noted):
   from 3.7% under base to 4.6% over; pre-wrap chunks' `layout()` and walk 3.0% and 3.2% slower in Safari, above main in
   five and in six sessions of six and each called in one run of two, and within 1.6% in the other two; the soft hyphens'
   `layout()` 3.6% slower in Firefox, in all six sessions and called in one run of two, 1.9% slower in Safari, in all six
-  and not called, and 0.3% slower in Chrome; the control characters' `layout()` within 1.2% in all three. No worst-case
-  entry is called slower over the six sessions.
+  and not called, and 0.3% slower in Chrome; the control characters' `layout()`, a third of whose text the full walker
+  lays out in the WebKit profile and next to none in the others, within 1.2% in all three. No worst-case entry is called
+  slower over the six sessions.
 - **A paragraph's segment breaks, in the Gecko profile**: Gecko transforms segment breaks in each text frame's own text,
   so a paragraph with a line feed had every item cut out of the joined text, transformed and joined again: 8,508 of the
   bench's 14,834 rich items, 199 of which hold a line feed. Cutting out only those, and copying the text between two
