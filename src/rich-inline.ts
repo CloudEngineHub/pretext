@@ -800,7 +800,11 @@ function setEmptyObjectFacts(
 // takes it whole, so a paragraph of one item can take fewer lines than layoutWithLines() gives its
 // text. Blink takes a text item whole where its shaped width fits (ShapingLineBreaker::ShapeLine,
 // shaping_line_breaker.cc:281-297), which is that line; ENGINE_FOLLOWUPS.md, Negative letter
-// spacing and hanging spaces, has the counts.
+// spacing and hanging spaces, has the counts. The walk hands walkPreparedLinesRaw() a visitor of
+// its own, which costs later walks of one-item CJK paragraphs 4-6% in Firefox 156 and a stream
+// over a page of mostly such paragraphs 8% in Safari 27; the line stepped with no visitor was
+// measured and left out (RESEARCH.md, Decisions Log, 2026-10-09, a loop of its own for the count
+// of lines).
 function findWholeLine(flow: InternalPreparedRichInline): InternalPreparedRichInline {
   const lineCount = walkPreparedLinesRaw(flow.data, Number.POSITIVE_INFINITY, (width, startSegmentIndex, _startGraphemeIndex, endSegmentIndex) => {
     flow.wholeWidth = width

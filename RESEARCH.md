@@ -226,14 +226,14 @@ a rule by reading it and its unit tests (`rebuild/src/engines/<engine>/`) agains
   decides: a property that holds across engines and versions is fine, one JIT's moving heuristics are not. A small
   regression that only such a heuristic explains is accepted, its cost noted. A difference of about a percent of an
   operation's time between two forms of the same code doesn't decide between them (2026-10-09), since the next change to
-  the code moves such differences again: within it the simpler form is taken, its cost noted. As a rule, never keep code
-  only because one JIT likes it (2026-09-26): dead or redundant code kept only because one JIT runs it faster is an
-  accident that code written cleanly wouldn't reproduce, so it goes whatever the regression, its cost noted; that
-  reversed the 2026-09-24 decision to keep `countPreparedLines()`'s leading-space skip (#364). No rule is written out
-  twice for a small JIT gain, though a small split of live code is fine if it reads as ordinary code and a comment says
-  why. The precedent is #365: one shared helper was kept over two copies at a 2-5% cost in Firefox (Bidi Levels;
-  Decisions Log, 2026-09-26, no dead code for one JIT, widened on 2026-10-07). Report a speed fix's cost in lines beside
-  its gain, and what a percentage is of.
+  the code moves such differences again: where two forms differ by that little the simpler is taken, its cost noted. As
+  a rule, never keep code only because one JIT likes it (2026-09-26): dead or redundant code kept only because one JIT
+  runs it faster is an accident that code written cleanly wouldn't reproduce, so it goes whatever the regression, its
+  cost noted; that reversed the 2026-09-24 decision to keep `countPreparedLines()`'s leading-space skip (#364). No rule
+  is written out twice for a small JIT gain, though a small split of live code is fine if it reads as ordinary code and
+  a comment says why. The precedent is #365: one shared helper was kept over two copies at a 2-5% cost in Firefox (Bidi
+  Levels; Decisions Log, 2026-09-26, no dead code for one JIT, widened on 2026-10-07). Report a speed fix's cost in
+  lines beside its gain, and what a percentage is of.
 
 ### Caching And API Design
 
@@ -1454,8 +1454,8 @@ what it was and what it found). It kept drifting from the text walkers: each rul
 copy at item edges (#332), as the halt of a pair of fullwidth marks did (#425). The item stepper, the walker's mode
 for one item's line, the joined windows, the second handle per item and the halts read across two items are gone, and
 three fields of the engine profile with them (`breaksFromItemText`, `collapsesSpaceAcrossSoftHyphens`,
-`spaceBeforeSoftHyphenHangs`). Against main at #459 (e699e27e, 2026-10-07), `src/` outside tests is 108 lines shorter,
-1,778 added and 1,886 removed, and 103 lines of code shorter, counting neither blank lines nor comment lines:
+`spaceBeforeSoftHyphenHangs`). Against main at #459 (e699e27e, 2026-10-07), `src/` outside tests is 104 lines shorter,
+1,782 added and 1,886 removed, and 103 lines of code shorter, counting neither blank lines nor comment lines:
 `src/rich-inline.ts` goes from 1,101 lines of code to 844, `src/analysis.ts` from 327 to 423, `src/line-break.ts` from
 768 to 812 and `src/prepare.ts` from 500 to 511, as the walker's mode for one item's line makes way for what a
 paragraph's segments carry. The main entry's bundle grows by 3,884 B minified (1,428 B gzipped) to 97,304 B (40,832 B),
@@ -1645,10 +1645,11 @@ changes its verdict. Among cases that pass in both, the widest error of a line's
 Firefox where a space before a soft hyphen is no longer hung (ENGINE_FOLLOWUPS.md, Rich-inline item edges). With #455 to
 #459 merged and the rich set's later cases in, a lone carriage return at an item's edge and a line separator before
 white space, the same comparisons against main at #459 read (2026-10-07; #TBD's description has the table): 766, 836 and
-887 pinned predictions differ in Chrome, Firefox and webkit-host; none of the offline comparison's 19,387 plain inputs
-differs in any of the four profiles; and 2,910, 1,895 and 2,594 pinned cases have a wrong line count, where main at #459
-has 2,900, 1,884 and 2,575; five of webkit-host's are the width-1 cases of the carriage-return and separator templates,
-on its accepted list.
+887 pinned predictions differ in Chrome, Firefox and webkit-host, none of them plain (of the 39,975, 41,117 and 41,472
+plain cases a browser none differs as built, with the same `measureText` calls and units; a867ce82, 2026-10-09); none of
+the offline comparison's 19,387 plain inputs differs in any of the four profiles; and 2,910, 1,895 and 2,594 pinned
+cases have a wrong line count, where main at #459 has 2,900, 1,884 and 2,575; five of webkit-host's are the width-1
+cases of the carriage-return and separator templates, on its accepted list.
 
 Three probes, each layout recorded fresh in two document orders and predicted with main and with the paragraph, none
 kept: 23,757 layouts of Chinese and Japanese text in styled runs, with fullwidth marks and U+3000 at item edges, which
@@ -2772,17 +2773,17 @@ runs (Firefox 156.0.1, bench sessions of 2026-09-27 and 28, unless noted):
 
   What the paragraph's tests cost a text was measured by removal, with a walker that only has to be right for a text
   (2026-10-07). In the foreground that walker, every paragraph statement out, reads against the walker as it stood
-  before the halt was taken in one sum and before `hangs` was two statements (three sessions, the worst-case rows):
-  Safari's pre-wrap chunks 7.1% and 5.8% faster, letter-spaced CJK 4.3% and the control characters 5.6%, all called;
-  Firefox's pre-wrap chunks 4.0% and 4.1%, called, letter-spaced CJK 3.9% and the soft hyphens 2.6%; Chrome's pre-wrap
-  `layout()` 3.6%, called, and the soft hyphens 4.9%, with its pre-wrap walk 2.1% slower in every session beside a
-  control 1.2% slower in every session too. In the engines' shells (d8 15.4.80, SpiderMonkey 156.0.1's and Safari 27.0's
-  jsc, on a stand-in Canvas, so hypotheses) the walker before those two changes read 7.9%, 9.0% and 7.1% slower than
-  main's in JavaScriptCore's, on letter-spaced CJK and on pre-wrap chunks' `layout()` and walk, and 4.3% slower in
-  SpiderMonkey's on the soft hyphens; main's walker in the same `src/` gave all of it back, as did the walker with every
-  paragraph statement out, so the gap is the walker's and not the handles'. Of the groups of tests taken out one at a
-  time, one showed alone: the paragraph's three tests in `hangs`, the walker's test of whether a segment hangs at a
-  line's end, which ask whether a zero-width break goes on with a run of hanging spaces, at 4.1% and 2.8% of
+  before the halt was taken in one sum and before `hangs`, its test of whether a segment hangs at a line's end, was two
+  statements (three sessions, the worst-case rows): Safari's pre-wrap chunks 7.1% and 5.8% faster, letter-spaced CJK
+  4.3% and the control characters 5.6%, all called; Firefox's pre-wrap chunks 4.0% and 4.1%, called, letter-spaced CJK
+  3.9% and the soft hyphens 2.6%; Chrome's pre-wrap `layout()` 3.6%, called, and the soft hyphens 4.9%, with its
+  pre-wrap walk 2.1% slower in every session beside a control 1.2% slower in every session too. In the engines' shells
+  (d8 15.4.80, SpiderMonkey 156.0.1's and Safari 27.0's jsc, on a stand-in Canvas, so hypotheses) the walker before
+  those two changes read 7.9%, 9.0% and 7.1% slower than main's in JavaScriptCore's, on letter-spaced CJK and on
+  pre-wrap chunks' `layout()` and walk, and 4.3% slower in SpiderMonkey's on the soft hyphens; main's walker in the same
+  `src/` gave all of it back, as did the walker with every paragraph statement out, so the gap is the walker's and not
+  the handles'. Of the groups of tests taken out one at a time, one showed alone: the paragraph's three tests in
+  `hangs`, which ask whether a zero-width break goes on with a run of hanging spaces, at 4.1% and 2.8% of
   JavaScriptCore's pre-wrap rows. Each of the others read within 2% on the four rows but for five cells of 44, in
   opposite directions.
 
@@ -3008,14 +3009,15 @@ timed (2026-09-26). AGENTS.md's locals rule is for line walkers.
 #### JavaScript Engines
 
 Part 1, Engineering, says when an engine fact may shape code. These did, or moved a measurement:
-- **V8's inlining budgets and the mark context** (2026-10-08): `measureAnalysis()` asks `getMarkContext()` for a context
-  only where a text segment's flags say no break comes before it, so every other segment makes no call. Asked of every
-  text segment, where it returned at that test, the call cost nothing while V8 inlined it, and that rests on two
-  budgets, both in bytes of bytecode, minified or not. One function is inlined at 460 or fewer. All that TurboFan
-  inlines into one function may come to 920: it takes the calls in the order of their frequency per byte and leaves one
-  out where the bytes inlined so far plus 1.2 times its own pass 920 (`JSInliningHeuristic::Finalize()`,
-  `src/compiler/js-inlining-heuristic.cc:373-384`, with `max_inlined_bytecode_size`,
-  `max_inlined_bytecode_size_cumulative` and `reserve_inline_budget_scale_factor`,
+- **V8's inlining budgets and the mark context** (2026-10-08): a run of combining marks after zero-width glue or a
+  control is measured after its context, the grapheme before it and what separates the two (Break Opportunities From
+  Engine Data), which `getMarkContext()` finds. `measureAnalysis()` asks for one only where a text segment's flags say
+  no break comes before it, so every other segment makes no call. Asked of every text segment, where it returned at that
+  test, the call cost nothing while V8 inlined it, and that rests on two budgets, both in bytes of bytecode, minified or
+  not. One function is inlined at 460 or fewer. All that TurboFan inlines into one function may come to 920: it takes
+  the calls in the order of their frequency per byte and leaves one out where the bytes inlined so far plus 1.2 times
+  its own pass 920 (`JSInliningHeuristic::Finalize()`, `src/compiler/js-inlining-heuristic.cc:373-384`, with
+  `max_inlined_bytecode_size`, `max_inlined_bytecode_size_cumulative` and `reserve_inline_budget_scale_factor`,
   `src/flags/flag-definitions.h:1605-1622`; V8 15.3.76.12, Chromium 153's). On a page of CJK messages main met the
   second by one byte: 471 bytes were inlined when `getMarkContext()`, 374 bytes, had its turn, and 471 + 448 = 919.
   Measuring a rich item in place (Rich Inline Boundaries, Rich Inline As One Paragraph) added 7 bytes to two closures,
@@ -5804,8 +5806,8 @@ decisions for the maintainer.
   then shows no gain or calls a loss.
 - **2026-10-09: a difference of about a percent between two forms of the same code doesn't decide between them**, the
   maintainer's decision (Part 1, Engineering, JIT tuning). The percent is of the time an operation takes, as one entry
-  of the bench reads it. The next change to the code moves a difference of that size again, so within it the simpler
-  form is taken and its cost noted. The entry below on a paragraph's lists is a call made under it.
+  of the bench reads it. The next change to the code moves a difference of that size again, so where two forms differ by
+  that little the simpler is taken and its cost noted. The entry below on a paragraph's lists is a call made under it.
 - **2026-10-09: the measuring loop stores each segment at its index in a paragraph's lists, as in a text's, and pushes
   nothing** (landed on judgement with #TBD, under the rule of the same date, above). For a rich-inline paragraph
   `measureAnalysis()` counts the paragraph's index beside its own and stores a segment's flags, width and advances
