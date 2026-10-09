@@ -4022,23 +4022,28 @@ repin` shows what), and a fact read in source needs reading again.
   `A`, CR, `A` 19.58px, `AA` 21.34px); where the font has a glyph of its own for U+000D, as Helvetica, Helvetica Neue,
   Times and Palatino do, nothing kerns with it (16px Helvetica `A`, CR, `V` 21.34px, `AV` 20.16px, and `A`, CR, space,
   `B` 25.79px, `A B` 24.91px). In Arabic a CR ends joining. No break comes beside a CR where WebKit's break scan
-  (`nextBreakablePosition`, `BreakablePositions.h:142-255`) takes the CR's pairs with the characters on its two sides
-  from its table, which has none beside a control (`:179-187`): where both are up to U+00FF, as in `été`, CR, `cd`, but
-  for the one case below. The pair of a CR and a letter above U+00FF after it goes to ICU, which breaks after a CR
-  (`:238-251`). The pair of a letter above U+00FF and the CR after it goes to ICU too, whose break is then one unit
-  ahead, and the scan steps on to it only over units above U+00FF and ASCII letters: before any other unit it stops, and
-  that unit's pair with the CR is the table's again (`:241-249`). So after a letter above U+00FF a line ends after the
-  CR before an ASCII letter, as in `бв`, CR, `cd`, and not before another character up to U+00FF, a digit, punctuation
-  or a letter such as `ê`: not in `бв`, CR, `12`, in `бв`, CR, `(x` or in `бв`, CR, `êë`. The one case: the scan doesn't
-  read the units it steps over, so where ASCII letters before the CR follow text it asked ICU about, as Thai, it still
-  holds a character of that text as the one before the CR, and a line ends after the CR in `ไทยe`, CR, `cd`, between two
-  ASCII letters, though not in `ไทยe`, CR, `12`. None ends in `бвe`, CR, `cd`, a Cyrillic and a Latin letter being a
-  pair the scan decides without ICU. So a line can end after a CR between Cyrillic, Greek, Arabic, Hebrew, Thai,
-  Devanagari, Hangul, kana or Han characters, or between one of them and an ASCII letter. webkit-host lays the eight
-  texts named here out so, as the scan's port in `src/line-breaks.ts` predicts, and `ab`, CR, `漢。` with a break after
-  the CR: each in 16px Arial in a box 1px narrower than the text, where the line ends after the CR if a line may end
-  there and before the text's last character if none may (WebKit 22625.1.29.11.27, 2026-10-09). At the edge of an inline
-  box the break is the one the check between two boxes finds, from the next box's text with the two characters before it
+  (`nextBreakablePosition`, `BreakablePositions.h:142-255`) takes both pairs the CR is in from its table, which has none
+  beside a control (`:179-187`), as it takes every pair of characters up to U+00FF: none comes in `été`, CR, `cd`. The
+  pair of a CR and a letter above U+00FF after it goes to ICU, which breaks after a CR (`:238-251`): a line can end
+  there whatever is before the CR. The pair of the CR and the character the scan holds as the one before it goes to ICU
+  too where that character is above U+00FF. ICU's break is then one unit ahead, and the scan steps on to an ICU break
+  only while the next unit is above U+00FF or an ASCII letter: before any other unit it stops, and that unit's pair with
+  the CR is the table's again (`:241-249`). So where the character held is above U+00FF a line ends after the CR before
+  an ASCII letter, as in `бв`, CR, `cd`, and not before another character up to U+00FF, a digit, punctuation or a letter
+  such as `ê`: not in `бв`, CR, `12`, in `бв`, CR, `(x` or in `бв`, CR, `êë`. The character held is the one before the
+  CR in the text unless the scan stepped over that one: it reads no unit on its steps to an ICU break, so where the CR
+  stops them it still holds the second character of the pair it asked ICU about. Where that one is above U+00FF a line
+  ends after the CR between two ASCII letters, as in `ไทยe`, CR, `cd`, where the scan asked about `ไท`, though not in
+  `ไทยe`, CR, `12`; where it is up to U+00FF no line ends after a letter above U+00FF and before an ASCII one, as in
+  `т.е`, CR, `cd` and `б(в`, CR, `cd`, where it asked about `т.` and `б(`, nor between the ASCII letters of `ทab`, CR,
+  `cd`, where it asked about `ทa`. A pair the scan decides without ICU starts no such steps: a Cyrillic and a Latin
+  letter are one, so no line ends in `бвe`, CR, `cd`, and a letter and a quotation mark another, so one does in `б"в`,
+  CR, `cd`. So a line can end after a CR between Cyrillic, Greek, Arabic, Hebrew, Thai, Devanagari, Hangul, kana or Han
+  characters, or between one of them and an ASCII letter. webkit-host lays the twelve texts named here out so, as the
+  scan's port in `src/line-breaks.ts` predicts, and `ab`, CR, `漢。` and `т.е`, CR, `гд` with a break after the CR: each
+  in 16px Arial in a box 1px narrower than the text, where the line ends after the CR if a line may end there and before
+  the text's last character if none may (WebKit 22625.1.29.11.27, 2026-10-09). At the edge of an inline box the break is
+  the one the check between two boxes finds, from the next box's text with the two characters before it
   (`TextUtil::mayBreakInBetween`, `TextUtil.cpp:367-396`): there the pair of a CR and a character up to U+00FF is looked
   up alone, so a line ends after a CR that ends, starts or is a box only where the character right after it is above
   U+00FF. Spans `бв`, CR and `cd ef` in 16px Arial at 28 and 32px are `бв` and `c`, then `d ef`, where their text in one
