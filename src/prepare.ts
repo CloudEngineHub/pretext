@@ -553,9 +553,9 @@ export function measureAnalysis(
   // once it has deoptimized at a push onto a paragraph's list, it compiles that push as a call
   // from then on, for texts too. With stores Chrome 154 prepares plain text again 4-9% faster
   // than with pushes on a page of mostly plain text whose first rich paragraphs are short, and
-  // they cost up to about 2% of preparing a text again, the most in Safari 27 (RESEARCH.md,
-  // Keeping Work Bounded, JavaScript Engines, under A list made where it is filled; Decisions
-  // Log, 2026-10-09, a paragraph's lists).
+  // they cost about 1% of preparing a text again in Safari 27, 1.9% at most in one run
+  // (RESEARCH.md, Keeping Work Bounded, JavaScript Engines, under A list made where it is
+  // filled; Decisions Log, 2026-10-09, a paragraph's lists).
   for (let mi = from, at = base; mi < to; mi++, at++) {
     const text = texts[mi]!
     const segment = flags[mi]!
