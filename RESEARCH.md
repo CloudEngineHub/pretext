@@ -5815,17 +5815,16 @@ decisions for the maintainer.
   of that shape before an item with text, where it was on 10 without it, the control having let the next item follow on
   the separator's line while each item's text was analysed alone; and on 4 of the 221 layouts of a plain text of that
   shape, where it was on 40, with 4 passing where 35 did. Over all 672 the count is Safari's on 325, from 317, and 251
-  pass, from 284. The 31 passes lost were two errors that cancelled: Safari's Canvas gives a separator no width, so the
-  control took a line of its own only where the last line had no room for the space before it, or under letter spacing,
-  and there it stood in for the CR's line. Part 1 accepts a loss of that kind with the evidence written up (Tests And
-  Losses), and the break is the engine's rule, where the control was a side effect of #455; no checked-in case moved,
-  the harness having no plain case of the CR's line. Since rich inline is one paragraph (#460), a rich item of that
-  shape before an item with text keeps the break with the rule or without, as its white space no longer ends the text
-  that is analysed; the rule decides a plain text of the shape, and in a paragraph the break of a separator before the
-  white space that ends the paragraph, where that white space follows lone CRs or starts a later item (Engine Facts,
-  Safari (WebKit), CR and FF). Reopens with a segment kind that takes no room and no break and still holds a line, which
-  would give the CR its line and both kinds of text their count, or with a report of text with a CR right after a
-  separator.
+  pass, from 284. The 33 passes lost, 31 of plain text and 2 of a rich item at 18px, were two errors that cancelled:
+  Safari's Canvas gives a separator no width, so the control took a line of its own only where the last line had no room
+  for the space before it, or under letter spacing, and there it stood in for the CR's line. Part 1 accepts a loss of
+  that kind with the evidence written up (Tests And Losses), and the break is the engine's rule, where the control was a
+  side effect of #455; no checked-in case moved, the harness having no plain case of the CR's line. Since rich inline is
+  one paragraph (#460), a rich item of that shape before an item with text keeps the break with the rule or without, as
+  its white space doesn't end the text that is analysed; the rule decides a plain text of the shape, and in a paragraph
+  the break of a separator before the white space that ends the paragraph, where that white space follows lone CRs or
+  starts a later item (Engine Facts, Safari (WebKit), CR and FF). Reopens with a segment kind that takes no room and no
+  break and still holds a line, or with a report of text with a CR right after a separator.
 - **2026-10-08: a function of its own for the line of a one-item rich paragraph, and the line walker's hanging test as
   two statements, stay, each on its direct timing**, the maintainer's decision on two changes in the code that lays rich
   inline out as one paragraph (#460). The line of a rich paragraph of one item is built by `createOnlyItemLine()` and
