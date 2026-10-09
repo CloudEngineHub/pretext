@@ -296,7 +296,17 @@ only the line's width times less than an app pays, and not the same less for eve
 a library's line builder into the walk then never makes the line. So a `rich-walk` or `rich-stream` figure from before
 #456 isn't comparable with one after it, on the stress document either (`RESEARCH.md`, Evaluation Traps, Timing, has the
 numbers behind the batches and the kept line). The `lines` row times the line functions on mixed, Latin and CJK
-messages, each family in a document of its own.
+messages, each family in a document of its own. Nearly all of those messages take the simple stepper
+(`stepPreparedSimpleLineGeometry()`, `src/line-break.ts`) and not the full walker (`walkPreparedComplexLines()`), which
+lays out the text the simple one doesn't cover: in every engine profile all 147 Latin and all 134 CJK messages do, and
+133 of the 134 mixed ones, 19,905 of their 20,000 units (prepared on the stand-in Canvas at bf62c76a, 2026-10-09). So
+the row times the simple stepper, not the full walker, and a verdict there on a change that touches only the full walker
+isn't the changed lines' cost: it comes from how the browser runs the changed bundle, or from chance. The `worst` row
+times the full walker, which lays out all of `cjk-letter-spaced` and `pre-wrap-chunks`, 99% of the units of
+`soft-hyphens-marks` and 25% of those of `invisible-tails`, and in the WebKit profile 34% of those of `controls`; in the
+other profiles `layout()`, the one line function the row runs on `controls`, counts those texts with the simple stepper
+and hands the full walker only the lines that end where the text has no break (`countSteppedLines()`). None of the text
+of its other four documents goes to the full walker.
 
 - **A control copy.** Each document runs base, the candidate and a second copy of base, shuffled each round, since only
   same-document ratios survive drift between sessions (`RESEARCH.md`, Evaluation Traps, has the numbers behind this and
