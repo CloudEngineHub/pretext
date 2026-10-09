@@ -290,10 +290,10 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
   // What only some segments have, each made whole at the first one that does: a zero or a null for
   // every segment the paragraph can have, `flags.length` of them, which is more than it has where
   // a padded item gets no start edge, and the segment's value stored at its index. Filled a push a
-  // segment, by one function for lists of numbers and of objects, they cost Safari 27 3.3% of
-  // preparing CJK styled paragraphs again (in each of five foreground sessions of the bench), where
-  // a paragraph is a segment a character and nearly every one has a list of line-start
-  // prohibitions.
+  // segment, by one function for lists of numbers and of objects, they cost Safari 27 3.3% and 4.3%
+  // of preparing CJK styled paragraphs again in two runs of the bench (slower with them in each of
+  // ten foreground sessions), and Chrome 154 7.8% (in each of five), where a paragraph is a segment
+  // a character and nearly every one has a list of line-start prohibitions.
   let entryGeometry: (SegmentEntryGeometry | null)[] | null = null
   let lineStartProhibitions: (Uint8Array | null)[] | null = null
   let breakableLineStartExtras: (number[] | null)[] | null = null
@@ -900,8 +900,8 @@ function getPartWidth(data: PreparedSegments, i: number, from: number, to: numbe
 // chat's are: one fragment of that item, as wide as the line. Every segment is that item's, so its
 // first is the paragraph's first and a place in the paragraph is the same place in the item: the
 // item's first segment, read from the paragraph's lists for every line and taken off each cursor,
-// cost Safari 27 3.9% of its walk of CJK paragraphs of one item (the median of five foreground
-// sessions of the bench, four of them slower with it). A function of its own, which the
+// cost Safari 27 3.9% and 2.0% of its walk of CJK paragraphs of one item in two runs of the bench
+// (slower with it in nine of ten foreground sessions). A function of its own, which the
 // walk and the stream call for such a paragraph: with it Safari walked and streamed the chat
 // demo's paragraphs 8.0% and 8.6% faster than with that line as a branch of createLine(), and
 // Chrome walked them 4.2% faster. It cost Chrome's walk of items that are a word or a space each
