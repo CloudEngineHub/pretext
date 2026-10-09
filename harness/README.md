@@ -301,7 +301,10 @@ document either (`RESEARCH.md`, Evaluation Traps, Timing, has the numbers behind
   the next three).
 - **Focus and a quiet machine.** Background windows' timers are slowed, so Chrome and Safari need a visible, focused
   window throughout. Using the machine spoils the sessions it overlaps, and only those; a loaded machine spoils them
-  all.
+  all. Time on mains, from an adapter that charges the machine under load, or on a battery above 20% charge: at 20%
+  and under the machine throttles, some operations more than others, so the ratios of a run that starts or ends there
+  are void as well as its times (`RESEARCH.md`, Evaluation Traps, Timing; a run prints its power source and charge as
+  it starts and as it ends).
 - **Two sessions and a confirming one.** A row reads slower or faster only when it does so in every session, and the
   floors are fitted to three, where two agree by chance: in the 19 runs of three sessions saved on 2026-10-02, the
   first two called 74 of 322 rows and the third took 22 of them back. So after the default two sessions each browser
