@@ -5684,7 +5684,7 @@ decisions for the maintainer.
   fixed-pitch shortcut for it** (#455), the maintainer's decision. A lone CR is a carriage return with no line feed
   after it. No draw of the harness's real-usage sample holds a CR, lone or in a CRLF, so no real-usage number moves with
   this decision: it is about text that does hold one. In normal white space Safari gives a lone CR no room, and ends a
-  line after it only where a character beside it is above U+00FF (Engine Facts, Safari (WebKit), CR and FF). The profile
+  line after it only in text that holds a character above U+00FF (Engine Facts, Safari (WebKit), CR and FF). The profile
   had it as a space that no line ends at, and now takes it out of the text. In one class of fonts that is a loss: where
   the first installed family of a font list is Menlo, Monaco, Courier, Andale Mono, PT Mono or the generic `monospace`,
   WebKit measures text on its simplified path as its character count times a space, the CR counted, so Safari gives the
