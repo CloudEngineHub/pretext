@@ -301,8 +301,8 @@ messages, each family in a document of its own. Nearly all of those messages tak
 lays out the text the simple one doesn't cover: in every engine profile all 147 Latin and all 134 CJK messages do, and
 133 of the 134 mixed ones, 19,905 of their 20,000 units (prepared on the stand-in Canvas at bf62c76a, 2026-10-09). So
 the row times the simple stepper, not the full walker, and a verdict there on a change that touches only the full walker
-isn't the changed lines' cost: it comes from how the browser runs the changed bundle, or from chance. The `worst` row
-times the full walker, which lays out all of `cjk-letter-spaced` and `pre-wrap-chunks`, 99% of the units of
+isn't that change's cost: it comes from how the browser runs the changed bundle, or from chance. The `worst` row times
+the full walker, which lays out all of `cjk-letter-spaced` and `pre-wrap-chunks`, 99% of the units of
 `soft-hyphens-marks` and 25% of those of `invisible-tails`, and in the WebKit profile 34% of those of `controls`; in the
 other profiles `layout()`, the one line function the row runs on `controls`, counts those texts with the simple stepper
 and hands the full walker only the lines that end where the text has no break (`countSteppedLines()`). None of the text
