@@ -5903,7 +5903,7 @@ decisions for the maintainer.
   targets or JavaScriptCore keeps a step's calls in its compiled tier; with a form that is plain and costs no engine; or
   with a real page where walking or stepping through one-item CJK rich paragraphs matters at this size.
 - **2026-10-09: rich inline's width is the one the text walkers lay out at, and its line functions clamp it at 0
-  themselves** (landed on judgement with #NNN, the last open item of #332). `measureRichInlineStats()`,
+  themselves** (landed on judgement with #462, the last open item of #332). `measureRichInlineStats()`,
   `walkRichInlineLineRanges()` and `layoutNextRichInlineLineRange()` laid every width under 1px out as 1px, as 0.0.9
   did, where `layout()` and the other text line functions lay a width out as given and one under 0 as 0 (#272). No
   browser has such a floor. On a probe that isn't checked in, 609 paragraphs were recorded at 0, 0.25, 0.5, 0.75 and
