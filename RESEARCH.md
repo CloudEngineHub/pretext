@@ -224,14 +224,16 @@ a rule by reading it and its unit tests (`rebuild/src/engines/<engine>/`) agains
   against one, as it did for every width stored as a double (Decisions Log, 2026-10-07, a handle's widths). Stable types
   (numbers, fixed object shapes) are less a matter of JITs than of ordinary good practice. What the code aims at
   decides: a property that holds across engines and versions is fine, one JIT's moving heuristics are not. A small
-  regression that only such a heuristic explains is accepted, its cost noted. As a rule, never keep code only because
-  one JIT likes it (2026-09-26): dead or redundant code kept only because one JIT runs it faster is an accident that
-  code written cleanly wouldn't reproduce, so it goes whatever the regression, its cost noted; that reversed the
-  2026-09-24 decision to keep `countPreparedLines()`'s leading-space skip (#364). No rule is written out twice for a
-  small JIT gain, though a small split of live code is fine if it reads as ordinary code and a comment says why. The
-  precedent is #365: one shared helper was kept over two copies at a 2-5% cost in Firefox (Bidi Levels; Decisions Log,
-  2026-09-26, no dead code for one JIT, widened on 2026-10-07). Report a speed fix's cost in lines beside its gain, and
-  what a percentage is of.
+  regression that only such a heuristic explains is accepted, its cost noted. A difference of about a percent of an
+  operation's time between two forms of the same code doesn't decide between them (2026-10-09), since the next change to
+  the code moves such differences again: within it the simpler form is taken, its cost noted. As a rule, never keep code
+  only because one JIT likes it (2026-09-26): dead or redundant code kept only because one JIT runs it faster is an
+  accident that code written cleanly wouldn't reproduce, so it goes whatever the regression, its cost noted; that
+  reversed the 2026-09-24 decision to keep `countPreparedLines()`'s leading-space skip (#364). No rule is written out
+  twice for a small JIT gain, though a small split of live code is fine if it reads as ordinary code and a comment says
+  why. The precedent is #365: one shared helper was kept over two copies at a 2-5% cost in Firefox (Bidi Levels;
+  Decisions Log, 2026-09-26, no dead code for one JIT, widened on 2026-10-07). Report a speed fix's cost in lines beside
+  its gain, and what a percentage is of.
 
 ### Caching And API Design
 
@@ -5218,17 +5220,17 @@ decisions for the maintainer.
 - **2026-09-26: no dead code for one JIT.** Dead or redundant code kept only because one JIT runs it faster is removed,
   whatever the regression, which is noted: code written plainly wouldn't reproduce the effect (Part 1, Engineering). A
   loop's first pass peeled before the loop counts, since the loop repeats it. Live code split apart or placed for a JIT
-  isn't dead and stays, such as `getLongMarkChainContext()` (#351) and `getTextSegmentWidth()` (#358). Removing the
-  three pieces #357 had kept for Chrome's JIT cost Chrome 154 up to 13%, and removing `countPreparedLines()`'s
-  leading-space skip, a loop that never runs, kept on 2026-09-24 for Firefox, read 3 and 7% slower in Firefox 156's two
-  sessions on resizing Latin chat messages to new widths, within noise (#364). Counted on 2026-09-29, only one of the
-  checks removed skipped work that mattered, the rich stepper's line-start test, whose saving #375 took back plainly;
-  the rest was placement or too small to read (Keeping Work Bounded). A check that changes no result can still skip
-  work, so count the work it skips before calling a slowdown one JIT's. Nor is a rule written out twice for one JIT: the
-  Gecko scan's two text-run setups share one word-end test, whose call makes Firefox 156 prepare four kinds of row 2 to
-  5% slower than two copies would (#365; Bidi Levels has the rows). That was judged a good trade on 2026-09-27; the
-  second setup left with the level splits (2026-10-01). Widened on 2026-10-07, below: code that holds to stable types,
-  good allocation patterns and plain C-like code isn't code for one JIT.
+  isn't dead and stays, such as `getTextSegmentWidth()` (#358). Removing the three pieces #357 had kept for Chrome's JIT
+  cost Chrome 154 up to 13%, and removing `countPreparedLines()`'s leading-space skip, a loop that never runs, kept on
+  2026-09-24 for Firefox, read 3 and 7% slower in Firefox 156's two sessions on resizing Latin chat messages to new
+  widths, within noise (#364). Counted on 2026-09-29, only one of the checks removed skipped work that mattered, the
+  rich stepper's line-start test, whose saving #375 took back plainly; the rest was placement or too small to read
+  (Keeping Work Bounded). A check that changes no result can still skip work, so count the work it skips before calling
+  a slowdown one JIT's. Nor is a rule written out twice for one JIT: the Gecko scan's two text-run setups share one
+  word-end test, whose call makes Firefox 156 prepare four kinds of row 2 to 5% slower than two copies would (#365; Bidi
+  Levels has the rows). That was judged a good trade on 2026-09-27; the second setup left with the level splits
+  (2026-10-01). Widened on 2026-10-07, below: code that holds to stable types, good allocation patterns and plain C-like
+  code isn't code for one JIT.
 - **2026-09-26: one bundle serves every engine, for now.** An app can't import a bundle made for one browser, since its
   users run them all, and fetching one engine's tables at runtime would make the first `prepare()` asynchronous, so
   every browser downloads every engine's tables.
@@ -5527,34 +5529,39 @@ decisions for the maintainer.
   cursor counts the paragraph's segments, with `sourceStart` and `sourceEnd` on a materialized fragment for its place
   in the item's text, since no mapping gives a cursor into `prepareWithSegments(item.text)` without analyzing each
   item again. What it costs: that cursor contract; an atomic item of only white space is an object as wide as its
-  `extraWidth`; on the bench's stress items, a word or a space each, Safari prepares rich text again in 65-68 µs per
-  1,000 units where main's copies take 56-71, 15% slower over ten sessions, above main in each and called in one run of
-  two, and new text reads 12% slower in Firefox and 4% in Safari, in 8 of 10 sessions each and not called, against a
-  line count at 0.2-0.4 of main's time and walks 20-31% faster; on real chat text, preparing again reads 2-17% faster
-  than main in Firefox and Safari and isn't called in Chrome, where one copy of three runs those entries at another
-  speed for a session, and counting, walking and streaming lines read faster in every session (foreground, 2026-10-07
-  and 08, 6bc6a99f against main at #459, ten sessions of the `rich` rows a browser; Rich Inline Boundaries, Rich Inline
-  As One Paragraph, has each reading, the first figures, 25-38% slower in Safari on text prepared again, and what took
-  them down); the main entry is 1,424 B larger gzipped for what the walker and the analysis carry for a paragraph; a
-  text's lines on the worst-case rows that run the full walker, since the walker's statements for a paragraph sit on a
-  text's path: against main at #459 Firefox lays the soft hyphens out 6.2% slower, called, and Safari lays letter-spaced
-  CJK out 5.6% slower and pre-wrap chunks 3.1% slower and walks them 3.3% slower, above main in every session and not
-  called, where Chrome lays letter-spaced CJK out 5.0% faster, called (Chrome 154.0.8037.98, Firefox 156.0.1, Safari
-  27.0, 6bc6a99f against e699e27e, six foreground sessions a browser of every row, 2026-10-07 and 08; Keeping Work
-  Bounded, Work Done Only Where A Rule Applies, has what every such statement taken out gave an earlier walker and what
-  writing `hangs` as two statements gives back); and the walker has rules that hold for a paragraph only (`items !==
-  undefined`), where plain text has the same gap and wasn't to move in the same change: a U+3000 run that hangs at an
-  item's end, a soft hyphen beside an object, a segment of negative advance on a line that overflows, and a run of
-  preserved spaces that hangs where a line wraps right after it with no break there. Each is the engine's rule, and the
-  text walkers should take it in a change of their own, which removes the guard, as #446 did for the breaks a return
-  from an unfit hyphen may take. What it gave up, each a named gap with its count (ENGINE_FOLLOWUPS.md, Rich-inline item
-  edges): the Gecko profile's hang of a space before a soft hyphen Firefox drops, which the stepper had as a profile
-  field and the text walker lacks; a line of its own for a ZWSP after content that overflows, which the stepper gave an
-  item of only a ZWSP; and in Firefox the spaces after a ZWSP or a soft hyphen before a padded item, and a line of only
-  a tab before a padded line feed. It reopens if an app needs cursors into each item's own prepared text; if Safari's
-  cost of preparing rich text shows in an app, where the removals that were measured and left out start (Dead Ends,
-  Fitting, Cuts And Fast Paths); or with kerning across sibling spans, which wants the paragraph measured as well as
-  analyzed whole.
+  `extraWidth`; on the bench's stress items, a word or a space each, Safari prepares rich text again in 63-67 µs per
+  1,000 units where main's copies take 54-68, 12% slower over 16 sessions, above main in 15 of them and called in one
+  run of four, and new text reads 2% slower in Chrome and 4% in Firefox and in Safari, above main in 10, 10 and 13 of
+  the 16 and not called, against a line count at 0.2-0.4 of main's time and walks 21-31% faster; on real chat text,
+  preparing again reads 1-19% faster than main in Firefox and Safari and isn't called in Chrome, where one copy of three
+  runs those entries at another speed for a session, and counting, walking and streaming lines read faster in every
+  session; on CJK rich text, which the bench doesn't hold, Firefox walks one-item paragraphs 4-6% slower than main and
+  Safari steps through a page of mostly one-item paragraphs 8% slower (the entry of 2026-10-09 on a count of lines,
+  below, has their cause), and Safari prepares styled paragraphs again 8% slower, each above main in every one of ten
+  sessions, against a line count 9-48% faster on such a page and on styled paragraphs (foreground, 2026-10-09, a867ce82
+  against main at #459, 16 sessions of the `rich` rows a browser and ten of six CJK documents that aren't checked in;
+  Rich Inline Boundaries, Rich Inline As One Paragraph, has each reading, the first figures, 25-38% slower in Safari on
+  text prepared again, and what took them down); the main entry is 1,428 B larger gzipped for what the walker and the
+  analysis carry for a paragraph; a text's lines on the worst-case rows that run the full walker, since the walker's
+  statements for a paragraph sit on a text's path: against main at #459 Firefox lays the soft hyphens out 3.6% slower,
+  above main in each of six sessions, and Safari lays pre-wrap chunks out 3.0% slower and walks them 3.2% slower, above
+  main in five and in six, each of the three called in one run of two and none over the six, and lays letter-spaced CJK
+  out 3.2% slower, in four of six and not called, where Chrome lays letter-spaced CJK out 5.9% faster, called (Chrome
+  154.0.8037.98, Firefox 156.0.1, Safari 27.0, a867ce82 against e699e27e, six foreground sessions a browser of every
+  row, 2026-10-09; Keeping Work Bounded, Work Done Only Where A Rule Applies, has what every such statement taken out
+  gave an earlier walker and what writing `hangs` as two statements gives back); and the walker has rules that hold for
+  a paragraph only (`items !== undefined`), where plain text has the same gap and wasn't to move in the same change: a
+  U+3000 run that hangs at an item's end, a soft hyphen beside an object, a segment of negative advance on a line that
+  overflows, and a run of preserved spaces that hangs where a line wraps right after it with no break there. Each is the
+  engine's rule, and the text walkers should take it in a change of their own, which removes the guard, as #446 did for
+  the breaks a return from an unfit hyphen may take. What it gave up, each a named gap with its count
+  (ENGINE_FOLLOWUPS.md, Rich-inline item edges): the Gecko profile's hang of a space before a soft hyphen Firefox drops,
+  which the stepper had as a profile field and the text walker lacks; a line of its own for a ZWSP after content that
+  overflows, which the stepper gave an item of only a ZWSP; and in Firefox the spaces after a ZWSP or a soft hyphen
+  before a padded item, and a line of only a tab before a padded line feed. It reopens if an app needs cursors into each
+  item's own prepared text; if Safari's cost of preparing rich text shows in an app, where the removals that were
+  measured and left out start (Dead Ends, Fitting, Cuts And Fast Paths); or with kerning across sibling spans, which
+  wants the paragraph measured as well as analyzed whole.
 - **2026-10-07: the bench's rich walk and stream keep each line they are handed, and its rich row times the chat
   demo's paragraphs beside the stress items**, the maintainer's decisions (#456). An app that paints its lines keeps
   them, as both rich demos do, and a callback that read only a line's width let Chrome skip making main's one-item
@@ -5594,41 +5601,96 @@ decisions for the maintainer.
   a second change that needs every width a double. A retry owes two timings this one lacked or had only as a probe:
   Linux and Windows, where Firefox can round every advance to whole pixels, so that every page would be such a page, and
   a page of only whole widths, which the bench has no document of.
-- **2026-10-07: a rich-inline paragraph's lists, its widths and its advances, are typed where `prepareRichInline()`
-  makes them, by one push and one pop each**, under the rule of the same date on code written for speed (above). The
-  four statements, a push and a pop of 0.5 onto the widths and of `null` onto the advances right after each list is
-  made, change no value. Without them V8 deoptimizes `measureAnalysis()` once at its push, on a page of mostly
-  plain text whose first rich paragraph is short, and plain text prepares slower from then on. The figure it rests on:
-  in Chrome 154.0.8037.98 such a page went on to prepare the bench's long pre-wrap texts 5.9% slower than main at #457
-  without the four statements, in each of five foreground sessions, where the same page without rich paragraphs read
-  1.4% faster, and with them it read as the page without (the code without them, 0fae7dee, and with them, 051bc249, each
-  against fc37f8ae, 2026-10-07; Keeping Work Bounded, JavaScript Engines, A list made where it is filled, has V8's
-  source, the page, the other readings and what the statements cost). The widths' two are the rule's own example, a
-  number array made to hold only floats; the advances' two hold a list to arrays and nulls, a stable type though not a
-  number type, and are needed as well. What it gives up: V8 and JavaScriptCore hold a rich paragraph's widths as doubles
-  from a page's first paragraph, where every width is whole too, which the decision above keeps a text's handle from; no
-  browser has timed such a page. The bench has no document with this order of a page's texts (ENGINE_FOLLOWUPS.md,
-  Cost). Reopens once a paragraph's lists are made inside `measureAnalysis()`, as a text's are; with a Chrome that
-  compiles a push inline again after it failed there; or if rich paragraphs whose widths are all whole lay out slower
-  with the four statements in Safari or Chrome.
-- **2026-10-08: a small change that only changes how the engines compile the same work stays where a direct timing in
-  the foreground shows a gain on real text in one engine and no called loss in another**, the maintainer's decision, on
-  two such changes in the code that lays rich inline out as one paragraph (#TBD). Neither removes work or changes a type
-  or an allocation, and each was timed with it against the same tree without it, both built from commits, ten foreground
-  sessions a browser in Chrome 154.0.8037.98, Firefox 156.0.1 and Safari 27.0 (2026-10-07 and 08). A function of its own
-  for the line of a rich paragraph of one item (`createOnlyItemLine()`, 13 lines of code; 6bc6a99f against 69342169, a
-  local commit made to time it; the `rich` rows): with it Safari walks the chat demo's paragraphs 8.0% faster and
-  streams them 8.6% faster, both called, and Chrome walks them 4.2% faster in every session, under the row's floor;
-  Chrome walks the stress items, a word or a space each, 5.3% slower, and Firefox walks and streams the demo's styled
-  paragraphs 2.2% and 1.5% slower, in every session and not called. The line walker's test of whether a segment hangs,
-  written as two statements for one expression (one line of code more; 69342169 against a38bdea7, another such commit;
-  the worst-case rows, of which the pre-wrap chunks are generated text and the letter-spaced CJK the paragraphs of two
-  Chinese stories at 2px letter spacing): with them Safari lays out and walks the pre-wrap chunks 4.3% and 4.0% faster
-  and Chrome lays out the letter-spaced CJK 2.8% faster, in every session, each of Safari's two called in one run of
-  two; Firefox reads level, and no row is called over the ten sessions or reads slower in every one. Part 1
-  (Engineering, JIT tuning) lets a small split of live code stand where it reads as ordinary code and a comment says
-  why, and asks that code written for speed aim at what holds across engines and versions; neither gain is shown to rest
-  on such a property, so each stays on its timing and not on a mechanism (Rich Inline Boundaries, Rich Inline As One
-  Paragraph, and Keeping Work Bounded, Work Done Only Where A Rule Applies, have the readings). Together they cost 14
-  lines of code and 255 B of the bench's minified bundle. Each reopens when a pinned browser moves, if the same timing
+- **2026-10-07: a rich-inline paragraph's lists, its widths and its advances, were typed where `prepareRichInline()`
+  made them, by one push and one pop each**, under the rule of the same date on code written for speed (above). Replaced
+  on 2026-10-09 by the entry below on a paragraph's lists: the measuring loop stores each segment at its index, and the
+  code has no such statement. The four statements, a push and a pop of 0.5 onto the widths and of `null` onto the
+  advances right after each list was made, changed no value. Without them V8 deoptimized `measureAnalysis()` once at its
+  push, on a page of mostly plain text whose first rich paragraph is short, and plain text prepared slower from then on.
+  The figure it rested on: in Chrome 154.0.8037.98 such a page went on to prepare the bench's long pre-wrap texts 5.9%
+  slower than main at #457 without the four statements, in each of five foreground sessions, where the same page without
+  rich paragraphs read 1.4% faster, and with them it read as the page without (the code without them, 0fae7dee, and with
+  them, 051bc249, each against fc37f8ae, 2026-10-07; Keeping Work Bounded, JavaScript Engines, A list made where it is
+  filled, has V8's source, the page, the other readings and what the statements cost). The widths' two were the rule's
+  own example, a number array made to hold only floats; the advances' two held a list to arrays and nulls, a stable type
+  though not a number type, and were needed as well. What it gave up: V8 and JavaScriptCore held a rich paragraph's
+  widths as doubles from a page's first paragraph, where every width is whole too, which the decision above keeps a
+  text's handle from; no browser had timed such a page. The bench has no document with this order of a page's texts
+  (ENGINE_FOLLOWUPS.md, Cost). It was to reopen once a paragraph's lists were made inside `measureAnalysis()`, as a
+  text's are; with a Chrome that compiles a push inline again after it failed there; or if rich paragraphs whose widths
+  are all whole laid out slower with the four statements in Safari or Chrome, which Safari showed on 2026-10-08.
+- **2026-10-08: a function of its own for the line of a one-item rich paragraph, and the line walker's hanging test as
+  two statements, stay, each on its direct timing**, the maintainer's decision on two changes in the code that lays rich
+  inline out as one paragraph (#TBD). The line of a rich paragraph of one item is built by `createOnlyItemLine()` and
+  not by a first branch of `createLine()`, and the walker's test of whether a segment hangs is two statements for one
+  expression. Neither split removes work or changes a type or an allocation: each changes how the engines compile the
+  same work, and was timed with it against the same tree without it, both built from commits, ten foreground sessions a
+  browser in Chrome 154.0.8037.98, Firefox 156.0.1 and Safari 27.0 (2026-10-07 and 08). The function (13 lines of code
+  more; 6bc6a99f against 69342169, a local commit made to time it; the `rich` rows): with it Safari walks the chat
+  demo's paragraphs 8.0% faster and streams them 8.6% faster, both called, and Chrome walks them 4.2% faster in every
+  session, under the row's floor; Chrome walks the stress items, a word or a space each, 5.3% slower, and Firefox walks
+  and streams the demo's styled paragraphs 2.2% and 1.5% slower, in every session and not called. The two statements
+  (one line of code more; 69342169 against a38bdea7, another such commit; the worst-case rows): with them Safari lays
+  out and walks the pre-wrap chunks 4.3% and 4.0% faster and Chrome lays out the letter-spaced CJK 2.8% faster, in every
+  session, each of Safari's two called in one run of two; Firefox reads level, and no row is called over the ten
+  sessions or reads slower in every one. Part 1 (Engineering, JIT tuning) lets a small split of live code stand where it
+  reads as ordinary code and a comment says why, and asks that code written for speed aim at what holds across engines
+  and versions; neither gain is shown to rest on such a property, so each stays on its timing and not on a mechanism
+  (Rich Inline Boundaries, Rich Inline As One Paragraph, and Keeping Work Bounded, Work Done Only Where A Rule Applies,
+  have the readings). Together they cost 14 lines of code. Each reopens when a pinned browser moves, if the same timing
   then shows no gain or calls a loss.
+- **2026-10-09: a difference of about a percent between two forms of the same code doesn't decide between them**, the
+  maintainer's decision (Part 1, Engineering, JIT tuning). The percent is of the time an operation takes, as one entry
+  of the bench reads it. The next change to the code moves a difference of that size again, so within it the simpler
+  form is taken and its cost noted. The entry below on a paragraph's lists is a call made under it.
+- **2026-10-09: a paragraph's lists are filled by a store at each segment's index, as a text's are, and nothing is
+  pushed** (landed on judgement with #TBD, under the rule of the same date, above). For a rich-inline paragraph
+  `measureAnalysis()` counts the paragraph's index beside its own and stores a segment's flags, width and advances
+  there, and `prepareRichInline()` makes the widths and the advances as plain empty lists. This replaces the entry of
+  2026-10-07 on the same lists, whose reason stands: V8 compiles a push that has once failed in compiled code as a call
+  for as long as the page lives, which a page of mostly plain text whose first rich paragraphs are short brings about,
+  and that entry's four statements, a push and a pop of a fraction and of a null on the lists as they were made, kept it
+  away. Stores by index keep it away too: on that page Chrome 154.0.8037.98 prepares plain text again within 0.9% of the
+  statements (a867ce82 against 0f056620, five foreground sessions, 2026-10-09) and 4-9% faster than with pushes and no
+  statements (two runs of five, 2026-10-08). The statements cost Safari on a fresh page whose every width is whole, CJK
+  text alone at a whole pixel size: the fraction they push leaves the widths of every several-item paragraph a list of
+  doubles, and JavaScriptCore runs the line functions at a faster, integer level only while every list they see holds
+  integers. Safari 27.0 runs 16 of 16 such documents at the fast level with the stores and 0 of 16 with the statements
+  (the same builds and date; neither page is a document of the bench: ENGINE_FOLLOWUPS.md, Cost). A store costs every
+  text against a push: about 1% of text prepared again in Safari (0.5-1.3% on Latin, CJK and mixed messages, never
+  called) and 0.6-0.8% of CJK messages in Chrome (2026-10-08), where the bench's row of them, `seen: cjk seen`, reads
+  1.3% slower than main at #459, above it in each of 16 sessions (2026-10-09), and read 0.3% and 0.7% slower before the
+  stores (five sessions and three, 2026-10-08): most of the 1.3% is theirs. The other form measured, the paragraph's
+  lists made inside `measureAnalysis()`, where a text's are (local branch `lists-inside`), does the same for Chrome and
+  Safari and leaves plain text's code alone, at 6 lines of code more than the statements, where the stores are 4 fewer,
+  and about 1% of rich text prepared again in Safari and Chrome. That is a difference of about a percent, so the form
+  with the fewest lines stands (Keeping Work Bounded, JavaScript Engines, A list made where it is filled, has V8's
+  source and each reading). Reopens if V8 compiles a push inline again after it failed there once, when the stores can
+  be pushes again, or if a store's cost in Safari grows past what the bench calls.
+- **2026-10-09: a loop of its own for the count of lines, and a rich paragraph's whole line stepped at preparation, were
+  measured and left out** (landed on judgement with #TBD). `walkPreparedLinesRaw()` walks a handle's lines and calls the
+  visitor it is handed for each, at one place: a count hands it none, and `findWholeLine()` hands it one of its own as a
+  rich paragraph is prepared. That visitor costs two engines on CJK rich text, which the bench doesn't hold. Against
+  main at #459, Firefox 156.0.1 walks one-item paragraphs 6.1% slower where every width is whole, called, and 3.7%
+  slower with ordinary widths, since it inlines a callee only at a call that has had no other callee and the walk's
+  visitor is then a call a line; Safari 27.0 steps through the lines of a page of mostly one-item paragraphs 8.4%
+  slower, called in one run of two, since JavaScriptCore compiles the full walker for the arguments preparation hands it
+  and the calls that step a line run in its baseline tier. Each is above main in every one of ten foreground sessions,
+  by about 0.2 µs per 1,000 units (a867ce82 against e699e27e, 2026-10-09). A whole line stepped at preparation, with no
+  visitor, gives most of that back, and alone costs Chrome 154.0.8037.98 9.4% and 13.8% of its walk of one-item CJK
+  paragraphs, the second called (five foreground sessions, 2026-10-08): V8 compiles a call that has never run as a
+  deoptimization, and a page counts its lines before it walks them. So the count needs a loop of its own, which leaves
+  the walker called only with a visitor, and that loop was built two ways, each giving the same lines. With the skip
+  past what a line can't start with in a function that the walker's loop and the count's both call, Chrome counts and
+  walks plain Latin and CJK text 3.8-5.7% slower than with the skip written out in each, all four entries called, and
+  Firefox counts plain CJK text 2.0% slower, called (five foreground sessions a browser, 2026-10-08). Neither is taken,
+  and the cost is noted here: the course the rule of the same date (above) sets within a percent, taken on judgement for
+  a larger cost, on Part 1's reasons (Engineering, JIT tuning). The first form reads as ordinary code and costs Chrome a
+  few percent of counting lines, plain text's too; the second writes one rule out twice, which Part 1 rules out; and
+  either adds its lines against a cost that only the engines' compile rules explain, a small regression that Part 1
+  accepts. Both are kept, unmerged, on local branches `walk-plain-final`, 21 lines of code more than 0f056620, which
+  both are built on, and `walk-plain-settle-two-loops`, 24 (Keeping Work Bounded, JavaScript Engines, The walker's
+  visitor call, has the engines' source and each reading). Reopens when a pinned browser moves, since the cost goes by
+  itself if Firefox inlines a callee at a call with two targets or JavaScriptCore keeps a step's calls in its compiled
+  tier; with a form that is plain and costs no engine; or with a real page where walking or stepping through one-item
+  CJK rich paragraphs matters at this size.
