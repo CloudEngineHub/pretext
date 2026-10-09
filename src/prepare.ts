@@ -326,8 +326,7 @@ export function measureAnalysis(
   // A text's lists are made here, where they are filled, and not by its caller: V8 types a
   // list by what the `[]` that made it has seen, and with every caller making them Chrome
   // prepared long texts 5-11% slower and Firefox walked CJK lines 12% slower. A paragraph's
-  // lists are its caller's, each a plain `[]` that comes to hold what is stored in it; the
-  // loop below takes one in whatever form the engine made it, since it stores by index
+  // lists are its caller's, and the measuring loop below stores by index for them
   // (RESEARCH.md, Keeping Work Bounded, JavaScript Engines, under A list made where it is
   // filled).
   const widths: number[] = paragraph === null ? [] : paragraph.widths
@@ -549,17 +548,14 @@ export function measureAnalysis(
     return getCorrectedSegmentWidth(text, textMetrics, fontMeasurement, emojiCorrection) - (measuredWithSpace ? spaceWidth : 0) + followingSpaceKerning
   }
 
-  // Each segment is stored at its index, `at` in the paragraph's or the text's three lists and
-  // `mi - from` in the lists of the measured segments alone; nothing is pushed. A paragraph's
-  // list comes from a caller that has run a few times, in V8's form for small integers.
-  // Compiled code that pushes a fraction or a null onto such a list is deoptimized, and V8
-  // compiles that push as a call from then on, for every text: on a page of mostly plain text
-  // whose first rich paragraphs are short, Chrome 154 prepared plain text again 4-9% slower
-  // for the rest of the page's life. A store by index is compiled with the list's change of
-  // form in it and stays compiled. Against a push it costs a text up to about 1% of a
-  // preparing: text measured before reads 0.5-1.3% slower on Latin, CJK and mixed messages in
-  // Safari 27 and 0.6-0.8% on CJK in Chrome 154, with the builds either way round and under
-  // the bench's floor, and Firefox 156 reads it level to 1%.
+  // Each segment is stored at its index: `at` in the text's or the paragraph's three lists,
+  // `mi - from` in the lists of the measured segments alone. Stored and not pushed, for V8:
+  // once it has deoptimized at a push onto a paragraph's list, it compiles that push as a call
+  // from then on, for texts too. With stores Chrome 154 prepares plain text again 4-9% faster
+  // than with pushes on a page of mostly plain text whose first rich paragraphs are short, and
+  // they cost up to about 2% of preparing a text again, the most in Safari 27 (RESEARCH.md,
+  // Keeping Work Bounded, JavaScript Engines, under A list made where it is filled; Decisions
+  // Log, 2026-10-09, a paragraph's lists).
   for (let mi = from, at = base; mi < to; mi++, at++) {
     const text = texts[mi]!
     const segment = flags[mi]!
@@ -579,9 +575,10 @@ export function measureAnalysis(
         }
         // Such a run of marks adds its context with the marks, minus the context, and
         // takes no letter spacing of its own. Only a segment no break comes before can be
-        // one, and the test is here so that the others make no call: with a call for every
-        // text segment, Chrome 154 prepared CJK text again 2.6% slower where V8 didn't
-        // inline it (RESEARCH.md, Keeping Work Bounded, JavaScript Engines).
+        // one, and the test is here so that the others make no call: with it Chrome 154
+        // prepares CJK text again 2.6% faster than with a call for every text segment, which
+        // V8 didn't inline (RESEARCH.md, Keeping Work Bounded, JavaScript Engines, under V8's
+        // inlining budgets and the mark context).
         const markContext = (segment & UNBROKEN) === 0 ? null : getMarkContext(mi, text)
         if (markContext !== null) {
           width = engineProfile.shapesMarksAcrossSoftHyphen && texts[mi - 1] === '\u00AD' && nonspacingMarkRunRe.test(text)

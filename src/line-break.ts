@@ -689,11 +689,10 @@ function walkPreparedComplexLines(
             const contribution = w + (spaced ? letterSpacing : 0)
             if (contribution !== 0) fitAdvance = leadingSpacing + contribution
           }
-          // Two statements, for how the engines compile them: with them Safari laid pre-wrap text out
-          // 4.3% faster than with the same tests as one `||` and Chrome letter-spaced CJK text 2.8%,
-          // each in all ten foreground sessions of the bench, and Firefox within 1.5% either way.
-          // They stay by decision, which reopens if that timing shows no gain or calls a loss once a
-          // pinned browser moves (RESEARCH.md, Keeping Work Bounded; Decisions Log, 2026-10-08).
+          // Two statements, for how the engines compile them: with them Safari 27 laid pre-wrap text
+          // out 4.3% faster than with the same tests as one `||` and Chrome 154 letter-spaced CJK
+          // text 2.8%, and Firefox 156 read within 1.5% either way (RESEARCH.md, Keeping Work
+          // Bounded, Work Done Only Where A Rule Applies; Decisions Log, 2026-10-08).
           let hangs = (1 << kind & hangingKinds) !== 0
           if (hangGoesOnPastEmpty && kind === ZERO_WIDTH_BREAK && hangEndSegmentIndex === i) hangs = true
           if (hangs) {

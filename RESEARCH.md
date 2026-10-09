@@ -1454,8 +1454,8 @@ what it was and what it found). It kept drifting from the text walkers: each rul
 copy at item edges (#332), as the halt of a pair of fullwidth marks did (#425). The item stepper, the walker's mode
 for one item's line, the joined windows, the second handle per item and the halts read across two items are gone, and
 three fields of the engine profile with them (`breaksFromItemText`, `collapsesSpaceAcrossSoftHyphens`,
-`spaceBeforeSoftHyphenHangs`). Against main at #459 (e699e27e, 2026-10-07), `src/` outside tests is 97 lines shorter,
-1,789 added and 1,886 removed, and 103 lines of code shorter, counting neither blank lines nor comment lines:
+`spaceBeforeSoftHyphenHangs`). Against main at #459 (e699e27e, 2026-10-07), `src/` outside tests is 108 lines shorter,
+1,778 added and 1,886 removed, and 103 lines of code shorter, counting neither blank lines nor comment lines:
 `src/rich-inline.ts` goes from 1,101 lines of code to 844, `src/analysis.ts` from 327 to 423, `src/line-break.ts` from
 768 to 812 and `src/prepare.ts` from 500 to 511, as the walker's mode for one item's line makes way for what a
 paragraph's segments carry. The main entry's bundle grows by 3,884 B minified (1,428 B gzipped) to 97,304 B (40,832 B),
