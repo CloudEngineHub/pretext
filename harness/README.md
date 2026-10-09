@@ -287,14 +287,16 @@ item. Each one's `rich-new` gives every library a batch of its own a round: 1,00
 length of the Latin text caps (The Great Gatsby's opening, which the `new` and `fresh` rows read forward too), and 4,000
 of the demo's paragraphs, which differ more from one batch to the next than prose does. The demo repeats sentences, so
 its batches are paragraphs of words mostly seen, and 6% of `chat`'s new paragraphs repeat an earlier one whole. Each
-one's `rich-seen` prepares its kept paragraphs again, where every item looks its font up and measures nothing. Each
-one's `rich-walk` and `rich-stream` keep every line they are handed, in one variable outside the loop, as an app that
-paints its lines keeps them: both rich demos, the Markdown chat and the rich note, pass each line they walk to
-`materializeRichInlineLineRange()`. A callback that reads only the line's width times less than an app pays, and not the
-same less for every library, since an engine that inlines a library's line builder into the walk then never makes the
-line. So a `rich-walk` or `rich-stream` figure from before #456 isn't comparable with one after it, on the stress
-document either (`RESEARCH.md`, Evaluation Traps, Timing, has the numbers behind the batches and the kept line). The
-`lines` row times the line functions on mixed, Latin and CJK messages, each family in a document of its own.
+one's `rich-seen` prepares its kept paragraphs again, where every item looks its font up and measures nothing.
+`rich-new` and `rich-seen` both time `prepareRichInline()` followed by one `measureRichInlineStats()` of what it
+returns, so a figure for either entry is the cost of both calls. Each one's `rich-walk` and `rich-stream` keep every
+line they are handed, in one variable outside the loop, as an app that paints its lines keeps them: both rich demos, the
+Markdown chat and the rich note, pass each line they walk to `materializeRichInlineLineRange()`. A callback that reads
+only the line's width times less than an app pays, and not the same less for every library, since an engine that inlines
+a library's line builder into the walk then never makes the line. So a `rich-walk` or `rich-stream` figure from before
+#456 isn't comparable with one after it, on the stress document either (`RESEARCH.md`, Evaluation Traps, Timing, has the
+numbers behind the batches and the kept line). The `lines` row times the line functions on mixed, Latin and CJK
+messages, each family in a document of its own.
 
 - **A control copy.** Each document runs base, the candidate and a second copy of base, shuffled each round, since only
   same-document ratios survive drift between sessions (`RESEARCH.md`, Evaluation Traps, has the numbers behind this and
