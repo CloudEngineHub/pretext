@@ -367,11 +367,12 @@ of its other four documents goes to the full walker.
   speeds covers a candidate's (the bullet above).
 - **The builds.** The first line of the output names base and the candidate with their commits and dates, and says when
   this tree's `src/` has uncommitted changes, so a pasted table says what it compared. A candidate given as a folder
-  outside the repository (`--lib=<dir>`) is minified with other names than the same source given as a commit: the
+  outside any checkout (`--lib=<dir>`) is minified with other names than the same source given as a commit: the
   repository's `package.json` (`"sideEffects": false`) isn't above it, and 241 names of main's bench bundle differ, one
-  for one, at the same length (bf62c76a, 2026-10-09). Some rows move with those names (below), so a figure a decision
-  rests on names commits on both sides, and a build that is no commit goes inside the checkout, under `.artifacts/`,
-  where it gets the names a commit gets.
+  for one, at the same length (bf62c76a, 2026-10-09); the `src/` of another checkout, a worktree's too, has that file
+  above it and gets the commit's names. Some rows move with those names (below), so a figure a decision rests on names
+  commits on both sides, and a build that is no commit goes inside a checkout, as under this one's `.artifacts/`, where
+  it gets the names a commit gets.
 - **WebKit's width cache** samples one Canvas call in 21 after a run of misses, so a prepare that submits n strings
   speeds up only after 21 / gcd(n, 21) repeats: compare submitted text and cold first prepares.
 - **Firefox's `resize: latin layout at new widths`** moves about 16% with the names the bench's minifier gives the
