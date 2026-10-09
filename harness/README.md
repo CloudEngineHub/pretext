@@ -337,14 +337,14 @@ of its other four documents goes to the full walker.
   a session reads level when that copy is the control's and as a change when it is the candidate's. Chrome 154 runs one
   copy of main about 12% slower than the other two on the chat documents' `rich-seen` (47.5 or 53.5 µs per 1,000 units
   on `chat`, 58 or 65 on `chat-styled`), a different copy from session to session, and Safari 27 does the same on the
-  stress document's `rich-walk` and `rich-stream`; on its `rich-seen` a copy of main holds one of two speeds through a
-  session's rounds, 54.5-57.5 or 60.5-64.9 µs per 1,000 units over the two copies of main at #455 in a run of three
-  sessions (2026-10-07). Main against itself read Safari's stress `rich-stream` 12-15% slower in all three sessions of
-  one run, which called it slower, and Chrome's `chat-styled rich-seen` 10-13% slower in 7 sessions of 11 (2026-10-07;
-  `RESEARCH.md`, Evaluation Traps, Timing). Read such an entry over ten sessions, and by each copy's own cost in the
-  saved samples, since the table prints base's and the candidate's medians only: the line a run prints as it starts
-  names their folder, `.artifacts/harness-bench/<time>/`, which holds one file for each browser and session, with each
-  round's `ms` and `units` by `label`.
+  stress document's `rich-walk` and `rich-stream`; on its `rich-seen` the two copies of main can stand as far apart
+  through a session's rounds: 64.6 and 57.0, 64.9 and 54.5, and 57.5 and 60.5 µs per 1,000 units in the three sessions
+  of one run of main at #455 (2026-10-07). Main against itself read Safari's stress `rich-stream` 12-15% slower in all
+  three sessions of one run, which called it slower, and Chrome's `chat-styled rich-seen` 10-13% slower in 7 sessions of
+  11 (2026-10-07; `RESEARCH.md`, Evaluation Traps, Timing). Read such an entry over ten sessions, and by each copy's own
+  cost in the saved samples, since the table prints base's and the candidate's medians only: the line a run prints as it
+  starts names their folder, `.artifacts/harness-bench/<time>/`, which holds one file for each browser and session, with
+  each round's `ms` and `units` by `label`.
 - **Floors**, the noise threshold under which a row's ratio isn't called a change (1-6% by row, `FLOORS` in
   `bench/report.ts`, with the builds and machine they came from), are the largest deviation held in one direction in all
   three sessions of a calibration of HEAD against itself; calibrate again, with `bun harness bench HEAD --sessions=3`,
