@@ -365,8 +365,13 @@ of its other four documents goes to the full walker.
   every row would give 7%, from the control's copy on Safari's stress `rich-walk` (6.2%, 15.4% and 20.9% over base), an
   entry where a copy keeps a speed: the band covers a control's copy, and no floor short of the distance between two
   speeds covers a candidate's (the bullet above).
-- **The builds.** The first line of the output names base and the candidate with their commits and dates, and says
-  when this tree's `src/` has uncommitted changes, so a pasted table says what it compared.
+- **The builds.** The first line of the output names base and the candidate with their commits and dates, and says when
+  this tree's `src/` has uncommitted changes, so a pasted table says what it compared. A candidate given as a folder
+  outside the repository (`--lib=<dir>`) is minified with other names than the same source given as a commit: the
+  repository's `package.json` (`"sideEffects": false`) isn't above it, and 241 names of main's bench bundle differ, one
+  for one, at the same length (bf62c76a, 2026-10-09). Some rows move with those names (below), so a figure a decision
+  rests on names commits on both sides, and a build that is no commit goes inside the checkout, under `.artifacts/`,
+  where it gets the names a commit gets.
 - **WebKit's width cache** samples one Canvas call in 21 after a run of misses, so a prepare that submits n strings
   speeds up only after 21 / gcd(n, 21) repeats: compare submitted text and cold first prepares.
 - **Firefox's `resize: latin layout at new widths`** moves about 16% with the names the bench's minifier gives the
