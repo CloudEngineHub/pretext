@@ -4015,13 +4015,13 @@ repin` shows what), and a fact read in source needs reading again.
   `foo bar` is 49.81px. For the same reason a CR right after a U+2028 or U+2029, which ends its line
   (`handleSegmentBreak`, `InlineItemsBuilder.cpp:954-962`), is the content of a line of its own, where white space alone
   leads a line and collapses away (`Line::appendText`, `InlineLine.cpp:346-373`): `ab`, U+2028, CR is 2 lines at any
-  width that fits `ab`, the second with nothing visible but in Menlo, where the CR is a character wide by the
-  fixed-pitch shortcut (below), with or without white space after the CR, and `ab`, U+2028, space is 1 (eight fonts, in
-  webkit-host alone, 2026-10-07). The letters on a CR's two sides kern with its glyph and not with each other. Where
-  that is the font's space glyph, as in Arial, Times New Roman and Trebuchet MS, they kern as with a space (16px Arial
-  `A`, CR, `A` 19.58px, `AA` 21.34px); where the font has a glyph of its own for U+000D, as Helvetica, Helvetica Neue,
-  Times and Palatino do, nothing kerns with it (16px Helvetica `A`, CR, `V` 21.34px, `AV` 20.16px, and `A`, CR, space,
-  `B` 25.79px, `A B` 24.91px). In Arabic a CR ends joining. No break comes beside a CR where WebKit's break scan
+  width that fits `ab`, the second zero wide but in Menlo, where the CR is a character wide by the fixed-pitch shortcut
+  (below), with or without white space after the CR, and `ab`, U+2028, space is 1 (eight fonts, in webkit-host alone,
+  2026-10-07). The letters on a CR's two sides kern with its glyph and not with each other. Where that is the font's
+  space glyph, as in Arial, Times New Roman and Trebuchet MS, they kern as with a space (16px Arial `A`, CR, `A`
+  19.58px, `AA` 21.34px); where the font has a glyph of its own for U+000D, as Helvetica, Helvetica Neue, Times and
+  Palatino do, nothing kerns with it (16px Helvetica `A`, CR, `V` 21.34px, `AV` 20.16px, and `A`, CR, space, `B`
+  25.79px, `A B` 24.91px). In Arabic a CR ends joining. No break comes beside a CR where WebKit's break scan
   (`nextBreakablePosition`, `BreakablePositions.h:142-255`) takes both pairs the CR is in from its table, which has none
   beside a control (`:179-187`), as it takes every pair of characters up to U+00FF: none comes in `été`, CR, `cd`. The
   pair of a CR and a letter above U+00FF after it goes to ICU, which breaks after a CR (`:238-251`): a line can end
