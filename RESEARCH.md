@@ -5906,31 +5906,34 @@ decisions for the maintainer.
   themselves** (landed on judgement with #NNN, the last open item of #332). `measureRichInlineStats()`,
   `walkRichInlineLineRanges()` and `layoutNextRichInlineLineRange()` laid every width under 1px out as 1px, as 0.0.9
   did, where `layout()` and the other text line functions lay a width out as given and one under 0 as 0 (#272). No
-  browser has such a floor. Of 609 paragraphs of content narrower than 1px, recorded at 0, 0.25, 0.5, 0.75 and 1px on a
-  probe that isn't checked in, the lines at 0px start or end elsewhere than at 1px in 370 in Chrome 154.0.8037.98, 399
-  in Firefox 156.0.1 and 401 in webkit-host (WebKit 22625.1.29.11.27), and at 0.5px in 326, 326 and 361: a span of
-  `iiii` in 1px Arial is 4, 4, 2, 2 and 1 lines at the five widths in all three (2026-10-09). So the floor is 0, one
-  constant in each of the three functions. It isn't dropped, though the walkers clamp the width they are handed, because
-  the whole line's fit reads the width before them (`fitsWhole()`, `src/rich-inline.ts`). That fit is against the line's
-  signed width, which is under 0 where letter spacing is more negative than the letters are wide, so against a width
-  under 0 as given such a paragraph is one line at 0 and down to its own width, and walked under it, into the lines the
-  walkers give its text, where the fit has a gap (ENGINE_FOLLOWUPS.md, Negative letter spacing and hanging spaces): a
-  width under 0 would then lay out otherwise than 0. On the stand-in Canvas, 3,109 paragraphs of such content at 16
-  widths from −100 to 1.5px and at `NaN`, `undefined` and `Infinity`, in each of the four profiles, the functions
-  without the clamp give 3 paragraphs other lines at −100 than at 0, and with it none; a unit test holds one. Either
-  form differs from main on 2,068 of the paragraphs at 0 (2,000 in the Gecko profile), on 1,693 at 0.5 (1,680 in the
-  WebKit profile, 1,639 in the Gecko one) and on none at 1px or wider or at a width that isn't a number, and none of the
-  harness's invariants fails at these widths. What differs is content narrower than 1px, several pieces of which the
-  floor put on a line: text under 2px, boxes and padding of 1px and less, letters under a letter spacing about as
-  negative as they are wide. A paragraph of ordinary text and items of no width breaks at 0 where it broke at the floor,
-  and reports a pre-wrap line of only spaces that hang as 0px wide where it reported 1px. A paragraph of one text item
-  now has its text's lines at every width but for the whole fit's gap: 2 of the 75 on the stand-in differ from their
-  text at every width, where 29 did at 0 on main (28 in the Gecko profile). The rich set holds five such paragraphs,
-  searched from 0px (`harness/sets/rich.ts`): main fails 13, 15 and 13 of their 28, 30 and 27 cases in Chrome, Firefox
-  and webkit-host, each with a wrong line count, the change passes all, and no other prediction of the 43,394, 44,495
-  and 44,928 differs from main's. On the probe the width given passes 640, 838 and 820 layouts that the floor failed,
-  and fails 55, 40 and 13 that it passed, each of which main fails the same way at 16 times the size or the recorder
-  can't see (ENGINE_FOLLOWUPS.md, Rich-inline item edges, a box narrower than 1px). The clamp could sit in the fit
-  alone, since the walkers clamp for themselves; the functions' entries were timed statement by statement (Dead Ends,
-  Simplifications Held Back), so they keep their form and the constant changes. Reopens with a whole fit that takes the
-  walkers' lines under negative letter spacing, when the clamp can go.
+  browser has such a floor. On a probe that isn't checked in, 609 paragraphs were recorded at 0, 0.25, 0.5, 0.75 and
+  1px, 560 of them with content narrower than 1px and 49 of only 16px text, 3px boxes and items of no width. The lines
+  at 0px aren't the lines at 1px in 370 of them in Chrome 154.0.8037.98, 361 in Firefox 156.0.1 and 401 in webkit-host
+  (WebKit 22625.1.29.11.27), and at 0.5px in 326, 315 and 361, none of them among the 49: a span of `iiii` in 1px Arial
+  is 4, 4, 2, 2 and 1 lines at the five widths in all three (2026-10-09). In Firefox 38 more at 0px and 11 at 0.5px are
+  recorded otherwise with the same lines: Firefox clips a space that hangs to the box, and the recorder lists none
+  clipped to nothing. So the floor is 0, one constant in each of the three functions. It isn't dropped, though the
+  walkers clamp the width they are handed, because the whole line's fit reads the width before them (`fitsWhole()`,
+  `src/rich-inline.ts`). That fit is against the line's signed width, which is under 0 where letter spacing is more
+  negative than the letters are wide, so against a width under 0 as given such a paragraph is one line at 0 and down to
+  its own width, and walked under it, into the lines the walkers give its text, where the fit has a gap
+  (ENGINE_FOLLOWUPS.md, Negative letter spacing and hanging spaces): a width under 0 would then lay out otherwise
+  than 0. On the stand-in Canvas, 3,109 paragraphs made the same way, at 16 widths from −100 to 1.5px and at `NaN`,
+  `undefined` and `Infinity`, in each of the four profiles, the functions without the clamp give 3 paragraphs other
+  lines at −100 than at 0, and with it none; a unit test holds one. Either form differs from main on 2,068 of the
+  paragraphs at 0 (2,000 in the Gecko profile), on 1,693 at 0.5 (1,680 in the WebKit profile, 1,639 in the Gecko one)
+  and on none at 1px or wider or at a width that isn't a number, and none of the harness's invariants fails at these
+  widths. What differs is content narrower than 1px, several pieces of which the floor put on a line: text of 2px and
+  under, boxes and padding of 1px and less, letters under a letter spacing about as negative as they are wide. A
+  paragraph of ordinary text and items of no width breaks at 0 where it broke at the floor, and reports a pre-wrap line
+  of only spaces that hang as 0px wide where it reported 1px. A paragraph of one text item now has its text's lines at
+  every width but for the whole fit's gap: 2 of the 75 on the stand-in differ from their text at every width, where 29
+  did at 0 on main (28 in the Gecko profile). The rich set holds five paragraphs narrower than 1px, searched from 0px
+  (`harness/sets/rich.ts`): main fails 13, 15 and 13 of their 28, 30 and 27 cases in Chrome, Firefox and webkit-host,
+  each with a wrong line count, the change passes all, and no other prediction of the 43,394, 44,495 and 44,928 differs
+  from main's. On the probe the width given passes 640, 838 and 820 layouts that the floor failed, and fails 55, 40 and
+  13 that it passed, each of which main fails the same way at 16 times the size or the recorder can't see
+  (ENGINE_FOLLOWUPS.md, Rich-inline item edges, a box narrower than 1px). The clamp could sit in the fit alone, since
+  the walkers clamp for themselves; the functions' entries were timed statement by statement (Dead Ends, Simplifications
+  Held Back), so they keep their form and the constant changes. Reopens with a whole fit that takes the walkers' lines
+  under negative letter spacing, when the clamp can go.
