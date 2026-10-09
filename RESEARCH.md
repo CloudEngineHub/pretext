@@ -1644,7 +1644,7 @@ changes its verdict. Among cases that pass in both, the widest error of a line's
 33 and 40 and further in 18, 63 and 22: nearer where a soft hyphen that ends an item now has its hyphen, further in
 Firefox where a space before a soft hyphen is no longer hung (ENGINE_FOLLOWUPS.md, Rich-inline item edges). With #455 to
 #459 merged and the rich set's later cases in, a lone carriage return at an item's edge and a line separator before
-white space, the same comparisons against main at #459 read (2026-10-07; #TBD's description has the table): 766, 836 and
+white space, the same comparisons against main at #459 read (2026-10-07; #460's description has the table): 766, 836 and
 887 pinned predictions differ in Chrome, Firefox and webkit-host, none of them plain (of the 39,975, 41,117 and 41,472
 plain cases a browser none differs as built, with the same `measureText` calls and units; a867ce82, 2026-10-09); none of
 the offline comparison's 19,387 plain inputs differs in any of the four profiles; and 2,910, 1,895 and 2,594 pinned
@@ -1741,7 +1741,7 @@ pays once for a font. Firefox's calls and units stay within 0.2% in every set an
 
 Speed, against main at #459 in the foreground bench, with the chat documents it has since #456 (this design as built,
 a867ce82, against e699e27e; Chrome 154.0.8037.98, Firefox 156.0.1 and installed Safari 27.0 on macOS 27.0, 2026-10-09;
-#TBD's description has every row). Every row was timed in two runs of three sessions a browser, and the `rich` rows and
+#460's description has every row). Every row was timed in two runs of three sessions a browser, and the `rich` rows and
 the `seen` and `new` rows in two more runs of five each: a figure of this design as built against main at #459, here and
 wherever a section points at this timing, is over those 16 sessions for an entry of those three rows and over the six
 for any other, and the bench calls an entry slower or faster only where every session reads it outside its band
@@ -1890,7 +1890,7 @@ and Safari's plain rows weren't timed for this change without the cell: they are
 the whole change against main (below).
 
 As built, with the three removals, measuring in place and the line builders above, and with no width stored through that
-cell, this design reads against main at #459 as follows (the timing under Speed, above; #TBD's description has the
+cell, this design reads against main at #459 as follows (the timing under Speed, above; #460's description has the
 tables). The chat demo's text prepared again is faster than main in Firefox, the chat mix by 8%, under main in each of
 the 16 sessions and not called, and the styled chat paragraphs by 19%, called, and in Safari by 1.0% and 4.5%, under the
 row's floor, the styled paragraphs under main in every session. In Chrome one copy of three runs each of those two
@@ -2886,7 +2886,7 @@ runs (Firefox 156.0.1, bench sessions of 2026-09-27 and 28, unless noted):
   its segments. In Chrome 154, 40 of the bench's 278 Latin messages do, and the Arabic book is one text of 37,604
   segments with 23 such words. Built as the lists of fresh-line geometry and of line-start prohibitions were then, by
   `Array.from` over the segments before the first such word and a test and a push for every segment after it (each takes
-  a store at its segment's index since #TBD), the list made Chrome prepare Latin messages it had seen 3.4% slower than
+  a store at its segment's index since #460), the list made Chrome prepare Latin messages it had seen 3.4% slower than
   main, the book 3.5%, keep-all brackets 3.7% and the emoji texts 3.0% (three foreground sessions of a first build,
   2026-10-04). It is made where the first such word is found, at the text's segment count, and filled with null in one
   call. Against the first build those rows read 2.9%, 3.4%, 3.1% and 2.3% faster, where a build that lists nothing, and
@@ -4931,7 +4931,7 @@ model below; most are parked for the API discussion (TODO.md), not refuted.
 - **One analysis for rich inline**: the joined pass was about 1% of prepare (2026-09-16, before #369 to #371 added to
   it; not timed since) and carried the per-item cursors (Rich Inline Boundaries), and Safari's extra calls are prefix
   fits WebKit needs. The reverse, one analysis of the paragraph cut at item boundaries, is what rich inline has since
-  #TBD, with cursors that count the paragraph's segments (Rich Inline Boundaries, Rich Inline As One Paragraph).
+  #460, with cursors that count the paragraph's segments (Rich Inline Boundaries, Rich Inline As One Paragraph).
 - **The chat's scale** (2026-09-14 to 09-16, stand-in Canvas, before #338, #340 and #344; remeasure before relying on
   it): 46-100 µs to prepare a message the first time, 0.4-0.7 µs to lay it out, 43-59 ms median to resize 100,000, so 10
   ms fits about 13,000-15,000. A pixel position needs every height above it at the current width, so a thumb over
@@ -5704,7 +5704,7 @@ decisions for the maintainer.
   `NaN`. A `TypeError` for a rich-inline item whose `text` isn't a string was written for the change that makes rich
   inline one paragraph and taken out under this rule. Reopens if the library ships an API meant for untyped callers.
 - **2026-10-06: rich inline is one paragraph, laid out by the text walkers**, the maintainer's decision for the first
-  release (#TBD), on condition that each case it loses has a written reason and that its speed was tightened before it
+  release (#460), on condition that each case it loses has a written reason and that its speed was tightened before it
   landed. One analysis of the items' joined text and one handle replace the item stepper, a second line walker that kept
   drifting from the first (Rich Inline Boundaries, Rich Inline As One Paragraph, has the design and its counts). What it
   settles: a rule about line breaking is written once, in the analysis, the profile or the walker; what an engine does
@@ -5751,7 +5751,7 @@ decisions for the maintainer.
   line, so main's walk over the demo's paragraphs read 22% under what an app pays. The stress items are a word or a
   space each and never start inside a word, so a change to how lines are cut across items can read one way on them and
   the other way on text shaped like an app's: an earlier build of the change that lays rich inline out as one paragraph
-  (#TBD, the work for #332, with #455 merged in; before its line builders were rewritten, Rich Inline Boundaries, Rich
+  (#460, the work for #332, with #455 merged in; before its line builders were rewritten, Rich Inline Boundaries, Rich
   Inline As One Paragraph) walked lines 27.0% faster than main on the stress items and 20.5% slower on the demo's styled
   paragraphs in Chrome 154 (ten foreground sessions, 2026-10-07, with the bench as of 01ec9aa9, whose chat documents
   kept other paragraphs than they do since the last change below: 186 styled ones read after batches of 1,000 units,
@@ -5786,7 +5786,7 @@ decisions for the maintainer.
   a page of only whole widths, which the bench has no document of.
 - **2026-10-08: a function of its own for the line of a one-item rich paragraph, and the line walker's hanging test as
   two statements, stay, each on its direct timing**, the maintainer's decision on two changes in the code that lays rich
-  inline out as one paragraph (#TBD). The line of a rich paragraph of one item is built by `createOnlyItemLine()` and
+  inline out as one paragraph (#460). The line of a rich paragraph of one item is built by `createOnlyItemLine()` and
   not by a first branch of `createLine()`, and the walker's test of whether a segment hangs is two statements for one
   expression. Neither split removes work or changes a type or an allocation: each changes how the engines compile the
   same work, and was timed with it against the same tree without it, both built from commits, ten foreground sessions a
@@ -5809,7 +5809,7 @@ decisions for the maintainer.
   of the bench reads it. The next change to the code moves a difference of that size again, so where two forms differ by
   that little the simpler is taken and its cost noted. The entry below on a paragraph's lists is a call made under it.
 - **2026-10-09: the measuring loop stores each segment at its index in a paragraph's lists, as in a text's, and pushes
-  nothing** (landed on judgement with #TBD, under the rule of the same date, above). For a rich-inline paragraph
+  nothing** (landed on judgement with #460, under the rule of the same date, above). For a rich-inline paragraph
   `measureAnalysis()` counts the paragraph's index beside its own and stores a segment's flags, width and advances
   there, and `prepareRichInline()` makes the widths and the advances as plain empty lists. The reason is V8's: it
   compiles a push that has once failed in compiled code as a call for as long as the page lives, which a page of mostly
@@ -5833,7 +5833,7 @@ decisions for the maintainer.
   each reading). Reopens if V8 compiles a push inline again after it failed there once, when the stores can be pushes
   again, or if a store's cost in Safari grows past what the bench calls.
 - **2026-10-09: a loop of its own for the count of lines, and a rich paragraph's whole line stepped at preparation, stay
-  out** (landed on judgement with #TBD). `walkPreparedLinesRaw()` walks a handle's lines and calls the visitor it is
+  out** (landed on judgement with #460). `walkPreparedLinesRaw()` walks a handle's lines and calls the visitor it is
   handed for each, at one place: a count hands it none, and `findWholeLine()` hands it one of its own as a rich
   paragraph is prepared. That visitor costs two engines on CJK rich text, which the bench doesn't hold. Against main at
   #459, Firefox 156.0.1 walks one-item paragraphs 6.1% slower where every width is whole, called, and 3.7% slower with
