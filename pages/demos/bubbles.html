@@ -303,8 +303,9 @@
         at the room the box may take, here its <code>max-width</code>. If a
         paragraph is too long for one line and wraps to 3, the box takes all
         of that room, and stays that wide even when all 3 lines end up shorter.
-        There's no CSS property to say “find the narrowest width that still
-        produces exactly 3 lines.” That requires
+        <code>text-wrap: balance</code> evens the lines out, but the box
+        stays as wide. There's no CSS property to say “make the box the
+        narrowest width that still produces exactly 3 lines.” That requires
         <strong>measuring the text at multiple widths and comparing line
         counts</strong>, which the demo does with one call to Pretext's
         <code>layout()</code> per width, without DOM text measurement in the
