@@ -2084,19 +2084,19 @@ a bidi control turns on levels the profile doesn't resolve. The Gecko analysis g
 scan gives none before a space. The item stepper ended the line at the white space before the control, hung, at every
 such control, and the one-paragraph design lost that line end without naming it: since #460 items `aa see `,
 `\u200E this word` in 16px Arial take a line more than Firefox at 49-52px, and `see `, `\u200E this word` report a first
-line of 30.25px in a 26px box, a space wider than Firefox's and than 0.0.9's. It is rare text: no draw of the real-usage
-sample has an item that starts with a bidi control, and no harness case holds the shape. Putting the break back where a
+line of 30.25px in a 26px box, a space wider than Firefox's and than 0.0.9's. It is rare text: no rich-inline draw of
+the real-usage sample holds a bidi control, and no harness case holds the shape. Putting the break back where a
 character the text run keeps follows the space in the space's own item, which takes an item for a frame, was built and
 not landed, as it trades. On 44,281 layouts of 434 paragraphs built to hold the shape, it has 732 right that main at
 #461 has wrong and 344 wrong that main has right: 284 at a level change after the space, 40 at a padded item and 20 at a
-CR. On the 19,977 of those layouts that put U+200E, U+2066 or U+200F before Latin text in a left-to-right paragraph
-wherever the line has an earlier break, it is 160 and none (Firefox 156.0.1, 2026-10-09, eight probes that aren't
-checked in). Given only in text with no right-to-left character, where Firefox resolves no levels in a left-to-right
-paragraph, the break has 434 right and 60 wrong, at the padded items and the CRs; that was measured once and nobody else
-has checked it. ENGINE_FOLLOWUPS.md has the other forms measured. Each is a trade or a change to the walkers, so it
-waits for the maintainer (Part 1, Merge Bars And Landing). It reopens with a `direction` option (TODO.md), under which
-the profile can tell where a frame ends, or with a report of real text that has a bidi control at the start of a styled
-run.
+CR. On the 19,977 of those layouts that put U+200E, U+202A, U+2066 or U+200F before Latin text in a left-to-right
+paragraph wherever the line has an earlier break, it is 160 and none (Firefox 156.0.1, 2026-10-09, eight probes that
+aren't checked in). Given only in text with no right-to-left character, where Firefox resolves no levels in a
+left-to-right paragraph, the break has 434 right and 60 wrong, at the padded items and the CRs; that was measured once
+and nobody else has checked it. ENGINE_FOLLOWUPS.md has the other forms measured. Each is a trade or a change to the
+walkers, so it waits for the maintainer (Part 1, Merge Bars And Landing). It reopens with a `direction` option
+(TODO.md), under which the profile can tell where a frame ends, or with a report of real text that has a bidi control at
+the start of a styled run.
 
 #### Atomic Items' Own White Space
 
