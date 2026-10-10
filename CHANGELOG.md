@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Upgrading from 0.0.9
+
+- Rich-inline cursors are only for passing back: a fragment's `start` and `end` and a line's `end` no longer index the item's own text, so code that read them that way still compiles and reads the wrong text. Read a materialized fragment's `sourceStart` and `sourceEnd` instead (#460).
+- The type of a `prepareWithSegments()` handle shows only `segments`, `kinds` and `widths`, all read-only: copy one before passing it on as an array or calling array methods on `widths` (`prepared.segments.slice()`, `Array.from(prepared.widths)`), call `measureNaturalWidth()` for a text's width, and read a line's `width` for a line's (#450).
+- `segLevels` is gone: paint each paragraph of mixed-direction text as one DOM element with its direction set (#258).
+- In `kinds`, `'glue'` is gone, a run of no-break spaces being `'text'`, and `'zero-width-glue'` and `'control'` are new (#240, #340).
+- `setLocale(locale)` now sets the language text is laid out under, in place of `<html lang>`: pass the page's language, not the user's, or drop the call. `setLocale()` with no argument goes back to `<html lang>`, and `setLocale('')` no longer does (#340, #356).
+- Don't keep or send a handle as JSON, and don't deep-freeze one: copy it with `structuredClone()` or `postMessage()`, or prepare the text again, as for a handle that 0.0.9 made (#340, #460).
+- A `letterSpacing` that isn't finite now throws a `RangeError` when preparing (#356).
+- Put the space next to a `break: 'never'` item in the text beside it: the item's own leading and trailing white space no longer makes a gap, and an item of only white space is an empty box as wide as its `extraWidth`. An item of only a zero-width space or soft hyphens, such as an editor's placeholder, gets no fragment on a line that starts at it (#369, #460).
+- In TypeScript, an entry of `prepareRichInline()`'s list may be a box, so check its `text` before reading its font; a run type of your own can't carry a `width`; a fragment range built by hand needs `gapItemIndex`, and a materialized fragment `sourceStart` and `sourceEnd` too; and `paragraphs.map(prepareRichInline)` needs an arrow function, `items => prepareRichInline(items)` (#310, #379, #387, #460).
+- The demos are in the repository, no longer in the package (#342).
+
 ### Added
 
 - Rich inline takes boxes, `{ width }` (`RichInlineBox`), for an image, a custom emoji, a formula or a badge inside a line, in place of a character with `break: 'never'` and an `extraWidth` that made up the rest of the object's width. A line can break before and after a box, as at an `<img>`, whatever text touches it, and its fragment has the box's width and no text. Heights stay yours: give each box `vertical-align: top`, and each line is as tall as the paragraph's line height or its tallest box, whichever is taller. `prepareRichInline()` now takes `Array<RichInlineItem | RichInlineBox>`, so code typed from its parameter checks an item's `text` before reading its text or font, and `RichInlineItem` has `width?: never`, so an app whose own run type carries a `width` beside its `text` no longer type-checks at `prepareRichInline()`: pass such runs without that field, or name it otherwise; at run time such an item still lays out as text (#387).
