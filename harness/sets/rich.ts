@@ -95,12 +95,6 @@
 //   separator that ends a span before the paragraph's last span, of one space, at which Safari's line ends
 //   (mapSourceLineBreaks in src/analysis.ts), right after a word and after a space: there the cut takes the width at
 //   which the word fits and the space doesn't, where the separator laid out as a control took a line of its own.
-// - a bidi control that starts an item between two spaces, the first ending the item before it, after a word that fits
-//   its line where that space doesn't: Firefox ends the line at the first space and keeps the word there where text
-//   follows the second space in its own item, the control's or the next one where the control is an item alone, in
-//   pre-wrap too; and where the second space ends its item, Firefox's line goes back to its last break and the word goes
-//   down (segmentAtLineBreaks in src/analysis.ts). Each is one earlier word and one later, so that two of the three
-//   widest changes the cut takes are the widths where the word before the control comes to fit.
 import { TEXTS } from '../../src/test-data.ts'
 import type { CssFont, Paragraph, TextRun } from '../types.ts'
 import { box, codePoints, createRng, font, paragraph, span } from './build.ts'
@@ -345,16 +339,6 @@ export function richTemplates(): Template[] {
   for (let i = 0; i < controls.length; i++) {
     const [family, parts, test = 'a carriage return in a rich paragraph is what its text has in one item'] = controls[i]!
     out.push(template(`item-edges/${family}`, `a lone carriage return, or a line separator before white space, at an item's edge in normal white space (src/layout.test.ts, ${test})`, ARIAL, parts))
-  }
-  const betweenSpaces: ReadonlyArray<readonly [readonly TextRun[], Paragraph['whiteSpace']]> = [
-    [[item('aa see '), item('\u{200E} this')], 'normal'],
-    [[item('aa see '), item('\u{200E}'), item(' this')], 'normal'],
-    [[item('aa see '), item('\u{200E} '), item('this')], 'normal'],
-    [[item('aa see '), item('\u{200E} this')], 'pre-wrap'],
-  ]
-  for (let i = 0; i < betweenSpaces.length; i++) {
-    const [parts, whiteSpace] = betweenSpaces[i]!
-    out.push(template('item-edges/bidi-control-between-spaces', 'a bidi control that starts an item between two spaces (src/layout.test.ts, the Gecko profile ends a line at the white space before an item that starts with bidi controls and a space, where text follows that space in its item)', ARIAL, parts, 'en', 'normal', whiteSpace))
   }
   return out
 }

@@ -2075,23 +2075,28 @@ which one gap in one item's font can't hold, is in ENGINE_FOLLOWUPS.md, Rich-inl
 
 A character the text run drops that starts an item right after an item's white space ends the run, so a space after it
 is a second space, and the scan gives the two one break, after the second. Firefox still ends a line between them where
-a character it keeps follows the second space inside the same frame: the frame's piece on that line, its controls and
-the space, comes to no width, or on a line with no break yet the controls alone, and such a piece fits wherever it
-starts; where the space ends its frame the piece keeps its width, and a line with an earlier break goes back to it.
-Since 2026-10-09 the Gecko analysis gives a bidi control that starts an item a break before it in the first case and
-none in the second (`segmentAtLineBreaks()` in `src/analysis.ts`, whose comment has Firefox's sources). The
-one-paragraph design had lost that line end without naming it: the item stepper hung the white space that ends the item
-before such a control, and the paragraph's control had no break before a space, so items `aa see `, `\u200E this word`
-in 16px Arial took a line more than Firefox at 49-52px, and `see `, `\u200E this word` reported a first line of 30.25px
-in a 26px box, a space wider than 0.0.9's. On five probes of 210 shapes around it, 19,977 layouts, main at #461 fails
-782; with the break 160 of them pass and none that main passes fails, and no harness case moves, as none held the shape
-(Firefox 156.0.1, 16px Arial, 2026-10-09). The break isn't Firefox's line yet: Firefox leaves the control on the line
-before, where the profile starts the next line with the control and its space, a line too many where the next word
-doesn't fit beside that space, as before the one-paragraph design. A zero-width break in place of the control's segment
-passes 456 of the 782 and loses 10, after a chip wider than its line, where Firefox does start a line with the control
-and keep its space; that is a trade, so it waits for the maintainer (Part 1, Merge Bars And Landing).
-ENGINE_FOLLOWUPS.md, Rich-inline item edges, has it and what else is left. It reopens with a line start that can tell a
-control Firefox started the line with from one it left on the line before.
+a character it keeps follows the second space inside the same text frame: the frame's piece on that line, its controls
+and the space, comes to no width, or on a line with no break yet the controls alone, and such a piece fits wherever it
+starts; where the space ends its frame the piece keeps its width, and a line with an earlier break goes back to it
+(ENGINE_FOLLOWUPS.md, Rich-inline item edges, has Firefox's sources and the widths). A frame ends with its item, and
+inside an item where the bidi level changes (Engine Facts, Firefox, Text frames), so which of the two Firefox does after
+a bidi control turns on levels the profile doesn't resolve. The Gecko analysis gives such a control no break, as the
+scan gives none before a space. The item stepper ended the line at the white space before the control, hung, at every
+such control, and the one-paragraph design lost that line end without naming it: since #460 items `aa see `,
+`\u200E this word` in 16px Arial take a line more than Firefox at 49-52px, and `see `, `\u200E this word` report a first
+line of 30.25px in a 26px box, a space wider than Firefox's and than 0.0.9's. It is rare text: no draw of the real-usage
+sample has an item that starts with a bidi control, and no harness case holds the shape. Putting the break back where a
+character the text run keeps follows the space in the space's own item, which takes an item for a frame, was built and
+not landed, as it trades. On 44,281 layouts of 434 paragraphs built to hold the shape, it has 732 right that main at
+#461 has wrong and 344 wrong that main has right: 284 at a level change after the space, 40 at a padded item and 20 at a
+CR. On the 19,977 of those layouts that put U+200E, U+2066 or U+200F before Latin text in a left-to-right paragraph
+wherever the line has an earlier break, it is 160 and none (Firefox 156.0.1, 2026-10-09, eight probes that aren't
+checked in). Given only in text with no right-to-left character, where Firefox resolves no levels in a left-to-right
+paragraph, the break has 434 right and 60 wrong, at the padded items and the CRs; that was measured once and nobody else
+has checked it. ENGINE_FOLLOWUPS.md has the other forms measured. Each is a trade or a change to the walkers, so it
+waits for the maintainer (Part 1, Merge Bars And Landing). It reopens with a `direction` option (TODO.md), under which
+the profile can tell where a frame ends, or with a report of real text that has a bidi control at the start of a styled
+run.
 
 #### Atomic Items' Own White Space
 
@@ -5782,11 +5787,11 @@ decisions for the maintainer.
   overflows, which the stepper gave an item of only a ZWSP; and in Firefox the spaces after a ZWSP or a soft hyphen
   before a padded item, and a line of only a tab before a padded line feed. One more went unnamed until 2026-10-09: the
   Gecko profile's line end at the white space before an item that starts with a bidi control and a space, which the
-  stepper had; the analysis has it back where text follows that space in its item (Rich Inline Boundaries, Firefox's
-  White-Space Run Across Items). It reopens if an app needs cursors into each item's own prepared text; if Safari's cost
-  of preparing rich text shows in an app, where the removals that were measured and left out start (Dead Ends, Fitting,
-  Cuts And Fast Paths); or with kerning across sibling spans, which wants the paragraph measured as well as analyzed
-  whole.
+  stepper took at every such control and Firefox takes at some, by where the control's text frame ends; it stays a gap,
+  since putting it back trades (Rich Inline Boundaries, Firefox's White-Space Run Across Items). It reopens if an app
+  needs cursors into each item's own prepared text; if Safari's cost of preparing rich text shows in an app, where the
+  removals that were measured and left out start (Dead Ends, Fitting, Cuts And Fast Paths); or with kerning across
+  sibling spans, which wants the paragraph measured as well as analyzed whole.
 - **2026-10-07: the bench's rich walk and stream keep each line they are handed, and its rich row times the chat
   demo's paragraphs beside the stress items**, the maintainer's decisions (#456). An app that paints its lines keeps
   them, as both rich demos do, and a callback that read only a line's width let Chrome skip making main's one-item

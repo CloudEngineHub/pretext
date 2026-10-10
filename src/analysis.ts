@@ -322,22 +322,7 @@ function isControlSegmentCode(code: number): boolean {
 // them joins the cluster before, and the text after them goes on in the segment as without them.
 // A run of them ends where an item of a rich-inline paragraph starts inside it, and an item that
 // starts with one starts a text segment with the text after it, as a chunk does, after the break
-// the scan gives at the run, so its fragments keep the controls it starts with. Where white space
-// ends the item before the run and a space follows the run, the scan gives the two one break, after
-// the second (nsLineBreaker.cpp:318-330), and Firefox still ends a line between them: it fits the
-// run's text frame from its first kept character (BreakAndMeasureText, gfxTextRun.cpp:1085-1109,
-// 1175-1188), and where a kept character follows that space inside the frame, the frame's piece on
-// the line is its controls with that space, trimmed, or in pre-wrap hung, to no width
-// (nsTextFrame.cpp:11202-11229), and a piece of no width fits wherever it starts (CanPlaceFrame,
-// nsLineLayout.cpp:1264-1265). So there the run has a break before it, at which the white space
-// before it hangs. Where the space ends its item, the frame has no break to end its piece at: in
-// normal white space the piece keeps its width and the line goes back to its last break that fits
-// (nsLineLayout.cpp:1323-1334; nsBlockFrame.cpp:5361-5379), as the walkers' line does at a segment
-// with no break before it. So does a line whose space runs into a tab, which Gecko doesn't hang.
-// Before a hard break Firefox keeps the run and the space on the line that break ends, which a
-// break before the run doesn't give either, so the run takes none there. With the break the run
-// starts the next line with its space, as a chunk's does, where Firefox leaves the run on the line
-// before and trims the space (ENGINE_FOLLOWUPS.md, Rich-inline item edges).
+// the scan gives at the run, so its fragments keep the controls it starts with.
 function segmentAtLineBreaks(normalized: string, spaceSources: Uint16Array | null, breaks: Uint8Array, whiteSpace: WhiteSpaceMode, scan: AnalysisProfile['lineBreakScan'], hangTabs: boolean, dropsBidiControl: boolean): TextAnalysis {
   const oneCluster = scan === 'gecko' ? ONE_CLUSTER : 0
   const starts: number[] = []
@@ -365,13 +350,6 @@ function segmentAtLineBreaks(normalized: string, spaceSources: Uint16Array | nul
           const endsChunk = j === normalized.length || classifySegmentUnit(normalized, breaks, j, normalized.charCodeAt(j), whiteSpace, scan) === HARD_BREAK
           if (!endsChunk) {
             if (startsItem) breaks[i] = breaks[i]! | (breaks[j]! & BREAK)
-            if (startsItem && (lastKind === SPACE || lastKind === PRESERVED_SPACE) && normalized.charCodeAt(j) === 0x20) {
-              // The first kept unit after the space that follows the run, where that space's item holds one.
-              let kept = j + 1
-              while (kept < normalized.length && (breaks[kept]! & ITEM_START) === 0 && (normalized.charCodeAt(kept) === 0x20 || isDiscardable(normalized.charCodeAt(kept), false))) kept++
-              if (kept < normalized.length && (breaks[kept]! & ITEM_START) === 0 && normalized.charCodeAt(kept) !== 0x09 &&
-                classifySegmentUnit(normalized, breaks, kept, normalized.charCodeAt(kept), whiteSpace, scan) !== HARD_BREAK) breaks[i] = breaks[i]! | BREAK
-            }
             breaks[j] = breaks[j]! & ~(BREAK | SOFT_HYPHEN_BREAK)
           }
           droppedEnd = j
