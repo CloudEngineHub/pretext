@@ -2087,9 +2087,9 @@ such control, and the one-paragraph design lost that line end without naming it:
 line of 30.25px in a 26px box, a space wider than Firefox's and than 0.0.9's. It is rare text: no rich-inline draw of
 the real-usage sample holds a bidi control, and no harness case holds the shape. Putting the break back where a
 character the text run keeps follows the space in the space's own item, which takes an item for a frame, was built and
-not landed, as it trades. On 44,281 layouts of 434 paragraphs built to hold the shape, it has 732 right that main at
-#461 has wrong and 344 wrong that main has right: 284 at a level change after the space, 40 at a padded item and 20 at a
-CR. On the 19,977 of those layouts that put U+200E, U+202A, U+2066 or U+200F before Latin text in a left-to-right
+not landed, as it trades (#463). On 44,281 layouts of 434 paragraphs built to hold the shape, it has 732 right that main
+at #461 has wrong and 344 wrong that main has right: 284 at a level change after the space, 40 at a padded item and 20
+at a CR. On the 19,977 of those layouts that put U+200E, U+202A, U+2066 or U+200F before Latin text in a left-to-right
 paragraph wherever the line has an earlier break, it is 160 and none (Firefox 156.0.1, 2026-10-09, eight probes that
 aren't checked in). Given only in text with no right-to-left character, where Firefox resolves no levels in a
 left-to-right paragraph, the break has 434 right and 60 wrong, at the padded items and the CRs; that was measured once
@@ -5788,9 +5788,9 @@ decisions for the maintainer.
   before a padded item, and a line of only a tab before a padded line feed. One more went unnamed until 2026-10-09: the
   Gecko profile's line end at the white space before an item that starts with a bidi control and a space, which the
   stepper took at every such control and Firefox takes at some, by where the control's text frame ends; it stays a gap,
-  since putting it back trades (Rich Inline Boundaries, Firefox's White-Space Run Across Items). It reopens if an app
-  needs cursors into each item's own prepared text; if Safari's cost of preparing rich text shows in an app, where the
-  removals that were measured and left out start (Dead Ends, Fitting, Cuts And Fast Paths); or with kerning across
+  since putting it back trades (#463; Rich Inline Boundaries, Firefox's White-Space Run Across Items). It reopens if an
+  app needs cursors into each item's own prepared text; if Safari's cost of preparing rich text shows in an app, where
+  the removals that were measured and left out start (Dead Ends, Fitting, Cuts And Fast Paths); or with kerning across
   sibling spans, which wants the paragraph measured as well as analyzed whole.
 - **2026-10-07: the bench's rich walk and stream keep each line they are handed, and its rich row times the chat
   demo's paragraphs beside the stress items**, the maintainer's decisions (#456). An app that paints its lines keeps
