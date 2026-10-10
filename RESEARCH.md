@@ -95,13 +95,14 @@ Inside these, fixes land on judgement; outside, ask the maintainer first.
 - **Out of scope, punted or parked**: server-side measurement and other backends, such as React Native's; mixed font
   sizes in a paragraph (Pretext gives widths and breaks, not line heights); `hyphens: auto` and `overflow-wrap: normal`
   (hyphenation stays on TODO.md as a possible feature); a `fontKerning` option (README assumes default kerning);
-  `system-ui` (issue #336 says what support would take); source offsets (#90) and carets (#198) for editing.
+  `system-ui` (issue #336 says what support would take); source offsets for a plain text's lines and carets (#198) for
+  editing (a materialized rich fragment says where its text sits in its item's `text`, which is what #90 asked for).
 - **Userland**: stricter editorial whole-word handling, never a changed default (an overlong word breaks at grapheme
   boundaries, as with `overflow-wrap: break-word`), scroll anchoring and overscan. The rich-inline API stays public, and
   any future replacement of the line-breaking engine must keep every demo's result achievable, possibly through other
   APIs.
-- **PRs closed against these limits** (2026-09-12) include rem and em sizes (#109, a computed-style read) and a
-  localhost-only `bun start` (#114; it binds the LAN on purpose, so phones reach the demos).
+- **PRs turned down against these limits** (2026-09-12) include rem and em sizes (#109, a computed-style read, still
+  open) and a localhost-only `bun start` (#114, closed; it binds the LAN on purpose, so phones reach the demos).
 
 ### The Correctness Stance
 
@@ -258,7 +259,9 @@ a rule by reading it and its unit tests (`rebuild/src/engines/<engine>/`) agains
   don't tell which uses are common (2026-09-26). Don't overfit to today's uses.
 - **The engine work changed no public export**, from #340 to #375. Rich inline has since gained an options argument
   (`wordBreak`, #379; `whiteSpace`, #381, which an editor in #173 was laying out itself) and boxes (`RichInlineBox`,
-  #387, in place of the stand-in characters of #201), the line functions that return no text take a `prepare()`
+  #387, in place of the stand-in characters of #201), its cursors changed meaning, with `sourceStart` and `sourceEnd`
+  added (#460) and `start` and `end` taken off a materialized fragment's type (Decisions Log, 2026-10-10), the line
+  functions that return no text take a `prepare()`
   handle, and the type of a `prepareWithSegments()` handle shows three fields only (Decisions Log, 2026-10-06, for
   both). The API discussion, a review of the whole public API at the end of the project and before any release, has
   issue #321's `direction` option and `devicePixelRatio` in `layout()` on its list (TODO.md). One bundle serves every
