@@ -89,7 +89,7 @@ type FreshTimes = { compile: number[]; run: number[]; first: number[]; second: n
 
 const pct = (x: number): string => `${x >= 1 ? '+' : ''}${((x - 1) * 100).toFixed(1)}%`
 
-export function report(all: readonly SessionResults[], o: { builds: string; hypotheses: boolean; sizes: Record<string, { bytes: number; gzipped: number }> }): string {
+export function report(all: readonly SessionResults[], o: { builds: string; sizes: Record<string, { bytes: number; gzipped: number }> }): string {
   const out: string[] = ['', o.builds]
   for (const browser of new Set(all.map(r => r.browser))) {
     const results = all.filter(r => r.browser === browser)
@@ -97,12 +97,14 @@ export function report(all: readonly SessionResults[], o: { builds: string; hypo
     const fresh = new Map<string, Map<string, FreshTimes>>()
     const steps: number[] = []
     const dprs = new Set<number>()
+    let hidden = 0
     for (const r of results) {
       for (const d of r.docs) {
         const result = r.results[d.id]
         if (result === undefined) continue
         steps.push(result.timerStep)
         dprs.add(result.start.dpr).add(result.end.dpr)
+        if (!result.start.visible || !result.end.visible) hidden++
         if (!('compileMs' in result)) continue
         const byLabel = fresh.get(d.family) ?? new Map<string, FreshTimes>()
         fresh.set(d.family, byLabel)
@@ -128,13 +130,15 @@ export function report(all: readonly SessionResults[], o: { builds: string; hypo
       // A verdict of two sessions waits for the third the floors are fitted to.
       const note = v === 'within noise' ? ` (±${(100 * Math.max(...per.map(s => band(s, floor)))).toFixed(1)}%)`
         : `${per.length === 2 ? ' (unconfirmed)' : ''}${MOVES_WITH_BUNDLE[browser]?.includes(name) === true ? ' (moves with the bundle)' : ''}`
-      const hypothesis = o.hypotheses ? ' (hypothesis: background browsers)' : per.length === 1 ? ' (hypothesis: one session)' : ''
+      const hypothesis = per.length === 1 ? ' (hypothesis: one session)' : ''
       const base = typical('base')
       if (base > (costliest.get(e.row)?.cost ?? -1)) costliest.set(e.row, { name, cost: base })
       out.push(`| ${name} | ${base.toFixed(1)} ${unit} | ${typical('candidate').toFixed(1)} | ${pct(median(cand))} [${pct(quartile(cand, 0.25))}, ${pct(quartile(cand, 0.75))}] ${per.map(p => pct(p.candidate)).join(' ')} | ${per.map(p => pct(p.control)).join(' ')} | ${v}${note}${hypothesis}${FLOORS[e.row] === undefined ? ' (uncalibrated)' : ''} |`)
     }
     out.push('', `timer step ${Math.min(...steps).toFixed(3)}-${Math.max(...steps).toFixed(3)} ms; device pixel ratio ${[...dprs].join(', ')}${dprs.size > 1 ? ' (it changed: the sessions aren\'t comparable)' : ''}`)
     out.push(`costliest per row (base): ${[...costliest].map(([row, c]) => `${row}: ${c.name.split(' | ')[1]} ${c.cost.toFixed(1)}`).join('; ')}`)
+    // A foreground page stops when it is hidden (page.ts); a background one runs on, and a browser may slow it there.
+    if (hidden > 0) out.push(`${hidden} documents ran while their page was hidden: a window covered whole; time again with it uncovered`)
     if (fresh.size > 0) {
       out.push('', '| fresh page | library | compile ms | run ms | first batch µs/unit | second batch µs/unit |', '|---|---|---:|---:|---:|---:|')
       for (const [family, byLabel] of fresh) for (const [label, e] of byLabel) out.push(`| ${family} | ${label} | ${median(e.compile).toFixed(2)} | ${median(e.run).toFixed(2)} | ${median(e.first).toFixed(2)} | ${median(e.second).toFixed(2)} |`)

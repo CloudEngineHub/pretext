@@ -10,8 +10,10 @@
 //                            and line text for every case, with the same line APIs' disagreements and Canvas calls after
 //                            preparing, and each set's measureText calls and submitted units here and there;
 //                            --offline: whether their src/ give the same results on a stand-in Canvas (offline-equal.ts)
-//   bench <base> [--sessions=2] [--rows=new,...] [--background]   <base>'s src/ timed against --lib's (bench/run.ts),
-//                            unless the two build the same bytes; --lib=<base> times a build against itself
+//   bench <base> [--sessions=3] [--rows=new,...] [--foreground]   <base>'s src/ timed against --lib's (bench/run.ts) in
+//                            background windows, every session of every browser side by side, unless the two build
+//                            the same bytes; --lib=<base> times a build against itself; --foreground: focused windows
+//                            one at a time, installed Safari for WebKit, two sessions and a confirming one
 //   repin <chrome|firefox|safari> [--write]   after a browser update: pin the installed Chrome or Firefox, record every
 //                            case into a scratch copy of the recordings, and print what changed and whether the browser's
 //                            break data is still scripts/engine-data's; --write replaces the recordings and the pin.
@@ -34,7 +36,7 @@ import {
   observable, outsideClaims, percent, pinning, reverseOrder, score, SEED, shown, shrinkWrapShort, tableLines, weightedShare, WIDTH_STEPS, widthBand, widthShares,
   type Behaviour, type Draw, type Outcome, type Stratum, type WidthTally,
 } from './score.ts'
-import { bench, ROWS } from './bench/run.ts'
+import { bench, benchOptions } from './bench/run.ts'
 import { srcOf } from './bench/lib.ts'
 import { breakDataReport } from './break-data.ts'
 import { appPath, pinInstalled, PINNED, pins, setup, writePin } from './browsers.ts'
@@ -657,9 +659,7 @@ async function main(): Promise<number> {
     }
     case 'bench': {
       if (positional[1] === undefined) throw new Error('bench needs a base: a git ref or a src/ directory')
-      const background = flags.has('background')
-      const chosen = flags.has('browser') ? browsers : BROWSERS.filter(browser => BROWSER[browser][background ? 'background' : 'foreground'])
-      await bench(positional[1], flags.get('lib') ?? LIB, chosen, Number(flags.get('sessions') ?? 2), flags.get('rows')?.split(',') ?? ROWS, background)
+      await bench(positional[1], flags.get('lib') ?? LIB, benchOptions(flags, flags.has('browser') ? browsers : null))
       return 0
     }
     case 'repin': {
