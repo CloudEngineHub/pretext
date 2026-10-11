@@ -801,29 +801,67 @@ export function getEmojiCorrection(font: string, measurement: FontMeasurement): 
   if (correction !== null) return correction
 
   const fontSize = parseFontSize(font)
+  // Canvas's width is there already when an earlier text asked and the page had no box to read.
+  const askedBefore = measurement.emojiWidth !== 0
   const canvasW = measurement.emojiWidth = getContext(measurement).measureText('\u{1F600}').width
   correction = 0
-  // document.body is null until the parser reaches <body>, which lib.dom's type leaves out.
-  if (
-    canvasW > fontSize + 0.5 &&
-    typeof document !== 'undefined' &&
-    (document.body as HTMLElement | null) !== null
-  ) {
-    const span = document.createElement('span')
-    span.style.font = font
-    span.style.display = 'inline-block'
-    span.style.visibility = 'hidden'
-    span.style.position = 'absolute'
-    span.textContent = '\u{1F600}'
-    document.body.appendChild(span)
-    const domW = span.getBoundingClientRect().width
-    document.body.removeChild(span)
+  if (canvasW > fontSize + 0.5 && typeof document !== 'undefined') {
+    const domW = readEmojiWidth(font)
+    // A document with no box for the span, as in an iframe that is display: none, has no
+    // width to read. The text goes uncorrected, as in a worker, and nothing is kept: the next
+    // text that may hold an emoji asks again.
+    if (Number.isNaN(domW)) return 0
     if (canvasW - domW > 0.5) {
       correction = canvasW - domW
+      // Advances cut from a segment before this reading hold emoji uncorrected.
+      if (askedBefore) {
+        for (const metrics of measurement.metrics.values()) metrics.fit = null
+        for (const metrics of measurement.followingSpaceMetrics.values()) metrics.fit = null
+      }
     }
   }
   measurement.emojiCorrection = correction
   return correction
+}
+
+// The page's width of one emoji in the font, or NaN where the page has no box for it. The
+// span takes two things from the page, the font asked for and the page's language, which
+// picks fonts as it does for Canvas (-webkit-locale is where Blink and WebKit keep it, and
+// `all` resets it; Gecko's -x-lang is internal and `all` leaves it). Everything else is at
+// its initial value, and important, so that nothing the page declares reaches the span,
+// inherited from <body> or matched by a rule: a letter-spacing, a text-indent or a padding
+// would be read as part of the emoji, and a vertical writing-mode gives a line's height.
+function readEmojiWidth(font: string): number {
+  // The span goes in <body>, beside the page's text, and in <html> where that gives it no
+  // box: document.body is null until the parser reaches <body>, and a <body> that is
+  // display: none, as a page hidden until it is ready, has no boxes. A document whose root
+  // isn't <html>, as an SVG file's, has neither a body nor a head, and lays out no HTML.
+  // lib.dom's types leave the nulls out.
+  const body = document.body as HTMLElement | null
+  if (body === null && (document.head as HTMLElement | null) === null) return NaN
+  const span = document.createElement('span')
+  span.style.cssText = 'all:initial!important;-webkit-locale:inherit!important;display:inline-block!important;visibility:hidden!important;position:absolute!important'
+  span.style.setProperty('font', font, 'important')
+  span.textContent = '\u{1F600}'
+  let width = body === null ? NaN : readWidthIn(body, span)
+  if (Number.isNaN(width)) width = readWidthIn(document.documentElement, span)
+  return width
+}
+
+// The span's width under a parent. Its resolved width is its box's used width in the span's
+// own pixels, and `auto`, so NaN, where it has no box (nsComputedDOMStyle::DoGetWidth,
+// nsComputedDOMStyle.cpp:1803-1814; StyleExtractorCustom.h:570-576 in WebKit; Blink hands the
+// property the element's LayoutObject, css_computed_style_declaration.cc:381-383), but it is
+// written with six significant digits. Its rectangle has every digit, but is the box as
+// drawn: a transform or a zoom above the span scales it, and it is 0 with no box, which read
+// as an emoji 0px wide. So the rectangle's width is taken where it is the resolved one
+// within those digits, and the resolved one where something scales the span.
+function readWidthIn(parent: HTMLElement, span: HTMLElement): number {
+  parent.appendChild(span)
+  const width = parseFloat(getComputedStyle(span).width)
+  const drawn = span.getBoundingClientRect().width
+  parent.removeChild(span)
+  return Math.abs(drawn - width) <= width * 1e-5 ? drawn : width
 }
 
 // Canvas reports a width as a 32-bit float (CanvasRenderingContext2D.cpp:5277 in Firefox,
