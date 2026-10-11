@@ -15,7 +15,7 @@ import { serveJob, watched, windowTitle } from '../run.ts'
 import { BROWSER, BROWSERS, type BrowserKind } from '../types.ts'
 import { benchBundle, buildName, srcOf } from './lib.ts'
 import type { Doc, DocResult, OpSpec } from './page.ts'
-import { FLOORS, report, unconfirmed, type SessionResults } from './report.ts'
+import { FLOORS, report, summary, unconfirmed, type SessionResults } from './report.ts'
 import { createRng } from '../sets/build.ts'
 import type { RichInlineItem } from '../../src/rich-inline.ts'
 import { chatItems, familyText, itemReader, labels, MESSAGE_FAMILIES, reader, richItems, shapes, STYLE, units } from './texts.ts'
@@ -302,7 +302,12 @@ export async function bench(baseRef: string, lib: string, { browsers, sessions, 
     log: text => console.log(text),
   }, !foreground)
   const after = power()
-  console.log(report(all, { builds: `base: ${buildName(baseRef)}; candidate: ${buildName(lib)}${quick ? `; quick sessions, ${QUICK_ROUNDS} rounds a document` : ''}`, floors: FLOORS[foreground ? 'foreground' : 'sideBySide'], sizes: { base: built.base, candidate: built.candidate } }))
-  console.log(`power ${after.source} ${after.percent}%, load ${load()}; ${((Date.now() - started) / 1000).toFixed(0)} s in all`)
+  const builds = `base: ${buildName(baseRef)}; candidate: ${buildName(lib)}${quick ? `; quick sessions, ${QUICK_ROUNDS} rounds a document` : ''}`
+  const floors = FLOORS[foreground ? 'foreground' : 'sideBySide']
+  const seconds = ((Date.now() - started) / 1000).toFixed(0)
+  console.log(report(all, { builds, floors, sizes: { base: built.base, candidate: built.candidate } }))
+  console.log(`power ${after.source} ${after.percent}%, load ${load()}; ${seconds} s in all`)
+  const form = `${sessions} sessions each in ${browsers.join(', ')}, ${foreground ? 'one at a time in the foreground' : 'side by side in background windows'}, ${seconds} s${failed.size > 0 ? `; ${[...failed.keys()].join(', ')} failed a session` : ''}`
+  console.log(`\n${summary(all, { builds, form, floors })}`)
   if (failed.size > 0) throw new Error(`bench: ${[...failed].map(([browser, why]) => `${browser} ${why}`).join('; ')}`)
 }

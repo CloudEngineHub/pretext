@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import type { BrowserKind } from '../types.ts'
 import { benchBundle, buildName, srcOf } from './lib.ts'
 import type { DocResult, Sample } from './page.ts'
-import { FLOORS, report, unconfirmed, verdict, type SessionResults } from './report.ts'
+import { FLOORS, report, summary, unconfirmed, verdict, type SessionResults } from './report.ts'
 import { bench, benchOptions, documents, ROWS, runSessions, type BenchOptions, type Planned } from './run.ts'
 import { EMOJI, familyText, MESSAGE_FAMILIES, STYLE, units } from './texts.ts'
 
@@ -109,6 +109,25 @@ describe('the report', () => {
     const covered = sessionOf(1, { layout: [1, 1] })
     covered.results['worst pre-wrap-chunks']!.end = { ...snapshot, visible: false }
     expect(report([seen[0]!, covered], { builds: BUILDS, floors: FLOORS.foreground, sizes: {} })).toContain('\n1 documents ran while their page was hidden')
+  })
+
+  test('the output ends with one line of what was timed and how many entries read each way, then each entry that read slower or faster, or a line that says none did: a pull request would paste every row to show two', () => {
+    const form = '3 sessions each in chrome, firefox, side by side in background windows, 135 s'
+    const of = (all: SessionResults[]): string[] => summary(all, { builds: BUILDS, form, floors: FLOORS.sideBySide }).split('\n')
+    const chrome = [0, 1, 2].map(session => sessionOf(session, { prepare: [1.2, 1], layout: [1.01, 1], walk: [0.9, 1.01] }))
+    const firefox = [0, 1, 2].map(session => sessionOf(session, { layout: [1.16, 1], prepare: [1, 1] }, 'firefox', 'controls'))
+    expect(of([...chrome, ...firefox])).toEqual([
+      `${BUILDS}; ${form}; 5 entries: 2 slower, 1 faster, 2 within noise`,
+      '- chrome | worst | pre-wrap-chunks prepare: slower, +20.1% +20.1% +20.1% (control +0.0% +0.0% +0.0%)',
+      '- chrome | worst | pre-wrap-chunks walk: faster, -9.9% -9.9% -9.9% (control +1.0% +1.0% +1.0%)',
+      '- firefox | worst | controls layout: slower (moves with the bundle), +16.1% +16.1% +16.1% (control +0.0% +0.0% +0.0%)',
+    ])
+    expect(of([0, 1, 2].map(session => sessionOf(session, { layout: [1.01, 1] })))).toEqual([`${BUILDS}; ${form}; 1 entries: 0 slower, 0 faster, 1 within noise`, '- no entry read slower or faster'])
+    // The marks a table gives a verdict come with it, and so does the count of documents that ran hidden.
+    expect(of(chrome.slice(0, 2))[1]).toStartWith('- chrome | worst | pre-wrap-chunks prepare: slower (unconfirmed), +20.1% +20.1% (control')
+    const covered = sessionOf(1, { layout: [1.01, 1] })
+    covered.results['worst pre-wrap-chunks']!.start = { ...snapshot, visible: false }
+    expect(of([sessionOf(0, { layout: [1.01, 1] }), covered])[0]).toEndWith('1 entries: 0 slower, 0 faster, 1 within noise; 1 documents ran hidden, so time again')
   })
 
   test('the rows marked are rows the bench times: a renamed row would lose its mark and say nothing', () => {

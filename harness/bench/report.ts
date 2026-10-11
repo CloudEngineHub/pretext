@@ -1,7 +1,8 @@
 // What the bench prints: the builds, then per browser, row and family or operation, base's and the candidate's cost (per
 // 1,000 UTF-16 units, or per call for labels), candidate/base as the median over rounds of each round's paired ratio
 // with its quartiles and each session's median, control/base the same way, and a verdict (`verdict()`). Then the
-// costliest entry per row, the fresh pages and the bundles' sizes.
+// costliest entry per row, the fresh pages and the bundles' sizes; and last, the few lines a pull request quotes
+// (`summary()`).
 import type { DocResult, Sample } from './page.ts'
 
 // Each row's noise floor, from a calibration of HEAD against itself (harness/README.md, Bench): the largest deviation
@@ -103,6 +104,55 @@ type FreshTimes = { compile: number[]; run: number[]; first: number[]; second: n
 
 const pct = (x: number): string => `${x >= 1 ? '+' : ''}${((x - 1) * 100).toFixed(1)}%`
 
+// An entry's readings by session and its verdict as the table words it. A row without a verdict prints its widest
+// band, the smallest change these sessions could have called: where a copy of base kept another speed for a document,
+// that is the distance between two copies, not the row's floor. A verdict of two sessions waits for the third the
+// floors are fitted to.
+function judged(browser: string, name: string, e: Entry, floors: Record<string, number>): { per: Reading[]; verdict: Verdict; words: string } {
+  const per = e.sessions.map(reading)
+  const floor = floors[e.row] ?? 0
+  const v = verdict(per, floor)
+  const note = v === 'within noise' ? ` (±${(100 * Math.max(...per.map(s => band(s, floor)))).toFixed(1)}%)`
+    : `${per.length === 2 ? ' (unconfirmed)' : ''}${MOVES_WITH_BUNDLE[browser]?.includes(name) === true ? ' (moves with the bundle)' : ''}`
+  return { per, verdict: v, words: `${v}${note}${per.length === 1 ? ' (hypothesis: one session)' : ''}${floors[e.row] === undefined ? ' (uncalibrated)' : ''}` }
+}
+
+// A foreground page stops when it is hidden (page.ts); a background one runs on, and a browser may slow it there.
+function hiddenDocuments(results: readonly SessionResults[]): number {
+  let hidden = 0
+  for (const r of results) {
+    for (const d of r.docs) {
+      const result = r.results[d.id]
+      if (result !== undefined && (!result.start.visible || !result.end.visible)) hidden++
+    }
+  }
+  return hidden
+}
+
+// The last lines of a run, for a pull request to quote in place of the tables: one line with the builds, how they were
+// timed (`form`) and how many entries read each way, then each entry that read slower or faster with its readings by
+// session and the control's, or a line that says none did. Documents that ran hidden are counted here too, since a
+// reader of these lines alone has to know to time again.
+export function summary(all: readonly SessionResults[], o: { builds: string; form: string; floors: Record<string, number> }): string {
+  const called: string[] = []
+  let entries = 0
+  let slower = 0
+  let hidden = 0
+  for (const browser of new Set(all.map(r => r.browser))) {
+    const results = all.filter(r => r.browser === browser)
+    hidden += hiddenDocuments(results)
+    for (const [name, e] of entriesOf(results)) {
+      const j = judged(browser, name, e, o.floors)
+      entries++
+      if (j.verdict === 'within noise') continue
+      if (j.verdict === 'slower') slower++
+      called.push(`- ${browser} | ${name}: ${j.words}, ${j.per.map(p => pct(p.candidate)).join(' ')} (control ${j.per.map(p => pct(p.control)).join(' ')})`)
+    }
+  }
+  const counts = `${entries} entries: ${slower} slower, ${called.length - slower} faster, ${entries - called.length} within noise`
+  return [`${o.builds}; ${o.form}; ${counts}${hidden > 0 ? `; ${hidden} documents ran hidden, so time again` : ''}`, ...(called.length > 0 ? called : ['- no entry read slower or faster'])].join('\n')
+}
+
 export function report(all: readonly SessionResults[], o: { builds: string; floors: Record<string, number>; sizes: Record<string, { bytes: number; gzipped: number }> }): string {
   const out: string[] = ['', o.builds]
   for (const browser of new Set(all.map(r => r.browser))) {
@@ -111,14 +161,13 @@ export function report(all: readonly SessionResults[], o: { builds: string; floo
     const fresh = new Map<string, Map<string, FreshTimes>>()
     const steps: number[] = []
     const dprs = new Set<number>()
-    let hidden = 0
+    const hidden = hiddenDocuments(results)
     for (const r of results) {
       for (const d of r.docs) {
         const result = r.results[d.id]
         if (result === undefined) continue
         steps.push(result.timerStep)
         dprs.add(result.start.dpr).add(result.end.dpr)
-        if (!result.start.visible || !result.end.visible) hidden++
         if (!('compileMs' in result)) continue
         const byLabel = fresh.get(d.family) ?? new Map<string, FreshTimes>()
         fresh.set(d.family, byLabel)
@@ -135,23 +184,14 @@ export function report(all: readonly SessionResults[], o: { builds: string; floo
       const unit = e.perCall ? 'µs/call' : 'µs/1k'
       const rounds = e.sessions.flat()
       const typical = (label: string): number => (e.perCall ? 1000 : 1_000_000) * median(rounds.map(round => cost(round, label)))
-      const per = e.sessions.map(reading)
+      const { per, words } = judged(browser, name, e, o.floors)
       const cand = ratios(rounds, 'candidate')
-      const floor = o.floors[e.row] ?? 0
-      const v = verdict(per, floor)
-      // A row without a verdict prints its widest band, the smallest change these sessions could have called: where a
-      // copy of base kept another speed for a document, that is the distance between two copies, not the row's floor.
-      // A verdict of two sessions waits for the third the floors are fitted to.
-      const note = v === 'within noise' ? ` (±${(100 * Math.max(...per.map(s => band(s, floor)))).toFixed(1)}%)`
-        : `${per.length === 2 ? ' (unconfirmed)' : ''}${MOVES_WITH_BUNDLE[browser]?.includes(name) === true ? ' (moves with the bundle)' : ''}`
-      const hypothesis = per.length === 1 ? ' (hypothesis: one session)' : ''
       const base = typical('base')
       if (base > (costliest.get(e.row)?.cost ?? -1)) costliest.set(e.row, { name, cost: base })
-      out.push(`| ${name} | ${base.toFixed(1)} ${unit} | ${typical('candidate').toFixed(1)} | ${pct(median(cand))} [${pct(quartile(cand, 0.25))}, ${pct(quartile(cand, 0.75))}] ${per.map(p => pct(p.candidate)).join(' ')} | ${per.map(p => pct(p.control)).join(' ')} | ${v}${note}${hypothesis}${o.floors[e.row] === undefined ? ' (uncalibrated)' : ''} |`)
+      out.push(`| ${name} | ${base.toFixed(1)} ${unit} | ${typical('candidate').toFixed(1)} | ${pct(median(cand))} [${pct(quartile(cand, 0.25))}, ${pct(quartile(cand, 0.75))}] ${per.map(p => pct(p.candidate)).join(' ')} | ${per.map(p => pct(p.control)).join(' ')} | ${words} |`)
     }
     out.push('', `timer step ${Math.min(...steps).toFixed(3)}-${Math.max(...steps).toFixed(3)} ms; device pixel ratio ${[...dprs].join(', ')}${dprs.size > 1 ? ' (it changed: the sessions aren\'t comparable)' : ''}`)
     out.push(`costliest per row (base): ${[...costliest].map(([row, c]) => `${row}: ${c.name.split(' | ')[1]} ${c.cost.toFixed(1)}`).join('; ')}`)
-    // A foreground page stops when it is hidden (page.ts); a background one runs on, and a browser may slow it there.
     if (hidden > 0) out.push(`${hidden} documents ran while their page was hidden: a window covered whole; time again with it uncovered`)
     if (fresh.size > 0) {
       out.push('', '| fresh page | library | compile ms | run ms | first batch µs/unit | second batch µs/unit |', '|---|---|---:|---:|---:|---:|')
