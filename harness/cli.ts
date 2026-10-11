@@ -31,7 +31,7 @@ import { basename, join, resolve } from 'node:path'
 import {
   accept, attribute, behaviourLine, buildChange, checkBlocks, commitSeed, countBehaviour, countDraw, countWidths, drawRows, freshRecordings, gateBlocks, gateSample, headline, judge,
   observable, outsideClaims, percent, pinning, reverseOrder, score, SEED, shown, shrinkWrapShort, tableLines, weightedShare, WIDTH_STEPS, widthBand, widthShares,
-  type Behaviour, type Draw, type Outcome, type Stratum, type WidthTally,
+  type Behaviour, type Draw, type Outcome, type Pinning, type Stratum, type WidthTally,
 } from './score.ts'
 import { bench, ROWS } from './bench/run.ts'
 import { srcOf } from './bench/lib.ts'
@@ -205,17 +205,24 @@ type Scored = {
   blocked: boolean
 }
 
-export async function check(browser: BrowserKind, cases: Case[], o: Options, io: Io): Promise<Scored> {
+// What check reads before any browser runs: the stored recordings, the page history, the browser's cases, and which of
+// them are pinned (pinning, score.ts). The gate reads it first, to start its other jobs beside check's.
+type Stored = { recorded: { env: string; recordings: Map<string, Recording> }; history: Map<string, [Recording, Recording]>; mine: Case[]; plan: Pinning }
+
+function stored(browser: BrowserKind, cases: Case[], io: Io): Stored {
   const recorded = readRecordings(recordingsPath(io.root, browser))
   if (recorded === null) throw new Error(`${browser}: no recordings; run record first`)
   const history = readHistory(historyPath(io.root, browser), recorded.env)?.cases ?? new Map<string, [Recording, Recording]>()
+  const mine = cases.filter(c => applies(c, browser))
+  return { recorded, history, mine, plan: pinning(browser, mine, recorded.recordings, history) }
+}
+
+export async function check(browser: BrowserKind, cases: Case[], o: Options, io: Io, { recorded, history, mine, plan }: Stored = stored(browser, cases, io)): Promise<Scored> {
   const path = acceptedPath(io.root, browser)
   const accepted = readAccepted(path)
   const varying = readVarying(varyingPath(io.root, browser))
-  const mine = cases.filter(c => applies(c, browser))
   const ids = new Set<string>()
   for (let i = 0; i < mine.length; i++) ids.add(mine[i]!.id)
-  const plan = pinning(browser, mine, recorded.recordings, history)
   const pinned = plan.pinned
   const job = await io.run<Prediction>({ browser, mode: 'predict', cases: plan.predicted, documentSize: WHOLE, lib: o.lib })
   if (pinned.length > 0) assertSameEnvironment(browser, recorded.env, job.env)
@@ -333,15 +340,22 @@ export async function gate(browser: BrowserKind, cases: Case[], o: Options, io: 
   // memory, blocks with the gate's other results, not in their place.
   const profiles = o.partial ? [] : BROWSER[browser].profiles
   const offline = Promise.all(profiles.map(profile => io.invariants(profile, o.lib).catch((error: unknown) => (error instanceof Error ? error.message : String(error)))))
-  const scored = await check(browser, cases, o, io)
-  const ids = scored.pinned.map(c => c.id)
-  const out: string[] = []
+  // The gate's three browser jobs, check's prediction, the reverse-order prediction and the fresh recording, start
+  // together, each in a browser process of its own as when they ran one after another: the stored recordings decide the
+  // pinned cases, which is all the other two need, so a launch, a close and Firefox's hold are waited for once.
+  const before = stored(browser, cases, io)
+  const checking = check(browser, cases, o, io, before)
   // The same predictions in reverse order, the pinned cases first: moved breaks mean results depend on what was
   // prepared before. Widths alone move with Chrome's per-canvas shape caches and Firefox's kept contexts
   // (PLATFORM_BUGS.md), before #340 too; they only reach the shrink-wrap check, which reports. A case whose breaks the
   // browser's state moves is listed in harness/varying.
-  const others = scored.predicted.slice(scored.pinned.length)
-  const reverse = await job<Prediction>('predict', scored.pinned.slice().reverse().concat(others.reverse()), WHOLE)
+  const others = before.plan.predicted.slice(before.plan.pinned.length)
+  const reversing = job<Prediction>('predict', before.plan.pinned.slice().reverse().concat(others.reverse()), WHOLE)
+  const sample = gateSample(before.plan.pinned, o.seed, o.sample ?? 1000)
+  const recording = io.run<Recording>({ browser, mode: 'record', cases: sample, documentSize: RECORD_DOCUMENT, lib: o.lib })
+  const [scored, reverse, first] = await Promise.all([checking, reversing, recording])
+  const ids = scored.pinned.map(c => c.id)
+  const out: string[] = []
   const order = reverseOrder(ids, scored.predictions, reverse, scored.varying)
   if (order.widths.length > 0) out.push(`  ${order.widths.length} predictions change only their line widths in reverse order (report only): ${shown(order.widths)}`)
   if (order.listed.length > 0) out.push(`  ${order.listed.length} varying predictions break differently in reverse order (listed, not blocking)`)
@@ -350,8 +364,6 @@ export async function gate(browser: BrowserKind, cases: Case[], o: Options, io: 
   // keeps a text's inline items across documents, in a cache of the process that 1,000 cases don't fill (record has
   // the source), and Firefox lays color emoji out wider in every document after one with a text-presentation emoji
   // (score.ts), so in one process for all of them the verdict went by which cases differed together.
-  const sample = gateSample(scored.pinned, o.seed, o.sample ?? 1000)
-  const first = await io.run<Recording>({ browser, mode: 'record', cases: sample, documentSize: RECORD_DOCUMENT, lib: o.lib })
   if (sample.length > 0) assertSameEnvironment(browser, scored.env, first.env)
   const differ = sample.filter(c => lineEnds(first.results.get(c.id)!) !== lineEnds(scored.recordings.get(c.id)!))
   let widths = 0
@@ -503,8 +515,11 @@ export function hostAgreement(root: string): string {
 // units submitted to them, here against there.
 export async function equal(browser: BrowserKind, cases: Case[], setOf: Map<string, string>, ref: string, o: Options, io: Io): Promise<boolean> {
   const list = cases.filter(c => applies(c, browser))
-  const mine = await io.run<Prediction>({ browser, mode: 'predict', cases: list, documentSize: WHOLE, lib: o.lib })
-  const theirs = await io.run<Prediction>({ browser, mode: 'predict', cases: list, documentSize: WHOLE, lib: srcOf(ref) })
+  // The two builds predict side by side, each in a browser process of its own.
+  const [mine, theirs] = await Promise.all([
+    io.run<Prediction>({ browser, mode: 'predict', cases: list, documentSize: WHOLE, lib: o.lib }),
+    io.run<Prediction>({ browser, mode: 'predict', cases: list, documentSize: WHOLE, lib: srcOf(ref) }),
+  ])
   const varying = readVarying(varyingPath(io.root, browser))
   const differ: string[] = []
   const varies: string[] = []
