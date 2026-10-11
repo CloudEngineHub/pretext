@@ -2313,15 +2313,161 @@ describe('measurement invariants', () => {
       const uncorrected = cases.map(([text]) => measureNaturalWidth(prepareWithSegments(text, font)))
       Reflect.set(globalThis, 'document', {
         body: { appendChild: () => undefined, removeChild: () => undefined },
-        createElement: () => ({ style: {}, getBoundingClientRect: () => ({ width: 16 }) }),
+        createElement: () => ({ style: { setProperty: () => undefined }, getBoundingClientRect: () => ({ width: 16 }) }),
       })
+      Reflect.set(globalThis, 'getComputedStyle', () => ({ width: '16px' }))
       clearCache()
       const removed = cases.map(([text], i) => Math.round(uncorrected[i]! - measureNaturalWidth(prepareWithSegments(text, font))))
       expect(removed).toEqual(cases.map(([, count]) => count * 4))
     } finally {
       Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', measureText)
       Reflect.deleteProperty(globalThis, 'document')
+      Reflect.deleteProperty(globalThis, 'getComputedStyle')
     }
+  })
+
+  // A page where Canvas measures U+1F600 20px wide in a 16px font and the page draws it
+  // `width` wide, 16px as Chrome on macOS does, and `scale` times that on screen. The span has
+  // a box under the parents `boxes` names, and `spans` keeps each one made, with the styles it
+  // was given.
+  type EmojiSpan = {
+    style: { cssText: string; font: string; priority: string; setProperty(name: string, value: string, priority: string): void }
+    textContent: string
+    parent: string | null
+    laidOut: boolean
+    getBoundingClientRect(): { width: number }
+  }
+  function withEmojiPage(run: (page: { html: boolean; body: boolean; boxes: string[]; width: number; scale: number; lazy: boolean; spans: EmojiSpan[] }) => void): void {
+    const page = { html: true, body: true, boxes: ['body', 'html'], width: 16, scale: 1, lazy: false, spans: [] as EmojiSpan[] }
+    const hasBox = (span: EmojiSpan) => span.parent !== null && page.boxes.includes(span.parent)
+    const host = (name: string) => ({
+      lang: 'en',
+      appendChild(span: EmojiSpan) { span.parent = name },
+      removeChild(span: EmojiSpan) { span.parent = null },
+    })
+    const body = host('body')
+    const measureText = Object.getOwnPropertyDescriptor(TestCanvasRenderingContext2D.prototype, 'measureText')!
+    Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', {
+      ...measureText,
+      value(this: TestCanvasRenderingContext2D, text: string) {
+        return { width: measureWidth(text, this.font) + 4 * (text.split('\u{1F600}').length - 1) }
+      },
+    })
+    Reflect.set(globalThis, 'document', {
+      get body() { return page.html && page.body ? body : null },
+      get head() { return page.html ? {} : null },
+      documentElement: host('html'),
+      createElement(): EmojiSpan {
+        const span: EmojiSpan = {
+          style: { cssText: '', font: '', priority: '', setProperty(name, value, priority) { if (name === 'font') { this.font = value; this.priority = priority } } },
+          textContent: '',
+          parent: null,
+          laidOut: false,
+          getBoundingClientRect() {
+            this.laidOut = true
+            return { width: hasBox(this) ? page.width * page.scale : 0 }
+          },
+        }
+        page.spans.push(span)
+        return span
+      },
+    })
+    // A resolved width has six significant digits, and is `auto` for an element with no box,
+    // which a `lazy` page makes only once the span's rectangle is asked for.
+    Reflect.set(globalThis, 'getComputedStyle', (span: EmojiSpan) => ({ width: hasBox(span) && (span.laidOut || !page.lazy) ? `${Number(page.width.toPrecision(6))}px` : 'auto' }))
+    clearCache()
+    try {
+      run(page)
+    } finally {
+      Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', measureText)
+      Reflect.deleteProperty(globalThis, 'document')
+      Reflect.deleteProperty(globalThis, 'getComputedStyle')
+      clearCache()
+    }
+  }
+  const emojiWidth = (font: string) => measureNaturalWidth(prepare('\u{1F600}', font))
+
+  test('the emoji correction\'s span takes the font and the language from the page and nothing else', () => {
+    withEmojiPage(page => {
+      expect(emojiWidth('16px Emoji Span Test')).toBe(16)
+      expect(page.spans.length).toBe(1)
+      const { style, textContent } = page.spans[0]!
+      // Every property at its initial value, and important, so no rule of the page's wins:
+      // an inherited letter-spacing or text-indent would be read as part of the emoji.
+      const declarations = style.cssText.split(';')
+      expect(declarations[0]).toBe('all:initial!important')
+      expect(declarations.every(declaration => declaration.endsWith('!important'))).toBe(true)
+      expect(declarations).toContain('-webkit-locale:inherit!important')
+      expect([style.font, style.priority, textContent]).toEqual(['16px Emoji Span Test', 'important', '\u{1F600}'])
+      // Read once per font.
+      emojiWidth('16px Emoji Span Test')
+      prepare('later \u{1F600} text', '16px Emoji Span Test')
+      expect(page.spans.length).toBe(1)
+    })
+  })
+
+  test('the emoji correction\'s span is as wide as its rectangle, or as its resolved width where the page scales it', () => {
+    withEmojiPage(page => {
+      // Firefox's emoji in a synthetic bold: 17.3833px resolved.
+      page.width = 17.383331298828125
+      expect(emojiWidth('bold 17px Emoji Digits Test')).toBe(17.383331298828125)
+      // Under a transform or a zoom on <body>, the rectangle is the box as drawn.
+      page.width = 16
+      page.scale = 0.5
+      expect(emojiWidth('16px Emoji Scaled Test')).toBe(16)
+      page.scale = 1.25
+      expect(emojiWidth('16px Emoji Zoomed Test')).toBe(16)
+    })
+  })
+
+  test('the emoji correction is read under <html> where <body> is missing or has no box', () => {
+    withEmojiPage(page => {
+      // A script in <head> runs before the parser reaches <body>. Firefox has made no box by
+      // then, and makes the first ones when a rectangle is asked for.
+      page.body = false
+      expect(emojiWidth('16px Emoji Head Test')).toBe(16)
+      page.lazy = true
+      expect(emojiWidth('16px Emoji Lazy Head Test')).toBe(16)
+      page.lazy = false
+      // A page hidden until it is ready: <body> is display: none, and the span has no box in it.
+      page.body = true
+      page.boxes = ['html']
+      expect(emojiWidth('16px Emoji Hidden Body Test')).toBe(16)
+      // One span for each font: in <html> alone, or in <body>, then in <html>.
+      expect(page.spans.length).toBe(3)
+      // A document whose root isn't <html>, as an SVG file's, lays out no HTML: no span.
+      page.html = false
+      expect(emojiWidth('16px Emoji No Root Test')).toBe(20)
+      expect(page.spans.length).toBe(3)
+    })
+  })
+
+  test('a page with no box for the emoji correction\'s span leaves emoji uncorrected and keeps nothing', () => {
+    withEmojiPage(page => {
+      const font = '16px Emoji No Box Test'
+      // A document that isn't rendered, as in an iframe that is display: none.
+      page.boxes = []
+      expect(emojiWidth(font)).toBe(20)
+      // A quoted emoji has no break inside, so a 24px line cuts it between graphemes, by
+      // advances that are cached with the segment: the quote, 6.4px, then the emoji.
+      const quoted = '"\u{1F600}"'
+      const lineWidths = () => layoutWithLines(prepareWithSegments(quoted, font), 24, LINE_HEIGHT).lines.map(line => Math.round(line.width * 10) / 10)
+      expect(lineWidths()).toEqual([6.4, 20, 6.4])
+      expect(page.spans.length).toBe(2)
+      // Once the document has boxes, the next text with an emoji reads the correction, with
+      // no clearCache(), and the segment's advances are measured again with it.
+      page.boxes = ['body', 'html']
+      expect(emojiWidth(font)).toBe(16)
+      expect(lineWidths()).toEqual([22.4, 6.4])
+      expect(page.spans.length).toBe(3)
+    })
+  })
+
+  test('without a document, as in a worker, emoji keep Canvas\'s width', () => {
+    withEmojiPage(() => {
+      Reflect.deleteProperty(globalThis, 'document')
+      expect(emojiWidth('16px Emoji Worker Test')).toBe(20)
+    })
   })
 })
 
@@ -3537,6 +3683,18 @@ describe('prepare invariants', () => {
       expect(measureNaturalWidth(root)).toBe(width)
     } finally {
       setLocale()
+      Reflect.set(globalThis, 'OffscreenCanvas', TestOffscreenCanvas)
+      Reflect.deleteProperty(globalThis, 'document')
+    }
+  })
+
+  test('a document whose canvas gives no 2D context throws the error a missing Canvas throws', () => {
+    // jsdom and happy-dom: a document, no OffscreenCanvas, and a canvas whose getContext() returns null.
+    Reflect.deleteProperty(globalThis, 'OffscreenCanvas')
+    Reflect.set(globalThis, 'document', { documentElement: { lang: 'tlh' }, createElement: () => ({ getContext: () => null }) })
+    try {
+      expect(() => prepare('hello', FONT)).toThrow('Text measurement requires OffscreenCanvas or a DOM canvas context.')
+    } finally {
       Reflect.set(globalThis, 'OffscreenCanvas', TestOffscreenCanvas)
       Reflect.deleteProperty(globalThis, 'document')
     }
@@ -7911,10 +8069,11 @@ test('a width is measured under its own font, shaping and language, whatever was
       documentElement: root,
       body: { appendChild() {}, removeChild() {} },
       createElement() {
-        const style = {}
+        const style = { setProperty(name, value) { this[name] = value } }
         return { style, getBoundingClientRect: () => ({ width: em(style.font) }) }
       },
     }
+    globalThis.getComputedStyle = element => ({ width: em(element.style.font) + 'px' })
     const { prepareWithSegments, measureNaturalWidth, clearCache } = await import(${JSON.stringify(layoutUrl)})
     const { prepareRichInline, measureRichInlineStats } = await import(${JSON.stringify(richInlineUrl)})
     const width = (text, font, letterSpacing = 0) => measureNaturalWidth(prepareWithSegments(text, font, { letterSpacing }))
