@@ -1085,14 +1085,11 @@ export function getContext(measurement: FontMeasurement): CanvasRenderingContext
 }
 
 function createMeasureState(language: string | null): MeasureState {
-  let context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
-  if (typeof OffscreenCanvas !== 'undefined') {
-    context = new OffscreenCanvas(1, 1).getContext('2d')!
-  } else if (typeof document !== 'undefined') {
-    context = document.createElement('canvas').getContext('2d')!
-  } else {
-    throw new Error('Text measurement requires OffscreenCanvas or a DOM canvas context.')
-  }
+  // jsdom and happy-dom have a document whose canvas gives no 2D context: getContext() returns null there.
+  let context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null = null
+  if (typeof OffscreenCanvas !== 'undefined') context = new OffscreenCanvas(1, 1).getContext('2d')
+  else if (typeof document !== 'undefined') context = document.createElement('canvas').getContext('2d')
+  if (context === null) throw new Error('Text measurement requires OffscreenCanvas or a DOM canvas context.')
   // A context's `lang` follows the page's, and preparation's can be setLocale()'s or
   // Blink's default locale instead.
   if (language !== null && 'lang' in context) context.lang = language

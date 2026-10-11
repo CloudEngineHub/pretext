@@ -3542,6 +3542,18 @@ describe('prepare invariants', () => {
     }
   })
 
+  test('a document whose canvas gives no 2D context throws the error a missing Canvas throws', () => {
+    // jsdom and happy-dom: a document, no OffscreenCanvas, and a canvas whose getContext() returns null.
+    Reflect.deleteProperty(globalThis, 'OffscreenCanvas')
+    Reflect.set(globalThis, 'document', { documentElement: { lang: 'tlh' }, createElement: () => ({ getContext: () => null }) })
+    try {
+      expect(() => prepare('hello', FONT)).toThrow('Text measurement requires OffscreenCanvas or a DOM canvas context.')
+    } finally {
+      Reflect.set(globalThis, 'OffscreenCanvas', TestOffscreenCanvas)
+      Reflect.deleteProperty(globalThis, 'document')
+    }
+  })
+
   test('later prepares measure under a changed document language', () => {
     // Like Chrome's OffscreenCanvas, this context resolves a font under the
     // document language only when a different font string is assigned.
