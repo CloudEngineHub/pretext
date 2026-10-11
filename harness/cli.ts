@@ -10,10 +10,11 @@
 //                            and line text for every case, with the same line APIs' disagreements and Canvas calls after
 //                            preparing, and each set's measureText calls and submitted units here and there;
 //                            --offline: whether their src/ give the same results on a stand-in Canvas (offline-equal.ts)
-//   bench <base> [--sessions=3] [--rows=new,...] [--foreground]   <base>'s src/ timed against --lib's (bench/run.ts) in
-//                            background windows, every session of every browser side by side, unless the two build
-//                            the same bytes; --lib=<base> times a build against itself; --foreground: focused windows
-//                            one at a time, installed Safari for WebKit, two sessions and a confirming one
+//   bench <base> [--sessions=3] [--rows=new,...] [--quick] [--foreground]   <base>'s src/ timed against --lib's
+//                            (bench/run.ts) in background windows, every session of every browser side by side, unless
+//                            the two build the same bytes; --lib=<base> times a build against itself; --quick: three
+//                            rounds a document and no fresh page, for iterating; --foreground: focused windows one at a
+//                            time, installed Safari for WebKit, two sessions and a confirming one
 //   repin <chrome|firefox|safari> [--write]   after a browser update: pin the installed Chrome or Firefox, record every
 //                            case into a scratch copy of the recordings, and print what changed and whether the browser's
 //                            break data is still scripts/engine-data's; --write replaces the recordings and the pin.

@@ -216,17 +216,41 @@ describe('sessions side by side', () => {
   })
 })
 
+describe('the quick plan', () => {
+  test('a quick session times three rounds a document, the new row its twelve, and no fresh page: a quick run that kept the long form\'s rounds would take the long form\'s time', () => {
+    const quick = documents(ROWS, 'bench-test', false, true)
+    expect(quick.some(d => d.row === 'fresh')).toBe(false)
+    expect(quick.length).toBe(31)
+    expect(new Set(quick.filter(d => d.row !== 'new').map(d => d.rounds))).toEqual(new Set([3]))
+    expect(new Set(quick.filter(d => d.row === 'new').map(d => d.rounds))).toEqual(new Set([12]))
+  })
+
+  test('a quick session\'s documents are the long form\'s, text for text, less the fresh pages: a quick table\'s entry would time other text than the long table\'s entry of the same name', () => {
+    const long = documents(ROWS, 'bench-test', false).filter(d => d.row !== 'fresh')
+    const quick = documents(ROWS, 'bench-test', false, true)
+    expect(new Set(long.map(d => `${d.rounds} ${d.targetMs}`))).toEqual(new Set(['12 50', '16 50']))
+    expect(quick.map(d => ({ ...d, rounds: 0 }))).toEqual(long.map(d => ({ ...d, rounds: 0 })))
+  })
+})
+
 describe('the flags', () => {
   test('with no flag the harness\'s background browsers time three sessions each, and --foreground asks for the focused windows and two: a default back in the foreground would take the screen for eleven minutes', () => {
-    expect(benchOptions(new Map(), null)).toEqual({ browsers: ['chrome', 'firefox', 'webkit-host'], sessions: 3, rows: ROWS, foreground: false })
-    expect(benchOptions(new Map([['foreground', '']]), null)).toEqual({ browsers: ['chrome', 'firefox', 'safari'], sessions: 2, rows: ROWS, foreground: true })
-    expect(benchOptions(new Map([['sessions', '5'], ['rows', 'worst,new']]), ['chrome'])).toEqual({ browsers: ['chrome'], sessions: 5, rows: ['worst', 'new'], foreground: false })
+    expect(benchOptions(new Map(), null)).toEqual({ browsers: ['chrome', 'firefox', 'webkit-host'], sessions: 3, rows: ROWS, foreground: false, quick: false })
+    expect(benchOptions(new Map([['foreground', '']]), null)).toEqual({ browsers: ['chrome', 'firefox', 'safari'], sessions: 2, rows: ROWS, foreground: true, quick: false })
+    expect(benchOptions(new Map([['sessions', '5'], ['rows', 'worst,new']]), ['chrome'])).toEqual({ browsers: ['chrome'], sessions: 5, rows: ['worst', 'new'], foreground: false, quick: false })
+  })
+
+  test('--quick is asked for, never the default, and times three sessions wherever it runs; with it --rows=fresh is refused: a quick run would stand for the long form, or print a table with no fresh page and say nothing', () => {
+    expect(benchOptions(new Map([['quick', '']]), null)).toEqual({ browsers: ['chrome', 'firefox', 'webkit-host'], sessions: 3, rows: ROWS, foreground: false, quick: true })
+    expect(benchOptions(new Map([['quick', ''], ['foreground', '']]), null).sessions).toBe(3)
+    expect(() => benchOptions(new Map([['quick', ''], ['rows', 'worst,fresh']]), null)).toThrow('a quick session times no fresh page')
+    expect(benchOptions(new Map([['rows', 'worst,fresh']]), null).rows).toEqual(['worst', 'fresh'])
   })
 
   test('installed Safari is refused side by side and webkit-host in the foreground, before anything is built: Safari is one app and can\'t run three sessions at once, and webkit-host\'s window never has the focus', async () => {
     const refused = (o: BenchOptions): Promise<string> => bench('HEAD', 'HEAD', o).then(() => 'timed', error => String(error))
-    expect(await refused({ browsers: ['chrome', 'safari'], sessions: 3, rows: ['worst'], foreground: false })).toContain('safari has no background window')
-    expect(await refused({ browsers: ['webkit-host'], sessions: 2, rows: ['worst'], foreground: true })).toContain('webkit-host has no foreground window')
+    expect(await refused({ browsers: ['chrome', 'safari'], sessions: 3, rows: ['worst'], foreground: false, quick: false })).toContain('safari has no background window')
+    expect(await refused({ browsers: ['webkit-host'], sessions: 2, rows: ['worst'], foreground: true, quick: false })).toContain('webkit-host has no foreground window')
   })
 })
 
@@ -240,7 +264,7 @@ describe('two builds of the same bytes', () => {
     const log = spyOn(console, 'log').mockImplementation(text => { logged.push(String(text)) })
     // No browser is named, so a bench that went on would start none.
     try {
-      await bench('HEAD', copy, { browsers: [], sessions: 3, rows: ['worst'], foreground: false })
+      await bench('HEAD', copy, { browsers: [], sessions: 3, rows: ['worst'], foreground: false, quick: false })
     } finally {
       log.mockRestore()
     }

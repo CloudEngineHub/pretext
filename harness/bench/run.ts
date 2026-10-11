@@ -1,12 +1,13 @@
 // bun harness bench <base> [--lib=<dir|ref>] [--browser=chrome,firefox,webkit-host] [--sessions=3] [--rows=new,seen,...]
-//   [--foreground]
+//   [--quick] [--foreground]
 // Times <base>'s src/ against --lib's (this tree's by default) in the same documents, with a second copy of base as the
 // control (harness/README.md, Bench). The harness's background browsers, webkit-host for WebKit, time three sessions
 // each, every session of every browser side by side. --foreground times pinned Chrome and Firefox and installed Safari
 // one at a time in focused windows, as a release's bench does: two sessions there, and then each browser times the
-// documents of the rows that read slower or faster in a third. Raw samples go to .artifacts/harness-bench/<time>/, with
-// a run.json that names the builds they compare. Two builds whose bundles are the same bytes aren't timed;
-// `--lib=<base>` times a build against itself.
+// documents of the rows that read slower or faster in a third. --quick times three rounds a document and no fresh
+// page, for iterating (QUICK_ROUNDS). Raw samples go to .artifacts/harness-bench/<time>/, with a run.json that names
+// the builds they compare. Two builds whose bundles are the same bytes aren't timed; `--lib=<base>` times a build
+// against itself.
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
@@ -24,6 +25,11 @@ const LABELS = ['base', 'candidate', 'control'] as const
 const WARM = 2
 const ROUNDS: Record<(typeof ROWS)[number], number> = { new: 12, fresh: 9, rich: 12, seen: 16, resize: 16, lines: 12, worst: 12 }
 const TARGET_MS = 50
+// The quick form: every row with a verdict at three rounds a document, in three sessions. A reading's spread on most
+// rows is between documents, where a copy of a library keeps one speed, not between a document's rounds, so three
+// rounds say much of what twelve or sixteen do, in a third of the time; what they miss is in harness/README.md, Bench.
+// The `new` row keeps its rounds: they cost half a second, and its spread is between batches of text.
+const QUICK_ROUNDS = 3
 const SEEN_UNITS: Record<(typeof MESSAGE_FAMILIES)[number], number> = { latin: 40_000, cjk: 15_000, arabic: 40_000, thai: 30_000, mixed: 40_000 }
 const FRESH_UNITS: Record<(typeof MESSAGE_FAMILIES)[number], number> = { latin: 1000, cjk: 200, arabic: 1000, thai: 650, mixed: 1000 }
 const RICH_UNITS = 1000
@@ -38,18 +44,19 @@ const FRESH_ROUNDS = WARM + ROUNDS.fresh
 // The documents of one session in one browser, in this order, so the rows that want new text meet text no document
 // before them laid out: new, fresh and rich read each family forward; seen, resize and lines take its first units.
 export type Planned = Omit<Doc, 'libraries'> & { lang: string; row: string; family: string; library?: string }
-export function documents(rows: readonly string[], seed: string, focus: boolean): Planned[] {
+export function documents(rows: readonly string[], seed: string, focus: boolean, quick = false): Planned[] {
   const out: Planned[] = []
   const doc = (row: (typeof ROWS)[number], family: string, lang: string, font: string, options: object, ops: OpSpec[], fresh?: { label: string; round: number; batches: string[][] }): void => {
     const id = `${row} ${family}${fresh === undefined ? '' : ` ${fresh.round} ${fresh.label}`}`
     out.push({
-      id, row, family, lang, seed: `${seed}/${id}`, font, options, focus, warm: WARM, rounds: ROUNDS[row], targetMs: TARGET_MS, ops,
+      id, row, family, lang, seed: `${seed}/${id}`, font, options, focus, warm: WARM, rounds: quick && row !== 'new' ? QUICK_ROUNDS : ROUNDS[row], targetMs: TARGET_MS, ops,
       ...(fresh === undefined ? {} : { library: fresh.label, fresh: { batches: fresh.batches, units: fresh.batches.map(units) } }),
     })
   }
   const rng = createRng(seed)
   const readers = new Map(MESSAGE_FAMILIES.map(family => [family, reader(family)]))
-  const want = (row: string): boolean => rows.includes(row)
+  // The fresh pages have no verdict and are most of a session's documents (165 of 196), so a quick session has none.
+  const want = (row: string): boolean => rows.includes(row) && !(quick && row === 'fresh')
   for (const family of MESSAGE_FAMILIES) {
     const size = newBatchSize(family)
     const batches = Array.from({ length: NEW_BATCHES }, () => readers.get(family)!.batch(size)!)
@@ -251,17 +258,21 @@ export async function runSessions(
 
 // What a bench's flags ask for. With none: the harness's background browsers, three sessions each, since side by side a
 // third costs no time and three need no confirming one. --foreground: the browsers that take the focus, two sessions
-// each and the confirming one. `named` is --browser's browsers, or null without the flag.
-export type BenchOptions = { browsers: BrowserKind[]; sessions: number; rows: readonly string[]; foreground: boolean }
+// each and the confirming one. --quick: three sessions of three rounds a document, wherever they run. `named` is
+// --browser's browsers, or null without the flag.
+export type BenchOptions = { browsers: BrowserKind[]; sessions: number; rows: readonly string[]; foreground: boolean; quick: boolean }
 export function benchOptions(flags: ReadonlyMap<string, string>, named: readonly BrowserKind[] | null): BenchOptions {
   const foreground = flags.has('foreground')
+  const quick = flags.has('quick')
+  const rows = flags.get('rows')?.split(',') ?? ROWS
+  if (quick && flags.has('rows') && rows.includes('fresh')) throw new Error('--rows=fresh needs the long form: a quick session times no fresh page')
   return {
     browsers: named === null ? BROWSERS.filter(browser => BROWSER[browser][foreground ? 'foreground' : 'background']) : [...named],
-    sessions: Number(flags.get('sessions') ?? (foreground ? 2 : 3)), rows: flags.get('rows')?.split(',') ?? ROWS, foreground,
+    sessions: Number(flags.get('sessions') ?? (foreground && !quick ? 2 : 3)), rows, foreground, quick,
   }
 }
 
-export async function bench(baseRef: string, lib: string, { browsers, sessions, rows, foreground }: BenchOptions): Promise<void> {
+export async function bench(baseRef: string, lib: string, { browsers, sessions, rows, foreground, quick }: BenchOptions): Promise<void> {
   const started = Date.now()
   const behind = browsers.find(browser => !BROWSER[browser].foreground)
   if (foreground && behind !== undefined) throw new Error(`${behind} has no foreground window: time its engine in a browser that has one, or leave --foreground out`)
@@ -283,15 +294,15 @@ export async function bench(baseRef: string, lib: string, { browsers, sessions, 
   const dir = resolve(import.meta.dir, '../../.artifacts/harness-bench', stamp)
   mkdirSync(dir, { recursive: true })
   // What the samples beside it compare: a saved run names its builds and how it timed them.
-  writeFileSync(join(dir, 'run.json'), JSON.stringify({ base: buildName(baseRef), candidate: buildName(lib), sameBytes: same, browsers, sessions, rows, background: !foreground }))
-  console.log(`bench ${baseRef} against ${lib}, ${sessions} sessions in ${browsers.join(', ')}${foreground ? ', one at a time in the foreground' : ', side by side in background windows'}; power ${before.source} ${before.percent}%, load ${load()}; samples in ${dir}`)
-  const { all, failed } = await runSessions(browsers, sessions, seed => documents(rows, seed, foreground), {
+  writeFileSync(join(dir, 'run.json'), JSON.stringify({ base: buildName(baseRef), candidate: buildName(lib), sameBytes: same, browsers, sessions, rows, background: !foreground, quick }))
+  console.log(`bench ${baseRef} against ${lib}, ${sessions} ${quick ? 'quick ' : ''}sessions in ${browsers.join(', ')}${foreground ? ', one at a time in the foreground' : ', side by side in background windows'}; power ${before.source} ${before.percent}%, load ${load()}; samples in ${dir}`)
+  const { all, failed } = await runSessions(browsers, sessions, seed => documents(rows, seed, foreground, quick), {
     time: (browser, docs) => session(browser, docs, { base: built.base.code, candidate: built.candidate.code }, foreground),
     save: entry => writeFileSync(join(dir, `${entry.browser}-${entry.session}.json`), JSON.stringify(entry)),
     log: text => console.log(text),
   }, !foreground)
   const after = power()
-  console.log(report(all, { builds: `base: ${buildName(baseRef)}; candidate: ${buildName(lib)}`, sizes: { base: built.base, candidate: built.candidate } }))
+  console.log(report(all, { builds: `base: ${buildName(baseRef)}; candidate: ${buildName(lib)}${quick ? `; quick sessions, ${QUICK_ROUNDS} rounds a document` : ''}`, sizes: { base: built.base, candidate: built.candidate } }))
   console.log(`power ${after.source} ${after.percent}%, load ${load()}; ${((Date.now() - started) / 1000).toFixed(0)} s in all`)
   if (failed.size > 0) throw new Error(`bench: ${[...failed].map(([browser, why]) => `${browser} ${why}`).join('; ')}`)
 }
