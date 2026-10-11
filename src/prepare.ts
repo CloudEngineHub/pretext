@@ -341,7 +341,12 @@ export function measureAnalysis(
   const hasLetterSpacing = letterSpacing !== 0
   const fontMeasurement = getFontMeasurement(font, language, hasLetterSpacing)
   const emojiCorrection = textMayContainEmoji(own) ? getEmojiCorrection(font, fontMeasurement) : 0
-  const spaceWidth = getSpaceWidth(fontMeasurement)
+  // The font's space, asked for only by a text that holds a space or a tab. A web font split by
+  // unicode-range has the part with U+0020 loaded only once a text that holds a character of
+  // that part was loaded for (document.fonts.load(font, text)), so a text of other characters
+  // alone, a CJK label or one Cyrillic word, would measure the fallback font's space and the
+  // font would keep it for every later text.
+  const spaceWidth = own.includes(' ') || own.includes('\t') ? getSpaceWidth(fontMeasurement) : 0
   // The advance between tab stops: eight spaces, each with its letter spacing where the
   // engine counts it (EngineProfile's letterSpaceTabStops). Gecko rounds the space and the
   // letter spacing to app units, sixtieths of a pixel, each on its own
