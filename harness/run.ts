@@ -184,7 +184,8 @@ export async function runJob<T extends Recording | Prediction>(job: Job): Promis
     return asciiJson({ kind: 'chunk', mode: job.mode, browser: job.browser, cases: docs[doc]!.slice(pending.start, pending.end) })
   }
 
-  const settled = Date.now() + BROWSER[job.browser].settleMs
+  // Firefox's hold (types.ts, settleMs) is paid by jobs that record, and by none that predict.
+  const settled = Date.now() + (job.mode === 'record' ? BROWSER[job.browser].settleMs : 0)
   await serveJob(job.browser, id, docUrl(0), { stallMs: 120_000, stalled: () => `${results.size} of ${job.cases.length} cases done${pending === null ? `; the page was told to load document ${doc + 1} of ${docs.length} and asked for none of its cases` : ''}` }, async (request, url, finish) => {
     switch (url.pathname) {
       case '/doc': {

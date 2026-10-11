@@ -12,8 +12,11 @@ export const BROWSERS: readonly BrowserKind[] = ['chrome', 'firefox', 'webkit-ho
 // - `sample`: installed Safari, whose window has to stay uncovered while it records, is recorded on a seeded sample of
 //   this many cases, which a new sample replaces, so cases with no recording are expected there.
 // - `settleMs`: Firefox changes fonts under a page after it starts (harness/README.md, Browsers and pins): emoji beside
-//   Arial laid out differently when recorded 11 s after launch than at 12, 15 or 30 s. So every job's first document is
-//   held until this long after launch.
+//   Arial laid out differently when recorded 11 s after launch than at 12, 15 or 30 s, in Firefox 156.0. So the first
+//   document of a job that records is held until this long after launch. A job that predicts isn't held (run.ts): in
+//   Firefox 157.0.1 no prediction differed, in lines or widths, between a held job and one that wasn't. Hold those
+//   again if a Firefox prediction ever differs between two runs of one build on a case predicted in a job's first
+//   seconds, emoji beside a named font above all.
 // - `textEmojiLast`: Firefox's cases holding U+FE0E go in documents after every other and are never pinned (score.ts).
 // - `hyphenCopies`: Chrome reports a soft hyphen's box for the code point next to it too, which the recorder leaves out.
 // - `systemWebKit`: the system WebKit's build is part of the environment key.
