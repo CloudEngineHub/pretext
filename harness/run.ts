@@ -9,7 +9,13 @@ import { lateTextEmoji } from './score.ts'
 import { BROWSER, type BrowserKind, type Case, type PageEnv, type Prediction, type Recording } from './types.ts'
 
 export type Mode = 'record' | 'predict'
-export type Job = { browser: BrowserKind; mode: Mode; cases: Case[]; documentSize: number; lib: string }
+// `more`: asked each time the job's cases are done, with the results so far, for the cases to go on with in the same
+// browser process, in documents of their own, until it gives none: a search whose next cases depend on the last ones'
+// results (sets/widths.ts) then pays one launch and one close.
+export type Job = {
+  browser: BrowserKind; mode: Mode; cases: Case[]; documentSize: number; lib: string
+  more?: (results: ReadonlyMap<string, Recording | Prediction>) => Case[]
+}
 export type JobResult<T> = { env: string; results: Map<string, T>; ms: number }
 
 type FontFixture = { family: string; weight: string; file: string }
@@ -163,6 +169,10 @@ export async function runJob<T extends Recording | Prediction>(job: Job): Promis
       pending = null
     }
     if (pending === null && next >= docs[doc]!.length) {
+      if (doc + 1 === docs.length && job.more !== undefined) {
+        const further = documents(job.browser, job.more(results), job.documentSize)
+        for (let i = 0; i < further.length; i++) docs.push(further[i]!)
+      }
       if (doc + 1 === docs.length) {
         finish(null)
         return Response.json({ kind: 'done' })
