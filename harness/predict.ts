@@ -227,10 +227,10 @@ export function plainDisagreement(api: LineApis, prepared: PreparedTextWithSegme
   }
   let cursor: LayoutCursor = { segmentIndex: 0, graphemeIndex: 0 }
   for (let i = 0; ; i++) {
-    const range = api.layoutNextLineRange(prepared, cursor, width)
+    const range = api.layoutNextLineRange(prepared, width, cursor)
     // layoutNextLine builds the text of the same range.
     if (range !== null && offsetOf(range.end) < 0) return `layoutNextLineRange line ${i} is ${showRange(range)}, outside the text's ${segments} segments`
-    const line = api.layoutNextLine(prepared, cursor, width)
+    const line = api.layoutNextLine(prepared, width, cursor)
     if (range === null || line === null) {
       if (range !== line) return `at line ${i}, layoutNextLineRange ${range === null ? 'ends' : 'goes on'} and layoutNextLine ${line === null ? 'ends' : 'goes on'}`
       return i === n ? null : `layoutNextLineRange gives ${i} lines; walkLineRanges ${n}`

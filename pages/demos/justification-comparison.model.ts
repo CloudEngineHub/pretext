@@ -226,7 +226,7 @@ function layoutParagraphGreedy(
   let cursor: LayoutCursor = { segmentIndex: 0, graphemeIndex: 0 }
 
   while (true) {
-    const line = layoutNextLine(prepared, cursor, maxWidth)
+    const line = layoutNextLine(prepared, maxWidth, cursor)
     if (line === null) break
     lines.push(buildMeasuredLineFromLayoutResult(prepared, line.start, line.end, maxWidth, hyphenWidth))
     cursor = line.end
