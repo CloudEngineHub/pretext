@@ -6094,16 +6094,19 @@ decisions for the maintainer.
     transform or a zoom above the span scales the rectangle. The resolved width alone would do, but for its digits:
     Firefox's emoji in bold 17px Arial is 17.383331px by its rectangle and `17.3833px` resolved.
   - A span with no box has the resolved width `auto` in the three browsers, where its rectangle is 0 wide. The span is
-    tried in `<body>` and then in `<html>`, which covers a hidden or missing `<body>` in Chrome; in Firefox a script in
-    `<head>` gets no box under `<html>` either. With no box in either, the text is prepared uncorrected, as in a worker,
-    and nothing is kept for the font, so the next text with an emoji asks again: under `html { display: none }` the
-    handles prepared then are wrong in 49 and 63 of 497 in Chrome and Firefox, and those prepared once the page shows,
-    with no `clearCache()`, in none. The advances a cut segment cached meanwhile are dropped with the first reading.
+    tried in `<body>` and then in `<html>`, which covers a hidden or missing `<body>`. The rectangle is asked before
+    the resolved width: in Firefox, in a script in `<head>`, a span under `<html>` resolves to `auto` until a rectangle
+    has been asked for, which makes the document's first boxes (asked second, the text prepared there kept an emoji
+    5px too wide). With no box in either, the text is prepared uncorrected, as in a worker, and nothing is kept for
+    the font, so the next text with an emoji asks again: under `html { display: none }`, or in Chrome and Firefox in
+    an iframe that is `display: none`, the handles prepared then keep Canvas's widths, wrong in 49 and 63 of 497 in
+    Chrome and Firefox, and those prepared once the page shows, with no `clearCache()`, are wrong in none. The
+    advances a cut segment cached meanwhile are dropped with the first reading.
   On a page with none of those states the reading is the one it was: for 12 font lists, generic and `system-ui` among
   them, the old span's rectangle and the new span's width are equal in each browser; `bun harness equal main` gives 0
   of 43,795, 44,881 and 45,343 predictions that differ in Chrome, Firefox and webkit-host, and `--offline` 0 of
   21,251 inputs in each profile; `check` passes what main passes. What it costs: 483 B in each entry point minified,
-  182 and 210 B gzipped; a second read, the resolved width, in the layout the rectangle already forces, once per font;
+  181 and 208 B gzipped; a second read, the resolved width, in the layout the rectangle already forces, once per font;
   the span appended a second time where `<body>` has no box; and, while a document has no box, a span for every text
   that may hold an emoji. What is left is in ENGINE_FOLLOWUPS.md, Emoji correction. Reopens with text laid out under a
   `zoom` other than `<body>`'s, with a correction wanted where there is no document (PLATFORM_BUGS.md has the two

@@ -2334,10 +2334,11 @@ describe('measurement invariants', () => {
     style: { cssText: string; font: string; priority: string; setProperty(name: string, value: string, priority: string): void }
     textContent: string
     parent: string | null
+    laidOut: boolean
     getBoundingClientRect(): { width: number }
   }
-  function withEmojiPage(run: (page: { html: boolean; body: boolean; boxes: string[]; width: number; scale: number; spans: EmojiSpan[] }) => void): void {
-    const page = { html: true, body: true, boxes: ['body', 'html'], width: 16, scale: 1, spans: [] as EmojiSpan[] }
+  function withEmojiPage(run: (page: { html: boolean; body: boolean; boxes: string[]; width: number; scale: number; lazy: boolean; spans: EmojiSpan[] }) => void): void {
+    const page = { html: true, body: true, boxes: ['body', 'html'], width: 16, scale: 1, lazy: false, spans: [] as EmojiSpan[] }
     const hasBox = (span: EmojiSpan) => span.parent !== null && page.boxes.includes(span.parent)
     const host = (name: string) => ({
       lang: 'en',
@@ -2361,14 +2362,19 @@ describe('measurement invariants', () => {
           style: { cssText: '', font: '', priority: '', setProperty(name, value, priority) { if (name === 'font') { this.font = value; this.priority = priority } } },
           textContent: '',
           parent: null,
-          getBoundingClientRect() { return { width: hasBox(this) ? page.width * page.scale : 0 } },
+          laidOut: false,
+          getBoundingClientRect() {
+            this.laidOut = true
+            return { width: hasBox(this) ? page.width * page.scale : 0 }
+          },
         }
         page.spans.push(span)
         return span
       },
     })
-    // A resolved width has six significant digits, and is `auto` for an element with no box.
-    Reflect.set(globalThis, 'getComputedStyle', (span: EmojiSpan) => ({ width: hasBox(span) ? `${Number(page.width.toPrecision(6))}px` : 'auto' }))
+    // A resolved width has six significant digits, and is `auto` for an element with no box,
+    // which a `lazy` page makes only once the span's rectangle is asked for.
+    Reflect.set(globalThis, 'getComputedStyle', (span: EmojiSpan) => ({ width: hasBox(span) && (span.laidOut || !page.lazy) ? `${Number(page.width.toPrecision(6))}px` : 'auto' }))
     clearCache()
     try {
       run(page)
@@ -2416,19 +2422,23 @@ describe('measurement invariants', () => {
 
   test('the emoji correction is read under <html> where <body> is missing or has no box', () => {
     withEmojiPage(page => {
-      // A script in <head> runs before the parser reaches <body>.
+      // A script in <head> runs before the parser reaches <body>. Firefox has made no box by
+      // then, and makes the first ones when a rectangle is asked for.
       page.body = false
       expect(emojiWidth('16px Emoji Head Test')).toBe(16)
+      page.lazy = true
+      expect(emojiWidth('16px Emoji Lazy Head Test')).toBe(16)
+      page.lazy = false
       // A page hidden until it is ready: <body> is display: none, and the span has no box in it.
       page.body = true
       page.boxes = ['html']
       expect(emojiWidth('16px Emoji Hidden Body Test')).toBe(16)
-      // The first, in <html> alone; the second, in <body>, then in <html>.
-      expect(page.spans.length).toBe(2)
+      // One span for each font: in <html> alone, or in <body>, then in <html>.
+      expect(page.spans.length).toBe(3)
       // A document whose root isn't <html>, as an SVG file's, lays out no HTML: no span.
       page.html = false
       expect(emojiWidth('16px Emoji No Root Test')).toBe(20)
-      expect(page.spans.length).toBe(2)
+      expect(page.spans.length).toBe(3)
     })
   })
 

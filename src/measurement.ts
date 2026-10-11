@@ -855,11 +855,13 @@ function readEmojiWidth(font: string): number {
 // written with six significant digits. Its rectangle has every digit, but is the box as
 // drawn: a transform or a zoom above the span scales it, and it is 0 with no box, which read
 // as an emoji 0px wide. So the rectangle's width is taken where it is the resolved one
-// within those digits, and the resolved one where something scales the span.
+// within those digits, and the resolved one where something scales the span. The rectangle
+// is asked first: before the parser reaches <body>, Firefox makes the document's first boxes
+// for a rectangle and not for a resolved width, which is `auto` until then.
 function readWidthIn(parent: HTMLElement, span: HTMLElement): number {
   parent.appendChild(span)
-  const width = parseFloat(getComputedStyle(span).width)
   const drawn = span.getBoundingClientRect().width
+  const width = parseFloat(getComputedStyle(span).width)
   parent.removeChild(span)
   return Math.abs(drawn - width) <= width * 1e-5 ? drawn : width
 }
