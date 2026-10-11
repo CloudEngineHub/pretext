@@ -6,12 +6,26 @@ import type { DocResult, Sample } from './page.ts'
 
 // Each row's noise floor, from a calibration of HEAD against itself (harness/README.md, Bench): the largest deviation
 // from base that the candidate or the control held in one direction in all three sessions, rounded up to a whole
-// percent. Calibrated 2026-09-26 at 7204cab2, `bun harness bench HEAD --sessions=3` in the foreground, in Chrome 154.0.8037.57,
-// Firefox 156.0.1 and Safari 27.0 (22625.1.29.11.27), on an M5 Max (Mac17,7) under macOS 27.0 (26A428), on AC power, at
-// device pixel ratio 2. Uncalibrated rows take none. The rich row's kept lines and chat documents (#456) were run against
-// its floor on 2026-10-07 at e1c6ed68, in Chrome 154.0.8037.98 and the same Firefox and Safari: main against itself was
-// called on none of its entries in eight sessions of the row or in three of every row.
-export const FLOORS: Record<string, number> = { new: 0.06, rich: 0.05, seen: 0.01, resize: 0.05, lines: 0.01, worst: 0.02 }
+// percent. Uncalibrated rows take none. A form of the bench has its own, since sessions side by side share the cores.
+// - `foreground`, one window at a time: calibrated 2026-09-26 at 7204cab2, `bun harness bench HEAD --sessions=3` in the
+//   foreground, in Chrome 154.0.8037.57, Firefox 156.0.1 and Safari 27.0 (22625.1.29.11.27), on an M5 Max (Mac17,7)
+//   under macOS 27.0 (26A428), on AC power, at device pixel ratio 2. The rich row's kept lines and chat documents (#456)
+//   were run against its floor on 2026-10-07 at e1c6ed68, in Chrome 154.0.8037.98 and the same Firefox and Safari: main
+//   against itself was called on none of its entries in eight sessions of the row or in three of every row.
+// - `sideBySide`, every session at once in background windows: the same rule, a run at a time, over 22 runs of three
+//   sessions a browser on 2026-10-11 at bac1774c, in Chrome 154.0.8037.98, Firefox 157.0.1 and webkit-host on WebKit
+//   22625.1.29.11.27, on the same machine, each run alone on it: five of main against itself, and the controls of 17
+//   other builds timed against main, where the candidate's copy is another build's and doesn't count. `seen` held 2% or
+//   less in all 22 runs and over 1% in 11, and `lines` 3% or less in 19 and over 1% in 20, on entries of every
+//   browser, so those two take 2% and 3%. The others keep the foreground's: `rich` and `resize` held 5% or less in 18
+//   and 19 runs; `new` held 6% or less in 8 and `worst` 2% or less in 12, but what holds more there is copies that keep
+//   another speed for a document and batches of new text that differ, which a session's band covers and no floor short
+//   of that distance does (13 of `worst`'s 14 such readings are on eight entries whose copies sit 4.7% or more from
+//   base in a tenth of their sessions, and none of the 18 `new` entries sits closer than 8% in a tenth of its).
+export const FLOORS: Record<'foreground' | 'sideBySide', Record<string, number>> = {
+  foreground: { new: 0.06, rich: 0.05, seen: 0.01, resize: 0.05, lines: 0.01, worst: 0.02 },
+  sideBySide: { new: 0.06, rich: 0.05, seen: 0.02, resize: 0.05, lines: 0.03, worst: 0.02 },
+}
 
 // Firefox 156.0.1's rows that read slower or faster with changes to the bundle their code doesn't run (2026-10-02;
 // harness/README.md, Bench, has each). A verdict on one says so, and wants a second change's table before it is blamed
@@ -79,9 +93,9 @@ function entriesOf(results: readonly SessionResults[]): Map<string, Entry> {
 // The documents of one browser's rows that read slower or faster. After two sessions bench() times them in a third,
 // and a row keeps its verdict only if that one agrees, which is the verdict three whole sessions give: a row two
 // sessions don't call, a third can't.
-export function unconfirmed(results: readonly SessionResults[]): string[] {
+export function unconfirmed(results: readonly SessionResults[], floors: Record<string, number>): string[] {
   const docs = new Set<string>()
-  for (const e of entriesOf(results).values()) if (verdict(e.sessions.map(reading), FLOORS[e.row] ?? 0) !== 'within noise') docs.add(e.doc)
+  for (const e of entriesOf(results).values()) if (verdict(e.sessions.map(reading), floors[e.row] ?? 0) !== 'within noise') docs.add(e.doc)
   return [...docs]
 }
 
@@ -89,7 +103,7 @@ type FreshTimes = { compile: number[]; run: number[]; first: number[]; second: n
 
 const pct = (x: number): string => `${x >= 1 ? '+' : ''}${((x - 1) * 100).toFixed(1)}%`
 
-export function report(all: readonly SessionResults[], o: { builds: string; sizes: Record<string, { bytes: number; gzipped: number }> }): string {
+export function report(all: readonly SessionResults[], o: { builds: string; floors: Record<string, number>; sizes: Record<string, { bytes: number; gzipped: number }> }): string {
   const out: string[] = ['', o.builds]
   for (const browser of new Set(all.map(r => r.browser))) {
     const results = all.filter(r => r.browser === browser)
@@ -123,7 +137,7 @@ export function report(all: readonly SessionResults[], o: { builds: string; size
       const typical = (label: string): number => (e.perCall ? 1000 : 1_000_000) * median(rounds.map(round => cost(round, label)))
       const per = e.sessions.map(reading)
       const cand = ratios(rounds, 'candidate')
-      const floor = FLOORS[e.row] ?? 0
+      const floor = o.floors[e.row] ?? 0
       const v = verdict(per, floor)
       // A row without a verdict prints its widest band, the smallest change these sessions could have called: where a
       // copy of base kept another speed for a document, that is the distance between two copies, not the row's floor.
@@ -133,7 +147,7 @@ export function report(all: readonly SessionResults[], o: { builds: string; size
       const hypothesis = per.length === 1 ? ' (hypothesis: one session)' : ''
       const base = typical('base')
       if (base > (costliest.get(e.row)?.cost ?? -1)) costliest.set(e.row, { name, cost: base })
-      out.push(`| ${name} | ${base.toFixed(1)} ${unit} | ${typical('candidate').toFixed(1)} | ${pct(median(cand))} [${pct(quartile(cand, 0.25))}, ${pct(quartile(cand, 0.75))}] ${per.map(p => pct(p.candidate)).join(' ')} | ${per.map(p => pct(p.control)).join(' ')} | ${v}${note}${hypothesis}${FLOORS[e.row] === undefined ? ' (uncalibrated)' : ''} |`)
+      out.push(`| ${name} | ${base.toFixed(1)} ${unit} | ${typical('candidate').toFixed(1)} | ${pct(median(cand))} [${pct(quartile(cand, 0.25))}, ${pct(quartile(cand, 0.75))}] ${per.map(p => pct(p.candidate)).join(' ')} | ${per.map(p => pct(p.control)).join(' ')} | ${v}${note}${hypothesis}${o.floors[e.row] === undefined ? ' (uncalibrated)' : ''} |`)
     }
     out.push('', `timer step ${Math.min(...steps).toFixed(3)}-${Math.max(...steps).toFixed(3)} ms; device pixel ratio ${[...dprs].join(', ')}${dprs.size > 1 ? ' (it changed: the sessions aren\'t comparable)' : ''}`)
     out.push(`costliest per row (base): ${[...costliest].map(([row, c]) => `${row}: ${c.name.split(' | ')[1]} ${c.cost.toFixed(1)}`).join('; ')}`)

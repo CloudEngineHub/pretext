@@ -15,7 +15,7 @@ import { serveJob, watched, windowTitle } from '../run.ts'
 import { BROWSER, BROWSERS, type BrowserKind } from '../types.ts'
 import { benchBundle, buildName, srcOf } from './lib.ts'
 import type { Doc, DocResult, OpSpec } from './page.ts'
-import { report, unconfirmed, type SessionResults } from './report.ts'
+import { FLOORS, report, unconfirmed, type SessionResults } from './report.ts'
 import { createRng } from '../sets/build.ts'
 import type { RichInlineItem } from '../../src/rich-inline.ts'
 import { chatItems, familyText, itemReader, labels, MESSAGE_FAMILIES, reader, richItems, shapes, STYLE, units } from './texts.ts'
@@ -239,7 +239,7 @@ export async function runSessions(
     all.push(entry)
   }
   const confirm = async (browser: BrowserKind): Promise<void> => {
-    const again = failed.has(browser) || sessions !== 2 ? [] : unconfirmed(all.filter(r => r.browser === browser))
+    const again = failed.has(browser) || sessions !== 2 ? [] : unconfirmed(all.filter(r => r.browser === browser), FLOORS[together ? 'sideBySide' : 'foreground'])
     if (again.length > 0) await run(browser, sessions, again)
   }
   if (together) {
@@ -302,7 +302,7 @@ export async function bench(baseRef: string, lib: string, { browsers, sessions, 
     log: text => console.log(text),
   }, !foreground)
   const after = power()
-  console.log(report(all, { builds: `base: ${buildName(baseRef)}; candidate: ${buildName(lib)}${quick ? `; quick sessions, ${QUICK_ROUNDS} rounds a document` : ''}`, sizes: { base: built.base, candidate: built.candidate } }))
+  console.log(report(all, { builds: `base: ${buildName(baseRef)}; candidate: ${buildName(lib)}${quick ? `; quick sessions, ${QUICK_ROUNDS} rounds a document` : ''}`, floors: FLOORS[foreground ? 'foreground' : 'sideBySide'], sizes: { base: built.base, candidate: built.candidate } }))
   console.log(`power ${after.source} ${after.percent}%, load ${load()}; ${((Date.now() - started) / 1000).toFixed(0)} s in all`)
   if (failed.size > 0) throw new Error(`bench: ${[...failed].map(([browser, why]) => `${browser} ${why}`).join('; ')}`)
 }

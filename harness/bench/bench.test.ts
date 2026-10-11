@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import type { BrowserKind } from '../types.ts'
 import { benchBundle, buildName, srcOf } from './lib.ts'
 import type { DocResult, Sample } from './page.ts'
-import { report, unconfirmed, verdict, type SessionResults } from './report.ts'
+import { FLOORS, report, unconfirmed, verdict, type SessionResults } from './report.ts'
 import { bench, benchOptions, documents, ROWS, runSessions, type BenchOptions, type Planned } from './run.ts'
 import { EMOJI, familyText, MESSAGE_FAMILIES, STYLE, units } from './texts.ts'
 
@@ -48,23 +48,24 @@ const rounds = (candidate: number, control: number): Sample[][] => Array.from({ 
 ])
 const snapshot = { visible: true, focused: true, dpr: 2 }
 // One document's session as the bench saves it: each operation's [candidate, control].
-function sessionOf(session: number, ops: Record<string, [number, number]>, browser = 'chrome', family = 'pre-wrap-chunks'): SessionResults {
-  const id = `worst ${family}`
+function sessionOf(session: number, ops: Record<string, [number, number]>, browser = 'chrome', family = 'pre-wrap-chunks', row = 'worst'): SessionResults {
+  const id = `${row} ${family}`
   return {
-    browser, session, seed: '', docs: [{ row: 'worst', family, id }],
+    browser, session, seed: '', docs: [{ row, family, id }],
     results: { [id]: { id, timerStep: 0.005, start: snapshot, end: snapshot, ops: Object.entries(ops).map(([op, [candidate, control]]) => ({ op, rounds: rounds(candidate, control) })) } },
   }
 }
 const BUILDS = 'base: main (0123abc, 2026-09-30); candidate: this tree\'s src/'
-const row = (all: SessionResults[], entry: string): string => report(all, { builds: BUILDS, sizes: {} }).split('\n').find(line => line.includes(` ${entry} |`))!
+// A table's row, judged by the foreground's floors unless the test gives the others.
+const row = (all: SessionResults[], entry: string, floors = FLOORS.foreground): string => report(all, { builds: BUILDS, floors, sizes: {} }).split('\n').find(line => line.includes(` ${entry} |`))!
 
 describe('the report', () => {
   const two = [sessionOf(0, { prepare: [1.2, 1], layout: [1.01, 1], walk: [1.1, 1.08] }), sessionOf(1, { prepare: [1.2, 1], layout: [0.99, 1], walk: [1, 0.88] })]
 
   test('a verdict from two sessions is marked unconfirmed: two sessions\' chance agreement would stand', () => {
-    expect(unconfirmed(two)).toEqual(['worst pre-wrap-chunks'])
-    expect(unconfirmed([sessionOf(0, { layout: [0.8, 1] }), sessionOf(1, { layout: [0.8, 1] })])).toEqual(['worst pre-wrap-chunks'])
-    expect(unconfirmed([two[0]!, sessionOf(1, { prepare: [1, 1], layout: [0.99, 1], walk: [1, 1] })])).toEqual([])
+    expect(unconfirmed(two, FLOORS.foreground)).toEqual(['worst pre-wrap-chunks'])
+    expect(unconfirmed([sessionOf(0, { layout: [0.8, 1] }), sessionOf(1, { layout: [0.8, 1] })], FLOORS.foreground)).toEqual(['worst pre-wrap-chunks'])
+    expect(unconfirmed([two[0]!, sessionOf(1, { prepare: [1, 1], layout: [0.99, 1], walk: [1, 1] })], FLOORS.foreground)).toEqual([])
     expect(row(two, 'prepare')).toEndWith('| slower (unconfirmed) |')
     expect(row([...two, sessionOf(2, { prepare: [1.2, 1], layout: [1, 1], walk: [1, 1] })], 'prepare')).toEndWith('| slower |')
     expect(row([...two, sessionOf(2, { prepare: [1.01, 1], layout: [1, 1], walk: [1, 1] })], 'prepare')).toEndWith('] +20.1% +20.1% +1.1% | +0.0% +0.0% +0.0% | within noise (±2.0%) |')
@@ -81,6 +82,17 @@ describe('the report', () => {
     expect(row([two[1]!, two[0]!].map((r, session) => ({ ...r, session })), 'walk')).toEndWith('| -12.0% +8.0% | within noise (±12.0%) |')
   })
 
+  test('sessions side by side are judged by the floors fitted to them, 2% on seen and 3% on lines, and the other rows by the foreground\'s: a copy that sits 1.5% or 2.5% from base in every session, as one does side by side on identical code, would be called a change', () => {
+    const lines = [0, 1, 2].map(session => sessionOf(session, { stats: [1.025, 1] }, 'chrome', 'mixed', 'lines'))
+    expect(row(lines, 'mixed stats')).toEndWith('| slower |')
+    expect(row(lines, 'mixed stats', FLOORS.sideBySide)).toEndWith('| within noise (±3.0%) |')
+    const seen = [0, 1, 2].map(session => sessionOf(session, { seen: [1.015, 1] }, 'chrome', 'latin', 'seen'))
+    expect(row(seen, 'latin seen')).toEndWith('| slower |')
+    expect(row(seen, 'latin seen', FLOORS.sideBySide)).toEndWith('| within noise (±2.0%) |')
+    const others: Record<string, number> = { ...FLOORS.sideBySide, seen: 0.01, lines: 0.01 }
+    expect(others).toEqual(FLOORS.foreground)
+  })
+
   test('a verdict on a row Firefox moves with the bundle says so: an unrelated change would be blamed for it', () => {
     const controls = (browser: string, candidate: number): SessionResults[] => [0, 1, 2].map(session => sessionOf(session, { layout: [candidate, 1], prepare: [candidate, 1] }, browser, 'controls'))
     expect(row(controls('firefox', 1.16), 'controls layout')).toEndWith('| slower (moves with the bundle) |')
@@ -93,10 +105,10 @@ describe('the report', () => {
 
   test('documents that ran in a hidden page are counted under the table: a background window covered whole would be timed slowed and say nothing', () => {
     const seen = [sessionOf(0, { layout: [1, 1] }), sessionOf(1, { layout: [1, 1] })]
-    expect(report(seen, { builds: BUILDS, sizes: {} })).not.toContain('hidden')
+    expect(report(seen, { builds: BUILDS, floors: FLOORS.foreground, sizes: {} })).not.toContain('hidden')
     const covered = sessionOf(1, { layout: [1, 1] })
     covered.results['worst pre-wrap-chunks']!.end = { ...snapshot, visible: false }
-    expect(report([seen[0]!, covered], { builds: BUILDS, sizes: {} })).toContain('\n1 documents ran while their page was hidden')
+    expect(report([seen[0]!, covered], { builds: BUILDS, floors: FLOORS.foreground, sizes: {} })).toContain('\n1 documents ran while their page was hidden')
   })
 
   test('the rows marked are rows the bench times: a renamed row would lose its mark and say nothing', () => {
@@ -106,12 +118,12 @@ describe('the report', () => {
       browser: 'firefox', session, seed: '', docs: docs.map(d => ({ row: d.row, family: d.family, id: d.id })),
       results: Object.fromEntries(docs.map(d => [d.id, { id: d.id, timerStep: 0.005, start: snapshot, end: snapshot, ops: d.ops.map(spec => ({ op: spec.op, rounds: rounds(d.row === 'resize' && spec.widths.length > 0 ? 1 : 1.3, 1) })) }])),
     }))
-    const marked = report(slower, { builds: BUILDS, sizes: {} }).split('\n').filter(line => line.endsWith('| slower (moves with the bundle) |'))
+    const marked = report(slower, { builds: BUILDS, floors: FLOORS.foreground, sizes: {} }).split('\n').filter(line => line.endsWith('| slower (moves with the bundle) |'))
     expect(marked.map(line => line.split(' | ').slice(0, 2).join(' | '))).toEqual(['| resize | latin layout at new widths', '| worst | controls layout', '| worst | invisible-tails layout'])
   })
 
   test('the output starts with the builds it compared, each with its commit: a pasted table wouldn\'t say what it timed', () => {
-    expect(report(two, { builds: BUILDS, sizes: {} }).split('\n')[1]).toBe(BUILDS)
+    expect(report(two, { builds: BUILDS, floors: FLOORS.foreground, sizes: {} }).split('\n')[1]).toBe(BUILDS)
     expect(buildName('HEAD')).toMatch(/^HEAD \([0-9a-f]{7,}, \d{4}-\d\d-\d\d\)$/)
     expect(buildName(join(import.meta.dir, '../../src'))).toMatch(/^this tree's src\/ \(on [0-9a-f]{7,}, \d{4}-\d\d-\d\d(, with uncommitted changes)?\)$/)
   })
