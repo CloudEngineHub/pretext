@@ -4,7 +4,8 @@
 // control (harness/README.md, Bench). After two sessions, each browser times the documents of the rows that read slower
 // or faster in a third. Pinned Chrome and Firefox and installed Safari run one at a time in the foreground; with
 // --background the harness's background browsers, webkit-host for WebKit, run instead and every verdict is a
-// hypothesis. Raw samples go to .artifacts/harness-bench/<time>/.
+// hypothesis. Raw samples go to .artifacts/harness-bench/<time>/, with a run.json that names the builds they compare.
+// Two builds whose bundles are the same bytes aren't timed; `--lib=<base>` times a build against itself.
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
@@ -236,10 +237,20 @@ export async function bench(baseRef: string, lib: string, browsers: BrowserKind[
   if (!background && before.source === 'battery' && before.percent < 20) throw new Error(`On battery at ${before.percent}%: the Mac throttles; plug it in to time`)
   const behind = browsers.find(browser => !BROWSER[browser].foreground)
   if (!background && behind !== undefined) throw new Error(`${behind} runs in the background only: time its engine in a browser that runs in the foreground, or pass --background`)
-  const built = { base: await benchBundle(srcOf(baseRef)), candidate: await benchBundle(srcOf(lib)) }
+  const src = { base: srcOf(baseRef), candidate: srcOf(lib) }
+  const built = { base: await benchBundle(src.base), candidate: await benchBundle(src.candidate) }
+  // Two builds whose bundles are the same bytes, as after a change to comments or types alone, give a browser nothing
+  // to tell apart. One build named on both sides is a calibration, and is timed.
+  const same = built.base.code === built.candidate.code
+  if (same && src.base !== src.candidate) {
+    console.log(`bench ${baseRef} against ${lib}: the two bundles are the same bytes (${built.base.bytes} B minified), so there is nothing to time. To time a build against itself, name it on both sides: bun harness bench ${baseRef} --lib=${baseRef}`)
+    return
+  }
   const stamp = new Date().toISOString().replace(/[:.]/g, '-')
   const dir = resolve(import.meta.dir, '../../.artifacts/harness-bench', stamp)
   mkdirSync(dir, { recursive: true })
+  // What the samples beside it compare: a saved run names its builds and how it timed them.
+  writeFileSync(join(dir, 'run.json'), JSON.stringify({ base: buildName(baseRef), candidate: buildName(lib), sameBytes: same, browsers, sessions, rows, background }))
   console.log(`bench ${baseRef} against ${lib}, ${sessions} sessions in ${browsers.join(', ')}${background ? ', in the background (hypotheses)' : ', in the foreground'}; power ${before.source} ${before.percent}%, load ${load()}; samples in ${dir}`)
   const { all, failed } = await runSessions(browsers, sessions, seed => documents(rows, seed, !background), {
     time: (browser, docs) => session(browser, docs, { base: built.base.code, candidate: built.candidate.code }, !background),

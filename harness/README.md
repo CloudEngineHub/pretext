@@ -349,11 +349,11 @@ of its other four documents goes to the full walker.
   11 (2026-10-07; `RESEARCH.md`, Evaluation Traps, Timing). Read such an entry over ten sessions, and by each copy's own
   cost in the saved samples, since the table prints base's and the candidate's medians only: the line a run prints as it
   starts names their folder, `.artifacts/harness-bench/<time>/`, which holds one file for each browser and session, with
-  each round's `ms` and `units` by `label`.
+  each round's `ms` and `units` by `label`, and a `run.json` that names the two builds and how they were timed.
 - **Floors**, the noise threshold under which a row's ratio isn't called a change (1-6% by row, `FLOORS` in
   `bench/report.ts`, with the builds and machine they came from), are the largest deviation held in one direction in all
-  three sessions of a calibration of HEAD against itself; calibrate again, with `bun harness bench HEAD --sessions=3`,
-  after a pin bump or on another machine. Floors from the worst single reading would be too wide, since one copy can run
+  three sessions of a calibration of HEAD against itself; calibrate again, with `bun harness bench HEAD --lib=HEAD
+  --sessions=3`, after a pin bump or on another machine. Floors from the worst single reading would be too wide, since one copy can run
   slow for a whole document (in one session Firefox 156.0.1's base copy took about twice as long as the other two on
   kept CJK handles, 2026-09-26), and would have hidden a real 20-25% slowdown. These floors flag all four slowdowns
   known between main before #340 (6d1d2106) and 217c84b8, a commit of #340: pre-wrap layout and walk at 1.05 of base's
@@ -371,7 +371,9 @@ of its other four documents goes to the full walker.
   entry where a copy keeps a speed: the band covers a control's copy, and no floor short of the distance between two
   speeds covers a candidate's (the bullet above).
 - **The builds.** The first line of the output names base and the candidate with their commits and dates, and says when
-  this tree's `src/` has uncommitted changes, so a pasted table says what it compared. A candidate given as a folder
+  this tree's `src/` has uncommitted changes, so a pasted table says what it compared. Two builds whose bundles are the
+  same bytes, as after a change to comments or types alone, aren't timed: the bench says so and starts no browser. One
+  build named on both sides (`bun harness bench HEAD --lib=HEAD`) is timed against itself. A candidate given as a folder
   outside any checkout (`--lib=<dir>`) is minified with other names than the same source given as a commit: the
   repository's `package.json` (`"sideEffects": false`) isn't above it, and 241 names of main's bench bundle differ, one
   for one, at the same length (bf62c76a, 2026-10-09); the `src/` of another checkout, a worktree's too, has that file

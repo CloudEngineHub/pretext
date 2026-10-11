@@ -1,11 +1,12 @@
 // The bench's arithmetic and texts, offline. The test name says what a change's author would see if it went wrong.
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, spyOn, test } from 'bun:test'
+import { cpSync } from 'node:fs'
 import { join } from 'node:path'
 import type { BrowserKind } from '../types.ts'
-import { buildName } from './lib.ts'
+import { benchBundle, buildName, srcOf } from './lib.ts'
 import type { DocResult, Sample } from './page.ts'
 import { report, unconfirmed, verdict, type SessionResults } from './report.ts'
-import { documents, runSessions, type Planned } from './run.ts'
+import { bench, documents, runSessions, type Planned } from './run.ts'
 import { EMOJI, familyText, MESSAGE_FAMILIES, STYLE, units } from './texts.ts'
 
 describe('the verdict', () => {
@@ -159,6 +160,26 @@ describe('the sessions', () => {
     const first = await run(['chrome', 'firefox'], 3, () => 1, { firefox: 0 })
     expect(first.given).toEqual(['chrome 9', 'firefox 9', 'chrome 9', 'chrome 9'])
     expect(first.all.map(r => r.browser)).toEqual(['chrome', 'chrome', 'chrome'])
+  })
+})
+
+describe('two builds of the same bytes', () => {
+  test('a commit\'s src/ copied to another folder builds the commit\'s bytes, and bench times neither: a change to comments alone would be timed for eleven minutes', async () => {
+    const head = srcOf('HEAD')
+    const copy = join(import.meta.dir, '../../.artifacts/harness-test-bench/src')
+    cpSync(head, copy, { recursive: true })
+    expect((await benchBundle(copy)).code).toBe((await benchBundle(head)).code)
+    const logged: string[] = []
+    const log = spyOn(console, 'log').mockImplementation(text => { logged.push(String(text)) })
+    // No browser is named, so a bench that went on would start none.
+    try {
+      await bench('HEAD', copy, [], 2, ['worst'], true)
+    } finally {
+      log.mockRestore()
+    }
+    expect(logged.length).toBe(1)
+    expect(logged[0]).toContain('the two bundles are the same bytes')
+    expect(logged[0]).toEndWith('bun harness bench HEAD --lib=HEAD')
   })
 })
 
