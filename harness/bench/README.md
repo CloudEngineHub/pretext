@@ -261,7 +261,7 @@ before the glyph spacings did, costs a tenth as much there.
   #515). By commit, six sessions each: +2.9%, +5.6% and +3.4% at the three removals before that one, +14.2% at it and
   +11.8% at the commit after it, medians that no run called, in bands of ±9.5% to ±14.3%. It isn't the bundle's names,
   as it is at new widths (above): with one, two and three do-nothing top-level variables, in builds from a folder
-  outside the checkout, the row read +14.6%, +11.7% and +14.8%, medians of six sessions again, not called. So it is how
+  outside any checkout, the row read +14.6%, +11.7% and +14.8%, medians of six sessions again, not called. So it is how
   Firefox 157 compiles the shorter loop, a cost that is recorded and not coded around (`RESEARCH.md`, Decisions Log,
   2026-10-12). A reading of that size on this row against a base from before #515 is this.
 - **Chrome's `lines: mixed stats`** read the candidate's copy about 1% over base's on identical code, in 15 of 16
