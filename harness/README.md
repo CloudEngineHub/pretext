@@ -282,10 +282,12 @@ harness/invariants.test.ts`) and the bench's floors.
 - Without the stand-in's kerning and ligatures between neighbouring letters (#435), every word measured as its letters
   do alone, so the fits of a word cut between letters all gave one answer: a planted defect that overwrote the advances
   a held handle keeps when its word was fit another way went unseen in 600 draws of every profile. With them, the
-  unknown profile, whose context takes no `letterSpacing`, fails it in 84 draws of 600. The WebKit profile's takes none
-  either, and it failed in 1 of the 600 drawn before the cut-word cases joined the sets and in none of those drawn
-  since; the Blink and Gecko profiles measure letter-spaced text apart, so no word there is fit two ways. A planted miss
-  of a line-start width in `layout()`'s count fails the Blink profile's agreement check in 3 draws of 600.
+  unknown profile, whose context takes no `letterSpacing`, fails it in 84 draws of 600. The WebKit profile measures
+  letter-spaced text with the rest too, its context taking none when this was run and, since the profile asks Canvas
+  how many letter spacings a grapheme takes, one that keeps the ligatures, as Safari's does; it failed in 1 of the 600
+  drawn before the cut-word cases joined the sets and in none of those drawn since. The Blink and Gecko profiles
+  measure letter-spaced text apart, so no word there is fit two ways. A planted miss of a line-start width in
+  `layout()`'s count fails the Blink profile's agreement check in 3 draws of 600.
 - The stand-in halts a closing fullwidth mark by a few tenths of a pixel, so almost no line there fits only by a halt:
   with the halt that a mark at a rich item's end keeps on a line with content (`itemEndHalts`) taken out of the walker,
   0 of 21,251 inputs differed in every profile (2026-10-07). A change to that rule rests on the unit tests and on
@@ -310,8 +312,9 @@ claims rest on these ratios; nothing timed is checked in.
   build against itself.
 - **What to paste.** The output ends with one line that names the builds, how they were timed and how many entries
   read slower, faster and within noise, then each entry that read slower or faster, or a line that says none did. A
-  pull request quotes those lines and gives each entry there a sentence. Main against itself is called on none to two
-  of a run's 192 entries, so a call counts when the change runs that entry's code, or when a second run repeats it.
+  pull request quotes those lines and gives each entry there a sentence. Main against itself was called on none to two
+  of a run's 192 entries, 204 since 2026-10-12, so a call counts when the change runs that entry's code, or when a
+  second run repeats it.
 - **A background window times as a foreground one**: the harness's Chrome starts with its three switches against
   throttling, webkit-host's window reports itself visible whatever covers it, and the page yields with a
   `MessageChannel` message, never a timer or an animation frame. The exception is a Firefox window covered whole, whose
@@ -328,7 +331,7 @@ claims rest on these ratios; nothing timed is checked in.
 The rows follow what an app does: `new` (text no library or browser has laid out, and UI labels), `fresh` (a fresh page
 a library: compiling and running the bundle and its first batches, as medians with no verdict), `rich` (rich inline, on
 stress items and on the chat demo's paragraphs), `seen` (text prepared before), `resize` (`layout()` on kept handles),
-`lines` (the line functions, on messages the simple stepper lays out) and `worst` (nine worst-case shapes, five of
+`lines` (the line functions, on messages the simple stepper lays out) and `worst` (eleven worst-case shapes, five of
 which reach the full walker). Never rank `prepare()` against `layout()`, as one is paid once and the other on every
 resize.
 

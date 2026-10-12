@@ -41,7 +41,9 @@ export function streamsTakeWidthFirst(src: string): boolean {
 // that reads only the line's width lets an engine that inlines a library's line builder never make the line, for that
 // library and not for another (harness/bench/README.md, Rows). The run reads the last one, so the store isn't dead. A
 // walk's `n +=` reads `n` before the call, so the widths its callback adds are overwritten and a walk, plain or rich,
-// adds line counts alone to `n`: `kept` is what makes the engine build each rich line.
+// adds line counts alone to `n`: `kept` is what makes the engine build each rich line. `prepare-cleared` empties the
+// library's caches before each rep, so a rep measures its texts again, as an app's texts are after a font loads: text
+// the browser has shaped and the library hasn't.
 const ENTRY = `import * as L from 'LIB/layout.ts'
 import * as R from 'LIB/rich-inline.ts'
 let kept = null
@@ -55,11 +57,12 @@ function run(op, data, widths, reps, font, options) {
   kept = null
   for (let r = 0; r < reps; r++) {
     const w = widths[r % widths.length]
+    if (op === 'prepare-cleared') L.clearCache()
     for (let i = 0; i < data.length; i++) {
       const p = data[i]
       switch (op) {
         case 'new': case 'seen': n += L.layout(L.prepare(p, font, options), w, 20).lineCount; break
-        case 'prepare': n += L.prepare(p, font, options) === null ? 0 : 1; break
+        case 'prepare': case 'prepare-cleared': n += L.prepare(p, font, options) === null ? 0 : 1; break
         case 'rich-new': case 'rich-seen': n += R.measureRichInlineStats(R.prepareRichInline(p), w).lineCount; break
         case 'layout': n += L.layout(p, w, 20).lineCount; break
         case 'stats': { const s = L.measureLineStats(p, w); n += s.lineCount + s.maxLineWidth; break }

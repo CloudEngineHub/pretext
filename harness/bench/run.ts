@@ -125,7 +125,7 @@ export function documents(rows: readonly string[], seed: string, focus: boolean,
   if (want('worst')) {
     for (const shape of shapes()) {
       doc('worst', shape.id, shape.lang, shape.font, shape.options, shape.ops.map(op => ({
-        op, texts: shape.texts, textUnits: units(shape.texts), widths: [240, 300, 360], ...(op === 'prepare' ? {} : { handles: op === 'walk' ? 'segments' as const : 'fast' as const }),
+        op, texts: shape.texts, textUnits: units(shape.texts), widths: [240, 300, 360], ...(op === 'prepare' || op === 'prepare-cleared' ? {} : { handles: op === 'walk' ? 'segments' as const : 'fast' as const }),
       })))
     }
   }

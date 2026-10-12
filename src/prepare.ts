@@ -30,6 +30,7 @@ import {
   type FontMeasurement,
   getCorrectedSegmentWidth,
   getEmojiCorrection,
+  getExtraSpacings,
   getFollowingSpaceMetrics,
   getFontKanaKerning,
   getFontMeasurement,
@@ -43,6 +44,7 @@ import {
   getTextWidth,
   kanaPairRe,
   measureWithLetterSpacing,
+  noExtraSpacings,
   noSpaceKerning,
   textMayContainEmoji,
   type SegmentFit,
@@ -308,15 +310,16 @@ export type ParagraphLists = {
 
 // A WebKit text item runs to its next break opportunity, so it also owns any
 // zero-width breaks before the space. The item is measured with one following
-// U+0020 minus an unshaped space, which keeps the kerning between the item's
-// end and that space. With letter spacing the same measurement also moves the
-// space's gap onto the item and clamps the item at zero, which the
-// per-grapheme gap model does not represent, so only the unspaced case takes
-// the kerning, and only it asks. A soft hyphen before the space also takes none:
-// on an RTL page WebKit needs about a hyphen's width more to fit such an item, and
-// preparation cannot see the page direction. Returns the zero-width breaks
-// between the text and the space, or null when the text takes no kerning. `own`
-// is the measured text, from `ownStart` of the analysis's.
+// U+0020 minus a space measured alone, which keeps the kerning between the item's
+// end and that space. Under letter spacing both measurements hold the space's
+// spacing (TextUtil::width over singleSpaceWidth, TextUtil.cpp:54-100, in WebKit
+// 7625), so the item keeps that kerning there too. WebKit's item is never narrower
+// than 0 (TextUtil.cpp:103), which the per-grapheme gap model does not represent.
+// A soft hyphen before the space takes no kerning: on an RTL page WebKit needs
+// about a hyphen's width more to fit such an item, and preparation cannot see the
+// page direction. Returns the zero-width breaks between the text and the space,
+// or null when the text takes no kerning. `own` is the measured text, from
+// `ownStart` of the analysis's.
 function getFollowingSpaceTail(analysis: TextAnalysis, analysisIndex: number, to: number, text: string, own: string, ownStart: number): string | null {
   const { normalized, spaceSources, starts, flags } = analysis
   let next = analysisIndex + 1
@@ -508,12 +511,16 @@ export function measureAnalysis(
   const hasLetterSpacing = letterSpacing !== 0
   const fontMeasurement = getFontMeasurement(font, language, hasLetterSpacing)
   const emojiCorrection = textMayContainEmoji(own) ? getEmojiCorrection(font, fontMeasurement) : 0
+  // Whether the text holds a U+0020. Only then can a space follow one of its text segments
+  // (getFollowingSpaceTail), so a text of none, as most CJK paragraphs are, doesn't look for
+  // one after each segment.
+  const hasSpace = own.includes(' ')
   // The font's space, asked for only by a text that holds a space or a tab. A web font split by
   // unicode-range has the part with U+0020 loaded only once a text that holds a character of
   // that part was loaded for (document.fonts.load(font, text)), so a text of other characters
   // alone, a CJK label or one Cyrillic word, would measure the fallback font's space and the
   // font would keep it for every later text.
-  const spaceWidth = own.includes(' ') || own.includes('\t') ? getSpaceWidth(fontMeasurement) : 0
+  const spaceWidth = hasSpace || own.includes('\t') ? getSpaceWidth(fontMeasurement) : 0
   // The advance between tab stops: eight spaces, each with its letter spacing where the
   // engine counts it (EngineProfile's letterSpaceTabStops). Gecko rounds the space and the
   // letter spacing to app units, sixtieths of a pixel, each on its own
@@ -601,7 +608,7 @@ export function measureAnalysis(
         // With an empty following-space tail, the text is measured together with the space,
         // so its kerned width costs no extra Canvas call, and other occurrences of the same
         // text measure it alone; with a zero-width tail, the item's kerning is added.
-        const followingSpaceTail = engineProfile.measureTextWithFollowingSpace && !hasLetterSpacing ? getFollowingSpaceTail(analysis, mi, to, text, own, ownStart) : null
+        const followingSpaceTail = engineProfile.measureTextWithFollowingSpace && hasSpace ? getFollowingSpaceTail(analysis, mi, to, text, own, ownStart) : null
         const measuredWithSpace = followingSpaceTail === ''
         const textMetrics = measuredWithSpace ? getFollowingSpaceMetrics(text, fontMeasurement) : getSegmentMetrics(text, fontMeasurement)
         previousJoinablePiece = text
@@ -638,13 +645,20 @@ export function measureAnalysis(
         width = getTextSegmentWidth(text, textMetrics, fontMeasurement, emojiCorrection, measuredWithSpace ? spaceWidth : 0, followingSpaceKerning)
         // The walkers put a gap after every grapheme of a spaced segment, so a grapheme
         // the engine gives none takes one back from its advance, here and in the advances
-        // a break inside the segment falls by.
+        // a break inside the segment falls by, and one whose glyphs WebKit gives more or
+        // fewer takes the difference (EngineProfile's letterSpacesGlyphs), in text of its
+        // complex path.
         let unspaced: number[] | null = null
+        let extraSpacings = noExtraSpacings
         if (hasLetterSpacing) {
           spacingGraphemeCount = countRenderedSpacingGraphemes(text, kind, engineProfile.graphemeTable)
           if (cursiveSpacing) {
             unspaced = getUnspacedGraphemes(own, starts[mi]! - ownStart, starts[mi]! - ownStart + text.length, engineProfile.graphemeTable, engineProfile.unspacedCursive === 'run' ? scriptRuns : null)
             if (unspaced !== null) width -= unspaced.length * letterSpacing
+          }
+          if (engineProfile.letterSpacesGlyphs) {
+            extraSpacings = textMetrics.extraSpacings ??= needsComplexTextPath(text) ? getExtraSpacings(text, fontMeasurement) : noExtraSpacings
+            for (let k = 0; k < extraSpacings.length; k++) width += extraSpacings[k]! * letterSpacing
           }
         }
         // Under break-word, Blink retries an overflowing line with a break allowed between
@@ -668,6 +682,10 @@ export function measureAnalysis(
         if (followingSpaceKerning !== 0) {
           fitAdvances = fitAdvances.slice()
           fitAdvances[fitAdvances.length - 1] = fitAdvances[fitAdvances.length - 1]! + followingSpaceKerning
+        }
+        if (extraSpacings.length !== 0) {
+          fitAdvances = fitAdvances.slice()
+          for (let k = 0; k < extraSpacings.length; k++) fitAdvances[k] = fitAdvances[k]! + extraSpacings[k]! * letterSpacing
         }
         // Such a segment takes no entry geometry, whose fresh widths Canvas would space
         // by its own rule (ENGINE_FOLLOWUPS.md, Letter spacing).

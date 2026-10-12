@@ -41,7 +41,15 @@ the full walker, which lays out all of `cjk-letter-spaced` and `pre-wrap-chunks`
 `soft-hyphens-marks` and 25% of those of `invisible-tails`, and in the WebKit profile 34% of those of `controls`; in the
 other profiles `layout()`, the one line function the row runs on `controls`, counts those texts with the simple stepper
 and hands the full walker only the lines that end where the text has no break (`countSteppedLines()`). None of the text
-of its other four documents goes to the full walker.
+of four more of its documents goes to the full walker, and two run no line function: `hindi-letter-spaced` and
+`arabic-letter-spaced`, 94 Hindi paragraphs in 16px Kohinoor Devanagari and 400 Arabic ones in 16px Geeza Pro at a 0.5px
+letter spacing. Theirs is text of WebKit's complex path, where the WebKit profile asks Canvas, under a `letterSpacing`,
+how many glyphs each prefix of a word new to the library spaces (`getExtraSpacings()`, `src/measurement.ts`). Their
+`prepare` prepares the texts again, as every document's does, and measures nothing. Their `prepare-cleared` calls
+`clearCache()` before each pass over the texts, so a pass measures them all again: text the browser has shaped and the
+library hasn't, as an app's is after a font loads. WebKit keeps no width measured under a letter spacing, so in
+webkit-host that entry is mostly those calls, the only entry that times them: a build that asks none of them, as main
+before the glyph spacings did, costs a tenth as much there.
 
 ## Protocol
 
@@ -154,7 +162,7 @@ of its other four documents goes to the full walker.
   above it and gets the commit's names. Some rows move with those names (Entries that misread), so a figure a decision
   rests on names commits on both sides, and a build that is no commit goes inside a checkout, as under this one's
   `.artifacts/`, where it gets the names a commit gets.
-- **The last lines** are for a pull request to quote in place of the tables, of whose 192 rows nearly all read within
+- **The last lines** are for a pull request to quote in place of the tables, of whose 204 rows nearly all read within
   noise: one line with the builds, the sessions, the browsers, the form, the wall clock and how many entries read
   slower, faster and within noise, then each entry that read slower or faster with its readings by session and the
   control's, or a line that says none did. That line also counts the documents that ran hidden and names a browser that
@@ -187,7 +195,14 @@ of its other four documents goes to the full walker.
   than the foreground's on 72, 41 of those on `seen` and `lines`. What that costs: a change of 3% is called on 38% of
   `seen` entries and 10% of `lines` entries, where 1% called it on 56% and 38%; one of 5% on 84% and 55%, where it was
   86% and 73%; one of 8% on 97% and 92%, as before within a point. A change under about 5% on those two rows wants the
-  foreground form, or more runs.
+  foreground form, or more runs. The letter-spaced Hindi and Arabic documents joined `worst` on 2026-10-12 and take
+  its 2%: in five runs of the row, a build against itself (e440dd64, the same browsers and machine, each run alone), a
+  copy held 2% or less on their twelve entries in 118 of 120 readings, 1.6% at most in webkit-host, and one entry was
+  called, Firefox's `hindi-letter-spaced prepare-cleared`, at -5.8%, -2.5% and -4.2%. Two runs of the row with main
+  against itself (abd3e10b, where a pass of `prepare-cleared` costs webkit-host a tenth as much) called none of its 66
+  entries; a copy held more than 2% on three of those twelve entries' 48 readings, none in webkit-host: Chrome's
+  `hindi-letter-spaced prepare` 2.5%, and Firefox's `arabic-letter-spaced prepare-cleared` 2.2% in one run and 4.0%,
+  on the control, in the other.
 - **The foreground's floors.** Floors from the worst single reading would be too wide, since one copy can run slow for a
   whole document (in one session Firefox 156.0.1's base copy took about twice as long as the other two on kept CJK
   handles, 2026-09-26), and would have hidden a real 20-25% slowdown. These floors flag all four slowdowns known between
@@ -227,6 +242,14 @@ of its other four documents goes to the full walker.
 - **A verdict on one of those three Firefox rows** prints "(moves with the bundle)" in Firefox's table and in the
   output's last lines (`MOVES_WITH_BUNDLE`, `bench/report.ts`). The list is Firefox 156's: after a pin bump a row stays
   on it only while unrelated changes still move it.
+- **Firefox's `resize: cjk layout at new widths`** moved with two changes to preparation code, which `layout()` never
+  runs, and isn't on that list: it read 8.6% to 10.8% faster under #512 and 6.1% to 12.6% slower under #513 after it,
+  the Gecko profile's handles the same under each, and level across the two (-0.6% [-2.5%, +1.8%] against main before
+  #512, six sessions; Firefox 157.0.1, 2026-10-12). Under #513 it read the same one do-nothing top-level variable
+  apart, so it isn't the minifier's names, and level with main's `src/prepare.ts` under #513's `src/measurement.ts`, so
+  it comes with the 42 lines #513 changes in `measureAnalysis()`, of which the Gecko profile runs two tests a segment
+  and no allocation. A reading of 6% to 13% there with no change to code `layout()` runs wants a second change's table
+  before being blamed on one.
 - **Chrome's `lines: mixed stats`** read the candidate's copy about 1% over base's on identical code, in 15 of 16
   sessions of main against itself and with the code the bench wraps a library in (`ENTRY`, `bench/lib.ts`) as it was
   before and after #456 (Chrome 154.0.8037.98, 2026-10-07; `RESEARCH.md`, Evaluation Traps, Timing), and the row's floor
@@ -237,11 +260,19 @@ of its other four documents goes to the full walker.
   wide, so an entry there says nothing of a smaller change, and one it calls has its control nearly as far out: read a
   change to new text in the other two browsers' rows, and time Firefox's again alone (`--browser=firefox --rows=new`) or
   in the foreground before quoting it.
+- **webkit-host's `worst: cjk-letter-spaced prepare`.** A copy of the library can keep another speed for that document:
+  a copy of base's own code sat 18% to 33% from base in 11 of 94 session readings (the controls of 17 runs and the
+  candidates of the seven of them that timed a build against itself, with abd3e10b, 3585bb66 or e440dd64 as base;
+  2026-10-11 and 12, webkit-host on WebKit 22625.1.29.11.27), and a build against itself was called slower there in
+  one run of five, at +10.0%, +23.0% and +23.5% (e440dd64). The band covers such a copy only when it is the control's
+  (Reading a table), so read a change to letter-spaced CJK preparation there over ten sessions (`--rows=worst
+  --browser=webkit-host --sessions=10`).
 
 ## Session times
 
 Side by side, a run takes its slowest session's time: a session of every row took 84 to 88 s in webkit-host, 97 to
-101 s in Chrome and 131 to 138 s in Firefox with nine at once, and a run 133 to 138 s (24 runs, 2026-10-11). In the
+101 s in Chrome and 131 to 138 s in Firefox with nine at once, and a run 133 to 138 s (24 runs, 2026-10-11); with the
+two letter-spaced documents two runs took 142 s each, Firefox's sessions 140 to 142 s (2026-10-12). In the
 foreground a session of every row takes 96 s in Chrome, 117 s in Firefox and 98 s in Safari (six sessions each,
 2026-10-07; a document that loses focus waits a minute and starts again): a little over ten minutes for the two, and
 then the confirming sessions, which would have timed 57 of the third sessions' 145 documents in the 19 runs above

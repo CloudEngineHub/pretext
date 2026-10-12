@@ -1623,9 +1623,9 @@ describe('measurement invariants', () => {
 
   test('breakable fit cache distinguishes fit modes', () => {
     const measurement = getFontMeasurement('16px Fit Mode Test', null, false)
-    const metrics: SegmentMetrics = { width: 80, emojiCount: -1, fit: null, spaceKerning: null }
+    const metrics: SegmentMetrics = { width: 80, emojiCount: -1, fit: null, spaceKerning: null, extraSpacings: null }
     for (const [text, width] of [['a', 10], ['b', 20], ['c', 30], ['ab', 35], ['bc', 60]] as const) {
-      measurement.metrics.set(text, { width, emojiCount: -1, fit: null, spaceKerning: null })
+      measurement.metrics.set(text, { width, emojiCount: -1, fit: null, spaceKerning: null, extraSpacings: null })
     }
     measurement.metrics.set('abc', metrics)
 
@@ -2819,6 +2819,7 @@ describe('prepare invariants', () => {
       ['letterSpacingInAppUnits', false, false, true],
       ['canvasLetterSpacingDropsLigatures', true, false, true],
       ['unspacedCursive', 'run', 'none', 'cluster'],
+      ['letterSpacesGlyphs', false, true, false],
       ['shapesMarksAcrossSoftHyphen', true, false, false],
       ['unfitHyphenRetreat', 'reduced-width', 'full-width-or-first', 'full-width'],
       ['hyphenFromPrimaryFont', true, true, false],
@@ -6785,8 +6786,8 @@ test('the Safari profile keeps the kerning between a word and a following space'
     { lines: [['A', 10], ['A\u2060 ', 10], ['(x', 16], ['\u05D0)', 16]], lineCount: 4 },
     // On an RTL page a soft hyphen before the space also costs a hyphen.
     { lines: [['A', 10], ['A ', 10], ['B', 8]], lineCount: 3 },
-    // With letter spacing the measurement also moves gaps; not modeled.
-    { lines: [['A', 11], ['A ', 11], ['B', 9]], lineCount: 3 },
+    // Under letter spacing the word keeps its kerning with the space too.
+    { lines: [['A', 11], ['A ', 10], ['B', 9]], lineCount: 3 },
   ])
   // A word before a space is measured together with that space instead of
   // alone, and keeps the -1px kerning.
@@ -7326,7 +7327,8 @@ test('letter-spaced text is measured as each engine\'s Canvas shapes it', () => 
   expect(rowsOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:156.0) Gecko/20100101 Firefox/156.0')).toEqual(shaped(0))
   expect(rowsOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Safari/605.1.15')).toEqual([
     [[21, 8, 29], [8, 5, 8, 8], 1, ['0px'], 7],
-    [[25, 8, 35], [8, 5, 8, 8], 1, ['0px'], 1],
+    // The word before the space is measured with it under letter spacing too, as it was above.
+    [[25, 8, 35], [8, 5, 8, 8], 1, [], 0],
     [[19, 8, 26], [8, 5, 8, 8], 1, [], 0],
     [[21, 8, 29], [8, 5, 8, 8], 1, [], 0],
     85,
@@ -7627,10 +7629,17 @@ test('letter spacing leaves out cursive scripts as Chrome and Firefox do', () =>
   const richInlineUrl = new URL('./rich-inline.ts', import.meta.url).href
   const rowsOf = (userAgent: string): { gaps: number[]; spaceUnderMark: number; lines: string[]; rich: number } => JSON.parse(runInChild(`
     Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { userAgent: ${JSON.stringify(userAgent)} } })
+    // Safari's Canvas adds a letterSpacing to every glyph that has an advance, which the WebKit
+    // profile asks it for: here every code point but a mark or a format character, and lam
+    // with alef is one glyph.
+    const spacesGlyphs = ${JSON.stringify(userAgent.includes('Version/'))}
     class Context {
       font = ''
       letterSpacing = '0px'
-      measureText(text) { return { width: [...text].length * 8 } }
+      measureText(text) {
+        const glyphs = spacesGlyphs ? [...text.replace(/\\u0644\\u0627/g, '\\u0644')].filter(ch => !/[\\p{M}\\p{Cf}]/u.test(ch)).length : 0
+        return { width: [...text].length * 8 + glyphs * Number.parseFloat(this.letterSpacing) }
+      }
     }
     globalThis.OffscreenCanvas = class { getContext() { return new Context() } }
     const { prepareWithSegments, measureNaturalWidth, layoutWithLines } = await import(${JSON.stringify(layoutUrl)})
@@ -7651,10 +7660,9 @@ test('letter spacing leaves out cursive scripts as Chrome and Firefox do', () =>
   const safari = rowsOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Safari/605.1.15')
   for (let i = 0; i < strings.length; i++) {
     const [shows, , inChrome, inFirefox, inSafari] = strings[i]!
-    // Safari draws lam and alef as one glyph with one gap, where the profile spaces both
-    // graphemes (ENGINE_FOLLOWUPS.md, Letter spacing).
+    // Safari draws lam and alef as one glyph with one gap, which its profile reads from Canvas.
     expect({ shows, chrome: chrome.gaps[i], firefox: firefox.gaps[i], safari: safari.gaps[i] })
-      .toEqual({ shows, chrome: inChrome, firefox: inFirefox, safari: shows === 'lam-alef' ? 2 : inSafari })
+      .toEqual({ shows, chrome: inChrome, firefox: inFirefox, safari: inSafari })
   }
   // A space takes the scripts of a mark right after it as a digit does, though the two are
   // segments apart: of `a`, a space under U+064B, a space and `12`, Chrome 154 spaces `a` and
@@ -7666,6 +7674,148 @@ test('letter spacing leaves out cursive scripts as Chrome and Firefox do', () =>
   const letters = ['\u0628', '\u0628', '\u0628', '\u0628']
   expect([chrome.lines, firefox.lines, safari.lines]).toEqual([pairs, pairs, letters])
   expect([chrome.rich, firefox.rich, safari.rich]).toEqual([40, 40, 48])
+})
+
+test('the WebKit profile letter-spaces the glyphs of complex text as its Canvas does', () => {
+  // The engine profile is computed once per process, so each engine runs in a child process.
+  // A font like Devanagari MT: a letter is 8px wide, the signs of aa, i, ii, o and au and the
+  // visarga are glyphs of their own, 4px wide, other marks have no advance, lam with alef is
+  // one glyph, and `fi` is a ligature, 3px narrower. Canvas adds its letterSpacing to every
+  // glyph that has an advance and keeps the ligature, as Safari's does. In 16px Devanagari MT
+  // at 1px webkit-host spaces `\u0939\u093F\u0928\u094D\u0926\u0940`, two graphemes, five times, `\u0915\u093F` twice
+  // and lam with alef once (2026-10-11). Canvas reports widths as 32-bit floats, so a width
+  // under a spacing holds a whole number of spacings only to rounding: here they come out
+  // 2^-20 short, and the count still rounds to the glyphs.
+  const layoutUrl = new URL('./layout.ts', import.meta.url).href
+  const rowsOf = (userAgent: string, takesLetterSpacing: boolean): unknown => JSON.parse(runInChild(`
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { userAgent: ${JSON.stringify(userAgent)} } })
+    let spacedCalls = 0
+    class Context {
+      font = ''
+      ${takesLetterSpacing ? "letterSpacing = '0px'" : ''}
+      measureText(text) {
+        const spacing = Number.parseFloat(this.letterSpacing ?? '0')
+        const joined = text.replace(/\\u0644\\u0627/g, '\\u0644').replace(/fi/g, 'f')
+        let width = text === joined || !text.includes('fi') ? 0 : -3 * (text.split('fi').length - 1) + 8 * (text.split('fi').length - 1)
+        let glyphs = 0
+        for (const ch of joined) {
+          const advance = /[\\u093E-\\u0940\\u094B\\u094C\\u0903]/.test(ch) ? 4 : /[\\p{M}\\p{Cf}]/u.test(ch) ? 0 : 8
+          width += advance
+          if (advance !== 0) glyphs++
+        }
+        if (spacing >= 1) spacedCalls++
+        return { width: width + (spacing >= 1 ? glyphs * spacing * (1 - 2 ** -20) : 0) }
+      }
+    }
+    globalThis.OffscreenCanvas = class { getContext() { return new Context() } }
+    const { prepareWithSegments, measureNaturalWidth, layoutWithLines } = await import(${JSON.stringify(layoutUrl)})
+    const font = '16px Test'
+    const width = (text, letterSpacing) => measureNaturalWidth(prepareWithSegments(text, font, { letterSpacing }))
+    const gaps = text => (width(text, 4) - width(text, 0)) / 4
+    const asked = text => {
+      const before = spacedCalls
+      width(text, 4)
+      return spacedCalls - before
+    }
+    console.log(JSON.stringify({
+      gaps: ['\\u0939\\u093F\\u0928\\u094D\\u0926\\u0940', '\\u0915\\u093F', '\\u0915\\u0941', '\\u0644\\u0627', '\\u0628\\u0644\\u0627', 'office'].map(gaps),
+      // One word of 96 graphemes is counted by its prefixes, where lam with alef is one glyph. One
+      // of 97 asks each grapheme alone, where the two are a glyph each.
+      long: ['\\u0915\\u093F'.repeat(94) + '\\u0644\\u0627', '\\u0915\\u093F'.repeat(95) + '\\u0644\\u0627'].map(gaps),
+      // Four graphemes of two glyphs, 12px and two spacings each, in a 50px line at 4px.
+      lines: layoutWithLines(prepareWithSegments('\\u0915\\u093F\\u0915\\u093F\\u0915\\u093F\\u0915\\u093F', font, { letterSpacing: 4 }), 50, 20).lines.map(line => [line.text.length / 2, line.width]),
+      // New complex text asks Canvas once for each grapheme, seen text and simple text never.
+      asked: [asked('\\u0915\\u093E\\u0915\\u093F \\u0915\\u093E\\u0915\\u093F'), asked('\\u0915\\u093E\\u0915\\u093F'), asked('difficult')],
+    }))
+  `))
+  const safari = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Safari/605.1.15'
+  const chrome = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36'
+  expect(rowsOf(safari, true)).toEqual({ gaps: [5, 2, 1, 1, 2, 6], long: [189, 192], lines: [[2, 40], [2, 40]], asked: [2, 0, 0] })
+  // Under a context that takes no letterSpacing, and in the Blink profile, a grapheme takes
+  // one, but an Arabic one in Blink's, which takes none.
+  const graphemes = { gaps: [2, 1, 1, 2, 3, 6], long: [96, 97], lines: [[3, 48], [1, 16]], asked: [0, 0, 0] }
+  expect(rowsOf(safari, false)).toEqual(graphemes)
+  expect(rowsOf(chrome, true)).toEqual({ ...graphemes, gaps: [2, 1, 1, 0, 0, 6], long: [94, 95] })
+})
+
+test("the WebKit profile keeps a text's glyph count for the font, and clearCache() drops it", () => {
+  // The engine profile is computed once per process, so Safari runs in a child process. A
+  // letter is 8px wide and the signs of aa, i and ii are glyphs of their own, 4px wide, until
+  // the font draws them on the letter, as another face of the family does once it loads, and
+  // as a second font does from the start. Canvas adds its letterSpacing to every glyph that
+  // has an advance. Each row is the letter spacings a text takes and the texts Canvas was
+  // asked about under a letterSpacing for it.
+  const layoutUrl = new URL('./layout.ts', import.meta.url).href
+  const rows = JSON.parse(runInChild(`
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: {
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Safari/605.1.15',
+    } })
+    let signsAdvance = true
+    const spaced = []
+    const plain = []
+    class Context {
+      font = ''
+      letterSpacing = '0px'
+      measureText(text) {
+        const spacing = Number.parseFloat(this.letterSpacing)
+        let width = 0
+        let glyphs = 0
+        for (const ch of text) {
+          const advance = /[\\u093E-\\u0940]/.test(ch) ? (signsAdvance && this.font !== '16px Joined' ? 4 : 0) : 8
+          width += advance
+          if (advance !== 0) glyphs++
+        }
+        if (spacing >= 1) spaced.push(text)
+        else plain.push(text)
+        return { width: width + (spacing >= 1 ? glyphs * spacing : 0) }
+      }
+    }
+    globalThis.OffscreenCanvas = class { getContext() { return new Context() } }
+    const { prepareWithSegments, measureNaturalWidth, layoutWithLines, clearCache } = await import(${JSON.stringify(layoutUrl)})
+    const font = '16px Test'
+    const width = (text, letterSpacing, family = font) => measureNaturalWidth(prepareWithSegments(text, family, { letterSpacing }))
+    const row = (text, family) => [(width(text, 4, family) - width(text, 0, family)) / 4, spaced.splice(0)]
+    const lines = text => layoutWithLines(prepareWithSegments(text, font, { letterSpacing: 4 }), 30, 20).lines.map(line => line.width)
+    const ka = '\\u0915'
+    const out = { rows: [row(ka + '\\u093E' + ka + '\\u093F'), row(ka + '\\u093E' + ka + '\\u0940'), row(ka + '\\u093E')] }
+    out.kept = lines(ka + '\\u093E' + ka + '\\u0940')
+    out.other = row(ka + '\\u093E' + ka + '\\u093F', '16px Joined')
+    // Past 96 graphemes each grapheme is asked alone, the same one once.
+    out.rows.push(row((ka + '\\u093F').repeat(97)))
+    clearCache()
+    out.rows.push(row(ka + '\\u093E' + ka + '\\u0940'))
+    out.afresh = lines(ka + '\\u093E' + ka + '\\u0940')
+    signsAdvance = false
+    out.rows.push(row(ka + '\\u093E'))
+    clearCache()
+    out.rows.push(row(ka + '\\u093E'))
+    // A word before a space is counted with nothing measured for it but the word with that space.
+    signsAdvance = true
+    clearCache()
+    plain.length = 0
+    width(ka + '\\u093E' + ka + '\\u093F ' + ka, 4)
+    out.beforeSpace = [plain.slice().sort(), spaced.splice(0)]
+    console.log(JSON.stringify(out))
+  `)) as { rows: [number, string[]][]; kept: number[]; other: [number, string[]]; afresh: number[]; beforeSpace: [string[], string[]] }
+  const ka = '\u0915'
+  expect(rows.rows).toEqual([
+    // A new word asks about each of its prefixes.
+    [4, [ka + '\u093E', ka + '\u093E' + ka + '\u093F']],
+    // A word that starts as one counted before asks about what is new, and a prefix counted for another word nothing.
+    [4, [ka + '\u093E' + ka + '\u0940']],
+    [2, []],
+    [194, [ka + '\u093F']],
+    // After clearCache() the same text is asked about again, and takes the count it took from the kept one.
+    [4, [ka + '\u093E', ka + '\u093E' + ka + '\u0940']],
+    // A count is kept as a width is: the font's change shows once clearCache() dropped it.
+    [2, []],
+    [1, [ka + '\u093E']],
+  ])
+  expect(rows.kept).toEqual([20, 20])
+  expect(rows.afresh).toEqual(rows.kept)
+  // A text counted in one font is asked about again in another, and counts as that font draws it.
+  expect(rows.other).toEqual([2, [ka + '\u093E', ka + '\u093E' + ka + '\u093F']])
+  expect(rows.beforeSpace).toEqual([[' ', '-', ka, ka + '\u093E', ka + '\u093E' + ka + '\u093F '], [ka + '\u093E', ka + '\u093E' + ka + '\u093F', ka]])
 })
 
 test("a font string Canvas doesn't take throws, and the question leaves later measurements as they were", () => {
