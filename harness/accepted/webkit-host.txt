@@ -44,11 +44,10 @@ facts-a4c1e6f899cbbc9a count
 facts-dcda28e48e677847 breaks
 
 ## Invisible format characters (soft hyphen, ZWSP, ZWJ, WJ, CGJ, bidi controls) beside spaces, tabs, marks or U+3000, at 24 px and wider: WebKit breaks around them where the library doesn't
-catalog-1041bf43db4daffb breaks
-catalog-1e0fe25b1784240a count
+catalog-1041bf43db4daffb count
 catalog-225df6d4902197bc count
 catalog-25e91c02bc492e09 breaks
-catalog-433d3cb68a016c07 count
+catalog-433d3cb68a016c07 breaks
 catalog-554a1bfaba27d946 count
 catalog-8d0c192d1d3329a2 breaks
 catalog-978bf3a5e4ce0ed3 breaks
@@ -62,16 +61,8 @@ catalog-7cffe66fa7484a1b count
 catalog-c87a1e216aa3a4ea count
 
 ## Letter-spacing across scripts (Thai, Arabic, Khmer, CJK, digits and hyphens) and in rich runs, at 24 px and wider: WebKit spaces or breaks these where the library doesn't
-catalog-0cd616621690d7a0 count
-catalog-2a27bdd629eb66ce count
 catalog-310f78fa2977df58 breaks
-catalog-6136ce5f0a531dfd count
 catalog-e2e532ee5e2beb22 count
-catalog-f59601a89eac943f count
-rich-78f0ac54ebcb9477 count
-
-## Lost against main before #340 (6d1d210), real usage: Khmer with ZWSPs at -0.2 px letter-spacing in a Segoe UI list, which macOS falls back past; the library moves the final "។" to a line of its own
-sample-2a86be3edfad28d8 count
 
 ## Lost against main before #340 (6d1d210), real usage: Urdu in Noto Nastaliq Urdu with an ICU message ("}other{"); WebKit doesn't break between the brace and the letter, the library does
 sample-edd96126ceff4f2c breaks
@@ -180,13 +171,6 @@ facts-f4ed7850936e9108 count
 
 ## Real usage: Hebrew with a prefix before a Latin word (ל-Microsoft); WebKit breaks after the hyphen, the library doesn't (main before #340 too)
 sample-1562f53a72883442 breaks
-
-## Real usage: Khmer and Myanmar; WebKit's dictionary breaks differ from the library's (main before #340 too)
-sample-48b1ab52d386bd38 breaks
-
-## Real usage: Latin, Devanagari and Cyrillic with letter-spacing; one word lands on the other line (main before #340 too)
-sample-53ffbeedb28e3e2a breaks
-sample-863aac68305946bb breaks
 
 ## Real usage: Roboto, served as a web font, at -0.2 px letter-spacing; Safari turns the fi of "Notifikasi" off under letter spacing, where its Canvas letterSpacing keeps it, so the library's first line is 326.70 px at 327 px and keeps a word Safari wraps (main before #340 too; ENGINE_FOLLOWUPS.md, Letter spacing)
 sample-2f7ddc63b335c886 breaks
