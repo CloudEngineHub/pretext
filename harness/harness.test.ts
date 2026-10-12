@@ -743,15 +743,18 @@ describe('the commands, with a stand-in browser', () => {
     const root = folder('accept', { pass: laidOut, fail: laidOut, label: laidOut }, { varying: '## system-ui\nlabel runs\n' })
     // Preparing asks Canvas 10 and 20 times, over 43 units each.
     const io = browser(root, c => (c.id === 'pass' ? { ...right, prepareCalls: 10 } : { ...wrong, prepareCalls: c.id === 'fail' ? 20 : 0 }) as Prediction)
-    const list = cases(['pass', 'fail', 'label']).map(c => (c.id === 'label' ? c : { ...c, sample: { group: 'chat', weight: c.id === 'fail' ? 0.25 : 0.75 } }))
+    // The label is in a system-ui font list, as the cases listed as varying between runs are, so of a counted kind.
+    const systemUi = (c: Case): Case => ({ ...c, paragraph: { ...c.paragraph, font: { ...c.paragraph.font, family: 'system-ui, sans-serif' } } })
+    const list = cases(['pass', 'fail', 'label']).map(c => (c.id === 'label' ? systemUi(c) : { ...c, sample: { group: 'chat', weight: c.id === 'fail' ? 0.25 : 0.75 } }))
     const first = await check('chrome', list, options, io)
     expect([first.blocked, first.newFailures.map(c => c.id)]).toEqual([true, ['fail']])
     expect(io.printed()).toContain('  Canvas: 232.6 measureText calls per 1,000 units of text while preparing')
-    // The case that varies between runs fails in this one, and is in neither tier's counts: the blocking line would
-    // move by one from run to run with no change.
+    // The case that varies between runs fails in this one, and is in neither tier's counts: the blocking line, or its
+    // kind's, would move by one from run to run with no change.
     expect(io.printed()).toContain('\n  blocking, the 2 cases at 24 px and wider, away from the edges of a line change, inside the claims, old-gate apart: pass 1 | wrong line count 0 | right count, wrong breaks 1 | error 0\n')
     expect(io.printed()).toContain('\n    outside the claims: 0 right, 0 wrong; since the list: +0, -0\n    old-gate: 0 right, 0 wrong; since the list: +0, -0\n')
     expect(io.printed()).toContain('\n    every pinned case: pass 1 | wrong line count 0 | right count, wrong breaks 2 | error 0\n')
+    expect(io.printed()).toContain('\n  varying (harness/varying): 1 that vary between runs, predicted but not judged (0 pass, 1 fail); ')
     await check('chrome', list, { ...options, accept: 'a written reason' }, io)
     expect([...readAccepted(acceptedPath(root, 'chrome')).keys()]).toEqual(['fail'])
     // Accepted losses print under their reason, with the share of real paragraphs they cover.
