@@ -252,11 +252,11 @@ a rule by reading it and its unit tests (`rebuild/src/engines/<engine>/`) agains
   because line breaking needs the language.
 - **The API isn't final.** The prepare/layout split was the right trade when chosen and may not be now; alternatives are
   proposed as additions and decided with the maintainer. Idempotent layout without handles stays interesting if lifetime
-  can be controlled, though a study recommends keeping handles (Dead Ends, Caching, State And API Designs). The old
-  incremental-prepare work (#313; Dead Ends, Caching, State And API Designs, Incremental prepare) mostly made up for
-  slowness: it may inspire an API, not bias one. Immediate mode: nothing relies on object identity, and changed text
-  should be cheap to prepare again (#313). A target of 2 s to prepare 10,000 rich messages (2026-09-18) was withdrawn as
-  unsubstantiated.
+  can be controlled, though a study recommends keeping handles (Dead Ends, Caching, State And API Designs); issue #504
+  weighs three forms of it, with nothing decided (2026-10-12). The old incremental-prepare work (#313; Dead Ends,
+  Caching, State And API Designs, Incremental prepare) mostly made up for slowness: it may inspire an API, not bias one.
+  Immediate mode: nothing relies on object identity, and changed text should be cheap to prepare again (#313). A target
+  of 2 s to prepare 10,000 rich messages (2026-09-18) was withdrawn as unsubstantiated.
 - **Design from shared structure**: once plain speed engineering is exhausted, find what calls share and skip
   recomputing it, from a cost model first. Demos show hard technical cases that developers adapt to their own uses; they
   don't tell which uses are common (2026-09-26). Don't overfit to today's uses.
@@ -2554,7 +2554,9 @@ in nine scripts at 40px in every generic on 18 page languages, up from 0-6, exce
 iOS (5) (Safari 27 on macOS 27, the iOS 26 simulator, iOS 27 on an iPhone; 2026-09-24). Under `zh` Core Text names
 Kaiti, which Safari can't use on macOS 27, and Safari draws Songti. In webkit-host (September 2026) a list where no
 family resolves draws the script's standard family, Windows-only lists (`Meiryo`, `"Microsoft YaHei"` alone) resolve to
-nothing, and PingFang lacks kana.
+nothing, and PingFang lacks kana. The profile names the families only on Apple's platforms, told by
+`navigator.platform`: WebKit's other ports, WebKitGTK and WPE among them, resolve the keywords as their Canvas does
+(#505; Decisions Log, 2026-10-12).
 
 Rejected besides a `<canvas>` element (Decisions Log, 2026-09-24): macOS's family then iOS's in one list (what macOS's
 lacks goes to iOS's, 11.6-33.8px off at 40px), a detached `<canvas lang>`, languageless (`Element.cpp:4873`), and
@@ -2565,10 +2567,11 @@ lacks goes to iOS's, 11.6-33.8px off at 40px), a detached `<canvas lang>`, langu
 For `system-ui` (PLATFORM_BUGS.md; #336), guessed substitutions, size tables and scaling proved unreliable (March 2026),
 and the line breaker takes no font-name rules. After a web font loads, Chrome's and Firefox's kept contexts pick the
 family up and webkit-host's may not (Engine Facts, Safari). A stored answer stays wrong after a late web font until
-cleared: the rebuild's kept widths gave 4 lines where the DOM had 2, in all three browsers. Main's width cache is
-shared per font until `clearCache()`, unowned and unbounded, so random IDs and URLs grow it (a streaming word: 1.5 to
-9.7MB of heap over 800 edits); it's easy to assume the cache lives as long as a prepared handle, so README states both
-lifetimes.
+cleared: the rebuild's kept widths gave 4 lines where the DOM had 2, in all three browsers. Main's width cache is shared
+per font until `clearCache()`, unowned, and bounded since #508: random IDs and URLs grew it for as long as the page
+lived (a streaming word: 1.5 to 9.7MB of heap over 800 edits), and past 262,144 segments between all fonts the next
+preparation now drops it whole (Decisions Log, 2026-10-12). It's easy to assume the cache lives as long as a prepared
+handle, so README states both lifetimes.
 
 CSS `font-family` parses alike in all three (123 of 123 checks, the rebuild, September 2026); which unquoted names are
 keywords, and how names compare, differ. Code rewriting a list, as the WebKit profile does, meets three traps:
@@ -2622,8 +2625,10 @@ ENGINE_FOLLOWUPS.md, Emoji correction. Text fonts whose glyphs are exactly as wi
 there, real text with a ZWJ sequence that two fonts draw, or a platform with the gap whose emoji font varies its
 advances would reopen it. The rebuild's DOM-free formulas, W being Canvas's width at a size: Chrome's DOM width is
 `Math.ceil(64 × W(size × DPR)) / (64 × DPR)` at DPR 2 and `W(size)` at DPR 1, Firefox's `W(size × DPR) / DPR`, Safari's
-`W(size)` (September 2026). They'd retire the DOM exception and work in workers, but make prepared widths depend on the
-DPR at prepare time, which the API discussion planned before a release decides (TODO.md, End of project).
+`W(size)` (September 2026; Safari's holds on a page that isn't zoomed, and under a page zoom from 100% to 300% it is
+`W(size × zoom) / zoom`: Decisions Log, 2026-10-12). They'd retire the DOM exception and work in workers, but make
+prepared widths depend on the DPR at prepare time, which the API discussion planned before a release decides (TODO.md,
+End of project).
 
 Letter-spaced text is counted the same way. The Blink and Gecko profiles measure its stretches through the context that
 shapes letter-spaced text (Measurement Model), and a text measured under its real spacing is counted before that spacing
@@ -3116,10 +3121,13 @@ copy of one list of zeros (JavaScript Engines, A paragraph's sparse lists made w
 null for nearly every segment, is filled in one call (Work Done Only Where A Rule Applies). Overflow trims read in
 `countPreparedLines()`'s loop cost Firefox 156 13-26% counting long breakable runs, so `layout()` counts a handle with
 overflow trims through the simple stepper, and its line APIs keep the simple walk, without which Chrome 154's line APIs
-ran 62-108% slower on CJK messages (#366, 2026-09-27). `measureAnalysis()` keeps its helpers as closures: hoisted, they
-measured the same in offline replays of all four profiles the replay runs (Blink, WebKit, Gecko and an unrecognized
-engine's) but took 16 more lines, and a hoist lands only if it removes lines and the bench shows a gain, so they weren't
-timed (2026-09-26). AGENTS.md's locals rule is for line walkers.
+ran 62-108% slower on CJK messages (#366, 2026-09-27). `measureAnalysis()`'s helpers are module-level functions given
+what they read, not closures, since #512, in 2 lines of code fewer: nested, they made every `prepare()` allocate an
+object, which JavaScriptCore places among the handles where it is as large as one (Decisions Log, 2026-10-12). A first
+hoist measured the same in offline replays of all four profiles the replay runs (Blink, WebKit, Gecko and an
+unrecognized engine's) but took 16 more lines and wasn't timed (2026-09-26), under a note that a hoist lands only if it
+removes lines and the bench shows a gain, which no longer holds for this function. AGENTS.md's locals rule is for line
+walkers.
 
 #### JavaScript Engines
 
@@ -4967,7 +4975,9 @@ below 256 px, Canvas totals are exact (Engine Facts, Chrome).
 #### Caching, State And API Designs
 
 Studied 2026-09-13 to 09-30, mostly in Bun on a stand-in Canvas with the results checked in Chrome, against the cost
-model below; most are parked for the API discussion (TODO.md), not refuted.
+model below; most are parked for the API discussion (TODO.md), not refuted. Issue #504 (2026-10-12) weighs layout
+without a handle in three forms, two of them built on main at #501, and has later figures for keyed state, stateless
+layout and a store keyed by the string.
 
 - **Handle-free layout over a size-limited global table** (2026-09-26): the chat lays out all 18,613 blocks per width
   change, so a smaller limit always misses, the app must say which texts are alive anyway, and the lookup alone is
@@ -6126,9 +6136,10 @@ decisions for the maintainer.
   an inherited `writing-mode: vertical-rl` and a rule `span { padding: 0 3px }` the same 49, 63 and 0; a
   `letter-spacing` of 1px on `<body>`, or by `* { letter-spacing: 1px !important }`, with the same spacing passed to
   `prepare()`, 13, 13 and 0, and of -0.5px 8, 7 and 0; `zoom: 0.9` on `<body>` 20, 19 and 26; `transform: scale(0.5)`
-  on `<body>` 96, 96 and 128. WebKit's Canvas and page agree on emoji, so it took a bogus correction only where the
-  rectangle shrank. After: 0 in every state in Chrome and Firefox and 0 in WebKit but 1 under `zoom: 0.9`, where its
-  page draws a 16px emoji 21.11px wide in its own pixels and Canvas says 21px. The rules:
+  on `<body>` 96, 96 and 128. On a page that isn't zoomed WebKit's Canvas and page agree on emoji (the entry of
+  2026-10-12 on its span has a zoomed one), so it took a bogus correction only where the rectangle shrank. After: 0 in
+  every state in Chrome and Firefox and 0 in WebKit but 1 under `zoom: 0.9`, where its page draws a 16px emoji 21.11px
+  wide in its own pixels and Canvas says 21px. The rules:
   - Every property of the span is at its initial value and important (`all: initial`), then the font. `all` also resets
     `-webkit-locale`, where Blink and WebKit keep the language that picks fonts (a 60px block of one long word under
     `hyphens: auto` stops hyphenating under `all: initial` in both), so the span inherits that one back; Gecko keeps
@@ -6230,4 +6241,128 @@ decisions for the maintainer.
   exit 0, printing `under 24 px: 9806 right, 3537 wrong; since the list: +1081, -50`, and two unit tests fail. Keeping
   the edge cases blocking would hold five of the seven for 1,046 more entries; it wasn't chosen. Reopens with a
   regression that reaches a release and that only a counted case showed, or with a real layout under 24 px; the edge
-  cases are the first to bring back.
+  cases are the first to bring back. Amended on 2026-10-12, below: 30 unit tests have left the file since, and the
+  `src/prepare.ts` defect fails one unit test where it failed two.
+- **2026-10-12: the WebKit profile names Core Text's families for the generic keywords only on Apple's platforms, which
+  it tells by one read of `navigator.platform` when it is built (#505).** Only WebKit on Cocoa, Apple's platforms,
+  resolves `monospace` and the other generic keywords by page language (`platformResolveGenericFamily` returns null
+  under `!PLATFORM(COCOA)`, `FontDescription.cpp:115-120`). On its other ports the profile measured `13px monospace` as
+  `13px "Menlo"`, a family the system lacks: of 20 font and language cases at 71 widths in Playwright's WebKit 2370 for
+  Linux, main was right at every width in 9 or 16, by the fonts installed, and is in all 20 now. The user agent can't
+  tell the port, since Playwright's WebKit names a Mac on Linux. A Canvas question, whether the context has Menlo, a
+  font only Apple ships, was built first: it cost Safari two `measureText` calls for each page language, about 0.8 ms of
+  a process's first `prepare()`, for a fix it doesn't need, where the read costs nothing. The read is new browser state,
+  the maintainer's to allow (Part 1, Limits). The ruling: that rule guards most of all against forced layout and DOM
+  reads interleaved with writes, and a read that forces no style or layout is neither; this one is of a value WebKit
+  compiles in (`NavigatorBase.cpp:97-116`), read once. Its gap: a page or a tool that overrides `navigator.platform` is
+  measured for the port it names. Reopens with a report from such a page, or once WebKit #285993 gives Canvas a `lang`
+  and the table goes.
+- **2026-10-12: outside a browser the supported way to measure is a global `OffscreenCanvas` class that stands in for
+  the Canvas, and a measuring hook stays punted (#506)**, the maintainer's choice between the two. Preparation makes its
+  context with `new OffscreenCanvas(1, 1).getContext('2d')` wherever that global exists, so a host that defines the
+  class before the first `prepare()` gets layouts over its own widths with no new API. README's Caveats say what the
+  class must give, a unit test holds a host to that and no more, and such a host takes Chromium's rules, as any engine
+  the library doesn't recognize does (the entry of 2026-09-26); a `navigator` with no `userAgent`, as React Native's, is
+  one now, where every `prepare()` threw. A hook was prototyped and stays unmerged, `setMeasureContext(context)`, 22
+  lines of code and 54 B gzipped. Outside a browser it spares an app the global and changes no result: on stand-in
+  measurers the lines and widths were the same through both, and one supplied object can't be the second context the
+  Chromium profile asks about kana. Either way a host gets Chrome's breaks over its own widths, exact where it paints
+  those lines itself and an estimate of what a browser or a native text view lays out. Today's API stays. Reopens with a
+  renderer that runs inside a browser, where it can't replace the page's `OffscreenCanvas`.
+- **2026-10-12: the fonts' segment caches are bounded: once they hold more than 262,144 segments between all fonts, the
+  next preparation drops them all before it measures anything, as `clearCache()` does** (landed on judgement with #508).
+  Text that never repeats grew them for as long as the page lived: 300,000 rows with an id of their own each kept 157,
+  397 and 410 MB in the Chromium, Gecko and WebKit profiles and now keep 139, 45 and 48 MB at most (JavaScriptCore on
+  the harness's stand-in Canvas). The bound is a safety net well above what a page uses, as Part 1 asks of a cache
+  (Caching And API Design), and not a tuned size: the real-usage sample's 11,290 plain texts fill 27 to 44% of it in one
+  font. It is read where a preparation starts and never at a font lookup, so no rich-inline paragraph is measured partly
+  from the caches and partly anew. A drop costs what `clearCache()` costs: each font's probes are asked again, and its
+  emoji span is read again at its next text with an emoji, a forced layout at a moment the app didn't choose. What is
+  left: the bound counts segments, not bytes, and a Chromium-profile segment is a whole token with an advance for each
+  character, so its caches can hold 115 to 454 MB by the tokens' length, against 42 to 52 MB in the other two; and the
+  caches still have no owner (TODO.md). Reopens with a real page whose own text passes the bound, or one that the
+  Chromium profile's bytes trouble.
+- **2026-10-12: no line function writes to a frozen handle or to anything it holds** (landed on judgement with #509). A
+  rich paragraph of one text item finds where its segments are in the item's text when a line of it is first
+  materialized, and wrote those three lists onto its handle, so since #460 `materializeRichInlineLineRange()` threw a
+  `TypeError` on a handle frozen with `Object.freeze()`, on one whose objects and arrays a store froze and on a frozen
+  JSON copy, each of which 0.0.9 materialized. A frozen handle now keeps the lists beside it, in a WeakMap; any other
+  handle keeps them itself, as before, so only a frozen one pays the lookup. Beside every handle, the form built first,
+  the lookup took a pass that materializes 3,000 one-item paragraphs 1.07-1.25 times main's time, and 1.35-1.47 with the
+  handles out of the processor's caches; found while preparing, the lists took such paragraphs 6-20% longer to prepare
+  and count, by engine, and a third more heap (the engines' shells on the stand-in Canvas; the comment at `textSources`,
+  `src/rich-inline.ts`, has each figure). The bench has no entry that materializes rich lines, so no browser timed any
+  of it. Reopens with such an entry, or with a store whose handles must not be written to though it doesn't freeze them.
+- **2026-10-12: a lint warning fails `bun run check`, `src/` is type-checked a second time under the settings the
+  package is built with, a harness command refuses a flag or an argument it doesn't read, and `bun harness check` counts
+  the passing draws a pixel off** (landed on judgement with #510). Each closes a way a mistake passed unseen: oxlint
+  runs 94 of its 102 rules as warnings and exits 0 on one, which one command-line flag, `--deny-warnings`, ends; an
+  import without `.js` or a Node global in `src/` failed only `bun run package-smoke-test`; `record --onlynew` recorded
+  every case again and `check chrome` ran three browsers; and a draw passes on its line count and its lines' ends
+  whatever their widths. The table's `off` column counts the passing draws of plain text with a line more than 1 px off
+  the browser's: 11, 16 and 23 of the 10,345 inside the claims in Chrome 154.0.8037.98, Firefox 157.0.1 and webkit-host
+  (WebKit 22625.1.29.11.27), where the library before the kerning between kana (#497) read 107 of Chrome's 344 Japanese
+  draws off beside 15 failing. It is a report and blocks nothing, reading no rich draw and no line that ends in a space
+  with a box, as a pre-wrap line that wraps at one does (harness/README.md, Bounds and blind spots); a gate on widths
+  reopens with a recorder that reads those. The cost is a second `tsc` run, about a tenth of a second.
+- **2026-10-12: a unit test stays where it is the only check that fails on a planted defect, and 30 that weren't left
+  `src/layout.test.ts`** (landed on judgement with #511). They asserted, on a fake Canvas, rules that another unit test,
+  the offline invariants or the browsers' recorded cases hold too: 775 lines, 9% of the file. The rule was applied with
+  1,349 defects planted in `src/` one at a time (935 drawn over its files, 300 aimed at the lines the 48 candidate tests
+  name, 114 by hand): a candidate stays where no other check fails on one of them, counting the unit tests left, the
+  offline invariants and the browsers' `check` (Chrome 154.0.8037.98, Firefox 157.0.1, webkit-host). 18 of the 48 stay,
+  seven because the recorded cases their defects move are under 24 px or at an edge of a line change, which are counted
+  and don't block (the entry of 2026-10-11). The cost: 21 of the 1,349 failed `bun test` and now fail only a browser's
+  `check`, on 1 to 117 blocking cases each; none passes everything. It is a sample and not a proof: a first pass kept
+  nine of the 48, and a second, which aimed defects at the lines the removed tests name, brought nine more back. Reopens
+  with a regression that a removed test would have failed and `check` passed; browser cases at 24 px and wider for the
+  rules only a kept test holds would let more of the 18 go.
+- **2026-10-12: `bun harness check` gets no copy that runs without a browser**, the maintainer's decision. One was built
+  (2026-10-11): every case replayed in Bun over a table of the browsers' own recorded Canvas answers gave each browser's
+  predictions exactly, in about 3 s for the three where `check` in the browsers took about 14. It stays out for what it
+  adds: about 950 lines of harness, and the table, a copy of what the browsers answer that goes stale when a pin, a
+  recording or what the library asks of Canvas changes and is then recorded again in the browsers. Reopens where there
+  are no pinned browsers to run, as on a hosted runner, or if `check` in the browsers comes to take minutes.
+- **2026-10-12: `measureAnalysis()` nests no function that reads its variables** (landed on judgement with #512). Its
+  helpers are module-level functions given what they read, and what two of them keep between calls for one text is seven
+  module variables it clears for each text. Nested, they made every `prepare()` allocate an object for the variables
+  they read, and JavaScriptCore puts an object of 13 to 18 fields in the 160-byte cells a handle takes: one made and
+  dropped by every `prepare()` leaves a dead cell between each two handles, and Safari lays out 2,000 short labels
+  11-16% slower with no work added. Main's object was one variable too large for those cells and the Safari
+  letter-spacing fix (#513) read one fewer, which is how it showed: +15.6% [+7.6, +19.1] with the fix alone, slower in
+  12 of 12 documents, and -1.5% with it on this change (webkit-host, WebKit 22625.1.29.11.27). It replaces, for this
+  function, the note of 2026-09-26 that a hoist lands only if it removes lines and the bench shows a gain (Keeping Work
+  Bounded, The Walkers' Shapes): this one removes 2 lines of code and the bench called text prepared again faster in
+  webkit-host, but what it is for, the labels, no bench row shows. What it doesn't remove: any object of 13 to 18 fields
+  made and dropped once a `prepare()`, by a later change or by an app between its own calls, brings the slowdown back
+  (+12.7% with a 16-field one planted, +12.0% with the caller making one), and no bench row lays out short labels, so
+  nothing would say so (ENGINE_FOLLOWUPS.md, Harness debt). Reopens if JavaScriptCore stops placing such objects among
+  the handles.
+- **2026-10-12: the WebKit profile counts the glyphs Safari letter-spaces through its Canvas, and takes what that costs
+  in Safari** (landed on judgement with #513: the trade was put to the maintainer, who left the call to the landing).
+  Safari gives each glyph it draws one letter spacing, not each grapheme (`ComplexTextController.cpp:793-796`), and its
+  Canvas spaces text by the same code, so in text of WebKit's complex text path (Indic, Southeast Asian and Arabic text,
+  and any word with a combining mark) the profile measures each prefix of a word under a `letterSpacing` of 2^20 px and
+  reads the count off the width. Of 1,507 letter-spaced paragraph-width pairs of real text outside the harness, 66 had a
+  line off Safari's and 16 do (webkit-host, WebKit 22625.1.29.11.27). Three costs were accepted, each in the PR in full:
+  a `measureText` call more for each prefix of such a word new to its font, which WebKit shapes every time, so that the
+  first `prepare()` of 94 new Hindi paragraphs took 55-56 ms where it took 35-42 before, and of 400 Arabic ones 73-74
+  where 37-38; a letter-spaced word measured with the space after it, as an unspaced one is, in the cache the two share,
+  so that on a Safari page that uses a font both ways, which of the two pays to measure a shared word shifts; and a
+  field more on each cached segment, 4 to 16 B. Firefox's `resize: cjk layout at new widths` read 6.1 to 12.6% slower
+  with it and 8.6 to 10.8% faster with #512, by preparation code `layout()` never runs, and level across the two
+  (harness/bench/README.md, Entries that misread). What it leaves is under Letter spacing in ENGINE_FOLLOWUPS.md.
+  Reopens with a Canvas call that gives a run's glyphs at once, or with an app whose letter-spaced Indic or Arabic text
+  shows the cost of a first `prepare()`.
+- **2026-10-12: the WebKit profile keeps reading the emoji-correction span**, the maintainer's decision. Not reading it
+  there was weighed, since the read forces layout once per font string and Safari's Canvas and page were taken to agree
+  on an emoji's width. On a page that isn't zoomed they do, 0 px apart in 19,188 cells of 36 fonts by 41 sizes in 13
+  documents, and the span corrects nothing. On a zoomed page WebKit lays text out at the font size times the zoom and
+  its Canvas takes no zoom, and Apple Color Emoji's advance isn't proportional to the size under 26 px: a 16px Arial
+  emoji is 21 px to Canvas at every zoom and 21, 20, 18.4, 16.67 and 16 px on the page at 100, 110, 125, 150 and 200%,
+  and at the four zooms over 100% Canvas is the wider by more than half a pixel in 180, 213, 249 and 275 of 533 font
+  strings, by up to 5 px an emoji, which the span's reading corrects. With the span not read, 1, 3, 8 and 10 of the
+  real-usage sample's 430 emoji paragraphs inside the claims broke wrongly there, lines ending early, where 0, 0, 1 and
+  0 do (webkit-host, WebKit 22625.1.29.11.27, 2026-10-12, under a CSS `zoom` on `<html>` and under the web view's own
+  page zoom alike; installed Safari and iOS weren't run). Reopens if preparation comes to know the page's zoom: Canvas
+  at the size times the zoom, divided by the zoom, gave the page's emoji width within 0.01 px from 100% to 300%.

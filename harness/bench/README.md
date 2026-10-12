@@ -245,11 +245,12 @@ before the glyph spacings did, costs a tenth as much there.
 - **Firefox's `resize: cjk layout at new widths`** moved with two changes to preparation code, which `layout()` never
   runs, and isn't on that list: it read 8.6% to 10.8% faster under #512 and 6.1% to 12.6% slower under #513 after it,
   the Gecko profile's handles the same under each, and level across the two (-0.6% [-2.5%, +1.8%] against main before
-  #512, six sessions; Firefox 157.0.1, 2026-10-12). Under #513 it read the same one do-nothing top-level variable
-  apart, so it isn't the minifier's names, and level with main's `src/prepare.ts` under #513's `src/measurement.ts`, so
-  it comes with the 42 lines #513 changes in `measureAnalysis()`, of which the Gecko profile runs two tests a segment
-  and no allocation. A reading of 6% to 13% there with no change to code `layout()` runs wants a second change's table
-  before being blamed on one.
+  #512, six sessions; Firefox 157.0.1, 2026-10-12). Under #513 it read the same one do-nothing top-level variable apart,
+  and level with main's `src/prepare.ts` under #513's `src/measurement.ts`, a build that also lacks the three top-level
+  bindings #513 adds. So it comes with the 42 lines #513 changes in `measureAnalysis()`, of which the Gecko profile runs
+  two tests a segment and no allocation, or with those bindings: one variable more needn't move the names that matter. A
+  reading of 6% to 13% there with no change to code `layout()` runs wants a second change's table before being blamed on
+  one.
 - **Chrome's `lines: mixed stats`** read the candidate's copy about 1% over base's on identical code, in 15 of 16
   sessions of main against itself and with the code the bench wraps a library in (`ENTRY`, `bench/lib.ts`) as it was
   before and after #456 (Chrome 154.0.8037.98, 2026-10-07; `RESEARCH.md`, Evaluation Traps, Timing), and the row's floor
