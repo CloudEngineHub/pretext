@@ -417,6 +417,7 @@ export type FontMeasurement = {
   spaceWidth: number | null // The space's width, which every text asks for, kept from the first (getSpaceWidth)
   hanKerning: HanKerningFontData | null | undefined // Read for the first text that may kern
   ligaturePairs: Map<string, boolean> // Whether two neighbouring graphemes are a ligature, once asked (isLigature)
+  glyphCounts: Map<string, number> // The glyphs Canvas letter-spaces in a text, once asked (getExtraSpacings)
 }
 let cachedEngineProfile: EngineProfile | null = null
 
@@ -638,10 +639,11 @@ export function measureWithLetterSpacing(text: string, letterSpacing: number, em
   }
 }
 
-// The Canvas letterSpacing a text is measured under to count the glyphs it spaces: a power
-// of two, which float32 widths add whole, and wide enough that a long segment's rounding
-// stays far under half of it.
-const GLYPH_COUNT_SPACING = 64
+// The Canvas letterSpacing a text is measured under to count the glyphs it spaces: far
+// wider than any text asked about, so the text's width over it rounds to the count with
+// nothing taken off, and a power of two, which float32 widths add whole. A text 2^19 px
+// wide under no spacing would count a glyph more.
+const GLYPH_COUNT_SPACING = 2 ** 20
 
 // The spacings of a segment whose graphemes each take one, and of any segment where Canvas
 // can't be asked.
@@ -649,38 +651,40 @@ export const noExtraSpacings: number[] = []
 
 // Per grapheme of a text segment, how many letter spacings it takes more than one, where
 // the engine spaces glyphs (EngineProfile's letterSpacesGlyphs). Canvas spaces by the
-// engine's rule, so a prefix of the segment measured under a letter spacing, less its width
-// under none, is that spacing times the prefix's glyphs with an advance, and a grapheme
-// takes what its prefix has more than the prefix before it: WebKit fits a cut word by its
-// prefixes too (TextUtil::breakWord). A grapheme can take none, as the alef of lam-alef, or
-// fewer, where it joins the glyphs before it into one. Past MAX_PREFIX_FIT_GRAPHEMES each
+// engine's rule, so a prefix of the segment measured under a letter spacing holds that
+// spacing once for each of its glyphs with an advance, and a grapheme takes what its
+// prefix has more than the prefix before it: WebKit fits a cut word by its prefixes too
+// (TextUtil::breakWord). A grapheme can take none, as the alef of lam-alef, or fewer,
+// where it joins the glyphs before it into one. Past MAX_PREFIX_FIT_GRAPHEMES each
 // grapheme is asked alone, which keeps a giant segment linear and misses a glyph two of
-// its graphemes share. One more Canvas call for each grapheme, once for a font's segment,
-// kept with the segment measured alone; under a context that takes no letterSpacing every
-// grapheme takes one.
+// its graphemes share. A text's count is kept for the font (FontMeasurement's
+// glyphCounts), so words that start alike ask about a prefix once: one more Canvas call
+// for each prefix new to the font, which WebKit shapes each time, since it keeps no width
+// measured under a letter spacing (TextMeasurementCache.h:165-167). Under a context that
+// takes no letterSpacing every grapheme takes one.
 export function getExtraSpacings(seg: string, measurement: FontMeasurement): number[] {
   if (!measurement.state.takesLetterSpacing) return noExtraSpacings
-  const metrics = getSegmentMetrics(seg, measurement)
-  if (metrics.extraSpacings !== null) return metrics.extraSpacings
   const ends = new Int32Array(seg.length)
   const count = findGraphemeEnds(getEngineProfile().graphemeTable, seg, 0, seg.length, ends)
   const prefixes = count <= MAX_PREFIX_FIT_GRAPHEMES
-  // Each prefix's or grapheme's width under no spacing first, which the fit of a segment
-  // that breaks asks for too, so the context changes its spacing once.
-  const texts: string[] = []
-  const plain: number[] = []
-  for (let i = 0, start = 0; i < count; start = ends[i++]!) {
-    const text = seg.slice(prefixes ? 0 : start, ends[i])
-    texts.push(text)
-    plain.push(getSegmentMetrics(text, measurement).width)
-  }
-  const context = getContext(measurement)
+  const counts = measurement.glyphCounts
+  // The font's context once Canvas is asked, under the counting spacing from then on, so
+  // it changes its spacing once, and not at all for a segment whose prefixes are counted.
+  let context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null = null
   let extras = noExtraSpacings
   try {
-    context.letterSpacing = `${GLYPH_COUNT_SPACING}px`
     let before = 0
-    for (let i = 0; i < count; i++) {
-      const glyphs = Math.round((context.measureText(texts[i]!).width - plain[i]!) / GLYPH_COUNT_SPACING)
+    for (let i = 0, start = 0; i < count; start = ends[i++]!) {
+      const text = seg.slice(prefixes ? 0 : start, ends[i])
+      let glyphs = counts.get(text)
+      if (glyphs === undefined) {
+        if (context === null) {
+          context = getContext(measurement)
+          context.letterSpacing = `${GLYPH_COUNT_SPACING}px`
+        }
+        glyphs = Math.round(context.measureText(text).width / GLYPH_COUNT_SPACING)
+        counts.set(text, glyphs)
+      }
       const extra = glyphs - (prefixes ? before : 0) - 1
       before = glyphs
       if (extra === 0 && extras.length === 0) continue
@@ -688,9 +692,9 @@ export function getExtraSpacings(seg: string, measurement: FontMeasurement): num
       extras[i] = extra
     }
   } finally {
-    context.letterSpacing = measurement.letterSpacing
+    if (context !== null) context.letterSpacing = measurement.letterSpacing
   }
-  return metrics.extraSpacings = extras
+  return extras
 }
 
 // The lookup internalizes seg, and a string V8 hashes for the first time there gets a one-byte
@@ -1367,7 +1371,7 @@ export function getFontMeasurement(font: string, language: string | null, letter
   if (measurement === undefined) {
     const canvasFont = state.genericFamilies === null ? font : getCanvasFont(font, state.genericFamilies)
     if (!contextTakesFont(state.context, canvasFont)) throw new RangeError(`font must be a font string Canvas takes, a size in px then a family, such as 16px Inter, not "${font}"`)
-    measurement = { state, canvasFont, letterSpacing: shaped ? LETTER_SPACED_SHAPING : '0px', metrics: new Map(), followingSpaceMetrics: new Map(), spaceKerning: undefined, measuredKana: false, kanaKerning: undefined, kanaFont: canvasFont, emojiCorrection: null, emojiWidth: 0, hyphenText: null, spaceWidth: null, hanKerning: undefined, ligaturePairs: new Map() }
+    measurement = { state, canvasFont, letterSpacing: shaped ? LETTER_SPACED_SHAPING : '0px', metrics: new Map(), followingSpaceMetrics: new Map(), spaceKerning: undefined, measuredKana: false, kanaKerning: undefined, kanaFont: canvasFont, emojiCorrection: null, emojiWidth: 0, hyphenText: null, spaceWidth: null, hanKerning: undefined, ligaturePairs: new Map(), glyphCounts: new Map() }
     fonts.set(font, measurement)
   }
   return measurement
