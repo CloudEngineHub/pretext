@@ -2351,6 +2351,23 @@ describe('measurement invariants', () => {
     ] as const) expect(parseCssFontSize(font)).toBe(expected)
   })
 
+  test('the fonts\' segment caches are dropped between two preparations once they hold more than 262,144 segments', () => {
+    clearCache()
+    prepare('seen before', FONT)
+    let text = ''
+    for (let i = 0; i < 262_144; i++) text += `w${i.toString(36)} `
+    // The bound is read when a preparation starts, so the paragraph that crosses it in its first
+    // item still has the caches for its second, and the next preparation starts without them.
+    prepareRichInline([{ text, font: FONT }, { text: 'seen before', font: FONT }])
+    let count = canvasMeasurementCount
+    prepare('seen before', FONT)
+    expect(canvasMeasurementCount).toBeGreaterThan(count)
+    count = canvasMeasurementCount
+    prepare('seen before', FONT)
+    expect(canvasMeasurementCount).toBe(count)
+    clearCache()
+  })
+
   test('breakable fit cache distinguishes fit modes', () => {
     const measurement = getFontMeasurement('16px Fit Mode Test', null, false)
     const metrics: SegmentMetrics = { width: 80, emojiCount: -1, fit: null, spaceKerning: null }
@@ -3975,6 +3992,62 @@ describe('prepare invariants', () => {
       Reflect.deleteProperty(globalThis, 'document')
       clearCache()
     }
+  })
+
+  test('the WebKit profile keeps the generic keywords off Cocoa, under a Mac\'s user agent too', () => {
+    // The engine profile is computed once per process, so each navigator runs in a child
+    // process. WebKit asks Core Text for the keywords' families on Cocoa alone
+    // (FontDescription.cpp:115-120): on WebKitGTK and WPE the page draws `monospace` in the
+    // system's own font, and Menlo, which that system lacks, would be measured in its standard
+    // font. navigator.platform tells the port, not the user agent, which names a Mac on Linux
+    // under Playwright: WebKit gives `Linux` and the machine, `Win32`, `Haiku` or nothing off
+    // Cocoa (NavigatorBase.cpp:97-116). Each row is a page language, a font, and the Canvas
+    // font its text is measured in on Cocoa; elsewhere that is the font as given. An English
+    // page's context is asked nothing first.
+    const layoutUrl = new URL('./layout.ts', import.meta.url).href
+    const rows = [
+      ['en', '13px monospace', '13px "Menlo"'],
+      ['en', '14px "SF Mono", Menlo, monospace', '14px "SF Mono", Menlo, "Menlo"'],
+      ['en', '16px Arial, fantasy', '16px Arial, "Zapfino"'],
+      ['ru', '16px cursive', '16px "Snell Roundhand"'],
+      ['zh', '16px sans-serif', '16px "PingFang SC"'],
+      ['ja', '15px serif', '15px "Hiragino Mincho ProN"'],
+      ['en', '16px sans-serif', '16px sans-serif'],
+    ] as const
+    const measuredIn = (navigator: { userAgent: string, platform?: string }): unknown => JSON.parse(runInChild(`
+      Object.defineProperty(globalThis, 'navigator', { configurable: true, value: ${JSON.stringify(navigator)} })
+      const root = { lang: '' }
+      let measuredIn = ''
+      let asked = 0
+      class Context {
+        font = ''
+        measureText(text) {
+          if (text === 'code') measuredIn = this.font
+          else if (measuredIn === '') asked++
+          return { width: text.length * 8 }
+        }
+      }
+      globalThis.OffscreenCanvas = class { getContext() { return new Context() } }
+      globalThis.document = { documentElement: root }
+      const { prepare } = await import(${JSON.stringify(layoutUrl)})
+      const fonts = []
+      for (const [lang, font] of ${JSON.stringify(rows)}) {
+        root.lang = lang
+        prepare('code', font)
+        fonts.push(measuredIn)
+      }
+      console.log(JSON.stringify({ fonts, asked }))
+    `))
+    const linux = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15'
+    const iPhone = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0.1 Mobile/15E148 Safari/604.1'
+    const asGiven = { fonts: rows.map(row => row[1]), asked: 0 }
+    const named = { fonts: rows.map(row => row[2]), asked: 0 }
+    expect(measuredIn({ userAgent: linux, platform: 'Linux x86_64' })).toEqual(asGiven)
+    for (const platform of ['Linux aarch64', 'Win32', 'Haiku', '']) expect(measuredIn({ userAgent: SAFARI_USER_AGENT, platform })).toEqual(asGiven)
+    expect(measuredIn({ userAgent: SAFARI_USER_AGENT, platform: 'MacIntel' })).toEqual(named)
+    expect(measuredIn({ userAgent: iPhone, platform: 'iPhone' })).toEqual(named)
+    // A stand-in navigator with a user agent alone, as these tests' and the harness's are, is Cocoa's.
+    expect(measuredIn({ userAgent: SAFARI_USER_AGENT })).toEqual(named)
   })
 
   test('the page language resolves to a break language by its primary subtag', async () => {
@@ -8691,4 +8764,111 @@ test('a line start inside a word asks Canvas for each of its strings once', () =
   const asked = ['ab⁠cd', '⁠', '⁠c', 'xb⁠cd']
   expect(askedIn(CHROME_USER_AGENT)).toEqual(asked)
   expect(askedIn(FIREFOX_USER_AGENT)).toEqual(asked)
+})
+
+test("a host with no document gets layouts from a font and measureText alone, under no navigator, React Native's and Bun's own", () => {
+  // What README says of measuring outside a browser, held: the global OffscreenCanvas is what
+  // it asks for and no more, a getContext() that returns a new plain object with a writable
+  // `font` and a measureText(text) that returns { width }, in a runtime with no document. A
+  // change that asks more of a context fails here, where it would break such hosts unseen. The
+  // measurer counts a terminal's cells, each as wide as the font's px size: none for a
+  // combining mark or a format character, two for CJK, emoji and the hyphen U+2010, one for
+  // anything else. U+2010 is wider than `-` so that the soft-hyphen question goes on to set
+  // fonts of its own on the object, `16px monospace` and `16px serif` (getHyphenText). Each
+  // text and a rich paragraph are laid out at three widths: nothing throws, every width is
+  // finite, no line is wider than its box by the width it reports, and layout() counts the
+  // lines layoutWithLines() returns. The engine profile is computed once per process, so each
+  // navigator runs in a child process: none, React Native's, which has no userAgent, and Bun's
+  // own, which names no browser. All three take the profile of an unrecognized engine, so all
+  // three give the same lines.
+  const layoutUrl = new URL('./layout.ts', import.meta.url).href
+  const richInlineUrl = new URL('./rich-inline.ts', import.meta.url).href
+  const latin = 'The quick brown fox jumps over the lazy dog, twice; then again.'
+  const texts: Array<[name: string, text: string, options?: object]> = [
+    ['Latin', latin],
+    ['CJK punctuation', '「漢字」、テスト。（括弧）と「引用」。春天到了，我们去公园！'],
+    ['CJK with Latin', '甲乙丙.first_week_voltage}户 2025-08-01 00:00:00，完成'],
+    ['soft hyphens', 'inter\u00ADnation\u00ADal\u00ADiza\u00ADtion of the Do\u00ADnau\u00ADdampf\u00ADschiff'],
+    ['a long word', 'https://example.com/a/very/long/path/that/does/not/fit?query=1&another=2'],
+    ['Arabic', 'بدأت الرحلة اليوم مع English words في المنتصف 123.'],
+    ['Thai', 'ภาษาไทยไม่มีช่องว่างระหว่างคำ ต้องใช้พจนานุกรม'],
+    ['emoji', 'Launch \u{1F680} day \u{1F468}\u200D\u{1F469}\u200D\u{1F467}\u200D\u{1F466} family \u{1F1EF}\u{1F1F5} flag ok'],
+    ['pre-wrap tabs', 'a\tb\tc\n  indented  line\n\nend ', { whiteSpace: 'pre-wrap' }],
+    ['letter spacing', 'spaced out text for a title', { letterSpacing: 2 }],
+    ['keep-all', '한국어 텍스트는 단어 단위로 줄바꿈', { wordBreak: 'keep-all' }],
+  ]
+  const rowsUnder = (navigator: string) => JSON.parse(runInChild(`
+    ${navigator}
+    const size = font => Number.parseFloat(/([\\d.]+)px/.exec(font)?.[1] ?? '16')
+    const cells = text => {
+      let count = 0
+      for (const ch of text) count += /[\\p{M}\\p{Cf}]/u.test(ch) ? 0 : /[\\u2010\\u2E80-\\u9FFF\\uAC00-\\uD7A3\\uFF00-\\uFFEF\\p{Extended_Pictographic}]/u.test(ch) ? 2 : 1
+      return count
+    }
+    globalThis.OffscreenCanvas = class {
+      getContext() {
+        return { font: '', measureText(text) { return { width: cells(text) * size(this.font) } } }
+      }
+    }
+    const { prepare, prepareWithSegments, layout, layoutWithLines, measureNaturalWidth } = await import(${JSON.stringify(layoutUrl)})
+    const { prepareRichInline, measureRichInlineStats, walkRichInlineLineRanges, materializeRichInlineLineRange } = await import(${JSON.stringify(richInlineUrl)})
+    const problems = typeof document === 'undefined' ? [] : ['the runtime has a document']
+    const attempt = (name, run) => {
+      try {
+        run()
+      } catch (error) {
+        problems.push(name + ' threw ' + error.name + ': ' + error.message)
+      }
+    }
+    // At one width: every width finite, no line wider than its box by the width it reports, and as many lines as counted.
+    const check = (name, maxWidth, widths, lines, lineCount) => {
+      if (!widths.every(Number.isFinite)) problems.push(name + ' at ' + maxWidth + 'px has a width that is not finite')
+      if (lines.some(line => line.width > maxWidth)) problems.push(name + ' at ' + maxWidth + 'px has a line wider than its box')
+      if (lineCount !== lines.length) problems.push(name + ' at ' + maxWidth + 'px counts ' + lineCount + ' lines for ' + lines.length)
+    }
+    const font = '16px Host Sans, sans-serif'
+    const lines = []
+    for (const [name, text, options] of ${JSON.stringify(texts)}) attempt(name, () => {
+      const prepared = prepareWithSegments(text, font, options)
+      const opaque = prepare(text, font, options)
+      for (const maxWidth of [128, 320, 640]) {
+        const laidOut = layoutWithLines(prepared, maxWidth, 20)
+        check(name, maxWidth, [measureNaturalWidth(prepared), laidOut.height, ...prepared.widths, ...laidOut.lines.map(line => line.width)], laidOut.lines, layout(opaque, maxWidth, 20).lineCount)
+        lines.push(laidOut.lines.map(line => [line.text, line.width]))
+      }
+    })
+    attempt('a rich paragraph', () => {
+      const prepared = prepareRichInline([
+        { text: 'Hello ', font },
+        { text: 'world', font: 'bold 12px Host Sans', break: 'never', extraWidth: 24 },
+        { width: 48 },
+        { text: ' and 「漢字」 more', font, letterSpacing: 2 },
+      ])
+      for (const maxWidth of [128, 320, 640]) {
+        const laidOut = []
+        walkRichInlineLineRanges(prepared, maxWidth, range => laidOut.push(materializeRichInlineLineRange(prepared, range)))
+        const stats = measureRichInlineStats(prepared, maxWidth)
+        const widths = laidOut.flatMap(line => [line.width, ...line.fragments.flatMap(fragment => [fragment.occupiedWidth, fragment.gapBefore])])
+        check('a rich paragraph', maxWidth, [stats.maxLineWidth, ...widths], laidOut, stats.lineCount)
+        lines.push(laidOut.map(line => [line.fragments.map(fragment => fragment.text), line.width]))
+      }
+    })
+    // The widths are the measurer's own in the text's font: the Latin sentence in the font measured above, then in
+    // a new one, then its capitals, which are new text, in the first again.
+    const latin = ${JSON.stringify(latin)}
+    const natural = []
+    for (const [text, inFont] of [[latin, font], [latin, 'italic 20px Host Serif'], [latin.toUpperCase(), font]]) {
+      attempt('the Latin sentence in ' + inFont, () => natural.push(measureNaturalWidth(prepare(text, inFont))))
+    }
+    console.log(JSON.stringify({ problems, natural, lines }))
+  `)) as { problems: string[]; natural: number[]; lines: unknown[] }
+  const none = rowsUnder("Reflect.deleteProperty(globalThis, 'navigator')")
+  const reactNative = rowsUnder("Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { product: 'ReactNative' } })")
+  const own = rowsUnder('')
+  // The Latin sentence is 63 cells, and the eleven texts and the rich paragraph are each laid out at three widths.
+  expect({ problems: none.problems, natural: none.natural, laidOut: none.lines.length })
+    .toEqual({ problems: [], natural: [63 * 16, 63 * 20, 63 * 16], laidOut: (texts.length + 1) * 3 })
+  expect(reactNative.problems).toEqual([])
+  expect(reactNative).toEqual(none)
+  expect(own).toEqual(none)
 })

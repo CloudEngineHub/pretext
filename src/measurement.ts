@@ -235,7 +235,7 @@ export type EngineProfile = {
   // scan and its context alike (getPreparationLanguage). WebKit and Gecko take process
   // languages a page can't read and keep the page's.
   laysOutUnderDefaultLocale: boolean
-  // WebKit's page resolves serif, sans-serif, cursive, fantasy and monospace to the
+  // On Cocoa, WebKit's page resolves serif, sans-serif, cursive, fantasy and monospace to the
   // family Core Text names for the page language wherever WebKit's script for it
   // isn't Common (FontDescriptionCocoa.cpp:77-118, asked first by CSSFontSelector.cpp:
   // 334-353). Its Canvas fonts carry no language: OffscreenCanvas starts from a bare
@@ -243,6 +243,14 @@ export type EngineProfile = {
   // canvas `lang` (WebKit #285993). The WebKit profile names the page's families in
   // the Canvas font (getWebKitGenericFamilies), from a table rather than a `<canvas>`
   // element, whose contexts force style updates (RESEARCH.md, Decisions Log, 2026-09-24).
+  // Only on Cocoa: WebKit's other ports, such as WebKitGTK and WPE, resolve the keywords
+  // from the settings, as Canvas does (platformResolveGenericFamily returns null under
+  // !PLATFORM(COCOA), FontDescription.cpp:115-120), and a family the system lacks gives no
+  // font, so Core Text's family would be measured in the standard font (FontCascadeFonts.cpp:
+  // 211-218). A user agent can name a Mac anywhere, as Playwright's WebKit does on Linux, so
+  // the port is read from navigator.platform, which WebKit compiles in: `Linux` and the
+  // machine, `Win32`, `Haiku` or nothing off Cocoa (NavigatorBase.cpp:97-116). Its gap: a
+  // page or a tool that overrides navigator.platform.
   namesGenericFamiliesByLanguage: boolean
   // Release Gecko draws C0 and C1 controls, U+2028 and U+2029 with no advance plus letter
   // spacing (gfxFont.cpp:3877-3892), where its Canvas measures VT, FS-US, NEL and U+2029 as a
@@ -365,6 +373,7 @@ type MeasureState = {
   // What letter-spaced text measures in each font where shapesLetterSpaced: the same text
   // shaped without its optional ligatures.
   letterSpacedFonts: Map<string, FontMeasurement>
+  segments: number // The segments the fonts' caches hold between them (MAX_CACHED_SEGMENTS)
 }
 let measureState: MeasureState | null = null
 // What preparation keeps per font. It all goes together, when the caches clear or the
@@ -415,6 +424,19 @@ const MAX_PREFIX_FIT_GRAPHEMES = 96
 // measures 54.2031px in Chrome 154 and 54.2px in Firefox 156, their pages' widths with
 // `font-variant-ligatures: none` (2026-09-30).
 const LETTER_SPACED_SHAPING = '0.000001px'
+
+// The most segments the fonts' caches hold between them when a preparation starts
+// (getPreparationLanguage): past it they are all dropped, as clearCache() drops them, before
+// that preparation measures anything. A handle keeps its own widths, so nothing prepared
+// changes; text prepared afterwards is measured again. Prose adds segments ever more slowly,
+// but ids, numbers and URLs never repeat, so without a bound the caches grow for as long as the
+// page lives. The bound is a safety net well above what a page uses, not a tuned size: the
+// 11,290 plain texts of the harness's real-usage sample, 883,084 units, fill in one font 71,294
+// segments in the Chromium profile, 90,023 in Gecko's and 115,367 in WebKit's, 241-363 B each in
+// JavaScriptCore, and a bound under a page's own count has its text measured again and again:
+// at 65,536, preparing those texts a second time asks Canvas 81,286 to 196,534 times, where
+// under no bound it asks nothing (the harness's stand-in Canvas, 2026-10-12).
+const MAX_CACHED_SEGMENTS = 1 << 18
 
 // Graphemes the emoji font may draw a glyph in, which Canvas widths then tell
 // (countEmojiGlyphs): those holding an emoji-presentation character or a pictograph,
@@ -563,6 +585,11 @@ export function setLocaleLanguage(locale: string | undefined): void {
 // else the page's, or null without a document. The Chromium profile lays out a page
 // without one under Blink's default locale (laysOutUnderDefaultLocale).
 export function getPreparationLanguage(profile: EngineProfile): string | null {
+  // A preparation starts with this read, so the fonts' caches are bounded here, between two
+  // preparations (MAX_CACHED_SEGMENTS), and not where a font is looked up: a rich-inline
+  // paragraph looks one up for each of its items, and caches dropped between two of them would
+  // have one paragraph measured partly from the caches and partly anew.
+  if (measureState !== null && measureState.segments > MAX_CACHED_SEGMENTS) clearMeasurementCaches()
   let language = localeLanguage ?? null
   if (localeLanguage === undefined && typeof document !== 'undefined') {
     const lang = (document.documentElement as HTMLElement | null | undefined)?.lang
@@ -636,6 +663,7 @@ export function getFollowingSpaceMetrics(seg: string, measurement: FontMeasureme
 function addMetrics(cache: Map<string, SegmentMetrics>, seg: string, text: string, measurement: FontMeasurement): SegmentMetrics {
   const metrics: SegmentMetrics = { width: getContext(measurement).measureText(text).width, emojiCount: -1, fit: null, spaceKerning: null }
   cache.set(seg, metrics)
+  measurement.state.segments++
   if (!measurement.measuredKana && kanaRe.test(seg)) measurement.measuredKana = true
   return metrics
 }
@@ -899,7 +927,9 @@ export function getEngineProfile(): EngineProfile {
 }
 
 function buildEngineProfile(): EngineProfile {
-  const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent
+  // A navigator can lack a userAgent, as React Native's does, where lib.dom's type says it is a
+  // string: such a runtime names no engine, like one with no navigator.
+  const ua = typeof navigator === 'undefined' ? '' : (navigator as { userAgent?: string }).userAgent ?? ''
   // Engines Pretext doesn't recognize take Blink's profile (RESEARCH.md, Decisions Log,
   // 2026-09-26).
   const engine = getLayoutEngine(ua) ?? 'blink'
@@ -934,7 +964,7 @@ function buildEngineProfile(): EngineProfile {
     hanKerning: engine === 'blink',
     hangsIdeographicSpace: engine !== 'webkit',
     laysOutUnderDefaultLocale: engine === 'blink',
-    namesGenericFamiliesByLanguage: engine === 'webkit',
+    namesGenericFamiliesByLanguage: engine === 'webkit' && !/^(?:Linux|Win32|Haiku|$)/.test(navigator.platform),
     hardBreakItemRetreat: engine === 'blink' ? 'item' : engine === 'webkit' ? 'fit' : 'last-grapheme',
     paddedOpeningFit: engine === 'blink' ? 'start' : engine === 'webkit' ? 'placed' : 'both',
     emptyAtomicAlwaysFits: engine === 'gecko',
@@ -1275,9 +1305,10 @@ function measureFitAdvances(
 // prefixes and line-edge facts all come from that shaping. The context isn't touched
 // here: text that is all in the font's caches measures nothing (getContext).
 export function getFontMeasurement(font: string, language: string | null, letterSpaced: boolean): FontMeasurement {
-  // Preparation starts here, with the language it resolved. After that language
-  // changes, start again with a new context and empty caches; clearing the caches
-  // alone would re-measure with fonts resolved under the old language.
+  // Measuring starts here, for a text and for each item of a rich-inline paragraph, with the
+  // language the preparation resolved. After that language changes, start again with a new
+  // context and empty caches; clearing the caches alone would re-measure with fonts resolved
+  // under the old language.
   if (measureState === null || measureState.language !== language) measureState = createMeasureState(language)
   const state = measureState
   const shaped = letterSpaced && state.shapesLetterSpaced
@@ -1361,10 +1392,13 @@ function createMeasureState(language: string | null): MeasureState {
     shapesLetterSpaced: takesLetterSpacing && profile.canvasLetterSpacingDropsLigatures,
     fonts: new Map(),
     letterSpacedFonts: new Map(),
+    segments: 0,
   }
 }
 
 export function clearMeasurementCaches(): void {
-  measureState?.fonts.clear()
-  measureState?.letterSpacedFonts.clear()
+  if (measureState === null) return
+  measureState.fonts.clear()
+  measureState.letterSpacedFonts.clear()
+  measureState.segments = 0
 }

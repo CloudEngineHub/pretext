@@ -4,7 +4,7 @@ Commands are in `package.json` and the header of `harness/cli.ts`; the harness a
 
 ## Setup And Checks
 
-Run `bun install` in a fresh checkout or worktree. `bun test` runs the unit tests, the harness's offline tests and the doc citation check, and `bun run check` the type check, lint, unused-code check and a check that the generated tables match their sources; both run without a browser. The browser harness needs pinned browser copies and webkit-host built first ([harness/README.md](harness/README.md), Setup).
+Run `bun install` in a fresh checkout or worktree. `bun test --parallel` runs the unit tests, the harness's offline tests and the doc citation check, and `bun run check` the type check, lint, unused-code check and a check that the generated tables match their sources; both run without a browser. The browser harness needs pinned browser copies and webkit-host built first ([harness/README.md](harness/README.md), Setup).
 
 ## The Demo Server
 
