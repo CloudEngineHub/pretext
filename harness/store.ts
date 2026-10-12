@@ -6,6 +6,8 @@
 // - harness/recordings/<browser>.history.txt: the cases whose two recordings put a character on another line (page
 //   history), both recordings, as `<id>\t<A|B>\t...`, under the recordings' environment key. They are never pinned.
 // - harness/accepted/<browser>.txt: the failures a change accepted, under `## <reason>` headings, one `<id> <status>` per line.
+// - harness/counted/<browser>.txt: the failing cases check counts and never blocks on (score.ts, countedOnly), in the
+//   accepted list's format, each under why it is counted. check --accept writes it.
 // - harness/varying/<browser>.txt: the cases whose predictions move with the browser's state, under `## <reason>`
 //   headings, one `<id> <kind>` per line: `runs` for one that moves between runs, predicted and printed but never
 //   judged, and `order` for one that moves only with what was predicted before it, judged like any other.
@@ -58,6 +60,7 @@ export const recordingsPath = (root: string, browser: BrowserKind): string => `$
 export const historyPath = (root: string, browser: BrowserKind): string => `${root}/recordings/${browser}.history.txt`
 export const acceptedPath = (root: string, browser: BrowserKind): string => `${root}/accepted/${browser}.txt`
 export const varyingPath = (root: string, browser: BrowserKind): string => `${root}/varying/${browser}.txt`
+export const countedPath = (root: string, browser: BrowserKind): string => `${root}/counted/${browser}.txt`
 
 function readLines(path: string): string[] | null {
   try {

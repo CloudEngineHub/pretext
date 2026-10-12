@@ -33,7 +33,8 @@ import { execFileSync } from 'node:child_process'
 import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
 import { basename, join, resolve } from 'node:path'
 import {
-  accept, attribute, behaviourLine, buildChange, checkBlocks, commitSeed, countBehaviour, countDraw, countWidths, drawRows, freshRecordings, gateBlocks, gateSample, headline, judge,
+  accept, attribute, behaviourLine, buildChange, checkBlocks, commitSeed, countBehaviour, countDraw, countedFailures, countedOnly, countedTallies, countWidths, drawRows, freshRecordings,
+  gateBlocks, gateSample, headline, judge,
   observable, outsideClaims, percent, pinning, reverseOrder, score, SEED, shown, shrinkWrapShort, tableLines, weightedShare, WIDTH_STEPS, widthBand, widthShares,
   type Behaviour, type Draw, type Outcome, type Pinning, type Stratum, type WidthTally,
 } from './score.ts'
@@ -44,7 +45,7 @@ import { appPath, pinInstalled, PINNED, pins, setup, writePin } from './browsers
 import { LIB, runJob, type Job, type JobResult, type Mode } from './run.ts'
 import { createRng, makeCase, paragraph, parseFont } from './sets/build.ts'
 import {
-  acceptedPath, assertSameEnvironment, caseText, historyPath, lineEnds, readAccepted, readCases, readHistory, readRecordings, readVarying, recordingText,
+  acceptedPath, assertSameEnvironment, caseText, countedPath, historyPath, lineEnds, readAccepted, readCases, readHistory, readRecordings, readVarying, recordingText,
   recordingsPath, splitHistory, varyingPath, writeAccepted, writeHistory, writeRecordings, type Accepted, type Varying,
 } from './store.ts'
 import { BROWSER, BROWSERS, type BrowserKind, type Case, type Paragraph, type Prediction, type Recording } from './types.ts'
@@ -232,6 +233,12 @@ export async function check(browser: BrowserKind, cases: Case[], o: Options, io:
   if (pinned.length > 0) assertSameEnvironment(browser, recorded.env, job.env)
   const counts = { pass: 0, count: 0, breaks: 0, error: 0 }
   const outcomes = new Map<string, Outcome>()
+  // The pinned cases in two tiers: those that block, whose outcomes the accepted list judges, with their counts, and
+  // those check only counts, each with why (countedOnly). A case that varies between runs is in neither: it goes to
+  // judge with the blocking ones, which counts it apart and never judges it.
+  const judged = new Map<string, Outcome>()
+  const blocking = { pass: 0, count: 0, breaks: 0, error: 0 }
+  const counted = new Map<string, string>()
   const byId = new Map<string, Case>()
   const draws: Draw[] = []
   const table = new Map<string, Stratum>()
@@ -255,6 +262,13 @@ export async function check(browser: BrowserKind, cases: Case[], o: Options, io:
     const outcome = score(recording, prediction)
     outcomes.set(c.id, outcome)
     counts[outcome.status]++
+    const varies = varying.get(c.id)?.kind === 'runs'
+    const why = varies ? null : countedOnly(c, prediction)
+    if (why !== null) counted.set(c.id, why)
+    else {
+      judged.set(c.id, outcome)
+      if (!varies) blocking[outcome.status]++
+    }
     const text = caseText(c)
     if ('lines' in prediction) {
       calls += prediction.prepareCalls
@@ -282,37 +296,47 @@ export async function check(browser: BrowserKind, cases: Case[], o: Options, io:
       countBehaviour(list, c, wrapped, pass)
     }
   }
-  const verdict = judge(outcomes, accepted, varying, ids, o.partial)
+  const verdict = judge(judged, accepted, varying, ids, o.partial)
+  const listed = readAccepted(countedPath(io.root, browser))
+  const tallies = countedTallies(outcomes, counted, listed, ids, o.partial)
   const updated = o.accept !== ''
   if (updated) {
-    mkdirSync(join(io.root, 'accepted'), { recursive: true })
-    writeAccepted(path, accept(outcomes, accepted, o.accept, varying, ids, o.partial))
-    io.log(`${browser}: accepted ${verdict.newFailures.length} new failures as "${o.accept}", dropped ${verdict.fixed.length} entries`)
+    for (const sub of ['accepted', 'counted']) mkdirSync(join(io.root, sub), { recursive: true })
+    writeAccepted(path, accept(judged, accepted, o.accept, varying, ids, o.partial))
+    writeAccepted(countedPath(io.root, browser), countedFailures(outcomes, counted, listed, ids, o.partial))
+    io.log(`${browser}: accepted ${verdict.newFailures.length} new failures as "${o.accept}", dropped ${verdict.fixed.length} entries, and wrote the counted list`)
   }
 
+  // The report leads with what blocks and what a user sees: the cases that block, the sample inside the claims, where
+  // the browser wraps and by script, and the behaviours at 24 px and wider. The counted cases follow, a line a kind,
+  // with the sample's pooled share, which the draws outside the claims pull down by a guessed weight, and the counts
+  // over every pinned case.
+  const statuses = (n: typeof counts): string => `pass ${n.pass} | wrong line count ${n.count} | right count, wrong breaks ${n.breaks} | error ${n.error}`
   const out: string[] = []
   out.push(`${browser}: ${pinned.length} pinned cases predicted in ${(job.ms / 1000).toFixed(1)} s, with ${plan.predicted.length - pinned.length} others whose line APIs are checked too`)
-  out.push(`  pass ${counts.pass} | wrong line count ${counts.count} | right count, wrong breaks ${counts.breaks} | error ${counts.error}`)
-  out.push(`  not pinned: ${plan.history} page history, ${plan.unobservable} with nothing visible or unrecordable, ${plan.unrecorded.length} not recorded`)
-  let runs = 0
-  for (const entry of varying.values()) if (entry.kind === 'runs') runs++
-  if (varying.size > 0) out.push(`  varying (harness/varying): ${runs} that vary between runs, predicted but not judged (${verdict.varying.pass} pass, ${verdict.varying.fail} fail); ${varying.size - runs} that move with what was predicted before, judged, and skipped by the gate's reverse-order check`)
-  // The sample: the weighted share right over every draw and over those inside the claims, always together; the same
-  // where the browser wraps, since a paragraph of one line nearly always passes; the share with a wrong height; then
-  // the table, which counts draws one each.
+  out.push(`  blocking, the ${blocking.pass + blocking.count + blocking.breaks + blocking.error} cases at 24 px and wider, away from the edges of a line change, inside the claims, old-gate apart: ${statuses(blocking)}`)
   const head = headline(draws)
+  const interval = (h: { low: number; high: number }): string => `95% interval ${(100 * h.low).toFixed(2)}-${(100 * h.high).toFixed(2)}%`
   if (head !== null) {
     const claimed = headline(draws.filter(draw => draw.inClaims))
-    const interval = (h: { low: number; high: number }): string => `95% interval ${(100 * h.low).toFixed(2)}-${(100 * h.high).toFixed(2)}%`
-    const outside = weightedShare(draws, () => true, draw => !draw.inClaims)
-    out.push(`  real-usage sample: ${percent(head.share, 1)} of real paragraphs right, ${interval(head)} (${draws.length} draws, ${percent(standInWeight, sampleWeight)} of their weight stand-ins; ${BROWSER[browser].phone ? 'a simulator\'s' : 'macOS'} rendering only; the intervals cover sampling error alone, not the guesses among weights.json's shares)`)
-    out.push(`    in claims: ${claimed === null ? '-' : `${percent(claimed.share, 1)} right, ${interval(claimed)}`}; ${outside} of the weight is outside what Pretext claims${outsideReasons.size === 0 ? '' : ` (${[...outsideReasons].sort().join(', ')})`}`)
-    out.push(`    where the browser wraps, ${weightedShare(draws, () => true, draw => draw.wrapped)} of the weight: ${weightedShare(draws, draw => draw.wrapped, draw => draw.pass)} right, ${weightedShare(draws, draw => draw.wrapped && draw.inClaims, draw => draw.pass)} in claims`)
-    out.push(`    a wrong line count or no prediction, so a wrong height: ${weightedShare(draws, () => true, draw => !draw.height)} of real paragraphs, ${weightedShare(draws, draw => draw.inClaims, draw => !draw.height)} in claims`)
+    out.push(`  real-usage sample, in claims: ${claimed === null ? '-' : `${percent(claimed.share, 1)} of real paragraphs right, ${interval(claimed)}`} (${draws.length} draws, ${percent(standInWeight, sampleWeight)} of their weight stand-ins; ${BROWSER[browser].phone ? 'a simulator\'s' : 'macOS'} rendering only; the intervals cover sampling error alone, not the guesses among weights.json's shares)`)
+    out.push(`    where the browser wraps, ${weightedShare(draws, draw => draw.inClaims, draw => draw.wrapped)} of that weight: ${weightedShare(draws, draw => draw.wrapped && draw.inClaims, draw => draw.pass)} right`)
+    out.push(`    a wrong line count or no prediction, so a wrong height: ${weightedShare(draws, draw => draw.inClaims, draw => !draw.height)} of real paragraphs`)
     out.push('    draws counted one each, whatever their weight (wrapped: the browser lays the draw out on more than one line; narrow: it passes, and a box as wide as its widest predicted line, rounded up, is narrower than the browser\'s widest line):')
     out.push(...tableLines(table).map(line => `      ${line}`))
   }
   for (const [set, list] of [...behaviours].sort((x, y) => (x[0] < y[0] ? -1 : 1))) out.push(`  ${behaviourLine(set, list)}`)
+  out.push(`  counted, never blocking (harness/counted/${browser}.txt lists the failures; since the list: + failures it lacks, - entries that no longer fail):`)
+  for (const [reason, tally] of tallies) out.push(`    ${reason}: ${tally.right} right, ${tally.wrong} wrong; since the list: +${tally.added}, -${tally.gone}`)
+  if (head !== null) {
+    const outside = weightedShare(draws, () => true, draw => !draw.inClaims)
+    out.push(`    the sample with its draws outside the claims, ${outside} of the weight${outsideReasons.size === 0 ? '' : ` (${[...outsideReasons].sort().join(', ')})`}: ${percent(head.share, 1)} of real paragraphs right, ${interval(head)}; ${weightedShare(draws, draw => draw.wrapped, draw => draw.pass)} where the browser wraps; ${weightedShare(draws, () => true, draw => !draw.height)} with a wrong height`)
+  }
+  out.push(`    every pinned case: ${statuses(counts)}`)
+  out.push(`  not pinned: ${plan.history} page history, ${plan.unobservable} with nothing visible or unrecordable, ${plan.unrecorded.length} not recorded`)
+  let runs = 0
+  for (const entry of varying.values()) if (entry.kind === 'runs') runs++
+  if (varying.size > 0) out.push(`  varying (harness/varying): ${runs} that vary between runs, predicted but not judged (${verdict.varying.pass} pass, ${verdict.varying.fail} fail); ${varying.size - runs} that move with what was predicted before, judged, and skipped by the gate's reverse-order check`)
   const reasons = [...verdict.byReason].sort((x, y) => y[1].length - x[1].length)
   for (let i = 0; i < reasons.length; i++) {
     const [reason, list] = reasons[i]!

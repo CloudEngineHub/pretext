@@ -146,6 +146,25 @@ export function widthBand(c: Case): string {
   return width < 24 ? '<24 px' : width < 80 ? '24-80 px' : '>=80 px'
 }
 
+// Why a pinned case is counted and never blocks, the first of these that applies, or null for a case that blocks:
+// - it is under 24 px wide, narrower than any real layout (the narrowest real-usage draw is 25 px);
+// - it is an edge case, 1/64 px beside a width where the browser's lines change (a case's `edge`), where the fit
+//   arithmetic decides and not the break rules;
+// - it is outside what the library claims (outsideClaims);
+// - it is one of the old-gate set, the old suite's adversarial strings that #340's engine ports lost
+//   (harness/README.md, Two kinds of set).
+// A counted case is recorded, predicted and compared by equal like any other; check prints how many of each kind pass
+// and needs no accepted entry or written reason for one that fails (RESEARCH.md, Decisions Log, 2026-10-11, has what
+// not blocking on them gives up).
+export const COUNTED = ['under 24 px', 'an edge of a line change, at 24 px and wider', 'outside the claims', 'old-gate'] as const
+
+export function countedOnly(c: Case, prediction: Prediction): string | null {
+  if (c.paragraph.width < 24) return COUNTED[0]
+  if (c.edge === true) return COUNTED[1]
+  if (outsideClaims(c, prediction) !== null) return COUNTED[2]
+  return c.family.startsWith('old-gate/') ? COUNTED[3] : null
+}
+
 // The headline: the weighted share of real-usage draws that pass, with a 95% interval from resampling the draws within
 // each group (a seeded generator, so the same results print the same interval).
 export function headline(draws: ReadonlyArray<{ group: string; weight: number; pass: boolean }>): { share: number; low: number; high: number } | null {
@@ -331,10 +350,10 @@ export function countBehaviour(list: Map<string, Behaviour>, c: Case, wrapped: b
   }
 }
 
-// A set's line of check's report. The first two counts fail a behaviour for a case at width 1 or under 24 px, narrower
-// than any real layout. The counts at 24 px and wider are over the behaviours the browser wraps there, since two thirds
-// of the catalog's have one case that wide, at 100,000 px on one line, which passes whatever the library does at a
-// break; and the count at the edges is over the ones whose lines change there.
+// A set's line of check's report. The counts at 24 px and wider come first: they are over the behaviours the browser
+// wraps there, since two thirds of the catalog's have one case that wide, at 100,000 px on one line, which passes
+// whatever the library does at a break; and the count at the edges is over the ones whose lines change there. The
+// counts over every width fail a behaviour for a case at width 1 or under 24 px, narrower than any real layout.
 export function behaviourLine(set: string, list: ReadonlyMap<string, Behaviour>): string {
   let modelled = 0
   let exact = 0
@@ -351,13 +370,14 @@ export function behaviourLine(set: string, list: ReadonlyMap<string, Behaviour>)
     if (entry.edgeThere) edged++
     if (entry.edgeThere && entry.wide && entry.wideEdges) wideExact++
   }
-  return `${set}: ${modelled} of ${list.size} behaviours modelled, ${exact} of them also 1/64 px either side of where the lines change; at 24 px and wider, ${wide} modelled of the ${wraps} the browser wraps there, ${wideExact} also at the edges of the ${edged} whose lines change there`
+  return `${set}: at 24 px and wider, ${wide} behaviours modelled of the ${wraps} the browser wraps there, ${wideExact} also at the edges of the ${edged} whose lines change there; over every width, ${modelled} of ${list.size} modelled, ${exact} of them also 1/64 px either side of where the lines change`
 }
 
-// What the accepted-failures list makes of the pinned cases' outcomes. A failure off the list is new and blocks. An
-// entry whose case passes, is no longer pinned or names no case is fixed and blocks until it leaves the list, so accepted
-// losses never go silent. An accepted case that fails another way is printed, not blocked. A case that varies between
-// runs (harness/varying) is never judged, only counted, and a varying entry that names no case is stale, which blocks.
+// What the accepted-failures list makes of the outcomes of the pinned cases that block (check leaves the counted ones
+// out, countedOnly). A failure off the list is new and blocks. An entry whose case passes, is counted only, is no
+// longer pinned or names no case is fixed and blocks until it leaves the list, so accepted losses never go silent. An
+// accepted case that fails another way is printed, not blocked. A case that varies between runs (harness/varying) is
+// never judged, only tallied, and a varying entry that names no case is stale, which blocks.
 // `cases`: the ids of the cases this browser takes in the run; a run over some case files only (`partial`) leaves the
 // entries of other cases alone.
 export type Verdict = { newFailures: string[]; fixed: string[]; changed: string[]; stale: string[]; byReason: Map<string, string[]>; varying: { pass: number; fail: number } }
@@ -449,6 +469,44 @@ export function accept(outcomes: ReadonlyMap<string, Outcome>, accepted: Accepte
   return next
 }
 
+// The counted cases by why they are counted (`why`: countedOnly, by case id): how many pass and fail, and against the
+// browser's counted list (harness/counted), the failures it doesn't hold (`added`) and its entries that no longer
+// fail (`gone`), so a run still shows what moved among them. Nothing here blocks.
+export type CountedTally = { right: number; wrong: number; added: number; gone: number }
+
+export function countedTallies(outcomes: ReadonlyMap<string, Outcome>, why: ReadonlyMap<string, string>, listed: AcceptedList, cases: ReadonlySet<string>, partial: boolean): Map<string, CountedTally> {
+  const out = new Map<string, CountedTally>()
+  const tally = (reason: string): CountedTally => {
+    let entry = out.get(reason)
+    if (entry === undefined) out.set(reason, entry = { right: 0, wrong: 0, added: 0, gone: 0 })
+    return entry
+  }
+  for (let i = 0; i < COUNTED.length; i++) tally(COUNTED[i]!)
+  for (const [id, reason] of why) {
+    const failing = outcomes.get(id)!.status !== 'pass'
+    tally(reason)[failing ? 'wrong' : 'right']++
+    if (failing && listed.get(id)?.reason !== reason) tally(reason).added++
+  }
+  for (const [id, entry] of listed) {
+    const outcome = outcomes.get(id)
+    if (outcome !== undefined && outcome.status !== 'pass' && why.get(id) === entry.reason) continue
+    if (!partial || cases.has(id)) tally(entry.reason).gone++
+  }
+  return out
+}
+
+// The counted list after `check --accept`: each counted case that fails, under why it is counted. A run over some case
+// files only (`partial`) keeps the entries of other cases.
+export function countedFailures(outcomes: ReadonlyMap<string, Outcome>, why: ReadonlyMap<string, string>, listed: AcceptedList, cases: ReadonlySet<string>, partial: boolean): Map<string, { reason: string; status: Failure }> {
+  const next = new Map<string, { reason: string; status: Failure }>()
+  for (const [id, entry] of listed) if (!outcomes.has(id) && partial && !cases.has(id)) next.set(id, entry)
+  for (const [id, reason] of why) {
+    const status = outcomes.get(id)!.status
+    if (status !== 'pass') next.set(id, { reason, status })
+  }
+  return next
+}
+
 // ---- What blocks ----
 
 export function shown(ids: readonly string[]): string {
@@ -471,7 +529,7 @@ export function checkBlocks(browser: BrowserKind, predictions: ReadonlyMap<strin
   // A case without a recording is unpinned silently otherwise, as when a generator change renames ids.
   if (unrecorded.length > 0 && BROWSER[browser].sample === null) out.push(`BLOCKS: ${unrecorded.length} cases have no recording; record them with record --only-new: ${shown(unrecorded)}`)
   if (verdict.stale.length > 0) out.push(`BLOCKS: ${verdict.stale.length} entries of harness/varying/${browser}.txt name no case; take them off: ${shown(verdict.stale)}`)
-  if (!accepting && verdict.fixed.length > 0) out.push(`BLOCKS: ${verdict.fixed.length} accepted cases pass, are no longer pinned or name no case; take them off with --accept: ${shown(verdict.fixed)}`)
+  if (!accepting && verdict.fixed.length > 0) out.push(`BLOCKS: ${verdict.fixed.length} accepted cases pass, are counted only, are no longer pinned or name no case; take them off with --accept: ${shown(verdict.fixed)}`)
   if (!accepting && verdict.newFailures.length > 0) {
     out.push(`BLOCKS: ${verdict.newFailures.length} new failures (accept them with --accept="<reason>")`)
     for (let i = 0; i < verdict.newFailures.length && i < 30; i++) out.push(`  ${describe(verdict.newFailures[i]!)}`)
