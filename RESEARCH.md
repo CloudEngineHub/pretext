@@ -6399,31 +6399,36 @@ decisions for the maintainer.
   page zoom alike; installed Safari and iOS weren't run). Reopens if preparation comes to know the page's zoom: Canvas
   at the size times the zoom, divided by the zoom, gave the page's emoji width within 0.01 px from 100% to 300%.
 - **2026-10-12: four ported rules that only generated cases exercised are removed, their gaps named** (landed on
-  judgement with #515: the maintainer left the removals to the landing). They are the WebKit profile's guess at a
-  space's direction after format characters, its rule for a line of one overflowing character, the mark context
-  (combining marks measured after their letter across a soft hyphen or a control) and entry geometry (the rest of a word
-  cut at an invisible character measured afresh, in desktop Chrome and Firefox). The test applied to each: it answered
-  no outside report, had no recorded gain on real text and shipped in no release (0.0.9 has none). No line of the 16,708
-  cases of real text changes in Chrome 154.0.8037.98, Firefox 157.0.1 or webkit-host, and one width does, by 0.08px;
-  each was also run on text of its own kind that isn't checked in (23,156 layouts with the next entry's; #515 has the
-  results, ENGINE_FOLLOWUPS.md the gaps). A fifth, the Gecko profile's placement of a zero-width atomic item, was
-  weighed the same way and stays: without it 101 of 15,928 Firefox layouts of prose with a 0px box fail, 32 with a line
-  too many. The cost: of the bench's 204 entries Firefox's `resize: latin layout at widths seen before` reads 12 to 23%
-  slower once entry geometry is out, while 31 read faster, 30 of them preparing text. That removal takes a test out of
-  the loop in which `countPreparedLines()` fills a line with a cut word's graphemes and adds nothing, so it is how
-  Firefox 157 compiles the shorter loop: accepted, its cost noted, as in the entry of 2026-09-26 on code for one JIT
-  (harness/bench/README.md, Entries that misread). It amends the entries of 2026-09-16 and 2026-10-11. Reopens with a
-  real page that shows a gap; entry geometry (commit 2ece40cb) also if the maintainer takes its Firefox row as a cost.
+  judgement with #515: the maintainer left the removals to the landing). They are the WebKit profile's guess at the
+  direction of a space after format characters, which decided a word's kerning with it; its rule that a line of one
+  overflowing character keeps the punctuation after it; the mark context (combining marks measured after their letter
+  across a soft hyphen or a control); and entry geometry (the rest of a word cut at an invisible character measured
+  afresh, in desktop Chrome and Firefox). The test applied to each: it answered no outside report, had no recorded gain
+  on real text and shipped in no release (0.0.9 has none). No line of the 16,708 cases of real text changes in Chrome
+  154.0.8037.98, Firefox 157.0.1 or webkit-host, and one width does, by 0.08px. Each was also run on text of its own
+  kind that isn't checked in (23,156 layouts with the next entry's), which measured two of the gaps, both in
+  webkit-host: 25 of 562 layouts of a right-to-left paragraph whose Latin names end in a word joiner or a ZWSP before
+  the space, and 179 of 1,394 with a soft hyphen or a ZWSP cut in right before combining marks (#515 has the results,
+  ENGINE_FOLLOWUPS.md the gaps). A fifth, the Gecko profile's placement of a zero-width atomic item, was weighed the
+  same way and stays: without it 101 of 15,928 Firefox layouts of prose with a 0px box fail, 32 with a line too many.
+  The cost in speed: Firefox's `resize: latin layout at widths seen before` reads 12 to 23% slower once entry geometry
+  is out. That removal takes a test out of the loop in which `countPreparedLines()` fills a line with a cut word's
+  graphemes and adds nothing, so it is how Firefox 157 compiles the shorter loop: accepted, its cost noted, as in the
+  entry of 2026-09-26 on code for one JIT (harness/bench/README.md, Entries that misread). The bench called two more of
+  Firefox's entries slower, `new: arabic new`, within noise when run alone, and `worst: controls layout`, 2 to 7%, on a
+  row that moves with the bundle and whose walker the removals change (#515 has both), and 31 of its 204 faster, 30 of
+  them preparing text. It amends 2026-09-16's entry on Safari 27 and 2026-10-11's on the cases that block. Reopens with
+  a real page that shows a gap; entry geometry (commit 2ece40cb) also if the maintainer takes its Firefox row as a cost.
 - **2026-10-12: what two letters measure narrower joined across the soft hyphen a line ends at counts in the Gecko
-  profile alone** (landed on judgement with #515). A line keeps a hyphen that overflows by less than its soft hyphens
-  narrow their neighbours, measured joined; the Chromium profile now counts the soft hyphens the line passes and not the
-  one it ends at, which it counted since #239. Blink tests the hyphen against the line as
-  `ShapingLineBreaker::ShapeLine` gives it, the end shaped again where the break isn't safe, so the pair across that
-  soft hyphen narrows nothing (`line_breaker.cc:1684-1718`; `shaping_line_breaker.cc:511-559`); Gecko shapes a word once
-  and adds up the advances before the break (`gfxTextRun.cpp:1085-1097`, `1139-1151`, `1292-1301`), so its last letter
-  keeps the pair's kerning. In Chrome 154.0.8037.98 13 checked-in cases pass that failed and 2 fail that passed, 1 of
-  them blocking and accepted, and of 7,230 layouts of hyphenated prose that isn't checked in 42 pass that failed and
-  none fails; #433's third reproduction has Chrome's 6 lines, where the profile had 5; no Firefox 157.0.1 prediction
-  moves. What it leaves is under Line edges in ENGINE_FOLLOWUPS.md: in Chrome letters that join across that soft hyphen,
-  and in the Gecko profile a `kern`-table pair or a ligature there. Reopens with real text whose line turns on one of
-  those.
+  profile alone** (landed on judgement with #515). In the Chromium and Gecko profiles a line keeps a hyphen that
+  overflows by less than its soft hyphens narrow their neighbours, measured joined; the Chromium profile now counts the
+  soft hyphens the line passes and not the one it ends at, which it counted since #239. Blink tests the hyphen against
+  the line as `ShapingLineBreaker::ShapeLine` gives it, the end shaped again where the break isn't safe, so the pair
+  across that soft hyphen narrows nothing (`line_breaker.cc:1684-1718`; `shaping_line_breaker.cc:511-559`); Gecko shapes
+  a word once and adds up the advances before the break (`gfxTextRun.cpp:1085-1097`, `1139-1151`, `1292-1301`), so its
+  last letter keeps the pair's kerning. In Chrome 154.0.8037.98 13 checked-in cases pass that failed and 2 fail that
+  passed, 1 of them blocking and accepted, and of 7,230 layouts of hyphenated prose that isn't checked in 42 pass that
+  failed and none fails; #433's third reproduction has Chrome's 6 lines, where the profile had 5; no Firefox 157.0.1
+  prediction moves. What it leaves is under Line edges in ENGINE_FOLLOWUPS.md: in the Chromium profile letters that join
+  across that soft hyphen, and in the Gecko profile a `kern`-table pair or a ligature there. Reopens with real text
+  whose line turns on one of those.
