@@ -298,6 +298,170 @@ export type ParagraphLists = {
   breakableFitAdvances: (number[] | null)[]
 }
 
+// The functions from here to measureAnalysis() are its loop's. They are given what they read
+// and not nested in it: nested, every call makes an object for the variables they read and
+// one for each of them, in every engine. Where that object is as large as a handle,
+// JavaScriptCore puts it in the handles' cells, one between each two, and Safari 27 ran
+// layout() over 2,000 short labels 14-17% slower. Any object of 13 to 18 fields that every
+// prepare() makes and drops lands there too: with one planted here, 11-13% slower. What two
+// of them keep between calls for one text is beside them, and measureAnalysis() clears it.
+
+// A WebKit text item runs to its next break opportunity, so it also owns any
+// zero-width breaks before the space. The item is measured with one following
+// U+0020 minus an unshaped space, which keeps the kerning between the item's
+// end and that space. With letter spacing the same measurement also moves the
+// space's gap onto the item and clamps the item at zero, which the
+// per-grapheme gap model does not represent, so only the unspaced case takes
+// the kerning, and only it asks. A soft hyphen before the space also takes none:
+// on an RTL page WebKit needs about a hyphen's width more to fit such an item, and
+// preparation cannot see the page direction. Returns the zero-width breaks
+// between the text and the space, or null when the text takes no kerning. `own`
+// is the measured text, from `ownStart` of the analysis's.
+function getFollowingSpaceTail(analysis: TextAnalysis, analysisIndex: number, to: number, text: string, own: string, ownStart: number): string | null {
+  const { normalized, spaceSources, starts, flags } = analysis
+  let next = analysisIndex + 1
+  while (next < to && (flags[next]! & KIND_BITS) === ZERO_WIDTH_BREAK) next++
+  if (next >= to) return null
+  const nextKind = flags[next]! & KIND_BITS
+  // A collapsed space's first source character: WebKit looks at the source after a text item.
+  const spaceStart = starts[next]!
+  if ((nextKind !== SPACE && nextKind !== PRESERVED_SPACE) || (spaceSources === null ? normalized.charCodeAt(spaceStart) : spaceSources[spaceStart]!) !== 0x20) return null
+  const tail = normalized.slice(starts[analysisIndex + 1], spaceStart)
+  return formatTailStaysWithWord(tail === '' ? text : text + tail, own, spaceStart - ownStart) ? tail : null
+}
+
+// A zero-width break before the space ends the measured item, so only the
+// item's kerning with the space is added to the text's own width.
+function getTailKerning(item: string, measurement: FontMeasurement, spaceWidth: number): number {
+  return getFollowingSpaceMetrics(item, measurement).width - getSegmentMetrics(item, measurement).width - spaceWidth
+}
+
+// WebKit splits text items where resolved bidi levels change before it
+// measures them. Format characters between a word and the space resolve with
+// that space, so they stay in the word's item, and the word's last glyph keeps
+// its kerning with the space, only when the space resolves to the word's
+// direction. Without the paragraph direction that is known when the word's last
+// letter or direction mark and the first one after the space have the same
+// direction, with only spaces and format characters between (UAX #9 N1).
+// Explicit embeddings, overrides and isolates end with their paragraph (UAX #9
+// X8), so only controls in the space's own paragraph leave its direction
+// unknown. Spaces arrive in order, so each paragraph is scanned once.
+let hasExplicitBidiControls: boolean | null = null
+let controlParagraphEnd = -1
+let paragraphHasExplicitBidiControls = false
+function spaceParagraphHasExplicitBidiControls(own: string, spaceStart: number): boolean {
+  hasExplicitBidiControls ??= explicitBidiControlRe.test(own)
+  if (!hasExplicitBidiControls) return false
+  if (spaceStart < controlParagraphEnd) return paragraphHasExplicitBidiControls
+  let start = spaceStart
+  while (start > 0 && !isParagraphSeparatorCode(own.charCodeAt(start - 1))) start--
+  let end = spaceStart
+  while (end < own.length && !isParagraphSeparatorCode(own.charCodeAt(end))) end++
+  controlParagraphEnd = end
+  paragraphHasExplicitBidiControls = explicitBidiControlRe.test(own.slice(start, end))
+  return paragraphHasExplicitBidiControls
+}
+function formatTailStaysWithWord(item: string, own: string, spaceStart: number): boolean {
+  if (!trailingFormatCharacterRe.test(item)) return true
+  const before = letterBeforeFormatTailRe().exec(item)
+  if (before === null) return false
+  letterAfterSpacesRe().lastIndex = spaceStart
+  const after = letterAfterSpacesRe().exec(own)
+  if (after === null) return false
+  // An ASCII digit takes the direction of the text before it (UAX #9 W7 and N1).
+  const next = after[1]!
+  return (next.charCodeAt(0) <= 0x39 || rightToLeftLetterRe.test(before[1]!) === rightToLeftLetterRe.test(next)) &&
+    !spaceParagraphHasExplicitBidiControls(own, spaceStart)
+}
+
+// The source a run of combining marks shapes after when only zero-width glue,
+// controls or other such runs, with no break, separate the run from the grapheme
+// before it: that grapheme and what separates them. Without the separators, Canvas
+// can compose the marks with the grapheme or draw both in another font. A walk that
+// reaches the last run that asked takes that run's answer, so each segment is walked
+// and each grapheme found once, however many runs share it. Once what separates them
+// passes MARK_CHAIN_CONTEXT_UNITS, the context keeps the grapheme and the fewest of the
+// chain's last runs, each with the separators before it, that hold at least that many
+// units: in Chrome, Safari and Firefox, runs of 1 to 400 marks then measure as they do
+// after the whole chain, to 0.002px, and without the grapheme some took 25px less
+// (RESEARCH.md, Break Opportunities From Engine Data).
+let markRunIndex = -1
+let markBaseStart = -1 // where that run's grapheme starts in the normalized text, or -1
+let markChainStart = -1 // the segment after that grapheme
+let markChainKept = -1 // the first segment of the chain the context keeps
+// Asked only for a text segment no break comes before; the measured segments start at `from`.
+function getMarkContext(analysis: TextAnalysis, from: number, analysisIndex: number, text: string, graphemeTable: GraphemeTable): string | null {
+  if (!markRunRe.test(text)) return null
+  const { normalized, texts, starts, flags } = analysis
+  let baseStart = -1
+  for (let k = analysisIndex - 1; k >= from; k--) {
+    const kind = flags[k]! & KIND_BITS
+    const start = starts[k]!
+    const end = starts[k + 1]!
+    if (kind === ZERO_WIDTH_GLUE || ((kind === TEXT || kind === CONTROL) && controlOrMarkRunRe.test(texts[k]!))) {
+      if (k !== markRunIndex) continue
+      baseStart = markBaseStart
+    } else if (kind === TEXT) {
+      const ends = new Int32Array(end - start)
+      const count = findGraphemeEnds(graphemeTable, normalized, start, end, ends)
+      baseStart = count > 1 ? ends[count - 2]! : start
+      markChainStart = markChainKept = k + 1
+    }
+    break
+  }
+  markRunIndex = analysisIndex
+  markBaseStart = baseStart
+  if (baseStart < 0) return null
+  const start = starts[analysisIndex]!
+  if (start - baseStart <= MARK_CHAIN_CONTEXT_UNITS) return normalized.slice(baseStart, start)
+  // The kept part starts after the grapheme or a run of marks, moves only forward and
+  // never holds fewer than MARK_CHAIN_CONTEXT_UNITS.
+  for (let k = markChainKept + 1; start - starts[k]! >= MARK_CHAIN_CONTEXT_UNITS; k++) {
+    if (markRunRe.test(texts[k - 1]!)) markChainKept = k
+  }
+  if (markChainKept === markChainStart) return normalized.slice(baseStart, start)
+  return normalized.slice(baseStart, starts[markChainStart]) + normalized.slice(starts[markChainKept], start)
+}
+
+// Pieces split by a soft hyphen are measured apart, but Blink and Gecko shape
+// the unbroken text together: cursive joins, marks and kerning across the soft
+// hyphen. Canvas shows how much narrower the neighbors measure joined than
+// apart, which isolated widths can't show when proving that a hyphen overflows.
+// WebKit's return fits each side as measured alone and takes none (unfitHyphenRetreat).
+function getJoinedNarrowing(analysis: TextAnalysis, analysisIndex: number, to: number, before: string | null, beforeMetrics: SegmentMetrics | null, measurement: FontMeasurement, emojiCorrection: number, lineFitEpsilon: number): number {
+  if (before === null) return 0
+  const { texts, flags } = analysis
+  let next = analysisIndex + 1
+  while (next < to && (flags[next]! & KIND_BITS) === SOFT_HYPHEN) next++
+  if (next >= to || (flags[next]! & KIND_BITS) !== TEXT) return 0
+  const after = texts[next]!
+  const apart = getCorrectedSegmentWidth(before, beforeMetrics!, measurement, emojiCorrection) + getTextWidth(after, measurement, emojiCorrection)
+  const together = getTextWidth(before + after, measurement, emojiCorrection)
+  return apart - together > lineFitEpsilon ? apart - together : 0
+}
+
+function getEntryGeometry(text: string, fit: SegmentFit, width: number, fitBasis: 'fresh' | 'original', letterSpacing: number, emojiCorrection: number, measurement: FontMeasurement): SegmentEntryGeometry | null {
+  // The fit fixes the text, font and advances, and Pretext sets no other context state.
+  // The WebKit profile moves the advances by a following space, and it observes no
+  // entries; the Chromium profile's kerning with a space is in the width alone, which
+  // its fresh entries don't read.
+  const cached = fit.entryGeometry
+  if (cached !== null && cached.letterSpacing === letterSpacing && cached.emojiCorrection === emojiCorrection) return cached.geometry
+  const geometry = observeSegmentEntries(text, fit.advances!, letterSpacing, width, fitBasis,
+    source => measureWithLetterSpacing(source, letterSpacing, emojiCorrection, measurement))
+  // Replacing this last observation leaves prepared copies intact.
+  fit.entryGeometry = { letterSpacing, emojiCorrection, geometry }
+  return geometry
+}
+
+// A text segment's width as measured: alone, or together with the following space less
+// that space, plus the item's kerning with a space that follows zero-width breaks. Apart
+// from measureAnalysis()'s loop, whose code JavaScriptCore otherwise never optimizes fully
+// on CJK text (RESEARCH.md, Keeping Work Bounded).
+function getTextSegmentWidth(text: string, textMetrics: SegmentMetrics, measurement: FontMeasurement, emojiCorrection: number, followingSpaceWidth: number, followingSpaceKerning: number): number {
+  return getCorrectedSegmentWidth(text, textMetrics, measurement, emojiCorrection) - followingSpaceWidth + followingSpaceKerning
+}
+
 // Measures segments [from, to) of an analysis in a font, alone: all of a text's, or those of one
 // item of a rich-inline paragraph (RESEARCH.md, Rich Inline As One Paragraph), where only the
 // marks Blink halts and a run of U+3000 read the text around the item (getHanKerningTrims,
@@ -364,133 +528,6 @@ export function measureAnalysis(
   // without one doesn't look for it.
   const entryFitBasis = engineProfile.entryFitBasis !== 'disabled' && textMayHaveEntryGeometry(own) ? engineProfile.entryFitBasis : 'disabled'
 
-  // A collapsed space's first source character, for engines that look at the
-  // source after a text item.
-  function getSpaceSourceCode(analysisIndex: number): number {
-    const start = starts[analysisIndex]!
-    return analysis.spaceSources === null ? normalized.charCodeAt(start) : analysis.spaceSources[start]!
-  }
-
-  // A WebKit text item runs to its next break opportunity, so it also owns any
-  // zero-width breaks before the space. The item is measured with one following
-  // U+0020 minus an unshaped space, which keeps the kerning between the item's
-  // end and that space. With letter spacing the same measurement also moves the
-  // space's gap onto the item and clamps the item at zero, which the
-  // per-grapheme gap model does not represent, so only the unspaced case takes
-  // the kerning. A soft hyphen before the space also takes none: on an RTL page
-  // WebKit needs about a hyphen's width more to fit such an item, and
-  // preparation cannot see the page direction. Returns the zero-width breaks
-  // between the text and the space, or null when the text takes no kerning.
-  function getFollowingSpaceTail(analysisIndex: number, text: string): string | null {
-    if (!engineProfile.measureTextWithFollowingSpace || hasLetterSpacing) return null
-    let next = analysisIndex + 1
-    while (next < to && (flags[next]! & KIND_BITS) === ZERO_WIDTH_BREAK) next++
-    if (next >= to) return null
-    const nextKind = flags[next]! & KIND_BITS
-    if ((nextKind !== SPACE && nextKind !== PRESERVED_SPACE) || getSpaceSourceCode(next) !== 0x20) return null
-    const tail = normalized.slice(starts[analysisIndex + 1], starts[next])
-    return formatTailStaysWithWord(tail === '' ? text : text + tail, starts[next]! - ownStart) ? tail : null
-  }
-
-  // Text directly before such a space is measured together with the space
-  // instead of alone, so its kerned width costs no extra Canvas call. Other
-  // occurrences of the same text measure it alone.
-  function getTextMetrics(text: string, followingSpaceTail: string | null): SegmentMetrics {
-    return followingSpaceTail === '' ? getFollowingSpaceMetrics(text, fontMeasurement) : getSegmentMetrics(text, fontMeasurement)
-  }
-
-  // A zero-width break before the space ends the measured item, so only the
-  // item's kerning with the space is added to the text's own width.
-  function getTailKerning(item: string): number {
-    return getFollowingSpaceMetrics(item, fontMeasurement).width - getSegmentMetrics(item, fontMeasurement).width - spaceWidth
-  }
-
-  // WebKit splits text items where resolved bidi levels change before it
-  // measures them. Format characters between a word and the space resolve with
-  // that space, so they stay in the word's item, and the word's last glyph keeps
-  // its kerning with the space, only when the space resolves to the word's
-  // direction. Without the paragraph direction that is known when the word's last
-  // letter or direction mark and the first one after the space have the same
-  // direction, with only spaces and format characters between (UAX #9 N1).
-  // Explicit embeddings, overrides and isolates end with their paragraph (UAX #9
-  // X8), so only controls in the space's own paragraph leave its direction
-  // unknown. Spaces arrive in order, so each paragraph is scanned once.
-  let hasExplicitBidiControls: boolean | null = null
-  let controlParagraphEnd = -1
-  let paragraphHasExplicitBidiControls = false
-  function spaceParagraphHasExplicitBidiControls(spaceStart: number): boolean {
-    hasExplicitBidiControls ??= explicitBidiControlRe.test(own)
-    if (!hasExplicitBidiControls) return false
-    if (spaceStart < controlParagraphEnd) return paragraphHasExplicitBidiControls
-    let start = spaceStart
-    while (start > 0 && !isParagraphSeparatorCode(own.charCodeAt(start - 1))) start--
-    let end = spaceStart
-    while (end < own.length && !isParagraphSeparatorCode(own.charCodeAt(end))) end++
-    controlParagraphEnd = end
-    paragraphHasExplicitBidiControls = explicitBidiControlRe.test(own.slice(start, end))
-    return paragraphHasExplicitBidiControls
-  }
-  function formatTailStaysWithWord(item: string, spaceStart: number): boolean {
-    if (!trailingFormatCharacterRe.test(item)) return true
-    const before = letterBeforeFormatTailRe().exec(item)
-    if (before === null) return false
-    letterAfterSpacesRe().lastIndex = spaceStart
-    const after = letterAfterSpacesRe().exec(own)
-    if (after === null) return false
-    // An ASCII digit takes the direction of the text before it (UAX #9 W7 and N1).
-    const next = after[1]!
-    return (next.charCodeAt(0) <= 0x39 || rightToLeftLetterRe.test(before[1]!) === rightToLeftLetterRe.test(next)) &&
-      !spaceParagraphHasExplicitBidiControls(spaceStart)
-  }
-
-  // The source a run of combining marks shapes after when only zero-width glue,
-  // controls or other such runs, with no break, separate the run from the grapheme
-  // before it: that grapheme and what separates them. Without the separators, Canvas
-  // can compose the marks with the grapheme or draw both in another font. A walk that
-  // reaches the last run that asked takes that run's answer, so each segment is walked
-  // and each grapheme found once, however many runs share it. Once what separates them
-  // passes MARK_CHAIN_CONTEXT_UNITS, the context keeps the grapheme and the fewest of the
-  // chain's last runs, each with the separators before it, that hold at least that many
-  // units: in Chrome, Safari and Firefox, runs of 1 to 400 marks then measure as they do
-  // after the whole chain, to 0.002px, and without the grapheme some took 25px less
-  // (RESEARCH.md, Break Opportunities From Engine Data).
-  let markRunIndex = -1
-  let markBaseStart = -1 // where that run's grapheme starts in the normalized text, or -1
-  let markChainStart = -1 // the segment after that grapheme
-  let markChainKept = -1 // the first segment of the chain the context keeps
-  // Asked only for a text segment no break comes before.
-  function getMarkContext(analysisIndex: number, text: string): string | null {
-    if (!markRunRe.test(text)) return null
-    let baseStart = -1
-    for (let k = analysisIndex - 1; k >= from; k--) {
-      const kind = flags[k]! & KIND_BITS
-      const start = starts[k]!
-      const end = starts[k + 1]!
-      if (kind === ZERO_WIDTH_GLUE || ((kind === TEXT || kind === CONTROL) && controlOrMarkRunRe.test(texts[k]!))) {
-        if (k !== markRunIndex) continue
-        baseStart = markBaseStart
-      } else if (kind === TEXT) {
-        const ends = new Int32Array(end - start)
-        const count = findGraphemeEnds(engineProfile.graphemeTable, normalized, start, end, ends)
-        baseStart = count > 1 ? ends[count - 2]! : start
-        markChainStart = markChainKept = k + 1
-      }
-      break
-    }
-    markRunIndex = analysisIndex
-    markBaseStart = baseStart
-    if (baseStart < 0) return null
-    const start = starts[analysisIndex]!
-    if (start - baseStart <= MARK_CHAIN_CONTEXT_UNITS) return normalized.slice(baseStart, start)
-    // The kept part starts after the grapheme or a run of marks, moves only forward and
-    // never holds fewer than MARK_CHAIN_CONTEXT_UNITS.
-    for (let k = markChainKept + 1; start - starts[k]! >= MARK_CHAIN_CONTEXT_UNITS; k++) {
-      if (markRunRe.test(texts[k - 1]!)) markChainKept = k
-    }
-    if (markChainKept === markChainStart) return normalized.slice(baseStart, start)
-    return normalized.slice(baseStart, starts[markChainStart]) + normalized.slice(starts[markChainKept], start)
-  }
-
   // The font's kerning with the space where words take Blink's kerning with the spaces beside
   // them, or null. Blink shapes nothing across a change of direction
   // (ShouldBreakShapingBeforeText, inline_node.cc:472-490), and which spaces share a word's
@@ -517,45 +554,11 @@ export function measureAnalysis(
   let discretionaryHyphenContexts: number[] | null = null
   let previousJoinablePiece: string | null = null
   let previousJoinableMetrics: SegmentMetrics | null = null
-
-  // Pieces split by a soft hyphen are measured apart, but Blink and Gecko shape
-  // the unbroken text together: cursive joins, marks and kerning across the soft
-  // hyphen. Canvas shows how much narrower the neighbors measure joined than
-  // apart, which isolated widths can't show when proving that a hyphen overflows.
-  // WebKit's return fits each side as measured alone and takes none (unfitHyphenRetreat).
+  // WebKit's return from an unfit hyphen fits each side as measured alone (getJoinedNarrowing).
   const returnFitsEachSideAlone = engineProfile.unfitHyphenRetreat === 'full-width-or-first'
-  function getJoinedNarrowing(analysisIndex: number, before: string | null, beforeMetrics: SegmentMetrics | null): number {
-    if (before === null) return 0
-    let next = analysisIndex + 1
-    while (next < to && (flags[next]! & KIND_BITS) === SOFT_HYPHEN) next++
-    if (next >= to || (flags[next]! & KIND_BITS) !== TEXT) return 0
-    const after = texts[next]!
-    const apart = getCorrectedSegmentWidth(before, beforeMetrics!, fontMeasurement, emojiCorrection) + getTextWidth(after, fontMeasurement, emojiCorrection)
-    const together = getTextWidth(before + after, fontMeasurement, emojiCorrection)
-    return apart - together > engineProfile.lineFitEpsilon ? apart - together : 0
-  }
-
-  function getEntryGeometry(text: string, fit: SegmentFit, width: number, fitBasis: 'fresh' | 'original'): SegmentEntryGeometry | null {
-    // The fit fixes the text, font and advances, and Pretext sets no other context state.
-    // The WebKit profile moves the advances by a following space, and it observes no
-    // entries; the Chromium profile's kerning with a space is in the width alone, which
-    // its fresh entries don't read.
-    const cached = fit.entryGeometry
-    if (cached !== null && cached.letterSpacing === letterSpacing && cached.emojiCorrection === emojiCorrection) return cached.geometry
-    const geometry = observeSegmentEntries(text, fit.advances!, letterSpacing, width, fitBasis,
-      source => measureWithLetterSpacing(source, letterSpacing, emojiCorrection, fontMeasurement))
-    // Replacing this last observation leaves prepared copies intact.
-    fit.entryGeometry = { letterSpacing, emojiCorrection, geometry }
-    return geometry
-  }
-
-  // A text segment's width as measured: alone, or together with the following space less
-  // that space, plus the item's kerning with a space that follows zero-width breaks. Apart
-  // from the loop below, whose code JavaScriptCore otherwise never optimizes fully on CJK
-  // text (RESEARCH.md, Keeping Work Bounded).
-  function getTextSegmentWidth(text: string, textMetrics: SegmentMetrics, measuredWithSpace: boolean, followingSpaceKerning: number): number {
-    return getCorrectedSegmentWidth(text, textMetrics, fontMeasurement, emojiCorrection) - (measuredWithSpace ? spaceWidth : 0) + followingSpaceKerning
-  }
+  // What getMarkContext() and spaceParagraphHasExplicitBidiControls() keep is one text's.
+  markRunIndex = controlParagraphEnd = -1
+  hasExplicitBidiControls = null
 
   // Each segment is stored at its index: `at` in the text's or the paragraph's three lists,
   // `mi - from` in the lists of the measured segments alone. Stored and not pushed, for V8:
@@ -588,21 +591,22 @@ export function measureAnalysis(
         // prepares CJK text again 2.6% faster than with a call for every text segment, which
         // V8 didn't inline (RESEARCH.md, Keeping Work Bounded, JavaScript Engines, under V8's
         // inlining budgets and the mark context).
-        const markContext = (segment & UNBROKEN) === 0 ? null : getMarkContext(mi, text)
+        const markContext = (segment & UNBROKEN) === 0 ? null : getMarkContext(analysis, from, mi, text, engineProfile.graphemeTable)
         if (markContext !== null) {
           width = engineProfile.shapesMarksAcrossSoftHyphen && texts[mi - 1] === '\u00AD' && nonspacingMarkRunRe.test(text)
             ? 0
             : getTextWidth(markContext + text, fontMeasurement, emojiCorrection) - getTextWidth(markContext, fontMeasurement, emojiCorrection)
           break
         }
-        // With an empty following-space tail, the text is measured together with the
-        // space; with a zero-width tail, the item's kerning is added.
-        const followingSpaceTail = getFollowingSpaceTail(mi, text)
+        // With an empty following-space tail, the text is measured together with the space,
+        // so its kerned width costs no extra Canvas call, and other occurrences of the same
+        // text measure it alone; with a zero-width tail, the item's kerning is added.
+        const followingSpaceTail = engineProfile.measureTextWithFollowingSpace && !hasLetterSpacing ? getFollowingSpaceTail(analysis, mi, to, text, own, ownStart) : null
         const measuredWithSpace = followingSpaceTail === ''
-        const textMetrics = getTextMetrics(text, followingSpaceTail)
+        const textMetrics = measuredWithSpace ? getFollowingSpaceMetrics(text, fontMeasurement) : getSegmentMetrics(text, fontMeasurement)
         previousJoinablePiece = text
         previousJoinableMetrics = textMetrics
-        let followingSpaceKerning = followingSpaceTail === null || measuredWithSpace ? 0 : getTailKerning(text + followingSpaceTail)
+        let followingSpaceKerning = followingSpaceTail === null || measuredWithSpace ? 0 : getTailKerning(text + followingSpaceTail, fontMeasurement, spaceWidth)
         if (fontSpaceKerning !== null && textMetrics.spaceKerning !== noSpaceKerning) {
           const spaceBefore = mi > from && isSpaceKind(flags[mi - 1]! & KIND_BITS)
           const spaceAfter = mi + 1 < to && isSpaceKind(flags[mi + 1]! & KIND_BITS)
@@ -631,7 +635,7 @@ export function measureAnalysis(
             }
           }
         }
-        width = getTextSegmentWidth(text, textMetrics, measuredWithSpace, followingSpaceKerning)
+        width = getTextSegmentWidth(text, textMetrics, fontMeasurement, emojiCorrection, measuredWithSpace ? spaceWidth : 0, followingSpaceKerning)
         // The walkers put a gap after every grapheme of a spaced segment, so a grapheme
         // the engine gives none takes one back from its advance, here and in the advances
         // a break inside the segment falls by.
@@ -671,7 +675,7 @@ export function measureAnalysis(
           fitAdvances = fitAdvances.slice()
           for (let k = 0; k < unspaced.length; k++) fitAdvances[unspaced[k]!] = fitAdvances[unspaced[k]!]! - letterSpacing
         } else if (entryFitBasis !== 'disabled') {
-          entry = getEntryGeometry(text, fit, addInternalLetterSpacing(width, spacingGraphemeCount, letterSpacing), entryFitBasis)
+          entry = getEntryGeometry(text, fit, addInternalLetterSpacing(width, spacingGraphemeCount, letterSpacing), entryFitBasis, letterSpacing, emojiCorrection, fontMeasurement)
         }
         if (keepsLineStartPunctuation) prohibitions = fit.lineStartProhibitions
         break
@@ -720,7 +724,7 @@ export function measureAnalysis(
     // return from an unfit hyphen, measured below.
     if (kind !== TEXT && text.charCodeAt(0) === 0xAD) {
       discretionaryHyphenContexts ??= zeros(mi - from)
-      discretionaryHyphenContexts[mi - from] = returnFitsEachSideAlone ? 0 : getJoinedNarrowing(mi, previousJoinablePiece, previousJoinableMetrics)
+      discretionaryHyphenContexts[mi - from] = returnFitsEachSideAlone ? 0 : getJoinedNarrowing(analysis, mi, to, previousJoinablePiece, previousJoinableMetrics, fontMeasurement, emojiCorrection, engineProfile.lineFitEpsilon)
     } else if (discretionaryHyphenContexts !== null) {
       discretionaryHyphenContexts[mi - from] = 0
     }
