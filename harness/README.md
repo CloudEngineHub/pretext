@@ -280,10 +280,12 @@ harness/invariants.test.ts`) and the bench's floors.
 - Without the stand-in's kerning and ligatures between neighbouring letters (#435), every word measured as its letters
   do alone, so the fits of a word cut between letters all gave one answer: a planted defect that overwrote the advances
   a held handle keeps when its word was fit another way went unseen in 600 draws of every profile. With them, the
-  unknown profile, whose context takes no `letterSpacing`, fails it in 84 draws of 600. The WebKit profile's takes none
-  either, and it failed in 1 of the 600 drawn before the cut-word cases joined the sets and in none of those drawn
-  since; the Blink and Gecko profiles measure letter-spaced text apart, so no word there is fit two ways. A planted miss
-  of a line-start width in `layout()`'s count fails the Blink profile's agreement check in 3 draws of 600.
+  unknown profile, whose context takes no `letterSpacing`, fails it in 84 draws of 600. The WebKit profile measures
+  letter-spaced text with the rest too, its context taking none when this was run and, since the profile asks Canvas
+  how many letter spacings a grapheme takes, one that keeps the ligatures, as Safari's does; it failed in 1 of the 600
+  drawn before the cut-word cases joined the sets and in none of those drawn since. The Blink and Gecko profiles
+  measure letter-spaced text apart, so no word there is fit two ways. A planted miss of a line-start width in
+  `layout()`'s count fails the Blink profile's agreement check in 3 draws of 600.
 - The stand-in halts a closing fullwidth mark by a few tenths of a pixel, so almost no line there fits only by a halt:
   with the halt that a mark at a rich item's end keeps on a line with content (`itemEndHalts`) taken out of the walker,
   0 of 21,251 inputs differed in every profile (2026-10-07). A change to that rule rests on the unit tests and on

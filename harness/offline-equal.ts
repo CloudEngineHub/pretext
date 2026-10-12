@@ -29,7 +29,7 @@ import { isRich } from './types.ts'
 const flag = (name: string): string | undefined => process.argv.find(arg => arg.startsWith(`--${name}=`))?.slice(name.length + 3)
 const profile = flag('profile') as Profile
 if (!(profile in PROFILES)) throw new Error(`--profile must be one of ${Object.keys(PROFILES).join(', ')}`)
-const spaced = profile === 'blink' || profile === 'gecko'
+const spaced = profile !== 'unknown'
 // Each build's measureText calls and units, and the calls of the input it is on, in order.
 const measured = [0, 1].map(() => ({ calls: 0, units: 0, log: '' }))
 let current = measured[0]!
@@ -47,7 +47,7 @@ Reflect.set(globalThis, 'OffscreenCanvas', class {
         current.calls++
         current.units += text.length
         current.log += `${ctx.font}\u0001${ctx.letterSpacing ?? ''}\u0001${text}\u0000`
-        const width = standInWidth(text, ctx.font, spaced ? Number.parseFloat(ctx.letterSpacing!) : 0, ctx.fontKerning, ctx.textRendering)
+        const width = standInWidth(text, ctx.font, spaced ? Number.parseFloat(ctx.letterSpacing!) : 0, ctx.fontKerning, ctx.textRendering, profile === 'webkit')
         return { width, actualBoundingBoxLeft: 0, actualBoundingBoxRight: width }
       },
     } as { font: string; fontKerning: string; textRendering: string; letterSpacing?: string; measureText: (text: string) => { width: number } }
