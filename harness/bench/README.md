@@ -252,7 +252,8 @@ before the glyph spacings did, costs a tenth as much there.
 ## Session times
 
 Side by side, a run takes its slowest session's time: a session of every row took 84 to 88 s in webkit-host, 97 to
-101 s in Chrome and 131 to 138 s in Firefox with nine at once, and a run 133 to 138 s (24 runs, 2026-10-11). In the
+101 s in Chrome and 131 to 138 s in Firefox with nine at once, and a run 133 to 138 s (24 runs, 2026-10-11); with the
+two letter-spaced documents two runs took 142 s each, Firefox's sessions 140 to 142 s (2026-10-12). In the
 foreground a session of every row takes 96 s in Chrome, 117 s in Firefox and 98 s in Safari (six sessions each,
 2026-10-07; a document that loses focus waits a minute and starts again): a little over ten minutes for the two, and
 then the confirming sessions, which would have timed 57 of the third sessions' 145 documents in the 19 runs above
