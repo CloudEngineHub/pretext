@@ -464,7 +464,8 @@ the lines of webkit-host's passing sample draws inside the claims were more than
 the widest, as in a fifth of the sample's pre-wrap draws, and webkit-host's `narrow` column reads low on pre-wrap text.
 The table's `off` column counts no rich draw, and it leaves a line that ends in a space with a box out in every browser
 (`score.ts`, `widthsOff`): a third of the lines of the sample's plain pre-wrap draws (2026-10-12), which it reads by
-their other lines.
+their other lines. It counts the draws that vary between runs (`varying/`) as the table's other columns do, so its row
+for `system-ui` font lists reads 77 or 78 in webkit-host from one run to the next (2026-10-12).
 The harness doesn't see re-layout at a line's own width; several rules of the Gecko profile's analysis of bidi
 controls (`ENGINE_FOLLOWUPS.md`, Harness debt); an emoji modifier split from its
 base across rich items; a rich paragraph of one item, which the adapter writes as plain text, so `src/layout.test.ts`
