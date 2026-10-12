@@ -1344,7 +1344,6 @@ catalog-55c4dc039d1cbb26 count
 catalog-55c9bd84698bec27 count
 catalog-55dcc35a17cbb903 count
 catalog-55df5645bd4dd0b0 count
-catalog-5623a15e1e4d7545 count
 catalog-56680a09c0d830a9 count
 catalog-568a88ab6487ad5d count
 catalog-5691398e150052ab count

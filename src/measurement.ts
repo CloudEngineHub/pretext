@@ -817,7 +817,11 @@ const KANA_PROBE = '\u30D7\u30C0\u30B0\u30BF\u30CE\u30E0\u30D6\u30A4\u30E1\u3048
 // cover the space glyph (FontFallbackList::ComputeCanShapeWordByWord, font_fallback_list.cc:264-277),
 // as those of the Japanese fonts of macOS do. It is a context of its own: the first measures
 // everything else as it did, and a kana alone measures the same on both. It is set to the
-// list the font's kana are asked in (getFontKanaKerning).
+// list the font's kana are asked in (getFontKanaKerning), and isn't asked whether it takes the
+// list (contextTakesFont): the font's own list is one the first context, made the same way,
+// took, and where a shorter one is no font string, as a list cut inside a calc() size, the
+// context keeps the list before it and reads what it read under that one, so the search goes
+// on to the next list or ends on the font's own.
 function getWholeRunContext(measurement: FontMeasurement): CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D {
   const state = measurement.state
   if (state.wholeRunContext === null) {
@@ -1355,16 +1359,42 @@ export function getFontMeasurement(font: string, language: string | null, letter
   const state = measureState
   const shaped = letterSpaced && state.shapesLetterSpaced
   const fonts = shaped ? state.letterSpacedFonts : state.fonts
+  // The first measurement after a lookup sets the font again, the same string too: Firefox's
+  // context takes a face added to document.fonts only when its font is assigned, and the
+  // question below leaves the context on a font of its own, whether it throws or not.
+  state.font = ''
   let measurement = fonts.get(font)
   if (measurement === undefined) {
     const canvasFont = state.genericFamilies === null ? font : getCanvasFont(font, state.genericFamilies)
+    if (!contextTakesFont(state.context, canvasFont)) throw new RangeError(`font must be a font string Canvas takes, a size in px then a family, such as 16px Inter, not "${font}"`)
     measurement = { state, canvasFont, letterSpacing: shaped ? LETTER_SPACED_SHAPING : '0px', metrics: new Map(), followingSpaceMetrics: new Map(), spaceKerning: undefined, measuredKana: false, kanaKerning: undefined, kanaFont: canvasFont, emojiCorrection: null, emojiWidth: 0, hyphenText: null, spaceWidth: null, hanKerning: undefined, ligaturePairs: new Map() }
     fonts.set(font, measurement)
   }
-  // The first measurement after a lookup sets the font again, the same string too: Firefox's
-  // context takes a face added to document.fonts only when its font is assigned.
-  state.font = ''
   return measurement
+}
+
+// Whether a Canvas context takes a font string. A context ignores a string that isn't a CSS font
+// shorthand and keeps the font it had (the HTML standard's font setter): a family before its
+// size, a string with no family, `var(--font)`, or an empty string, which
+// getComputedStyle(element).font is where the element sets a longhand the shorthand can't hold.
+// Firefox's OffscreenCanvas also ignores a size relative to a font, such as 1.2em or 120%, which
+// it has no element to resolve against (SetFontInternalDisconnected,
+// CanvasRenderingContext2D.cpp:4478-4490), and Firefox's and Safari's a system font such as
+// `caption` (Firefox 157.0.1, Safari 27.0, 2026-10-11). Every width would then be measured in
+// whatever font the context held last, so Pretext refuses such a string rather than guess at it,
+// as it refuses a letter spacing that isn't finite (readLetterSpacing). The context is set to a
+// font of the question's, then to the caller's, and still reads the first only where the
+// caller's was ignored; a caller's font that reads back as the first is asked again after
+// another. A context that doesn't read the question's font back as written refuses nothing.
+// Only the context's `font` is written and read, no element and no style, and nothing is
+// measured. Asked once for each font measurement, never for a text.
+function contextTakesFont(context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, font: string): boolean {
+  context.font = '1px serif'
+  context.font = font
+  if (context.font !== '1px serif') return true
+  context.font = '2px serif'
+  context.font = font
+  return context.font !== '2px serif'
 }
 
 // The font's context, set to the font and its shaping. Every measurement in a font takes
