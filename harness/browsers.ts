@@ -292,8 +292,11 @@ function readTable(): void {
 }
 
 // Each tick checks the bound first, on the processes the last table held, since the read a moved browser then asks
-// for holds the process for as long as `ps` takes. The processes are found again from each table (readTable), the
-// first read as the watch starts, and the reader stops with the last browser watched.
+// for holds the process for as long as `ps` takes. The processes are found again from each table (readTable). A new
+// watch asks for one at its first tick, a tenth of a second in, since a browser just launched is still starting
+// processes: read as the watch began, the table missed a process started 30 ms later, which then held 300 MB under a
+// 100 MB bound for 1.06 s, until the next second's table, where it now holds them for 0.19 s (a stand-in browser,
+// 2026-10-12). The reader stops with the last browser watched.
 function watch(browser: BrowserKind, launched: Launched, fail: (error: Error) => void, boundMb: number): Session {
   const watcher: Watcher = {
     found(rows) {
@@ -333,7 +336,7 @@ function watch(browser: BrowserKind, launched: Launched, fail: (error: Error) =>
   }, 100)
   watchers.add(watcher)
   reader ??= setInterval(readTable, 1000)
-  readTable()
+  launched.moved = true
   return {
     close() {
       unwatch()
