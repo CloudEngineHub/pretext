@@ -12,12 +12,13 @@ import { groupLines, recordedLines, scanLineEnds, searchLineEnds, type RectsAt }
 import { bundle, documents, LIB, type Job } from './run.ts'
 import { box } from './sets/build.ts'
 import {
-  accept, attribute, behaviourLine, buildChange, checkBlocks, commitSeed, countBehaviour, countDraw, countWidths, drawRows, freshRecordings, gateBlocks, gateSample, headline, judge,
+  accept, attribute, behaviourLine, buildChange, checkBlocks, commitSeed, countBehaviour, countDraw, COUNTED, countedFailures, countedOnly, countedTallies, countWidths, drawRows, freshRecordings,
+  gateBlocks, gateSample, headline, judge,
   libraryFaults, outsideClaims, pinning, predictionChange, reverseOrder, score, SEED, strata, tableLines, weightedShare, widthShares,
   type Behaviour, type Draw, type Outcome, type Stratum, type Verdict, type WidthTally,
 } from './score.ts'
 import {
-  acceptedPath, assertSameEnvironment, caseProblem, historyPath, parseRecording, readAccepted, readHistory, readRecordings, readVarying, recordingsPath, recordingText,
+  acceptedPath, assertSameEnvironment, caseProblem, countedPath, historyPath, parseRecording, readAccepted, readHistory, readRecordings, readVarying, recordingsPath, recordingText,
   splitHistory, varyingPath, writeAccepted, writeHistory, writeRecordings, type Varying,
 } from './store.ts'
 import type { Case, Failure, Prediction, Recording, Rect, TextRun } from './types.ts'
@@ -288,7 +289,7 @@ describe('what check prints beside the headline', () => {
     // Wrong where it wraps.
     count('fails', 40, false, true, false)
     count('fails', 59.984375, true, true, true)
-    expect(behaviourLine('catalog', list)).toBe('catalog: 2 of 5 behaviours modelled, 1 of them also 1/64 px either side of where the lines change; at 24 px and wider, 3 modelled of the 4 the browser wraps there, 1 also at the edges of the 3 whose lines change there')
+    expect(behaviourLine('catalog', list)).toBe('catalog: at 24 px and wider, 3 behaviours modelled of the 4 the browser wraps there, 1 also at the edges of the 3 whose lines change there; over every width, 2 of 5 modelled, 1 of them also 1/64 px either side of where the lines change')
   })
 })
 
@@ -522,6 +523,61 @@ describe('the accepted-failures and varying lists', () => {
     expect(judge(outcomes, new Map(), varying, cases, false).newFailures).toEqual(['amiri', 'new'])
     expect([...accept(outcomes, new Map(), 'why', varying, cases, false).keys()]).toEqual(['amiri', 'new'])
   })
+
+  test('a pinned case blocks at 24 px and wider, away from an edge of a line change, inside the claims and outside the old-gate set, and is counted otherwise, under the first of those that applies: a failure at a real width would land as a moved count, or one narrower than any layout need a written reason', () => {
+    const c = paragraphCase(TEXT)
+    const at = (width: number, more: Partial<Case> = {}): Case => ({ ...c, ...more, paragraph: { ...c.paragraph, width } })
+    const lines = predicted(TEXT, STARTS)
+    const [narrow, edge, outside, oldGate] = COUNTED
+    // The width: 24 px blocks, and 1/64 px under it is counted.
+    expect([24, 100000, 23.984375, 1, 0].map(width => countedOnly(at(width), lines))).toEqual([null, null, narrow, narrow, narrow])
+    // An edge of a line change: the catalog's cases 1/64 px either side of a width where the browser's lines change.
+    const atEdge = { behaviour: 'a space', edge: true as const }
+    expect(countedOnly(at(59.984375, atEdge), lines)).toBe(edge)
+    expect(countedOnly(at(59.984375, { behaviour: 'a space' }), lines)).toBeNull()
+    // The claims: a style the adapter can't express, or a system-ui font list. A prediction that throws is inside them.
+    const systemUi = at(100)
+    systemUi.paragraph.font = { ...c.paragraph.font, family: 'system-ui, sans-serif' }
+    expect([countedOnly(at(100), { unsupported: 'word-break break-all' }), countedOnly(systemUi, lines), countedOnly(at(100), { error: 'threw' })]).toEqual([outside, outside, null])
+    // The old-gate set, by its cases' family.
+    const old = { family: 'old-gate/arabic-brackets' }
+    expect(countedOnly(at(100, old), lines)).toBe(oldGate)
+    // The first that applies: the width, then the edge, then the claims.
+    const unsupported: Prediction = { unsupported: 'word-break break-all' }
+    expect([countedOnly(at(12, { ...atEdge, ...old }), unsupported), countedOnly(at(60, { ...atEdge, ...old }), unsupported), countedOnly(at(60, old), unsupported)]).toEqual([narrow, edge, outside])
+  })
+
+  test('a counted case that starts to fail, or one on the counted list that passes, moves its kind\'s counts and is never a new failure or a fixed entry: every change that moves a case narrower than any layout would wait for a written reason', () => {
+    const [narrow, edge, outside, oldGate] = COUNTED
+    // "known" is listed and fails; "new" fails and isn't listed; "fixed" is listed and passes; "pass" passes; "gone" is
+    // listed and names no case; "moved" is listed under another kind than the one it is counted under now.
+    const outcomes = new Map<string, Outcome>([['known', fail('breaks')], ['new', fail('count')], ['fixed', fail('pass')], ['pass', fail('pass')], ['moved', fail('error')], ['blocks', fail('count')]])
+    const why = new Map([['known', narrow], ['new', narrow], ['fixed', edge], ['pass', edge], ['moved', outside]])
+    const listed = new Map<string, { reason: string; status: Failure }>([
+      ['known', { reason: narrow, status: 'breaks' }], ['fixed', { reason: edge, status: 'count' }], ['gone', { reason: oldGate, status: 'count' }], ['moved', { reason: narrow, status: 'count' }],
+    ])
+    const cases = new Set(['known', 'new', 'fixed', 'pass', 'moved', 'blocks'])
+    expect([...countedTallies(outcomes, why, listed, cases, false)]).toEqual([
+      [narrow, { right: 0, wrong: 2, added: 1, gone: 1 }],
+      [edge, { right: 2, wrong: 0, added: 0, gone: 1 }],
+      [outside, { right: 0, wrong: 1, added: 1, gone: 0 }],
+      [oldGate, { right: 0, wrong: 0, added: 0, gone: 1 }],
+    ])
+    // The accepted list judges the blocking cases alone, so neither move is a new failure or a fixed entry there.
+    const judged = new Map<string, Outcome>([['blocks', outcomes.get('blocks')!]])
+    const verdict = judge(judged, new Map([['blocks', { reason: 'r', status: 'count' }]]), none, cases, false)
+    expect([verdict.newFailures, verdict.fixed]).toEqual([[], []])
+    expect(checkBlocks('chrome', new Map(), [], verdict, false, id => id)).toEqual([])
+    // --accept lists each counted failure under why it is counted, after which nothing has moved.
+    const next = countedFailures(outcomes, why, listed, cases, false)
+    expect([...next]).toEqual([['known', { reason: narrow, status: 'breaks' }], ['new', { reason: narrow, status: 'count' }], ['moved', { reason: outside, status: 'error' }]])
+    for (const tally of countedTallies(outcomes, why, next, cases, false).values()) expect([tally.added, tally.gone]).toEqual([0, 0])
+    // A run over other case files leaves this list's entries alone, and counts none of them as gone.
+    const elsewhere = new Map<string, Outcome>([['other', fail('breaks')]])
+    const others = new Set(['other'])
+    expect(countedTallies(elsewhere, new Map([['other', narrow]]), next, others, true).get(narrow)).toEqual({ right: 0, wrong: 1, added: 1, gone: 0 })
+    expect([...countedFailures(elsewhere, new Map([['other', narrow]]), next, others, true).keys()].sort()).toEqual(['known', 'moved', 'new', 'other'])
+  })
 })
 
 describe('what blocks', () => {
@@ -545,7 +601,7 @@ describe('what blocks', () => {
     const verdict = { ...clean(), newFailures: ['new'], fixed: ['fixed'] }
     const blocks = checkBlocks('firefox', new Map(), [], verdict, false, id => `${id} described`)
     expect(blocks).toEqual([
-      'BLOCKS: 1 accepted cases pass, are no longer pinned or name no case; take them off with --accept: fixed',
+      'BLOCKS: 1 accepted cases pass, are counted only, are no longer pinned or name no case; take them off with --accept: fixed',
       'BLOCKS: 1 new failures (accept them with --accept="<reason>")',
       '  new described',
     ])
@@ -659,9 +715,10 @@ describe('the commands, with a stand-in browser', () => {
   const cases = (ids: string[]): Case[] => ids.map(id => ({ ...paragraphCase(TEXT), id }))
 
   // Chrome's recordings under the environment 'test', its page history and its lists.
-  function folder(name: string, recordings: Record<string, Recording>, lists: { history?: string[]; accepted?: string; varying?: string } = {}): string {
+  function folder(name: string, recordings: Record<string, Recording>, lists: { history?: string[]; accepted?: string; varying?: string; counted?: string } = {}): string {
     const root = join(import.meta.dir, '../.artifacts/harness-test-commands', name)
-    for (const sub of ['recordings', 'accepted', 'varying']) mkdirSync(join(root, sub), { recursive: true })
+    for (const sub of ['recordings', 'accepted', 'varying', 'counted']) mkdirSync(join(root, sub), { recursive: true })
+    writeFileSync(countedPath(root, 'chrome'), lists.counted ?? '')
     writeRecordings(recordingsPath(root, 'chrome'), { env: 'test', recordings: new Map(Object.entries(recordings)) })
     writeHistory(historyPath(root, 'chrome'), { env: 'test', cases: new Map((lists.history ?? []).map(id => [id, [laidOut, other]])) })
     writeFileSync(acceptedPath(root, 'chrome'), lists.accepted ?? '')
@@ -686,10 +743,18 @@ describe('the commands, with a stand-in browser', () => {
     const root = folder('accept', { pass: laidOut, fail: laidOut, label: laidOut }, { varying: '## system-ui\nlabel runs\n' })
     // Preparing asks Canvas 10 and 20 times, over 43 units each.
     const io = browser(root, c => (c.id === 'pass' ? { ...right, prepareCalls: 10 } : { ...wrong, prepareCalls: c.id === 'fail' ? 20 : 0 }) as Prediction)
-    const list = cases(['pass', 'fail', 'label']).map(c => (c.id === 'label' ? c : { ...c, sample: { group: 'chat', weight: c.id === 'fail' ? 0.25 : 0.75 } }))
+    // The label is in a system-ui font list, as the cases listed as varying between runs are, so of a counted kind.
+    const systemUi = (c: Case): Case => ({ ...c, paragraph: { ...c.paragraph, font: { ...c.paragraph.font, family: 'system-ui, sans-serif' } } })
+    const list = cases(['pass', 'fail', 'label']).map(c => (c.id === 'label' ? systemUi(c) : { ...c, sample: { group: 'chat', weight: c.id === 'fail' ? 0.25 : 0.75 } }))
     const first = await check('chrome', list, options, io)
     expect([first.blocked, first.newFailures.map(c => c.id)]).toEqual([true, ['fail']])
     expect(io.printed()).toContain('  Canvas: 232.6 measureText calls per 1,000 units of text while preparing')
+    // The case that varies between runs fails in this one, and is in neither tier's counts: the blocking line, or its
+    // kind's, would move by one from run to run with no change.
+    expect(io.printed()).toContain('\n  blocking, the 2 cases at 24 px and wider, away from the edges of a line change, inside the claims, old-gate apart: pass 1 | wrong line count 0 | right count, wrong breaks 1 | error 0\n')
+    expect(io.printed()).toContain('\n    outside the claims: 0 right, 0 wrong; since the list: +0, -0\n    old-gate: 0 right, 0 wrong; since the list: +0, -0\n')
+    expect(io.printed()).toContain('\n    every pinned case: pass 1 | wrong line count 0 | right count, wrong breaks 2 | error 0\n')
+    expect(io.printed()).toContain('\n  varying (harness/varying): 1 that vary between runs, predicted but not judged (0 pass, 1 fail); ')
     await check('chrome', list, { ...options, accept: 'a written reason' }, io)
     expect([...readAccepted(acceptedPath(root, 'chrome')).keys()]).toEqual(['fail'])
     // Accepted losses print under their reason, with the share of real paragraphs they cover.
@@ -698,8 +763,11 @@ describe('the commands, with a stand-in browser', () => {
     expect(again.printed()).toContain('\n  accepted 1 (25.00% of real paragraphs): a written reason\n')
   })
 
-  test('check prints the share right over every draw and inside the claims together, the same where the browser wraps, the table, and behaviours over their cases at 24 px and wider: one blended number would hide break-all, a failing script and the widths no layout has', async () => {
-    const root = folder('report', { pass: laidOut, fail: laidOut, outside: laidOut, narrow: laidOut, wide: laidOut, edge: laidOut }, { accepted: '## why\nfail breaks\noutside error\nnarrow breaks\n' })
+  test('check blocks on the cases at 24 px and wider, away from an edge and inside the claims, and counts the others a line a kind against the counted list; it prints the sample inside the claims first, the same where the browser wraps, the table, and behaviours over their cases at 24 px and wider: a narrow case would need a written reason, or one blended number hide break-all and a failing script', async () => {
+    // The counted list holds "narrow", which still fails, and "edge", which passes now; "outside" fails and isn't on it.
+    const root = folder('report', { pass: laidOut, fail: laidOut, outside: laidOut, narrow: laidOut, wide: laidOut, edge: laidOut }, {
+      accepted: '## why\nfail breaks\n', counted: '## under 24 px\nnarrow breaks\n\n## an edge of a line change, at 24 px and wider\nedge breaks\n',
+    })
     const sample = (id: string, weight: number): Case => ({ ...cases([id])[0]!, family: 'sample/chat/text/en', sample: { group: 'chat', weight } })
     const behaviour = (id: string, width: number, edge: boolean): Case => {
       const c = cases([id])[0]!
@@ -708,22 +776,27 @@ describe('the commands, with a stand-in browser', () => {
     const list = [sample('pass', 0.5), sample('fail', 0.25), sample('outside', 0.25), behaviour('narrow', 1, false), behaviour('wide', 100, false), behaviour('edge', 50, true)]
     const predict = (c: Case): Prediction => (c.id === 'fail' || c.id === 'narrow' ? wrong : c.id === 'outside' ? { unsupported: 'word-break break-all' } : right)
     const io = browser(root, predict)
+    // "narrow" and "outside" fail with no accepted entry, "edge" passes with a counted entry, and nothing blocks.
     expect((await check('chrome', list, options, io)).blocked).toBe(false)
     const printed = io.printed()
-    expect(printed).toContain('  real-usage sample: 50.00% of real paragraphs right, 95% interval ')
-    expect(printed).toContain('\n    in claims: 66.67% right, 95% interval ')
-    expect(printed).toContain('; 25.00% of the weight is outside what Pretext claims (word-break break-all)\n')
-    expect(printed).toContain('\n    where the browser wraps, 100.00% of the weight: 50.00% right, 66.67% in claims\n')
-    expect(printed).toContain('\n    a wrong line count or no prediction, so a wrong height: 25.00% of real paragraphs, 0.00% in claims\n')
+    expect(printed).toContain('\n  blocking, the 3 cases at 24 px and wider, away from the edges of a line change, inside the claims, old-gate apart: pass 2 | wrong line count 0 | right count, wrong breaks 1 | error 0\n')
+    expect(printed).toContain('\n  real-usage sample, in claims: 66.67% of real paragraphs right, 95% interval ')
+    expect(printed).toContain('\n    where the browser wraps, 100.00% of that weight: 66.67% right\n')
+    expect(printed).toContain('\n    a wrong line count or no prediction, so a wrong height: 0.00% of real paragraphs\n')
     expect(printed).toContain('\n      in claims                                 2      1   50.00%        2      1   50.00%       1   50.00%\n')
     expect(printed).toContain('\n      outside claims: word-break break-all      1      1  100.00%        1      1  100.00%       0    0.00%\n')
-    expect(printed).toContain('\n  catalog: 0 of 1 behaviours modelled, 0 of them also 1/64 px either side of where the lines change; at 24 px and wider, 1 modelled of the 1 the browser wraps there, 1 also at the edges of the 1 whose lines change there\n')
+    expect(printed).toContain('\n  catalog: at 24 px and wider, 1 behaviours modelled of the 1 the browser wraps there, 1 also at the edges of the 1 whose lines change there; over every width, 0 of 1 modelled, 0 of them also 1/64 px either side of where the lines change\n')
+    expect(printed).toContain('\n  counted, never blocking (harness/counted/chrome.txt lists the failures; since the list: + failures it lacks, - entries that no longer fail):\n    under 24 px: 0 right, 1 wrong; since the list: +0, -0\n    an edge of a line change, at 24 px and wider: 1 right, 0 wrong; since the list: +0, -1\n    outside the claims: 0 right, 1 wrong; since the list: +1, -0\n    old-gate: 0 right, 0 wrong; since the list: +0, -0\n')
+    expect(printed).toContain('\n    the sample with its draws outside the claims, 25.00% of the weight (word-break break-all): 50.00% of real paragraphs right, 95% interval ')
+    // The counts over every pinned case, as they printed before the tiers.
+    expect(printed).toContain('; 50.00% where the browser wraps; 25.00% with a wrong height\n    every pinned case: pass 3 | wrong line count 0 | right count, wrong breaks 2 | error 1\n')
     // The stand-in predicts every width as 0, on the four lines of each of the three passing cases, one of them a draw.
     expect(printed).toContain('\n  line widths, report only: more than 0.05 / 0.5 / 1 px from the recorded width are 100.00% / 100.00% / 100.00% of the 4 lines of the sample\'s passing draws in claims, and 100.00% / 100.00% / 100.00% of the 12 lines of every passing case\n')
     // With nothing outside the claims, both shares still print.
     const inside = browser(root, c => (c.id === 'fail' || c.id === 'narrow' || c.id === 'outside' ? wrong : right))
     await check('chrome', list, options, inside)
-    expect(inside.printed()).toContain('\n    in claims: 50.00% right, 95% interval 0.00-100.00%; 0.00% of the weight is outside what Pretext claims\n')
+    expect(inside.printed()).toContain('\n  real-usage sample, in claims: 50.00% of real paragraphs right, 95% interval 0.00-100.00% (')
+    expect(inside.printed()).toContain('\n    the sample with its draws outside the claims, 0.00% of the weight: 50.00% of real paragraphs right, 95% interval 0.00-100.00%; ')
     // Without a draw, as under --cases, the widths line has no sample half.
     const noDraws = browser(root, () => right)
     await check('chrome', list.slice(3), options, noDraws)
@@ -731,10 +804,19 @@ describe('the commands, with a stand-in browser', () => {
     expect(noDraws.printed()).not.toContain('real-usage sample')
     // webkit-host's recorded widths are in whole pixels on the three lines of each case that end in a space.
     writeRecordings(recordingsPath(root, 'webkit-host'), { env: 'test', recordings: new Map(list.map(c => [c.id, laidOut])) })
-    writeFileSync(acceptedPath(root, 'webkit-host'), '## why\nfail breaks\noutside error\nnarrow breaks\n')
+    writeFileSync(acceptedPath(root, 'webkit-host'), '## why\nfail breaks\n')
     const webkit = browser(root, predict)
     await check('webkit-host', list, options, webkit)
     expect(webkit.printed()).toContain('\n  line widths, report only: more than 0.05 / 0.5 / 1 px from the recorded width are 100.00% / 100.00% / 100.00% of the 1 lines of the sample\'s passing draws in claims, and 100.00% / 100.00% / 100.00% of the 3 lines of every passing case; left out, 3 and 9 lines that end in a space, recorded in whole pixels\n')
+    // --accept writes the counted failures under why each is counted, and leaves them off the accepted list.
+    await check('chrome', list, { ...options, accept: 'unused' }, browser(root, predict))
+    expect([...readAccepted(countedPath(root, 'chrome'))]).toEqual([['outside', { reason: 'outside the claims', status: 'error' }], ['narrow', { reason: 'under 24 px', status: 'breaks' }]])
+    expect([...readAccepted(acceptedPath(root, 'chrome')).keys()]).toEqual(['fail'])
+    // An accepted entry of a counted case is one the list no longer needs, and blocks until --accept takes it off.
+    writeFileSync(acceptedPath(root, 'chrome'), '## why\nfail breaks\nnarrow breaks\n')
+    const listed = browser(root, predict)
+    expect((await check('chrome', list, options, listed)).blocked).toBe(true)
+    expect(listed.printed()).toContain('BLOCKS: 1 accepted cases pass, are counted only, are no longer pinned or name no case; take them off with --accept: narrow')
   })
 
   test('check predicts every case, and blocks on a line API that disagrees where nothing is pinned and on a case with no recording: a virtualized list would size rows for lines it doesn\'t paint', async () => {

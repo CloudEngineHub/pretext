@@ -61,10 +61,13 @@ recordings all agree on that, and only pinned cases are scored; line widths and 
 since the pass rule doesn't read them. A new case fails `check` until `bun harness record --only-new` records it,
 except in installed Safari, which records only a seeded sample: unobserved is never a pass.
 
-Every pinned case blocks alike, CJK included, and a change that fails one lists it under a written reason, so a hard
-tradeoff goes on record instead of being ruled out. Generated cases under 24 px are scored too, although narrower than
-any real layout, and one the library doesn't model goes on the accepted list with a reason such as "narrower than real
-layouts" (the narrowest real-usage draw is 25 px).
+Pinned cases come in two tiers (`RESEARCH.md`, Decisions Log, 2026-10-11). A case blocks when it is 24 px or wider (the
+narrowest real-usage draw is 25 px), away from the edges of a line change (an edge case sits 1/64 px beside a width
+where the browser's lines change, where the fit arithmetic decides and not the break rules), inside what Pretext claims
+(README, Caveats) and not one of the old-gate set: about 23,400 of each browser's 43,800 to 45,200 pinned cases, CJK
+included. A change that fails one lists it under a written reason, so a hard tradeoff goes on record instead of being
+ruled out. Every other pinned case is counted: recorded, predicted and compared by `equal` like any other, and printed
+by `check` a line a kind, but one that fails needs no accepted entry and no reason (Accepted and varying lists).
 
 ### Two kinds of set
 
@@ -72,11 +75,12 @@ layouts" (the narrowest real-usage draw is 25 px).
   surface (chat bubbles, AI replies, cards, documents, UI labels, editorial pages), script, style and width, by the
   shares in `sets/weights.json`. A share names a source or says it is a guess, and most are guesses, many with nothing
   written that they lean on (`bun harness/sets/make.ts sizes` counts them); a share that names a source may still be a
-  judgement made from it. The headline, which `check` prints first, is the weighted share of draws that pass, over
-  every draw and, always beside it, over the draws inside what Pretext claims: neither a style the adapter can't
-  express (`break-all`) nor a `system-ui` font list (README, Caveats). Each has a 95% interval, which covers the error
-  of drawing a sample and none of the guesses, so the headline is no firmer than the weights. Rare groups get at least
-  300 draws, weighted back, so one with no failure is under 1% wrong at 95% confidence.
+  judgement made from it. The headline, which `check` prints under the blocking cases' counts, is the weighted share
+  of draws that pass among the draws inside what Pretext claims: neither a style the adapter can't express
+  (`break-all`) nor a `system-ui` font list (README, Caveats). The share over every draw prints with the counted
+  cases, since the draws outside the claims are counted and their weight is a guess. Each has a 95% interval, which
+  covers the error of drawing a sample and none of the guesses, so the headline is no firmer than the weights. Rare
+  groups get at least 300 draws, weighted back, so one with no failure is under 1% wrong at 95% confidence.
 - **What the headline pools away** prints under it. About half the sample's weight is paragraphs the browser lays out
   on one line, which nearly always pass, so `check` prints the share right where the browser wraps, and the share with
   a wrong line count, the wrong height a virtualized list would get. Then a table counts draws one each, by script and
@@ -85,13 +89,13 @@ layouts" (the narrowest real-usage draw is 25 px).
   the share `weights.json` gives its script or style, though the mix inside the row still follows the weights. Read the
   worst rows with the headline: easy kinds flatter a pooled number (`RESEARCH.md`, Evaluation Traps).
 - **The behaviour catalog** (`catalog`, `facts`, `rich`) answers which behaviours we model; deduplicated by what the
-  browsers do, its size says nothing about real use. `check` counts a behaviour as modelled when each of its cases
-  away from the edges passes, width 1 and the widths under 24 px included, which are narrower than any real layout.
-  Beside that it prints the count over the behaviour's cases at 24 px and wider, among the behaviours that have one
-  there, away from the edges, that the browser lays out on more than one line. The others aren't counted: two thirds
-  of the catalog's behaviours have a single case that wide, at 100,000 px on one line, which passes whatever the
-  library does at a break. The count at the edges is likewise among the behaviours whose lines change at 24 px or
-  wider.
+  browsers do, its size says nothing about real use. `check` prints first the count over a behaviour's cases at 24 px
+  and wider, among the behaviours that have one there, away from the edges, that the browser lays out on more than one
+  line. The others aren't counted: two thirds of the catalog's behaviours have a single case that wide, at 100,000 px
+  on one line, which passes whatever the library does at a break. The count at the edges is likewise among the
+  behaviours whose lines change at 24 px or wider. After those it prints the count over every width, where a
+  behaviour is modelled when each of its cases away from the edges passes, width 1 and the widths under 24 px
+  included, which are narrower than any real layout.
 
 | File in `cases/` | Holds | Made by |
 |---|---|---|
@@ -165,8 +169,8 @@ New cases mustn't pile up as the old suite's did, a hand-written repro per bug.
    drift lands in the PR. The catalog's older cases didn't come back as checked in from a whole search on 2026-10-01,
    for a reason not traced, so a new catalog template's cases are added beside them, as the rich set's are
    (ENGINE_FOLLOWUPS.md, Harness debt).
-4. `bun harness record --only-new`, then `bun harness check`; a new failure the change doesn't fix goes on the accepted
-   list with `check --accept="<reason>"`.
+4. `bun harness record --only-new`, then `bun harness check`; a new blocking failure the change doesn't fix goes on the
+   accepted list with `check --accept="<reason>"`.
 
 A bug filed as a GitHub issue with its text, font and width goes in `sets/exact.ts` under the issue number; one whose
 width came from the reporter's own Canvas becomes a catalog template. A repro's exact string may drop out when the sets
@@ -174,7 +178,7 @@ are made again, since they sample behaviour; the filed report, the fix's PR and 
 A case the dedupe can't see calls for a finer dedupe, not a hand-kept repro, since a repro per fix is how the old suite
 grew.
 
-`sets/data/engine-facts.json`'s `layout.test.ts` line numbers, the facts set's case origins and the three accepted-list
+`sets/data/engine-facts.json`'s `layout.test.ts` line numbers, the facts set's case origins and the two accepted-list
 reasons that cite a `layout.test.ts` line point at the files of main before #340 (6d1d2106), not today's; read them with
 `git show 6d1d2106:<path>`. The two facts #396 added (lines 1948 and 2015) point at that pull request's `layout.test.ts`, and
 name the fonts they run in where that isn't 16px Arial. A fact added after them names its test's line as of the commit
@@ -182,8 +186,9 @@ that added or last changed the fact, which this paragraph names, since a later m
 and origin keep the line: line 1000 at dbfab0de (#399), Firefox's white space around bidi controls, line 2140 at
 785e5af2 (#446), Chrome's return from an unfit hyphen to a break between two text segments, whose second row runs in
 16px Hiragino Sans, and line 1575 at f2e54d1b (#455), the WebKit profile's lone carriage return, which runs in 16px
-Menlo alone: there Safari gives the carriage return a character's width, the profile gives it none, and webkit-host's
-six failures at 24 px and wider are accepted (`RESEARCH.md`, Decisions Log, 2026-10-06). Such a fact also names the
+Menlo alone: there Safari gives the carriage return a character's width, the profile gives it none, and of
+webkit-host's six failures at 24 px and wider the two away from an edge are accepted and the four at one counted
+(`RESEARCH.md`, Decisions Log, 2026-10-06). Such a fact also names the
 paragraph directions it runs in where a browser's lines turn on them (the first of those, both). The facts set has no
 cover, so it keeps the width where a template's words join, which the catalog's cover drops once a narrower change has
 shown that kind of break: a fact that rests on a line's width, such as one space against two, goes there.
@@ -207,22 +212,31 @@ but not on a run with `--cases`; a child that dies blocks like a failing invaria
 its recording is recorded once more in a browser process of its own: laid out as recorded there, it's page history, and
 the gate lists it; laid out otherwise there too, it blocks, since either the recording is stale or it holds page history
 both of `record`'s orders shared. `bun harness record --cases=<a file of those cases>` then lists it as page history.
-`record --only-new` records new cases, `check --accept="<reason>"` puts the new failures on the accepted list under that
-reason and drops the entries that pass again, and `explain` shows one case, or a paragraph given with `--text`, line by
-line against the browser.
+`record --only-new` records new cases, `check --accept="<reason>"` puts the new blocking failures on the accepted list
+under that reason, drops the entries that pass again and rewrites the counted list, and `explain` shows one case, or a
+paragraph given with `--text`, line by line against the browser.
 
 ## Accepted and varying lists
 
-`accepted/<browser>.txt` holds the cases main has failed since #340, each under a written reason: the gate protects what
-main passes since #340, whose break rules port the engines' own, not what main before #340 passed by accident. A listed
-case that passes again or is gone blocks until `check --accept` takes it off, so a fix gets recorded. A lost pass isn't
-a regression until it's attributed: a true loss, two errors that cancelled, or a bad test or recording.
+`accepted/<browser>.txt` holds the blocking cases main has failed since #340, each under a written reason: the gate
+protects what main passes since #340, whose break rules port the engines' own, not what main before #340 passed by
+accident. A listed case that passes again or is gone blocks until `check --accept` takes it off, so a fix gets recorded.
+A lost pass isn't a regression until it's attributed: a true loss, two errors that cancelled, or a bad test or
+recording.
 
 A reason isn't always a cause. The reasons #340's failures were accepted under name a shape of input and say that the
 browser breaks there otherwise ("Arabic and Hebrew beside brackets, controls, U+FFFC or rich-item edges, at 24 px and
-wider: Chrome breaks there where the library doesn't"), not the engine's rule: about a fifth of Chrome's and Firefox's
-entries and a twelfth of webkit-host's (2026-09-30). Those entries are untraced, not explained. A new reason names the
-browser's rule, or says that it isn't traced.
+wider: Chrome breaks there where the library doesn't"), not the engine's rule: 258 of Chrome's 314 entries, 184 of
+Firefox's 244 and 118 of webkit-host's 165 (2026-10-11). Those entries are untraced, not explained. A new reason names
+the browser's rule, or says that it isn't traced.
+
+`counted/<browser>.txt` holds the failing cases that don't block (What a case is and when it passes), each under why it
+is counted: under 24 px, an edge of a line change, outside the claims, old-gate. `check --accept` writes it, and nobody
+writes a reason into it. `check` prints how many of each kind pass and fail and, against the list, the failures it
+lacks and its entries that no longer fail (`since the list: +3, -0`); `equal` shows which cases moved between two
+builds. A change that moves a counted case owes nothing for it: no attribution, no reason, and `check` stays green. One
+that moves a blocking case owes what it always did. Until 2026-10-11 every pinned case blocked, and the counted
+failures were 9,822 of the three browsers' 10,545 accepted entries.
 
 `varying/<browser>.txt` lists predictions that move with the browser's state, between runs (`runs`, never judged) or
 with what was predicted before (`order`, judged in their own order). A lone prediction can't tell the library's caches
@@ -403,9 +417,9 @@ small window would newly get one.
 The checked-in recordings are one setup, macOS at device pixel ratio 2. A run outside it keeps its recordings and lists
 in a store, a harness folder outside git (`--store=<dir>`, `.artifacts/harness-store` by default), and the environment
 key carries the ratio, Chrome's zoom and a simulator's builds, so a store holds one setup per browser and `check`
-refuses to score another. A new store has no accepted list, so every failure reads as new; copy `accepted/` and
-`varying/` into it first and `check` blocks on what differs from the checked-in setup: the new failures fail there only,
-and the accepted cases that pass, pass there only. These runs are evidence; nothing gates on them.
+refuses to score another. A new store has no accepted list, so every blocking failure reads as new; copy `accepted/`,
+`counted/` and `varying/` into it first and `check` blocks on what differs from the checked-in setup: the new failures
+fail there only, and the accepted cases that pass, pass there only. These runs are evidence; nothing gates on them.
 
 - **`--scale=<n>`** runs Chrome and Firefox at device scale factor n (Chrome's `--force-device-scale-factor`, Firefox's
   `layout.css.devPixelsPerPx`), and **`--zoom=<n>`** runs Chrome at that page zoom, on `record`, `check`, `gate` and
@@ -417,7 +431,7 @@ and the accepted cases that pass, pass there only. These runs are evidence; noth
 - **`--browser=ios --runtime="iOS 26.0"`** runs Safari in an iOS simulator. Each job makes a device of that runtime's
   first iPhone, boots it with `xcrun simctl` alone, so Simulator.app never opens, opens the page in its Safari and
   deletes the device; a boot takes about a minute. The cases are Safari's, so webkit-host's lists copied to
-  `accepted/ios.txt` and `varying/ios.txt` compare it with Safari 27. Safari 26.0.1 in the iOS 26.0 simulator (23A8464)
+  `accepted/ios.txt`, `counted/ios.txt` and `varying/ios.txt` compare it with Safari 27. Safari 26.0.1 in the iOS 26.0 simulator (23A8464)
   was wrong on 0.29% of the sample's paragraphs inside what Pretext claims, against 0.08% in Safari 27: of the 30 cases
   failing there only, 29 are `keep-all` paragraphs and one has a curly quote beside Hangul (2026-09-30; the WebKit
   profile follows Safari 27 only, `RESEARCH.md`, Decisions Log). No iOS 27 runtime was installed, so iPhone Safari 27

@@ -91,7 +91,8 @@ Inside these, fixes land on judgement; outside, ask the maintainer first.
   documented CSS and the major browsers; rare Unicode (NEL, controls) only when the fix is cheap and costs no other
   case. Document, don't chase, browser bugs, effects Canvas can't see and text shapes only fuzzing produces. Speed may
   regress a bit for a fix that matters. Accuracy in boxes narrower than 80 px counts for little; a behavior Pretext
-  doesn't model that shows only under 24 px may be accepted, as narrower than real layouts.
+  doesn't model that shows only under 24 px is counted and blocks nothing, as narrower than real layouts (Decisions
+  Log, 2026-10-11).
 - **Out of scope, punted or parked**: server-side measurement and other backends, such as React Native's; mixed font
   sizes in a paragraph (Pretext gives widths and breaks, not line heights); `hyphens: auto` and `overflow-wrap: normal`
   (hyphenation stays on TODO.md as a possible feature); a `fontKerning` option (README assumes default kerning);
@@ -176,7 +177,9 @@ a rule by reading it and its unit tests (`rebuild/src/engines/<engine>/`) agains
 - **Importance over pass rate**: easy cases drown out hard ones, so the harness decided afresh what mustn't regress when
   it replaced the old suite, weighting a sample of real usage (how often does a user see a wrong line?) beside a
   generated catalog of behaviors (which behaviors are modeled?) (harness/README.md, Why the old suite went), with no
-  must-pass tier (Decisions Log, 2026-09-24). Broad generated combinations are fine while they're fast.
+  must-pass tier (Decisions Log, 2026-09-24) and, since 2026-10-11, a tier that is only counted: a pinned case blocks
+  at 24 px and wider, away from the edges of a line change and inside what Pretext claims, the old-gate set apart
+  (Decisions Log, 2026-10-11). Broad generated combinations are fine while they're fast.
 - **Cases grow** by behavior, not by a repro per bug as main before #340 grew (harness/README.md, "How cases grow").
 - **Tests signal real regressions**, not false ones, in a fast loop (engineering.md, Project Setup); once a suite is
   trusted, speed it up by engineering and by batching what isn't timing-sensitive. "No change" for a cleanup means that
@@ -5476,7 +5479,8 @@ decisions for the maintainer.
   tests were old: the engine tables (#340), the harness (#341), then the suite's removal (#348) (harness/README.md, "Why
   the old suite went").
 - **2026-09-24: no must-pass tier.** Every repeatable case is pinned alike, so a hard trade-off in the heuristics is
-  marked case by case on the accepted list, not forbidden by a tier.
+  marked case by case on the accepted list, not forbidden by a tier. Amended on 2026-10-11, below: a pinned case
+  blocks only at a real width inside the claims, and the others are counted.
 - **2026-09-24: the Gecko scan doesn't split text runs where the script changes**, as Firefox's script itemizer does. A
   simplification pass had kept the splits on 2026-09-16, to match Firefox, a call made on judgement that the maintainer
   hadn't ruled on; asked on 2026-09-24, the maintainer approved dropping them, under the relaxed stance of 2026-09-23:
@@ -6187,3 +6191,35 @@ decisions for the maintainer.
   the engines' shells counting the same instructions, so it was left out, as a per-line cost in the streams was for
   a `NaN` width (2026-10-02). Of 44 public repositories found importing the package, 6 call these functions, 2 of
   them from plain JavaScript. Reopen the form that ends an old call if the maintainer takes its cost.
+- **2026-10-11: a pinned case blocks only at 24 px and wider, away from the edges of a line change and inside what
+  Pretext claims; the others are counted**, the maintainer's decision. It amends 2026-09-24's entry, under which every
+  pinned case blocked alike. Still no case must pass, and that entry's reason, a hard trade-off marked case by case
+  under a written reason, holds for every case at a real width. Counted are a case under 24 px (the narrowest
+  real-usage draw is 25 px), an edge case, 1/64 px beside a width where the browser's lines change, a case outside the
+  claims (`break-all`, a `system-ui` font list) and the old-gate set (harness/README.md, What a case is and when it
+  passes). A counted case is still recorded, predicted, compared by `equal` and printed by `check`, a line a kind with
+  what moved since `harness/counted/<browser>.txt`; one that fails takes no accepted entry, attribution or reason. The
+  line APIs' agreement and the gate's reverse order and fresh recordings cover every case as before. The reason: the
+  written reasons had piled up where no layout is. Of the 10,545 entries on Chrome's, Firefox's and webkit-host's
+  accepted lists, 9,822 were counted cases (6,559 under 24 px, 1,046 edges, 1,610 outside the claims, 607 old-gate);
+  314, 244 and 165 stay, under 39, 43 and 35 reasons, over the 23,375, 23,362 and 23,352 blocking cases of 43,789,
+  44,705 and 45,155 pinned (Chrome 154.0.8037.98, Firefox 157.0.1, webkit-host 22625.1.29.11.27). What it gives up,
+  measured with planted defects, each a one-line fault in a copy of `src/` run through `check` in the browser by both
+  rules (2026-10-11). Seven that blocked no longer do: in Chrome, a rich item's first CJK mark that doesn't read the
+  character before the item (3 edge cases fail) and an entry-geometry fit that ends a fresh line with its segment (3
+  edges, 1 case under 24 px); in Firefox, a soft hyphen's hyphen given two letter-spacing gaps for one (15 cases under
+  24 px) and an entry admission fit short of a letter-spacing gap, which fails nothing and passes 8 counted failures
+  (5 under 24 px, 3 edges), a move that blocked until it was accepted; in webkit-host, tab stops that count letter
+  spacing (9 under 24 px, 2 edges), a carriage return taken as white space a collapsed space comes from (2 edges), and
+  the soft hyphen's gaps, which pass one counted failure. Each prints on its kind's line, as `since the list: +3, -0`,
+  and `check` exits 0. They are six defects: three still block in another browser, and five fail one to three unit
+  tests; the entry-geometry fit fails none and still blocks in Firefox. Twelve more pairs of a defect and a browser
+  that fail few cases, 1 to 31, still block, each on 1 to 9 blocking cases. The seven are those lost among 70 defects
+  scored in each engine's profile on main as of #491, on the browsers' recorded Canvas widths: 41, 34 and 31 blocked
+  before and 39, 32 and 28 with the tiers. They don't bound what passes: with the WebKit profile no longer keeping, on
+  a line that holds only an overflowing first character, the characters after it that can't start a line (one line of
+  `src/prepare.ts`), 1,081 webkit-host cases under 24 px fail that passed and 50 pass that failed; `check` and `gate`
+  exit 0, printing `under 24 px: 9806 right, 3537 wrong; since the list: +1081, -50`, and two unit tests fail. Keeping
+  the edge cases blocking would hold five of the seven for 1,046 more entries; it wasn't chosen. Reopens with a
+  regression that reaches a release and that only a counted case showed, or with a real layout under 24 px; the edge
+  cases are the first to bring back.
