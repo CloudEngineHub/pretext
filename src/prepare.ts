@@ -30,6 +30,7 @@ import {
   type FontMeasurement,
   getCorrectedSegmentWidth,
   getEmojiCorrection,
+  getExtraSpacings,
   getFollowingSpaceMetrics,
   getFontKanaKerning,
   getFontMeasurement,
@@ -43,6 +44,7 @@ import {
   getTextWidth,
   kanaPairRe,
   measureWithLetterSpacing,
+  noExtraSpacings,
   noSpaceKerning,
   textMayContainEmoji,
   type SegmentFit,
@@ -634,13 +636,20 @@ export function measureAnalysis(
         width = getTextSegmentWidth(text, textMetrics, measuredWithSpace, followingSpaceKerning)
         // The walkers put a gap after every grapheme of a spaced segment, so a grapheme
         // the engine gives none takes one back from its advance, here and in the advances
-        // a break inside the segment falls by.
+        // a break inside the segment falls by, and one whose glyphs WebKit gives more or
+        // fewer takes the difference (EngineProfile's letterSpacesGlyphs), in text of its
+        // complex path.
         let unspaced: number[] | null = null
+        let extraSpacings = noExtraSpacings
         if (hasLetterSpacing) {
           spacingGraphemeCount = countRenderedSpacingGraphemes(text, kind, engineProfile.graphemeTable)
           if (cursiveSpacing) {
             unspaced = getUnspacedGraphemes(own, starts[mi]! - ownStart, starts[mi]! - ownStart + text.length, engineProfile.graphemeTable, engineProfile.unspacedCursive === 'run' ? scriptRuns : null)
             if (unspaced !== null) width -= unspaced.length * letterSpacing
+          }
+          if (engineProfile.letterSpacesGlyphs) {
+            extraSpacings = textMetrics.extraSpacings ??= needsComplexTextPath(text) ? getExtraSpacings(text, fontMeasurement) : noExtraSpacings
+            for (let k = 0; k < extraSpacings.length; k++) width += extraSpacings[k]! * letterSpacing
           }
         }
         // Under break-word, Blink retries an overflowing line with a break allowed between
@@ -664,6 +673,10 @@ export function measureAnalysis(
         if (followingSpaceKerning !== 0) {
           fitAdvances = fitAdvances.slice()
           fitAdvances[fitAdvances.length - 1] = fitAdvances[fitAdvances.length - 1]! + followingSpaceKerning
+        }
+        if (extraSpacings.length !== 0) {
+          fitAdvances = fitAdvances.slice()
+          for (let k = 0; k < extraSpacings.length; k++) fitAdvances[k] = fitAdvances[k]! + extraSpacings[k]! * letterSpacing
         }
         // Such a segment takes no entry geometry, whose fresh widths Canvas would space
         // by its own rule (ENGINE_FOLLOWUPS.md, Letter spacing).

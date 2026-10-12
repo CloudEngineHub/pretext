@@ -11,6 +11,9 @@ export type SegmentMetrics = {
   emojiCount: number // Glyphs the emoji font draws (countEmojiGlyphs), or -1 until counted
   fit: SegmentFit | null // Where it breaks under overflow, for the last fit mode asked
   spaceKerning: SpaceKerning | null // Its kerning beside a space, once asked (getSpaceKerning)
+  // Per grapheme, the letter spacings it takes more than one, once letter-spaced text asked
+  // where the engine spaces glyphs (getExtraSpacings): empty where every grapheme takes one.
+  extraSpacings: number[] | null
 }
 
 // A text segment's kerning with a U+0020 beside it, in the Chromium profile (getSpaceKerning).
@@ -136,6 +139,23 @@ export type EngineProfile = {
   // ('cluster'); in WebKit none, which spaces every glyph that has an advance
   // (ComplexTextController.cpp:793-796, WidthIterator.cpp:511-516).
   unspacedCursive: 'run' | 'cluster' | 'none'
+  // WebKit's complex text path gives every glyph that has an advance one letter spacing
+  // (ComplexTextController.cpp:793-796), not every grapheme: a Devanagari consonant takes
+  // two with the sign of aa, i, ii, o or au, which is a glyph of its own beside it, and
+  // one more for each half form before it, and lam and alef, drawn as one glyph, take one.
+  // In 16px Kohinoor Devanagari at 1px Safari 27 spaces the two graphemes of
+  // `\u0939\u093F\u0928\u094D\u0926\u0940` four times and in Devanagari MT five. Its Canvas spaces
+  // text by the same code (setLetterSpacing puts the spacing on the font measureText
+  // measures with, CanvasRenderingContext2DBase.cpp:3271-3296, 519-522), so the WebKit
+  // profile asks it how many spacings each grapheme of such text takes (getExtraSpacings):
+  // the page's count wherever the text has none of the optional ligatures the page turns
+  // off and Canvas keeps (canvasLetterSpacingDropsLigatures), which Canvas counts as one
+  // glyph. The simple path spaces every character that has an advance
+  // (WidthIterator.cpp:511-516), and its text keeps one spacing a grapheme: Canvas would
+  // count its `fi` as one glyph, and a character with no advance there, as a word joiner,
+  // keeps a spacing the page doesn't give it (ENGINE_FOLLOWUPS.md, Letter spacing). Blink
+  // and Gecko space clusters.
+  letterSpacesGlyphs: boolean
   // Blink's page shapes a soft hyphen inside its text, so nonspacing marks after
   // one shape with the text before it and take no advance. Its Canvas turns the soft
   // hyphen into a ZWSP and shapes each word alone, where such a mark can take a
@@ -617,6 +637,61 @@ export function measureWithLetterSpacing(text: string, letterSpacing: number, em
   }
 }
 
+// The Canvas letterSpacing a text is measured under to count the glyphs it spaces: a power
+// of two, which float32 widths add whole, and wide enough that a long segment's rounding
+// stays far under half of it.
+const GLYPH_COUNT_SPACING = 64
+
+// The spacings of a segment whose graphemes each take one, and of any segment where Canvas
+// can't be asked.
+export const noExtraSpacings: number[] = []
+
+// Per grapheme of a text segment, how many letter spacings it takes more than one, where
+// the engine spaces glyphs (EngineProfile's letterSpacesGlyphs). Canvas spaces by the
+// engine's rule, so a prefix of the segment measured under a letter spacing, less its width
+// under none, is that spacing times the prefix's glyphs with an advance, and a grapheme
+// takes what its prefix has more than the prefix before it: WebKit fits a cut word by its
+// prefixes too (TextUtil::breakWord). A grapheme can take none, as the alef of lam-alef, or
+// fewer, where it joins the glyphs before it into one. Past MAX_PREFIX_FIT_GRAPHEMES each
+// grapheme is asked alone, which keeps a giant segment linear and misses a glyph two of
+// its graphemes share. One more Canvas call for each grapheme, once for a font's segment,
+// kept with the segment measured alone; under a context that takes no letterSpacing every
+// grapheme takes one.
+export function getExtraSpacings(seg: string, measurement: FontMeasurement): number[] {
+  if (!measurement.state.takesLetterSpacing) return noExtraSpacings
+  const metrics = getSegmentMetrics(seg, measurement)
+  if (metrics.extraSpacings !== null) return metrics.extraSpacings
+  const ends = new Int32Array(seg.length)
+  const count = findGraphemeEnds(getEngineProfile().graphemeTable, seg, 0, seg.length, ends)
+  const prefixes = count <= MAX_PREFIX_FIT_GRAPHEMES
+  // Each prefix's or grapheme's width under no spacing first, which the fit of a segment
+  // that breaks asks for too, so the context changes its spacing once.
+  const texts: string[] = []
+  const plain: number[] = []
+  for (let i = 0, start = 0; i < count; start = ends[i++]!) {
+    const text = seg.slice(prefixes ? 0 : start, ends[i])
+    texts.push(text)
+    plain.push(getSegmentMetrics(text, measurement).width)
+  }
+  const context = getContext(measurement)
+  let extras = noExtraSpacings
+  try {
+    context.letterSpacing = `${GLYPH_COUNT_SPACING}px`
+    let before = 0
+    for (let i = 0; i < count; i++) {
+      const glyphs = Math.round((context.measureText(texts[i]!).width - plain[i]!) / GLYPH_COUNT_SPACING)
+      const extra = glyphs - (prefixes ? before : 0) - 1
+      before = glyphs
+      if (extra === 0 && extras.length === 0) continue
+      if (extras.length === 0) extras = zeros(count)
+      extras[i] = extra
+    }
+  } finally {
+    context.letterSpacing = measurement.letterSpacing
+  }
+  return metrics.extraSpacings = extras
+}
+
 // The lookup internalizes seg, and a string V8 hashes for the first time there gets a one-byte
 // copy where its units fit, so Canvas is handed a Latin-1 segment one-byte, which Chrome measures
 // as Latin (RESEARCH.md, Keeping Work Bounded, String Storage). A segment cut from a longer text
@@ -634,7 +709,7 @@ export function getFollowingSpaceMetrics(seg: string, measurement: FontMeasureme
 }
 
 function addMetrics(cache: Map<string, SegmentMetrics>, seg: string, text: string, measurement: FontMeasurement): SegmentMetrics {
-  const metrics: SegmentMetrics = { width: getContext(measurement).measureText(text).width, emojiCount: -1, fit: null, spaceKerning: null }
+  const metrics: SegmentMetrics = { width: getContext(measurement).measureText(text).width, emojiCount: -1, fit: null, spaceKerning: null, extraSpacings: null }
   cache.set(seg, metrics)
   if (!measurement.measuredKana && kanaRe.test(seg)) measurement.measuredKana = true
   return metrics
@@ -916,6 +991,7 @@ function buildEngineProfile(): EngineProfile {
     letterSpacingInAppUnits: engine === 'gecko',
     canvasLetterSpacingDropsLigatures: engine !== 'webkit',
     unspacedCursive: engine === 'blink' ? 'run' : engine === 'gecko' ? 'cluster' : 'none',
+    letterSpacesGlyphs: engine === 'webkit',
     shapesMarksAcrossSoftHyphen: engine === 'blink',
     unfitHyphenRetreat: engine === 'blink' ? 'reduced-width' : engine === 'gecko' ? 'full-width' : 'full-width-or-first',
     hyphenFromPrimaryFont: engine !== 'gecko',
@@ -1294,8 +1370,8 @@ export function getFontMeasurement(font: string, language: string | null, letter
 // its context from here as it measures, so none reads a width under another font's
 // setting, whatever was looked up or prepared in between, and text that is all cached,
 // which measures nothing, sets nothing. What changes the context after that puts it back
-// before it returns (getHyphenText, measureWithLetterSpacing, getFontSpaceKerning,
-// isLigature).
+// before it returns (getHyphenText, measureWithLetterSpacing, getExtraSpacings,
+// getFontSpaceKerning, isLigature).
 export function getContext(measurement: FontMeasurement): CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D {
   const state = measurement.state
   if (state.font !== measurement.canvasFont) state.context.font = state.font = measurement.canvasFont
