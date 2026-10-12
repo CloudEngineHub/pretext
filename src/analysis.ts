@@ -302,7 +302,8 @@ function isControlSegmentCode(code: number): boolean {
 // closing bracket, or under keep-all, is zero-width glue: it stays its own zero-width
 // segment, takes no letter spacing and doesn't end a line.
 // Combining marks right after it, or after a control, stay apart from the text after
-// them, since they shape on the grapheme before it (measureAnalysis). Where the Gecko
+// them, a segment of their own that measurement measures alone, as it does any text
+// (ENGINE_FOLLOWUPS.md, Canvas answers that differ from the page). Where the Gecko
 // scan marks cluster starts, a segment is ONE_CLUSTER unless one falls inside it.
 //
 // Firefox leaves soft hyphens and bidi controls out of the text run it breaks and maps a line end
