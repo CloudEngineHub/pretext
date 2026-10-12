@@ -63,13 +63,13 @@ of its other four documents goes to the full walker.
   afternoon, with other work on the machine, took 150 and 157 s and were called on one entry each (bac1774c, 2026-10-11,
   Chrome 154.0.8037.98, Firefox 157.0.1 and webkit-host on WebKit 22625.1.29.11.27, no other browser job beside any
   run). #435's slowdown of `worst: long-breakable-runs layout` (07834b75 against 664082af, about 8% in its own
-  foreground table in Chrome and in Firefox) was timed three times that day, in 137, 153 and 146 s. Chrome's was called
-  in all three, at +5.8% to +13.9% by session. Firefox's was called in the first, at +10.3%, +11.8% and +17.7%, and not
-  in the other two, which read +1.0%, +7.8% and +11.8%, then -0.8%, +8.5% and +4.3%: Firefox keeps a copy at one of two
-  speeds for a document on that entry (base's copy ran at 0.531 µs per 1,000 units in the session that read +1.0% and at
-  0.507 in the two beside it, and the control, base's own code, sat 2 to 6% from base in every one of the nine
-  sessions), so two of its nine sessions read the change level, and three sessions that must all agree call it in some
-  runs only (Reading a table).
+  foreground table in Chrome and in Firefox) was timed four times that day, in 137, 153, 146 and 143 s. Chrome's was
+  called in all four, at +5.8% to +13.9% by session. Firefox's was called in the first, at +10.3%, +11.8% and +17.7%,
+  and in the last, at +6.1%, +6.2% and +8.6%, and not in the two between, which read +1.0%, +7.8% and +11.8%, then
+  -0.8%, +8.5% and +4.3%: Firefox keeps a copy at one of two speeds for a document on that entry (base's copy ran at
+  0.531 µs per 1,000 units in the session that read +1.0% and at 0.507 in the two beside it, and the control, base's
+  own code, sat 2 to 6% from base in every session of the first three runs), so two of its twelve sessions read the
+  change level, and three sessions that must all agree call it in some runs only (Reading a table).
 - **Why a background window times as a foreground one.** The harness's Chrome starts with
   `--disable-background-timer-throttling`, `--disable-backgrounding-occluded-windows` and
   `--disable-renderer-backgrounding` (`browsers.ts`); webkit-host's window reports itself visible whatever covers it
@@ -113,7 +113,7 @@ of its other four documents goes to the full walker.
   quick run took 42 to 44 s; main against itself was called on 4, 3, 4, 3 and 4 of 192 entries in five quick runs by the
   foreground's floors and on 3, 1, 3, 2 and 3 by the floors of sessions side by side, which no quick run was fitted to;
   #435's slowdown was called in Chrome in both of two quick runs and in Firefox in neither, where the default called
-  Chrome's in three runs of three and Firefox's in one; and a build with work planted in it (15% more counting in
+  Chrome's in four runs of four and Firefox's in two; and a build with work planted in it (15% more counting in
   `layout()`, 5% more walking in `measureLineStats()`, 15% more Canvas calls on new text) was called on 52 and 50
   entries by either form's floors, where the default called 71 by the foreground's and 67 by its own. So it says where
   to look while a change is being written, a call or a level reading there is a hypothesis, and the table a change
@@ -139,8 +139,8 @@ of its other four documents goes to the full walker.
   of one run of main at #455 (2026-10-07). Main against itself read Safari's stress `rich-stream` 12-15% slower in all
   three sessions of one run, which called it slower, and Chrome's `chat-styled rich-seen` 10-13% slower in 7 sessions of
   11 (2026-10-07; `RESEARCH.md`, Evaluation Traps, Timing). When the slow copy is base's, a real slowdown reads level:
-  Firefox read #435's 8% on `worst: long-breakable-runs layout` at +1.0% and at -0.8% in two sessions of nine, and so
-  called it in one run of three (2026-10-11; Protocol). Read such an entry over ten sessions, and by each copy's own
+  Firefox read #435's 8% on `worst: long-breakable-runs layout` at +1.0% and at -0.8% in two sessions of twelve, and so
+  called it in two runs of four (2026-10-11; Protocol). Read such an entry over ten sessions, and by each copy's own
   cost in the saved samples, since the table prints base's and the candidate's medians only: the line a run prints as it
   starts names their folder, `.artifacts/harness-bench/<time>/`, which holds one file for each browser and session, with
   each round's `ms` and `units` by `label`, and a `run.json` that names the two builds and how they were timed.
