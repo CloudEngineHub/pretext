@@ -5474,7 +5474,8 @@ decisions for the maintainer.
   which `BreakablePositions.h` changes (read in WebKit's tags; run only in 26.0.1 and 27.0). So the reason left is the
   one in Part 1, Limits: old browsers get nothing that costs complexity, here a second WebKit rule set that no pinned
   browser checks. It reopens if keep-all on Safari 26 matters to an app while Safari 26 is in wide use: restoring Safari
-  26's keep-all rule alone left 23 failures in a prototype, level with Safari 27.
+  26's keep-all rule alone left 23 failures in a prototype, level with Safari 27. Amended on 2026-10-12, below: the
+  profile no longer follows Safari 27 on an overflowing first character, whose port was removed (#515).
 - **2026-09-18: Firefox measures on an OffscreenCanvas, as the other engines do.** A `<canvas>` element's context would
   get `system-ui` and optical-size variable fonts right, but forces style updates once a page inserts a CSS rule, and
   workers have none (Dead Ends, DOM And Canvas-Element Paths). On 2026-09-19 it was allowed only if it proved light and
@@ -6242,7 +6243,9 @@ decisions for the maintainer.
   the edge cases blocking would hold five of the seven for 1,046 more entries; it wasn't chosen. Reopens with a
   regression that reaches a release and that only a counted case showed, or with a real layout under 24 px; the edge
   cases are the first to bring back. Amended on 2026-10-12, below: 30 unit tests have left the file since, and the
-  `src/prepare.ts` defect fails one unit test where it failed two.
+  `src/prepare.ts` defect fails one unit test where it failed two; then #515 removed that rule itself, with 1,087
+  webkit-host cases under 24 px failing that passed and 49 passing that failed, and entry geometry, where two of the six
+  defects sat.
 - **2026-10-12: the WebKit profile names Core Text's families for the generic keywords only on Apple's platforms, which
   it tells by one read of `navigator.platform` when it is built (#505).** Only WebKit on Cocoa, Apple's platforms,
   resolves `monospace` and the other generic keywords by page language (`platformResolveGenericFamily` returns null
@@ -6324,20 +6327,21 @@ decisions for the maintainer.
   recording or what the library asks of Canvas changes and is then recorded again in the browsers. Reopens where there
   are no pinned browsers to run, as on a hosted runner, or if `check` in the browsers comes to take minutes.
 - **2026-10-12: `measureAnalysis()` nests no function that reads its variables** (landed on judgement with #512). Its
-  helpers are module-level functions given what they read, and what two of them keep between calls for one text is seven
-  module variables it clears for each text. Nested, they made every `prepare()` allocate an object for the variables
-  they read, and JavaScriptCore puts an object of 13 to 18 fields in the 160-byte cells a handle takes: one made and
-  dropped by every `prepare()` leaves a dead cell between each two handles, and Safari lays out 2,000 short labels
-  11-16% slower with no work added. Main's object was one variable too large for those cells and the Safari
-  letter-spacing fix (#513) read one fewer, which is how it showed: +15.6% [+7.6, +19.1] with the fix alone, slower in
-  12 of 12 documents, and -1.5% with it on this change (webkit-host, WebKit 22625.1.29.11.27). It replaces, for this
-  function, the note of 2026-09-26 that a hoist lands only if it removes lines and the bench shows a gain (Keeping Work
-  Bounded, The Walkers' Shapes): this one removes 2 lines of code and the bench called text prepared again faster in
-  webkit-host, but what it is for, the labels, no bench row shows. What it doesn't remove: any object of 13 to 18 fields
-  made and dropped once a `prepare()`, by a later change or by an app between its own calls, brings the slowdown back
-  (+12.7% with a 16-field one planted, +12.0% with the caller making one), and no bench row lays out short labels, so
-  nothing would say so (ENGINE_FOLLOWUPS.md, Harness debt). Reopens if JavaScriptCore stops placing such objects among
-  the handles.
+  helpers are module-level functions given what they read, and what two of them kept between calls for one text was
+  seven module variables it cleared for each text; since #515 none keeps anything of a text between calls, both having
+  gone with the rules they served (the entry on the removals, below). Nested, they made every `prepare()` allocate an
+  object for the variables they read, and JavaScriptCore puts an object of 13 to 18 fields in the 160-byte cells a
+  handle takes: one made and dropped by every `prepare()` leaves a dead cell between each two handles, and Safari lays
+  out 2,000 short labels 11-16% slower with no work added. Main's object was one variable too large for those cells and
+  the Safari letter-spacing fix (#513) read one fewer, which is how it showed: +15.6% [+7.6, +19.1] with the fix alone,
+  slower in 12 of 12 documents, and -1.5% with it on this change (webkit-host, WebKit 22625.1.29.11.27). It replaces,
+  for this function, the note of 2026-09-26 that a hoist lands only if it removes lines and the bench shows a gain
+  (Keeping Work Bounded, The Walkers' Shapes): this one removes 2 lines of code and the bench called text prepared again
+  faster in webkit-host, but what it is for, the labels, no bench row shows. What it doesn't remove: any object of 13 to
+  18 fields made and dropped once a `prepare()`, by a later change or by an app between its own calls, brings the
+  slowdown back (+12.7% with a 16-field one planted, +12.0% with the caller making one), and no bench row lays out short
+  labels, so nothing would say so (ENGINE_FOLLOWUPS.md, Harness debt). Reopens if JavaScriptCore stops placing such
+  objects among the handles.
 - **2026-10-12: the WebKit profile counts the glyphs Safari letter-spaces through its Canvas, and takes what that costs
   in Safari** (landed on judgement with #513: the trade was put to the maintainer, who left the call to the landing).
   Safari gives each glyph it draws one letter spacing, not each grapheme (`ComplexTextController.cpp:793-796`), and its
@@ -6366,3 +6370,32 @@ decisions for the maintainer.
   0 do (webkit-host, WebKit 22625.1.29.11.27, 2026-10-12, under a CSS `zoom` on `<html>` and under the web view's own
   page zoom alike; installed Safari and iOS weren't run). Reopens if preparation comes to know the page's zoom: Canvas
   at the size times the zoom, divided by the zoom, gave the page's emoji width within 0.01 px from 100% to 300%.
+- **2026-10-12: four ported rules that only generated cases exercised are removed, their gaps named** (landed on
+  judgement with #515: the maintainer left the removals to the landing). They are the WebKit profile's guess at a
+  space's direction after format characters, its rule for a line of one overflowing character, the mark context
+  (combining marks measured after their letter across a soft hyphen or a control) and entry geometry (the rest of a word
+  cut at an invisible character measured afresh, in desktop Chrome and Firefox). The test applied to each: it answered
+  no outside report, had no recorded gain on real text and shipped in no release (0.0.9 has none). No line of the 16,708
+  cases of real text changes in Chrome 154.0.8037.98, Firefox 157.0.1 or webkit-host, and one width does, by 0.08px;
+  each was also run on text of its own kind that isn't checked in (23,156 layouts with the next entry's; #515 has the
+  results, ENGINE_FOLLOWUPS.md the gaps). A fifth, the Gecko profile's placement of a zero-width atomic item, was
+  weighed the same way and stays: without it 101 of 15,928 Firefox layouts of prose with a 0px box fail, 32 with a line
+  too many. The cost: of the bench's 204 entries Firefox's `resize: latin layout at widths seen before` reads 12 to 23%
+  slower once entry geometry is out, while 31 read faster, 30 of them preparing text. That removal takes a test out of
+  the loop in which `countPreparedLines()` fills a line with a cut word's graphemes and adds nothing, so it is how
+  Firefox 157 compiles the shorter loop: accepted, its cost noted, as in the entry of 2026-09-26 on code for one JIT
+  (harness/bench/README.md, Entries that misread). It amends the entries of 2026-09-16 and 2026-10-11. Reopens with a
+  real page that shows a gap; entry geometry (commit 2ece40cb) also if the maintainer takes its Firefox row as a cost.
+- **2026-10-12: what two letters measure narrower joined across the soft hyphen a line ends at counts in the Gecko
+  profile alone** (landed on judgement with #515). A line keeps a hyphen that overflows by less than its soft hyphens
+  narrow their neighbours, measured joined; the Chromium profile now counts the soft hyphens the line passes and not the
+  one it ends at, which it counted since #239. Blink tests the hyphen against the line as
+  `ShapingLineBreaker::ShapeLine` gives it, the end shaped again where the break isn't safe, so the pair across that
+  soft hyphen narrows nothing (`line_breaker.cc:1684-1718`; `shaping_line_breaker.cc:511-559`); Gecko shapes a word once
+  and adds up the advances before the break (`gfxTextRun.cpp:1085-1097`, `1139-1151`, `1292-1301`), so its last letter
+  keeps the pair's kerning. In Chrome 154.0.8037.98 13 checked-in cases pass that failed and 2 fail that passed, 1 of
+  them blocking and accepted, and of 7,230 layouts of hyphenated prose that isn't checked in 42 pass that failed and
+  none fails; #433's third reproduction has Chrome's 6 lines, where the profile had 5; no Firefox 157.0.1 prediction
+  moves. What it leaves is under Line edges in ENGINE_FOLLOWUPS.md: in Chrome letters that join across that soft hyphen,
+  and in the Gecko profile a `kern`-table pair or a ligature there. Reopens with real text whose line turns on one of
+  those.
