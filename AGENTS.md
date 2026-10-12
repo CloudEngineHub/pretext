@@ -75,7 +75,8 @@ judgement; one outside them needs the maintainer first.
 - Callers are well-typed TypeScript: no runtime check of an argument's type, and nothing promised to a caller the
   types rule out (`RESEARCH.md`, Decisions Log, 2026-10-06).
 - Source imports keep `.js` specifiers in `.ts` files so plain `tsc` emits working JS; extensionless ones pass
-  `moduleResolution: "bundler"` and only `bun run package-smoke-test` catches them.
+  `moduleResolution: "bundler"`, and `bun run check` catches them under the package's build settings, as
+  `bun run package-smoke-test` does.
 - Engine data is refreshed by hand, never in a build step (`DEVELOPMENT.md`). `Intl.Segmenter` only splits words in the
   Southeast Asian runs the scans send it.
 
