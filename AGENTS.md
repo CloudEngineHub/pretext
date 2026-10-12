@@ -4,19 +4,23 @@ Changelog updates guideline: don't add dev-facing notes, only user-facing ones. 
 
 ### Where things are
 
-- `README.md`: the public API and user-facing limitations, with no per-browser accuracy or speed figures.
+- `README.md`: the public API and user-facing limitations, with no per-browser accuracy or speed figures. It holds
+  what an app developer acts on: no aside on how something was found, and no edge almost no app meets.
 - `RESEARCH.md`: the terms the docs share, then intent (Part 1), evidence and dead ends (Part 2) and the Decisions Log
   (Part 3). Read the log before reversing a documented decision; code comments that cite it mark where each one applies.
-  A PR's full story goes in its description; `RESEARCH.md` gets the durable fact: the claim, its number, build and date,
-  its source, and what would reopen it.
-- `harness/README.md`: how cases pass and grow. Accuracy claims rest on its recordings and accepted lists; bench tables
-  and finished comparisons go in PR descriptions, and `RESEARCH.md` keeps the number a decision rests on.
+  A PR's description fits a screen: what changes for an app, what it costs, the numbers a decision rests on and what
+  is left. The Decisions Log gets a few lines when a decision is made: the decision, its reason and number, and what
+  would reopen it.
+- `harness/README.md`: how cases pass and grow, and how to time a change (`harness/bench/README.md` has the bench's
+  measurements). Accuracy claims rest on its recordings and accepted lists; a PR quotes the lines the bench's output
+  ends with, and `RESEARCH.md` keeps the number a decision rests on.
 - `ENGINE_FOLLOWUPS.md`: open gaps. `PLATFORM_BUGS.md`: browser and OS bugs, read before changing an engine-profile
   workaround or a line-fit tolerance. `TODO.md`: priorities. `DEVELOPMENT.md`: the demo server, engine data, releases.
   `pages/demos/markdown-chat.md`: the chat demo's patterns for app developers, updated with the chat.
 - engineering.md and ui.md, the maintainer's general rules for code and UI (`docs/` in the chenguini repository, not yet
   public), hold here; a pointer such as (engineering.md, Caching) names a section there.
-- Keep a doc current in the change that makes it stale.
+- Keep README current in the change that makes it stale. The other docs, the changelog among them, are brought up to
+  date in batches and before a release.
 
 A text goes through analysis (`src/analysis.ts`: white space, break opportunities from ports of each engine's scan in
 `src/line-breaks.ts` and `src/gecko-line-breaks.ts`, segments), measurement (`src/prepare.ts` over `src/measurement.ts`:
@@ -83,12 +87,15 @@ judgement; one outside them needs the maintainer first.
 - Keep `bun test`, `bun run check` and `bun harness check` (Chrome, Firefox, webkit-host) green; run `bun harness gate`
   before landing a change to `src/` or `harness/`. Record new cases with `bun harness record --only-new`, and commit
   changed recordings and accepted or varying lists with the change that caused them.
-- Before landing a change to `src/` other than `layout.test.ts`, or to `harness/bench/`, paste `bun harness bench main`'s
-  table, every row, into the PR. A row slower in every session needs a sentence, as does growth over 5% in the
-  `measureText` calls or submitted units `bun harness equal main` prints.
-- Settle behaviour in the harness's pinned headed browsers, not headless ones; `--background` bench results are
-  hypotheses. Jobs may run side by side while free plus inactive memory stays above about 30%, installed Safari one at a
-  time; the bench runs alone, in the foreground, on a quiet machine.
+- Before landing a change to `src/` other than `layout.test.ts`, or to `harness/bench/`, run `bun harness bench main` and
+  paste the lines its output ends with into the PR: the line of counts and each entry it called, or its one line when
+  the change builds main's bytes, which starts no browser. An entry called slower needs a sentence: whether the change
+  runs that code, and whether a second run repeats it. So does growth over 5% in the `measureText` calls or submitted
+  units `bun harness equal main` prints. A release's figures come from the foreground bench against the last release
+  (`DEVELOPMENT.md`).
+- Settle behaviour in the harness's pinned headed browsers, not headless ones. Jobs may run side by side while free
+  plus inactive memory stays above about 30%, installed Safari one at a time; the bench runs alone on a quiet machine,
+  in background windows that need no screen, and its `--quick` results are hypotheses.
 - Use named fonts and give probe pages an explicit, non-empty `lang`, or the OS's and browser's language settings leak
   in. Re-test the macOS emoji and `system-ui` bugs headed on a Retina display: headless DPR 1 masks them.
 - Traps: a right line count can hide wrong breaks (`RESEARCH.md`, Reading Browser Output); WebKit's per-process caches

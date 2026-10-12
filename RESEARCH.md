@@ -361,11 +361,16 @@ a rule by reading it and its unit tests (`rebuild/src/engines/<engine>/`) agains
 - **Voice**: short, nuances kept, each document in its own tone and `thoughts.md` in the maintainer's. A rewrite keeps
   technical meaning and opinions and loses pseudo-jargon, common words in uncommon senses, vague pronouns and slogans,
   but not words that carry meaning, such as "regression". Concrete cases over a general warning.
-- **A PR's story stays in the PR.** Its full account (the rounds, the probes, every case it moved) goes in its
-  description; this file gets the durable fact: the claim, its number, build and date, its source and what would
-  reopen it. Bench tables and finished comparisons go in the description too, and this file keeps the number a
-  decision rests on. Six PRs in a row appended about 7,500 words here before the docs took this rule in #374. Length
-  alone isn't the worry: the maintainer has said not to mind it in docs other than the README.
+- **A PR's description fits a screen (2026-10-11).** It says what changes for an app, what it costs, the numbers a
+  decision rests on and what is left, and quotes the lines the bench's output ends with; logs and tables stay in
+  files. This file's Decisions Log gets a few lines when a decision is made: the decision, its reason and number, and
+  what would reopen it. README is kept current in the change that makes it stale; the other docs, the changelog among
+  them, are brought up to date in batches and before a release. Until this date a PR's full account went in its
+  description with every bench row, and every doc was kept current in the change itself: the median description of
+  the last 25 library PRs was 40,000 characters, written after the work (110 of the last 150 PRs were merged within
+  ten minutes of being opened), a third of the commits since 0.0.9 touched only docs, and more than half of a
+  change's time came after its last change to the code. Length still isn't the worry in docs other than the README;
+  the time a change takes is.
 - **What goes in**: point to numbers that go stale rather than copy them; give a fresh agent objective facts, not
   designs that fence it in. A cleanup removes only what's provably stale; docs another agent wrote are checked for
   accuracy and for fitting what was done. The changelog rule is the maintainer's own AGENTS.md line, kept word for
@@ -6158,6 +6163,33 @@ decisions for the maintainer.
   the text, read 6.8% slower on text prepared again, no faster, for more code in the loop every text runs. Reopens if
   Chrome ships `TextMetrics.getTextClusters()`, which gives a run's pairs in one call, or with a cheaper way to find a
   text's pairs.
+- **2026-10-11: the bench a change runs is side by side in background windows, and the foreground bench runs at a
+  release (#495).** Three sessions each of pinned Chrome, pinned Firefox and webkit-host, every session at once: about
+  two and a half minutes and no screen, where the foreground form took eleven and a half, and nothing when the change
+  builds main's bench bundle byte for byte. Its results are verdicts: background windows aren't slowed
+  (harness/bench/README.md, Protocol), and with floors of 2% on `seen` and 3% on `lines` fitted to this form main
+  against itself is called on none to two of 192 entries a run (harness/bench/README.md, Floors). What it gives up:
+  installed Safari between releases, where webkit-host runs the same WebKit; a change under about 5% on `seen` and
+  `lines`; and part of the chance of calling a change on an entry that Firefox runs at one of two speeds: #435's 8%
+  on `worst | long-breakable-runs layout` was called in four of four runs in Chrome and in two of four in Firefox,
+  where the foreground form is put at about two runs in three. Reopen if a release's foreground bench finds a
+  slowdown that the side-by-side runs of its changes read level, if tables keep counting hidden documents, or on a
+  machine with fewer fast cores than a run has sessions.
+- **2026-10-11: a PR's description fits a screen, README is kept current in the change that makes it stale, and the
+  other docs are written in batches.** The maintainer's ruling, after a review of where a change's time goes (Part 1,
+  Docs, has the figures): the correctness commands took under three minutes, the foreground bench eleven and a half,
+  and the writing hours. README stays the one doc held to the change itself, and holds only what an app developer
+  acts on. Reopen if a decision can't be traced to its reason and number from this log.
+- **2026-10-11: `layoutNextLine()` and `layoutNextLineRange()` take `(prepared, maxWidth, start?)`, the order
+  `layoutNextRichInlineLineRange()` has, and give the first line without a start (#496).** A breaking change, taken
+  before the first major release as the one place the API's argument order disagreed with itself. TypeScript reports
+  every call left in the old order. An untyped call left in the old order never ends: it is handed a line with a
+  `NaN` width at every call, or doesn't return, on 768 of 768 probe calls in the four profiles. No argument's type is
+  checked (2026-10-06), and the one form found that ends such a call without checking a type, the line-start test
+  written `!(index < count)`, read Chrome's Latin stream entry 1.6 to 3.5% slower in each of three bench runs, with
+  the engines' shells counting the same instructions, so it was left out, as a per-line cost in the streams was for
+  a `NaN` width (2026-10-02). Of 44 public repositories found importing the package, 6 call these functions, 2 of
+  them from plain JavaScript. Reopen the form that ends an old call if the maintainer takes its cost.
 - **2026-10-11: a pinned case blocks only at 24 px and wider, away from the edges of a line change and inside what
   Pretext claims; the others are counted**, the maintainer's decision. It amends 2026-09-24's entry, under which every
   pinned case blocked alike. Still no case must pass, and that entry's reason, a hard trade-off marked case by case
