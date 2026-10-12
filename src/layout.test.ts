@@ -690,16 +690,19 @@ describe('shared public contracts', () => {
     }
   })
 
-  test('a JSON copy of a handle lays out as the handle does', () => {
+  test('a JSON copy of a handle and a frozen handle lay out as the handle does', () => {
     // JSON turns a handle's typed arrays, its per-segment flags among them, into objects with no
     // length. The walkers count segments by `widths`, a plain array, and read the typed arrays by
     // index, which a copy answers the same; counting to the flags' length, they never returned on
     // a copy. Each engine's profile and an unknown engine's, in a child process each
     // (engineCanvas), which is killed where a walker doesn't return (runInChild): for each text
     // and set of options and for each rich-inline paragraph, a copy of the handle gives at each
-    // width what the handle gives from every line function. The copy for the first width is made
-    // before the handle lays anything out and the others after: materializeRichInlineLineRange()
-    // fills fields of a paragraph that is one text's handle when it first runs.
+    // width what the handle gives from every line function.
+    // No line function writes to a handle either, so a handle of each kind that Object.freeze()
+    // froze before its first line gives the same too, and the handle's own JSON is the same after
+    // all of them as before: a paragraph that is one text's handle used to write where its
+    // segments are in the item's text onto the handle at its first materialized line, which threw
+    // on a frozen one (materializeRichInlineLineRange).
     const font = '16px Test'
     // HANDLE_TEXTS and a text whose first line layout()'s count steps again (countSteppedLines):
     // at 40px the simple stepper ends it before the next-line character, where the scan gives no
@@ -764,20 +767,33 @@ describe('shared public contracts', () => {
       ]) {
         const prepared = prepareWithSegments(text, '16px Test', options)
         const light = prepare(text, '16px Test', options)
+        const frozen = Object.freeze(prepareWithSegments(text, '16px Test', options))
+        const frozenLight = Object.freeze(prepare(text, '16px Test', options))
+        const before = JSON.stringify([prepared, light])
         // No text has more lines than a line per unit, plus one.
         const most = text.length + 1
         for (const width of widths) {
           compared++
-          if (linesOf(copyOf(prepared), copyOf(light), width, most) !== linesOf(prepared, light, width, most)) different.push([text, options, width])
+          const copied = linesOf(copyOf(prepared), copyOf(light), width, most)
+          const lines = linesOf(prepared, light, width, most)
+          if (copied !== lines) different.push([text, options, width, 'copy'])
+          if (linesOf(frozen, frozenLight, width, most) !== lines) different.push([text, options, width, 'frozen'])
         }
+        if (JSON.stringify([prepared, light]) !== before) different.push([text, options, 'written to'])
       }
       // No paragraph here has 99 lines.
       for (const [items, options] of ${JSON.stringify(paragraphs)}) {
         const prepared = prepareRichInline(items, options)
+        const frozen = Object.freeze(prepareRichInline(items, options))
+        const before = JSON.stringify(prepared)
         for (const width of widths) {
           compared++
-          if (richLinesOf(copyOf(prepared), width, 99) !== richLinesOf(prepared, width, 99)) different.push([items, options, width])
+          const copied = richLinesOf(copyOf(prepared), width, 99)
+          const lines = richLinesOf(prepared, width, 99)
+          if (copied !== lines) different.push([items, options, width, 'copy'])
+          if (richLinesOf(frozen, width, 99) !== lines) different.push([items, options, width, 'frozen'])
         }
+        if (JSON.stringify(prepared) !== before) different.push([items, options, 'written to'])
       }
       console.log(JSON.stringify({ compared, different }))
     `))
