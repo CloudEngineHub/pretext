@@ -2333,6 +2333,23 @@ describe('measurement invariants', () => {
     ] as const) expect(parseCssFontSize(font)).toBe(expected)
   })
 
+  test('the fonts\' segment caches are dropped between two preparations once they hold more than 262,144 segments', () => {
+    clearCache()
+    prepare('seen before', FONT)
+    let text = ''
+    for (let i = 0; i < 262_144; i++) text += `w${i.toString(36)} `
+    // The bound is read when a preparation starts, so the paragraph that crosses it in its first
+    // item still has the caches for its second, and the next preparation starts without them.
+    prepareRichInline([{ text, font: FONT }, { text: 'seen before', font: FONT }])
+    let count = canvasMeasurementCount
+    prepare('seen before', FONT)
+    expect(canvasMeasurementCount).toBeGreaterThan(count)
+    count = canvasMeasurementCount
+    prepare('seen before', FONT)
+    expect(canvasMeasurementCount).toBe(count)
+    clearCache()
+  })
+
   test('breakable fit cache distinguishes fit modes', () => {
     const measurement = getFontMeasurement('16px Fit Mode Test', null, false)
     const metrics: SegmentMetrics = { width: 80, emojiCount: -1, fit: null, spaceKerning: null }
