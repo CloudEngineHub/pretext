@@ -1,5 +1,6 @@
 import '../harness/watchdog.ts'
 import { beforeAll, beforeEach, describe, expect, test } from 'bun:test'
+import type { AnalysisProfile } from './analysis.ts'
 import type { LayoutCursor, PreparedText, PreparedTextWithSegments } from './layout.ts'
 import type { PreparedLineBreakData } from './line-break.ts'
 import type { RichInlineBox, RichInlineItem, RichInlineLineRange, RichInlineOptions } from './rich-inline.ts'
@@ -797,6 +798,104 @@ describe('entry geometry', () => {
 })
 
 describe('boundary rules', () => {
+  const baseProfile = {
+    lineBreakScan: 'blink' as const,
+    graphemeTable: 'chromium/char' as const,
+    hangTabs: true,
+  }
+  const geckoProfile = { ...baseProfile, lineBreakScan: 'gecko' as const, hangTabs: false }
+
+  test('the Gecko profile removes a newline between East Asian characters', () => {
+    const normalized = (text: string, profile: AnalysisProfile, language: string | null = null) =>
+      analyzeText(text, profile, 'normal', 'normal', language).normalized
+    // Between two wide characters other than Hangul, past default-ignorables.
+    expect(normalized('中文\n中文', geckoProfile)).toBe('中文中文')
+    expect(normalized('中文 \n \u00AD中文', geckoProfile)).toBe('中文\u00AD中文')
+    expect(normalized('中\n\u{20000}', geckoProfile)).toBe('中\u{20000}')
+    expect(normalized('한\n한', geckoProfile)).toBe('한 한')
+    expect(normalized('中\nabc', geckoProfile)).toBe('中 abc')
+    // Next to East Asian punctuation only on a ja or zh page.
+    expect(normalized('abc\n「中文」', geckoProfile, 'ja')).toBe('abc「中文」')
+    expect(normalized('abc\n「中文」', geckoProfile, 'en')).toBe('abc 「中文」')
+    expect(normalized('中文　\nabc', geckoProfile, 'zh-Hant')).toBe('中文　abc')
+    // Blink and WebKit keep the space.
+    expect(normalized('中文\n中文', baseProfile)).toBe('中文 中文')
+    expect(normalized('中文\n中文', { ...baseProfile, lineBreakScan: 'webkit' })).toBe('中文 中文')
+  })
+
+  test('a ZWSP that starts a WebKit scan keeps a basic combining mark', () => {
+    const profile = { ...baseProfile, lineBreakScan: 'webkit' as const }
+    const segments = (text: string, whiteSpace?: 'pre-wrap') => {
+      const analysis = analyzeText(text, profile, whiteSpace)
+      const kinds = kindsOf(analysis)
+      return analysis.texts.map((segment, i) => `${segment}:${kinds[i]}`)
+    }
+    // The ZWSP stays its own zero-width segment, with no break after it, and the
+    // mark after it stays apart from the letters.
+    expect(segments('\u200B\u0301ab')).toEqual(['\u200B:zero-width-glue', '\u0301:text', 'ab:text'])
+    expect(segments('x\n\u200B\u0301ab', 'pre-wrap')).toEqual(['x:text', '\n:hard-break', '\u200B:zero-width-glue', '\u0301:text', 'ab:text'])
+    // Source before the ZWSP, even a collapsed leading space, is prior context.
+    expect(segments(' \u200B\u0301ab')).toEqual(['\u200B:zero-width-break', '\u0301ab:text'])
+    expect(segments('x\u200B\u0301ab')).toEqual(['x:text', '\u200B:zero-width-break', '\u0301ab:text'])
+  })
+
+  test('a Gecko text segment that is one cluster takes no emergency breaks', () => {
+    const profile = getEngineProfile()
+    const previous = profile.lineBreakScan
+    try {
+      // Gecko drops the soft hyphen before it clusters, so ZWJ continues the woman's
+      // cluster and joins the rocket to it, where Unicode graphemes split ZWJ off.
+      profile.lineBreakScan = 'gecko'
+      const text = 'a\u{1F469}\u00AD‍\u{1F680}b'
+      const prepared = prepareWithSegments(text, FONT)
+      const zwj = prepared.segments.indexOf('‍\u{1F680}')
+      expect(getSegmentGraphemes(prepared.segments[zwj]!).length).toBe(2)
+      expect(internals(prepared).breakableFitAdvances[zwj]).toBeNull()
+      expect(layoutWithLines(prepared, 0, LINE_HEIGHT).lines.map(line => line.text)).toEqual(['a', '\u{1F469}-', '‍\u{1F680}', 'b'])
+      profile.lineBreakScan = 'blink'
+      clearCache()
+      const blink = prepareWithSegments('ab‍\u{1F680}', FONT)
+      expect(internals(blink).breakableFitAdvances[0]).not.toBeNull()
+    } finally {
+      profile.lineBreakScan = previous
+    }
+  })
+
+  test('zero-width glue at a line start holds the line only where the engine lets it', () => {
+    const profile = getEngineProfile()
+    const previous = { lineBreakScan: profile.lineBreakScan, zeroWidthGlueTakesLine: profile.zeroWidthGlueTakesLine }
+    try {
+      const lines = (text: string, width: number) => {
+        const prepared = prepareWithSegments(text, FONT)
+        const result = layoutWithLines(prepared, width, LINE_HEIGHT)
+        expect(collectStreamedLines(prepared, width)).toEqual(result.lines)
+        expect(layout(prepare(text, FONT), width, LINE_HEIGHT).lineCount).toBe(result.lineCount)
+        return result.lines.map(line => slicePreparedText(prepared, line.start, line.end))
+      }
+      // Blink has no break between a soft hyphen and a closing bracket, and its
+      // break-anywhere retry gives the soft hyphen a line of its own, as Chrome paints it.
+      profile.lineBreakScan = 'blink'
+      profile.zeroWidthGlueTakesLine = true
+      expect(prepareWithSegments('ab\u00AD)c', FONT).kinds[1]).toBe('zero-width-glue')
+      expect(lines('ab\u00AD)c', 1)).toEqual(['a', 'b', '\u00AD', ')', 'c'])
+      // Gecko drops a soft hyphen from its text run, so one at the start offers no break
+      // and holds no line.
+      profile.lineBreakScan = 'gecko'
+      profile.zeroWidthGlueTakesLine = false
+      expect(prepareWithSegments('\u00ADa\u00ADb', FONT).kinds[0]).toBe('zero-width-glue')
+      expect(lines('\u00ADa\u00ADb', 0)).toEqual(['\u00ADa\u00AD', 'b'])
+      expect(lines('\u00ADb', 1)).toEqual(['\u00ADb'])
+      // A soft hyphen taken as a zero-width break leaves line text, drawing no hyphen.
+      const cjk = prepareWithSegments('漢字\u00ADabc', FONT)
+      const cjkWidth = measureWidth('漢字', FONT) + 0.1
+      expect(layoutWithLines(cjk, cjkWidth, LINE_HEIGHT).lines.map(line => line.text)).toEqual(['漢字', 'abc'])
+      expect(collectStreamedLines(cjk, cjkWidth).map(line => line.text)).toEqual(['漢字', 'abc'])
+    } finally {
+      profile.lineBreakScan = previous.lineBreakScan
+      profile.zeroWidthGlueTakesLine = previous.zeroWidthGlueTakesLine
+    }
+  })
+
   test('Gecko lays out bidi controls as its text run, which leaves them out', () => {
     const profile = getEngineProfile()
     const previous = { lineBreakScan: profile.lineBreakScan, graphemeTable: profile.graphemeTable, zeroWidthGlueTakesLine: profile.zeroWidthGlueTakesLine }
@@ -1156,6 +1255,193 @@ describe('boundary rules', () => {
     }
   })
 
+  test('the WebKit profile takes a lone carriage return out of normal white space, with the breaks its scan found around it', () => {
+    const profile = getEngineProfile()
+    const previous = profile.lineBreakScan
+    // The Blink profile's CR is a space.
+    expect(prepareWithSegments('ab\rcd', FONT).segments).toEqual(['ab', ' ', 'cd'])
+    profile.lineBreakScan = 'webkit'
+    try {
+      const segments = (text: string, options?: { whiteSpace?: 'pre-wrap', letterSpacing?: number }) => prepareWithSegments(text, FONT, options).segments
+      const lines = (text: string, width: number) => {
+        const prepared = prepareWithSegments(text, FONT)
+        const result = layoutWithLines(prepared, width, LINE_HEIGHT)
+        expect(collectStreamedLines(prepared, width)).toEqual(result.lines)
+        expect(layout(prepare(text, FONT), width, LINE_HEIGHT).lineCount).toBe(result.lineCount)
+        return result.lines.map(line => line.text)
+      }
+      // It takes no room, no letter spacing and no segment: the word lays out as without it.
+      for (const [text, without] of [['ab\rcd ef', 'abcd ef'], ['ab\r\rcd', 'abcd'], ['\rab\r', 'ab'], ['ab\r cd', 'ab cd'], ['ab \rcd', 'ab cd']] as const) {
+        expect(segments(text)).toEqual(segments(without))
+        for (const letterSpacing of [0, 2]) expect(prepareWithSegments(text, FONT, { letterSpacing }).widths).toEqual(prepareWithSegments(without, FONT, { letterSpacing }).widths)
+      }
+      expect(prepareWithSegments('ab\rcd', FONT).kinds).toEqual(['text'])
+      // The scan read the source, so a CR keeps the break before it from the letter after it:
+      // none after the hyphen, where the text without the CR has one.
+      expect(segments('ab-cd')).toEqual(['ab-', 'cd'])
+      expect(segments('ab-\rcd')).toEqual(['ab-cd'])
+      // ICU breaks after the CR, and the line can end there where the scan takes that break, as
+      // before a letter above U+00FF, or before an ASCII letter after one.
+      expect(segments('\u0431\u0432\u0433\u0434')).toEqual(['\u0431\u0432\u0433\u0434'])
+      for (const [text, halves] of [['\u0431\u0432\r\u0433\u0434', ['\u0431\u0432', '\u0433\u0434']], ['ab\r\u0433\u0434', ['ab', '\u0433\u0434']], ['\u0431\u0432\rcd', ['\u0431\u0432', 'cd']]] as const) {
+        expect(segments(text)).toEqual([...halves])
+        expect(lines(text, measureWidth(halves[0], FONT) + 0.5)).toEqual([...halves])
+      }
+      expect(segments('\u00E9t\u00E9\rcd')).toEqual(['\u00E9t\u00E9cd'])
+      // Not before a digit. And the break goes by the character the scan holds as the one before
+      // the CR, the second of the last pair it took to ICU where it stepped on from there: the full
+      // stop of `т.е`, so no line ends before `cd`, and a Thai letter of `ไทยe`, so one does
+      // (RESEARCH.md, Engine Facts, Safari (WebKit), CR and FF).
+      expect(segments('\u0431\u0432\r12')).toEqual(['\u0431\u043212'])
+      expect(segments('\u0442.\u0435\rcd')).toEqual(['\u0442.\u0435cd'])
+      expect(segments('\u0E44\u0E17\u0E22e\rcd')).toEqual(['\u0E44\u0E17\u0E22e', 'cd'])
+      // The break before a CR after white space goes to the unit after it, which has none of
+      // its own, so the line ends there (under letter spacing, the test of where a line ends).
+      expect(lines('ab \rcd', measureWidth('ab', FONT) + 0.5)).toEqual(['ab ', 'cd'])
+      expect(analyzeText('ab \rcd', profile).hasUnbroken).toBe(false)
+      // The mark after the text's last unit moves with the units, so a line separator that ends
+      // the text is still a hard break.
+      expect(prepareWithSegments('a\rb\u2028', FONT).kinds).toEqual(['text', 'hard-break'])
+      // White space on its two sides is one space, where Safari keeps two.
+      expect(segments('ab \r cd')).toEqual(['ab', ' ', 'cd'])
+      // A text of only CRs and white space has no lines.
+      for (const text of ['\r', '\r\r', '\r\n', ' \r ', '\t\r\t', '\r\n\r\n', '\r \r', '\f\r']) {
+        expect({ text, ...layout(prepare(text, FONT), 200, LINE_HEIGHT) }).toEqual({ text, lineCount: 0, height: 0 })
+        expect(lines(text, 200)).toEqual([])
+      }
+      // The CR of a CRLF collapses into the line feed's space.
+      expect(segments('ab\r\ncd')).toEqual(['ab', ' ', 'cd'])
+      expect(segments('ab\r\n\r\ncd ef\r\n')).toEqual(['ab', ' ', 'cd', ' ', 'ef'])
+      expect(segments('ab\r\r\ncd')).toEqual(['ab', ' ', 'cd'])
+      expect(segments('ab\rcd\r\nef gh')).toEqual(['abcd', ' ', 'ef', ' ', 'gh'])
+      expect(lines('ab\r\ncd', measureWidth('ab', FONT) + 0.5)).toEqual(['ab ', 'cd'])
+      // Pre-wrap keeps its hard break (README, Caveats).
+      expect(segments('ab\rcd', { whiteSpace: 'pre-wrap' })).toEqual(['ab', '\n', 'cd'])
+    } finally {
+      profile.lineBreakScan = previous
+      clearCache()
+    }
+  })
+
+  test('the WebKit profile ends a line at a separator where a lone carriage return and then white space end the text', () => {
+    const profile = getEngineProfile()
+    const previous = profile.lineBreakScan
+    // The white space that ends the text starts with a space or a tab, where the scan has a
+    // break, and takes the mark of the carriage returns the analysis took out before it: the
+    // separator's forced break.
+    const texts = ['ab\u2028\r ', 'ab\u2029\r ', 'ab\u2028\r\t', 'ab\u2028\r \n', 'ab\u2028\r\r ']
+    const narrow = measureWidth('ab', FONT) + 0.5
+    try {
+      for (const scan of ['blink', 'gecko', 'webkit'] as const) {
+        profile.lineBreakScan = scan
+        clearCache()
+        // Only WebKit's items builder makes a separator a forced break. In the Blink and Gecko
+        // profiles it is a control character, laid out as text.
+        for (const text of texts) expect({ scan, text, kinds: prepareWithSegments(text, FONT).kinds }).toEqual({ scan, text, kinds: ['text', scan === 'webkit' ? 'hard-break' : 'text'] })
+      }
+      // The line ends at the separator and nothing follows it, where the separator as a control,
+      // which the fake Canvas gives a width, took a line more at this width. Safari has a second
+      // line here too, for the carriage return itself, which the profile takes out
+      // (ENGINE_FOLLOWUPS.md, White space and controls).
+      for (const text of texts) {
+        const prepared = prepareWithSegments(text, FONT)
+        const result = layoutWithLines(prepared, narrow, LINE_HEIGHT)
+        expect({ text, lines: result.lines.map(line => line.text) }).toEqual({ text, lines: ['ab'] })
+        expect(collectStreamedLines(prepared, narrow)).toEqual(result.lines)
+        expect(layout(prepare(text, FONT), narrow, LINE_HEIGHT).lineCount).toBe(1)
+      }
+      // The CR of a CRLF stays in the text and starts that white space, with the separator's
+      // mark alone.
+      expect(prepareWithSegments('ab\u2028\r\n', FONT).kinds).toEqual(['text', 'hard-break'])
+      // The same text as a rich item ends its line before the item after it. The item's white
+      // space doesn't end the paragraph's text, so the separator's mark there is the scan's
+      // own, kept without this rule.
+      const prepared = prepareRichInline([{ text: 'ab\u2028\r ', font: FONT }, { text: 'cd', font: FONT }])
+      const richLines: string[] = []
+      walkRichInlineLineRanges(prepared, 1000, range => { richLines.push(materializeRichInlineLineRange(prepared, range).fragments.map(fragment => fragment.text).join('|')) })
+      expect(richLines).toEqual(['ab', 'cd'])
+      expect(measureRichInlineStats(prepared, 1000).lineCount).toBe(2)
+    } finally {
+      profile.lineBreakScan = previous
+      clearCache()
+    }
+  })
+
+  test('each engine profile counts its own tab stops under letter spacing', () => {
+    // At 20px the fake Canvas's widths are whole app units, as Firefox's are.
+    const LARGE = '20px Test Sans'
+    const profile = getEngineProfile()
+    const previous = { ...profile }
+    const space = measureWidth(' ', LARGE)
+    const a = measureWidth('a', LARGE)
+    const foo = measureWidth('foo', LARGE)
+    const width = (text: string, letterSpacing: number) =>
+      layoutWithLines(prepareWithSegments(text, LARGE, { whiteSpace: 'pre-wrap', letterSpacing }), 1000, LINE_HEIGHT).lines[0]!.width
+    const round = (value: number) => Math.round(value * 1e6) / 1e6
+    try {
+      for (const engine of ['blink', 'gecko', 'webkit'] as const) {
+        const fields = TAB_FIELDS[engine]
+        Object.assign(profile, fields)
+        for (const letterSpacing of [-1, -0.5, 2, 4]) {
+          // Blink and Gecko put a stop every eight letter-spaced spaces and add no spacing after a
+          // tab; WebKit puts one every eight spaces and spaces each tab. The line's last glyph
+          // keeps its spacing.
+          const stop = fields.letterSpaceTabStops ? 8 * (space + letterSpacing) : 8 * space
+          const tabSpacing = fields.letterSpaceTabs ? letterSpacing : 0
+          expect({ engine, letterSpacing, width: round(width('a\tb', letterSpacing)) }).toEqual({ engine, letterSpacing, width: round(stop + tabSpacing + a + letterSpacing) })
+          // Each tab of a run takes a whole stop, under negative spacing too: WebKit's spacing
+          // after a tab leaves the next one that far before or after a stop, and under half a
+          // space before one it takes the stop after.
+          for (let tabs = 1; tabs <= 4; tabs++) {
+            const expected = round(tabs * stop + tabSpacing + foo + 3 * letterSpacing)
+            expect({ engine, letterSpacing, tabs, width: round(width('\t'.repeat(tabs) + 'foo', letterSpacing)) }).toEqual({ engine, letterSpacing, tabs, width: expected })
+            expect({ engine, letterSpacing, tabs, width: round(width('a' + '\t'.repeat(tabs) + 'foo', letterSpacing)) }).toEqual({ engine, letterSpacing, tabs, width: expected })
+          }
+        }
+        // Gecko rounds the letter spacing a stop counts to app units: -0.08px is -5/60px there.
+        if (fields.letterSpaceTabStops) expect(width('\ta', -0.08)).toBeCloseTo(8 * (space - (fields.tabsInAppUnits ? 5 / 60 : 0.08)) + a - 0.08, 9)
+        // Stops no wider than 0 leave a tab no advance.
+        if (fields.letterSpaceTabStops) expect(width('a\t\tb', -space - 1)).toBeCloseTo(2 * (a - space - 1), 9)
+      }
+    } finally {
+      Object.assign(profile, previous)
+    }
+  })
+
+  test('a tab nearer its stop than the engine\'s minimum takes the stop after', () => {
+    // At 20px the fake Canvas's widths are whole app units, as Firefox's are.
+    const LARGE = '20px Test Sans'
+    const profile = getEngineProfile()
+    const previous = { ...profile }
+    const space = measureWidth(' ', LARGE)
+    const zero = measureWidth('0', LARGE)
+    const stop = 8 * space
+    const b = measureWidth('b', LARGE)
+    const width = (text: string) => layoutWithLines(prepareWithSegments(text, LARGE, { whiteSpace: 'pre-wrap' }), 1000, LINE_HEIGHT).lines[0]!.width
+    try {
+      // The minimum is half a space in Blink and WebKit and half a `0` in Gecko. `aaaa` ends
+      // between the two from the first stop, `a.....` under both, `aaa` over both, and `aa  0`
+      // exactly half a `0` from it, where Gecko's tab takes the stop.
+      expect(stop - measureWidth('aaaa', LARGE)).toBeGreaterThan(space / 2)
+      expect(stop - measureWidth('aaaa', LARGE)).toBeLessThan(zero / 2)
+      expect(stop - measureWidth('a.....', LARGE)).toBeLessThan(space / 2)
+      expect(stop - measureWidth('aa  0', LARGE)).toBeCloseTo(zero / 2, 9)
+      for (const engine of ['blink', 'gecko', 'webkit'] as const) {
+        const fields = TAB_FIELDS[engine]
+        Object.assign(profile, fields)
+        const halfZero = fields.tabMinimumCharacter === '0'
+        const stops = (text: string) => Math.round((width(`${text}\tb`) - b) / stop)
+        expect({ engine, stops: stops('aaa') }).toEqual({ engine, stops: 1 })
+        expect({ engine, stops: stops('aaaa') }).toEqual({ engine, stops: halfZero ? 2 : 1 })
+        expect({ engine, stops: stops('a.....') }).toEqual({ engine, stops: 2 })
+        expect({ engine, stops: stops('aa  0') }).toEqual({ engine, stops: 1 })
+        expect(width('aaaa\tb')).toBeCloseTo((halfZero ? 2 : 1) * stop + b, 9)
+      }
+    } finally {
+      Object.assign(profile, previous)
+    }
+  })
+
   test('the Gecko profile returns a line from a tab that doesn\'t fit to its latest break', () => {
     const LARGE = '20px Test Sans'
     const profile = getEngineProfile()
@@ -1210,7 +1496,83 @@ describe('boundary rules', () => {
       clearCache()
     }
   })
+})
 
+describe('engine break scans', () => {
+  const positions = (breaks: Uint8Array, length: number) => {
+    const out: number[] = []
+    for (let i = 1; i < length; i++) if (breaks[i] === 1) out.push(i)
+    return out
+  }
+
+  test("WebKit's scan follows its pair table, classes, ICU skip, keep-all rule and page language", async () => {
+    const { getWebKitBreakBetweenItems, getWebKitLineBreaks } = await import('./line-breaks.ts')
+    // Cases the WebKit break oracle was checked on, from WebKit source and installed Safari,
+    // with the oracle's breaks.
+    for (const [text, language, keepAll, preserve, expected] of [
+      ['丙!a', 'en', false, false, [2]],
+      ['丙!1', 'en', false, false, []],
+      ['か}a', 'en', false, false, [2]],
+      ['丙}a', 'en', false, false, []],
+      ['x?$b', 'en', false, false, [2]],
+      ['x?-b', 'en', false, false, [2, 3]],
+      ['$-1', 'en', false, false, []],
+      ['a -ª', 'en', false, false, [1, 2]],
+      ['a ‐b', 'en', false, false, [1, 2]],
+      ['a\t-b', 'en', false, false, [1, 2, 3]],
+      ['a/é', 'en', false, false, [2]],
+      ['foo\u00A0世界', 'en', false, false, [5]],
+      ['日本ァア', 'en', false, false, [1, 3]],
+      ['日本ァア', 'ja', false, false, [1, 2, 3]],
+      ['日本ァア', 'zh', false, false, [1, 3]],
+      ['中文“abc”中文', 'en', false, false, [1, 2, 7, 8]],
+      ['中文“abc”中文', 'ja', false, false, [1, 2, 7, 8]],
+      ['A 中文测试', 'zh', true, false, [1, 2]],
+      ['ab　cd', 'en', true, false, [3]],
+      ['a​b', 'en', true, false, [1]],
+      ['a​b', 'en', false, false, [2]],
+      ['a\nb', 'en', false, true, []],
+      ['한}a', 'en', false, false, []],
+      ['x!b', 'en', false, false, []],
+      ['x!(b', 'en', false, false, [2]],
+      ['a-1', 'en', false, false, [2]],
+      ['x -1', 'en', false, false, [1, 2]],
+      ['a -\u0301\u00E9b', 'en', false, false, [1, 2]],
+      ['and/or', 'en', false, false, []],
+      ['a/б', 'en', false, false, [2]],
+      ['a\u2007b', 'en', false, false, []],
+      ['日本ァア', 'ko', false, false, [1, 2, 3]],
+      ['日本ーー', 'en', false, false, [1]],
+      ['xyz abc\u201Ddef', 'en', false, false, [3, 4]],
+      ['xyz abc\u201Ddef', 'ja', false, false, [3, 4]],
+      ['日本\uFF01ァア', 'ja', true, false, [3]],
+      ['a\nb', 'en', false, false, [1, 2]],
+      // Safari 27's opening and closing quotation classes, and keep-all breaks after
+      // punctuation in text above U+00FF.
+      ['中文«abc»中文', 'en', false, false, [1, 2, 7, 8]],
+      ['go 한글x\u201Dvalue\u201C!', 'en', false, false, [2, 3, 4, 5]],
+      ['(试验前-试验后)/试验前', 'zh', true, false, [1, 9, 10]],
+      ['foo。bar日本語', 'ja', true, false, [4]],
+      ['a,b', 'ja', true, false, []],
+    ] as const) {
+      expect({ text, language, keepAll, breaks: positions(getWebKitLineBreaks(text, preserve, keepAll, language), text.length) })
+        .toEqual({ text, language, keepAll, breaks: [...expected] })
+    }
+    // Between inline boxes, the previous box's last two characters are prior context.
+    expect(getWebKitBreakBetweenItems('丙!', 'a', false, 'en')).toBe(false)
+    expect(getWebKitBreakBetweenItems('ex-', 'ample', false, 'en')).toBe(true)
+    expect(getWebKitBreakBetweenItems('a', '-1', false, 'en')).toBe(false)
+    // Keep-all reads none: a box starts at a break only where it starts with a ZWSP, so
+    // not after punctuation that ends the box before, where one 16-bit text breaks.
+    expect(getWebKitBreakBetweenItems('ex-', 'ample', true, 'en')).toBe(false)
+    expect(getWebKitBreakBetweenItems('中。', '文字', true, 'zh')).toBe(false)
+    expect(positions(getWebKitLineBreaks('中。文字', false, true, 'zh'), 4)).toEqual([2])
+    expect(getWebKitBreakBetweenItems('ab', '\u200Bcd', true, 'en')).toBe(true)
+    // A separator that starts an item forces a break after it, marked FORCED_BREAK (4);
+    // one inside a text item doesn't.
+    expect(Array.from(getWebKitLineBreaks('ab\u2028cd', false, false, 'en'))).toEqual([0, 0, 0, 4, 0, 0])
+    expect(Array.from(getWebKitLineBreaks('か中？\u2028b', false, false, 'en'))).toEqual([0, 1, 0, 0, 1, 0])
+  })
 })
 
 describe('measurement invariants', () => {

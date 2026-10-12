@@ -6,10 +6,10 @@
 // those of main before #340 (harness/README.md, Adding a case), and the number names its family, so both stay as the
 // tests change, and after a test has left the file: those that alone caught no planted defect were taken out. The
 // tab-stop fact has a second row, in pre-wrap alone, under the same name: tabs under half a space, under half a `0`
-// and exactly half a `0` before a stop, which its own text, `a`, tab, `b`, never reaches (the engine profile's
-// tabMinimumCharacter and tabsInAppUnits, src/measurement.ts). The fact of Firefox's tab that doesn't hang has a
-// second row too: a word, a tab, a space and a tab after a break, where Firefox ends no line inside the run of white
-// space, so its line returns to the break or, on a line without one, wraps before the second tab.
+// and exactly half a `0` before a stop, which its own text, `a`, tab, `b`, never reaches; its rule's test is now "a
+// tab nearer its stop than the engine's minimum takes the stop after". The fact of Firefox's tab that doesn't hang
+// has a second row too: a word, a tab, a space and a tab after a break, where Firefox ends no line inside the run of
+// white space, so its line returns to the break or, on a line without one, wraps before the second tab.
 // The fact of the WebKit profile's lone carriage return runs in Menlo alone, a font on WebKit's fixed-pitch shortcut,
 // where Safari gives the carriage return a character's width and the profile none: the catalog holds the rule in
 // proportional fonts, and this row holds the fonts it gives up (RESEARCH.md, Decisions Log, 2026-10-06).
