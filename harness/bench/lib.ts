@@ -2,7 +2,7 @@
 // bundle, so every library runs its own code, and each copy a document evaluates carries a comment of its own, so no
 // document or library reuses code another compiled.
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
 const ROOT = resolve(import.meta.dir, '../..')
@@ -29,10 +29,17 @@ export function buildName(refOrDir: string): string {
   return `this tree's src/ (on ${git('log', '-1', '--format=%h, %cs')}${git('status', '--porcelain', '--', 'src') === '' ? '' : ', with uncommitted changes'})`
 }
 
-// What a document runs of a library: handles of each kind, and one operation over them `reps` times, a width a rep.
-// A rich walk or stream keeps each line it is handed, in `kept`, as an app that paints its lines keeps them: a callback
+// Whether a build's line streams take the width before the cursor, layoutNextLineRange(prepared, maxWidth, start?), read
+// from its source: a build from before that order takes (prepared, start, maxWidth), and the bench and `equal --offline`
+// run one script over both.
+export function streamsTakeWidthFirst(src: string): boolean {
+  return /export function layoutNextLineRange\(\s*prepared: PreparedText,\s*maxWidth/.test(readFileSync(join(src, 'layout.ts'), 'utf8'))
+}
+
+// What a document runs of a library: handles of each kind, and one operation over them `reps` times, a width a rep. A
+// rich walk or stream keeps each line it is handed, in `kept`, as an app that paints its lines keeps them: a callback
 // that reads only the line's width lets an engine that inlines a library's line builder never make the line, for that
-// library and not for another (harness/README.md, Bench). The run reads the last one, so the store isn't dead. A
+// library and not for another (harness/bench/README.md, Rows). The run reads the last one, so the store isn't dead. A
 // walk's `n +=` reads `n` before the call, so the widths its callback adds are overwritten and a walk, plain or rich,
 // adds line counts alone to `n`: `kept` is what makes the engine build each rich line.
 const ENTRY = `import * as L from 'LIB/layout.ts'
@@ -57,7 +64,7 @@ function run(op, data, widths, reps, font, options) {
         case 'layout': n += L.layout(p, w, 20).lineCount; break
         case 'stats': { const s = L.measureLineStats(p, w); n += s.lineCount + s.maxLineWidth; break }
         case 'walk': n += L.walkLineRanges(p, w, line => { n += line.width }); break
-        case 'stream': for (let c = { segmentIndex: 0, graphemeIndex: 0 }; ;) { const line = L.layoutNextLineRange(p, c, w); if (line === null) break; n += line.width; c = line.end } break
+        case 'stream': for (let c = { segmentIndex: 0, graphemeIndex: 0 }; ;) { const line = L.layoutNextLineRange(STREAM); if (line === null) break; n += line.width; c = line.end } break
         case 'lines': n += L.layoutWithLines(p, w, 20).lines.length; break
         case 'rich-stats': n += R.measureRichInlineStats(p, w).maxLineWidth; break
         case 'rich-walk': n += R.walkRichInlineLineRanges(p, w, line => { kept = line; n += line.width }); break
@@ -75,7 +82,7 @@ export async function benchBundle(src: string): Promise<{ code: string; bytes: n
   const dir = join(ROOT, '.artifacts/harness-bench/entries')
   mkdirSync(dir, { recursive: true })
   const entry = join(dir, `${Bun.hash(src).toString(36)}.js`)
-  writeFileSync(entry, ENTRY.replaceAll('LIB', src))
+  writeFileSync(entry, ENTRY.replaceAll('LIB', src).replace('STREAM', streamsTakeWidthFirst(src) ? 'p, w, c' : 'p, c, w'))
   const built = await Bun.build({ entrypoints: [entry], target: 'browser', format: 'iife', minify: true })
   if (!built.success) throw new Error(built.logs.map(String).join('\n'))
   const code = await built.outputs[0]!.text()

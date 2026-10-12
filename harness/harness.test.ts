@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { srcOf } from './bench/lib.ts'
-import { fontsKey, keyOf, kill, type Environment, type Launched } from './browsers.ts'
+import { fontsKey, keyOf, kill, pastBound, type Environment, type Launched } from './browsers.ts'
 import { cArrays, icuEntries, rustByteStrings } from './break-data.ts'
 import { check, drift, equal, gate, hostAgreement, parseArgs, record, type Invariants, type Io, type Options } from './cli.ts'
 import { groupLines, recordedLines, scanLineEnds, searchLineEnds, type RectsAt } from './observe.ts'
@@ -930,6 +930,23 @@ describe('a browser past its memory bound', () => {
     await child.exited
     expect([child.signalCode, cleaned]).toEqual(['SIGKILL', true])
   }, 10_000)
+})
+
+describe('the browsers a job has open, bounded together', () => {
+  test('a browser past its own bound goes whatever the others hold, and one within it stays while they hold little: a session alone would be killed for its neighbours, or run away', () => {
+    expect(pastBound('chrome', 7000 * 1024, 8, 6144, [])).toContain('past the harness\'s 6144 MB bound')
+    expect(pastBound('chrome', 3000 * 1024, 8, 6144, [2000 * 1024, 700 * 1024], 24_000)).toBeNull()
+  })
+
+  test('past the bound for them all, the browser holding the most goes and the others stay: nine sessions side by side, each within its own bound, would take more than the machine holds', () => {
+    const nine = [5000, 5000, 5000, 2000, 2000, 2000, 700, 700, 700].map(mb => mb * 1024)
+    // 23,100 MB together, past 20,000: a Chrome session holds the most.
+    expect(pastBound('chrome', 5000 * 1024, 8, 6144, nine.slice(1), 20_000)).toContain('held 23100 MB together, past the harness\'s 20000 MB bound for them all')
+    expect(pastBound('firefox', 2000 * 1024, 11, 6144, [...nine.slice(0, 3), ...nine.slice(4)], 20_000)).toBeNull()
+    expect(pastBound('webkit-host', 700 * 1024, 2, 6144, nine.slice(0, 8), 20_000)).toBeNull()
+    // Within the bound for them all, none goes.
+    expect(pastBound('chrome', 5000 * 1024, 8, 6144, nine.slice(1), 24_000)).toBeNull()
+  })
 })
 
 describe('the browser\'s break data', () => {

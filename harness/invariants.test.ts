@@ -92,7 +92,7 @@ const PLANTS: ReadonlyArray<readonly [string, Profile, string, string, ReadonlyA
     [[/end: \{ segmentIndex: to - first, graphemeIndex: 0 \}/, 'end: { segmentIndex: to === itemSegments[itemIndex + 1] ? Infinity : to - first, graphemeIndex: 0 }']], 'agreement'],
   ['a visitor that edits the range walkLineRanges gives it would change the lines after it', 'unknown', 'walk-resumes-from-visited', 'layout.ts',
     [[/return walkPreparedLinesRaw\(\n\s*getInternalPrepared\(prepared\),\n\s*normalizeMaxWidth\(maxWidth\),\n\s*\(width, startSegmentIndex, startGraphemeIndex, endSegmentIndex, endGraphemeIndex\) => \{\n\s*onLine\(createLayoutLineRange\([\s\S]*?\n\s*\)\)\n\s*\},\n\s*\)/,
-      'let count = 0\n  for (let range = layoutNextLineRange(prepared, { segmentIndex: 0, graphemeIndex: 0 }, maxWidth); range !== null; range = layoutNextLineRange(prepared, range.end, maxWidth)) {\n    onLine(range)\n    count++\n  }\n  return count']], 'visitors'],
+      'let count = 0\n  for (let range = layoutNextLineRange(prepared, maxWidth); range !== null; range = layoutNextLineRange(prepared, maxWidth, range.end)) {\n    onLine(range)\n    count++\n  }\n  return count']], 'visitors'],
   ['a list keeping the ranges walkLineRanges visits would find one object, the last line, in every slot', 'unknown', 'walk-reuses-range', 'layout.ts',
     [[/onLine\(createLayoutLineRange\(([\s\S]*?)\n(\s*)\)\)/, 'onLine(Object.assign(walkedRange, createLayoutLineRange($1\n$2)))'],
       [/(export function walkLineRanges\([\s\S]*?\): number \{\n)/, '$1  const walkedRange = { width: 0, start: { segmentIndex: 0, graphemeIndex: 0 }, end: { segmentIndex: 0, graphemeIndex: 0 } }\n']], 'agreement'],

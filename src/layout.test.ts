@@ -3,7 +3,7 @@ import { beforeAll, beforeEach, describe, expect, test } from 'bun:test'
 import type { AnalysisProfile } from './analysis.ts'
 import type { LayoutCursor, PreparedText, PreparedTextWithSegments } from './layout.ts'
 import type { PreparedLineBreakData } from './line-break.ts'
-import type { RichInlineBox, RichInlineItem, RichInlineLineRange } from './rich-inline.ts'
+import type { RichInlineBox, RichInlineItem, RichInlineLineRange, RichInlineOptions } from './rich-inline.ts'
 
 // Unit checks over a deterministic fake canvas backend: the shipped prepare/layout
 // and rich-inline exports, and the rules behind them (the engines' break scans, the
@@ -233,7 +233,7 @@ function collectStreamedLines(
   const most = prepared.segments.join('').length + 1
 
   while (true) {
-    const line = layoutNextLine(prepared as Parameters<typeof layoutNextLine>[0], cursor, width)
+    const line = layoutNextLine(prepared as Parameters<typeof layoutNextLine>[0], width, cursor)
     if (line === null) break
     if (lines.push(line) > most) throw new Error(`layoutNextLine gives more than ${most} lines`)
     cursor = line.end
@@ -463,10 +463,85 @@ describe('shared public contracts', () => {
       layout(opaque, width, LINE_HEIGHT)
       measureLineStats(rich, width)
       walkLineRanges(rich, width, () => {})
-      layoutNextLineRange(rich, { segmentIndex: 0, graphemeIndex: 0 }, width)
+      layoutNextLineRange(rich, width, { segmentIndex: 0, graphemeIndex: 0 })
     }
     expect(canvasMeasurementCount).toBe(before)
   })
+
+  test('the line streams take the width before the cursor and start at the first line without one', () => {
+    // layoutNextLine() and layoutNextLineRange() take (prepared, maxWidth, start?), the order
+    // of layoutNextRichInlineLineRange(): without a start they give the text's first line,
+    // and each line's end passed back gives the next, the lines layoutWithLines() gives.
+    for (const options of [undefined, { whiteSpace: 'pre-wrap' }] as const) {
+      const prepared = prepareWithSegments('a\tbb trans\u00ADatlantic 中文字 Superlongword of  spaces', FONT, options)
+      for (const width of [0, 30, 60, 137.5, Infinity]) {
+        const { lines } = layoutWithLines(prepared, width, LINE_HEIGHT)
+        expect(layoutNextLine(prepared, width)).toEqual(layoutNextLine(prepared, width, { segmentIndex: 0, graphemeIndex: 0 }))
+        expect(layoutNextLineRange(prepared, width)).toEqual(layoutNextLineRange(prepared, width, { segmentIndex: 0, graphemeIndex: 0 }))
+        const streamed: unknown[] = []
+        const ranges: unknown[] = []
+        for (let line = layoutNextLine(prepared, width); line !== null; line = layoutNextLine(prepared, width, line.end)) streamed.push(line)
+        for (let range = layoutNextLineRange(prepared, width); range !== null; range = layoutNextLineRange(prepared, width, range.end)) ranges.push(materializeLineRange(prepared, range))
+        expect(streamed).toEqual(lines)
+        expect(ranges).toEqual(lines)
+      }
+    }
+    // A stream without a start moves no cursor of its own: a second one starts at the first line too.
+    const prepared = prepareWithSegments('one two three', FONT)
+    const first = layoutNextLineRange(prepared, 40)!
+    expect(first.start).toEqual({ segmentIndex: 0, graphemeIndex: 0 })
+    first.start.segmentIndex = 2
+    first.end.segmentIndex = 0
+    expect(layoutNextLineRange(prepared, 40)!.start).toEqual({ segmentIndex: 0, graphemeIndex: 0 })
+  })
+
+  // The engine profile is computed once per process, so a test of every engine runs each in a
+  // child process (runInChild), whose script starts with engineCanvas(): the engine's user agent
+  // and a canvas that, with these texts, fills every field of the handle that an engine fills.
+  // An ASCII character is 8px, a space 4px, an invisible character 0 and any other 16px, `To`
+  // kerns, 3px narrower, fullwidth marks halt as in Chrome's Canvas, and the context takes a
+  // letterSpacing.
+  const HANDLE_TEXTS = [
+    "Just tried the new update and it's so much better, especially on older devices.",
+    '这是一段中文文本，用于测试「文本布局」库。每个字符之间都可以断行。',
+    '中」「中」中」 中。」、「中',
+    'これはテキストレイアウトのテストです。パフォーマンスは非常に重要です。',
+    '이것은 텍스트 레이아웃 라이브러리의 테스트입니다. 한국어 텍스트를 확인합니다.',
+    'هذا النص باللغة العربية لاختبار دعم الاتجاه من اليمين إلى اليسار',
+    'นี่คือข้อความทดสอบสำหรับไลบรารีจัดวางข้อความ ทดสอบการตัดคำภาษาไทย',
+    'Great work! 👏👏👏 exactly what we needed 🎯 👩‍💻 🇯🇵 👍🏽',
+    'trans\u00ADatlantic co\u00ADoperation inter\u00ADnation\u00ADal\u00ADisation',
+    'a\tbb\tccc\n\n  dd  \tee  \n',
+    'see https://example.com/Tomato/Tomorrow?To=more or Superlongwordwithoutanyspaces',
+    'aaaa\u200Cbbbb\u2060cccc\u200Ddddd ab\u200Bcd\u200Bef',
+    '中文\u3000\u3000中文 0123456789012345678901234567890',
+    'aaaa\u0085bbbb cccc\u2028dddd',
+    'Hello مرحبا שלום 你好 こんにちは 안녕하세요 สวัสดี',
+    '',
+    '   ',
+  ]
+  const engineCanvas = (userAgent: string): string => `
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { userAgent: ${JSON.stringify(userAgent)} } })
+    class Context {
+      font = ''
+      letterSpacing = '0px'
+      fontKerning = 'auto'
+      measureText(text) {
+        const spacing = Number.parseFloat(this.letterSpacing)
+        let width = 0
+        let count = 0
+        for (const ch of text) {
+          count++
+          if (!/[\\u00AD\\u200B-\\u200D\\u2060]/.test(ch)) width += ch > '\\u2E7F' ? 16 : ch === ' ' ? 4 : 8
+        }
+        if (this.fontKerning === 'auto') width -= 3 * (text.split('To').length - 1)
+        width -= 8 * (text.match(/[\\u3002\\u300D](?=[\\u3002\\u300D])|(?<=[\\u3002\\u300D\\u300C])\\u300C/g) ?? []).length
+        if (Math.abs(spacing) >= 1 / 65536) width += count * spacing
+        return { width, actualBoundingBoxLeft: 0, actualBoundingBoxRight: width - (/[\\u3001\\u3002]$/.test(text) ? 8 : 0) }
+      }
+    }
+    globalThis.OffscreenCanvas = class { getContext() { return new Context() } }
+  `
 
   test('the line functions that return no text give the same lines from a prepare() handle', () => {
     // walkLineRanges(), measureLineStats(), measureNaturalWidth() and layoutNextLineRange()
@@ -479,59 +554,18 @@ describe('shared public contracts', () => {
     const linesOf = (prepared: PreparedText): unknown => {
       const walked: unknown[] = []
       const count = walkLineRanges(prepared, 60, line => walked.push(line))
-      const first = layoutNextLineRange(prepared, { segmentIndex: 0, graphemeIndex: 0 }, 60)
+      const first = layoutNextLineRange(prepared, 60, { segmentIndex: 0, graphemeIndex: 0 })
       return [count, walked, first, measureLineStats(prepared, 60), measureNaturalWidth(prepared)]
     }
     expect(linesOf(light)).toEqual(linesOf(withSegments))
 
-    // The engine profile is computed once per process, so each engine runs in a child
-    // process. Its canvas fills every field of the handle that an engine fills: an ASCII
-    // character is 8px, a space 4px, an invisible character 0 and any other 16px, `To` kerns,
-    // 3px narrower, fullwidth marks halt as in Chrome's Canvas, and the context takes a
-    // letterSpacing. For each text and set of options, the prepare() handle holds the data
-    // of the prepareWithSegments() one less `segments` and `kinds`, and at each width the
-    // four functions give the same lines, widths and cursors from both.
-    const texts = [
-      "Just tried the new update and it's so much better, especially on older devices.",
-      '这是一段中文文本，用于测试「文本布局」库。每个字符之间都可以断行。',
-      '中」「中」中」 中。」、「中',
-      'これはテキストレイアウトのテストです。パフォーマンスは非常に重要です。',
-      '이것은 텍스트 레이아웃 라이브러리의 테스트입니다. 한국어 텍스트를 확인합니다.',
-      'هذا النص باللغة العربية لاختبار دعم الاتجاه من اليمين إلى اليسار',
-      'นี่คือข้อความทดสอบสำหรับไลบรารีจัดวางข้อความ ทดสอบการตัดคำภาษาไทย',
-      'Great work! 👏👏👏 exactly what we needed 🎯 👩‍💻 🇯🇵 👍🏽',
-      'trans\u00ADatlantic co\u00ADoperation inter\u00ADnation\u00ADal\u00ADisation',
-      'a\tbb\tccc\n\n  dd  \tee  \n',
-      'see https://example.com/Tomato/Tomorrow?To=more or Superlongwordwithoutanyspaces',
-      'aaaa\u200Cbbbb\u2060cccc\u200Ddddd ab\u200Bcd\u200Bef',
-      '中文\u3000\u3000中文 0123456789012345678901234567890',
-      'aaaa\u0085bbbb cccc\u2028dddd',
-      'Hello مرحبا שלום 你好 こんにちは 안녕하세요 สวัสดี',
-      '',
-      '   ',
-    ]
+    // Each engine in a child process (engineCanvas). For each text and set of options, the
+    // prepare() handle holds the data of the prepareWithSegments() one less `segments` and
+    // `kinds`, and at each width the four functions give the same lines, widths and cursors
+    // from both.
     const layoutUrl = new URL('./layout.ts', import.meta.url).href
     const rowsOf = (userAgent: string): unknown => JSON.parse(runInChild(`
-      Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { userAgent: ${JSON.stringify(userAgent)} } })
-      class Context {
-        font = ''
-        letterSpacing = '0px'
-        fontKerning = 'auto'
-        measureText(text) {
-          const spacing = Number.parseFloat(this.letterSpacing)
-          let width = 0
-          let count = 0
-          for (const ch of text) {
-            count++
-            if (!/[\\u00AD\\u200B-\\u200D\\u2060]/.test(ch)) width += ch > '\\u2E7F' ? 16 : ch === ' ' ? 4 : 8
-          }
-          if (this.fontKerning === 'auto') width -= 3 * (text.split('To').length - 1)
-          width -= 8 * (text.match(/[\\u3002\\u300D](?=[\\u3002\\u300D])|(?<=[\\u3002\\u300D\\u300C])\\u300C/g) ?? []).length
-          if (Math.abs(spacing) >= 1 / 65536) width += count * spacing
-          return { width, actualBoundingBoxLeft: 0, actualBoundingBoxRight: width - (/[\\u3001\\u3002]$/.test(text) ? 8 : 0) }
-        }
-      }
-      globalThis.OffscreenCanvas = class { getContext() { return new Context() } }
+      ${engineCanvas(userAgent)}
       const { prepare, prepareWithSegments, walkLineRanges, measureLineStats, measureNaturalWidth, layoutNextLineRange } = await import(${JSON.stringify(layoutUrl)})
       const linesOf = (prepared, text, width) => {
         const walked = []
@@ -540,7 +574,7 @@ describe('shared public contracts', () => {
         let cursor = { segmentIndex: 0, graphemeIndex: 0 }
         // No text has more lines than a line per unit, plus one.
         for (let i = 0; i <= text.length + 1; i++) {
-          const line = layoutNextLineRange(prepared, cursor, width)
+          const line = layoutNextLineRange(prepared, width, cursor)
           if (line === null) break
           streamed.push(line)
           cursor = line.end
@@ -549,7 +583,7 @@ describe('shared public contracts', () => {
       }
       let compared = 0
       const different = []
-      for (const text of ${JSON.stringify(texts)}) for (const options of [
+      for (const text of ${JSON.stringify(HANDLE_TEXTS)}) for (const options of [
         undefined,
         { whiteSpace: 'pre-wrap' },
         { wordBreak: 'keep-all' },
@@ -567,7 +601,7 @@ describe('shared public contracts', () => {
       }
       console.log(JSON.stringify({ compared, different }))
     `))
-    const compared = texts.length * 5 * 9
+    const compared = HANDLE_TEXTS.length * 5 * 9
     for (const userAgent of [CHROME_USER_AGENT, FIREFOX_USER_AGENT, SAFARI_USER_AGENT]) {
       expect(rowsOf(userAgent)).toEqual({ compared, different: [] })
     }
@@ -653,6 +687,103 @@ describe('shared public contracts', () => {
         })
         expect(count).toBeGreaterThan(0)
       }
+    }
+  })
+
+  test('a JSON copy of a handle lays out as the handle does', () => {
+    // JSON turns a handle's typed arrays, its per-segment flags among them, into objects with no
+    // length. The walkers count segments by `widths`, a plain array, and read the typed arrays by
+    // index, which a copy answers the same; counting to the flags' length, they never returned on
+    // a copy. Each engine's profile and an unknown engine's, in a child process each
+    // (engineCanvas), which is killed where a walker doesn't return (runInChild): for each text
+    // and set of options and for each rich-inline paragraph, a copy of the handle gives at each
+    // width what the handle gives from every line function. The copy for the first width is made
+    // before the handle lays anything out and the others after: materializeRichInlineLineRange()
+    // fills fields of a paragraph that is one text's handle when it first runs.
+    const font = '16px Test'
+    // HANDLE_TEXTS and a text whose first line layout()'s count steps again (countSteppedLines):
+    // at 40px the simple stepper ends it before the next-line character, where the scan gives no
+    // break, and the full walker returns it to the break after `aa`.
+    const texts = [...HANDLE_TEXTS, 'aa bb\u0085c d']
+    const paragraphs: Array<[Array<RichInlineItem | RichInlineBox>, RichInlineOptions?]> = [
+      // One text item, of which every line is one fragment.
+      [[{ text: 'one item wraps here', font }]],
+      // Styled runs, one starting inside a word, with a soft hyphen and marks that halt.
+      [[{ text: 'Ship', font }, { text: 'ping it co\u00ADoperatively ', font: `700 ${font}` }, { text: '中」「中。', font, letterSpacing: 1 }]],
+      // A chip, a box, an empty item, an item of only white space and a padded item.
+      [[{ text: 'see ', font }, { text: '@maya', font, break: 'never', extraWidth: 6 }, { width: 20 }, { text: '', font }, { text: ' ', font }, { text: 'and go on', font, extraWidth: 4 }]],
+      // A box of no width, which Firefox places though it sticks out of its line.
+      [[{ text: 'ab ', font }, { width: 0 }, { text: ' cd', font }]],
+      // Preserved spaces from two items and a tab after a box, and hard breaks.
+      [[{ width: 20 }, { text: '  ', font }, { text: ' \tb\n', font }, { text: '\nc  ', font }], { whiteSpace: 'pre-wrap' }],
+    ]
+    const layoutUrl = new URL('./layout.ts', import.meta.url).href
+    const richInlineUrl = new URL('./rich-inline.ts', import.meta.url).href
+    const rowsOf = (userAgent: string): unknown => JSON.parse(runInChild(`
+      ${engineCanvas(userAgent)}
+      const { prepare, prepareWithSegments, layout, layoutWithLines, layoutNextLine, layoutNextLineRange, materializeLineRange, measureLineStats, measureNaturalWidth, walkLineRanges } = await import(${JSON.stringify(layoutUrl)})
+      const { prepareRichInline, layoutNextRichInlineLineRange, materializeRichInlineLineRange, measureRichInlineStats, walkRichInlineLineRanges } = await import(${JSON.stringify(richInlineUrl)})
+      const copyOf = handle => JSON.parse(JSON.stringify(handle))
+      // A stream's lines, up to its null. A stream or a walk that goes on past \`most\` lines throws.
+      const stream = (next, most) => {
+        const lines = []
+        for (let line = next(undefined); line !== null; line = next(line.end)) if (lines.push(line) > most) throw new Error('a stream goes on')
+        return lines
+      }
+      // What every line function gives at a width: those that return no text from the text's
+      // prepare() handle, \`light\`.
+      const start = { segmentIndex: 0, graphemeIndex: 0 }
+      const linesOf = (prepared, light, width, most) => {
+        const walked = []
+        const count = walkLineRanges(light, width, range => {
+          if (walked.push(materializeLineRange(prepared, range)) > most) throw new Error('a walk goes on')
+        })
+        return JSON.stringify([
+          count, walked, stream(end => layoutNextLine(prepared, width, end ?? start), most), stream(end => layoutNextLineRange(light, width, end ?? start), most),
+          layout(light, width, 20), measureLineStats(light, width), measureNaturalWidth(light), layoutWithLines(prepared, width, 20),
+        ])
+      }
+      const richLinesOf = (prepared, width, most) => {
+        const walked = []
+        const count = walkRichInlineLineRanges(prepared, width, range => {
+          if (walked.push([range, materializeRichInlineLineRange(prepared, range)]) > most) throw new Error('a walk goes on')
+        })
+        // A cursor kept from a longer paragraph is past this one's end, and gets no line.
+        const past = layoutNextRichInlineLineRange(prepared, width, { itemIndex: 99, segmentIndex: 0, graphemeIndex: 0 })
+        return JSON.stringify([count, walked, stream(end => layoutNextRichInlineLineRange(prepared, width, end), most), past, measureRichInlineStats(prepared, width)])
+      }
+      const widths = [0, 9, 28, 40, 85.5, 160, 320, Infinity]
+      let compared = 0
+      const different = []
+      for (const text of ${JSON.stringify(texts)}) for (const options of [
+        undefined,
+        { whiteSpace: 'pre-wrap' },
+        { wordBreak: 'keep-all' },
+        { letterSpacing: 2 },
+        { whiteSpace: 'pre-wrap', wordBreak: 'keep-all', letterSpacing: -1 },
+      ]) {
+        const prepared = prepareWithSegments(text, '16px Test', options)
+        const light = prepare(text, '16px Test', options)
+        // No text has more lines than a line per unit, plus one.
+        const most = text.length + 1
+        for (const width of widths) {
+          compared++
+          if (linesOf(copyOf(prepared), copyOf(light), width, most) !== linesOf(prepared, light, width, most)) different.push([text, options, width])
+        }
+      }
+      // No paragraph here has 99 lines.
+      for (const [items, options] of ${JSON.stringify(paragraphs)}) {
+        const prepared = prepareRichInline(items, options)
+        for (const width of widths) {
+          compared++
+          if (richLinesOf(copyOf(prepared), width, 99) !== richLinesOf(prepared, width, 99)) different.push([items, options, width])
+        }
+      }
+      console.log(JSON.stringify({ compared, different }))
+    `))
+    const compared = (texts.length * 5 + paragraphs.length) * 8
+    for (const userAgent of [CHROME_USER_AGENT, FIREFOX_USER_AGENT, SAFARI_USER_AGENT, '']) {
+      expect(rowsOf(userAgent)).toEqual({ compared, different: [] })
     }
   })
 
@@ -2313,15 +2444,161 @@ describe('measurement invariants', () => {
       const uncorrected = cases.map(([text]) => measureNaturalWidth(prepareWithSegments(text, font)))
       Reflect.set(globalThis, 'document', {
         body: { appendChild: () => undefined, removeChild: () => undefined },
-        createElement: () => ({ style: {}, getBoundingClientRect: () => ({ width: 16 }) }),
+        createElement: () => ({ style: { setProperty: () => undefined }, getBoundingClientRect: () => ({ width: 16 }) }),
       })
+      Reflect.set(globalThis, 'getComputedStyle', () => ({ width: '16px' }))
       clearCache()
       const removed = cases.map(([text], i) => Math.round(uncorrected[i]! - measureNaturalWidth(prepareWithSegments(text, font))))
       expect(removed).toEqual(cases.map(([, count]) => count * 4))
     } finally {
       Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', measureText)
       Reflect.deleteProperty(globalThis, 'document')
+      Reflect.deleteProperty(globalThis, 'getComputedStyle')
     }
+  })
+
+  // A page where Canvas measures U+1F600 20px wide in a 16px font and the page draws it
+  // `width` wide, 16px as Chrome on macOS does, and `scale` times that on screen. The span has
+  // a box under the parents `boxes` names, and `spans` keeps each one made, with the styles it
+  // was given.
+  type EmojiSpan = {
+    style: { cssText: string; font: string; priority: string; setProperty(name: string, value: string, priority: string): void }
+    textContent: string
+    parent: string | null
+    laidOut: boolean
+    getBoundingClientRect(): { width: number }
+  }
+  function withEmojiPage(run: (page: { html: boolean; body: boolean; boxes: string[]; width: number; scale: number; lazy: boolean; spans: EmojiSpan[] }) => void): void {
+    const page = { html: true, body: true, boxes: ['body', 'html'], width: 16, scale: 1, lazy: false, spans: [] as EmojiSpan[] }
+    const hasBox = (span: EmojiSpan) => span.parent !== null && page.boxes.includes(span.parent)
+    const host = (name: string) => ({
+      lang: 'en',
+      appendChild(span: EmojiSpan) { span.parent = name },
+      removeChild(span: EmojiSpan) { span.parent = null },
+    })
+    const body = host('body')
+    const measureText = Object.getOwnPropertyDescriptor(TestCanvasRenderingContext2D.prototype, 'measureText')!
+    Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', {
+      ...measureText,
+      value(this: TestCanvasRenderingContext2D, text: string) {
+        return { width: measureWidth(text, this.font) + 4 * (text.split('\u{1F600}').length - 1) }
+      },
+    })
+    Reflect.set(globalThis, 'document', {
+      get body() { return page.html && page.body ? body : null },
+      get head() { return page.html ? {} : null },
+      documentElement: host('html'),
+      createElement(): EmojiSpan {
+        const span: EmojiSpan = {
+          style: { cssText: '', font: '', priority: '', setProperty(name, value, priority) { if (name === 'font') { this.font = value; this.priority = priority } } },
+          textContent: '',
+          parent: null,
+          laidOut: false,
+          getBoundingClientRect() {
+            this.laidOut = true
+            return { width: hasBox(this) ? page.width * page.scale : 0 }
+          },
+        }
+        page.spans.push(span)
+        return span
+      },
+    })
+    // A resolved width has six significant digits, and is `auto` for an element with no box,
+    // which a `lazy` page makes only once the span's rectangle is asked for.
+    Reflect.set(globalThis, 'getComputedStyle', (span: EmojiSpan) => ({ width: hasBox(span) && (span.laidOut || !page.lazy) ? `${Number(page.width.toPrecision(6))}px` : 'auto' }))
+    clearCache()
+    try {
+      run(page)
+    } finally {
+      Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', measureText)
+      Reflect.deleteProperty(globalThis, 'document')
+      Reflect.deleteProperty(globalThis, 'getComputedStyle')
+      clearCache()
+    }
+  }
+  const emojiWidth = (font: string) => measureNaturalWidth(prepare('\u{1F600}', font))
+
+  test('the emoji correction\'s span takes the font and the language from the page and nothing else', () => {
+    withEmojiPage(page => {
+      expect(emojiWidth('16px Emoji Span Test')).toBe(16)
+      expect(page.spans.length).toBe(1)
+      const { style, textContent } = page.spans[0]!
+      // Every property at its initial value, and important, so no rule of the page's wins:
+      // an inherited letter-spacing or text-indent would be read as part of the emoji.
+      const declarations = style.cssText.split(';')
+      expect(declarations[0]).toBe('all:initial!important')
+      expect(declarations.every(declaration => declaration.endsWith('!important'))).toBe(true)
+      expect(declarations).toContain('-webkit-locale:inherit!important')
+      expect([style.font, style.priority, textContent]).toEqual(['16px Emoji Span Test', 'important', '\u{1F600}'])
+      // Read once per font.
+      emojiWidth('16px Emoji Span Test')
+      prepare('later \u{1F600} text', '16px Emoji Span Test')
+      expect(page.spans.length).toBe(1)
+    })
+  })
+
+  test('the emoji correction\'s span is as wide as its rectangle, or as its resolved width where the page scales it', () => {
+    withEmojiPage(page => {
+      // Firefox's emoji in a synthetic bold: 17.3833px resolved.
+      page.width = 17.383331298828125
+      expect(emojiWidth('bold 17px Emoji Digits Test')).toBe(17.383331298828125)
+      // Under a transform or a zoom on <body>, the rectangle is the box as drawn.
+      page.width = 16
+      page.scale = 0.5
+      expect(emojiWidth('16px Emoji Scaled Test')).toBe(16)
+      page.scale = 1.25
+      expect(emojiWidth('16px Emoji Zoomed Test')).toBe(16)
+    })
+  })
+
+  test('the emoji correction is read under <html> where <body> is missing or has no box', () => {
+    withEmojiPage(page => {
+      // A script in <head> runs before the parser reaches <body>. Firefox has made no box by
+      // then, and makes the first ones when a rectangle is asked for.
+      page.body = false
+      expect(emojiWidth('16px Emoji Head Test')).toBe(16)
+      page.lazy = true
+      expect(emojiWidth('16px Emoji Lazy Head Test')).toBe(16)
+      page.lazy = false
+      // A page hidden until it is ready: <body> is display: none, and the span has no box in it.
+      page.body = true
+      page.boxes = ['html']
+      expect(emojiWidth('16px Emoji Hidden Body Test')).toBe(16)
+      // One span for each font: in <html> alone, or in <body>, then in <html>.
+      expect(page.spans.length).toBe(3)
+      // A document whose root isn't <html>, as an SVG file's, lays out no HTML: no span.
+      page.html = false
+      expect(emojiWidth('16px Emoji No Root Test')).toBe(20)
+      expect(page.spans.length).toBe(3)
+    })
+  })
+
+  test('a page with no box for the emoji correction\'s span leaves emoji uncorrected and keeps nothing', () => {
+    withEmojiPage(page => {
+      const font = '16px Emoji No Box Test'
+      // A document that isn't rendered, as in an iframe that is display: none.
+      page.boxes = []
+      expect(emojiWidth(font)).toBe(20)
+      // A quoted emoji has no break inside, so a 24px line cuts it between graphemes, by
+      // advances that are cached with the segment: the quote, 6.4px, then the emoji.
+      const quoted = '"\u{1F600}"'
+      const lineWidths = () => layoutWithLines(prepareWithSegments(quoted, font), 24, LINE_HEIGHT).lines.map(line => Math.round(line.width * 10) / 10)
+      expect(lineWidths()).toEqual([6.4, 20, 6.4])
+      expect(page.spans.length).toBe(2)
+      // Once the document has boxes, the next text with an emoji reads the correction, with
+      // no clearCache(), and the segment's advances are measured again with it.
+      page.boxes = ['body', 'html']
+      expect(emojiWidth(font)).toBe(16)
+      expect(lineWidths()).toEqual([22.4, 6.4])
+      expect(page.spans.length).toBe(3)
+    })
+  })
+
+  test('without a document, as in a worker, emoji keep Canvas\'s width', () => {
+    withEmojiPage(() => {
+      Reflect.deleteProperty(globalThis, 'document')
+      expect(emojiWidth('16px Emoji Worker Test')).toBe(20)
+    })
   })
 })
 
@@ -3542,6 +3819,18 @@ describe('prepare invariants', () => {
     }
   })
 
+  test('a document whose canvas gives no 2D context throws the error a missing Canvas throws', () => {
+    // jsdom and happy-dom: a document, no OffscreenCanvas, and a canvas whose getContext() returns null.
+    Reflect.deleteProperty(globalThis, 'OffscreenCanvas')
+    Reflect.set(globalThis, 'document', { documentElement: { lang: 'tlh' }, createElement: () => ({ getContext: () => null }) })
+    try {
+      expect(() => prepare('hello', FONT)).toThrow('Text measurement requires OffscreenCanvas or a DOM canvas context.')
+    } finally {
+      Reflect.set(globalThis, 'OffscreenCanvas', TestOffscreenCanvas)
+      Reflect.deleteProperty(globalThis, 'document')
+    }
+  })
+
   test('later prepares measure under a changed document language', () => {
     // Like Chrome's OffscreenCanvas, this context resolves a font under the
     // document language only when a different font string is assigned.
@@ -3862,7 +4151,7 @@ describe('rich-inline invariants', () => {
     const spaceFont = '8px Test Sans'
     for (const letterSpacing of [-5, -measureWidth(' ', spaceFont), 1]) {
       const source = prepareWithSegments(' ', spaceFont, { whiteSpace: 'pre-wrap', letterSpacing })
-      const space = layoutNextLineRange(source, { segmentIndex: 0, graphemeIndex: 0 }, Infinity)!
+      const space = layoutNextLineRange(source, Infinity, { segmentIndex: 0, graphemeIndex: 0 })!
       // The gap keeps the signed advance; a line holding only this SPACE
       // reports it clamped at zero.
       const spaceAdvance = measureWidth(' ', spaceFont) + letterSpacing
@@ -6242,7 +6531,7 @@ describe('layout invariants', () => {
       const streamed: NonNullable<ReturnType<LayoutModule['layoutNextLineRange']>>[] = []
       let cursor = { segmentIndex: 0, graphemeIndex: 0 }
       for (let lineIndex = 0; lineIndex <= expected.length; lineIndex++) {
-        const line = layoutNextLineRange(prepared, JSON.parse(JSON.stringify(cursor)) as typeof cursor, 100)
+        const line = layoutNextLineRange(prepared, 100, JSON.parse(JSON.stringify(cursor)) as typeof cursor)
         if (line === null) break
         streamed.push(line)
         cursor = JSON.parse(JSON.stringify(line.end)) as typeof cursor
@@ -6269,7 +6558,7 @@ describe('layout invariants', () => {
     expect(batched.lines[0]?.text).toBe('foo ')
     expect(batched.lines[1]?.text.startsWith('ab')).toBe(true)
 
-    const streamed = layoutNextLine(prepared, { segmentIndex: 0, graphemeIndex: 0 }, width)
+    const streamed = layoutNextLine(prepared, width, { segmentIndex: 0, graphemeIndex: 0 })
     expect(streamed?.text).toBe('foo ')
     expect(layout(prepared, width, LINE_HEIGHT).lineCount).toBe(batched.lineCount)
   })
@@ -6963,12 +7252,12 @@ test('unchosen terminal soft hyphens consume source without painting a hyphen', 
         expect(measureLineStats(prepared, 500).maxLineWidth).toBeCloseTo(measureLineStats(reference, 500).maxLineWidth)
         let cursor: TestLayoutCursor = { segmentIndex: 0, graphemeIndex: 0 }
         for (const line of actual.lines) {
-          const range = layoutNextLineRange(prepared, cursor, 500)!
+          const range = layoutNextLineRange(prepared, 500, cursor)!
           expect(materializeLineRange(prepared, range)).toEqual(line)
           cursor = range.end
         }
         expect(cursor.segmentIndex).toBe(prepared.segments.length)
-        expect(layoutNextLine(prepared, cursor, 500)).toBeNull()
+        expect(layoutNextLine(prepared, 500, cursor)).toBeNull()
       }
     }
   }
@@ -7143,10 +7432,10 @@ test('the Safari profile keeps the kerning between a word and a following space'
     const signed = []
     walkPreparedLinesRaw(remainder, 8.5, (width, ...cursors) => signed.push([width, ...cursors]))
     const streamed = []
-    let range = layoutNextLineRange(remainder, { segmentIndex: 0, graphemeIndex: 0 }, 8.5)
+    let range = layoutNextLineRange(remainder, 8.5, { segmentIndex: 0, graphemeIndex: 0 })
     while (range !== null) {
       if (streamed.push(range.width) > 5) throw new Error('layoutNextLineRange gives more than 5 lines')
-      range = layoutNextLineRange(remainder, range.end, 8.5)
+      range = layoutNextLineRange(remainder, 8.5, range.end)
     }
     const rich = []
     walkRichInlineLineRanges(prepareRichInline([{ text: 'A\\u2060 B', font: '16px Test' }]), 8.5, line => rich.push(line.width))
@@ -7795,7 +8084,7 @@ test('the Chromium profile cuts a word as lines shaped alone', () => {
       const questions = asked.filter(question => question !== text)
       const lines = layoutWithLines(prepared, width, 20).lines.map(line => [line.text, line.width])
       const stream = []
-      for (let line = layoutNextLine(prepared, { segmentIndex: 0, graphemeIndex: 0 }, width); line !== null; line = layoutNextLine(prepared, line.end, width)) stream.push([line.text, line.width])
+      for (let line = layoutNextLine(prepared, width, { segmentIndex: 0, graphemeIndex: 0 }); line !== null; line = layoutNextLine(prepared, width, line.end)) stream.push([line.text, line.width])
       // Preserved spaces send a text to the full walker.
       const walked = layoutWithLines(prepareWithSegments('  ' + text, font, { whiteSpace: 'pre-wrap', letterSpacing }), width, 20).lines.slice(1).map(line => [line.text, line.width])
       const same = layout(prepare(text, font, { letterSpacing }), width, 20).lineCount === lines.length && JSON.stringify(stream) === JSON.stringify(lines) && JSON.stringify(walked) === JSON.stringify(lines)
@@ -8115,10 +8404,11 @@ test('a width is measured under its own font, shaping and language, whatever was
       documentElement: root,
       body: { appendChild() {}, removeChild() {} },
       createElement() {
-        const style = {}
+        const style = { setProperty(name, value) { this[name] = value } }
         return { style, getBoundingClientRect: () => ({ width: em(style.font) }) }
       },
     }
+    globalThis.getComputedStyle = element => ({ width: em(element.style.font) + 'px' })
     const { prepareWithSegments, measureNaturalWidth, clearCache } = await import(${JSON.stringify(layoutUrl)})
     const { prepareRichInline, measureRichInlineStats } = await import(${JSON.stringify(richInlineUrl)})
     const width = (text, font, letterSpacing = 0) => measureNaturalWidth(prepareWithSegments(text, font, { letterSpacing }))

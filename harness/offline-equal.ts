@@ -20,6 +20,7 @@ import './watchdog.ts'
 import { join, resolve } from 'node:path'
 import type { LayoutCursor, PrepareOptions } from '../src/layout.ts'
 import type { RichInlineBox, RichInlineCursor, RichInlineItem } from '../src/rich-inline.ts'
+import { streamsTakeWidthFirst } from './bench/lib.ts'
 import { labels, MESSAGE_FAMILIES, reader, richItems as benchItems, shapes, STYLE } from './bench/texts.ts'
 import { drawCases, PROFILES, standInWidth, type Profile } from './invariants.ts'
 import { canvasFont, prepareOptions, richItems, richOptions } from './predict.ts'
@@ -59,6 +60,13 @@ const load = async (dir: string): Promise<Api> => ({ ...await import(join(dir, '
 // One module is one build, with its caches, so the two must be copies at two paths.
 if (resolve(flag('a')!) === resolve(flag('b')!)) throw new Error('--a and --b name one src/ directory')
 const builds = [await load(flag('a')!), await load(flag('b')!)]
+// Each build's line streams are called in its own argument order (streamsTakeWidthFirst): a build from before they
+// took the width first has the streams of OldStreams.
+const widthFirst = [streamsTakeWidthFirst(flag('a')!), streamsTakeWidthFirst(flag('b')!)]
+type OldStreams = {
+  layoutNextLine: (prepared: unknown, start: LayoutCursor, maxWidth: number) => unknown
+  layoutNextLineRange: (prepared: unknown, start: LayoutCursor, maxWidth: number) => ReturnType<Api['layoutNextLineRange']>
+}
 
 type Input = { id: string; lang: string; width: number; text: string; font: string; options: PrepareOptions; items: Array<RichInlineItem | RichInlineBox> | null }
 const inputs: Input[] = []
@@ -79,7 +87,8 @@ if (flag('bench') !== 'none') {
 }
 
 // One build's outputs for an input, each part as `<part>: <hash of its JSON>`.
-function outputs(api: Api, x: Input): string[] {
+function outputs(api: Api, x: Input, widthFirst: boolean): string[] {
+  const old = api as unknown as OldStreams
   const out: string[] = []
   const part = (name: string, value: unknown): void => { out.push(`${name}: ${Bun.hash(JSON.stringify(value))}`) }
   const steps = x.text.length + 1
@@ -97,8 +106,10 @@ function outputs(api: Api, x: Input): string[] {
         const count = api.walkLineRanges(handle, w, line => bounded(walked, line))
         const stream: unknown[] = []
         for (let cursor: LayoutCursor | undefined = { segmentIndex: 0, graphemeIndex: 0 }, i = 0; cursor !== undefined; i++) {
-          const range = api.layoutNextLineRange(handle, cursor, i % 2 === 0 ? w : w * 0.6)
-          bounded(stream, [range, api.layoutNextLine(handle, cursor, i % 2 === 0 ? w : w * 0.6), range === null ? null : api.materializeLineRange(handle, range)])
+          const width = i % 2 === 0 ? w : w * 0.6
+          const range: ReturnType<Api['layoutNextLineRange']> = widthFirst ? api.layoutNextLineRange(handle, width, cursor) : old.layoutNextLineRange(handle, cursor, width)
+          const line = widthFirst ? api.layoutNextLine(handle, width, cursor) : old.layoutNextLine(handle, cursor, width)
+          bounded(stream, [range, line, range === null ? null : api.materializeLineRange(handle, range)])
           cursor = range?.end
         }
         part(`lines at ${w}`, [api.layout(fast, w, 20), count, walked, api.measureLineStats(handle, w), api.layoutWithLines(handle, w, 20), stream])
@@ -140,7 +151,7 @@ for (let i = 0; i < inputs.length; i++) {
   const [a, b] = [0, 1].map(k => {
     current = measured[k]!
     current.log = ''
-    return outputs(builds[k]!, x)
+    return outputs(builds[k]!, x, widthFirst[k]!)
   }) as [string[], string[]]
   const names = new Set<string>()
   for (let k = 0; k < Math.max(a.length, b.length); k++) if (a[k] !== b[k]) names.add((a[k] ?? b[k]!).split(/:| at /)[0]!)

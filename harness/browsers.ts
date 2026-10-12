@@ -13,7 +13,7 @@
 import { dlopen, FFIType } from 'bun:ffi'
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { homedir, totalmem } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { BROWSER, type BrowserKind, type PageEnv } from './types.ts'
 
@@ -155,7 +155,7 @@ export type Session = { close: () => Promise<void> }
 // What the harness keeps of a browser it launched: `roots` finds its own processes in a `ps` table, or says why they're
 // gone; `known` is its processes in the last table read, and those it named since; `stop` closes it; `cleanup` removes
 // what it leaves once killed; `moved` asks for the processes to be found again.
-export type Launched = { pid?: number; roots: (rows: readonly Row[]) => Row[] | string; known: Row[]; stop: () => Promise<void>; cleanup: () => void; moved?: boolean }
+export type Launched = { pid?: number; roots: (rows: readonly Row[]) => Row[] | string; known: Row[]; stop: () => Promise<void>; cleanup: () => void; moved?: boolean; heldKb?: number }
 type Row = { pid: number; ppid: number; command: string }
 
 // One `ps` table. A read took over 10 s once, under a load average above 200, so it gets three tries, or one from the
@@ -256,6 +256,23 @@ export function kill(launched: Launched, table: () => Row[] = processes): void {
   launched.cleanup()
 }
 
+// The browsers a process has open are bounded together too, at two thirds of the machine's memory: a bench with every
+// session side by side has nine open, whose own bounds add up to more than the machine holds, and a candidate that
+// allocates without end does so in all of them at once. Past that bound the browser holding the most goes, which is
+// the one to say so: why it goes, or null while it stays.
+const TOGETHER_MB = Math.floor(totalmem() * 2 / 3 / (1 << 20))
+export function pastBound(browser: BrowserKind, kb: number, processes: number, boundMb: number, othersKb: readonly number[], togetherMb = TOGETHER_MB): string | null {
+  if (kb > boundMb * 1024) return `${browser}: its ${processes} processes held ${Math.round(kb / 1024)} MB, past the harness's ${boundMb} MB bound, so the job killed them`
+  let together = kb
+  for (let i = 0; i < othersKb.length; i++) {
+    if (othersKb[i]! > kb) return null
+    together += othersKb[i]!
+  }
+  return together > togetherMb * 1024
+    ? `${browser}: its ${processes} processes held ${Math.round(kb / 1024)} MB, the most of the ${othersKb.length + 1} browsers this job has open, which held ${Math.round(together / 1024)} MB together, past the harness's ${togetherMb} MB bound for them all, so the job killed them`
+    : null
+}
+
 // Each tick checks the bound first, on the processes the last table held, since the read that may follow holds the
 // process for as long as `ps` takes. The processes are found again from `ps` each second, and whenever the browser says
 // they moved. A read that fails keeps the last table's processes, and the next second reads again.
@@ -265,10 +282,14 @@ function watch(browser: BrowserKind, launched: Launched, fail: (error: Error) =>
     const tree = launched.known
     let kb = 0
     for (let i = 0; i < tree.length; i++) kb += footprintKb(tree[i]!.pid)
-    if (kb > boundMb * 1024) {
+    launched.heldKb = kb
+    const others: number[] = []
+    for (const each of open) if (each !== launched) others.push(each.heldKb ?? 0)
+    const why = pastBound(browser, kb, tree.length, boundMb, others)
+    if (why !== null) {
       clearInterval(timer)
       kill(launched)
-      fail(new Error(`${browser}: its ${tree.length} processes held ${Math.round(kb / 1024)} MB, past the harness's ${boundMb} MB bound, so the job killed them`))
+      fail(new Error(why))
       return
     }
     if (ticks++ % 10 !== 0 && launched.moved !== true) return

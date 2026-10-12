@@ -311,7 +311,7 @@ function layoutColumn(
       if (candidate.left < slot.left) slot = candidate
     }
     const width = slot.right - slot.left
-    const line = layoutNextLine(prepared, cursor, width)
+    const line = layoutNextLine(prepared, width, cursor)
     if (line === null) break
 
     lines.push({

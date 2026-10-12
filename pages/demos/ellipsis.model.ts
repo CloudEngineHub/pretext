@@ -139,7 +139,7 @@ function fillLine(prepared: PreparedTextWithSegments, start: LayoutCursor, room:
   let cursor = start
   let x = 0
   for (;;) {
-    const piece = layoutNextLine(prepared, cursor, room - x)
+    const piece = layoutNextLine(prepared, room - x, cursor)
     // A line holds at least one grapheme, even one that doesn't fit.
     if (piece === null || piece.width > room - x + FIT_TOLERANCE) return text
     x += piece.width
@@ -163,14 +163,14 @@ function clampLines(prepared: PreparedTextWithSegments, width: number, maxLines:
   let lastStart = START
   let lastWidth = 0
   for (let i = 0; i < maxLines; i++) {
-    const line = layoutNextLine(prepared, cursor, width)
+    const line = layoutNextLine(prepared, width, cursor)
     if (line === null) return lines
     lines.push(line.text)
     lastStart = cursor
     lastWidth = line.width
     cursor = line.end
   }
-  if (layoutNextLineRange(prepared, cursor, width) === null) return lines
+  if (layoutNextLineRange(prepared, width, cursor) === null) return lines
   const last = lines.length - 1
   lines[last] = lastWidth + tailWidth <= width ? trimEndSpace(lines[last]!) : fillLine(prepared, lastStart, width - tailWidth)
   return lines
@@ -194,18 +194,18 @@ export function layoutClamp(prepared: PreparedTextWithSegments, width: number, m
 // first grapheme.
 export function layoutMiddle(label: Label, width: number): string {
   const { prepared, starts, nameStart } = label
-  const whole = layoutNextLineRange(prepared, START, Number.POSITIVE_INFINITY)
+  const whole = layoutNextLineRange(prepared, Number.POSITIVE_INFINITY, START)
   if (whole === null || whole.width <= width) return label.text
   const room = width - ELLIPSIS_WIDTH
   let end = ''
   let endWidth = 0
-  const name = nameStart > 0 ? layoutNextLine(prepared, starts[nameStart]!, Number.POSITIVE_INFINITY) : null
+  const name = nameStart > 0 ? layoutNextLine(prepared, Number.POSITIVE_INFINITY, starts[nameStart]) : null
   if (name !== null && name.width <= room) {
     end = name.text
     endWidth = name.width
   } else {
     for (let i = starts.length - 1; i > 0; i--) {
-      const rest = layoutNextLine(prepared, starts[i]!, Number.POSITIVE_INFINITY)
+      const rest = layoutNextLine(prepared, Number.POSITIVE_INFINITY, starts[i])
       if (rest === null || rest.width > room / 2) break
       end = rest.text
       endWidth = rest.width
