@@ -453,6 +453,26 @@ describe('the stored recordings', () => {
     for (let i = 0; i < taken.length; i++) expect(parseArgs(taken[i]!).command).toBe(taken[i]![0])
   })
 
+  test('a flag that takes a value and has none, or takes none and has one, stops the run: bare, check --accept wrote neither list and said nothing', () => {
+    // Bare or with an empty value, --accept was no reason, --sample 0 cases, --seed seed 0 and --lib the working directory.
+    const bare = [
+      ['check', '--accept'], ['check', '--accept='], ['gate', '--sample'], ['record', '--seed'], ['bench', 'main', '--sessions'], ['bench', 'main', '--rows='],
+      ['check', '--browser'], ['check', '--cases'], ['check', '--lib'], ['check', '--store='], ['check', '--browser=chrome', '--scale'], ['explain', '--text'], ['explain', '--text=a b', '--width='],
+    ]
+    for (let i = 0; i < bare.length; i++) {
+      const name = bare[i]!.at(-1)!.split('=')[0]!
+      expect(() => parseArgs(bare[i]!)).toThrow(`${name} takes a value: it is written ${name}=value`)
+    }
+    // A switch is on whatever value it is given: --write=false wrote.
+    const valued = [
+      ['repin', 'chrome', '--write=false'], ['record', '--only-new=1'], ['equal', 'main', '--offline=0'], ['bench', 'main', '--quick=no'], ['bench', 'main', '--foreground=1'], ['check', '--help=1'],
+    ]
+    for (let i = 0; i < valued.length; i++) {
+      const name = valued[i]!.at(-1)!.split('=')[0]!
+      expect(() => parseArgs(valued[i]!)).toThrow(`${name} takes no value: it is written ${name}`)
+    }
+  })
+
   test('a case laid out differently in its two orders is never pinned: page history would block changes at random', () => {
     const same = layOut(TEXT, STARTS).recording
     const other = layOut(TEXT, [0, 10, 26]).recording

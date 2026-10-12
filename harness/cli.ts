@@ -77,6 +77,10 @@ const FLAGS = new Map<string, readonly string[]>([
   ['bench', ['sessions', 'rows', 'quick', 'foreground']], ['repin', ['write', 'seed']],
   ['explain', ['text', 'width', 'font', 'lang', 'white-space', 'word-break', 'letter-spacing']],
 ])
+// The flags that take no value. Every other flag takes one, written --name=value. A flag given the other way stops the
+// run as an unread flag does: bare, `check --accept` wrote neither list and said nothing, `gate --sample` read 0 and
+// recorded no case again and `record --seed` took seed 0, and `repin chrome --write=false` wrote.
+const SWITCHES: readonly string[] = ['only-new', 'offline', 'quick', 'foreground', 'write', 'help']
 // The commands that take one argument beside their flags: equal's ref, bench's base, repin's browser and explain's
 // case. Any other argument stops the run as an unread flag does: dropped, `check chrome` and `check -h` ran in three
 // browsers, and `gate --sample 10` read --sample as 0 and recorded no case again.
@@ -105,6 +109,9 @@ export function parseArgs(args: readonly string[]): Args {
     }
     const extra = positional[ARGUMENT.includes(command!) ? 2 : 1]
     if (extra !== undefined) throw new Error(`${command} takes no ${extra}: a flag is written --name or --name=value, as in --browser=chrome`)
+    for (const [name, value] of flags) {
+      if (SWITCHES.includes(name) ? value !== '' : value === '') throw new Error(SWITCHES.includes(name) ? `--${name} takes no value: it is written --${name}` : `--${name} takes a value: it is written --${name}=value`)
+    }
   }
   const browserFlag = flags.get('browser') ?? (command === 'explain' ? 'chrome' : 'all')
   const browsers: BrowserKind[] = browserFlag === 'all' ? BROWSERS.filter(browser => BROWSER[browser].background) : browserFlag.split(',') as BrowserKind[]
