@@ -106,9 +106,11 @@ export type EngineProfile = {
   // Blink's layout shapes each run of one script and direction in one call, its spaces
   // included (HarfBuzzShaper::Shape, harfbuzz_shaper.cc:1063-1104), so in a font whose kerning
   // names the space glyph a word kerns with the space after it and a space with the word after
-  // it. Its Canvas cuts a string at each U+0020 and reports neither (PlainTextNode::SegmentWord,
-  // plain_text_node.cc:365-399), so preparation asks Canvas for it (getSpaceKerning).
-  kernsSpacesInScriptRun: boolean
+  // it, and in one that pairs kana a kana kerns with the kana after it. Its Canvas cuts a
+  // string at each U+0020 and before each kana and reports none of it (PlainTextNode::SegmentWord
+  // and NextWordEndIndex, plain_text_node.cc:92-153, 365-399), so preparation asks Canvas for it
+  // another way (getSpaceKerning, getKanaKerning).
+  kernsAcrossCanvasWords: boolean
   // WebKit and Gecko letter-space the visible discretionary hyphen itself.
   // Blink shapes it separately, without spacing.
   letterSpaceDiscretionaryHyphen: boolean
@@ -348,6 +350,11 @@ type MeasureState = {
   context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D // Once made, read through getContext() alone
   font: string // The font getContext() set the context to since a font was last looked up, or ''
   letterSpacing: string // The letterSpacing getContext() last set the context to
+  // A second context, under text-rendering: optimizeLegibility, where Canvas shapes a string
+  // whole, and the Canvas font it is set to: made for the first font asked about its kana
+  // (getFontKanaKerning).
+  wholeRunContext: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null
+  wholeRunFont: string
   genericFamilies: string[] | null // The families the language gives the generic keywords, or null
   takesLetterSpacing: boolean // As Chrome's and Firefox's contexts do, as a string of CSS px
   // Whether the context shapes text under LETTER_SPACED_SHAPING as the page shapes text
@@ -377,6 +384,12 @@ export type FontMeasurement = {
   // space glyph after it, keyed by its code unit << 1, and with one before it, by that | 1, once
   // a segment has the character at that edge (getSpaceKerning).
   spaceKerning: Map<number, number> | null | undefined
+  measuredKana: boolean // Whether a segment measured in the font holds a kana (addMetrics)
+  // In the Chromium profile, the kerning of each two kana in a row, once a text has the pair
+  // (getKanaKerning), or null where the font kerns none, asked for the first text with two
+  // kana in a row (getFontKanaKerning).
+  kanaKerning: Float64Array | null | undefined
+  kanaFont: string // The Canvas font its kana are asked in: canvasFont, or it without its first families (getFontKanaKerning)
   emojiCorrection: number | null // Probed for the first text that may hold emoji
   emojiWidth: number // Canvas's width of one glyph of the emoji font, measured with the correction
   hyphenText: string | null // Asked for the first text with a soft hyphen (getHyphenText)
@@ -623,21 +636,34 @@ export function getFollowingSpaceMetrics(seg: string, measurement: FontMeasureme
 function addMetrics(cache: Map<string, SegmentMetrics>, seg: string, text: string, measurement: FontMeasurement): SegmentMetrics {
   const metrics: SegmentMetrics = { width: getContext(measurement).measureText(text).width, emojiCount: -1, fit: null, spaceKerning: null }
   cache.set(seg, metrics)
+  if (!measurement.measuredKana && kanaRe.test(seg)) measurement.measuredKana = true
   return metrics
 }
+
+// A character of the Hiragana and Katakana blocks, U+3041 to U+30FF, two of them in a row, and
+// how many the blocks hold.
+const kanaRe = /[\u3041-\u30FF]/
+export const kanaPairRe = /[\u3041-\u30FF]{2}/
+const KANA_COUNT = 0x30ff - 0x3041 + 1
 
 // The kerning of every segment that takes none.
 export const noSpaceKerning: SpaceKerning = { after: 0, before: 0 }
 
+// Whether a character is a kana or an ideograph, which Canvas shapes as a word of its own: it
+// cuts a string before one that follows another, and keeps with a letter the marks and CJK
+// punctuation after it (NextWordEndIndex, plain_text_node.cc:92-153, over
+// kIsCjkIdeographOrSymbolRanges, character_property_data.h:40-80, of which these are the
+// letters).
+function isCanvasWordLetter(code: number): boolean {
+  return (code >= 0x3041 && code <= 0x3096) || (code >= 0x30a1 && code <= 0x30fa) ||
+    (code >= 0x3400 && code <= 0x9fff) || (code >= 0xf900 && code <= 0xfaff)
+}
+
 // Whether a character takes no kerning with a space, and Canvas isn't asked.
 function takesNoSpaceKerning(code: number): boolean {
-  // A combining mark or half of a surrogate pair is part of a longer cluster.
-  return hasProperty(code, MARK) || (code & 0xf800) === 0xd800 ||
-    // Canvas shapes each ideograph and kana as a word of its own, so it shows no kerning beside
-    // one (NextWordEndIndex, plain_text_node.cc:92-153, over kIsCjkIdeographOrSymbolRanges,
-    // character_property_data.h:40-80, of which these are the letters).
-    (code >= 0x3041 && code <= 0x3096) || (code >= 0x30a1 && code <= 0x30fa) ||
-    (code >= 0x3400 && code <= 0x9fff) || (code >= 0xf900 && code <= 0xfaff) ||
+  // A combining mark or half of a surrogate pair is part of a longer cluster. Canvas shows no
+  // kerning beside a letter it shapes as a word of its own.
+  return hasProperty(code, MARK) || (code & 0xf800) === 0xd800 || isCanvasWordLetter(code) ||
     // Premise: no font kerns a Hangul syllable with the space (RESEARCH.md, Kerning At Line Edges).
     (code >= 0xac00 && code <= 0xd7a3)
 }
@@ -685,7 +711,7 @@ function getCharacterSpaceKerning(code: number, spaceFirst: boolean, measurement
 }
 
 // The kerning Blink's layout gives a text segment's edges with a U+0020 beside them
-// (EngineProfile.kernsSpacesInScriptRun), read from Canvas with U+2028 for the space: Blink
+// (EngineProfile.kernsAcrossCanvasWords), read from Canvas with U+2028 for the space: Blink
 // draws U+2028 with the space glyph (HarfBuzzGetGlyph, harfbuzz_face.cc:103-113) and its Canvas
 // doesn't cut there. Premise: the segment's last and first character stand for the word, past
 // default ignorables, which HarfBuzz's lookups pass over, and a first character with a combining
@@ -704,6 +730,134 @@ export function getSpaceKerning(seg: string, metrics: SegmentMetrics, measuremen
 // Map, which still answers the first one.
 export function getSpaceWidth(measurement: FontMeasurement): number {
   return measurement.spaceWidth ??= getSegmentMetrics(' ', measurement).width
+}
+
+// Twelve kana in a row, nine of whose eleven pairs or more kern in each Japanese face measured
+// that kerns kana at all (getFontKanaKerning).
+const KANA_PROBE = '\u30D7\u30C0\u30B0\u30BF\u30CE\u30E0\u30D6\u30A4\u30E1\u3048\u305A\u307A'
+
+// The font's context for kana: Canvas shapes a string whole, as Blink's layout shapes a run,
+// under text-rendering: optimizeLegibility where the lookups of the first font with a space
+// cover the space glyph (FontFallbackList::ComputeCanShapeWordByWord, font_fallback_list.cc:264-277),
+// as those of the Japanese fonts of macOS do. It is a context of its own: the first measures
+// everything else as it did, and a kana alone measures the same on both. It is set to the
+// list the font's kana are asked in (getFontKanaKerning).
+function getWholeRunContext(measurement: FontMeasurement): CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D {
+  const state = measurement.state
+  if (state.wholeRunContext === null) {
+    state.wholeRunContext = createContext(state.language)
+    state.wholeRunContext.textRendering = 'optimizeLegibility'
+  }
+  if (state.wholeRunFont !== measurement.kanaFont) state.wholeRunContext.font = state.wholeRunFont = measurement.kanaFont
+  return state.wholeRunContext
+}
+
+// Whether two measurements of one string are of the same glyphs at the same places: as wide,
+// with the same ink edges, to float32 rounding (getKanaKerning has the bound).
+function sameInk(a: TextMetrics, b: TextMetrics): boolean {
+  const bound = a.width / 0x400000
+  return Math.abs(a.width - b.width) <= bound && Math.abs(a.actualBoundingBoxLeft - b.actualBoundingBoxLeft) <= bound &&
+    Math.abs(a.actualBoundingBoxRight - b.actualBoundingBoxRight) <= bound
+}
+
+// What is kept of the font's kerning between kana, or null for a font that shows none: one in
+// which KANA_PROBE, shaped whole, is as wide with kerning off (getFontSpaceKerning has what
+// `fontKerning` turns off). Canvas shapes a string whole by the list's first font alone, where
+// Blink's layout shapes the kana of a run together whatever font leads the list
+// (InlineNode::ShapeText, inline_node.cc:1551-1718), so a list that shows no kerning is asked
+// again without its first family, then without its first two, and so on: once the first
+// font's lookups cover the space glyph, as the kana's own font's do, Canvas shapes the probe
+// whole. A shorter list stands for the font only where the same font draws its kana, which
+// two answers tell. It draws the probe with the same glyphs, as wide and with the same ink
+// edges with kerning off: the first that doesn't ends the search, since a family left out
+// drew the kana. And the kerning Canvas does show under the font's own list, a kana's with a
+// U+3002 it keeps in the kana's word (NextWordEndIndex, plain_text_node.cc:129-153), is the
+// shorter list's and isn't nothing: Hiragino Sans GB draws Hiragino Sans's kana and kerns
+// none. A font that shows no kerning under any list stays as wide as Canvas measures its kana
+// apart. Asked once per font, with two measurements for each list tried and three more for
+// one that shows kerning. Premises: a font that kerns kana kerns one of the probe's pairs
+// (RESEARCH.md, Kerning At Line Edges, has the fonts measured), and one of its hiragana with
+// U+3002 (ENGINE_FOLLOWUPS.md, Kerning between kana).
+export function getFontKanaKerning(measurement: FontMeasurement): Float64Array | null {
+  if (measurement.kanaKerning === undefined) {
+    measurement.kanaKerning = null
+    const font = measurement.canvasFont
+    const size = fontSizeRe.exec(font)
+    const start = size === null ? 0 : size.index + size[0].length
+    const families = size === null ? null : font.slice(start).match(familyRe)
+    const lists = families === null ? 1 : families.length
+    let own: TextMetrics | null = null
+    for (let i = 0; i < lists; i++) {
+      const list = i === 0 ? font : font.slice(0, start) + families!.slice(i).join(',')
+      measurement.kanaFont = list
+      const context = getWholeRunContext(measurement)
+      const kerned = context.measureText(KANA_PROBE).width
+      context.fontKerning = 'none'
+      const unkerned = context.measureText(KANA_PROBE)
+      context.fontKerning = 'auto'
+      if (own === null) own = unkerned
+      else if (!sameInk(own, unkerned)) break
+      if (kerned === unkerned.width) continue
+      if (i > 0) {
+        // Each hiragana letter before a U+3002: Canvas shapes each pair as one word under any list.
+        let pairs = ''
+        for (let code = 0x3041; code <= 0x3096; code++) pairs += String.fromCharCode(code, 0x3002)
+        const shorter = context.measureText(pairs).width
+        measurement.kanaFont = font
+        const ownContext = getWholeRunContext(measurement)
+        const ownKerned = ownContext.measureText(pairs).width
+        ownContext.fontKerning = 'none'
+        const ownUnkerned = ownContext.measureText(pairs).width
+        ownContext.fontKerning = 'auto'
+        if (ownKerned === ownUnkerned || Math.abs(shorter - ownKerned) > ownKerned / 0x400000) break
+        measurement.kanaFont = list
+      }
+      measurement.kanaKerning = new Float64Array(KANA_COUNT * KANA_COUNT).fill(NaN)
+      break
+    }
+    if (measurement.kanaKerning === null) measurement.kanaFont = font
+  }
+  return measurement.kanaKerning
+}
+
+// The kerning Blink's layout gives text[at - 1] and text[at] that no measured width holds, or
+// 0: that of two characters of the kana blocks that were measured apart. `start` is where the
+// segment that holds text[at] starts. Two segments are measured apart, so a segment's first
+// character takes its kerning with the one before it. Inside a segment Canvas cuts before a
+// kana letter where the word before it holds a letter already. A mark such as U+30FC stays in
+// the word before it, and a word that marks or CJK punctuation began takes the first letter
+// after them (NextWordEndIndex's has_any_script, plain_text_node.cc:129-153), so Canvas has
+// measured those pairs together; a character below the CJK ranges is in a word of other
+// scripts, which ends before the letter. Each pair is asked of Canvas once per font and kept
+// in the font's table by its two characters, where a pair not asked about yet is NaN.
+export function getKanaKerning(text: string, start: number, at: number, measurement: FontMeasurement, kernings: Float64Array): number {
+  const second = text.charCodeAt(at)
+  if (second < 0x3041 || second > 0x30ff) return 0
+  const first = text.charCodeAt(at - 1)
+  if (first < 0x3041 || first > 0x30ff) return 0
+  if (at > start) {
+    if (!isCanvasWordLetter(second)) return 0
+    // What Canvas's word held before the marks that end it.
+    let k = at - 1
+    let code = first
+    while (code >= 0x3041 && code <= 0x30ff && !isCanvasWordLetter(code)) {
+      if (k === start) return 0
+      code = text.charCodeAt(--k)
+    }
+    if (code >= 0x2e80 && !isCanvasWordLetter(code)) return 0
+  }
+  const index = (first - 0x3041) * KANA_COUNT + second - 0x3041
+  const kerning = kernings[index]!
+  return Number.isNaN(kerning) ? kernings[index] = measureKanaKerning(text.slice(at - 1, at + 1), measurement) : kerning
+}
+
+// The kerning of two kana in a row: the two in one string on the context that shapes a string
+// whole, less each alone.
+function measureKanaKerning(pair: string, measurement: FontMeasurement): number {
+  const pairWidth = getWholeRunContext(measurement).measureText(pair).width
+  const kerning = pairWidth - getSegmentMetrics(pair[0]!, measurement).width - getSegmentMetrics(pair[1]!, measurement).width
+  // As for a character and a space, up to the pair's width / 2^22 is rounding.
+  return Math.abs(kerning) <= pairWidth / 0x400000 ? 0 : kerning
 }
 
 // A text's width in the font, less the emoji correction.
@@ -757,7 +911,7 @@ function buildEngineProfile(): EngineProfile {
     prefixFitMinWidth: engine === 'webkit' ? 0 : 80,
     cutWordKeepsLigatures: engine === 'gecko',
     measureTextWithFollowingSpace: engine === 'webkit',
-    kernsSpacesInScriptRun: engine === 'blink',
+    kernsAcrossCanvasWords: engine === 'blink',
     letterSpaceDiscretionaryHyphen: engine !== 'blink',
     letterSpacingInAppUnits: engine === 'gecko',
     canvasLetterSpacingDropsLigatures: engine !== 'webkit',
@@ -951,6 +1105,27 @@ export function getSegmentFit(
     advances = measureFitAdvances(seg, ends, count, mode === 'segment-prefixes' && !prefixes ? 'pair-context' : mode, metrics, measurement, emojiCorrection, followingSpaceWidth)
     if (prefixes && profile.cutWordKeepsLigatures) countLigaturesOnFirstLetter(seg, ends, advances, measurement, emojiCorrection)
   }
+  // Two kana that Canvas shapes apart inside the segment, as in a keep-all group, kern in
+  // Blink's layout as two segments do, and a line cut between them is shaped again without
+  // the kerning (addKanaKerning in prepare.ts has the rule): one that tightens the pair goes
+  // on the second kana's advance, which gives it back where a line starts with it, and one
+  // that widens it on the first's. Canvas cuts only before a kana letter, which starts a
+  // grapheme.
+  if (profile.kernsAcrossCanvasWords && measurement.kanaKerning !== null && kanaPairRe.test(seg)) {
+    const kernings = getFontKanaKerning(measurement)
+    if (kernings !== null) {
+      for (let g = 1; g < count; g++) {
+        const kerning = getKanaKerning(seg, 0, ends[g - 1]!, measurement, kernings)
+        if (kerning > 0) {
+          advances[g - 1] = advances[g - 1]! + kerning
+        } else if (kerning < 0) {
+          advances[g] = advances[g]! + kerning
+          lineStartExtras ??= zeros(count)
+          lineStartExtras[g] = lineStartExtras[g]! - kerning
+        }
+      }
+    }
+  }
   return metrics.fit = { mode, advances, lineStartExtras, lineStartProhibitions: prohibitions, entryGeometry: null }
 }
 
@@ -1062,7 +1237,7 @@ export function getFontMeasurement(font: string, language: string | null, letter
   let measurement = fonts.get(font)
   if (measurement === undefined) {
     const canvasFont = state.genericFamilies === null ? font : getCanvasFont(font, state.genericFamilies)
-    measurement = { state, canvasFont, letterSpacing: shaped ? LETTER_SPACED_SHAPING : '0px', metrics: new Map(), followingSpaceMetrics: new Map(), spaceKerning: undefined, emojiCorrection: null, emojiWidth: 0, hyphenText: null, spaceWidth: null, hanKerning: undefined, ligaturePairs: new Map() }
+    measurement = { state, canvasFont, letterSpacing: shaped ? LETTER_SPACED_SHAPING : '0px', metrics: new Map(), followingSpaceMetrics: new Map(), spaceKerning: undefined, measuredKana: false, kanaKerning: undefined, kanaFont: canvasFont, emojiCorrection: null, emojiWidth: 0, hyphenText: null, spaceWidth: null, hanKerning: undefined, ligaturePairs: new Map() }
     fonts.set(font, measurement)
   }
   // The first measurement after a lookup sets the font again, the same string too: Firefox's
@@ -1084,7 +1259,9 @@ export function getContext(measurement: FontMeasurement): CanvasRenderingContext
   return state.context
 }
 
-function createMeasureState(language: string | null): MeasureState {
+// A context's `lang` follows the page's, and preparation's can be setLocale()'s or Blink's
+// default locale instead.
+function createContext(language: string | null): CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D {
   let context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
   if (typeof OffscreenCanvas !== 'undefined') {
     context = new OffscreenCanvas(1, 1).getContext('2d')!
@@ -1093,9 +1270,12 @@ function createMeasureState(language: string | null): MeasureState {
   } else {
     throw new Error('Text measurement requires OffscreenCanvas or a DOM canvas context.')
   }
-  // A context's `lang` follows the page's, and preparation's can be setLocale()'s or
-  // Blink's default locale instead.
   if (language !== null && 'lang' in context) context.lang = language
+  return context
+}
+
+function createMeasureState(language: string | null): MeasureState {
+  const context = createContext(language)
   const profile = getEngineProfile()
   const takesLetterSpacing = typeof context.letterSpacing === 'string'
   return {
@@ -1103,6 +1283,8 @@ function createMeasureState(language: string | null): MeasureState {
     context,
     font: '',
     letterSpacing: '0px',
+    wholeRunContext: null,
+    wholeRunFont: '',
     genericFamilies: language !== null && profile.namesGenericFamiliesByLanguage ? getWebKitGenericFamilies(language, context) : null,
     takesLetterSpacing,
     shapesLetterSpaced: takesLetterSpacing && profile.canvasLetterSpacingDropsLigatures,

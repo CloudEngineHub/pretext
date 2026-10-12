@@ -11,7 +11,9 @@
 // nor a format character, sit 0 to 0.6 px closer: for six of every seven pairs that is kerning, and for the seventh a
 // ligature, off under any letter spacing, so a word doesn't measure as its letters do alone and the fits of a word cut
 // between letters take the paths they take in a font (getSegmentFit). Nothing in src/ measures two such neighbours
-// under `fontKerning` 'none', so that kerning doesn't read it. The Blink and Gecko processes run under a desktop user
+// under `fontKerning` 'none', so that kerning doesn't read it. A context under text-rendering: optimizeLegibility,
+// where Chrome shapes a string whole, sits two kana in a row as much closer again, unless its `fontKerning` is 'none',
+// so the profile finds every font kerning kana too (getFontKanaKerning). The Blink and Gecko processes run under a desktop user
 // agent with a string `letterSpacing` on the context, as Chrome's and Firefox's have, so preparation takes the paths
 // those browsers take.
 // The inputs are seeded draws from harness/cases (a failure names its case, at its width, half and 1.5 times it, 1 and
@@ -67,7 +69,7 @@ type Api = typeof import('../src/layout.ts') & typeof import('../src/rich-inline
 
 const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 
-export function standInWidth(text: string, font: string, letterSpacing: number, fontKerning: string): number {
+export function standInWidth(text: string, font: string, letterSpacing: number, fontKerning: string, textRendering: string): number {
   const size = Number(/(\d+(?:\.\d+)?)px/.exec(font)?.[1] ?? 16) / 16
   let width = 0
   let previous = -1
@@ -81,6 +83,7 @@ export function standInWidth(text: string, font: string, letterSpacing: number, 
       const together = (previous * 31 + code) % 7
       if (together !== 6 || letterSpacing === 0) width -= together / 10
     }
+    if (fontKerning !== 'none' && textRendering === 'optimizeLegibility' && previous >= 0x3041 && previous <= 0x30ff && code >= 0x3041 && code <= 0x30ff) width -= (previous + code) % 3 / 2
     previous = code
     previousAdvance = advance
   }
@@ -95,14 +98,15 @@ export function standInWidth(text: string, font: string, letterSpacing: number, 
 const measured = { calls: 0, units: 0 }
 function installStandIn(profile: Profile): void {
   const spaced = profile === 'blink' || profile === 'gecko'
-  const context = (): { font: string; fontKerning: string; letterSpacing?: string; measureText: (text: string) => { width: number } } => {
+  const context = (): { font: string; fontKerning: string; textRendering: string; letterSpacing?: string; measureText: (text: string) => { width: number } } => {
     const ctx = {
       font: '10px sans-serif',
       fontKerning: 'auto',
+      textRendering: 'auto',
       measureText(text: string): { width: number } {
         measured.calls++
         measured.units += text.length
-        return { width: standInWidth(text, ctx.font, spaced ? Number.parseFloat(ctx.letterSpacing!) : 0, ctx.fontKerning) }
+        return { width: standInWidth(text, ctx.font, spaced ? Number.parseFloat(ctx.letterSpacing!) : 0, ctx.fontKerning, ctx.textRendering) }
       },
       ...(spaced ? { letterSpacing: '0px' } : {}),
     }
@@ -377,7 +381,7 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
               // (readLetterSpacing in src/measurement.ts).
               const given = gapItem.letterSpacing ?? 0
               const spacing = gecko ? Math.sign(given) * Math.round(Math.abs(Math.fround(Math.fround(given) * 60))) / 60 : given
-              const space = standInWidth(' ', gapItem.font, spacing, 'auto')
+              const space = standInWidth(' ', gapItem.font, spacing, 'auto', 'auto')
               // The Chromium profile's space takes its kerning with the character beside it in its own item,
               // the one after the white space that starts the item or before the white space that ends it,
               // where the profile kerns the two (getSpaceKerning in src/measurement.ts): a gap is the SPACE

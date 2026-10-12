@@ -31,14 +31,17 @@ import {
   getCorrectedSegmentWidth,
   getEmojiCorrection,
   getFollowingSpaceMetrics,
+  getFontKanaKerning,
   getFontMeasurement,
   getFontSpaceKerning,
   getHyphenText,
+  getKanaKerning,
   getSegmentFit,
   getSegmentMetrics,
   getSpaceKerning,
   getSpaceWidth,
   getTextWidth,
+  kanaPairRe,
   measureWithLetterSpacing,
   noSpaceKerning,
   textMayContainEmoji,
@@ -488,7 +491,7 @@ export function measureAnalysis(
   // (ShouldBreakShapingBeforeText, inline_node.cc:472-490), and which spaces share a word's
   // direction depends on the paragraph's, which preparation can't see, so text with a
   // right-to-left letter or an explicit bidi control takes none.
-  let fontSpaceKerning = engineProfile.kernsSpacesInScriptRun && own.includes(' ') ? getFontSpaceKerning(fontMeasurement) : null
+  let fontSpaceKerning = engineProfile.kernsAcrossCanvasWords && own.includes(' ') ? getFontSpaceKerning(fontMeasurement) : null
   if (fontSpaceKerning !== null && mixedDirectionRe.test(own)) fontSpaceKerning = null
   const scriptRuns: ScriptRuns = { read: 0, scripts: ANY_SCRIPT, openBrackets: [] }
   // What the word before a space adds to that space, the next segment.
@@ -732,6 +735,13 @@ export function measureAnalysis(
     const trims = hanKerning.widthTrims
     if (trims !== null) for (let i = 0; i < trims.length; i++) widths[base + i] = widths[base + i]! - trims[i]!
   }
+  // The loop above has measured every segment in the font, so text in a font that has measured
+  // no kana, as in one that has answered that it kerns none, isn't looked through for kana.
+  let lineStartExtras = hanKerning.lineStartExtras
+  if (engineProfile.kernsAcrossCanvasWords && fontMeasurement.measuredKana && fontMeasurement.kanaKerning !== null && kanaPairRe.test(own)) {
+    const kanaKerning = getFontKanaKerning(fontMeasurement)
+    if (kanaKerning !== null) lineStartExtras = addKanaKerning(lineStartExtras, widths, base, analysis, from, to, fontMeasurement, kanaKerning)
+  }
   let lineEndTrims = hanKerning.lineEndTrims
   if (engineProfile.hangsIdeographicSpace && own.includes('\u3000')) {
     lineEndTrims = addIdeographicSpaceHangs(lineEndTrims, analysis, fontMeasurement, letterSpacing, discretionaryHyphenWidth, from, to)
@@ -748,7 +758,7 @@ export function measureAnalysis(
     discretionaryHyphenContexts,
     lineStartProhibitions,
     breakableLineStartExtras,
-    lineStartExtras: hanKerning.lineStartExtras,
+    lineStartExtras,
     lineEndTrims,
     overflowLineEndTrims: hanKerning.overflowLineEndTrims,
     tabStopAdvance,
@@ -756,6 +766,44 @@ export function measureAnalysis(
   } satisfies PreparedLineBreakData as unknown as PreparedText & PreparedSegments
   if (segments !== null) prepared.segments = segments
   return prepared
+}
+
+// Blink's layout shapes a run of one script in one call and takes katakana for hiragana, so
+// that the two stay in one run (GetScriptForOpenType, script_run_iterator.cc:20-36), so a kana
+// kerns with the kana after it in fonts that pair them, as Hiragino Sans and Hiragino Mincho
+// ProN do (GPOS pair positioning). Canvas cuts the two apart and preparation measures segments
+// apart, so each such pair's kerning (getKanaKerning) is added here, for a font that kerns
+// kana (getFontKanaKerning). The adjustment sits on the pair's first glyph, and a line that
+// breaks between the two is shaped again without it (ShapingLineBreaker::ShapeLine,
+// shaping_line_breaker.cc:511-584): one that tightens the pair goes on the second kana's
+// segment, which gives it back where it starts a line. One that widens it stays on the first
+// kana's, since Blink looks for a line's end in the run shaped whole
+// (shaping_line_breaker.cc:325-333), where the first kana has it. A segment cut between two of
+// its kana takes the same in its advances (getSegmentFit). `widths` holds segments [from, to)
+// of the analysis from `base`, a rich-inline item's in its paragraph's, and `extras` holds
+// them from index 0; a kana that starts an item takes no kerning with the item before it.
+function addKanaKerning(extras: number[] | null, widths: number[], base: number, analysis: TextAnalysis, from: number, to: number, measurement: FontMeasurement, kernings: Float64Array): number[] | null {
+  const { normalized, starts, flags } = analysis
+  for (let i = from; i < to; i++) {
+    if ((flags[i]! & KIND_BITS) !== TEXT) continue
+    const start = starts[i]!
+    const end = i + 1 < flags.length ? starts[i + 1]! : normalized.length
+    const at = base + i - from
+    for (let k = i > from ? start : start + 1; k < end; k++) {
+      const kerning = getKanaKerning(normalized, start, k, measurement, kernings)
+      if (kerning === 0) continue
+      if (k > start) {
+        widths[at] = widths[at]! + kerning
+      } else if (kerning > 0) {
+        widths[at - 1] = widths[at - 1]! + kerning
+      } else {
+        widths[at] = widths[at]! + kerning
+        extras ??= zeros(to - from)
+        extras[i - from] = extras[i - from]! - kerning
+      }
+    }
+  }
+  return extras
 }
 
 // Blink (Chrome 153) hangs a run of U+3000 that ends a line, as it hangs spaces: ShapingLineBreaker

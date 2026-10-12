@@ -40,15 +40,16 @@ Reflect.set(globalThis, 'OffscreenCanvas', class {
     const ctx = {
       font: '10px sans-serif',
       fontKerning: 'auto',
+      textRendering: 'auto',
       ...(spaced ? { letterSpacing: '0px' } : {}),
       measureText(text: string): { width: number; actualBoundingBoxLeft: number; actualBoundingBoxRight: number } {
         current.calls++
         current.units += text.length
         current.log += `${ctx.font}\u0001${ctx.letterSpacing ?? ''}\u0001${text}\u0000`
-        const width = standInWidth(text, ctx.font, spaced ? Number.parseFloat(ctx.letterSpacing!) : 0, ctx.fontKerning)
+        const width = standInWidth(text, ctx.font, spaced ? Number.parseFloat(ctx.letterSpacing!) : 0, ctx.fontKerning, ctx.textRendering)
         return { width, actualBoundingBoxLeft: 0, actualBoundingBoxRight: width }
       },
-    } as { font: string; fontKerning: string; letterSpacing?: string; measureText: (text: string) => { width: number } }
+    } as { font: string; fontKerning: string; textRendering: string; letterSpacing?: string; measureText: (text: string) => { width: number } }
     return ctx
   }
 })
