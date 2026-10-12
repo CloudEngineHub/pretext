@@ -1078,6 +1078,8 @@ export function getSegmentFit(
   }
   let advances: number[]
   let lineStartExtras: number[] | null = null
+  // Whether each advance is of a grapheme measured after the one before it alone.
+  let pairs = false
   if (mode === 'reshaped-lines') {
     // Blink shapes a line of a cut word again where the cut falls between letters shaped
     // together (EngineProfile's cutWordFit). Premise: a line holds the letters whose width,
@@ -1093,16 +1095,16 @@ export function getSegmentFit(
     advances = alone
     if (!addUpTo(alone, width)) {
       advances = measureFitAdvances(seg, ends, count, 'pair-context', metrics, measurement, emojiCorrection, followingSpaceWidth)
-      if (count <= MAX_PREFIX_FIT_GRAPHEMES && !addUpTo(advances, width)) {
-        advances = measureFitAdvances(seg, ends, count, 'segment-prefixes', metrics, measurement, emojiCorrection, followingSpaceWidth)
-      }
+      pairs = count > MAX_PREFIX_FIT_GRAPHEMES || addUpTo(advances, width)
+      if (!pairs) advances = measureFitAdvances(seg, ends, count, 'segment-prefixes', metrics, measurement, emojiCorrection, followingSpaceWidth)
       lineStartExtras = [0]
       for (let i = 1; i < count; i++) lineStartExtras.push(alone[i]! - advances[i]!)
     }
   } else {
     // Past MAX_PREFIX_FIT_GRAPHEMES, prefixes give way to pairs.
     const prefixes = mode === 'segment-prefixes' && count <= MAX_PREFIX_FIT_GRAPHEMES
-    advances = measureFitAdvances(seg, ends, count, mode === 'segment-prefixes' && !prefixes ? 'pair-context' : mode, metrics, measurement, emojiCorrection, followingSpaceWidth)
+    pairs = mode !== 'sum-graphemes' && !prefixes
+    advances = measureFitAdvances(seg, ends, count, pairs ? 'pair-context' : mode, metrics, measurement, emojiCorrection, followingSpaceWidth)
     if (prefixes && profile.cutWordKeepsLigatures) countLigaturesOnFirstLetter(seg, ends, advances, measurement, emojiCorrection)
   }
   // Two kana that Canvas shapes apart inside the segment, as in a keep-all group, kern in
@@ -1110,12 +1112,14 @@ export function getSegmentFit(
   // the kerning (addKanaKerning in prepare.ts has the rule): one that tightens the pair goes
   // on the second kana's advance, which gives it back where a line starts with it, and one
   // that widens it on the first's. Canvas cuts only before a kana letter, which starts a
-  // grapheme.
+  // grapheme. An advance measured after the grapheme before it alone is of a string that
+  // starts at that grapheme, and Canvas's words are read from there: a mark that starts
+  // it is in one word with the letter after it, whose advance has their kerning already.
   if (profile.kernsAcrossCanvasWords && measurement.kanaKerning !== null && kanaPairRe.test(seg)) {
     const kernings = getFontKanaKerning(measurement)
     if (kernings !== null) {
       for (let g = 1; g < count; g++) {
-        const kerning = getKanaKerning(seg, 0, ends[g - 1]!, measurement, kernings)
+        const kerning = getKanaKerning(seg, pairs && g > 1 ? ends[g - 2]! : 0, ends[g - 1]!, measurement, kernings)
         if (kerning > 0) {
           advances[g - 1] = advances[g - 1]! + kerning
         } else if (kerning < 0) {

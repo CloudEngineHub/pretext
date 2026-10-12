@@ -7438,6 +7438,8 @@ test('the Chromium profile takes the kerning between two kana', () => {
       const result = layoutWithLines(prepareWithSegments(text, '16px Test', { wordBreak: 'keep-all' }), width, 20)
       cut.push({ lines: result.lines.map(line => [line.text, line.width]), lineCount: layout(prepare(text, '16px Test', { wordBreak: 'keep-all' }), width, 20).lineCount })
     }
+    const longGroup = layoutWithLines(prepareWithSegments('アーア'.repeat(33), '16px Test', { wordBreak: 'keep-all' }), 46.5, 20)
+    const long = { lines: [...new Set(longGroup.lines.map(line => line.text + ' ' + line.width))], lineCount: longGroup.lineCount }
     const rich = [[{ text: 'あい', font: '16px Test' }], [{ text: 'あ', font: '16px Test' }, { text: 'い', font: '16px Test' }], [{ text: 'あ', font: '16px Test' }, { text: 'いあい', font: '16px Test' }]]
       .map(items => measureRichInlineStats(prepareRichInline(items), 100).maxLineWidth)
     // What a prepare asks the second context, the font's probe as its length.
@@ -7447,9 +7449,9 @@ test('the Chromium profile takes the kerning between two kana', () => {
       return measured.filter(text => text.startsWith('whole ')).map(text => text.slice(6)).map(text => text.length > 9 ? text.slice(0, text.indexOf(':') + 1) + (text.length - text.indexOf(':') - 1) : text)
     }
     const asked = [asks('あいあいあい', '16px Fresh'), asks('あい いあ', '16px Fresh'), asks('あ い 漢あ', '16px Fresh Two'), asks('あいう', '16px Plain Two'), asks('あいあ', '16px Plain Two')]
-    console.log(JSON.stringify({ widths, lines, cut, rich, asked }))
+    console.log(JSON.stringify({ widths, lines, cut, long, rich, asked }))
   `
-  const { widths, lines, cut, rich, asked } = JSON.parse(runInChild(script)) as Record<'widths' | 'lines' | 'cut' | 'rich' | 'asked', unknown>
+  const { widths, lines, cut, long, rich, asked } = JSON.parse(runInChild(script)) as Record<'widths' | 'lines' | 'cut' | 'long' | 'rich' | 'asked', unknown>
   expect(widths).toEqual([
     // A kerning that tightens the pair goes on the second kana's segment.
     [16, 14, 16],
@@ -7493,6 +7495,11 @@ test('the Chromium profile takes the kerning between two kana', () => {
     { lines: [['アー', 31], ['ア', 16], ['アー', 31], ['ア', 16]], lineCount: 4 },
     { lines: [['うえ', 33], ['うえ', 33], ['うえ', 33]], lineCount: 3 },
   ])
+  // A group of 99 graphemes, past the 96 whose prefixes are measured, takes each advance
+  // from its grapheme measured after the one before it alone. Canvas keeps a mark that
+  // starts that string with the letter after it, so the advance has their kerning, which
+  // isn't added again: every line is アーア, 44px.
+  expect(long).toEqual({ lines: ['アーア 44'], lineCount: 33 })
   // Kana in one rich item kern as in plain text; across two items they don't, where the
   // second item holds a pair of its own too (ENGINE_FOLLOWUPS.md).
   expect(rich).toEqual([30, 32, 62])
