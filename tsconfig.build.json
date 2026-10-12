@@ -2,6 +2,9 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noEmit": false,
+    // Node's own resolution, so an import in src/ without its .js extension is an error here and not in a consumer.
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
     "allowImportingTsExtensions": false,
     "types": [],
     "rootDir": "./src",
