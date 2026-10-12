@@ -7470,8 +7470,8 @@ test('the Safari profile keeps the kerning between a word and a following space'
     { lines: [['A', 10], ['A\u2060 ', 10], ['(x', 16], ['\u05D0)', 16]], lineCount: 4 },
     // On an RTL page a soft hyphen before the space also costs a hyphen.
     { lines: [['A', 10], ['A ', 10], ['B', 8]], lineCount: 3 },
-    // With letter spacing the measurement also moves gaps; not modeled.
-    { lines: [['A', 11], ['A ', 11], ['B', 9]], lineCount: 3 },
+    // Under letter spacing the word keeps its kerning with the space too.
+    { lines: [['A', 11], ['A ', 10], ['B', 9]], lineCount: 3 },
   ])
   // A word before a space is measured together with that space instead of
   // alone, and keeps the -1px kerning.
@@ -8011,7 +8011,8 @@ test('letter-spaced text is measured as each engine\'s Canvas shapes it', () => 
   expect(rowsOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:156.0) Gecko/20100101 Firefox/156.0')).toEqual(shaped(0))
   expect(rowsOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Safari/605.1.15')).toEqual([
     [[21, 8, 29], [8, 5, 8, 8], 1, ['0px'], 7],
-    [[25, 8, 35], [8, 5, 8, 8], 1, ['0px'], 1],
+    // The word before the space is measured with it under letter spacing too, as it was above.
+    [[25, 8, 35], [8, 5, 8, 8], 1, [], 0],
     [[19, 8, 26], [8, 5, 8, 8], 1, [], 0],
     [[21, 8, 29], [8, 5, 8, 8], 1, [], 0],
     85,

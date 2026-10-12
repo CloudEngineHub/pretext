@@ -103,8 +103,9 @@ export type EngineProfile = {
   // (ENGINE_FOLLOWUPS.md, Emergency breaks inside a word).
   cutWordKeepsLigatures: boolean
   // WebKit measures a text item together with a directly following U+0020 and
-  // subtracts one unshaped space, so the item keeps its kerning with that space
-  // wherever the line ends. Gecko shapes words without their spaces.
+  // subtracts one space measured alone, so the item keeps its kerning with that
+  // space wherever the line ends, under letter spacing too (getFollowingSpaceTail
+  // in src/prepare.ts). Gecko shapes words without their spaces.
   measureTextWithFollowingSpace: boolean
   // Blink's layout shapes each run of one script and direction in one call, its spaces
   // included (HarfBuzzShaper::Shape, harfbuzz_shaper.cc:1063-1104), so in a font whose kerning

@@ -375,16 +375,17 @@ export function measureAnalysis(
 
   // A WebKit text item runs to its next break opportunity, so it also owns any
   // zero-width breaks before the space. The item is measured with one following
-  // U+0020 minus an unshaped space, which keeps the kerning between the item's
-  // end and that space. With letter spacing the same measurement also moves the
-  // space's gap onto the item and clamps the item at zero, which the
-  // per-grapheme gap model does not represent, so only the unspaced case takes
-  // the kerning. A soft hyphen before the space also takes none: on an RTL page
-  // WebKit needs about a hyphen's width more to fit such an item, and
-  // preparation cannot see the page direction. Returns the zero-width breaks
-  // between the text and the space, or null when the text takes no kerning.
+  // U+0020 minus a space measured alone, which keeps the kerning between the item's
+  // end and that space. Under letter spacing both measurements hold the space's
+  // spacing (TextUtil::width over singleSpaceWidth, TextUtil.cpp:54-100, in WebKit
+  // 7625), so the item keeps that kerning there too. WebKit's item is never narrower
+  // than 0 (TextUtil.cpp:103), which the per-grapheme gap model does not represent.
+  // A soft hyphen before the space takes no kerning: on an RTL page WebKit needs
+  // about a hyphen's width more to fit such an item, and preparation cannot see the
+  // page direction. Returns the zero-width breaks between the text and the space,
+  // or null when the text takes no kerning.
   function getFollowingSpaceTail(analysisIndex: number, text: string): string | null {
-    if (!engineProfile.measureTextWithFollowingSpace || hasLetterSpacing) return null
+    if (!engineProfile.measureTextWithFollowingSpace) return null
     let next = analysisIndex + 1
     while (next < to && (flags[next]! & KIND_BITS) === ZERO_WIDTH_BREAK) next++
     if (next >= to) return null

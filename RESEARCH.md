@@ -1128,8 +1128,13 @@ generated bidi-class table in #311 (2026-09-15), with 100 fewer runtime lines, 4
 data, and the same lines on all 239,063 old-suite Safari inputs, the kind of simplification the project wants (Part 1,
 Engineering); Dead Ends has the shapes rejected on the way. An explicit embedding leaves the direction unknown only in
 its own paragraph: Safari lays out `AA`, WJ, space, `B`, newline, U+202A, `x` in pre-wrap 16px Arial at 20.9px in 3
-lines, where checking the whole text predicted 4. Under letter spacing WebKit moves the space's gap onto the item and
-clamps it at zero; taking only the kerning there lost native successes, so letter-spaced text takes none.
+lines, where checking the whole text predicted 4. Under letter spacing the item keeps that kerning too: WebKit 7625
+measures the item with the space and takes off a space measured alone, and both hold the space's letter spacing
+(`TextUtil::width` over `singleSpaceWidth`, `TextUtil.cpp:54-100`). The profile takes it there since 2026-10-11: in
+16px Avenir Next at 1px `influence, the` was 0.48px wider in the profile than on Safari 27's page, the comma's kerning
+with the space, and of 80 letter-spaced Avenir Next paragraph-width pairs of Wikipedia text webkit-host laid 5 out
+otherwise, none with it, with no other of 1,507 letter-spaced pairs moved. Safari 26.5.2 moved the space's gap onto
+the item and clamped it at zero, and taking only the kerning there lost native successes (2026-09-12 to 15).
 
 Measuring only a word's end with the space would be cheaper but isn't exact: in a headless WebKit census of 8.0 million
 (font, word) pairs in 194 families (2026-09-12), the last grapheme cluster alone kerned otherwise in 389 pairs (in 20px
