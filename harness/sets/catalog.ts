@@ -5,8 +5,8 @@
 //   each pair of values of two axes in at least one template;
 // - lines holding only soft hyphens (RESEARCH.md, Widths After A Line Break), with their neighbours, each neighbour a
 //   family of its own, so the cover keeps a change of each;
-// - chains of combining-mark runs longer than the part of the chain a run's context keeps, each shape a family of its own,
-//   so the cover keeps a change of each;
+// - chains of combining-mark runs longer than the part of the chain a run's context kept while preparation measured a
+//   run after its grapheme (markChainTemplates), each shape a family of its own, so the cover keeps a change of each;
 // - a CJK closing mark at a line end before a line feed or a space;
 // - bidi controls where Firefox's line breaker, which never sees them, starts or ends a line, each shape a family of its
 //   own;
