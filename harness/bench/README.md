@@ -41,7 +41,15 @@ the full walker, which lays out all of `cjk-letter-spaced` and `pre-wrap-chunks`
 `soft-hyphens-marks` and 25% of those of `invisible-tails`, and in the WebKit profile 34% of those of `controls`; in the
 other profiles `layout()`, the one line function the row runs on `controls`, counts those texts with the simple stepper
 and hands the full walker only the lines that end where the text has no break (`countSteppedLines()`). None of the text
-of its other four documents goes to the full walker.
+of four more of its documents goes to the full walker, and two run no line function: `hindi-letter-spaced` and
+`arabic-letter-spaced`, 94 Hindi paragraphs in 16px Kohinoor Devanagari and 400 Arabic ones in 16px Geeza Pro at a 0.5px
+letter spacing. Theirs is text of WebKit's complex path, where the WebKit profile asks Canvas, under a `letterSpacing`,
+how many glyphs each prefix of a word new to the library spaces (`getExtraSpacings()`, `src/measurement.ts`). Their
+`prepare` prepares the texts again, as every document's does, and measures nothing. Their `prepare-cleared` calls
+`clearCache()` before each pass over the texts, so a pass measures them all again: text the browser has shaped and the
+library hasn't, as an app's is after a font loads. WebKit keeps no width measured under a letter spacing, so in
+webkit-host that entry is mostly those calls, the only entry that times them: a build that asks none of them, as main
+before the glyph spacings did, costs a tenth as much there.
 
 ## Protocol
 
@@ -154,7 +162,7 @@ of its other four documents goes to the full walker.
   above it and gets the commit's names. Some rows move with those names (Entries that misread), so a figure a decision
   rests on names commits on both sides, and a build that is no commit goes inside a checkout, as under this one's
   `.artifacts/`, where it gets the names a commit gets.
-- **The last lines** are for a pull request to quote in place of the tables, of whose 192 rows nearly all read within
+- **The last lines** are for a pull request to quote in place of the tables, of whose 204 rows nearly all read within
   noise: one line with the builds, the sessions, the browsers, the form, the wall clock and how many entries read
   slower, faster and within noise, then each entry that read slower or faster with its readings by session and the
   control's, or a line that says none did. That line also counts the documents that ran hidden and names a browser that
@@ -187,7 +195,10 @@ of its other four documents goes to the full walker.
   than the foreground's on 72, 41 of those on `seen` and `lines`. What that costs: a change of 3% is called on 38% of
   `seen` entries and 10% of `lines` entries, where 1% called it on 56% and 38%; one of 5% on 84% and 55%, where it was
   86% and 73%; one of 8% on 97% and 92%, as before within a point. A change under about 5% on those two rows wants the
-  foreground form, or more runs.
+  foreground form, or more runs. The letter-spaced Hindi and Arabic documents joined `worst` on 2026-10-12 and take
+  its 2%: in five runs of the row, a build against itself (e440dd64, the same browsers and machine, each run alone), a
+  copy held 2% or less on their twelve entries in 118 of 120 readings, 1.6% at most in webkit-host, and one entry was
+  called, Firefox's `hindi-letter-spaced prepare-cleared`, at -5.8%, -2.5% and -4.2%.
 - **The foreground's floors.** Floors from the worst single reading would be too wide, since one copy can run slow for a
   whole document (in one session Firefox 156.0.1's base copy took about twice as long as the other two on kept CJK
   handles, 2026-09-26), and would have hidden a real 20-25% slowdown. These floors flag all four slowdowns known between

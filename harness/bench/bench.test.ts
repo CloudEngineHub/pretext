@@ -1,6 +1,6 @@
 // The bench's arithmetic and texts, offline. The test name says what a change's author would see if it went wrong.
 import { describe, expect, spyOn, test } from 'bun:test'
-import { cpSync } from 'node:fs'
+import { cpSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { BrowserKind } from '../types.ts'
 import { benchBundle, buildName, srcOf } from './lib.ts'
@@ -168,36 +168,36 @@ describe('the sessions', () => {
 
   test('after two sessions a row that reads slower gets its document, and no other, timed once more, and keeps the verdict only if that session agrees: noise that two sessions share would be called a change', async () => {
     const steady = await run(['chrome'], 2, () => 1.2)
-    expect(steady.given).toEqual(['chrome 9', 'chrome 9', 'chrome 1'])
+    expect(steady.given).toEqual(['chrome 11', 'chrome 11', 'chrome 1'])
     expect(steady.ids[2]).toEqual(['worst pre-wrap-chunks'])
     expect(row(steady.all, 'pre-wrap-chunks layout')).toEndWith('| slower |')
     expect(row((await run(['chrome'], 2, (_, session) => (session < 2 ? 1.2 : 1))).all, 'pre-wrap-chunks layout')).toEndWith('| within noise (±2.0%) |')
-    expect((await run(['chrome'], 2, () => 1)).given).toEqual(['chrome 9', 'chrome 9'])
+    expect((await run(['chrome'], 2, () => 1)).given).toEqual(['chrome 11', 'chrome 11'])
   })
 
   test('each browser confirms its own rows, a faster one too: one browser\'s change would be timed again in the others, or a speedup stand unconfirmed', async () => {
     const { given, all } = await run(['chrome', 'firefox'], 2, browser => (browser === 'firefox' ? 0.8 : 1))
-    expect(given).toEqual(['chrome 9', 'firefox 9', 'chrome 9', 'firefox 9', 'firefox 1'])
+    expect(given).toEqual(['chrome 11', 'firefox 11', 'chrome 11', 'firefox 11', 'firefox 1'])
     expect(row(all.filter(r => r.browser === 'firefox'), 'pre-wrap-chunks layout')).toEndWith('| faster |')
   })
 
   test('one session gets no confirming session, and three need none: one session\'s rows would be timed twice and read as confirmed, or a calibration run a fourth session', async () => {
     const one = await run(['chrome'], 1, () => 1.2)
-    expect(one.given).toEqual(['chrome 9'])
+    expect(one.given).toEqual(['chrome 11'])
     expect(row(one.all, 'pre-wrap-chunks layout')).toEndWith('| slower (hypothesis: one session) |')
     const three = await run(['chrome'], 3, () => 1.2)
-    expect(three.given).toEqual(['chrome 9', 'chrome 9', 'chrome 9'])
+    expect(three.given).toEqual(['chrome 11', 'chrome 11', 'chrome 11'])
     expect(row(three.all, 'pre-wrap-chunks layout')).toEndWith('| slower |')
   })
 
   test('a browser that fails a session sits out the rest, its confirming session too, and the others go on: a stalled browser would be started again and again', async () => {
     // Firefox fails its second session, with a row that read slower in its first.
     const second = await run(['chrome', 'firefox'], 2, () => 1.2, { firefox: 1 })
-    expect(second.given).toEqual(['chrome 9', 'firefox 9', 'chrome 9', 'firefox 9', 'chrome 1'])
+    expect(second.given).toEqual(['chrome 11', 'firefox 11', 'chrome 11', 'firefox 11', 'chrome 1'])
     expect([...second.failed]).toEqual([['firefox', 'session 2: stalled']])
     expect(row(second.all.filter(r => r.browser === 'firefox'), 'pre-wrap-chunks layout')).toEndWith('| slower (hypothesis: one session) |')
     const first = await run(['chrome', 'firefox'], 3, () => 1, { firefox: 0 })
-    expect(first.given).toEqual(['chrome 9', 'firefox 9', 'chrome 9', 'chrome 9'])
+    expect(first.given).toEqual(['chrome 11', 'firefox 11', 'chrome 11', 'chrome 11'])
     expect(first.all.map(r => r.browser)).toEqual(['chrome', 'chrome', 'chrome'])
   })
 })
@@ -265,7 +265,7 @@ describe('the quick plan', () => {
   test('a quick session times three rounds a document, the new row its twelve, and no fresh page: a quick run that kept the long form\'s rounds would take the long form\'s time', () => {
     const quick = documents(ROWS, 'bench-test', false, true)
     expect(quick.some(d => d.row === 'fresh')).toBe(false)
-    expect(quick.length).toBe(31)
+    expect(quick.length).toBe(33)
     expect(new Set(quick.filter(d => d.row !== 'new').map(d => d.rounds))).toEqual(new Set([3]))
     expect(new Set(quick.filter(d => d.row === 'new').map(d => d.rounds))).toEqual(new Set([12]))
   })
@@ -375,6 +375,36 @@ describe('the texts', () => {
     // A round of new text compares three batches, and the demo's paragraphs differ more than prose does: a batch of
     // them is four of the stress document's (harness/bench/README.md, Rows).
     expect([stress!.batch, chat!.batch, styled!.batch]).toEqual([1000, 4000, 4000])
+  })
+
+  test('the worst row prepares letter-spaced Hindi and Arabic again after clearCache(): nothing else would time what the WebKit profile asks Canvas about their glyphs', async () => {
+    const spaced = documents(['worst'], 'bench-test', false).filter(d => d.family === 'hindi-letter-spaced' || d.family === 'arabic-letter-spaced')
+    expect(spaced.map(d => [d.family, d.lang, d.font, d.options, d.ops.map(op => op.op).join(' ')])).toEqual([
+      ['hindi-letter-spaced', 'hi', '16px "Kohinoor Devanagari"', { letterSpacing: 0.5 }, 'prepare prepare-cleared'],
+      ['arabic-letter-spaced', 'ar', '16px "Geeza Pro"', { letterSpacing: 0.5 }, 'prepare prepare-cleared'],
+    ])
+    // Both operations are handed the texts, and never handles made before the rounds.
+    for (const d of spaced) for (const op of d.ops) expect([op.handles, units(op.texts as string[])]).toEqual([undefined, op.textUnits!])
+    // The library's part, in a process of its own with a Canvas that counts: prepared again, texts ask Canvas nothing,
+    // and after clearCache() they ask all they asked when new, each rep.
+    const bundle = join(import.meta.dir, '../../.artifacts/harness-test-bench/cleared.js')
+    mkdirSync(join(bundle, '..'), { recursive: true })
+    writeFileSync(bundle, (await benchBundle(join(import.meta.dir, '../../src'))).code)
+    const child = Bun.spawnSync([process.execPath, '--preload', join(import.meta.dir, '../watchdog.ts'), '-e', `
+      let calls = 0
+      globalThis.OffscreenCanvas = class { getContext() { return { font: '', measureText(text) { calls++; return { width: text.length * 8 } } } } }
+      await import(${JSON.stringify(bundle)})
+      const asked = op => {
+        const before = calls
+        globalThis.__benchLibrary.run(op, ['one two three', 'two four'], [300], 2, '16px Test', {})
+        return calls - before
+      }
+      console.log(JSON.stringify([asked('prepare'), asked('prepare'), asked('prepare-cleared'), asked('prepare-cleared')]))
+    `], { timeout: 10_000, killSignal: 'SIGKILL' })
+    if (child.exitCode !== 0) throw new Error(child.stderr.toString())
+    const [first, again, cleared, clearedAgain] = JSON.parse(child.stdout.toString()) as number[]
+    expect(first).toBeGreaterThan(0)
+    expect([again, cleared, clearedAgain]).toEqual([0, 2 * first!, 2 * first!])
   })
 
   test('each family\'s new batches hold the same units: a longer batch would read as a slower library', () => {

@@ -11,7 +11,8 @@
 //           The demo repeats sentences, so a new batch of them can hold a paragraph an earlier batch held.
 // Messages take the rebuild's chat lengths: a quarter 5-19 units, half 20-100, a quarter 101-400. The worst-case shapes
 // come from the old benchmark page: its shape rows, its pre-wrap chunks, its long breakable runs and a book-length
-// Arabic paragraph.
+// Arabic paragraph. Two more are letter-spaced Hindi and Arabic, text of WebKit's complex path, whose glyphs the WebKit
+// profile asks Canvas about for each prefix of a word new to it.
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { PrepareOptions } from '../../src/layout.ts'
@@ -245,6 +246,10 @@ export function shapes(): Shape[] {
   const both = ['prepare', 'layout']
   return [
     { id: 'cjk-letter-spaced', font: CHINESE, lang: 'zh', options: { letterSpacing: 2 }, texts: chinese, ops: both },
+    // No line operation: the walk of letter-spaced text is the shape above's. Prepared again after clearCache(), each
+    // asks Canvas all it asks about new text, which under a letterSpacing WebKit never keeps.
+    { id: 'hindi-letter-spaced', font: '16px "Kohinoor Devanagari"', lang: 'hi', options: { letterSpacing: 0.5 }, texts: paragraphs(corpus('hi-eidgah')), ops: ['prepare', 'prepare-cleared'] },
+    { id: 'arabic-letter-spaced', font: '16px "Geeza Pro"', lang: 'ar', options: { letterSpacing: 0.5 }, texts: paragraphs(corpus('ar-al-bukhala')).slice(0, 400), ops: ['prepare', 'prepare-cleared'] },
     { id: 'soft-hyphens-marks', font: LATIN, lang: 'en', options: {}, texts: softHyphens, ops: both },
     { id: 'controls', font: LATIN, lang: 'en', options: {}, texts: generate(120, i => joinWords(i, k => (k % 3 === 0 ? CONTROL_JOINS[(i + k) % CONTROL_JOINS.length]! : ' '))), ops: both },
     { id: 'invisible-tails', font: LATIN, lang: 'en', options: {}, texts: generate(108, i => chat(i) + TAILS[i % 4]!.repeat(Math.ceil([32, 128, 512][i % 3]! / TAILS[i % 4]!.length)).slice(0, [32, 128, 512][i % 3])), ops: both },

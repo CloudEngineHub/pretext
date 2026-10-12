@@ -310,8 +310,9 @@ claims rest on these ratios; nothing timed is checked in.
   build against itself.
 - **What to paste.** The output ends with one line that names the builds, how they were timed and how many entries
   read slower, faster and within noise, then each entry that read slower or faster, or a line that says none did. A
-  pull request quotes those lines and gives each entry there a sentence. Main against itself is called on none to two
-  of a run's 192 entries, so a call counts when the change runs that entry's code, or when a second run repeats it.
+  pull request quotes those lines and gives each entry there a sentence. Main against itself was called on none to two
+  of a run's 192 entries, 204 since 2026-10-12, so a call counts when the change runs that entry's code, or when a
+  second run repeats it.
 - **A background window times as a foreground one**: the harness's Chrome starts with its three switches against
   throttling, webkit-host's window reports itself visible whatever covers it, and the page yields with a
   `MessageChannel` message, never a timer or an animation frame. The exception is a Firefox window covered whole, whose
@@ -328,7 +329,7 @@ claims rest on these ratios; nothing timed is checked in.
 The rows follow what an app does: `new` (text no library or browser has laid out, and UI labels), `fresh` (a fresh page
 a library: compiling and running the bundle and its first batches, as medians with no verdict), `rich` (rich inline, on
 stress items and on the chat demo's paragraphs), `seen` (text prepared before), `resize` (`layout()` on kept handles),
-`lines` (the line functions, on messages the simple stepper lays out) and `worst` (nine worst-case shapes, five of
+`lines` (the line functions, on messages the simple stepper lays out) and `worst` (eleven worst-case shapes, five of
 which reach the full walker). Never rank `prepare()` against `layout()`, as one is paid once and the other on every
 resize.
 
