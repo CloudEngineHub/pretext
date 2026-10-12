@@ -33,9 +33,6 @@ rich-940ad57a2e132532 count
 ## A padded rich item of only a soft hyphen after a space, at 50 px, where the word before the space and the item's two edges fit the line and the space between them doesn't: Firefox places a frame by its end less the trimmable space that ends the text before it (CanPlaceFrame, nsLineLayout.cpp:1251-1252), which a text frame whose characters are all discarded leaves standing (nsTextFrame.cpp:11421-11429), so the item stays on the word's line; the Gecko profile makes the soft hyphen a zero-width break and counts the space before it in the width of a line that ends after it, as the text walker does, so the item goes down with the text after it, which doesn't fit beside its padding, a line too many (ENGINE_FOLLOWUPS.md, White space and controls)
 rich-4f23cc28c4b544d8 count
 
-## A padded rich item that starts with ZWNJ inside a word, at 44-48 px, where the line is cut right after the ZWNJ: Firefox fits every line of the item with both its edges, so the line that starts after the ZWNJ holds `oper` (not traced); the library leaves the item's extraWidth out of a line that starts inside a word at a default-ignorable character, whose widths it measures afresh from there (insideExtras in src/line-break.ts), so its line holds `opera`, a line short (ENGINE_FOLLOWUPS.md, Rich-inline item edges)
-rich-6034dc55f75133cc count
-
 ## A padded rich item that starts with a soft hyphen, at 31-86 px, where the text before it and the hyphen fit the line and the item's two edges don't fit with them: Firefox fits a line that ends at that soft hyphen with both the item's edges, so its line ends at an earlier break (not traced); the library puts an item's extraWidth on its first segment that takes room, which comes after the soft hyphen, so the hyphen's line holds no padding and ends at the soft hyphen (ENGINE_FOLLOWUPS.md, Rich-inline item edges)
 rich-04248179df492169 breaks
 

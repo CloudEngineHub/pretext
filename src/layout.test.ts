@@ -37,7 +37,6 @@ let setLocale: LayoutModule['setLocale']
 let clearCache: LayoutModule['clearCache']
 let countPreparedLines: LineBreakModule['countPreparedLines']
 let walkPreparedLinesRaw: LineBreakModule['walkPreparedLinesRaw']
-let SPACED: AnalysisModule['SPACED']
 let getSegmentFit: MeasurementModule['getSegmentFit']
 let getFontMeasurement: MeasurementModule['getFontMeasurement']
 let getEngineProfile: MeasurementModule['getEngineProfile']
@@ -51,12 +50,8 @@ let materializeRichInlineLineRange: RichInlineModule['materializeRichInlineLineR
 let measureRichInlineStats: RichInlineModule['measureRichInlineStats']
 let walkRichInlineLineRanges: RichInlineModule['walkRichInlineLineRanges']
 let canvasMeasurementCount = 0
-// Real fonts give WJ and U+FEFF no advance, and a mark on its base almost none. A
-// font without U+0323 draws a letter right before it in a wider font, as Amiri does.
-let shapesMarksAndJoiners = false
-// A font with a dotted circle draws one for a nonspacing mark that starts a Canvas
-// word, as Blink's Canvas does after a soft hyphen or ZWSP in Georgia.
-let drawsDottedCircles = false
+// Real fonts give WJ and U+FEFF no advance.
+let joinersTakeNoAdvance = false
 
 const emojiPresentationRe = /\p{Emoji_Presentation}/u
 const punctuationRe = /[.,!?;:%)\]}'"”’»›…—-]/u
@@ -127,21 +122,10 @@ function measureWidth(text: string, font: string): number {
   let width = 0
   let previousWasDecimalDigit = false
 
-  let previous = ''
   for (const ch of text) {
-    const before = previous
-    previous = ch
-    if (drawsDottedCircles && /\p{Mn}/u.test(ch) && (before === '' || before === '\u00AD' || before === '\u200B')) {
-      width += fontSize * 0.5
-      continue
-    }
     // Real fonts give ZWSP and bidi controls no advance.
     if (ch === '\u200B' || /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/.test(ch)) continue
-    if (shapesMarksAndJoiners && ch === '\u0323' && /\p{L}/u.test(before)) {
-      width += fontSize * 0.14
-      continue
-    }
-    if (shapesMarksAndJoiners && (ch === '\u2060' || ch === '\uFEFF' || (width > 0 && /\p{M}/u.test(ch)))) continue
+    if (joinersTakeNoAdvance && (ch === '\u2060' || ch === '\uFEFF')) continue
     if (ch === ' ') {
       width += fontSize * 0.33
       previousWasDecimalDigit = false
@@ -310,7 +294,7 @@ beforeAll(async () => {
   } = mod)
   ;({ countPreparedLines, walkPreparedLinesRaw } = lineBreakMod)
   ;({ getSegmentFit, getFontMeasurement, getEngineProfile } = measurementMod)
-  ;({ analyzeText, SEGMENT_KINDS, KIND_BITS, SPACED } = analysisMod)
+  ;({ analyzeText, SEGMENT_KINDS, KIND_BITS } = analysisMod)
   ;({ getGeckoLineBreaks } = geckoLineBreaksMod)
   ;({ prepareRichInline, layoutNextRichInlineLineRange, materializeRichInlineLineRange, measureRichInlineStats, walkRichInlineLineRanges } = richInlineMod)
 })
@@ -782,39 +766,6 @@ describe('shared public contracts', () => {
   })
 })
 
-describe('entry geometry', () => {
-  test('entry admission and fresh prefixes have distinct roles; the right anchor does not own a correction', async () => {
-    const { getSegmentEntryWidth, observeSegmentEntries } = await import('./entry-geometry.ts')
-    const text = 'a⁠́bXYZ'
-    const advances = [8, 0, 0, 8, 11, -2, 3]
-    const measure = (source: string) => source.endsWith('b') ? 6 : 0
-    const fresh = observeSegmentEntries(text, advances, -4, 4, 'fresh', measure)!
-    const original = observeSegmentEntries(text, advances, -4, 4, 'original', measure)!
-    expect(getSegmentEntryWidth(fresh, 0, 7)).toBeNull()
-    expect(getSegmentEntryWidth(fresh, 3, 7)).toBeNull()
-    expect(getSegmentEntryWidth(fresh, 2, 3)).toBe(0)
-    expect(getSegmentEntryWidth(fresh, 2, 5)).toBe(13)
-    expect(getSegmentEntryWidth(fresh, 2, 6)).toBe(7)
-    expect(getSegmentEntryWidth(fresh, 2, 7)).toBe(6)
-    expect(getSegmentEntryWidth(original, 2, 7)).toBe(6)
-    expect(fresh.entries[2]!.admissionFit).toBe(6)
-    expect(original.entries[2]!.admissionFit).toBe(0)
-  })
-
-  test('missing anchors, oversized runs and incomplete observations retain the original entry', async () => {
-    const { getSegmentEntryWidth, observeSegmentEntries } = await import('./entry-geometry.ts')
-    const queried: string[] = []
-    const measure = (source: string) => { queried.push(source); return 0 }
-    expect(observeSegmentEntries('a⁠́', [8, 0, 0], 0, 8, 'fresh', measure)).toBeNull()
-    expect(observeSegmentEntries('a'.repeat(94) + '⁠́b', Array(97).fill(8), 0, 8, 'fresh', measure)).toBeNull()
-    expect(queried).toEqual([])
-    const geometry = observeSegmentEntries('a⁠́b', [8, 0, 0, 8], 0, 16, 'fresh', source =>
-      source.startsWith('⁠') ? null : 0)!
-    expect(getSegmentEntryWidth(geometry, 1, 4)).toBeNull()
-    expect(getSegmentEntryWidth(geometry, 2, 4)).toBe(0)
-  })
-})
-
 describe('boundary rules', () => {
   const baseProfile = {
     lineBreakScan: 'blink' as const,
@@ -1021,11 +972,10 @@ describe('boundary rules', () => {
     }
   })
 
-  test('a line ends only where the scan breaks, and marks after zero-width glue shape after the source before them', () => {
+  test('a line ends only where the scan breaks', () => {
     const profile = getEngineProfile()
     const previous = profile.lineBreakScan
-    const previousShapesMarks = profile.shapesMarksAcrossSoftHyphen
-    shapesMarksAndJoiners = true
+    joinersTakeNoAdvance = true
     clearCache()
     try {
       const lines = (text: string, width: number, options?: { whiteSpace?: 'pre-wrap', letterSpacing?: number }) => {
@@ -1038,7 +988,6 @@ describe('boundary rules', () => {
       }
       for (const scan of ['blink', 'webkit'] as const) {
         profile.lineBreakScan = scan
-        profile.shapesMarksAcrossSoftHyphen = scan === 'blink'
         // No break on either side of the soft hyphen before WJ, so the glue goes
         // with WJ, which fits, as both browsers paint it.
         expect(lines('a\u00AD\u2060b', 0)).toEqual(['a', '\u00AD\u2060', 'b'])
@@ -1049,102 +998,10 @@ describe('boundary rules', () => {
         // WebKit breaks before the CR after the space, which is a break after the
         // collapsed space, so the line returns there as Safari paints it.
         expect(lines('ab \rcd', measureWidth('ab c', FONT) - 2, { letterSpacing: -1 })).toEqual(['ab ', 'cd'])
-
-        // A mark after zero-width glue or a control adds the source before it with the
-        // mark, minus that source, and takes no letter spacing of its own.
-        for (const [text, markIndex] of [['aaaa\u00AD\u0301tail', 2], ['ab\u0000\u0301cd', 2]] as const) {
-          const prepared = prepareWithSegments(text, FONT, { letterSpacing: 1 })
-          expect(prepared.segments[markIndex]).toBe('\u0301')
-          expect(prepared.widths[markIndex]).toBe(0)
-          expect(internals(prepared).segmentFlags[markIndex]! & SPACED).toBe(0)
-        }
-        const tail = 'aaaa\u00AD\u0301tail'
-        expect(lines(tail, measureWidth('aaaatail', FONT) + 0.1)).toEqual([tail])
-        // Glue and marks fit like the line that ends with the letter's gap: at
-        // letter spacing -4 both browsers keep them with `a`, at 0 they wrap them.
-        const marks = 'a\u00AD\u0301\u00AD\u0323b'
-        expect(lines(marks, 7, { whiteSpace: 'pre-wrap', letterSpacing: -4 })).toEqual(['a\u00AD\u0301\u00AD\u0323', 'b'])
-        expect(lines(marks, 7, { whiteSpace: 'pre-wrap' })).toEqual(['a', '\u00AD\u0301\u00AD\u0323', 'b'])
-        // Measured with the soft hyphens, U+0323 doesn't take `a` into another font,
-        // so the text fits where `ab` fits, as Chrome paints it in Amiri.
-        expect(lines(marks, measureWidth('ab', FONT) + 0.1)).toEqual([marks])
-        // Where Canvas draws a dotted circle for the mark after a soft hyphen, Chrome
-        // shapes the mark with `a` and gives it no advance; Safari draws the circle.
-        drawsDottedCircles = true
-        clearCache()
-        const circled = 'a\u00AD́b'
-        expect(lines(circled, measureWidth('ab', FONT) + 0.1)).toEqual(scan === 'blink' ? [circled] : ['a\u00AD́', 'b'])
-        drawsDottedCircles = false
-        clearCache()
       }
     } finally {
       profile.lineBreakScan = previous
-      profile.shapesMarksAcrossSoftHyphen = previousShapesMarks
-      shapesMarksAndJoiners = false
-      drawsDottedCircles = false
-      clearCache()
-    }
-  })
-
-  test('a long chain of mark runs is measured after its grapheme and the fewest last runs holding 96 units', () => {
-    const measureText = Object.getOwnPropertyDescriptor(TestCanvasRenderingContext2D.prototype, 'measureText')!
-    const measured = new Set<string>()
-    let longest = 0
-    Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', {
-      ...measureText,
-      value(this: TestCanvasRenderingContext2D, text: string) {
-        measured.add(text)
-        // The longest string with a mark: the Chromium profile also asks the font one long string (getFontSpaceKerning).
-        if (text.includes('\u0301')) longest = Math.max(longest, text.length)
-        return { width: measureWidth(text, this.font) }
-      },
-    })
-    // Chains of a grapheme and runs of U+0301, each after U+0001, and a space between chains.
-    const shapes: Array<{ chains: Array<[string, number[]]>; longest: number }> = [
-      { chains: [['x', new Array<number>(40).fill(1)]], longest: 81 },
-      { chains: [['x', new Array<number>(400).fill(1)]], longest: 99 },
-      { chains: [['x', [94, 95, 96, 97, 200, 1, 1, 1]]], longest: 300 },
-      { chains: [['x', [300, ...new Array<number>(60).fill(1)]]], longest: 398 },
-      { chains: [['x', new Array<number>(60).fill(1)], ['y', new Array<number>(60).fill(1)]], longest: 99 },
-    ]
-    try {
-      for (let s = 0; s < shapes.length; s++) {
-        const { chains } = shapes[s]!
-        const contexts: string[] = []
-        const parts: string[] = []
-        for (let c = 0; c < chains.length; c++) {
-          const [grapheme, runs] = chains[c]!
-          const pairs = runs.map(n => '\u0001' + '́'.repeat(n))
-          parts.push(grapheme + pairs.join(''))
-          for (let r = 0; r < runs.length; r++) {
-            // The whole chain before the run, or the fewest last runs, each with its U+0001, that hold 96 units.
-            let tail = pairs.slice(0, r).join('') + '\u0001'
-            for (let first = r - 1; first > 0; first--) {
-              const kept = pairs.slice(first, r).join('') + '\u0001'
-              if (kept.length >= 96) {
-                tail = kept
-                break
-              }
-            }
-            contexts.push(grapheme + tail)
-          }
-        }
-        clearCache()
-        measured.clear()
-        longest = 0
-        const prepared = prepareWithSegments(parts.join(' '), FONT)
-        let run = 0
-        for (let i = 0; i < prepared.segments.length; i++) {
-          if (!/^́+$/.test(prepared.segments[i]!)) continue
-          const context = contexts[run++]!
-          expect(measured.has(context)).toBe(true)
-          expect(prepared.widths[i]).toBeCloseTo(measureWidth(context + prepared.segments[i], FONT) - measureWidth(context, FONT), 9)
-        }
-        expect(run).toBe(contexts.length)
-        expect(longest).toBe(shapes[s]!.longest)
-      }
-    } finally {
-      Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', measureText)
+      joinersTakeNoAdvance = false
       clearCache()
     }
   })
@@ -2114,7 +1971,7 @@ describe('prepare invariants', () => {
     }
   })
 
-  test('Blink keeps an unfit hyphen where the text around the soft hyphen measures narrower joined by the overflow', () => {
+  test('an unfit hyphen stays where the soft hyphens its line passes narrow their neighbours by the overflow, and in Gecko the one it ends at', () => {
     const profile = getEngineProfile()
     const previous = profile.unfitHyphenRetreat
     const measureText = Object.getOwnPropertyDescriptor(TestCanvasRenderingContext2D.prototype, 'measureText')!
@@ -2125,17 +1982,32 @@ describe('prepare invariants', () => {
         return { width: measureWidth(text, this.font) - 2 * (text.match(/AV/g) ?? []).length }
       },
     })
-    profile.unfitHyphenRetreat = 'reduced-width'
     try {
       const font = '16px Kerning Test Sans'
-      expect(layoutWithLines(prepareWithSegments('ab B\u00ADVAV', font), 36, LINE_HEIGHT).lines.map(line => line.text))
-        .toEqual(['ab ', 'B-', 'VAV'])
-      // A and VAV measure 2px narrower joined: the hyphen line stays where it
-      // overflows by less, and returns where it overflows by more.
-      const joined = prepareWithSegments('ab A\u00ADVAV', font)
-      const hyphenLine = measureWidth('ab A', font) + internals(joined).discretionaryHyphenWidth
-      expect(layoutWithLines(joined, hyphenLine - 1, LINE_HEIGHT).lines.map(line => line.text)).toEqual(['ab A-', 'VAV'])
-      expect(layoutWithLines(joined, hyphenLine - 3, LINE_HEIGHT).lines.map(line => line.text)).toEqual(['ab ', 'AVAV'])
+      const lines = (text: string, width: number): string[] => {
+        const prepared = prepareWithSegments(text, font)
+        const result = layoutWithLines(prepared, width, LINE_HEIGHT).lines.map(line => line.text)
+        expect(collectStreamedLines(prepared, width).map(line => line.text)).toEqual(result)
+        expect(layout(prepare(text, font), width, LINE_HEIGHT).lineCount).toBe(result.length)
+        return result
+      }
+      const hyphen = internals(prepareWithSegments('a\u00ADb', font)).discretionaryHyphenWidth
+      for (const retreat of ['reduced-width', 'full-width'] as const) {
+        profile.unfitHyphenRetreat = retreat
+        expect(lines('ab B\u00ADVAV', 36)).toEqual(['ab ', 'B-', 'VAV'])
+        // The line passes the soft hyphen between A and V, which the engine shapes across: its
+        // hyphen stays where it overflows by less than the 2px, and returns where by more.
+        const passed = 'ab A\u00ADVx\u00ADyz'
+        const passedLine = measureWidth('ab A', font) + measureWidth('Vx', font) + hyphen
+        expect(lines(passed, passedLine - 1)).toEqual(['ab AVx-', 'yz'])
+        expect(lines(passed, passedLine - 3)).toEqual(['ab A-', 'Vxyz'])
+        // The line ends at that soft hyphen. Gecko's line keeps the kerning on its last letter,
+        // and Blink's, shaped again at its end, has none of it.
+        const ended = 'ab A\u00ADVAV'
+        const endedLine = measureWidth('ab A', font) + hyphen
+        expect(lines(ended, endedLine - 1)).toEqual(retreat === 'full-width' ? ['ab A-', 'VAV'] : ['ab ', 'AVAV'])
+        expect(lines(ended, endedLine - 3)).toEqual(['ab ', 'AVAV'])
+      }
     } finally {
       Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', measureText)
       profile.unfitHyphenRetreat = previous
@@ -2806,7 +2678,6 @@ describe('prepare invariants', () => {
     // field's rule and source in EngineProfile (src/measurement.ts).
     type Profile = ReturnType<MeasurementModule['getEngineProfile']>
     const fields: Array<{ [K in keyof Profile]: [K, Profile[K], Profile[K], Profile[K]] }[keyof Profile]> = [
-      ['entryFitBasis', 'fresh', 'disabled', 'original'],
       ['lineBreakScan', 'blink', 'webkit', 'gecko'],
       ['graphemeTable', 'chromium/char', 'apple/char', 'gecko/char'],
       ['lineFitEpsilon', 0.005, 1 / 64, 0.005],
@@ -2820,7 +2691,6 @@ describe('prepare invariants', () => {
       ['canvasLetterSpacingDropsLigatures', true, false, true],
       ['unspacedCursive', 'run', 'none', 'cluster'],
       ['letterSpacesGlyphs', false, true, false],
-      ['shapesMarksAcrossSoftHyphen', true, false, false],
       ['unfitHyphenRetreat', 'reduced-width', 'full-width-or-first', 'full-width'],
       ['hyphenFromPrimaryFont', true, true, false],
       ['letterSpaceTabStops', true, false, true],
@@ -2829,7 +2699,6 @@ describe('prepare invariants', () => {
       ['tabsInAppUnits', false, false, true],
       ['hangTabs', true, true, false],
       ['zeroWidthGlueTakesLine', true, true, false],
-      ['keepsLineStartPunctuation', false, true, false],
       ['hidesControlCharacters', false, false, true],
       ['hanKerning', true, false, false],
       ['hangsIdeographicSpace', true, false, true],
@@ -2842,27 +2711,22 @@ describe('prepare invariants', () => {
       ['testsHyphenBeforeAtomic', true, false, true],
       ['transformsSegmentBreaksAcrossItems', true, false, false],
     ]
-    const profileOf = (engine: 1 | 2 | 3, entryFitBasis?: Profile['entryFitBasis']): Record<string, unknown> => {
+    const profileOf = (engine: 1 | 2 | 3): Record<string, unknown> => {
       const profile: Record<string, unknown> = {}
       for (let i = 0; i < fields.length; i++) profile[fields[i]![0]] = fields[i]![engine]
-      if (entryFitBasis !== undefined) profile['entryFitBasis'] = entryFitBasis
       return profile
     }
     for (const [userAgent, profile] of [
       [CHROME_USER_AGENT, profileOf(1)],
       [SAFARI_USER_AGENT, profileOf(2)],
       [FIREFOX_USER_AGENT, profileOf(3)],
-      // Entry fits are verified only on desktop, Windows and Linux too, so Chrome and Firefox on
-      // a phone take none; an app's web view on an iPhone names no browser and is WebKit.
-      ['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', profileOf(1)],
-      ['Mozilla/5.0 (X11; Linux x86_64; rv:156.0) Gecko/20100101 Firefox/156.0', profileOf(3)],
-      ['Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Mobile Safari/537.36', profileOf(1, 'disabled')],
-      ['Mozilla/5.0 (Android 14; Mobile; rv:156.0) Gecko/156.0 Firefox/156.0', profileOf(3, 'disabled')],
+      // A phone's browser takes its engine's profile, as a desktop's does.
+      ['Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Mobile Safari/537.36', profileOf(1)],
+      ['Mozilla/5.0 (Android 14; Mobile; rv:156.0) Gecko/156.0 Firefox/156.0', profileOf(3)],
       ['Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148', profileOf(2)],
-      // Engines Pretext doesn't recognize take Blink's profile: a desktop web view without a Blink
-      // token takes desktop Chrome's, entry fits and all.
+      // Engines Pretext doesn't recognize take Blink's profile.
       ['Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Safari/537.36', profileOf(1)],
-      ['Bun/1.4.0', profileOf(1, 'disabled')],
+      ['Bun/1.4.0', profileOf(1)],
     ] as const) {
       const built: unknown = await engineProfileUnder(userAgent)
       expect({ userAgent, profile: built }).toEqual({ userAgent, profile })
@@ -2950,33 +2814,6 @@ describe('prepare invariants', () => {
       expect(lines('日本ーー', graphemeWidth * 2.5)).toEqual(['日', '本ー', 'ー'])
     } finally {
       profile.lineBreakScan = previous
-    }
-  })
-
-  test('the WebKit profile keeps punctuation after an overflowing first character in text above U+00FF', () => {
-    const profile = getEngineProfile()
-    const previous = { ...profile }
-    const lines = (source: string, options?: { letterSpacing: number }) => {
-      const prepared = prepareWithSegments(source, FONT, options)
-      const result = layoutWithLines(prepared, 1, LINE_HEIGHT)
-      expect(collectStreamedLines(prepared, 1)).toEqual(result.lines)
-      expect(layout(prepare(source, FONT, options), 1, LINE_HEIGHT).lineCount).toBe(result.lineCount)
-      return result.lines.map(line => line.text)
-    }
-    try {
-      profile.lineBreakScan = 'webkit'
-      profile.keepsLineStartPunctuation = true
-      // Safari 27 paints these at a width below one character; 8-bit `xb((c` takes one
-      // character per line.
-      expect(lines('xb((cā')).toEqual(['x', 'b((', 'c', 'ā'])
-      expect(lines('xb((cā', { letterSpacing: 1 })).toEqual(['x', 'b((', 'c', 'ā'])
-      expect(lines('xb((c')).toEqual(['x', 'b', '(', '(', 'c'])
-      // Blink and Gecko end the line after the first grapheme.
-      profile.lineBreakScan = 'blink'
-      profile.keepsLineStartPunctuation = false
-      expect(lines('xb((cā')).toEqual(['x', 'b', '(', '(', 'c', 'ā'])
-    } finally {
-      Object.assign(profile, previous)
     }
   })
 
@@ -6736,8 +6573,7 @@ test('the Safari profile keeps the kerning between a word and a following space'
     const { prepareRichInline, walkRichInlineLineRanges } = await import(${JSON.stringify(richInlineUrl)})
     const kerning = []
     for (const [text, letterSpacing] of [
-      ['AA B', 0], ['AA\\u200B B', 0], ['AA\\u200E \\u05D0', 0], ['AA\\u2060 \\u2060B', 0], ['AA\\u2060 1', 0],
-      ['AA\\u200B \\u05D0', 0], ['AA\\u2060 (x\\u05D0)', 0], ['AA\\u00AD B', 0], ['AA B', 1],
+      ['AA B', 0], ['AA\\u200B B', 0], ['AA\\u2060 \\u2060B', 0], ['AA\\u200B \\u05D0', 0], ['AA\\u00AD B', 0], ['AA B', 1],
     ]) {
       const lines = layoutWithLines(prepareWithSegments(text, '16px Test', { letterSpacing }), 19.5, 20).lines
       kerning.push({ lines: lines.map(line => [line.text, line.width]), lineCount: layout(prepare(text, '16px Test', { letterSpacing }), 19.5, 20).lineCount })
@@ -6756,10 +6592,8 @@ test('the Safari profile keeps the kerning between a word and a following space'
     }
     const rich = []
     walkRichInlineLineRanges(prepareRichInline([{ text: 'A\\u2060 B', font: '16px Test' }]), 8.5, line => rich.push(line.width))
-    const paragraphs = [['AA\\u2060 B\\n\\u202Ax', 'pre-wrap'], ['AA\\u2060 B\\u2029\\u202Ax', 'normal'], ['AA\\u2060 B\\u202Ax', 'normal']]
-      .map(([text, whiteSpace]) => prepareWithSegments(text, '16px Test', { whiteSpace }).widths[0])
     const quote = layoutWithLines(prepareWithSegments('a\\u00AD\\u201Cb', '16px Test', { whiteSpace: 'pre-wrap' }), 20, 20).lines.map(line => line.text)
-    console.log(JSON.stringify({ kerning, spaced, wordMeasurements, paragraphs, quote, remainder: {
+    console.log(JSON.stringify({ kerning, spaced, wordMeasurements, quote, remainder: {
       lines: layoutWithLines(remainder, 8.5, 20).lines.map(line => [line.text, line.width, line.start.segmentIndex, line.start.graphemeIndex, line.end.segmentIndex, line.end.graphemeIndex]),
       signed,
       streamed,
@@ -6767,23 +6601,16 @@ test('the Safari profile keeps the kerning between a word and a following space'
       lineCount: layout(prepare('A\\u2060 B', '16px Test'), 8.5, 20).lineCount,
     } }))
   `
-  const { kerning, spaced, wordMeasurements, paragraphs, quote, remainder } =
-    JSON.parse(runInChild(script)) as Record<'kerning' | 'spaced' | 'wordMeasurements' | 'paragraphs' | 'quote' | 'remainder', unknown>
+  const { kerning, spaced, wordMeasurements, quote, remainder } =
+    JSON.parse(runInChild(script)) as Record<'kerning' | 'spaced' | 'wordMeasurements' | 'quote' | 'remainder', unknown>
   expect(kerning).toEqual([
     // The kerned word fits and the space hangs.
     { lines: [['AA ', 19], ['B', 8]], lineCount: 2 },
     { lines: [['AA\u200B ', 19], ['B', 8]], lineCount: 2 },
-    // A direction mark is a strong character that ends the word like a letter,
-    // and format characters after the space are skipped to the next letter.
-    { lines: [['AA\u200E ', 19], ['\u05D0', 8]], lineCount: 2 },
+    // A format character between the word and the space is in the word's item, whatever
+    // the direction of the text after the space.
     { lines: [['AA\u2060 ', 19], ['\u2060B', 8]], lineCount: 2 },
-    // An ASCII digit after the space takes the word's direction either way.
-    { lines: [['AA\u2060 ', 19], ['1', 8]], lineCount: 2 },
-    // Before right-to-left text the zero-width space may leave the word's bidi
-    // run, which is unknown without the paragraph direction.
-    { lines: [['A', 10], ['A\u200B ', 10], ['\u05D0', 8]], lineCount: 3 },
-    // A closed bracket pair after the space can take the paragraph direction.
-    { lines: [['A', 10], ['A\u2060 ', 10], ['(x', 16], ['\u05D0)', 16]], lineCount: 4 },
+    { lines: [['AA\u200B ', 19], ['\u05D0', 8]], lineCount: 2 },
     // On an RTL page a soft hyphen before the space also costs a hyphen.
     { lines: [['A', 10], ['A ', 10], ['B', 8]], lineCount: 3 },
     // Under letter spacing the word keeps its kerning with the space too.
@@ -6793,10 +6620,6 @@ test('the Safari profile keeps the kerning between a word and a following space'
   // alone, and keeps the -1px kerning.
   expect(spaced).toEqual([['QA ', 17], ['XA ', 17], ['q', 8]])
   expect(wordMeasurements).toEqual(['QA ', 'XA '])
-  // An explicit bidi control ends with its paragraph, at a newline in pre-wrap
-  // or at U+2029, so one in a later paragraph keeps the kerning. One in the same
-  // paragraph leaves the space's direction unknown.
-  expect(paragraphs).toEqual([19, 19, 20])
   // Safari 27 lets an opening curly quote start a line after a soft hyphen,
   // which paints its hyphen at the end of the line before.
   expect(quote).toEqual(['a-', '\u201Cb'])
@@ -8069,12 +7892,6 @@ test('a width is measured under its own font, shaping and language, whatever was
     // Asking a font which hyphen it paints sets the context to other fonts and back, so the marks' halts, read after
     // it in the same preparation, are the font's.
     rows.hyphen = width('a\\u00ADb\\u4E2D\\u300D\\u300C\\u4E2D', '16px Hyphen Halt')
-    // Where a line that starts inside a word at an invisible character takes its widths from Canvas, they are observed
-    // again under another letter spacing, with the word's other measurements cached.
-    width('ab\\u2060cd', '16px Entry', 1)
-    width('s', b)
-    width('ab\\u2060cd', '16px Entry', 2)
-    rows.entry = measuredIn
     // Whether two letters are a ligature is asked of the context without its ligatures, here first asked with the
     // word, its letters and the pair all cached, after letter-spaced text in a font whose \`fi\` without the ligature
     // is as wide as this font's with it. The text measured next has its ligature, and the letter-spaced text after it none.
@@ -8086,11 +7903,10 @@ test('a width is measured under its own font, shaping and language, whatever was
   // `fin` under letter spacing is 24px and its three spacings where the context drops the
   // ligature, and 21px and them in the WebKit profile, which measures with it. Two contexts
   // are made for the two language changes and none for the four clearCache() calls. Only the
-  // Chromium profile asks for kerning with the space and for halts, and the WebKit profile
-  // observes no line starts inside a word, so its last measurement is the 20px text's. Only
-  // the Gecko profile asks for ligatures: a line that cuts \`fi\` has the ligature's 97px on its
-  // \`f\`, and the others the letter's 50px.
-  const rows = (fin: number, kerned: number, halted: number, entry: string, cutLigature: number): unknown => ({
+  // Chromium profile asks for kerning with the space and for halts. Only the Gecko profile
+  // asks for ligatures: a line that cuts \`fi\` has the ligature's 97px on its \`f\`, and the
+  // others the letter's 50px.
+  const rows = (fin: number, kerned: number, halted: number, cutLigature: number): unknown => ({
     fonts: [52, 56],
     again: 0,
     spacing: [21 + fin + 21, 21 + fin, fin + 21],
@@ -8101,44 +7917,11 @@ test('a width is measured under its own font, shaping and language, whatever was
     kerning: [kerned, kerned],
     halt: halted,
     hyphen: halted === 92 ? 72 : 80,
-    entry,
     ligature: [cutLigature, 21, fin],
   })
-  expect(rowsOf(CHROME_USER_AGENT)).toEqual(rows(30, 39, 92, '16px Entry', 50))
-  expect(rowsOf(FIREFOX_USER_AGENT)).toEqual(rows(30, 40, 104, '16px Entry', 97))
-  expect(rowsOf(SAFARI_USER_AGENT)).toEqual(rows(27, 40, 104, '20px Test', 50))
-})
-
-test('a line start inside a word asks Canvas for each of its strings once', () => {
-  // The engine profile is computed once per process, so each engine runs in a child process.
-  // In the desktop Chromium and Firefox profiles a line that starts inside a word at an
-  // invisible character takes its widths from Canvas: for a word joiner between `b` and `c`,
-  // the joiner alone and the joiner with `c`. Under no letter spacing those are widths of the
-  // font's segment cache, which has the joiner alone as one of the word's letters, and where
-  // a second word with the same line start finds both.
-  const layoutUrl = new URL('./layout.ts', import.meta.url).href
-  const askedIn = (userAgent: string): unknown => JSON.parse(runInChild(`
-    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { userAgent: ${JSON.stringify(userAgent)} } })
-    const asked = []
-    class Context {
-      font = ''
-      letterSpacing = '0px'
-      fontKerning = 'auto'
-      measureText(text) {
-        if (text.includes('\\u2060')) asked.push(text)
-        const width = text.replaceAll('\\u2060', '').length * 8
-        return { width, actualBoundingBoxLeft: 0, actualBoundingBoxRight: width }
-      }
-    }
-    globalThis.OffscreenCanvas = class { getContext() { return new Context() } }
-    const { prepare } = await import(${JSON.stringify(layoutUrl)})
-    prepare('ab\\u2060cd', '16px Test')
-    prepare('xb\\u2060cd', '16px Test')
-    console.log(JSON.stringify(asked))
-  `))
-  const asked = ['ab⁠cd', '⁠', '⁠c', 'xb⁠cd']
-  expect(askedIn(CHROME_USER_AGENT)).toEqual(asked)
-  expect(askedIn(FIREFOX_USER_AGENT)).toEqual(asked)
+  expect(rowsOf(CHROME_USER_AGENT)).toEqual(rows(30, 39, 92, 50))
+  expect(rowsOf(FIREFOX_USER_AGENT)).toEqual(rows(30, 40, 104, 97))
+  expect(rowsOf(SAFARI_USER_AGENT)).toEqual(rows(27, 40, 104, 50))
 })
 
 test("a host with no document gets layouts from a font and measureText alone, under no navigator, React Native's and Bun's own", () => {

@@ -19,7 +19,6 @@ import {
   type ParagraphItems,
   type WhiteSpaceMode,
 } from './analysis.js'
-import { getSegmentEntryWidth, type SegmentEntryGeometry } from './entry-geometry.js'
 import { buildLineTextFromRange, buildRangeText, getGraphemeEnds, type PreparedSegments } from './line-text.js'
 import {
   getItemTabAdvance,
@@ -299,8 +298,6 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
   // Firefox 156 and Safari 27 prepare CJK styled paragraphs again up to 8% faster with the lists
   // made whole than with each filled by a call and a push a segment (RESEARCH.md, Keeping Work
   // Bounded, JavaScript Engines, under A paragraph's sparse lists made whole).
-  let entryGeometry: (SegmentEntryGeometry | null)[] | null = null
-  let lineStartProhibitions: (Uint8Array | null)[] | null = null
   let breakableLineStartExtras: (number[] | null)[] | null = null
   let lineStartExtras: number[] | null = null
   let lineEndTrims: number[] | null = null
@@ -530,8 +527,6 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
       }
       const units = getSourceUnits(offsets, normalizedStart, textEnd, starts[index]!)
       if (units !== null) (sourceUnits ??= new Array<number[] | null>(flags.length).fill(null))[at] = units
-      if (sub.entryGeometry !== null && sub.entryGeometry[s] !== null) (entryGeometry ??= new Array<SegmentEntryGeometry | null>(flags.length).fill(null))[at] = sub.entryGeometry[s]!
-      if (sub.lineStartProhibitions !== null && sub.lineStartProhibitions[s] !== null) (lineStartProhibitions ??= new Array<Uint8Array | null>(flags.length).fill(null))[at] = sub.lineStartProhibitions[s]!
       if (sub.breakableLineStartExtras !== null && sub.breakableLineStartExtras[s] !== null) (breakableLineStartExtras ??= new Array<number[] | null>(flags.length).fill(null))[at] = sub.breakableLineStartExtras[s]!
       const startExtra = (sub.lineStartExtras === null ? 0 : sub.lineStartExtras[s]!) + (i > first ? extraWidth : 0)
       if (startExtra !== 0) (lineStartExtras ??= zeroList(flags.length))[at] = startExtra
@@ -629,11 +624,9 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
     simpleLineWalkFastPath: simple,
     simpleLineCountFastPath: false,
     breakableFitAdvances,
-    entryGeometry,
     letterSpacing: spacingsDiffer || sharedSpacing === null ? 0 : sharedSpacing,
     discretionaryHyphenWidth: firstTextItem < 0 ? 0 : hyphenWidths[firstTextItem]!,
     discretionaryHyphenContexts,
-    lineStartProhibitions,
     breakableLineStartExtras,
     lineStartExtras,
     lineEndTrims,
@@ -893,19 +886,13 @@ function getOpeningFit(flags: number[], from: number, to: number, extraWidth: nu
 // (`startsLine`), the first of them adds what a line that starts with it does
 // (breakableLineStartExtras), as the walker's line does.
 function getPartWidth(data: PreparedSegments, i: number, from: number, to: number, startsLine: boolean): number {
-  const { breakableFitAdvances, breakableLineStartExtras, entryGeometry, letterSpacing, items } = data
+  const { breakableFitAdvances, breakableLineStartExtras, letterSpacing, items } = data
   const advances = breakableFitAdvances[i]!
   if (to < 0) to = advances.length
-  const entry = from > 0 && entryGeometry !== null ? entryGeometry[i]! : null
-  const entryWidth = entry === null ? null : getSegmentEntryWidth(entry, from, to)
   let w = 0
-  if (entryWidth !== null) {
-    w = entryWidth
-  } else {
-    for (let g = from; g < to; g++) w += advances[g]! + letterSpacing
-    const startExtras = startsLine && breakableLineStartExtras !== null ? breakableLineStartExtras[i]! : null
-    if (startExtras !== null) w += startExtras[from]!
-  }
+  for (let g = from; g < to; g++) w += advances[g]! + letterSpacing
+  const startExtras = startsLine && breakableLineStartExtras !== null ? breakableLineStartExtras[i]! : null
+  if (startExtras !== null) w += startExtras[from]!
   if (items !== undefined && (from > 0 ? items.insideExtras !== null : items.fillExtras !== null)) w += from > 0 ? items.insideExtras![i]! : items.fillExtras![i]!
   return w
 }

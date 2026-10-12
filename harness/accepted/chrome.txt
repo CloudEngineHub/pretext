@@ -13,11 +13,14 @@ rich-c613b39279a41fea count
 rich-d0104910d98009fb count
 rich-e16bbdd996294984 count
 
+## A mark after a soft hyphen under negative letter spacing, at 24 px, since the mark context was removed, which measured a run of combining marks after a soft hyphen, a ZWSP, a word joiner or a control with the letter before it and gave it no letter spacing: `aaaa`, a soft hyphen, U+0301 and `tail` in 16 px Arial at -1 px letter spacing, where Chrome gives the mark no gap, so `a` and `tail` are 24.35 px and take two lines, and the profile, whose mark is now text with a gap of its own, has them on one, 23.35 px wide; no real-usage text has a mark after a soft hyphen (ENGINE_FOLLOWUPS.md, Canvas answers that differ from the page)
+catalog-ba82282a557e4da2 count
+
 ## A padded rich item of a space and a ZWSP after a word, at 17-31 px, where the word fits its line and the item with its space doesn't: Chrome ends the line after the word and gives the item the next line, which it holds though it shows nothing (not traced); the library hangs the item's space and its ZWSP on the word's line, a line short, as it hangs a ZWSP after a space outside a padded item (ENGINE_FOLLOWUPS.md, Rich-inline item edges)
 rich-940ad57a2e132532 count
 
 ## A padded rich item that continues a word, whose line ends inside it, in white-space: normal at 40-44.5 px: Chrome fits that line without the item's end edge, the library with it, as Firefox does, so Chrome's line holds a letter more (ENGINE_FOLLOWUPS.md, Rich-inline item edges)
-rich-49af8fd4a74783cd breaks
+rich-49af8fd4a74783cd count
 rich-6b940ddc81a07369 breaks
 rich-6e9d3bbd8855ad51 count
 rich-88da2998a0806239 breaks
@@ -81,6 +84,9 @@ rich-0de66284559031d1 count
 rich-86cdfab93b144e71 count
 rich-959420c66f7e0ac2 breaks
 rich-a3758e3807dd0add count
+
+## Arabic letters joined across the soft hyphen a line ends at, in 16 px Noto Naskh Arabic at 1 px letter spacing and 46 px: Blink shapes the line's end again with the text after the break as context (ShapingLineBreaker::ShapeLine, shaping_line_breaker.cc:511-559), so the letter before the soft hyphen keeps its joining form and Chrome's `بب ببب-` is 35.76 px wide and stays, where the profile sums the two sides measured apart, 49.30 px, and returns to the space; it passed only while the profile counted, at the soft hyphen a line ends at, what the two sides measure narrower joined, which is none of Blink's line between kerned letters (ENGINE_FOLLOWUPS.md, Line edges)
+catalog-92b4511c3afb9973 count
 
 ## CJK beside Latin, closing punctuation, small kana or U+FFFC, and CJK under keep-all or a changed page language, at 24 px and wider: Chrome breaks there where the library doesn't
 catalog-02ca7fd9ca677cc3 count
@@ -170,7 +176,6 @@ catalog-e9143587a70f29e6 breaks
 catalog-eb1540de8b7e83c5 count
 catalog-ef80bea8577ea4c7 count
 catalog-f3e9817d3ecaac20 count
-catalog-f4eb54b166bade8f count
 catalog-f842244a21359caf count
 catalog-fc2fc27d218a91d8 count
 facts-1fe27e7853d9044e breaks

@@ -130,15 +130,12 @@ function prepareInternal(
 //   2. Find break opportunities with the engine's own line-break scan
 //   3. Split the text into segments between them ("better." as one unit)
 //   4. Measure each segment via canvas measureText, cache by (segment, font).
-//      A run of combining marks that glue or a control separates from its grapheme
-//      measures after that grapheme, and WebKit measures a word with the space after it
+//      WebKit measures a word with the space after it
 //   5. Measure where each text segment of two or more graphemes can break under
 //      overflow-wrap: break-word: by graphemes, pairs or prefixes, per engine
 //   6. Correct emoji canvas inflation (probed once per font)
 //   7. Record what changes at a line's edges: Blink's halts of CJK punctuation,
-//      U+3000 hangs, how much narrower a soft hyphen's neighbors measure joined,
-//      fresh-line widths inside segments with invisible characters, and the
-//      characters WebKit keeps after an overflowing first one
+//      U+3000 hangs, and how much narrower a soft hyphen's neighbors measure joined
 export function prepare(text: string, font: string, options?: PrepareOptions): PreparedText {
   return prepareInternal(text, font, false, options) as PreparedText
 }

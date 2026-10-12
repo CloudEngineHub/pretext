@@ -1,7 +1,6 @@
 import { findGraphemeEnds, type GraphemeTable } from './graphemes.js'
-import { canWebKitLineStartWith, DEFAULT_IGNORABLE, getBlinkDefaultLocale, hasProperty, MARK } from './line-breaks.js'
+import { DEFAULT_IGNORABLE, getBlinkDefaultLocale, hasProperty, MARK } from './line-breaks.js'
 import { webkitGenericFamilies, webkitGenericFamilyNames, webkitScriptLanguages, webkitScriptSubtags } from './generated/webkit-generic-families.js'
-import type { SegmentEntryGeometry } from './entry-geometry.js'
 import type { HanKerningFontData } from './han-kerning.js'
 
 // What preparation knows of a segment in a font. Each is created with all its fields,
@@ -30,23 +29,9 @@ export type SegmentFit = {
   // With advances, per grapheme, what a line that starts with it adds to its advance, where
   // the engine shapes such a line again (the 'reshaped-lines' mode). Null where nothing.
   lineStartExtras: number[] | null
-  // With advances in the WebKit profile, per grapheme, 1 for one after the first that
-  // WebKit doesn't start a line with when a line holds only an overflowing first
-  // character, by its first code unit. Null without any.
-  lineStartProhibitions: Uint8Array | null
-  entryGeometry: {
-    letterSpacing: number
-    emojiCorrection: number
-    geometry: SegmentEntryGeometry | null
-  } | null
 }
 
 export type EngineProfile = {
-  // How a line that starts inside a segment holding a default-ignorable code point
-  // admits the segment's tail (src/entry-geometry.ts): by the tail's own measured start
-  // ('fresh', desktop Blink), by the whole segment's width minus the consumed prefixes
-  // ('original', desktop Gecko), or not at all ('disabled').
-  entryFitBasis: 'fresh' | 'original' | 'disabled'
   // Where preparation finds break opportunities: each engine's own scan. Blink and WebKit
   // scan the text with their pair tables and ICU line rules (src/line-breaks.ts), Gecko
   // with nsLineBreaker over ICU4X's rules (src/gecko-line-breaks.ts), and engines Pretext
@@ -157,11 +142,6 @@ export type EngineProfile = {
   // keeps a spacing the page doesn't give it (ENGINE_FOLLOWUPS.md, Letter spacing). Blink
   // and Gecko space clusters.
   letterSpacesGlyphs: boolean
-  // Blink's page shapes a soft hyphen inside its text, so nonspacing marks after
-  // one shape with the text before it and take no advance. Its Canvas turns the soft
-  // hyphen into a ZWSP and shapes each word alone, where such a mark can take a
-  // dotted circle. WebKit's page gives the marks the advance its Canvas measures.
-  shapesMarksAcrossSoftHyphen: boolean
   // When a selected discretionary hyphen does not fit, Blink retries the text
   // item against the width minus the hyphen (BreakText, line_breaker.cc:1705-1718,
   // Chromium 153), so the line ends at the latest earlier opportunity that leaves
@@ -189,6 +169,24 @@ export type EngineProfile = {
   // prepare.ts). In 16px Arial at 76-80px Safari 27 lays out
   // `the interna\u00ADtion\u00ADal` as `the` / `interna-` / `tional`, and at 40px
   // `trans\u00ADi\u00ADt\u00ADlantic` starts with `trans-`, 40.9px wide.
+  // Each engine tests the hyphen against the line as it shapes it, which the
+  // segments, measured apart, are wider than where letters kern or join across a
+  // soft hyphen. Blink reads the line's width from the item shaped whole, soft
+  // hyphens and all, and shapes the line's end again where the break isn't safe,
+  // as between two kerned letters (the width BreakText tests, line_breaker.cc:
+  // 1684-1703; ShapingLineBreaker::ShapeLine, shaping_line_breaker.cc:511-559): the
+  // pairs across the soft hyphens a line passes narrow it, and the pair across the
+  // one it ends at doesn't. Gecko drops soft hyphens from its text run
+  // (IsDiscardable, nsTextFrameUtils.cpp:32-49), shapes a word once, whole
+  // (SetLineBreaks, gfxTextRun.cpp:1292-1301), and adds up the advances before the
+  // break (BreakAndMeasureText, gfxTextRun.cpp:1085-1097, 1139-1151), so there the
+  // line's last letter keeps what the pair across its end put on its advance.
+  // Premise: all of what the two sides measure narrower joined, as a GPOS pair's
+  // kerning is. Its gap is a pair from a `kern` table, of which HarfBuzz leaves half
+  // on the first letter (hb-kern.hh:102-106), and a ligature across the soft
+  // hyphen, whose letters share its advance (ComputeLigatureData, gfxTextRun.cpp:
+  // 238-322): there the profile keeps a hyphen that overflows by more than Firefox
+  // lets it (ENGINE_FOLLOWUPS.md, Line edges).
   unfitHyphenRetreat: 'reduced-width' | 'full-width' | 'full-width-or-first'
   // A chosen soft hyphen paints U+2010 where a font has a glyph for it, else `-`.
   // WebKit and Blink ask the primary font alone (hyphenString,
@@ -235,12 +233,6 @@ export type EngineProfile = {
   // its own. Gecko drops soft hyphens from its text run and clusters a ZWSP with the marks
   // after it, so glue at a line start can't hold the line: the segment after it starts it.
   zeroWidthGlueTakesLine: boolean
-  // When not even the first character of an overflowing word fits an empty line, WebKit
-  // keeps the punctuation, NBSP, U+2010 and U+2013 after that character on the line, in
-  // text holding a code unit above U+00FF (InlineContentBreaker.cpp:124-158, 222-233;
-  // canWebKitLineStartWith in src/line-breaks.ts). Blink and Gecko end the line after the
-  // first grapheme.
-  keepsLineStartPunctuation: boolean
   // Blink's HanKerning under text-spacing-trim: normal halts CJK opening and closing marks
   // next to other punctuation and at line ends (src/han-kerning.ts). WebKit and Gecko
   // don't trim them by default.
@@ -644,28 +636,6 @@ export function zeros(count: number): number[] {
   return out
 }
 
-// A text's width as Canvas spaces it under a letter spacing, or null where the context
-// can't take the spacing. Under none, that is the text's width in the font, which the
-// font's segment cache asks once. Under a spacing it is asked each time, borrowing the
-// font's context for the synchronous call, never enters a segment cache, and
-// letterSpacing is restored even when assignment or measurement fails.
-export function measureWithLetterSpacing(text: string, letterSpacing: number, emojiCorrection: number, measurement: FontMeasurement): number | null {
-  if (!measurement.state.takesLetterSpacing) return null
-  if (letterSpacing === 0) return getTextWidth(text, measurement, emojiCorrection)
-  // Counted before the spacing is set: the count measures stretches into the font's segment cache.
-  const corrected = emojiCorrection === 0 ? 0 : countEmojiGlyphs(text, measurement) * emojiCorrection
-  const context = getContext(measurement)
-  const previous = context.letterSpacing
-  try {
-    context.letterSpacing = `${letterSpacing}px`
-    if (Number.parseFloat(context.letterSpacing) !== letterSpacing) return null
-    const width = context.measureText(text).width - corrected
-    return Number.isFinite(width) ? width : null
-  } finally {
-    context.letterSpacing = previous
-  }
-}
-
 // The Canvas letterSpacing a text is measured under to count the glyphs it spaces: far
 // wider than any text asked about, so the text's width over it rounds to the count with
 // nothing taken off, and a power of two, which float32 widths add whole. A text 2^19 px
@@ -1013,11 +983,8 @@ function buildEngineProfile(): EngineProfile {
   // Engines Pretext doesn't recognize take Blink's profile (RESEARCH.md, Decisions Log,
   // 2026-09-26).
   const engine = getLayoutEngine(ua) ?? 'blink'
-  // Fresh-entry observations are verified only for desktop Blink and Gecko.
-  const isDesktop = /Windows NT|Macintosh|X11/.test(ua) && !/Android|Mobile|iPhone|iPad|iPod/.test(ua)
 
   return {
-    entryFitBasis: isDesktop && engine === 'blink' ? 'fresh' : isDesktop && engine === 'gecko' ? 'original' : 'disabled',
     lineBreakScan: engine,
     graphemeTable: engine === 'webkit' ? 'apple/char' : engine === 'gecko' ? 'gecko/char' : 'chromium/char',
     lineFitEpsilon: engine === 'webkit' ? 1 / 64 : 0.005,
@@ -1031,7 +998,6 @@ function buildEngineProfile(): EngineProfile {
     canvasLetterSpacingDropsLigatures: engine !== 'webkit',
     unspacedCursive: engine === 'blink' ? 'run' : engine === 'gecko' ? 'cluster' : 'none',
     letterSpacesGlyphs: engine === 'webkit',
-    shapesMarksAcrossSoftHyphen: engine === 'blink',
     unfitHyphenRetreat: engine === 'blink' ? 'reduced-width' : engine === 'gecko' ? 'full-width' : 'full-width-or-first',
     hyphenFromPrimaryFont: engine !== 'gecko',
     letterSpaceTabStops: engine !== 'webkit',
@@ -1040,7 +1006,6 @@ function buildEngineProfile(): EngineProfile {
     tabsInAppUnits: engine === 'gecko',
     hangTabs: engine !== 'gecko',
     zeroWidthGlueTakesLine: engine !== 'gecko',
-    keepsLineStartPunctuation: engine === 'webkit',
     hidesControlCharacters: engine === 'gecko',
     hanKerning: engine === 'blink',
     hangsIdeographicSpace: engine !== 'webkit',
@@ -1219,18 +1184,12 @@ export function getSegmentFit(
   // When metrics measured seg together with one following U+0020, the width of
   // that space alone. The last grapheme then keeps its kerning with the space.
   followingSpaceWidth: number | null = null,
-  // Whether to find the segment's WebKit line-start prohibitions.
-  withLineStartProhibitions = false,
 ): SegmentFit {
   if (metrics.fit !== null && metrics.fit.mode === mode) return metrics.fit
   const profile = getEngineProfile()
   const ends = new Int32Array(seg.length)
   const count = findGraphemeEnds(profile.graphemeTable, seg, 0, seg.length, ends)
-  if (count <= 1) return metrics.fit = { mode, advances: null, lineStartExtras: null, lineStartProhibitions: null, entryGeometry: null }
-  let prohibitions: Uint8Array | null = null
-  if (withLineStartProhibitions) {
-    for (let i = 1; i < count; i++) if (!canWebKitLineStartWith(seg.charCodeAt(ends[i - 1]!))) (prohibitions ??= new Uint8Array(count))[i] = 1
-  }
+  if (count <= 1) return metrics.fit = { mode, advances: null, lineStartExtras: null }
   let advances: number[]
   let lineStartExtras: number[] | null = null
   // Whether each advance is of a grapheme measured after the one before it alone.
@@ -1285,7 +1244,7 @@ export function getSegmentFit(
       }
     }
   }
-  return metrics.fit = { mode, advances, lineStartExtras, lineStartProhibitions: prohibitions, entryGeometry: null }
+  return metrics.fit = { mode, advances, lineStartExtras }
 }
 
 // Moves the advance of each later letter of a ligature onto the ligature's first letter, in a
@@ -1436,8 +1395,7 @@ function contextTakesFont(context: CanvasRenderingContext2D | OffscreenCanvasRen
 // its context from here as it measures, so none reads a width under another font's
 // setting, whatever was looked up or prepared in between, and text that is all cached,
 // which measures nothing, sets nothing. What changes the context after that puts it back
-// before it returns (getHyphenText, measureWithLetterSpacing, getExtraSpacings,
-// getFontSpaceKerning, isLigature).
+// before it returns (getHyphenText, getExtraSpacings, getFontSpaceKerning, isLigature).
 export function getContext(measurement: FontMeasurement): CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D {
   const state = measurement.state
   if (state.font !== measurement.canvasFont) state.context.font = state.font = measurement.canvasFont
