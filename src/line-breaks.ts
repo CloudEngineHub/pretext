@@ -883,9 +883,3 @@ export function getWebKitBreakBetweenItems(previous: string, next: string, keepA
   f.priorLength = f.last === 0 ? 0 : f.secondToLast === 0 ? 1 : 2
   return nextBreakablePosition(pairs, f, 0) === 0
 }
-
-// canBreakBefore, InlineContentBreaker.cpp:124-137, for line-break auto: whether a line
-// that holds only an overflowing first character ends before this code unit.
-export function canWebKitLineStartWith(unit: number): boolean {
-  return unit === 0x5c || (unit !== 0xa0 && unit !== 0x2010 && unit !== 0x2013 && !hasProperty(unit, PUNCTUATION_BUT_DASH_OR_CONNECTOR))
-}

@@ -300,7 +300,6 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
   // made whole than with each filled by a call and a push a segment (RESEARCH.md, Keeping Work
   // Bounded, JavaScript Engines, under A paragraph's sparse lists made whole).
   let entryGeometry: (SegmentEntryGeometry | null)[] | null = null
-  let lineStartProhibitions: (Uint8Array | null)[] | null = null
   let breakableLineStartExtras: (number[] | null)[] | null = null
   let lineStartExtras: number[] | null = null
   let lineEndTrims: number[] | null = null
@@ -531,7 +530,6 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
       const units = getSourceUnits(offsets, normalizedStart, textEnd, starts[index]!)
       if (units !== null) (sourceUnits ??= new Array<number[] | null>(flags.length).fill(null))[at] = units
       if (sub.entryGeometry !== null && sub.entryGeometry[s] !== null) (entryGeometry ??= new Array<SegmentEntryGeometry | null>(flags.length).fill(null))[at] = sub.entryGeometry[s]!
-      if (sub.lineStartProhibitions !== null && sub.lineStartProhibitions[s] !== null) (lineStartProhibitions ??= new Array<Uint8Array | null>(flags.length).fill(null))[at] = sub.lineStartProhibitions[s]!
       if (sub.breakableLineStartExtras !== null && sub.breakableLineStartExtras[s] !== null) (breakableLineStartExtras ??= new Array<number[] | null>(flags.length).fill(null))[at] = sub.breakableLineStartExtras[s]!
       const startExtra = (sub.lineStartExtras === null ? 0 : sub.lineStartExtras[s]!) + (i > first ? extraWidth : 0)
       if (startExtra !== 0) (lineStartExtras ??= zeroList(flags.length))[at] = startExtra
@@ -633,7 +631,6 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
     letterSpacing: spacingsDiffer || sharedSpacing === null ? 0 : sharedSpacing,
     discretionaryHyphenWidth: firstTextItem < 0 ? 0 : hyphenWidths[firstTextItem]!,
     discretionaryHyphenContexts,
-    lineStartProhibitions,
     breakableLineStartExtras,
     lineStartExtras,
     lineEndTrims,

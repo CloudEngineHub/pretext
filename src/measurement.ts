@@ -1,5 +1,5 @@
 import { findGraphemeEnds, type GraphemeTable } from './graphemes.js'
-import { canWebKitLineStartWith, DEFAULT_IGNORABLE, getBlinkDefaultLocale, hasProperty, MARK } from './line-breaks.js'
+import { DEFAULT_IGNORABLE, getBlinkDefaultLocale, hasProperty, MARK } from './line-breaks.js'
 import { webkitGenericFamilies, webkitGenericFamilyNames, webkitScriptLanguages, webkitScriptSubtags } from './generated/webkit-generic-families.js'
 import type { SegmentEntryGeometry } from './entry-geometry.js'
 import type { HanKerningFontData } from './han-kerning.js'
@@ -30,10 +30,6 @@ export type SegmentFit = {
   // With advances, per grapheme, what a line that starts with it adds to its advance, where
   // the engine shapes such a line again (the 'reshaped-lines' mode). Null where nothing.
   lineStartExtras: number[] | null
-  // With advances in the WebKit profile, per grapheme, 1 for one after the first that
-  // WebKit doesn't start a line with when a line holds only an overflowing first
-  // character, by its first code unit. Null without any.
-  lineStartProhibitions: Uint8Array | null
   entryGeometry: {
     letterSpacing: number
     emojiCorrection: number
@@ -235,12 +231,6 @@ export type EngineProfile = {
   // its own. Gecko drops soft hyphens from its text run and clusters a ZWSP with the marks
   // after it, so glue at a line start can't hold the line: the segment after it starts it.
   zeroWidthGlueTakesLine: boolean
-  // When not even the first character of an overflowing word fits an empty line, WebKit
-  // keeps the punctuation, NBSP, U+2010 and U+2013 after that character on the line, in
-  // text holding a code unit above U+00FF (InlineContentBreaker.cpp:124-158, 222-233;
-  // canWebKitLineStartWith in src/line-breaks.ts). Blink and Gecko end the line after the
-  // first grapheme.
-  keepsLineStartPunctuation: boolean
   // Blink's HanKerning under text-spacing-trim: normal halts CJK opening and closing marks
   // next to other punctuation and at line ends (src/han-kerning.ts). WebKit and Gecko
   // don't trim them by default.
@@ -1040,7 +1030,6 @@ function buildEngineProfile(): EngineProfile {
     tabsInAppUnits: engine === 'gecko',
     hangTabs: engine !== 'gecko',
     zeroWidthGlueTakesLine: engine !== 'gecko',
-    keepsLineStartPunctuation: engine === 'webkit',
     hidesControlCharacters: engine === 'gecko',
     hanKerning: engine === 'blink',
     hangsIdeographicSpace: engine !== 'webkit',
@@ -1219,18 +1208,12 @@ export function getSegmentFit(
   // When metrics measured seg together with one following U+0020, the width of
   // that space alone. The last grapheme then keeps its kerning with the space.
   followingSpaceWidth: number | null = null,
-  // Whether to find the segment's WebKit line-start prohibitions.
-  withLineStartProhibitions = false,
 ): SegmentFit {
   if (metrics.fit !== null && metrics.fit.mode === mode) return metrics.fit
   const profile = getEngineProfile()
   const ends = new Int32Array(seg.length)
   const count = findGraphemeEnds(profile.graphemeTable, seg, 0, seg.length, ends)
-  if (count <= 1) return metrics.fit = { mode, advances: null, lineStartExtras: null, lineStartProhibitions: null, entryGeometry: null }
-  let prohibitions: Uint8Array | null = null
-  if (withLineStartProhibitions) {
-    for (let i = 1; i < count; i++) if (!canWebKitLineStartWith(seg.charCodeAt(ends[i - 1]!))) (prohibitions ??= new Uint8Array(count))[i] = 1
-  }
+  if (count <= 1) return metrics.fit = { mode, advances: null, lineStartExtras: null, entryGeometry: null }
   let advances: number[]
   let lineStartExtras: number[] | null = null
   // Whether each advance is of a grapheme measured after the one before it alone.
@@ -1285,7 +1268,7 @@ export function getSegmentFit(
       }
     }
   }
-  return metrics.fit = { mode, advances, lineStartExtras, lineStartProhibitions: prohibitions, entryGeometry: null }
+  return metrics.fit = { mode, advances, lineStartExtras, entryGeometry: null }
 }
 
 // Moves the advance of each later letter of a ligature onto the ligature's first letter, in a

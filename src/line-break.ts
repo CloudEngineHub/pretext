@@ -35,9 +35,6 @@ export type PreparedLineBreakData = {
   simpleLineCountFastPath: boolean
   breakableFitAdvances: (number[] | null)[] // Per-grapheme fit advances for breakable segments, else null
   entryGeometry: (SegmentEntryGeometry | null)[] | null // Per segment, how its tails fit on a fresh line; null without any
-  // Per segment with breakable fit advances, per grapheme, 1 for one that can't start a
-  // line, which a line holding only an overflowing first grapheme keeps. Null without any.
-  lineStartProhibitions: (Uint8Array | null)[] | null
   // Per segment with breakable fit advances, per grapheme, width a line that starts with that
   // grapheme adds to its advance, as Blink shapes the start of a line inside a word again
   // (getSegmentFit in src/measurement.ts). Null without any.
@@ -186,20 +183,6 @@ export function getItemTabAdvance(prepared: PreparedLineData, items: ParagraphSe
   return getTabAdvance(lineWidth - endEdge, stopAdvance, minimumAdvance, appUnits) + prepared.widths[index]!
 }
 
-// Where a line that holds only an overflowing grapheme ends: after that grapheme and
-// the graphemes after it that can't start a line, up to `endGraphemeIndex`.
-function getOverflowingFirstGraphemeEnd(
-  prepared: PreparedLineData,
-  segmentIndex: number,
-  graphemeIndex: number,
-  endGraphemeIndex: number,
-): number {
-  const prohibitions = prepared.lineStartProhibitions?.[segmentIndex] ?? null
-  let end = graphemeIndex + 1
-  while (prohibitions !== null && end < endGraphemeIndex && prohibitions[end] === 1) end++
-  return end
-}
-
 function getTerminalLetterSpacing(
   prepared: PreparedLineData,
   openingEdges: number[] | null,
@@ -332,7 +315,7 @@ export function countPreparedLines(prepared: PreparedLineData, maxWidth: number)
   if (!prepared.simpleLineWalkFastPath || prepared.overflowLineEndTrims !== null) {
     return prepared.simpleLineCountFastPath ? countSteppedLines(prepared, maxWidth) : walkPreparedLinesRaw(prepared, maxWidth)
   }
-  const { widths, segmentFlags, breakableFitAdvances, entryGeometry, lineStartProhibitions, breakableLineStartExtras, lineStartExtras, lineEndTrims } = prepared
+  const { widths, segmentFlags, breakableFitAdvances, entryGeometry, breakableLineStartExtras, lineStartExtras, lineEndTrims } = prepared
   const fitLimit = Math.max(0, maxWidth) + getEngineProfile().lineFitEpsilon
   const segmentCount = widths.length
   let count = 0
@@ -370,10 +353,8 @@ export function countPreparedLines(prepared: PreparedLineData, maxWidth: number)
       continue
     }
     // An overflowing breakable segment fills lines grapheme by grapheme. A line
-    // holding only an overflowing grapheme keeps the graphemes after it that
-    // can't start a line. A line that starts inside it where it has fresh-line
-    // geometry takes the tail or its fresh prefixes.
-    const prohibitions = lineStartProhibitions?.[i] ?? null
+    // that starts inside it where it has fresh-line geometry takes the tail or
+    // its fresh prefixes.
     const entry = entryGeometry === null ? null : entryGeometry[i]!
     const startExtras = breakableLineStartExtras?.[i] ?? null
     let g = 0
@@ -391,15 +372,6 @@ export function countPreparedLines(prepared: PreparedLineData, maxWidth: number)
       }
       if (startExtras !== null) lineW += startExtras[g]!
       lineW += advances[g++]!
-      if (prohibitions !== null && lineW > fitLimit) {
-        const kept = g
-        while (g < advances.length && prohibitions[g] === 1) lineW += advances[g++]!
-        if (g > kept) {
-          count++
-          lineW = 0
-          continue
-        }
-      }
       while (g < advances.length && lineW + advances[g]! <= fitLimit) lineW += advances[g++]!
       if (g < advances.length) {
         count++
@@ -1020,18 +992,6 @@ function walkPreparedComplexLines(
                 // A line that starts inside a padded rich-inline item, or fills its first
                 // segment, pays the item's extraWidth (ParagraphSegmentData).
                 if (g > 0 ? insideExtras !== null : fillExtras !== null) lineW += g > 0 ? insideExtras![i]! : fillExtras![i]!
-                // A line that holds only this grapheme, overflowing, keeps the graphemes after
-                // it that can't start a line, and ends.
-                const end = lineW + letterSpacing > fitLimit
-                  ? getOverflowingFirstGraphemeEnd(prepared, i, g, fitCount)
-                  : g + 1
-                if (end > g + 1) {
-                  for (let k = g + 1; k < end; k++) lineW += fitAdvances[k]! + letterSpacing
-                  endSegmentIndex = end === fitCount ? i + 1 : i
-                  endGraphemeIndex = end === fitCount ? 0 : end
-                  endWidth = lineW - lineEndTrimmed
-                  break decided
-                }
               } else {
                 const candidatePaintWidth = lineW + (baseGw + (g > fillStart ? letterSpacing : fillSpacing))
                 if (candidatePaintWidth + letterSpacing > fitLimit) break decided
@@ -1151,15 +1111,6 @@ function stepPreparedSimpleLineGeometry(
     // the item's extraWidth (ParagraphSegmentData).
     const items = prepared.items
     if (items !== undefined && (g > 1 ? items.insideExtras !== null : items.fillExtras !== null)) lineW += g > 1 ? items.insideExtras![start]! : items.fillExtras![start]!
-    // A line that holds only an overflowing grapheme keeps the graphemes after it
-    // that can't start a line, and ends.
-    const overflowEnd = lineW > fitLimit ? getOverflowingFirstGraphemeEnd(prepared, start, g - 1, fitAdvances.length) : g
-    if (overflowEnd > g) {
-      for (; g < overflowEnd; g++) lineW += fitAdvances[g]!
-      cursor.segmentIndex = g === fitAdvances.length ? start + 1 : start
-      cursor.graphemeIndex = g === fitAdvances.length ? 0 : g
-      return lineW
-    }
     for (; g < fitAdvances.length; g++) {
       if (lineW + fitAdvances[g]! > fitLimit) {
         cursor.graphemeIndex = g

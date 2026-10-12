@@ -137,8 +137,7 @@ function prepareInternal(
 //   6. Correct emoji canvas inflation (probed once per font)
 //   7. Record what changes at a line's edges: Blink's halts of CJK punctuation,
 //      U+3000 hangs, how much narrower a soft hyphen's neighbors measure joined,
-//      fresh-line widths inside segments with invisible characters, and the
-//      characters WebKit keeps after an overflowing first one
+//      and fresh-line widths inside segments with invisible characters
 export function prepare(text: string, font: string, options?: PrepareOptions): PreparedText {
   return prepareInternal(text, font, false, options) as PreparedText
 }

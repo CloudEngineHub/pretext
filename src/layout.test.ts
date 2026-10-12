@@ -2829,7 +2829,6 @@ describe('prepare invariants', () => {
       ['tabsInAppUnits', false, false, true],
       ['hangTabs', true, true, false],
       ['zeroWidthGlueTakesLine', true, true, false],
-      ['keepsLineStartPunctuation', false, true, false],
       ['hidesControlCharacters', false, false, true],
       ['hanKerning', true, false, false],
       ['hangsIdeographicSpace', true, false, true],
@@ -2950,33 +2949,6 @@ describe('prepare invariants', () => {
       expect(lines('日本ーー', graphemeWidth * 2.5)).toEqual(['日', '本ー', 'ー'])
     } finally {
       profile.lineBreakScan = previous
-    }
-  })
-
-  test('the WebKit profile keeps punctuation after an overflowing first character in text above U+00FF', () => {
-    const profile = getEngineProfile()
-    const previous = { ...profile }
-    const lines = (source: string, options?: { letterSpacing: number }) => {
-      const prepared = prepareWithSegments(source, FONT, options)
-      const result = layoutWithLines(prepared, 1, LINE_HEIGHT)
-      expect(collectStreamedLines(prepared, 1)).toEqual(result.lines)
-      expect(layout(prepare(source, FONT, options), 1, LINE_HEIGHT).lineCount).toBe(result.lineCount)
-      return result.lines.map(line => line.text)
-    }
-    try {
-      profile.lineBreakScan = 'webkit'
-      profile.keepsLineStartPunctuation = true
-      // Safari 27 paints these at a width below one character; 8-bit `xb((c` takes one
-      // character per line.
-      expect(lines('xb((cā')).toEqual(['x', 'b((', 'c', 'ā'])
-      expect(lines('xb((cā', { letterSpacing: 1 })).toEqual(['x', 'b((', 'c', 'ā'])
-      expect(lines('xb((c')).toEqual(['x', 'b', '(', '(', 'c'])
-      // Blink and Gecko end the line after the first grapheme.
-      profile.lineBreakScan = 'blink'
-      profile.keepsLineStartPunctuation = false
-      expect(lines('xb((cā')).toEqual(['x', 'b', '(', '(', 'c', 'ā'])
-    } finally {
-      Object.assign(profile, previous)
     }
   })
 
