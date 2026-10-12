@@ -8737,7 +8737,9 @@ test("a host with no document gets layouts from a font and measureText alone, un
   // `font` and a measureText(text) that returns { width }, in a runtime with no document. A
   // change that asks more of a context fails here, where it would break such hosts unseen. The
   // measurer counts a terminal's cells, each as wide as the font's px size: none for a
-  // combining mark or a format character, two for CJK and emoji, one for anything else. Each
+  // combining mark or a format character, two for CJK, emoji and the hyphen U+2010, one for
+  // anything else. U+2010 is wider than `-` so that the soft-hyphen question goes on to set
+  // fonts of its own on the object, `16px monospace` and `16px serif` (getHyphenText). Each
   // text and a rich paragraph are laid out at three widths: nothing throws, every width is
   // finite, no line is wider than its box by the width it reports, and layout() counts the
   // lines layoutWithLines() returns. The engine profile is computed once per process, so each
@@ -8765,7 +8767,7 @@ test("a host with no document gets layouts from a font and measureText alone, un
     const size = font => Number.parseFloat(/([\\d.]+)px/.exec(font)?.[1] ?? '16')
     const cells = text => {
       let count = 0
-      for (const ch of text) count += /[\\p{M}\\p{Cf}]/u.test(ch) ? 0 : /[\\u2E80-\\u9FFF\\uAC00-\\uD7A3\\uFF00-\\uFFEF\\p{Extended_Pictographic}]/u.test(ch) ? 2 : 1
+      for (const ch of text) count += /[\\p{M}\\p{Cf}]/u.test(ch) ? 0 : /[\\u2010\\u2E80-\\u9FFF\\uAC00-\\uD7A3\\uFF00-\\uFFEF\\p{Extended_Pictographic}]/u.test(ch) ? 2 : 1
       return count
     }
     globalThis.OffscreenCanvas = class {
