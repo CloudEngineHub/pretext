@@ -5486,7 +5486,11 @@ decisions for the maintainer.
   array of the same length, and read the typed arrays by index, which a copy answers the same, with no check of the
   argument (the entry of 2026-10-06 on well-typed callers). A copy is still no way to keep a handle across page loads:
   its widths are those of the fonts, language and browser that prepared it. The same count was held out of #401 because
-  Safari's pre-wrap layout timed 3.6-5.1% slower with it (2 sessions, Safari 27.0, 2026-10-01).
+  Safari's pre-wrap layout timed 3.6-5.1% slower with it (2 sessions, Safari 27.0, 2026-10-01). Timed again as 9143f667
+  against bac1774c, three sessions a browser side by side in background windows (2026-10-11), that entry, `worst`'s
+  `pre-wrap-chunks layout`, read 2.0% faster in webkit-host (WebKit 22625.1.29.11.27), within its band of ±2.6%, and no
+  entry the walkers run was called in it, in Chrome 154.0.8037.98 or in Firefox 157.0.1. Reopens if a later timing shows
+  the count by `widths` costing such an entry.
 - **2026-09-25: the old test suite, its snapshots, its diagnostic tools and the benchmark page are gone**; accuracy and
   speed claims rest where AGENTS.md says. The benchmark page went once the noise floors of `bun harness bench` caught a
   known change (harness/README.md, Bench), and what the harness took from the old suite stays frozen, since its
