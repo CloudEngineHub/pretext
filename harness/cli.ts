@@ -29,8 +29,9 @@
 //   --scale=<n>              Chrome and Firefox at device scale factor n; --zoom=<n>: Chrome at page zoom n
 //   --browser=ios --runtime="iOS 26.0"   Safari in a simulator of that runtime, booted for each job, deleted after it
 //   --store=<dir>            the folder these runs keep recordings and lists in, .artifacts/harness-store by default
+// A flag its command doesn't read stops the run. --help prints this header.
 import { execFileSync } from 'node:child_process'
-import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { basename, join, resolve } from 'node:path'
 import {
   accept, attribute, behaviourLine, buildChange, checkBlocks, commitSeed, countBehaviour, countDraw, countedFailures, countedOnly, countedTallies, countWidths, drawRows, freshRecordings,
@@ -65,15 +66,40 @@ const FRESH_AT_MOST = 30
 export type Options = { lib: string; seed: number; sample: number | null; accept: string; partial: boolean; onlyNew: boolean }
 export type Args = { command: string | undefined; positional: string[]; browsers: BrowserKind[]; cases: string | null; options: Options; flags: Map<string, string>; root: string }
 
+// The flags each command reads, beside the ones every command takes. A flag its command doesn't read stops the run
+// before a browser starts. Such a flag used to be dropped without a word, so `record --onlynew` recorded every case
+// again over the checked-in recordings, `check --help` and `equal main --ofline` started three browsers,
+// `bench main --row=new` timed every row, and `explain --text=… --whitespace=pre-wrap` explained the paragraph under
+// `white-space: normal`. repin reads --seed for installed Safari's sample.
+const SHARED: readonly string[] = ['browser', 'cases', 'lib', 'scale', 'zoom', 'runtime', 'store', 'help']
+const FLAGS = new Map<string, readonly string[]>([
+  ['record', ['only-new', 'sample', 'seed']], ['check', ['accept']], ['gate', ['accept', 'sample', 'seed']], ['equal', ['offline']],
+  ['bench', ['sessions', 'rows', 'quick', 'foreground']], ['repin', ['write', 'seed']],
+  ['explain', ['text', 'width', 'font', 'lang', 'white-space', 'word-break', 'letter-spacing']],
+])
+
+// What --help, no command and an unknown command print: this file's header.
+function usage(): string {
+  const lines = readFileSync(import.meta.path, 'utf8').split('\n')
+  return lines.slice(0, lines.findIndex(line => !line.startsWith('//'))).map(line => line.slice(3)).join('\n')
+}
+
 export function parseArgs(args: readonly string[]): Args {
   const flags = new Map<string, string>()
   const positional: string[] = []
   for (let i = 0; i < args.length; i++) {
     const match = /^--([a-z-]+)(?:=(.*))?$/s.exec(args[i]!)
-    if (match === null) positional.push(args[i]!)
-    else flags.set(match[1]!, match[2] ?? '')
+    if (match !== null) flags.set(match[1]!, match[2] ?? '')
+    else if (args[i]!.startsWith('--')) throw new Error(`${args[i]} isn't a flag: a flag's name is lowercase letters and hyphens, as in --only-new`)
+    else positional.push(args[i]!)
   }
   const command = positional[0]
+  const reads = command === undefined ? undefined : FLAGS.get(command)
+  if (reads !== undefined) {
+    for (const name of flags.keys()) {
+      if (!reads.includes(name) && !SHARED.includes(name)) throw new Error(`${command} reads no --${name}; it reads ${reads.concat(SHARED).map(flag => `--${flag}`).join(', ')}`)
+    }
+  }
   const browserFlag = flags.get('browser') ?? (command === 'explain' ? 'chrome' : 'all')
   const browsers: BrowserKind[] = browserFlag === 'all' ? BROWSERS.filter(browser => BROWSER[browser].background) : browserFlag.split(',') as BrowserKind[]
   for (let i = 0; i < browsers.length; i++) if (!BROWSERS.includes(browsers[i]!)) throw new Error(`Unknown browser ${browsers[i]}`)
@@ -665,6 +691,10 @@ async function explain(browser: BrowserKind, c: Case, recording: Recording | und
 
 async function main(): Promise<number> {
   const { command, positional, browsers, cases: file, options: o, flags, root } = parseArgs(process.argv.slice(2))
+  if (flags.has('help')) {
+    console.log(usage())
+    return 0
+  }
   const dir = join(import.meta.dir, 'cases')
   const { cases, sets } = loadCases(file !== null ? [file] : readdirSync(dir).filter(name => name.endsWith('.ndjson')).sort().map(name => join(dir, name)))
   if (flags.has('scale')) setup.scale = Number(flags.get('scale'))
@@ -727,7 +757,7 @@ async function main(): Promise<number> {
       return 0
     }
     default:
-      console.error('Usage: bun harness record|check|gate|equal <ref>|bench <base>|repin <browser>|explain <id>|explain --text=... [--browser=...] [--cases=...] [--lib=...]')
+      console.error(usage())
       return 2
   }
 }

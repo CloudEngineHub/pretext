@@ -405,6 +405,25 @@ describe('the stored recordings', () => {
     expect(() => parseArgs(['record', '--browser=firefox', '--zoom=1.25'])).toThrow('no switch')
   })
 
+  test('a flag its command doesn\'t read stops the run: dropped, record --onlynew recorded every case again over the checked-in recordings', () => {
+    const unread = [
+      ['record', '--onlynew'], ['check', '--only-new'], ['check', '--browsers=chrome'], ['check', '--case=x.ndjson'], ['gate', '--samples=10'], ['equal', 'main', '--ofline'],
+      ['bench', 'main', '--row=new'], ['bench', 'main', '--session=1'], ['bench', 'main', '--offline'], ['repin', 'chrome', '--wirte'], ['explain', '--text=a b', '--whitespace=pre-wrap'],
+    ]
+    for (let i = 0; i < unread.length; i++) expect(() => parseArgs(unread[i]!)).toThrow(`${unread[i]![0]} reads no ${unread[i]!.at(-1)!.split('=')[0]}; it reads `)
+    // An argument that starts as a flag and isn't one was a positional nothing read.
+    expect(() => parseArgs(['record', '--only_new'])).toThrow('--only_new isn\'t a flag')
+    expect(() => parseArgs(['explain', '--text=a b', '--letterSpacing=2'])).toThrow('--letterSpacing=2 isn\'t a flag')
+    // Every flag cli.ts's header names parses with its command.
+    const taken = [
+      ['record', '--only-new', '--sample=5', '--seed=1', '--browser=chrome', '--cases=x.ndjson', '--lib=src', '--store=/tmp/store'], ['check', '--accept=why'], ['gate', '--sample=10', '--seed=7'],
+      ['equal', 'main', '--offline'], ['bench', 'main', '--sessions=2', '--rows=new', '--quick', '--foreground', '--lib=main'], ['repin', 'chrome', '--write'],
+      ['explain', '--text=a b', '--width=320', '--font=16px Arial', '--lang=en', '--white-space=pre-wrap', '--word-break=keep-all', '--letter-spacing=1'],
+      ['check', '--browser=ios', '--runtime=iOS 26.0'], ['check', '--browser=chrome', '--scale=2'], ['check', '--browser=chrome', '--zoom=1.25'], ['check', '--help'],
+    ]
+    for (let i = 0; i < taken.length; i++) expect(parseArgs(taken[i]!).command).toBe(taken[i]![0])
+  })
+
   test('a case laid out differently in its two orders is never pinned: page history would block changes at random', () => {
     const same = layOut(TEXT, STARTS).recording
     const other = layOut(TEXT, [0, 10, 26]).recording
