@@ -253,10 +253,10 @@ a rule by reading it and its unit tests (`rebuild/src/engines/<engine>/`) agains
 - **The API isn't final.** The prepare/layout split was the right trade when chosen and may not be now; alternatives are
   proposed as additions and decided with the maintainer. Idempotent layout without handles stays interesting if lifetime
   can be controlled, though a study recommends keeping handles (Dead Ends, Caching, State And API Designs); issue #504
-  weighs three forms of it, for after the first release (Decisions Log, 2026-10-12). The old incremental-prepare work
-  (#313; Dead Ends, Caching, State And API Designs, Incremental prepare) mostly made up for slowness: it may inspire an
-  API, not bias one. Immediate mode: nothing relies on object identity, and changed text should be cheap to prepare
-  again (#313). A target of 2 s to prepare 10,000 rich messages (2026-09-18) was withdrawn as unsubstantiated.
+  weighs three forms of it, with nothing decided (2026-10-12). The old incremental-prepare work (#313; Dead Ends,
+  Caching, State And API Designs, Incremental prepare) mostly made up for slowness: it may inspire an API, not bias one.
+  Immediate mode: nothing relies on object identity, and changed text should be cheap to prepare again (#313). A target
+  of 2 s to prepare 10,000 rich messages (2026-09-18) was withdrawn as unsubstantiated.
 - **Design from shared structure**: once plain speed engineering is exhausted, find what calls share and skip
   recomputing it, from a cost model first. Demos show hard technical cases that developers adapt to their own uses; they
   don't tell which uses are common (2026-09-26). Don't overfit to today's uses.
@@ -6258,17 +6258,17 @@ decisions for the maintainer.
   measured for the port it names. Reopens with a report from such a page, or once WebKit #285993 gives Canvas a `lang`
   and the table goes.
 - **2026-10-12: outside a browser the supported way to measure is a global `OffscreenCanvas` class that stands in for
-  the Canvas, and no measuring hook is added (#506)**, the maintainer's decision. Preparation makes its context with
-  `new OffscreenCanvas(1, 1).getContext('2d')` wherever that global exists, so a host that defines the class before the
-  first `prepare()` gets layouts over its own widths with no new API. README's Caveats say what the class must give, a
-  unit test holds a host to that and no more, and such a host takes Chromium's rules, as any engine the library doesn't
-  recognize does (the entry of 2026-09-26); a `navigator` with no `userAgent`, as React Native's, is one now, where
-  every `prepare()` threw. A hook was prototyped and stays unmerged, `setMeasureContext(context)`, 22 lines of code and
-  54 B gzipped. Outside a browser it spares an app the global and changes no result: on stand-in measurers the lines and
-  widths were the same through both, and one supplied object can't be the second context the Chromium profile asks about
-  kana. Either way a host gets Chrome's breaks over its own widths, exact where it paints those lines itself and an
-  estimate of what a browser or a native text view lays out. Today's API stays. Reopens with a renderer that runs inside
-  a browser, where it can't replace the page's `OffscreenCanvas`.
+  the Canvas, and a measuring hook stays punted (#506)**, the maintainer's choice between the two. Preparation makes its
+  context with `new OffscreenCanvas(1, 1).getContext('2d')` wherever that global exists, so a host that defines the
+  class before the first `prepare()` gets layouts over its own widths with no new API. README's Caveats say what the
+  class must give, a unit test holds a host to that and no more, and such a host takes Chromium's rules, as any engine
+  the library doesn't recognize does (the entry of 2026-09-26); a `navigator` with no `userAgent`, as React Native's, is
+  one now, where every `prepare()` threw. A hook was prototyped and stays unmerged, `setMeasureContext(context)`, 22
+  lines of code and 54 B gzipped. Outside a browser it spares an app the global and changes no result: on stand-in
+  measurers the lines and widths were the same through both, and one supplied object can't be the second context the
+  Chromium profile asks about kana. Either way a host gets Chrome's breaks over its own widths, exact where it paints
+  those lines itself and an estimate of what a browser or a native text view lays out. Today's API stays. Reopens with a
+  renderer that runs inside a browser, where it can't replace the page's `OffscreenCanvas`.
 - **2026-10-12: the fonts' segment caches are bounded: once they hold more than 262,144 segments between all fonts, the
   next preparation drops them all before it measures anything, as `clearCache()` does** (landed on judgement with #508).
   Text that never repeats grew them for as long as the page lived: 300,000 rows with an id of their own each kept 157,
@@ -6336,7 +6336,8 @@ decisions for the maintainer.
   webkit-host, but what it is for, the labels, no bench row shows. What it doesn't remove: any object of 13 to 18 fields
   made and dropped once a `prepare()`, by a later change or by an app between its own calls, brings the slowdown back
   (+12.7% with a 16-field one planted, +12.0% with the caller making one), and no bench row lays out short labels, so
-  nothing would say so (TODO.md). Reopens if JavaScriptCore stops placing such objects among the handles.
+  nothing would say so (ENGINE_FOLLOWUPS.md, Harness debt). Reopens if JavaScriptCore stops placing such objects among
+  the handles.
 - **2026-10-12: the WebKit profile counts the glyphs Safari letter-spaces through its Canvas, and takes what that costs
   in Safari** (landed on judgement with #513: the trade was put to the maintainer, who left the call to the landing).
   Safari gives each glyph it draws one letter spacing, not each grapheme (`ComplexTextController.cpp:793-796`), and its
@@ -6365,11 +6366,3 @@ decisions for the maintainer.
   0 do (webkit-host, WebKit 22625.1.29.11.27, 2026-10-12, under a CSS `zoom` on `<html>` and under the web view's own
   page zoom alike; installed Safari and iOS weren't run). Reopens if preparation comes to know the page's zoom: Canvas
   at the size times the zoom, divided by the zoom, gave the page's emoji width within 0.01 px from 100% to 300%.
-- **2026-10-12: layout that takes the text itself waits for after the first release, written up as issue #504**, the
-  maintainer's decision. It headed the API discussion's list, and was built out for heights, lines and rich inline so
-  that it can be weighed (branch `idempotent-all-apis`, unmerged), in three forms: composed from today's calls, which
-  needs nothing new; one call with a width, which keeps nothing per text; and a call keyed by an object of the app's,
-  the only one of the three near a handle's speed. Each gave what preparing and then laying out gives today in every
-  comparison but two stale states the issue lists. Every export is an addition and no existing call changes its result,
-  so none of it has to land before a release, and a new export needs someone who needs it (Part 1, Caching And API
-  Design), which the issue asks after. Reopens once the release is out, with the answers there.

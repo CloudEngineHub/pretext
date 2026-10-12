@@ -5,13 +5,13 @@ One line per item, with where its detail lives. Work depth-first; a punted item 
 ## Now
 
 - Nothing is queued: what is left before a release is under End of project, and its open decisions are with the maintainer.
-- Left by merged changes, not scheduled: a bench row that lays out the handles of a few thousand short labels, one `prepare()` each. The bench has none, so the slowdown #512 keeps out, 11-16% of Safari's `layout()` over such labels, would show on no row if a later change let it in (RESEARCH.md, Decisions Log, 2026-10-12).
 
 ## End of project
 
 Held until the current work is done, and all before the first release.
 
 - The API discussion, a review of the public API: today's API stays, and alternatives are additions (RESEARCH.md, Caching And API Design; the studies are in RESEARCH.md, Dead Ends, Caching, State And API Designs). On its list:
+  - layout that takes the text itself, with no handle for the app to keep, and gives the same answer every call, perhaps with an optional warm-up like `prepare()`: issue #504 weighs three forms of it, each measured, composed from today's calls and, built on a branch, one call with a width and a call keyed by an object of the app's, and asks who would use which;
   - who owns the fonts' segment caches. They are bounded since #508: past 262,144 segments between all fonts the next preparation drops them whole, as `clearCache()` does (RESEARCH.md, Decisions Log, 2026-10-12). Still open: an owner, and a bound in bytes, since a Chromium-profile segment is a whole token with an advance for each character, and the caches there can hold 115 to 454 MB by the tokens' length;
   - parked speed-ups: the width memo, where a handle remembers which widths gave its last lines (drag-resize frames 2.9-4.2× faster, new widths up to 26% slower in Chrome, 2026-09-26); the font given at `layout()` instead of `prepare()`; a Firefox cache of Thai word boundaries;
   - an element's own language and `Content-Language` as inputs (ENGINE_FOLLOWUPS.md, Language and generic families);
@@ -32,7 +32,6 @@ Held until the current work is done, and all before the first release.
 
 ## Open design questions
 
-- Layout that takes the text itself, with no handle for the app to keep, and gives the same answer every call: for after the first release. Issue #504 weighs three forms of it, each measured: composed from today's calls and, built on a branch, one call with a width and a call keyed by an object of the app's. It asks who would use which (RESEARCH.md, Decisions Log, 2026-10-12; the earlier studies are in RESEARCH.md, Dead Ends, Caching, State And API Designs).
 - Server-side measurement and other backends, such as React Native's: punted, not closed. Outside a browser an app supplies the measuring as a global `OffscreenCanvas` class, which README's Caveats describe, and gets Chrome's breaks over its own widths; no measuring hook is added (RESEARCH.md, Decisions Log, 2026-10-12). Its lines stay an estimate of what a browser or a native text view lays out.
 - Source offsets and carets for editing (#90, #198). Rich inline gives a materialized fragment's place in its item's `text` as passed, `\r\n` counting two (`sourceStart`, `sourceEnd`), which is what the editor on #90 asked for. Open: offsets for a plain text's lines, whose cursors count segments and graphemes of the prepared text; the way back, from an offset to a cursor or an x, for carets, hit testing and selection on Canvas (#198); whether bidi selection and copy stay outside Pretext; and whether a rich fragment range says its offsets too (End of project, the API discussion's list).
 - A `word-break` and `white-space` per rich item: `prepareRichInline()` takes one of each for the paragraph, as a chat message or an editor sets them, where browsers take each item boundary's rule from the styles of the spans beside it, WebKit from the next span's (RESEARCH.md, Rich Inline Boundaries, Joined Text); and the paragraph's font, in which Chrome and Firefox count a pre-wrap span's tab stops (ENGINE_FOLLOWUPS.md, Rich-inline item edges).
