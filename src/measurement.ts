@@ -907,7 +907,9 @@ export function getEngineProfile(): EngineProfile {
 }
 
 function buildEngineProfile(): EngineProfile {
-  const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent
+  // A navigator can lack a userAgent, as React Native's does, where lib.dom's type says it is a
+  // string: such a runtime names no engine, like one with no navigator.
+  const ua = typeof navigator === 'undefined' ? '' : (navigator as { userAgent?: string }).userAgent ?? ''
   // Engines Pretext doesn't recognize take Blink's profile (RESEARCH.md, Decisions Log,
   // 2026-09-26).
   const engine = getLayoutEngine(ua) ?? 'blink'
