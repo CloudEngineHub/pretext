@@ -82,7 +82,7 @@ The rebuild's pages for the unfiled bugs, and for its candidates that don't reac
 
 ### Chrome: Canvas leaves out kerning the page applies
 
-Unfiled; issues.chromium.org wasn't searched for a report. Chrome's Canvas shapes a string word by word, cut at each space and around each CJK character, where the page shapes a line whole, so `measureText()` leaves out the pair kerning across those cuts: 15 px Arial `x A x` is 33.34 px in Canvas and 31.69 px on the page, and 16 px Hiragino Sans `キス` 32 px and 31.05 px (Chrome 154.0.8037.57, 2026-09-30; in Firefox 156.0.1 and webkit-host, Pretext's widths for both equal the page's). It is the largest cause of Pretext's wrong lines in Chrome on real text, and Pretext has no workaround; `ENGINE_FOLLOWUPS.md` has the rates and what one would cost.
+Unfiled; issues.chromium.org wasn't searched for a report. Chrome's Canvas shapes a string word by word, cut at each space and around each CJK character, where the page shapes a line whole, so `measureText()` leaves out the pair kerning across those cuts: 15 px Arial `x A x` is 33.34 px in Canvas and 31.69 px on the page, and 16 px Hiragino Sans `キス` 32 px and 31.05 px (Chrome 154.0.8037.57, 2026-09-30; in Firefox 156.0.1 and webkit-host, Pretext's widths for both equal the page's). It was the largest cause of Pretext's wrong lines in Chrome on real text. The Chromium profile reads both from Canvas another way, the kerning with spaces since #408 and the kerning between kana (first built in #412; 2026-10-11); `ENGINE_FOLLOWUPS.md`, Kerning Chrome's Canvas doesn't report, has what is left.
 
 ### Firefox: Canvas measures at a rounded font size
 
