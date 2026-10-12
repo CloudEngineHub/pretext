@@ -463,14 +463,20 @@ describe('the stored recordings', () => {
       const name = bare[i]!.at(-1)!.split('=')[0]!
       expect(() => parseArgs(bare[i]!)).toThrow(`${name} takes a value: it is written ${name}=value`)
     }
-    // A switch is on whatever value it is given: --write=false wrote.
+    // Every flag is looked at, not the last alone.
+    expect(() => parseArgs(['check', '--accept', '--browser=chrome'])).toThrow('--accept takes a value: it is written --accept=value')
+    // A switch is on whatever value it is given, an empty one too: --write=false wrote, and so did --write=.
     const valued = [
       ['repin', 'chrome', '--write=false'], ['record', '--only-new=1'], ['equal', 'main', '--offline=0'], ['bench', 'main', '--quick=no'], ['bench', 'main', '--foreground=1'], ['check', '--help=1'],
+      ['repin', 'chrome', '--write='], ['record', '--only-new='],
     ]
     for (let i = 0; i < valued.length; i++) {
       const name = valued[i]!.at(-1)!.split('=')[0]!
       expect(() => parseArgs(valued[i]!)).toThrow(`${name} takes no value: it is written ${name}`)
     }
+    // An empty language is a value: a page and a paragraph with no lang, which the sample draws. Bare, it is refused.
+    expect(parseArgs(['explain', '--text=a b', '--lang=']).flags.get('lang')).toBe('')
+    expect(() => parseArgs(['explain', '--text=a b', '--lang'])).toThrow('--lang takes a value: it is written --lang=value')
   })
 
   test('a case laid out differently in its two orders is never pinned: page history would block changes at random', () => {
@@ -669,7 +675,7 @@ describe('what blocks', () => {
     const verdict = { ...clean(), newFailures: ['new'], fixed: ['fixed'] }
     const blocks = checkBlocks('firefox', new Map(), [], verdict, false, id => `${id} described`)
     expect(blocks).toEqual([
-      'BLOCKS: 1 accepted cases pass, are counted only, are no longer pinned or name no case; take them off with --accept: fixed',
+      'BLOCKS: 1 accepted cases pass, are counted only, are no longer pinned or name no case; take them off with --accept="<reason>": fixed',
       'BLOCKS: 1 new failures (accept them with --accept="<reason>")',
       '  new described',
     ])
@@ -884,7 +890,7 @@ describe('the commands, with a stand-in browser', () => {
     writeFileSync(acceptedPath(root, 'chrome'), '## why\nfail breaks\nnarrow breaks\n')
     const listed = browser(root, predict)
     expect((await check('chrome', list, options, listed)).blocked).toBe(true)
-    expect(listed.printed()).toContain('BLOCKS: 1 accepted cases pass, are counted only, are no longer pinned or name no case; take them off with --accept: narrow')
+    expect(listed.printed()).toContain('BLOCKS: 1 accepted cases pass, are counted only, are no longer pinned or name no case; take them off with --accept="<reason>": narrow')
   })
 
   test('check predicts every case, and blocks on a line API that disagrees where nothing is pinned and on a case with no recording: a virtualized list would size rows for lines it doesn\'t paint', async () => {

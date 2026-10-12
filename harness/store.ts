@@ -7,7 +7,7 @@
 //   history), both recordings, as `<id>\t<A|B>\t...`, under the recordings' environment key. They are never pinned.
 // - harness/accepted/<browser>.txt: the failures a change accepted, under `## <reason>` headings, one `<id> <status>` per line.
 // - harness/counted/<browser>.txt: the failing cases check counts and never blocks on (score.ts, countedOnly), in the
-//   accepted list's format, each under why it is counted. check --accept writes it.
+//   accepted list's format, each under why it is counted. check --accept=<why> writes it.
 // - harness/varying/<browser>.txt: the cases whose predictions move with the browser's state, under `## <reason>`
 //   headings, one `<id> <kind>` per line: `runs` for one that moves between runs, predicted and printed but never
 //   judged, and `order` for one that moves only with what was predicted before it, judged like any other.

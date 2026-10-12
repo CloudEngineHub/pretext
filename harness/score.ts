@@ -517,7 +517,7 @@ export function countedTallies(outcomes: ReadonlyMap<string, Outcome>, why: Read
   return out
 }
 
-// The counted list after `check --accept`: each counted case that fails, under why it is counted. A run over some case
+// The counted list after `check --accept=<why>`: each counted case that fails, under why it is counted. A run over some case
 // files only (`partial`) keeps the entries of other cases.
 export function countedFailures(outcomes: ReadonlyMap<string, Outcome>, why: ReadonlyMap<string, string>, listed: AcceptedList, cases: ReadonlySet<string>, partial: boolean): Map<string, { reason: string; status: Failure }> {
   const next = new Map<string, { reason: string; status: Failure }>()
@@ -551,7 +551,7 @@ export function checkBlocks(browser: BrowserKind, predictions: ReadonlyMap<strin
   // A case without a recording is unpinned silently otherwise, as when a generator change renames ids.
   if (unrecorded.length > 0 && BROWSER[browser].sample === null) out.push(`BLOCKS: ${unrecorded.length} cases have no recording; record them with record --only-new: ${shown(unrecorded)}`)
   if (verdict.stale.length > 0) out.push(`BLOCKS: ${verdict.stale.length} entries of harness/varying/${browser}.txt name no case; take them off: ${shown(verdict.stale)}`)
-  if (!accepting && verdict.fixed.length > 0) out.push(`BLOCKS: ${verdict.fixed.length} accepted cases pass, are counted only, are no longer pinned or name no case; take them off with --accept: ${shown(verdict.fixed)}`)
+  if (!accepting && verdict.fixed.length > 0) out.push(`BLOCKS: ${verdict.fixed.length} accepted cases pass, are counted only, are no longer pinned or name no case; take them off with --accept="<reason>": ${shown(verdict.fixed)}`)
   if (!accepting && verdict.newFailures.length > 0) {
     out.push(`BLOCKS: ${verdict.newFailures.length} new failures (accept them with --accept="<reason>")`)
     for (let i = 0; i < verdict.newFailures.length && i < 30; i++) out.push(`  ${describe(verdict.newFailures[i]!)}`)
