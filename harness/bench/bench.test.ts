@@ -312,7 +312,7 @@ describe('the texts', () => {
 
   test('the rows that time new text never prepare a message of the corpora twice: a warm cache would read as a faster library', () => {
     // The chat documents are left out: the demo repeats sentences, and 6% of `chat`'s new paragraphs repeat an earlier
-    // one whole (harness/README.md, Bench).
+    // one whole (harness/bench/README.md, Rows).
     for (const family of MESSAGE_FAMILIES) {
       const text = familyText(family)
       let at = 0
@@ -359,7 +359,7 @@ describe('the texts', () => {
     expect(share(styled!.kept, items => items.some(item => /\S\s+\S/.test(item.text)))).toBeGreaterThan(0.9)
     expect(share(styled!.kept, items => items.some((item, i) => i > 0 && !/\s/.test(item.text[0]!) && !/\s/.test(items[i - 1]!.text.at(-1)!)))).toBeGreaterThan(0.3)
     // A round of new text compares three batches, and the demo's paragraphs differ more than prose does: a batch of
-    // them is four of the stress document's (harness/README.md, Bench).
+    // them is four of the stress document's (harness/bench/README.md, Rows).
     expect([stress!.batch, chat!.batch, styled!.batch]).toEqual([1000, 4000, 4000])
   })
 

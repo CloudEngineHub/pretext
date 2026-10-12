@@ -27,7 +27,8 @@ const ROUNDS: Record<(typeof ROWS)[number], number> = { new: 12, fresh: 9, rich:
 const TARGET_MS = 50
 // The quick form: every row with a verdict at three rounds a document, in three sessions. A reading's spread on most
 // rows is between documents, where a copy of a library keeps one speed, not between a document's rounds, so three
-// rounds say much of what twelve or sixteen do, in a third of the time; what they miss is in harness/README.md, Bench.
+// rounds say much of what twelve or sixteen do, in a third of the time (harness/bench/README.md, Protocol, has what
+// they miss).
 // The `new` row keeps its rounds: they cost half a second, and its spread is between batches of text.
 const QUICK_ROUNDS = 3
 const SEEN_UNITS: Record<(typeof MESSAGE_FAMILIES)[number], number> = { latin: 40_000, cjk: 15_000, arabic: 40_000, thai: 30_000, mixed: 40_000 }
@@ -265,7 +266,7 @@ export function benchOptions(flags: ReadonlyMap<string, string>, named: readonly
   const foreground = flags.has('foreground')
   const quick = flags.has('quick')
   const rows = flags.get('rows')?.split(',') ?? ROWS
-  if (quick && flags.has('rows') && rows.includes('fresh')) throw new Error('--rows=fresh needs the long form: a quick session times no fresh page')
+  if (quick && flags.has('rows') && rows.includes('fresh')) throw new Error('--rows=fresh can\'t go with --quick: a quick session times no fresh page')
   return {
     browsers: named === null ? BROWSERS.filter(browser => BROWSER[browser][foreground ? 'foreground' : 'background']) : [...named],
     sessions: Number(flags.get('sessions') ?? (foreground && !quick ? 2 : 3)), rows, foreground, quick,

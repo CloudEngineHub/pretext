@@ -5263,7 +5263,7 @@ widths: both measure Pretext, not a browser.
   opening on another screen, moved Safari's `prepare()` 1-2 ms of 11. An app's embedded Chromium pane isn't installed
   Chrome, and its numbers count for nothing.
 - **Power.** A timed run taken on a battery at 20% charge or under, or on an adapter too small to charge the machine
-  under load, is void, and the bench starts no foreground run on a battery under 20%: on 2026-10-08 a Chrome run taken
+  under load, is void, and the bench starts no run on a battery under 20%: on 2026-10-08 a Chrome run taken
   from 20% down to 17% timed line operations at 1.5 to 2.1 times their time on mains and preparation at 1.0 to 1.2
   times, so its ratios moved with its times, and a run on a 20 W adapter with the battery at 7% timed preparation at 1.5
   times. Seven runs taken that day on a battery between 88% and 24% read 0.97 to 1.00 of the time of mains runs of the
@@ -5485,7 +5485,7 @@ decisions for the maintainer.
   State And API Designs, Other API ideas).
 - **2026-09-25: the old test suite, its snapshots, its diagnostic tools and the benchmark page are gone**; accuracy and
   speed claims rest where AGENTS.md says. The benchmark page went once the noise floors of `bun harness bench` caught a
-  known change (harness/README.md, Bench), and what the harness took from the old suite stays frozen, since its
+  known change (harness/bench/README.md, Floors), and what the harness took from the old suite stays frozen, since its
   generator went too.
 - **2026-09-25: the npm package doesn't ship the demos (#342)**; README sends agents to the repo's. Shipping them
   runnable took the tarball from 238 kB to 620 kB, needed a Bun-only server script and shipped again content whose

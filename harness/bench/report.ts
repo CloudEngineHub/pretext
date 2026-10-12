@@ -5,9 +5,10 @@
 // (`summary()`).
 import type { DocResult, Sample } from './page.ts'
 
-// Each row's noise floor, from a calibration of HEAD against itself (harness/README.md, Bench): the largest deviation
-// from base that the candidate or the control held in one direction in all three sessions, rounded up to a whole
-// percent. Uncalibrated rows take none. A form of the bench has its own, since sessions side by side share the cores.
+// Each row's noise floor, from a calibration of HEAD against itself (harness/bench/README.md, Floors): the largest
+// deviation from base that the candidate or the control held in one direction in all three sessions, rounded up to a
+// whole percent. Uncalibrated rows take none. A form of the bench has its own, since sessions side by side share the
+// machine's cores.
 // - `foreground`, one window at a time: calibrated 2026-09-26 at 7204cab2, `bun harness bench HEAD --sessions=3` in the
 //   foreground, in Chrome 154.0.8037.57, Firefox 156.0.1 and Safari 27.0 (22625.1.29.11.27), on an M5 Max (Mac17,7)
 //   under macOS 27.0 (26A428), on AC power, at device pixel ratio 2. The rich row's kept lines and chat documents (#456)
@@ -19,18 +20,17 @@ import type { DocResult, Sample } from './page.ts'
 //   other builds timed against main, where the candidate's copy is another build's and doesn't count. `seen` held 2% or
 //   less in all 22 runs and over 1% in 11, and `lines` 3% or less in 19 and over 1% in 20, on entries of every
 //   browser, so those two take 2% and 3%. The others keep the foreground's: `rich` and `resize` held 5% or less in 18
-//   and 19 runs; `new` held 6% or less in 8 and `worst` 2% or less in 12, but what holds more there is copies that keep
-//   another speed for a document and batches of new text that differ, which a session's band covers and no floor short
-//   of that distance does (13 of `worst`'s 14 such readings are on eight entries whose copies sit 4.7% or more from
-//   base in a tenth of their sessions, and none of the 18 `new` entries sits closer than 8% in a tenth of its).
+//   and 19 runs, and what holds more than 6% on `new` and 2% on `worst` is copies that keep another speed for a
+//   document and batches of new text that differ, which a session's band covers and no floor short of that distance
+//   does (harness/bench/README.md, Floors, has the counts).
 export const FLOORS: Record<'foreground' | 'sideBySide', Record<string, number>> = {
   foreground: { new: 0.06, rich: 0.05, seen: 0.01, resize: 0.05, lines: 0.01, worst: 0.02 },
   sideBySide: { new: 0.06, rich: 0.05, seen: 0.02, resize: 0.05, lines: 0.03, worst: 0.02 },
 }
 
 // Firefox 156.0.1's rows that read slower or faster with changes to the bundle their code doesn't run (2026-10-02;
-// harness/README.md, Bench, has each). A verdict on one says so, and wants a second change's table before it is blamed
-// on the change.
+// harness/bench/README.md, Entries that misread, has each). A verdict on one says so, and wants a second change's table
+// before it is blamed on the change.
 const MOVES_WITH_BUNDLE: Record<string, readonly string[]> = {
   firefox: ['resize | latin layout at new widths', 'worst | controls layout', 'worst | invisible-tails layout'],
 }
