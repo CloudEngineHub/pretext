@@ -22,9 +22,11 @@ export type JobResult<T> = { env: string; results: Map<string, T>; ms: number }
 
 type FontFixture = { family: string; weight: string; file: string }
 const FIXTURES = JSON.parse(readFileSync(join(FONTS_DIR, 'fonts.json'), 'utf8')) as FontFixture[]
-// A chunk holds up to 25 cases and ends after the case that reaches 20,000 UTF-16 units, so a chunk of books still
-// answers well within the stall watchdog.
-const CHUNK = 25
+// A chunk holds up to 400 cases and ends after the case that reaches 20,000 UTF-16 units, so a chunk of books still
+// answers well within the stall watchdog. At 25 cases a prediction of every case was 1,840 to 1,900 round trips
+// through the one thread that serves every job; at 400 it is 270. Every recording and prediction came out the same at
+// both sizes but the one prediction Chrome's varying list names, which moves between runs at either (2026-10-12).
+const CHUNK = 400
 const CHUNK_UNITS = 20_000
 export const LIB = resolve(import.meta.dir, '../src')
 

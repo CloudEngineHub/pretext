@@ -84,10 +84,10 @@ judgement; one outside them needs the maintainer first.
 - When you come back to the project, or after a browser or OS update, run `bun harness repin chrome`, `repin firefox`
   and `repin safari` first; `--write` takes the new build, in a commit of its own (`harness/README.md`, Browsers and
   pins).
-- Keep `bun test`, `bun run check` and `bun harness check` (Chrome, Firefox, webkit-host) green; run `bun harness gate`
-  before landing a change to `src/` or `harness/`. Record new cases with `bun harness record --only-new`, and commit
-  changed recordings and accepted, counted or varying lists with the change that caused them (`check --accept` writes
-  the first two).
+- Keep `bun test --parallel`, `bun run check` and `bun harness check` (Chrome, Firefox, webkit-host) green; run
+  `bun harness gate` before landing a change to `src/` or `harness/`. Record new cases with
+  `bun harness record --only-new`, and commit changed recordings and accepted, counted or varying lists with the change
+  that caused them (`check --accept` writes the first two).
 - Before landing a change to `src/` other than `layout.test.ts`, or to `harness/bench/`, run `bun harness bench main` and
   paste the lines its output ends with into the PR: the line of counts and each entry it called, or its one line when
   the change builds main's bytes, which starts no browser. An entry called slower needs a sentence: whether the change

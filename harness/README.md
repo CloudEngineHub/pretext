@@ -10,7 +10,7 @@ pins).
 
 ## Setup
 
-- `bun install`, then `bun test`, which runs the harness's offline tests with no browser.
+- `bun install`, then `bun test --parallel`, which runs the harness's offline tests with no browser.
 - Chrome and Firefox run as pinned copies of the installed apps, kept in `~/github/browser-engines/apps` (or the folder
   `HARNESS_APPS` names) and named in `pins.json`. `bun harness repin chrome` or `repin firefox` copies the installed app
   there; `--write` makes the copy the pin.
