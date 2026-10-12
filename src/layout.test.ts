@@ -2850,6 +2850,62 @@ describe('prepare invariants', () => {
     }
   })
 
+  test('the WebKit profile keeps the generic keywords off Cocoa, under a Mac\'s user agent too', () => {
+    // The engine profile is computed once per process, so each navigator runs in a child
+    // process. WebKit asks Core Text for the keywords' families on Cocoa alone
+    // (FontDescription.cpp:115-120): on WebKitGTK and WPE the page draws `monospace` in the
+    // system's own font, and Menlo, which that system lacks, would be measured in its standard
+    // font. navigator.platform tells the port, not the user agent, which names a Mac on Linux
+    // under Playwright: WebKit gives `Linux` and the machine, `Win32`, `Haiku` or nothing off
+    // Cocoa (NavigatorBase.cpp:97-116). Each row is a page language, a font, and the Canvas
+    // font its text is measured in on Cocoa; elsewhere that is the font as given. An English
+    // page's context is asked nothing first.
+    const layoutUrl = new URL('./layout.ts', import.meta.url).href
+    const rows = [
+      ['en', '13px monospace', '13px "Menlo"'],
+      ['en', '14px "SF Mono", Menlo, monospace', '14px "SF Mono", Menlo, "Menlo"'],
+      ['en', '16px Arial, fantasy', '16px Arial, "Zapfino"'],
+      ['ru', '16px cursive', '16px "Snell Roundhand"'],
+      ['zh', '16px sans-serif', '16px "PingFang SC"'],
+      ['ja', '15px serif', '15px "Hiragino Mincho ProN"'],
+      ['en', '16px sans-serif', '16px sans-serif'],
+    ] as const
+    const measuredIn = (navigator: { userAgent: string, platform?: string }): unknown => JSON.parse(runInChild(`
+      Object.defineProperty(globalThis, 'navigator', { configurable: true, value: ${JSON.stringify(navigator)} })
+      const root = { lang: '' }
+      let measuredIn = ''
+      let asked = 0
+      class Context {
+        font = ''
+        measureText(text) {
+          if (text === 'code') measuredIn = this.font
+          else if (measuredIn === '') asked++
+          return { width: text.length * 8 }
+        }
+      }
+      globalThis.OffscreenCanvas = class { getContext() { return new Context() } }
+      globalThis.document = { documentElement: root }
+      const { prepare } = await import(${JSON.stringify(layoutUrl)})
+      const fonts = []
+      for (const [lang, font] of ${JSON.stringify(rows)}) {
+        root.lang = lang
+        prepare('code', font)
+        fonts.push(measuredIn)
+      }
+      console.log(JSON.stringify({ fonts, asked }))
+    `))
+    const linux = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15'
+    const iPhone = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0.1 Mobile/15E148 Safari/604.1'
+    const asGiven = { fonts: rows.map(row => row[1]), asked: 0 }
+    const named = { fonts: rows.map(row => row[2]), asked: 0 }
+    expect(measuredIn({ userAgent: linux, platform: 'Linux x86_64' })).toEqual(asGiven)
+    for (const platform of ['Linux aarch64', 'Win32', 'Haiku', '']) expect(measuredIn({ userAgent: SAFARI_USER_AGENT, platform })).toEqual(asGiven)
+    expect(measuredIn({ userAgent: SAFARI_USER_AGENT, platform: 'MacIntel' })).toEqual(named)
+    expect(measuredIn({ userAgent: iPhone, platform: 'iPhone' })).toEqual(named)
+    // A stand-in navigator with a user agent alone, as these tests' and the harness's are, is Cocoa's.
+    expect(measuredIn({ userAgent: SAFARI_USER_AGENT })).toEqual(named)
+  })
+
   test('the page language resolves to a break language by its primary subtag', async () => {
     const { getBreakLanguage } = await import('./line-breaks.ts')
     for (const [tag, language] of [
