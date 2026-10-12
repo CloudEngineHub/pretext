@@ -235,7 +235,7 @@ export type EngineProfile = {
   // scan and its context alike (getPreparationLanguage). WebKit and Gecko take process
   // languages a page can't read and keep the page's.
   laysOutUnderDefaultLocale: boolean
-  // WebKit's page resolves serif, sans-serif, cursive, fantasy and monospace to the
+  // On Cocoa, WebKit's page resolves serif, sans-serif, cursive, fantasy and monospace to the
   // family Core Text names for the page language wherever WebKit's script for it
   // isn't Common (FontDescriptionCocoa.cpp:77-118, asked first by CSSFontSelector.cpp:
   // 334-353). Its Canvas fonts carry no language: OffscreenCanvas starts from a bare
@@ -243,6 +243,14 @@ export type EngineProfile = {
   // canvas `lang` (WebKit #285993). The WebKit profile names the page's families in
   // the Canvas font (getWebKitGenericFamilies), from a table rather than a `<canvas>`
   // element, whose contexts force style updates (RESEARCH.md, Decisions Log, 2026-09-24).
+  // Only on Cocoa: WebKit's other ports, such as WebKitGTK and WPE, resolve the keywords
+  // from the settings, as Canvas does (platformResolveGenericFamily returns null under
+  // !PLATFORM(COCOA), FontDescription.cpp:115-120), and a family the system lacks gives no
+  // font, so Core Text's family would be measured in the standard font (FontCascadeFonts.cpp:
+  // 211-218). A user agent can name a Mac anywhere, as Playwright's WebKit does on Linux, so
+  // the port is read from navigator.platform, which WebKit compiles in: `Linux` and the
+  // machine, `Win32`, `Haiku` or nothing off Cocoa (NavigatorBase.cpp:97-116). Its gap: a
+  // page or a tool that overrides navigator.platform.
   namesGenericFamiliesByLanguage: boolean
   // Release Gecko draws C0 and C1 controls, U+2028 and U+2029 with no advance plus letter
   // spacing (gfxFont.cpp:3877-3892), where its Canvas measures VT, FS-US, NEL and U+2029 as a
@@ -936,7 +944,7 @@ function buildEngineProfile(): EngineProfile {
     hanKerning: engine === 'blink',
     hangsIdeographicSpace: engine !== 'webkit',
     laysOutUnderDefaultLocale: engine === 'blink',
-    namesGenericFamiliesByLanguage: engine === 'webkit',
+    namesGenericFamiliesByLanguage: engine === 'webkit' && !/^(?:Linux|Win32|Haiku|$)/.test(navigator.platform),
     hardBreakItemRetreat: engine === 'blink' ? 'item' : engine === 'webkit' ? 'fit' : 'last-grapheme',
     paddedOpeningFit: engine === 'blink' ? 'start' : engine === 'webkit' ? 'placed' : 'both',
     emptyAtomicAlwaysFits: engine === 'gecko',
