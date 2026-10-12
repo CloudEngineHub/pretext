@@ -81,5 +81,5 @@ export function buildLineTextFromRange(
   endGraphemeIndex: number,
 ): string {
   const text = buildRangeText(prepared, startSegmentIndex, startGraphemeIndex, endSegmentIndex, endGraphemeIndex)
-  return isDiscretionaryLineEnd(prepared.segmentFlags, endSegmentIndex, endGraphemeIndex) ? text + '-' : text
+  return isDiscretionaryLineEnd(prepared.segmentFlags, prepared.widths.length, endSegmentIndex, endGraphemeIndex) ? text + '-' : text
 }

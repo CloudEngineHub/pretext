@@ -276,136 +276,54 @@ harness/invariants.test.ts`) and the bench's floors.
 
 ## Bench
 
-Speed claims rest on `bun harness bench`'s same-document ratios. Its rows (`new`, `fresh`, `rich`, `seen`, `resize`,
-`lines`, `worst`) follow what an app does; never rank `prepare()` against `layout()`, as one is paid once and the other
-on every resize. The `new` rows time text no library or browser has laid out: Firefox and Safari keep shaped text per
-font, shared by every canvas and the DOM, so a fresh canvas doesn't make text new. The `fresh` rows are the one kind
-with no same-document ratio: each document holds one library, and times compiling its bundle, running it and its first
-two batches of new messages, which the table after the rows gives as medians per library, with no verdict. The `rich`
-row has three documents: `latin`, the stress items, a word or a space each; `chat`, the Markdown chat demo's paragraphs,
-list items and headings as it prepares them, 86% of them one item; and `chat-styled`, only its paragraphs of several
-items, where an item is several words and 37% of the paragraphs (40% of the ones the line operations run on) hold an
-item that starts inside a word, with no space on either side of its start: punctuation right after a styled run (a
-comma, a full stop, a closing bracket) or a code run right after an opening bracket, never a letter after a letter. A
-change can read faster on one and slower on another: the stress items never start inside a word and have a segment an
-item. Each one's `rich-new` gives every library a batch of its own a round: 1,000 units of the stress items, which the
-length of the Latin text caps (The Great Gatsby's opening, which the `new` and `fresh` rows read forward too), and 4,000
-of the demo's paragraphs, which differ more from one batch to the next than prose does. The demo repeats sentences, so
-its batches are paragraphs of words mostly seen, and 6% of `chat`'s new paragraphs repeat an earlier one whole. Each
-one's `rich-seen` prepares its kept paragraphs again, where every item looks its font up and measures nothing.
-`rich-new` and `rich-seen` both time `prepareRichInline()` followed by one `measureRichInlineStats()` of what it
-returns, so a figure for either entry is the cost of both calls. Each one's `rich-walk` and `rich-stream` keep every
-line they are handed, in one variable outside the loop, as an app that paints its lines keeps them: both rich demos, the
-Markdown chat and the rich note, pass each line they walk to `materializeRichInlineLineRange()`. A callback that reads
-only the line's width times less than an app pays, and not the same less for every library, since an engine that inlines
-a library's line builder into the walk then never makes the line. So a `rich-walk` or `rich-stream` figure from before
-#456 isn't comparable with one after it, on the stress document either (`RESEARCH.md`, Evaluation Traps, Timing, has the
-numbers behind the batches and the kept line). The `lines` row times the line functions on mixed, Latin and CJK
-messages, each family in a document of its own. Nearly all of those messages take the simple stepper
-(`stepPreparedSimpleLineGeometry()`, `src/line-break.ts`) and not the full walker (`walkPreparedComplexLines()`), which
-lays out the text the simple one doesn't cover: in every engine profile all 147 Latin and all 134 CJK messages do, and
-133 of the 134 mixed ones, 19,905 of their 20,000 units (prepared on the stand-in Canvas at bf62c76a, 2026-10-09). So
-the row times the simple stepper, not the full walker, and a verdict there on a change that touches only the full walker
-isn't that change's cost: it comes from how the browser runs the changed bundle, or from chance. The `worst` row times
-the full walker, which lays out all of `cjk-letter-spaced` and `pre-wrap-chunks`, 99% of the units of
-`soft-hyphens-marks` and 25% of those of `invisible-tails`, and in the WebKit profile 34% of those of `controls`; in the
-other profiles `layout()`, the one line function the row runs on `controls`, counts those texts with the simple stepper
-and hands the full walker only the lines that end where the text has no break (`countSteppedLines()`). None of the text
-of its other four documents goes to the full walker.
+`bun harness bench <base>` times `<base>`'s `src/` against this tree's, or `--lib=<dir|ref>`'s, in the same documents.
+Each document runs base, the candidate and a control, a second copy of base, and a table row (an *entry*: one operation
+on one document's texts) reads slower or faster only when candidate/base sits outside the band in every session: the
+larger of the row's floor (`FLOORS` in `bench/report.ts`, 2 to 6% by row) and how far the control sat from base. Speed
+claims rest on these ratios; nothing timed is checked in.
 
-- **A control copy.** Each document runs base, the candidate and a second copy of base, shuffled each round, since only
-  same-document ratios survive drift between sessions (`RESEARCH.md`, Evaluation Traps, has the numbers behind this and
-  the next three).
-- **Focus and a quiet machine.** Background windows' timers are slowed, so Chrome and Safari need a visible, focused
-  window throughout. Using the machine spoils the sessions it overlaps, and only those; a loaded machine spoils them
-  all. Time on mains, from an adapter that charges the machine under load, or on a battery above 20% charge: at 20%
-  and under the machine throttles, some operations more than others, so the ratios of a run that starts or ends there
-  are void as well as its times (`RESEARCH.md`, Evaluation Traps, Timing; a run prints its power source and charge as
-  it starts and as it ends).
-- **Two sessions and a confirming one.** A row reads slower or faster only when it does so in every session, and the
-  floors are fitted to three, where two agree by chance: in the 19 runs of three sessions saved on 2026-10-02, the
-  first two called 74 of 322 rows and the third took 22 of them back. So after the default two sessions each browser
-  times the documents of its rows that read slower or faster once more, and a row keeps its verdict only if that
-  session agrees. That is the verdict three whole sessions give, as a row two sessions don't call a third can't. A
-  verdict left with two sessions, as when the confirming one failed, prints "(unconfirmed)". `--sessions=1` is a
-  hypothesis and gets no confirming session; three or more need none.
-- **A row without a verdict prints its widest band**, as in "within noise (±11.5%)": the smallest change those sessions
-  could have called on it. A session's band is the larger of the row's floor and how far the control, base's own code,
-  sat from base, so most rows print their floor. A copy of the library can keep one speed for a whole document and
-  another in the next (Chrome 154's rich stats ran at 2.3 or 2.6 µs per 1,000 units copy by copy, 2026-09-30), and the
-  band is then the distance between two copies: on 2026-10-01 and 02 the control sat 8% or more from base in a session
-  of 12 of 13 runs of Chrome's rich stats, 11 of 13 of Safari's rich walk and 8 of 13 of its rich stream, and in most
-  runs of Chrome's CJK and Thai `new` rows, whose spread is between batches of text. Such a row says nothing of a
-  change smaller than its band: time it again alone with more sessions (`--rows`, `--sessions`) when the change touches
-  what the row times.
-- **The band misses a slow copy that is the candidate's.** Where one copy of three keeps another speed for a document,
-  a session reads level when that copy is the control's and as a change when it is the candidate's. Chrome 154 runs one
-  copy of main about 12% slower than the other two on the chat documents' `rich-seen` (47.5 or 53.5 µs per 1,000 units
-  on `chat`, 58 or 65 on `chat-styled`), a different copy from session to session, and Safari 27 does the same on the
-  stress document's `rich-walk` and `rich-stream`; on its `rich-seen` the two copies of main can stand as far apart
-  through a session's rounds: 64.6 and 57.0, 64.9 and 54.5, and 57.5 and 60.5 µs per 1,000 units in the three sessions
-  of one run of main at #455 (2026-10-07). Main against itself read Safari's stress `rich-stream` 12-15% slower in all
-  three sessions of one run, which called it slower, and Chrome's `chat-styled rich-seen` 10-13% slower in 7 sessions of
-  11 (2026-10-07; `RESEARCH.md`, Evaluation Traps, Timing). Read such an entry over ten sessions, and by each copy's own
-  cost in the saved samples, since the table prints base's and the candidate's medians only: the line a run prints as it
-  starts names their folder, `.artifacts/harness-bench/<time>/`, which holds one file for each browser and session, with
-  each round's `ms` and `units` by `label`.
-- **Floors**, the noise threshold under which a row's ratio isn't called a change (1-6% by row, `FLOORS` in
-  `bench/report.ts`, with the builds and machine they came from), are the largest deviation held in one direction in all
-  three sessions of a calibration of HEAD against itself; calibrate again, with `bun harness bench HEAD --sessions=3`,
-  after a pin bump or on another machine. Floors from the worst single reading would be too wide, since one copy can run
-  slow for a whole document (in one session Firefox 156.0.1's base copy took about twice as long as the other two on
-  kept CJK handles, 2026-09-26), and would have hidden a real 20-25% slowdown. These floors flag all four slowdowns
-  known between main before #340 (6d1d2106) and 217c84b8, a commit of #340: pre-wrap layout and walk at 1.05 of base's
-  time in Chrome and 1.18-1.25 in Firefox, and letter-spaced CJK and control layouts at 1.12 and 1.20 in Safari. One
-  floor serves a row in all three browsers, and the `lines` row's Latin and CJK entries, added after that calibration
-  (#416), take the row's (`ENGINE_FOLLOWUPS.md`, Harness debt). The `rich` row's was fitted to the stress items with a
-  callback that read only a line's width; with the kept line and the two chat documents, main against itself was called
-  on none of the row's 45 entries in a run of eight sessions of the row or in a run of three sessions of every row
-  (e1c6ed68, 2026-10-07), so the row keeps it. A verdict needs every session to agree, so a run of eight says less than
-  a run of three: three at a time, those eleven sessions call a chat entry in Chrome in 37 of their 165 sets
-  (`chat-styled rich-seen` in 35, 20 of them `chat-styled rich-new` too: the slow copy was the candidate's in 7 of the
-  11 sessions, where an even shuffle makes it a third of them and a call once in 27 runs), a rich entry in Safari in 12
-  (the stress `rich-stream` in 10) and in Firefox in 2. By the letter of the fitting rule the run of three sessions of
-  every row would give 7%, from the control's copy on Safari's stress `rich-walk` (6.2%, 15.4% and 20.9% over base), an
-  entry where a copy keeps a speed: the band covers a control's copy, and no floor short of the distance between two
-  speeds covers a candidate's (the bullet above).
-- **The builds.** The first line of the output names base and the candidate with their commits and dates, and says when
-  this tree's `src/` has uncommitted changes, so a pasted table says what it compared. A candidate given as a folder
-  outside any checkout (`--lib=<dir>`) is minified with other names than the same source given as a commit: the
-  repository's `package.json` (`"sideEffects": false`) isn't above it, and 241 names of main's bench bundle differ, one
-  for one, at the same length (bf62c76a, 2026-10-09); the `src/` of another checkout, a worktree's too, has that file
-  above it and gets the commit's names. Some rows move with those names (below), so a figure a decision rests on names
-  commits on both sides, and a build that is no commit goes inside a checkout, as under this one's `.artifacts/`, where
-  it gets the names a commit gets.
-- **WebKit's width cache** samples one Canvas call in 21 after a run of misses, so a prepare that submits n strings
-  speeds up only after 21 / gcd(n, 21) repeats: compare submitted text and cold first prepares.
-- **Firefox's `resize: latin layout at new widths`** moves about 16% with the names the bench's minifier gives the
-  bundle's top-level bindings (`RESEARCH.md`, JavaScript Engines; Firefox 156, 2026-10-02), so where it alone reads
-  slower or faster, with Firefox's other `layout()` rows level and no change to code `layout()` runs, it is read as the
-  names and not the change: a build one unused local apart gets other names and settles it. Writing the constants that
-  loop reads into the built code as numbers ended this for that loop and was declined (#406; `RESEARCH.md`, Decisions
-  Log, 2026-10-03), so the row still moves with the names.
-- **Firefox's `worst: controls layout` and `worst: invisible-tails layout`** read 15.8% and 5.9% slower under #409 and
-  16.8% and 8.7% slower under #406, two unrelated changes timed against the same main on the same day (Firefox 156.0.1,
-  three sessions each, 2026-10-02), so they move with unrelated changes to the bundle and want a second change's table
-  before being blamed on one.
-- **Safari's `resize: latin layout at widths seen before`** read 9-15% slower in six sessions of a build whose
-  `layout()` code was main's, and within noise for the same code one top-level binding apart (Safari 27.0, 2026-10-06;
-  `RESEARCH.md`, JavaScript Engines). Where it alone reads slower or faster with no change to code `layout()` runs,
-  time a build one binding apart before blaming the change.
-- **A verdict on one of those three rows** prints "(moves with the bundle)" in Firefox's table (`MOVES_WITH_BUNDLE`,
-  `bench/report.ts`). The list is Firefox 156's: after a pin bump a row stays on it only while unrelated changes still
-  move it.
-- **Chrome's `lines: mixed stats`** read the candidate's copy about 1% over base's on identical code, in 15 of 16
-  sessions of main against itself and with the code the bench wraps a library in (`ENTRY`, `bench/lib.ts`) as it was
-  before and after #456 (Chrome 154.0.8037.98, 2026-10-07; `RESEARCH.md`, Evaluation Traps, Timing), and the row's floor
-  is 1%. A reading of about 1% slower there, alone, is this.
+- **The run a change lands on** is the default: the harness's own background windows, webkit-host for WebKit, three
+  sessions a browser, every session of every browser side by side. It needs no focus and no screen and takes its
+  slowest session's time, about two and a half minutes. Time it alone on a quiet machine, on mains or a battery above
+  20%.
+- **Two builds of the same bytes aren't timed.** A change to comments or types alone builds base's bundle: the bench
+  says so in a second and starts no browser, and that line is what its pull request quotes. `--lib=<base>` times a
+  build against itself.
+- **What to paste.** The output ends with one line that names the builds, how they were timed and how many entries
+  read slower, faster and within noise, then each entry that read slower or faster, or a line that says none did. A
+  pull request quotes those lines and gives each entry there a sentence. Main against itself is called on none to two
+  of a run's 192 entries, so a call counts when the change runs that entry's code, or when a second run repeats it.
+- **A background window times as a foreground one**: the harness's Chrome starts with its three switches against
+  throttling, webkit-host's window reports itself visible whatever covers it, and the page yields with a
+  `MessageChannel` message, never a timer or an animation frame. The exception is a Firefox window covered whole, whose
+  page is hidden and slowed: the output counts the documents that ran hidden, and a run that counts any is timed again.
+- **`--quick`** times three rounds a document, where the default times twelve or sixteen, and no fresh page, in about
+  45 s, for iterating. No claim rests on it: it calls main against itself on one to three entries a run, and of a build
+  with work planted in it it called 50 and 52 entries where the default called 67.
+- **`--foreground`** times pinned Chrome and Firefox and installed Safari in focused windows, one at a time: two
+  sessions and a third of the documents whose entries were called, about eleven minutes with the screen, by floors of
+  its own. A release's bench against the last release uses it (`DEVELOPMENT.md`, Releasing).
+- **`--rows=`, `--browser=` and `--sessions=`** time some rows, some browsers, or another number of sessions; a verdict
+  of one session is a hypothesis.
 
-A session of every row takes 96 s in Chrome, 117 s in Firefox and 98 s in Safari (six sessions each, 2026-10-07; a
-document that loses focus waits a minute and starts again): a little over ten minutes for the default two, and then the
-confirming sessions, which would have timed 57 of the third sessions' 145 documents in the 19 runs above. Nothing timed
-is checked in.
+The rows follow what an app does: `new` (text no library or browser has laid out, and UI labels), `fresh` (a fresh page
+a library: compiling and running the bundle and its first batches, as medians with no verdict), `rich` (rich inline, on
+stress items and on the chat demo's paragraphs), `seen` (text prepared before), `resize` (`layout()` on kept handles),
+`lines` (the line functions, on messages the simple stepper lays out) and `worst` (nine worst-case shapes, five of
+which reach the full walker). Never rank `prepare()` against `layout()`, as one is paid once and the other on every
+resize.
+
+- **"within noise (±x%)"** gives the widest band of the entry's sessions, the smallest change they could have called.
+  Far above the row's floor, a copy of the library kept another speed for a document, and the entry says nothing of a
+  smaller change: time its row again alone, with more sessions (`--rows`, `--sessions`).
+- **A verdict is marked** "(unconfirmed)" when only two sessions back it, "(hypothesis: one session)" after one, and
+  "(moves with the bundle)" on three Firefox entries that unrelated changes move.
+- **A call on an entry whose code the change doesn't run** comes from how the browser runs the changed bundle, or from
+  chance. Time a build one unused local apart before blaming the change, and name commits on both sides for a figure a
+  decision rests on.
+
+`harness/bench/README.md` has the rest: each row's texts and the code they reach, the measurements behind this protocol,
+how each form's floors were fitted, the entries known to misread, and what a run takes and saves.
 
 ## Browsers and pins
 
@@ -447,8 +365,8 @@ so each Firefox job's profile turns that limit off (`browsers.ts`).
 
 Pinned Chrome and Firefox open each job's window on the user's screen, behind the others. Its page is blank and dark
 (`#111` on html and body; a case's paragraph is added, read and removed in one call, so none is ever painted), and its
-title reads "This tab doesn't need focus - pretext harness", or "... - pretext bench" under `bench --background`: such a
-job runs on fetches alone. The bench's own document is dark too, in the foreground as well. Chrome's window is the
+title reads "This tab doesn't need focus - pretext harness", or "... - pretext bench" for the bench's: such a job
+runs on fetches alone. The bench's own document is dark too, in the foreground as well. Chrome's window is the
 smallest Chrome gives, 500x375. With all three, every case recorded the same lines, widths and height in both
 orders, and was predicted the same, as with main's white page, bare title and 1200x900 window: Chrome's 43,101 and
 Firefox's 44,205 (2026-10-05, Chrome 154.0.8037.57, Firefox 156.0.1). The one Chrome prediction listed as varying

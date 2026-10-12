@@ -926,7 +926,7 @@ function createOnlyItemLine(
   endGraphemeIndex: number,
 ): RichInlineLineRange {
   const { onlyItem } = flow
-  const ended = endSegmentIndex >= flow.data.segmentFlags.length
+  const ended = endSegmentIndex >= flow.data.widths.length
   return {
     fragments: [{
       itemIndex: onlyItem,
@@ -972,7 +972,7 @@ function createLine(
   const segmentItems = flow.segmentItems!
   const gapSegments = flow.gapSegments!
   const itemCount = itemSegments.length - 1
-  const endItemIndex = endSegmentIndex >= segmentItems.length ? itemCount : segmentItems[endSegmentIndex]!
+  const endItemIndex = endSegmentIndex >= widths.length ? itemCount : segmentItems[endSegmentIndex]!
   const end: RichInlineCursor = { itemIndex: endItemIndex, segmentIndex: endSegmentIndex - itemSegments[endItemIndex]!, graphemeIndex: endGraphemeIndex }
   const tabsInAppUnits = getEngineProfile().tabsInAppUnits
   const itemEndHalts = items.itemEndHalts
@@ -1106,7 +1106,7 @@ function createLine(
 // The paragraph's segment a cursor names, or the segment count for one past the last item.
 function getSegmentIndex(flow: InternalPreparedRichInline, cursor: RichInlineCursor): number {
   const { itemSegments } = flow
-  return cursor.itemIndex < itemSegments.length ? itemSegments[cursor.itemIndex]! + cursor.segmentIndex : flow.data.segmentFlags.length
+  return cursor.itemIndex < itemSegments.length ? itemSegments[cursor.itemIndex]! + cursor.segmentIndex : flow.data.widths.length
 }
 
 export function layoutNextRichInlineLineRange(

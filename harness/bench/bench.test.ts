@@ -1,11 +1,12 @@
 // The bench's arithmetic and texts, offline. The test name says what a change's author would see if it went wrong.
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, spyOn, test } from 'bun:test'
+import { cpSync } from 'node:fs'
 import { join } from 'node:path'
 import type { BrowserKind } from '../types.ts'
-import { buildName } from './lib.ts'
+import { benchBundle, buildName, srcOf } from './lib.ts'
 import type { DocResult, Sample } from './page.ts'
-import { report, unconfirmed, verdict, type SessionResults } from './report.ts'
-import { documents, runSessions, type Planned } from './run.ts'
+import { FLOORS, report, summary, unconfirmed, verdict, type SessionResults } from './report.ts'
+import { bench, benchOptions, documents, ROWS, runSessions, type BenchOptions, type Planned } from './run.ts'
 import { EMOJI, familyText, MESSAGE_FAMILIES, STYLE, units } from './texts.ts'
 
 describe('the verdict', () => {
@@ -47,23 +48,24 @@ const rounds = (candidate: number, control: number): Sample[][] => Array.from({ 
 ])
 const snapshot = { visible: true, focused: true, dpr: 2 }
 // One document's session as the bench saves it: each operation's [candidate, control].
-function sessionOf(session: number, ops: Record<string, [number, number]>, browser = 'chrome', family = 'pre-wrap-chunks'): SessionResults {
-  const id = `worst ${family}`
+function sessionOf(session: number, ops: Record<string, [number, number]>, browser = 'chrome', family = 'pre-wrap-chunks', row = 'worst'): SessionResults {
+  const id = `${row} ${family}`
   return {
-    browser, session, seed: '', docs: [{ row: 'worst', family, id }],
+    browser, session, seed: '', docs: [{ row, family, id }],
     results: { [id]: { id, timerStep: 0.005, start: snapshot, end: snapshot, ops: Object.entries(ops).map(([op, [candidate, control]]) => ({ op, rounds: rounds(candidate, control) })) } },
   }
 }
 const BUILDS = 'base: main (0123abc, 2026-09-30); candidate: this tree\'s src/'
-const row = (all: SessionResults[], entry: string): string => report(all, { builds: BUILDS, hypotheses: false, sizes: {} }).split('\n').find(line => line.includes(` ${entry} |`))!
+// A table's row, judged by the foreground's floors unless the test gives the others.
+const row = (all: SessionResults[], entry: string, floors = FLOORS.foreground): string => report(all, { builds: BUILDS, floors, sizes: {} }).split('\n').find(line => line.includes(` ${entry} |`))!
 
 describe('the report', () => {
   const two = [sessionOf(0, { prepare: [1.2, 1], layout: [1.01, 1], walk: [1.1, 1.08] }), sessionOf(1, { prepare: [1.2, 1], layout: [0.99, 1], walk: [1, 0.88] })]
 
   test('a verdict from two sessions is marked unconfirmed: two sessions\' chance agreement would stand', () => {
-    expect(unconfirmed(two)).toEqual(['worst pre-wrap-chunks'])
-    expect(unconfirmed([sessionOf(0, { layout: [0.8, 1] }), sessionOf(1, { layout: [0.8, 1] })])).toEqual(['worst pre-wrap-chunks'])
-    expect(unconfirmed([two[0]!, sessionOf(1, { prepare: [1, 1], layout: [0.99, 1], walk: [1, 1] })])).toEqual([])
+    expect(unconfirmed(two, FLOORS.foreground)).toEqual(['worst pre-wrap-chunks'])
+    expect(unconfirmed([sessionOf(0, { layout: [0.8, 1] }), sessionOf(1, { layout: [0.8, 1] })], FLOORS.foreground)).toEqual(['worst pre-wrap-chunks'])
+    expect(unconfirmed([two[0]!, sessionOf(1, { prepare: [1, 1], layout: [0.99, 1], walk: [1, 1] })], FLOORS.foreground)).toEqual([])
     expect(row(two, 'prepare')).toEndWith('| slower (unconfirmed) |')
     expect(row([...two, sessionOf(2, { prepare: [1.2, 1], layout: [1, 1], walk: [1, 1] })], 'prepare')).toEndWith('| slower |')
     expect(row([...two, sessionOf(2, { prepare: [1.01, 1], layout: [1, 1], walk: [1, 1] })], 'prepare')).toEndWith('] +20.1% +20.1% +1.1% | +0.0% +0.0% +0.0% | within noise (±2.0%) |')
@@ -80,6 +82,17 @@ describe('the report', () => {
     expect(row([two[1]!, two[0]!].map((r, session) => ({ ...r, session })), 'walk')).toEndWith('| -12.0% +8.0% | within noise (±12.0%) |')
   })
 
+  test('sessions side by side are judged by the floors fitted to them, 2% on seen and 3% on lines, and the other rows by the foreground\'s: a copy that sits 1.5% or 2.5% from base in every session, as one does side by side on identical code, would be called a change', () => {
+    const lines = [0, 1, 2].map(session => sessionOf(session, { stats: [1.025, 1] }, 'chrome', 'mixed', 'lines'))
+    expect(row(lines, 'mixed stats')).toEndWith('| slower |')
+    expect(row(lines, 'mixed stats', FLOORS.sideBySide)).toEndWith('| within noise (±3.0%) |')
+    const seen = [0, 1, 2].map(session => sessionOf(session, { seen: [1.015, 1] }, 'chrome', 'latin', 'seen'))
+    expect(row(seen, 'latin seen')).toEndWith('| slower |')
+    expect(row(seen, 'latin seen', FLOORS.sideBySide)).toEndWith('| within noise (±2.0%) |')
+    const others: Record<string, number> = { ...FLOORS.sideBySide, seen: 0.01, lines: 0.01 }
+    expect(others).toEqual(FLOORS.foreground)
+  })
+
   test('a verdict on a row Firefox moves with the bundle says so: an unrelated change would be blamed for it', () => {
     const controls = (browser: string, candidate: number): SessionResults[] => [0, 1, 2].map(session => sessionOf(session, { layout: [candidate, 1], prepare: [candidate, 1] }, browser, 'controls'))
     expect(row(controls('firefox', 1.16), 'controls layout')).toEndWith('| slower (moves with the bundle) |')
@@ -90,6 +103,33 @@ describe('the report', () => {
     expect(row(controls('chrome', 1.16), 'controls layout')).toEndWith('| slower |')
   })
 
+  test('documents that ran in a hidden page are counted under the table: a background window covered whole would be timed slowed and say nothing', () => {
+    const seen = [sessionOf(0, { layout: [1, 1] }), sessionOf(1, { layout: [1, 1] })]
+    expect(report(seen, { builds: BUILDS, floors: FLOORS.foreground, sizes: {} })).not.toContain('hidden')
+    const covered = sessionOf(1, { layout: [1, 1] })
+    covered.results['worst pre-wrap-chunks']!.end = { ...snapshot, visible: false }
+    expect(report([seen[0]!, covered], { builds: BUILDS, floors: FLOORS.foreground, sizes: {} })).toContain('\n1 documents ran while their page was hidden')
+  })
+
+  test('the output ends with one line of what was timed and how many entries read each way, then each entry that read slower or faster, or a line that says none did: a pull request would paste every row to show two', () => {
+    const form = '3 sessions each in chrome, firefox, side by side in background windows, 135 s'
+    const of = (all: SessionResults[]): string[] => summary(all, { builds: BUILDS, form, floors: FLOORS.sideBySide }).split('\n')
+    const chrome = [0, 1, 2].map(session => sessionOf(session, { prepare: [1.2, 1], layout: [1.01, 1], walk: [0.9, 1.01] }))
+    const firefox = [0, 1, 2].map(session => sessionOf(session, { layout: [1.16, 1], prepare: [1, 1] }, 'firefox', 'controls'))
+    expect(of([...chrome, ...firefox])).toEqual([
+      `${BUILDS}; ${form}; 5 entries: 2 slower, 1 faster, 2 within noise`,
+      '- chrome | worst | pre-wrap-chunks prepare: slower, +20.1% +20.1% +20.1% (control +0.0% +0.0% +0.0%)',
+      '- chrome | worst | pre-wrap-chunks walk: faster, -9.9% -9.9% -9.9% (control +1.0% +1.0% +1.0%)',
+      '- firefox | worst | controls layout: slower (moves with the bundle), +16.1% +16.1% +16.1% (control +0.0% +0.0% +0.0%)',
+    ])
+    expect(of([0, 1, 2].map(session => sessionOf(session, { layout: [1.01, 1] })))).toEqual([`${BUILDS}; ${form}; 1 entries: 0 slower, 0 faster, 1 within noise`, '- no entry read slower or faster'])
+    // The marks a table gives a verdict come with it, and so does the count of documents that ran hidden.
+    expect(of(chrome.slice(0, 2))[1]).toStartWith('- chrome | worst | pre-wrap-chunks prepare: slower (unconfirmed), +20.1% +20.1% (control')
+    const covered = sessionOf(1, { layout: [1.01, 1] })
+    covered.results['worst pre-wrap-chunks']!.start = { ...snapshot, visible: false }
+    expect(of([sessionOf(0, { layout: [1.01, 1] }), covered])[0]).toEndWith('1 entries: 0 slower, 0 faster, 1 within noise; 1 documents ran hidden, so time again')
+  })
+
   test('the rows marked are rows the bench times: a renamed row would lose its mark and say nothing', () => {
     // Every operation slower but the resize documents' first, at the three widths laid out before.
     const docs = documents(['resize', 'worst'], 'bench-test', false)
@@ -97,12 +137,12 @@ describe('the report', () => {
       browser: 'firefox', session, seed: '', docs: docs.map(d => ({ row: d.row, family: d.family, id: d.id })),
       results: Object.fromEntries(docs.map(d => [d.id, { id: d.id, timerStep: 0.005, start: snapshot, end: snapshot, ops: d.ops.map(spec => ({ op: spec.op, rounds: rounds(d.row === 'resize' && spec.widths.length > 0 ? 1 : 1.3, 1) })) }])),
     }))
-    const marked = report(slower, { builds: BUILDS, hypotheses: false, sizes: {} }).split('\n').filter(line => line.endsWith('| slower (moves with the bundle) |'))
+    const marked = report(slower, { builds: BUILDS, floors: FLOORS.foreground, sizes: {} }).split('\n').filter(line => line.endsWith('| slower (moves with the bundle) |'))
     expect(marked.map(line => line.split(' | ').slice(0, 2).join(' | '))).toEqual(['| resize | latin layout at new widths', '| worst | controls layout', '| worst | invisible-tails layout'])
   })
 
   test('the output starts with the builds it compared, each with its commit: a pasted table wouldn\'t say what it timed', () => {
-    expect(report(two, { builds: BUILDS, hypotheses: false, sizes: {} }).split('\n')[1]).toBe(BUILDS)
+    expect(report(two, { builds: BUILDS, floors: FLOORS.foreground, sizes: {} }).split('\n')[1]).toBe(BUILDS)
     expect(buildName('HEAD')).toMatch(/^HEAD \([0-9a-f]{7,}, \d{4}-\d\d-\d\d\)$/)
     expect(buildName(join(import.meta.dir, '../../src'))).toMatch(/^this tree's src\/ \(on [0-9a-f]{7,}, \d{4}-\d\d-\d\d(, with uncommitted changes)?\)$/)
   })
@@ -162,6 +202,123 @@ describe('the sessions', () => {
   })
 })
 
+describe('sessions side by side', () => {
+  // Stand-in browsers that end only when the test lets them: each time the sessions that have started are all waiting,
+  // they end in the reverse of the order they started in, so the sessions never end in the order of the tables.
+  const run = async (together: boolean): Promise<{ events: string[]; order: string[] }> => {
+    const events: string[] = []
+    const waiting: Array<() => void> = []
+    const time = (browser: BrowserKind, docs: Planned[]): Promise<Map<string, DocResult>> => new Promise(done => {
+      events.push(`start ${browser}`)
+      waiting.push(() => {
+        events.push(`end ${browser}`)
+        done(new Map(docs.map(d => [d.id, { id: d.id, timerStep: 0.005, start: snapshot, end: snapshot, ops: d.ops.map(spec => ({ op: spec.op, rounds: rounds(1, 1) })) }])))
+      })
+    })
+    const done = runSessions(['firefox', 'chrome'], 2, seed => documents(['worst'], seed, false), { time, save: () => {}, log: () => {} }, together)
+    for (;;) {
+      // A session starts in the same turn as the one before it ends, so after a turn every session due is waiting.
+      const result = await Promise.race([done, Bun.sleep(0).then(() => null)])
+      if (result !== null) return { events, order: result.all.map(r => `${r.browser} ${r.session}`) }
+      const ending = waiting.splice(0).reverse()
+      for (let i = 0; i < ending.length; i++) ending[i]!()
+    }
+  }
+
+  test('every session of every browser starts before one ends, where one at a time each ends before the next starts: nine sessions would take nine sessions\' time', async () => {
+    expect((await run(true)).events).toEqual(['start firefox', 'start firefox', 'start chrome', 'start chrome', 'end chrome', 'end chrome', 'end firefox', 'end firefox'])
+    expect((await run(false)).events).toEqual(['start firefox', 'end firefox', 'start chrome', 'end chrome', 'start firefox', 'end firefox', 'start chrome', 'end chrome'])
+  })
+
+  test('the tables keep the browsers\' order and each browser\'s sessions in theirs, whichever ended first: a table\'s per-session columns would change places from run to run', async () => {
+    expect((await run(true)).order).toEqual(['firefox 0', 'firefox 1', 'chrome 0', 'chrome 1'])
+    expect((await run(false)).order).toEqual(['firefox 0', 'firefox 1', 'chrome 0', 'chrome 1'])
+  })
+
+  test('a browser that fails one of its sessions keeps the others\' samples, and the other browsers theirs: one stalled window would cost the whole run', async () => {
+    let chrome = 0
+    const time = (browser: BrowserKind, docs: Planned[]): Promise<Map<string, DocResult>> => {
+      if (browser === 'chrome' && chrome++ === 1) return Promise.reject(new Error('stalled'))
+      return Promise.resolve(new Map(docs.map(d => [d.id, { id: d.id, timerStep: 0.005, start: snapshot, end: snapshot, ops: d.ops.map(spec => ({ op: spec.op, rounds: rounds(1, 1) })) }])))
+    }
+    const { all, failed } = await runSessions(['chrome', 'firefox'], 3, seed => documents(['worst'], seed, false), { time, save: () => {}, log: () => {} }, true)
+    expect([...failed]).toEqual([['chrome', 'session 2: stalled']])
+    expect(all.map(r => `${r.browser} ${r.session}`)).toEqual(['chrome 0', 'chrome 2', 'firefox 0', 'firefox 1', 'firefox 2'])
+  })
+
+  test('two sessions side by side are confirmed by the floors fitted to them, and two in the foreground by the foreground\'s: a lines document whose copy sits 2.5% from base, noise side by side, would be timed a third time', async () => {
+    const timed = async (together: boolean): Promise<string[]> => {
+      const given: string[] = []
+      const time = (browser: BrowserKind, docs: Planned[]): Promise<Map<string, DocResult>> => {
+        given.push(`${browser} ${docs.length}`)
+        return Promise.resolve(new Map(docs.map(d => [d.id, { id: d.id, timerStep: 0.005, start: snapshot, end: snapshot, ops: d.ops.map(spec => ({ op: spec.op, rounds: rounds(1.025, 1) })) }])))
+      }
+      await runSessions(['chrome'], 2, seed => documents(['lines'], seed, false), { time, save: () => {}, log: () => {} }, together)
+      return given
+    }
+    expect(await timed(true)).toEqual(['chrome 3', 'chrome 3'])
+    expect(await timed(false)).toEqual(['chrome 3', 'chrome 3', 'chrome 3'])
+  })
+})
+
+describe('the quick plan', () => {
+  test('a quick session times three rounds a document, the new row its twelve, and no fresh page: a quick run that kept the long form\'s rounds would take the long form\'s time', () => {
+    const quick = documents(ROWS, 'bench-test', false, true)
+    expect(quick.some(d => d.row === 'fresh')).toBe(false)
+    expect(quick.length).toBe(31)
+    expect(new Set(quick.filter(d => d.row !== 'new').map(d => d.rounds))).toEqual(new Set([3]))
+    expect(new Set(quick.filter(d => d.row === 'new').map(d => d.rounds))).toEqual(new Set([12]))
+  })
+
+  test('a quick session\'s documents are the long form\'s, text for text, less the fresh pages: a quick table\'s entry would time other text than the long table\'s entry of the same name', () => {
+    const long = documents(ROWS, 'bench-test', false).filter(d => d.row !== 'fresh')
+    const quick = documents(ROWS, 'bench-test', false, true)
+    expect(new Set(long.map(d => `${d.rounds} ${d.targetMs}`))).toEqual(new Set(['12 50', '16 50']))
+    expect(quick.map(d => ({ ...d, rounds: 0 }))).toEqual(long.map(d => ({ ...d, rounds: 0 })))
+  })
+})
+
+describe('the flags', () => {
+  test('with no flag the harness\'s background browsers time three sessions each, and --foreground asks for the focused windows and two: a default back in the foreground would take the screen for eleven minutes', () => {
+    expect(benchOptions(new Map(), null)).toEqual({ browsers: ['chrome', 'firefox', 'webkit-host'], sessions: 3, rows: ROWS, foreground: false, quick: false })
+    expect(benchOptions(new Map([['foreground', '']]), null)).toEqual({ browsers: ['chrome', 'firefox', 'safari'], sessions: 2, rows: ROWS, foreground: true, quick: false })
+    expect(benchOptions(new Map([['sessions', '5'], ['rows', 'worst,new']]), ['chrome'])).toEqual({ browsers: ['chrome'], sessions: 5, rows: ['worst', 'new'], foreground: false, quick: false })
+  })
+
+  test('--quick is asked for, never the default, and times three sessions wherever it runs; with it --rows=fresh is refused: a quick run would stand for the long form, or print a table with no fresh page and say nothing', () => {
+    expect(benchOptions(new Map([['quick', '']]), null)).toEqual({ browsers: ['chrome', 'firefox', 'webkit-host'], sessions: 3, rows: ROWS, foreground: false, quick: true })
+    expect(benchOptions(new Map([['quick', ''], ['foreground', '']]), null).sessions).toBe(3)
+    expect(() => benchOptions(new Map([['quick', ''], ['rows', 'worst,fresh']]), null)).toThrow('a quick session times no fresh page')
+    expect(benchOptions(new Map([['rows', 'worst,fresh']]), null).rows).toEqual(['worst', 'fresh'])
+  })
+
+  test('installed Safari is refused side by side and webkit-host in the foreground, before anything is built: Safari is one app and can\'t run three sessions at once, and webkit-host\'s window never has the focus', async () => {
+    const refused = (o: BenchOptions): Promise<string> => bench('HEAD', 'HEAD', o).then(() => 'timed', error => String(error))
+    expect(await refused({ browsers: ['chrome', 'safari'], sessions: 3, rows: ['worst'], foreground: false, quick: false })).toContain('safari has no background window')
+    expect(await refused({ browsers: ['webkit-host'], sessions: 2, rows: ['worst'], foreground: true, quick: false })).toContain('webkit-host has no foreground window')
+  })
+})
+
+describe('two builds of the same bytes', () => {
+  test('a commit\'s src/ copied to another folder builds the commit\'s bytes, and bench times neither: a change to comments alone would be timed for eleven minutes', async () => {
+    const head = srcOf('HEAD')
+    const copy = join(import.meta.dir, '../../.artifacts/harness-test-bench/src')
+    cpSync(head, copy, { recursive: true })
+    expect((await benchBundle(copy)).code).toBe((await benchBundle(head)).code)
+    const logged: string[] = []
+    const log = spyOn(console, 'log').mockImplementation(text => { logged.push(String(text)) })
+    // No browser is named, so a bench that went on would start none.
+    try {
+      await bench('HEAD', copy, { browsers: [], sessions: 3, rows: ['worst'], foreground: false, quick: false })
+    } finally {
+      log.mockRestore()
+    }
+    expect(logged.length).toBe(1)
+    expect(logged[0]).toContain('the two bundles are the same bytes')
+    expect(logged[0]).toEndWith('bun harness bench HEAD --lib=HEAD')
+  })
+})
+
 describe('the texts', () => {
   const docs = documents(['new', 'fresh', 'rich'], 'bench-test', false)
   // A mixed message may end with a space and an emoji its text doesn't hold, which a batch's end may cut anywhere.
@@ -169,7 +326,7 @@ describe('the texts', () => {
 
   test('the rows that time new text never prepare a message of the corpora twice: a warm cache would read as a faster library', () => {
     // The chat documents are left out: the demo repeats sentences, and 6% of `chat`'s new paragraphs repeat an earlier
-    // one whole (harness/README.md, Bench).
+    // one whole (harness/bench/README.md, Rows).
     for (const family of MESSAGE_FAMILIES) {
       const text = familyText(family)
       let at = 0
@@ -216,7 +373,7 @@ describe('the texts', () => {
     expect(share(styled!.kept, items => items.some(item => /\S\s+\S/.test(item.text)))).toBeGreaterThan(0.9)
     expect(share(styled!.kept, items => items.some((item, i) => i > 0 && !/\s/.test(item.text[0]!) && !/\s/.test(items[i - 1]!.text.at(-1)!)))).toBeGreaterThan(0.3)
     // A round of new text compares three batches, and the demo's paragraphs differ more than prose does: a batch of
-    // them is four of the stress document's (harness/README.md, Bench).
+    // them is four of the stress document's (harness/bench/README.md, Rows).
     expect([stress!.batch, chat!.batch, styled!.batch]).toEqual([1000, 4000, 4000])
   })
 
