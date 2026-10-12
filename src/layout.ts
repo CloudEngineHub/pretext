@@ -135,8 +135,7 @@ function prepareInternal(
 //      overflow-wrap: break-word: by graphemes, pairs or prefixes, per engine
 //   6. Correct emoji canvas inflation (probed once per font)
 //   7. Record what changes at a line's edges: Blink's halts of CJK punctuation,
-//      U+3000 hangs, how much narrower a soft hyphen's neighbors measure joined,
-//      and fresh-line widths inside segments with invisible characters
+//      U+3000 hangs, and how much narrower a soft hyphen's neighbors measure joined
 export function prepare(text: string, font: string, options?: PrepareOptions): PreparedText {
   return prepareInternal(text, font, false, options) as PreparedText
 }

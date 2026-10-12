@@ -766,39 +766,6 @@ describe('shared public contracts', () => {
   })
 })
 
-describe('entry geometry', () => {
-  test('entry admission and fresh prefixes have distinct roles; the right anchor does not own a correction', async () => {
-    const { getSegmentEntryWidth, observeSegmentEntries } = await import('./entry-geometry.ts')
-    const text = 'a⁠́bXYZ'
-    const advances = [8, 0, 0, 8, 11, -2, 3]
-    const measure = (source: string) => source.endsWith('b') ? 6 : 0
-    const fresh = observeSegmentEntries(text, advances, -4, 4, 'fresh', measure)!
-    const original = observeSegmentEntries(text, advances, -4, 4, 'original', measure)!
-    expect(getSegmentEntryWidth(fresh, 0, 7)).toBeNull()
-    expect(getSegmentEntryWidth(fresh, 3, 7)).toBeNull()
-    expect(getSegmentEntryWidth(fresh, 2, 3)).toBe(0)
-    expect(getSegmentEntryWidth(fresh, 2, 5)).toBe(13)
-    expect(getSegmentEntryWidth(fresh, 2, 6)).toBe(7)
-    expect(getSegmentEntryWidth(fresh, 2, 7)).toBe(6)
-    expect(getSegmentEntryWidth(original, 2, 7)).toBe(6)
-    expect(fresh.entries[2]!.admissionFit).toBe(6)
-    expect(original.entries[2]!.admissionFit).toBe(0)
-  })
-
-  test('missing anchors, oversized runs and incomplete observations retain the original entry', async () => {
-    const { getSegmentEntryWidth, observeSegmentEntries } = await import('./entry-geometry.ts')
-    const queried: string[] = []
-    const measure = (source: string) => { queried.push(source); return 0 }
-    expect(observeSegmentEntries('a⁠́', [8, 0, 0], 0, 8, 'fresh', measure)).toBeNull()
-    expect(observeSegmentEntries('a'.repeat(94) + '⁠́b', Array(97).fill(8), 0, 8, 'fresh', measure)).toBeNull()
-    expect(queried).toEqual([])
-    const geometry = observeSegmentEntries('a⁠́b', [8, 0, 0, 8], 0, 16, 'fresh', source =>
-      source.startsWith('⁠') ? null : 0)!
-    expect(getSegmentEntryWidth(geometry, 1, 4)).toBeNull()
-    expect(getSegmentEntryWidth(geometry, 2, 4)).toBe(0)
-  })
-})
-
 describe('boundary rules', () => {
   const baseProfile = {
     lineBreakScan: 'blink' as const,
@@ -2696,7 +2663,6 @@ describe('prepare invariants', () => {
     // field's rule and source in EngineProfile (src/measurement.ts).
     type Profile = ReturnType<MeasurementModule['getEngineProfile']>
     const fields: Array<{ [K in keyof Profile]: [K, Profile[K], Profile[K], Profile[K]] }[keyof Profile]> = [
-      ['entryFitBasis', 'fresh', 'disabled', 'original'],
       ['lineBreakScan', 'blink', 'webkit', 'gecko'],
       ['graphemeTable', 'chromium/char', 'apple/char', 'gecko/char'],
       ['lineFitEpsilon', 0.005, 1 / 64, 0.005],
@@ -2730,27 +2696,22 @@ describe('prepare invariants', () => {
       ['testsHyphenBeforeAtomic', true, false, true],
       ['transformsSegmentBreaksAcrossItems', true, false, false],
     ]
-    const profileOf = (engine: 1 | 2 | 3, entryFitBasis?: Profile['entryFitBasis']): Record<string, unknown> => {
+    const profileOf = (engine: 1 | 2 | 3): Record<string, unknown> => {
       const profile: Record<string, unknown> = {}
       for (let i = 0; i < fields.length; i++) profile[fields[i]![0]] = fields[i]![engine]
-      if (entryFitBasis !== undefined) profile['entryFitBasis'] = entryFitBasis
       return profile
     }
     for (const [userAgent, profile] of [
       [CHROME_USER_AGENT, profileOf(1)],
       [SAFARI_USER_AGENT, profileOf(2)],
       [FIREFOX_USER_AGENT, profileOf(3)],
-      // Entry fits are verified only on desktop, Windows and Linux too, so Chrome and Firefox on
-      // a phone take none; an app's web view on an iPhone names no browser and is WebKit.
-      ['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', profileOf(1)],
-      ['Mozilla/5.0 (X11; Linux x86_64; rv:156.0) Gecko/20100101 Firefox/156.0', profileOf(3)],
-      ['Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Mobile Safari/537.36', profileOf(1, 'disabled')],
-      ['Mozilla/5.0 (Android 14; Mobile; rv:156.0) Gecko/156.0 Firefox/156.0', profileOf(3, 'disabled')],
+      // A phone's browser takes its engine's profile, as a desktop's does.
+      ['Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Mobile Safari/537.36', profileOf(1)],
+      ['Mozilla/5.0 (Android 14; Mobile; rv:156.0) Gecko/156.0 Firefox/156.0', profileOf(3)],
       ['Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148', profileOf(2)],
-      // Engines Pretext doesn't recognize take Blink's profile: a desktop web view without a Blink
-      // token takes desktop Chrome's, entry fits and all.
+      // Engines Pretext doesn't recognize take Blink's profile.
       ['Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Safari/537.36', profileOf(1)],
-      ['Bun/1.4.0', profileOf(1, 'disabled')],
+      ['Bun/1.4.0', profileOf(1)],
     ] as const) {
       const built: unknown = await engineProfileUnder(userAgent)
       expect({ userAgent, profile: built }).toEqual({ userAgent, profile })
@@ -7916,12 +7877,6 @@ test('a width is measured under its own font, shaping and language, whatever was
     // Asking a font which hyphen it paints sets the context to other fonts and back, so the marks' halts, read after
     // it in the same preparation, are the font's.
     rows.hyphen = width('a\\u00ADb\\u4E2D\\u300D\\u300C\\u4E2D', '16px Hyphen Halt')
-    // Where a line that starts inside a word at an invisible character takes its widths from Canvas, they are observed
-    // again under another letter spacing, with the word's other measurements cached.
-    width('ab\\u2060cd', '16px Entry', 1)
-    width('s', b)
-    width('ab\\u2060cd', '16px Entry', 2)
-    rows.entry = measuredIn
     // Whether two letters are a ligature is asked of the context without its ligatures, here first asked with the
     // word, its letters and the pair all cached, after letter-spaced text in a font whose \`fi\` without the ligature
     // is as wide as this font's with it. The text measured next has its ligature, and the letter-spaced text after it none.
@@ -7933,11 +7888,10 @@ test('a width is measured under its own font, shaping and language, whatever was
   // `fin` under letter spacing is 24px and its three spacings where the context drops the
   // ligature, and 21px and them in the WebKit profile, which measures with it. Two contexts
   // are made for the two language changes and none for the four clearCache() calls. Only the
-  // Chromium profile asks for kerning with the space and for halts, and the WebKit profile
-  // observes no line starts inside a word, so its last measurement is the 20px text's. Only
-  // the Gecko profile asks for ligatures: a line that cuts \`fi\` has the ligature's 97px on its
-  // \`f\`, and the others the letter's 50px.
-  const rows = (fin: number, kerned: number, halted: number, entry: string, cutLigature: number): unknown => ({
+  // Chromium profile asks for kerning with the space and for halts. Only the Gecko profile
+  // asks for ligatures: a line that cuts \`fi\` has the ligature's 97px on its \`f\`, and the
+  // others the letter's 50px.
+  const rows = (fin: number, kerned: number, halted: number, cutLigature: number): unknown => ({
     fonts: [52, 56],
     again: 0,
     spacing: [21 + fin + 21, 21 + fin, fin + 21],
@@ -7948,44 +7902,11 @@ test('a width is measured under its own font, shaping and language, whatever was
     kerning: [kerned, kerned],
     halt: halted,
     hyphen: halted === 92 ? 72 : 80,
-    entry,
     ligature: [cutLigature, 21, fin],
   })
-  expect(rowsOf(CHROME_USER_AGENT)).toEqual(rows(30, 39, 92, '16px Entry', 50))
-  expect(rowsOf(FIREFOX_USER_AGENT)).toEqual(rows(30, 40, 104, '16px Entry', 97))
-  expect(rowsOf(SAFARI_USER_AGENT)).toEqual(rows(27, 40, 104, '20px Test', 50))
-})
-
-test('a line start inside a word asks Canvas for each of its strings once', () => {
-  // The engine profile is computed once per process, so each engine runs in a child process.
-  // In the desktop Chromium and Firefox profiles a line that starts inside a word at an
-  // invisible character takes its widths from Canvas: for a word joiner between `b` and `c`,
-  // the joiner alone and the joiner with `c`. Under no letter spacing those are widths of the
-  // font's segment cache, which has the joiner alone as one of the word's letters, and where
-  // a second word with the same line start finds both.
-  const layoutUrl = new URL('./layout.ts', import.meta.url).href
-  const askedIn = (userAgent: string): unknown => JSON.parse(runInChild(`
-    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { userAgent: ${JSON.stringify(userAgent)} } })
-    const asked = []
-    class Context {
-      font = ''
-      letterSpacing = '0px'
-      fontKerning = 'auto'
-      measureText(text) {
-        if (text.includes('\\u2060')) asked.push(text)
-        const width = text.replaceAll('\\u2060', '').length * 8
-        return { width, actualBoundingBoxLeft: 0, actualBoundingBoxRight: width }
-      }
-    }
-    globalThis.OffscreenCanvas = class { getContext() { return new Context() } }
-    const { prepare } = await import(${JSON.stringify(layoutUrl)})
-    prepare('ab\\u2060cd', '16px Test')
-    prepare('xb\\u2060cd', '16px Test')
-    console.log(JSON.stringify(asked))
-  `))
-  const asked = ['ab⁠cd', '⁠', '⁠c', 'xb⁠cd']
-  expect(askedIn(CHROME_USER_AGENT)).toEqual(asked)
-  expect(askedIn(FIREFOX_USER_AGENT)).toEqual(asked)
+  expect(rowsOf(CHROME_USER_AGENT)).toEqual(rows(30, 39, 92, 50))
+  expect(rowsOf(FIREFOX_USER_AGENT)).toEqual(rows(30, 40, 104, 97))
+  expect(rowsOf(SAFARI_USER_AGENT)).toEqual(rows(27, 40, 104, 50))
 })
 
 test("a host with no document gets layouts from a font and measureText alone, under no navigator, React Native's and Bun's own", () => {

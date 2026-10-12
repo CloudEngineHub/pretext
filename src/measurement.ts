@@ -1,7 +1,6 @@
 import { findGraphemeEnds, type GraphemeTable } from './graphemes.js'
 import { DEFAULT_IGNORABLE, getBlinkDefaultLocale, hasProperty, MARK } from './line-breaks.js'
 import { webkitGenericFamilies, webkitGenericFamilyNames, webkitScriptLanguages, webkitScriptSubtags } from './generated/webkit-generic-families.js'
-import type { SegmentEntryGeometry } from './entry-geometry.js'
 import type { HanKerningFontData } from './han-kerning.js'
 
 // What preparation knows of a segment in a font. Each is created with all its fields,
@@ -30,19 +29,9 @@ export type SegmentFit = {
   // With advances, per grapheme, what a line that starts with it adds to its advance, where
   // the engine shapes such a line again (the 'reshaped-lines' mode). Null where nothing.
   lineStartExtras: number[] | null
-  entryGeometry: {
-    letterSpacing: number
-    emojiCorrection: number
-    geometry: SegmentEntryGeometry | null
-  } | null
 }
 
 export type EngineProfile = {
-  // How a line that starts inside a segment holding a default-ignorable code point
-  // admits the segment's tail (src/entry-geometry.ts): by the tail's own measured start
-  // ('fresh', desktop Blink), by the whole segment's width minus the consumed prefixes
-  // ('original', desktop Gecko), or not at all ('disabled').
-  entryFitBasis: 'fresh' | 'original' | 'disabled'
   // Where preparation finds break opportunities: each engine's own scan. Blink and WebKit
   // scan the text with their pair tables and ICU line rules (src/line-breaks.ts), Gecko
   // with nsLineBreaker over ICU4X's rules (src/gecko-line-breaks.ts), and engines Pretext
@@ -629,28 +618,6 @@ export function zeros(count: number): number[] {
   return out
 }
 
-// A text's width as Canvas spaces it under a letter spacing, or null where the context
-// can't take the spacing. Under none, that is the text's width in the font, which the
-// font's segment cache asks once. Under a spacing it is asked each time, borrowing the
-// font's context for the synchronous call, never enters a segment cache, and
-// letterSpacing is restored even when assignment or measurement fails.
-export function measureWithLetterSpacing(text: string, letterSpacing: number, emojiCorrection: number, measurement: FontMeasurement): number | null {
-  if (!measurement.state.takesLetterSpacing) return null
-  if (letterSpacing === 0) return getTextWidth(text, measurement, emojiCorrection)
-  // Counted before the spacing is set: the count measures stretches into the font's segment cache.
-  const corrected = emojiCorrection === 0 ? 0 : countEmojiGlyphs(text, measurement) * emojiCorrection
-  const context = getContext(measurement)
-  const previous = context.letterSpacing
-  try {
-    context.letterSpacing = `${letterSpacing}px`
-    if (Number.parseFloat(context.letterSpacing) !== letterSpacing) return null
-    const width = context.measureText(text).width - corrected
-    return Number.isFinite(width) ? width : null
-  } finally {
-    context.letterSpacing = previous
-  }
-}
-
 // The Canvas letterSpacing a text is measured under to count the glyphs it spaces: far
 // wider than any text asked about, so the text's width over it rounds to the count with
 // nothing taken off, and a power of two, which float32 widths add whole. A text 2^19 px
@@ -998,11 +965,8 @@ function buildEngineProfile(): EngineProfile {
   // Engines Pretext doesn't recognize take Blink's profile (RESEARCH.md, Decisions Log,
   // 2026-09-26).
   const engine = getLayoutEngine(ua) ?? 'blink'
-  // Fresh-entry observations are verified only for desktop Blink and Gecko.
-  const isDesktop = /Windows NT|Macintosh|X11/.test(ua) && !/Android|Mobile|iPhone|iPad|iPod/.test(ua)
 
   return {
-    entryFitBasis: isDesktop && engine === 'blink' ? 'fresh' : isDesktop && engine === 'gecko' ? 'original' : 'disabled',
     lineBreakScan: engine,
     graphemeTable: engine === 'webkit' ? 'apple/char' : engine === 'gecko' ? 'gecko/char' : 'chromium/char',
     lineFitEpsilon: engine === 'webkit' ? 1 / 64 : 0.005,
@@ -1207,7 +1171,7 @@ export function getSegmentFit(
   const profile = getEngineProfile()
   const ends = new Int32Array(seg.length)
   const count = findGraphemeEnds(profile.graphemeTable, seg, 0, seg.length, ends)
-  if (count <= 1) return metrics.fit = { mode, advances: null, lineStartExtras: null, entryGeometry: null }
+  if (count <= 1) return metrics.fit = { mode, advances: null, lineStartExtras: null }
   let advances: number[]
   let lineStartExtras: number[] | null = null
   // Whether each advance is of a grapheme measured after the one before it alone.
@@ -1262,7 +1226,7 @@ export function getSegmentFit(
       }
     }
   }
-  return metrics.fit = { mode, advances, lineStartExtras, entryGeometry: null }
+  return metrics.fit = { mode, advances, lineStartExtras }
 }
 
 // Moves the advance of each later letter of a ligature onto the ligature's first letter, in a
@@ -1413,8 +1377,7 @@ function contextTakesFont(context: CanvasRenderingContext2D | OffscreenCanvasRen
 // its context from here as it measures, so none reads a width under another font's
 // setting, whatever was looked up or prepared in between, and text that is all cached,
 // which measures nothing, sets nothing. What changes the context after that puts it back
-// before it returns (getHyphenText, measureWithLetterSpacing, getExtraSpacings,
-// getFontSpaceKerning, isLigature).
+// before it returns (getHyphenText, getExtraSpacings, getFontSpaceKerning, isLigature).
 export function getContext(measurement: FontMeasurement): CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D {
   const state = measurement.state
   if (state.font !== measurement.canvasFont) state.context.font = state.font = measurement.canvasFont

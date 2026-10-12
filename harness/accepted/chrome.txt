@@ -20,7 +20,7 @@ catalog-ba82282a557e4da2 count
 rich-940ad57a2e132532 count
 
 ## A padded rich item that continues a word, whose line ends inside it, in white-space: normal at 40-44.5 px: Chrome fits that line without the item's end edge, the library with it, as Firefox does, so Chrome's line holds a letter more (ENGINE_FOLLOWUPS.md, Rich-inline item edges)
-rich-49af8fd4a74783cd breaks
+rich-49af8fd4a74783cd count
 rich-6b940ddc81a07369 breaks
 rich-6e9d3bbd8855ad51 count
 rich-88da2998a0806239 breaks

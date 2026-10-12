@@ -98,9 +98,13 @@ const PLANTS: ReadonlyArray<readonly [string, Profile, string, string, ReadonlyA
       [/(export function walkLineRanges\([\s\S]*?\): number \{\n)/, '$1  const walkedRange = { width: 0, start: { segmentIndex: 0, graphemeIndex: 0 }, end: { segmentIndex: 0, graphemeIndex: 0 } }\n']], 'agreement'],
   ['a painter reading a field only layoutNextLine returns would get nothing from layoutWithLines', 'unknown', 'extra-line-field', 'layout.ts',
     [[/return \{ text, width, start: lineStart, end \}/, 'return { text, width, start: lineStart, end, hyphenated: false }']], 'line objects'],
-  ['a held handle would move when the same text is prepared again with other letter spacing', 'blink', 'entry-geometry-in-place', 'prepare.ts',
-    [[/fit\.entryGeometry = \{ letterSpacing, emojiCorrection, geometry \}/,
-      'if (geometry !== null && fit.entryGeometry !== null && fit.entryGeometry.geometry !== null) {\n      Object.assign(fit.entryGeometry.geometry, geometry)\n      Object.assign(fit.entryGeometry, { letterSpacing, emojiCorrection })\n      return fit.entryGeometry.geometry\n    }\n    fit.entryGeometry = { letterSpacing, emojiCorrection, geometry }']], 'held handles'],
+  // A word is fit one way under a letter spacing and another without (measureAnalysis in src/prepare.ts), and in the
+  // unknown profile, whose context takes no letterSpacing, the two fits are of one cached word. The Blink and Gecko
+  // profiles measure letter-spaced text apart and the WebKit profile fits every word one way, so neither next plant
+  // shows there.
+  ['a held handle would move when the same text is prepared again with other letter spacing', 'unknown', 'fit-in-place', 'measurement.ts',
+    [[/return metrics\.fit = \{ mode, advances, lineStartExtras \}/,
+      'if (metrics.fit !== null && metrics.fit.advances !== null && metrics.fit.advances.length === advances.length) {\n    for (let i = 0; i < advances.length; i++) metrics.fit.advances[i] = advances[i]!\n    return Object.assign(metrics.fit, { mode, lineStartExtras })\n  }\n  return metrics.fit = { mode, advances, lineStartExtras }']], 'held handles'],
   ['a chip would be sized with its padding twice', 'unknown', 'extra-width-twice', 'rich-inline.ts',
     [[/width \+= item\.extraWidth \?\? 0/, 'width += 2 * (item.extraWidth ?? 0)']], 'rich lines'],
   // A box is the only item of one segment whose sourceEnd is 0, which is how the next plant finds it.
@@ -112,8 +116,8 @@ const PLANTS: ReadonlyArray<readonly [string, Profile, string, string, ReadonlyA
     [[/spaceShare = Math\.min\(kerning\.after, 0\)/, 'spaceShare = Math.min(kerning.after, 0) / 2']], 'rich lines'],
   ['a long word would measure every prefix, so preparing it grows with the square of its length', 'webkit', 'prefixes-uncapped', 'measurement.ts',
     [[/const prefixes = mode === 'segment-prefixes' && count <= MAX_PREFIX_FIT_GRAPHEMES/, 'const prefixes = mode === \'segment-prefixes\'']], 'growth'],
-  ['a message shown at two letter spacings would take the first one\'s fresh-line geometry at the second', 'blink', 'entry-geometry-ignores-letter-spacing', 'prepare.ts',
-    [[/cached !== null && cached\.letterSpacing === letterSpacing && /, 'cached !== null && ']], 'held handles'],
+  ['a message shown with and without letter spacing would take the first one\'s cuts inside a word at the second', 'unknown', 'fit-ignores-mode', 'measurement.ts',
+    [[/if \(metrics\.fit !== null && metrics\.fit\.mode === mode\) return metrics\.fit/, 'if (metrics.fit !== null) return metrics.fit']], 'held handles'],
   ['a list streaming lines until layoutNextLineRange ends would never stop', 'unknown', 'stream-never-ends', 'layout.ts',
     [[/return width === null \? null : \{ width, start: lineStart, end \}/, 'return width === null ? { width: 0, start: { ...start }, end: { ...start } } : { width, start: lineStart, end }']], 'walkers end'],
 ]

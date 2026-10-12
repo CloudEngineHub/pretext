@@ -2,7 +2,6 @@
 // the facts the line walkers read at a line's edges. layout.ts and rich-inline.ts prepare
 // through it, as they walk through line-break.ts.
 
-import { observeSegmentEntries, textMayHaveEntryGeometry, type SegmentEntryGeometry } from './entry-geometry.js'
 import { getHanKerningTrims, textMayHanKern, type HanKerningTrims } from './han-kerning.js'
 import { findGraphemeEnds, type GraphemeTable } from './graphemes.js'
 import { scriptClassFacts } from './generated/engine-break-data.js'
@@ -43,11 +42,9 @@ import {
   getSpaceWidth,
   getTextWidth,
   kanaPairRe,
-  measureWithLetterSpacing,
   noExtraSpacings,
   noSpaceKerning,
   textMayContainEmoji,
-  type SegmentFit,
   type SegmentMetrics,
   zeros,
 } from './measurement.js'
@@ -333,20 +330,6 @@ function getJoinedNarrowing(analysis: TextAnalysis, analysisIndex: number, to: n
   return apart - together > lineFitEpsilon ? apart - together : 0
 }
 
-function getEntryGeometry(text: string, fit: SegmentFit, width: number, fitBasis: 'fresh' | 'original', letterSpacing: number, emojiCorrection: number, measurement: FontMeasurement): SegmentEntryGeometry | null {
-  // The fit fixes the text, font and advances, and Pretext sets no other context state.
-  // The WebKit profile moves the advances by a following space, and it observes no
-  // entries; the Chromium profile's kerning with a space is in the width alone, which
-  // its fresh entries don't read.
-  const cached = fit.entryGeometry
-  if (cached !== null && cached.letterSpacing === letterSpacing && cached.emojiCorrection === emojiCorrection) return cached.geometry
-  const geometry = observeSegmentEntries(text, fit.advances!, letterSpacing, width, fitBasis,
-    source => measureWithLetterSpacing(source, letterSpacing, emojiCorrection, measurement))
-  // Replacing this last observation leaves prepared copies intact.
-  fit.entryGeometry = { letterSpacing, emojiCorrection, geometry }
-  return geometry
-}
-
 // A text segment's width as measured: alone, or together with the following space less
 // that space, plus the item's kerning with a space that follows zero-width breaks. Apart
 // from measureAnalysis()'s loop, whose code JavaScriptCore otherwise never optimizes fully
@@ -421,9 +404,6 @@ export function measureAnalysis(
     : (spaceWidth + tabStopSpacing) * 8
   // The least a tab advances, measured at a text's first tab (EngineProfile's tabMinimumCharacter).
   let minimumTabAdvance = 0
-  // Only a segment holding a default-ignorable code point has entry geometry, so text
-  // without one doesn't look for it.
-  const entryFitBasis = engineProfile.entryFitBasis !== 'disabled' && textMayHaveEntryGeometry(own) ? engineProfile.entryFitBasis : 'disabled'
 
   // The font's kerning with the space where words take Blink's kerning with the spaces beside
   // them, or null. Blink shapes nothing across a change of direction
@@ -443,7 +423,6 @@ export function measureAnalysis(
   // the scan breaks at every segment boundary, and layout() counts it with the
   // simple stepper where it doesn't (countPreparedLines).
   let simpleKinds = !hasLetterSpacing
-  let entryGeometry: (SegmentEntryGeometry | null)[] | null = null
   let breakableLineStartExtras: (number[] | null)[] | null = null
   let discretionaryHyphenContexts: number[] | null = null
   let previousJoinablePiece: string | null = null
@@ -467,7 +446,6 @@ export function measureAnalysis(
     // Graphemes that take letter spacing after them.
     let spacingGraphemeCount = 0
     let fitAdvances: number[] | null = null
-    let entry: SegmentEntryGeometry | null = null
     switch (kind) {
       case TEXT: {
         // A control the engine hides takes no advance, only letter spacing.
@@ -556,13 +534,9 @@ export function measureAnalysis(
           fitAdvances = fitAdvances.slice()
           for (let k = 0; k < extraSpacings.length; k++) fitAdvances[k] = fitAdvances[k]! + extraSpacings[k]! * letterSpacing
         }
-        // Such a segment takes no entry geometry, whose fresh widths Canvas would space
-        // by its own rule (ENGINE_FOLLOWUPS.md, Letter spacing).
         if (unspaced !== null) {
           fitAdvances = fitAdvances.slice()
           for (let k = 0; k < unspaced.length; k++) fitAdvances[unspaced[k]!] = fitAdvances[unspaced[k]!]! - letterSpacing
-        } else if (entryFitBasis !== 'disabled') {
-          entry = getEntryGeometry(text, fit, addInternalLetterSpacing(width, spacingGraphemeCount, letterSpacing), entryFitBasis, letterSpacing, emojiCorrection, fontMeasurement)
         }
         break
       }
@@ -600,8 +574,6 @@ export function measureAnalysis(
     segmentFlags[at] = (segment & ~ONE_CLUSTER) | (hasLetterSpacing && spacingGraphemeCount > 0 ? SPACED : 0)
     widths[at] = addInternalLetterSpacing(width, spacingGraphemeCount, letterSpacing)
     breakableFitAdvances[at] = fitAdvances
-    if (entry !== null && entryGeometry === null) entryGeometry = Array.from({ length: mi - from }, () => null)
-    if (entryGeometry !== null) entryGeometry[mi - from] = entry
     if (segments !== null) segments[mi - from] = text
     // Contexts for every segment of soft hyphens, whatever its kind here, one that is glue
     // too, where the scan gives no break after it: a handle with contexts is one whose lines
@@ -645,7 +617,6 @@ export function measureAnalysis(
     simpleLineWalkFastPath: simpleKinds && !analysis.hasUnbroken,
     simpleLineCountFastPath: simpleKinds,
     breakableFitAdvances,
-    entryGeometry,
     letterSpacing,
     discretionaryHyphenWidth,
     discretionaryHyphenContexts,

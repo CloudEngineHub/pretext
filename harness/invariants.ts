@@ -16,8 +16,8 @@
 // (getSegmentFit). Nothing in src/ measures two such neighbours under `fontKerning` 'none', so that kerning doesn't
 // read it. A context under text-rendering: optimizeLegibility, where Chrome shapes a string whole, sits two kana in a
 // row as much closer again, unless its `fontKerning` is 'none', so the profile finds every font kerning kana too
-// (getFontKanaKerning). The Blink, WebKit and Gecko processes run under a desktop user agent with a string
-// `letterSpacing` on the context, as the three browsers' have, so preparation takes the paths those browsers take.
+// (getFontKanaKerning). The Blink, WebKit and Gecko processes' contexts have a string `letterSpacing`, as the three
+// browsers' have, so preparation takes the paths those browsers take.
 // The inputs are seeded draws from harness/cases (a failure names its case, at its width, half and 1.5 times it, 1 and
 // Infinity) and a few fixed ones; `bun harness gate` runs its browser's profile over every case (`all`), 20-25 s of
 // processor time a profile at a load average of 30-60: in 500 draws, five WebKit-profile cases that failed the coverage
@@ -58,8 +58,8 @@ import { canvasFont, cursorOffsets, fragmentProblem, plainDisagreement, prepareO
 import { createRng } from './sets/build.ts'
 import { isRich, type Case } from './types.ts'
 
-// Of a user agent the library reads the engine and whether it is a desktop browser's, never the browser's version
-// (getLayoutEngine() and buildEngineProfile() in src/measurement.ts), so these don't follow harness/pins.json.
+// Of a user agent the library reads the engine alone, never the browser's version (getLayoutEngine() in
+// src/measurement.ts), so these don't follow harness/pins.json.
 export const PROFILES = {
   blink: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36',
   webkit: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Safari/605.1.15',
@@ -497,7 +497,7 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
     }
   }
   const FONT = '16px Test'
-  // A mark after a word joiner, where Chrome and Firefox measure a fresh line's first graphemes apart (entry geometry).
+  // A mark after a word joiner, in a word that a narrow line cuts, under a negative letter spacing.
   plainInput('fixed a WJ U+0301 bc', 'a\u2060\u0301bc ', FONT, { letterSpacing: -1 }, widthsOf(27, false), 20)
   plainInput('fixed a WJ U+0301 bc x16', 'a\u2060\u0301bc '.repeat(16), FONT, { letterSpacing: -1 }, widthsOf(27, false), 20)
   // A SPACE is 4px here: the gap's sign changes at letter spacing -4.
