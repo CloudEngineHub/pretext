@@ -431,7 +431,7 @@ fail there only, and the accepted cases that pass, pass there only. These runs a
 - **`--browser=ios --runtime="iOS 26.0"`** runs Safari in an iOS simulator. Each job makes a device of that runtime's
   first iPhone, boots it with `xcrun simctl` alone, so Simulator.app never opens, opens the page in its Safari and
   deletes the device; a boot takes about a minute. The cases are Safari's, so webkit-host's lists copied to
-  `accepted/ios.txt` and `varying/ios.txt` compare it with Safari 27. Safari 26.0.1 in the iOS 26.0 simulator (23A8464)
+  `accepted/ios.txt`, `counted/ios.txt` and `varying/ios.txt` compare it with Safari 27. Safari 26.0.1 in the iOS 26.0 simulator (23A8464)
   was wrong on 0.29% of the sample's paragraphs inside what Pretext claims, against 0.08% in Safari 27: of the 30 cases
   failing there only, 29 are `keep-all` paragraphs and one has a curly quote beside Hangul (2026-09-30; the WebKit
   profile follows Safari 27 only, `RESEARCH.md`, Decisions Log). No iOS 27 runtime was installed, so iPhone Safari 27

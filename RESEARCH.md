@@ -91,7 +91,8 @@ Inside these, fixes land on judgement; outside, ask the maintainer first.
   documented CSS and the major browsers; rare Unicode (NEL, controls) only when the fix is cheap and costs no other
   case. Document, don't chase, browser bugs, effects Canvas can't see and text shapes only fuzzing produces. Speed may
   regress a bit for a fix that matters. Accuracy in boxes narrower than 80 px counts for little; a behavior Pretext
-  doesn't model that shows only under 24 px may be accepted, as narrower than real layouts.
+  doesn't model that shows only under 24 px is counted and blocks nothing, as narrower than real layouts (Decisions
+  Log, 2026-10-11).
 - **Out of scope, punted or parked**: server-side measurement and other backends, such as React Native's; mixed font
   sizes in a paragraph (Pretext gives widths and breaks, not line heights); `hyphens: auto` and `overflow-wrap: normal`
   (hyphenation stays on TODO.md as a possible feature); a `fontKerning` option (README assumes default kerning);
