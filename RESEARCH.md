@@ -5474,15 +5474,23 @@ decisions for the maintainer.
   walkers don't cover, was sped up by data layout, fewer allocations, smaller representations and plain indexed code,
   not new shortcuts. It still costs three to five times as much per segment as the counter `layout()` runs
   (`countPreparedLines()`), so one walker for all text was rejected (Keeping Work Bounded).
-- **2026-09-24: a prepared handle doesn't survive a JSON round trip** (a cost of #340, listed in its description, not a
-  ruling). Since #340 its per-segment flags are a `Uint8Array`, which `JSON.stringify()` turns into an object without a
-  `length`, so on a JSON copy the line APIs never return, nor does `layout()` for text off its counter's path, such as
-  text with a soft hyphen (`measureLineStats()` and that `layout()` were still running after 5 s on a 27-character text,
-  8e88756b, 2026-09-30), where 0.0.9 laid a JSON copy out as the handle; `structuredClone()` and `postMessage()` copies
-  work, and README calls the handle opaque. Cursors and ranges are plain JSON and resume the same from a copy. Told of
-  it, the maintainer asked only when a handle would ever be serialized to JSON, and no such use has turned up. It
-  reopens with one; the cheap guard is a walker that throws on a handle whose flags have no length (Dead Ends, Caching,
-  State And API Designs, Other API ideas).
+- **2026-09-24: a JSON copy of a prepared handle lays out as the handle does**, the maintainer's decision of 2026-10-11;
+  until then it didn't, a cost of #340 listed in its description. Since #340 a handle's per-segment flags are a
+  `Uint8Array`, which `JSON.stringify()` turns into an object without a `length`, and the walkers counted segments to
+  that length: on a JSON copy the line APIs never returned, nor did `layout()` for text off its counter's path, such as
+  text with a soft hyphen, where 0.0.9 laid a JSON copy out as the handle. `structuredClone()` and `postMessage()`
+  copies worked throughout, and cursors and ranges are plain JSON. Told of it, the maintainer asked only when a handle
+  would ever be serialized to JSON, and no such use had turned up; a review before the first release named some (a deep
+  clone by `JSON.parse(JSON.stringify())`, app state a store persists, a message passed as JSON), and that the failure
+  is a tab that hangs, not an error. So the walkers and rich inline's line functions count segments by `widths`, a plain
+  array of the same length, and read the typed arrays by index, which a copy answers the same, with no check of the
+  argument (the entry of 2026-10-06 on well-typed callers). A copy is still no way to keep a handle across page loads:
+  its widths are those of the fonts, language and browser that prepared it. The same count was held out of #401 because
+  Safari's pre-wrap layout timed 3.6-5.1% slower with it (2 sessions, Safari 27.0, 2026-10-01). Timed again as 9143f667
+  against bac1774c, three sessions a browser side by side in background windows (2026-10-11), that entry, `worst`'s
+  `pre-wrap-chunks layout`, read 2.0% faster in webkit-host (WebKit 22625.1.29.11.27), within its band of ±2.6%, and no
+  entry the walkers run was called in it, in Chrome 154.0.8037.98 or in Firefox 157.0.1. Reopens if a later timing shows
+  the count by `widths` costing such an entry.
 - **2026-09-25: the old test suite, its snapshots, its diagnostic tools and the benchmark page are gone**; accuracy and
   speed claims rest where AGENTS.md says. The benchmark page went once the noise floors of `bun harness bench` caught a
   known change (harness/README.md, Bench), and what the harness took from the old suite stays frozen, since its
