@@ -1095,11 +1095,11 @@ selected prefix, and the suffix measured afresh after the break; the whole minus
 Prefix widths needn't grow: at −8px letter spacing, 16px Arial `WWi`'s prefixes measure 7.10, 14.20 and 9.76px, so the
 whole word fits 12px where a shorter prefix doesn't, and "the farthest prefix that fits" is the wrong search. Each
 engine admits the rest by its own one of these, and choosing otherwise lost elsewhere (Dead Ends). Until #515 the
-desktop Chromium and Gecko profiles took their engine's for a word that holds an invisible character, which shaping
-looks past: Chrome's the rest of the word measured afresh, Firefox's the whole word less the prefixes before the line
-(entry geometry, `src/entry-geometry.ts`, with the profile's `entryFitBasis`; removed in #515). A line that starts
-inside such a word now takes the word's own advances, as any cut word's line does (ENGINE_FOLLOWUPS.md, Emergency breaks
-inside a word, has the gap).
+desktop Chromium and Gecko profiles each took their engine's one for a word that holds an invisible character, which
+shaping looks past: the rest of the word measured afresh for Chrome, the whole word less the prefixes before the line
+for Firefox (entry geometry, `src/entry-geometry.ts`, with the profile's `entryFitBasis`; removed in #515). A line that
+starts inside such a word now takes the word's own advances, as any cut word's line does (ENGINE_FOLLOWUPS.md, Emergency
+breaks inside a word, has the gap).
 
 HarfBuzz reaches past a word, so a line start inherits more than its first glyph (rebuild harness, citing Chromium 152's
 HarfBuzz): it normalizes a whole shaping call once the call holds a combining mark (in italic Athelas `tở` measures up
