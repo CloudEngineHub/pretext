@@ -251,6 +251,19 @@ before the glyph spacings did, costs a tenth as much there.
   two tests a segment and no allocation, or with those bindings: one variable more needn't move the names that matter. A
   reading of 6% to 13% there with no change to code `layout()` runs wants a second change's table before being blamed on
   one.
+- **Firefox's `resize: latin layout at widths seen before`** reads 12% to 23% slower since #515, and that is no
+  misreading: the change runs that code. Removing entry geometry (2ece40cb), the widths the library measured afresh for
+  a line that starts inside a word at an invisible character, takes one test out of the loop in which
+  `countPreparedLines()` fills a line with the graphemes of a word longer than the line, and adds nothing to it. Six
+  sessions of Firefox's resize rows alone read the row +12.0% to +22.7%, called, and the same loop at new widths 1.5% to
+  8.3% faster, within noise; the run of every row read it +13.4% to +15.2%, called, with Chrome and webkit-host level
+  (Firefox 157.0.1, Chrome 154.0.8037.98 and webkit-host on WebKit 22625.1.29.11.27, 2026-10-12, against main before
+  #515). By commit, six sessions each: +2.9%, +5.6% and +3.4% at the three removals before that one, +14.2% at it and
+  +11.8% at the commit after it, medians that no run called, in bands of ±9.5% to ±14.3%. It isn't the bundle's names,
+  as it is at new widths (above): with one, two and three do-nothing top-level variables, in builds from a folder
+  outside the checkout, the row read +14.6%, +11.7% and +14.8%, medians of six sessions again, not called. So it is how
+  Firefox 157 compiles the shorter loop, a cost that is recorded and not coded around (`RESEARCH.md`, Decisions Log,
+  2026-10-12). A reading of that size on this row against a base from before #515 is this.
 - **Chrome's `lines: mixed stats`** read the candidate's copy about 1% over base's on identical code, in 15 of 16
   sessions of main against itself and with the code the bench wraps a library in (`ENTRY`, `bench/lib.ts`) as it was
   before and after #456 (Chrome 154.0.8037.98, 2026-10-07; `RESEARCH.md`, Evaluation Traps, Timing), and the row's floor
