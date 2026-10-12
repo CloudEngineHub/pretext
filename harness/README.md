@@ -196,7 +196,9 @@ mode and a case's label in `src/test-data.ts`'s oracle arrays, gone from today's
 
 AGENTS.md's Validation says when to run `repin`, `check`, `gate` and `bench`. `gate` adds a prediction in reverse order
 (a paragraph mustn't wrap differently because of what was prepared before it), 1,000 cases recorded again (the
-recordings must still describe the browser), and each new failure recorded and predicted alone, to attribute it. The
+recordings must still describe the browser), and each new failure recorded and predicted alone, to attribute it. Check's
+prediction, the reverse one and the recording start together, each in a browser process of its own, since the stored
+recordings already say which cases are pinned; `equal`'s two builds predict side by side the same way. The
 1,000 are drawn by the commit under test, so one commit always draws the same and successive changes cover every
 recording; the gate prints the seed, and `--seed` draws with another. One draw can hold ten times the text of another,
 so the time the recording takes moves with the commit. It also runs the offline invariants (`invariants.ts`, which
@@ -359,10 +361,13 @@ stalls when hidden (WebKit suspends a hidden page past a CPU limit averaged over
 uncovered during a job.
 
 Firefox changes fonts after it starts (see also `PLATFORM_BUGS.md`, the late family names): emoji beside Arial laid out
-otherwise when recorded 11 s after launch than at 12, 15 or 30 s (91 cases, 2026-09-24), so each Firefox job holds its
-first document until 15 s. Since Firefox 157 a tab's 201st navigation within 10 seconds does nothing and throws nothing
-(`PLATFORM_BUGS.md`, By design, or unfiled), and a full `record`'s 201st navigation comes 7 to 13 s after its first,
-so each Firefox job's profile turns that limit off (`browsers.ts`).
+otherwise when recorded 11 s after launch than at 12, 15 or 30 s (91 cases, Firefox 156.0, 2026-09-24), so each Firefox
+job that records holds its first document until 15 s. A job that predicts starts at once: in Firefox 157.0.1 all 44,881
+cases were predicted the same, lines and widths, with the hold and without it, twice, as were the 2,288 cases with
+emoji predicted alone, without the hold (2026-10-11); `types.ts` says what would bring the hold back. Since Firefox 157
+a tab's 201st navigation within 10 seconds does nothing and throws nothing (`PLATFORM_BUGS.md`, By design, or unfiled),
+and a full `record`'s 201st navigation comes 7 to 13 s after its first, so each Firefox job's profile turns that limit
+off (`browsers.ts`).
 
 Pinned Chrome and Firefox open each job's window on the user's screen, behind the others. Its page is blank and dark
 (`#111` on html and body; a case's paragraph is added, read and removed in one call, so none is ever painted), and its
@@ -389,9 +394,9 @@ foreground bench of main against its own `src/` with it, three sessions on an id
 Firefox, and its rows' noise bands were the white page's (medians of 3.3% and 2.8% against 2.8% and 3.2%; 2026-10-05).
 Firefox's window keeps its size: Firefox hides the page of a window covered whole, as a small one is more easily, and
 three documents of one background bench at 500x375 ran hidden, two of them 1.7 and 3 times slower. Installed Safari's
-page wasn't run, and webkit-host's window is transparent. During its hold a Firefox window shows Firefox's own blank
-page. None of this was run with macOS set to always show scroll bars, where a case that overflows only the small window
-would newly get one.
+page wasn't run, and webkit-host's window is transparent. During a recording job's hold a Firefox window shows Firefox's
+own blank page. None of this was run with macOS set to always show scroll bars, where a case that overflows only the
+small window would newly get one.
 
 ## Other ratios and phones
 

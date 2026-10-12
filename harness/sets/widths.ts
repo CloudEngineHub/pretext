@@ -25,7 +25,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { LIB, runJob } from '../run.ts'
 import { assertSameEnvironment, lineEnds, readRecordings, writeRecordings } from '../store.ts'
-import type { BrowserKind, Case, Paragraph, Recording } from '../types.ts'
+import type { BrowserKind, Case, Paragraph, Prediction, Recording } from '../types.ts'
 import { digest, fixturesOf, lineBreakClass, makeCase, textOf } from './build.ts'
 
 export type Template = {
@@ -339,31 +339,64 @@ export async function bisect(set: string, templates: readonly Template[], browse
   const state = loadState(set, browser)
   const pairs = readSelection(set).selection[browser]
   const units = UNITS[browser]
-  for (let round = 1; round <= MAX_ROUNDS; round++) {
-    const probes: Case[] = []
-    const seen = new Set<string>()
-    for (let i = 0; i < templates.length; i++) {
-      const t = templates[i]!
-      const key = templateKey(t)
-      const kept = pairs[key]
-      if (kept === undefined || seen.has(key)) continue
-      seen.add(key)
-      const recorded = recordedWidths(set, t, state, false)
-      for (let p = 0; p < kept.length; p++) {
-        const inside = changesInside(recorded, kept[p]!)
-        for (let c = 0; c < inside.length; c++) {
-          const lo = unitsOf(browser, inside[c]![0].width)
-          const hi = unitsOf(browser, inside[c]![1].width)
-          if (hi - lo <= 1) continue
-          const width = Math.floor((lo + hi) / 2) / units
-          ;(state.probes[key] ??= []).push(width)
-          probes.push(sweepCase(set, t, width))
+  let round = 0
+  // The widths of the next round that has one not recorded yet: the middle of each kept change still wider than a
+  // layout unit. None once every change is a unit wide.
+  const nextRound = (): Case[] => {
+    while (round < MAX_ROUNDS) {
+      round++
+      const probes: Case[] = []
+      const seen = new Set<string>()
+      for (let i = 0; i < templates.length; i++) {
+        const t = templates[i]!
+        const key = templateKey(t)
+        const kept = pairs[key]
+        if (kept === undefined || seen.has(key)) continue
+        seen.add(key)
+        const recorded = recordedWidths(set, t, state, false)
+        for (let p = 0; p < kept.length; p++) {
+          const inside = changesInside(recorded, kept[p]!)
+          for (let c = 0; c < inside.length; c++) {
+            const lo = unitsOf(browser, inside[c]![0].width)
+            const hi = unitsOf(browser, inside[c]![1].width)
+            if (hi - lo <= 1) continue
+            const width = Math.floor((lo + hi) / 2) / units
+            ;(state.probes[key] ??= []).push(width)
+            probes.push(sweepCase(set, t, width))
+          }
         }
       }
+      if (probes.length === 0) break
+      console.log(`${set} ${browser}: bisection round ${round}, ${probes.length} widths`)
+      const missing = probes.filter(c => !state.recordings.has(c.id))
+      if (missing.length > 0) return missing
     }
-    if (probes.length === 0) break
-    console.log(`${set} ${browser}: bisection round ${round}, ${probes.length} widths`)
-    await recordInto(set, browser, state, probes)
+    return []
+  }
+  // A round's widths come from the round before, so the rounds were a job each: 13 launches for one new template, 216 s
+  // of them Firefox's holds, for under half a second of page work (2026-10-11). They now share a browser process: the
+  // job asks for the next round once it has recorded one (run.ts, `more`), until it has recorded JOB_CASES, and the
+  // search is saved after each job. Page history only moves which widths get searched, here as with SWEEP_DOCUMENT.
+  // Firefox's U+FE0E cases are more than page history, so a round that holds one ends its job (run.ts): with the rounds
+  // after it in the same process, plain U+1F600 in 12px Arial was 17 px wide from the second round on, 12.5 px in a
+  // job a round, and the search found other widths for each of four templates with U+1F600 and no U+FE0E, searched
+  // beside two with it (Firefox 157.0.1, 2026-10-11).
+  for (let cases = nextRound(); cases.length > 0; cases = nextRound()) {
+    const take = (results: ReadonlyMap<string, Recording | Prediction>): void => {
+      for (const [id, recording] of results) state.recordings.set(id, recording as Recording)
+    }
+    const job = await runJob<Recording>({
+      browser, mode: 'record', cases, documentSize: SWEEP_DOCUMENT, lib: LIB,
+      more: results => {
+        take(results)
+        return results.size >= JOB_CASES ? [] : nextRound()
+      },
+    })
+    if (state.env === '') state.env = job.env
+    else assertSameEnvironment(browser, state.env, job.env)
+    take(job.results)
+    saveState(set, browser, state)
+    console.log(`${set} ${browser}: ${job.results.size} widths recorded in ${(job.ms / 1000).toFixed(0)} s`)
   }
   saveState(set, browser, state)
 }

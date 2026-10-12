@@ -317,16 +317,20 @@ function watch(browser: BrowserKind, launched: Launched, fail: (error: Error) =>
 }
 
 // Stops the one process this job launched, found by its own profile folder, and the processes it started, which its
-// end hands to launchd, then removes the profile. A process is itself while it has the pid and command it had.
+// end hands to launchd, then removes the profile. A process is itself while it has the pid and command it had. The
+// profile goes once none of them is left to write in it, a second after the kills at most. That wait was the whole
+// second for every job: in 20 jobs, of 50 cases or of every case, Chrome's and Firefox's processes were all gone
+// within a tenth of a second of the SIGTERM, none needed the kill, no process named the profile after them and the
+// folder went at the first try (Chrome 154.0.8037.98, Firefox 157.0.1, 2026-10-11).
 async function stop(main: Row, profile: string): Promise<void> {
   const same = (rows: readonly Row[], p: Row): boolean => rows.some(row => row.pid === p.pid && row.command === p.command)
   const rows = processes()
   const tree = same(rows, main) ? descendants(rows, [main]) : []
   if (tree.length > 0) signal(main.pid, 'SIGTERM')
-  for (let i = 0; i < 40 && tree.length > 0 && alive(main.pid); i++) await Bun.sleep(100)
+  for (let i = 0; i < 400 && tree.length > 0 && alive(main.pid); i++) await Bun.sleep(10)
   const now = processes()
   for (let i = 0; i < tree.length; i++) if (same(now, tree[i]!)) signal(tree[i]!.pid, 'SIGKILL')
-  await Bun.sleep(1000)
+  for (let i = 0; i < 100 && tree.some(p => alive(p.pid)); i++) await Bun.sleep(10)
   rmSync(profile, { recursive: true, force: true })
 }
 
