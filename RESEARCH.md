@@ -6270,87 +6270,87 @@ decisions for the maintainer.
   estimate of what a browser or a native text view lays out. Today's API stays. Reopens with a renderer that runs inside
   a browser, where it can't replace the page's `OffscreenCanvas`.
 - **2026-10-12: the fonts' segment caches are bounded: once they hold more than 262,144 segments between all fonts, the
-  next preparation drops them all before it measures anything, as `clearCache()` does (#508).** Text that never repeats
-  grew them for as long as the page lived: 300,000 rows with an id of their own each kept 157, 397 and 410 MB in the
-  Chromium, Gecko and WebKit profiles and now keep 139, 45 and 48 MB at most (JavaScriptCore on the harness's stand-in
-  Canvas). The bound is a safety net well above what a page uses, as Part 1 asks of a cache (Caching And API Design),
-  and not a tuned size: the real-usage sample's 11,290 plain texts fill 27 to 44% of it in one font. It is read where a
-  preparation starts and never at a font lookup, so no rich-inline paragraph is measured partly from the caches and
-  partly anew. A drop costs what `clearCache()` costs: each font's probes are asked again, and its emoji span is read
-  again at its next text with an emoji, a forced layout at a moment the app didn't choose. What is left: the bound
-  counts segments, not bytes, and a Chromium-profile segment is a whole token with an advance for each character, so its
-  caches can hold 115 to 454 MB by the tokens' length, against 42 to 52 MB in the other two; and the caches still have
-  no owner (TODO.md). Reopens with a real page whose own text passes the bound, or one that the Chromium profile's bytes
-  trouble.
-- **2026-10-12: no line function writes to a frozen handle or to anything it holds (#509).** A rich paragraph of one
-  text item finds where its segments are in the item's text when a line of it is first materialized, and wrote those
-  three lists onto its handle, so since #460 `materializeRichInlineLineRange()` threw a `TypeError` on a handle frozen
-  with `Object.freeze()`, on one whose objects and arrays a store froze and on a frozen JSON copy, each of which 0.0.9
-  materialized. A frozen handle now keeps the lists beside it, in a WeakMap; any other handle keeps them itself, as
-  before, so only a frozen one pays the lookup. Beside every handle, the form built first, the lookup took a pass that
-  materializes 3,000 one-item paragraphs 1.07-1.25 times main's time, and 1.35-1.47 with the handles out of the
-  processor's caches; found while preparing, the lists took such paragraphs 6-20% longer to prepare and count, by
-  engine, and a third more heap (the engines' shells on the stand-in Canvas; the comment at `textSources`,
+  next preparation drops them all before it measures anything, as `clearCache()` does** (landed on judgement with #508).
+  Text that never repeats grew them for as long as the page lived: 300,000 rows with an id of their own each kept 157,
+  397 and 410 MB in the Chromium, Gecko and WebKit profiles and now keep 139, 45 and 48 MB at most (JavaScriptCore on
+  the harness's stand-in Canvas). The bound is a safety net well above what a page uses, as Part 1 asks of a cache
+  (Caching And API Design), and not a tuned size: the real-usage sample's 11,290 plain texts fill 27 to 44% of it in one
+  font. It is read where a preparation starts and never at a font lookup, so no rich-inline paragraph is measured partly
+  from the caches and partly anew. A drop costs what `clearCache()` costs: each font's probes are asked again, and its
+  emoji span is read again at its next text with an emoji, a forced layout at a moment the app didn't choose. What is
+  left: the bound counts segments, not bytes, and a Chromium-profile segment is a whole token with an advance for each
+  character, so its caches can hold 115 to 454 MB by the tokens' length, against 42 to 52 MB in the other two; and the
+  caches still have no owner (TODO.md). Reopens with a real page whose own text passes the bound, or one that the
+  Chromium profile's bytes trouble.
+- **2026-10-12: no line function writes to a frozen handle or to anything it holds** (landed on judgement with #509). A
+  rich paragraph of one text item finds where its segments are in the item's text when a line of it is first
+  materialized, and wrote those three lists onto its handle, so since #460 `materializeRichInlineLineRange()` threw a
+  `TypeError` on a handle frozen with `Object.freeze()`, on one whose objects and arrays a store froze and on a frozen
+  JSON copy, each of which 0.0.9 materialized. A frozen handle now keeps the lists beside it, in a WeakMap; any other
+  handle keeps them itself, as before, so only a frozen one pays the lookup. Beside every handle, the form built first,
+  the lookup took a pass that materializes 3,000 one-item paragraphs 1.07-1.25 times main's time, and 1.35-1.47 with the
+  handles out of the processor's caches; found while preparing, the lists took such paragraphs 6-20% longer to prepare
+  and count, by engine, and a third more heap (the engines' shells on the stand-in Canvas; the comment at `textSources`,
   `src/rich-inline.ts`, has each figure). The bench has no entry that materializes rich lines, so no browser timed any
   of it. Reopens with such an entry, or with a store whose handles must not be written to though it doesn't freeze them.
 - **2026-10-12: a lint warning fails `bun run check`, `src/` is type-checked a second time under the settings the
   package is built with, a harness command refuses a flag or an argument it doesn't read, and `bun harness check` counts
-  the passing draws a pixel off (#510).** Each closes a way a mistake passed unseen: oxlint runs 94 of its 102 rules as
-  warnings and exits 0 on one, which one command-line flag, `--deny-warnings`, ends; an import without `.js` or a Node
-  global in `src/` failed only `bun run package-smoke-test`; `record --onlynew` recorded every case again and `check
-  chrome` ran three browsers; and a draw passes on its line count and its lines' ends whatever their widths. The table's
-  `off` column counts the passing draws of plain text with a line more than 1 px off the browser's: 11, 16 and 23 of the
-  10,345 inside the claims in Chrome, Firefox and webkit-host, where the library before the kerning between kana (#497)
-  read 107 of Chrome's 344 Japanese draws off beside 15 failing. It is a report and blocks nothing, reading no rich draw
-  and no line that ends in a space with a box, as a pre-wrap line that wraps at one does (harness/README.md, Bounds and
-  blind spots); a gate on widths reopens with a recorder that reads those. The cost is a second `tsc` run, about a tenth
-  of a second.
+  the passing draws a pixel off** (landed on judgement with #510). Each closes a way a mistake passed unseen: oxlint
+  runs 94 of its 102 rules as warnings and exits 0 on one, which one command-line flag, `--deny-warnings`, ends; an
+  import without `.js` or a Node global in `src/` failed only `bun run package-smoke-test`; `record --onlynew` recorded
+  every case again and `check chrome` ran three browsers; and a draw passes on its line count and its lines' ends
+  whatever their widths. The table's `off` column counts the passing draws of plain text with a line more than 1 px off
+  the browser's: 11, 16 and 23 of the 10,345 inside the claims in Chrome, Firefox and webkit-host, where the library
+  before the kerning between kana (#497) read 107 of Chrome's 344 Japanese draws off beside 15 failing. It is a report
+  and blocks nothing, reading no rich draw and no line that ends in a space with a box, as a pre-wrap line that wraps at
+  one does (harness/README.md, Bounds and blind spots); a gate on widths reopens with a recorder that reads those. The
+  cost is a second `tsc` run, about a tenth of a second.
 - **2026-10-12: a unit test stays where it is the only check that fails on a planted defect, and 30 that weren't left
-  `src/layout.test.ts` (#511).** They asserted, on a fake Canvas, rules that another unit test, the offline invariants
-  or the browsers' recorded cases hold too: 775 lines, 9% of the file. The rule was applied with 1,349 defects planted
-  in `src/` one at a time (935 drawn over its files, 300 aimed at the lines the candidates name, 114 by hand): a
-  candidate stays where no other check fails on one of them, counting the unit tests left, the offline invariants and
-  the browsers' `check`. 18 of 48 candidates stay, seven because the recorded cases their defects move are under 24 px
-  or at an edge of a line change, which are counted and don't block (the entry of 2026-10-11). The cost: 21 of the 1,349
-  failed `bun test` and now fail only a browser's `check`, on 1 to 117 blocking cases each; none passes everything. It
-  is a sample and not a proof: a first pass kept nine of the 48, and a second, which aimed defects at the lines the
-  removed tests name, brought nine more back. Reopens with a regression that a removed test would have failed and
-  `check` passed; browser cases at 24 px and wider for the rules only a kept test holds would let more of the 18 go.
+  `src/layout.test.ts`** (landed on judgement with #511). They asserted, on a fake Canvas, rules that another unit test,
+  the offline invariants or the browsers' recorded cases hold too: 775 lines, 9% of the file. The rule was applied with
+  1,349 defects planted in `src/` one at a time (935 drawn over its files, 300 aimed at the lines the candidates name,
+  114 by hand): a candidate stays where no other check fails on one of them, counting the unit tests left, the offline
+  invariants and the browsers' `check`. 18 of 48 candidates stay, seven because the recorded cases their defects move
+  are under 24 px or at an edge of a line change, which are counted and don't block (the entry of 2026-10-11). The cost:
+  21 of the 1,349 failed `bun test` and now fail only a browser's `check`, on 1 to 117 blocking cases each; none passes
+  everything. It is a sample and not a proof: a first pass kept nine of the 48, and a second, which aimed defects at the
+  lines the removed tests name, brought nine more back. Reopens with a regression that a removed test would have failed
+  and `check` passed; browser cases at 24 px and wider for the rules only a kept test holds would let more of the 18 go.
 - **2026-10-12: `bun harness check` gets no copy that runs without a browser**, the maintainer's decision. One was
   built: every case replayed in Bun over a table of the browsers' own recorded Canvas answers gave each browser's
   predictions exactly, in about 3 s for the three where `check` in the browsers took about 14. It stays out for what it
   adds: about 950 lines of harness, and the table, a copy of what the browsers answer that goes stale when a pin, a
   recording or what the library asks of Canvas changes and is then recorded again in the browsers. Reopens where there
   are no pinned browsers to run, as on a hosted runner, or if `check` in the browsers comes to take minutes.
-- **2026-10-12: `measureAnalysis()` nests no function that reads its variables (#512).** Its helpers are module-level
-  functions given what they read, and what two of them keep between calls for one text is seven module variables it
-  clears for each text. Nested, they made every `prepare()` allocate an object for the variables they read, and
-  JavaScriptCore puts an object of 13 to 18 fields in the 160-byte cells a handle takes: one made and dropped by every
-  `prepare()` leaves a dead cell between each two handles, and Safari lays out 2,000 short labels 11-16% slower with no
-  work added. Main's object was one variable too large for those cells and the Safari letter-spacing fix (#513) read one
-  fewer, which is how it showed: +15.6% [+7.6, +19.1] with the fix alone, slower in 12 of 12 documents, and -1.5% with
-  it on this change (webkit-host, WebKit 22625.1.29.11.27). It replaces, for this function, the note of 2026-09-26 that
-  a hoist lands only if it removes lines and the bench shows a gain (Keeping Work Bounded, The Walkers' Shapes): this
-  one removes 2 lines of code and the bench called text prepared again faster in webkit-host, but what it is for, the
-  labels, no bench row shows. What it doesn't remove: any object of 13 to 18 fields made and dropped once a `prepare()`,
-  by a later change or by an app between its own calls, brings the slowdown back (+12.7% with a 16-field one planted,
-  +12.0% with the caller making one), and no bench row lays out short labels, so nothing would say so (TODO.md). Reopens
-  if JavaScriptCore stops placing such objects among the handles.
+- **2026-10-12: `measureAnalysis()` nests no function that reads its variables** (landed on judgement with #512). Its
+  helpers are module-level functions given what they read, and what two of them keep between calls for one text is seven
+  module variables it clears for each text. Nested, they made every `prepare()` allocate an object for the variables
+  they read, and JavaScriptCore puts an object of 13 to 18 fields in the 160-byte cells a handle takes: one made and
+  dropped by every `prepare()` leaves a dead cell between each two handles, and Safari lays out 2,000 short labels
+  11-16% slower with no work added. Main's object was one variable too large for those cells and the Safari
+  letter-spacing fix (#513) read one fewer, which is how it showed: +15.6% [+7.6, +19.1] with the fix alone, slower in
+  12 of 12 documents, and -1.5% with it on this change (webkit-host, WebKit 22625.1.29.11.27). It replaces, for this
+  function, the note of 2026-09-26 that a hoist lands only if it removes lines and the bench shows a gain (Keeping Work
+  Bounded, The Walkers' Shapes): this one removes 2 lines of code and the bench called text prepared again faster in
+  webkit-host, but what it is for, the labels, no bench row shows. What it doesn't remove: any object of 13 to 18 fields
+  made and dropped once a `prepare()`, by a later change or by an app between its own calls, brings the slowdown back
+  (+12.7% with a 16-field one planted, +12.0% with the caller making one), and no bench row lays out short labels, so
+  nothing would say so (TODO.md). Reopens if JavaScriptCore stops placing such objects among the handles.
 - **2026-10-12: the WebKit profile counts the glyphs Safari letter-spaces through its Canvas, and takes what that costs
-  in Safari (#513).** Safari gives each glyph it draws one letter spacing, not each grapheme
-  (`ComplexTextController.cpp:793-796`), and its Canvas spaces text by the same code, so in text of WebKit's complex
-  text path (Indic, Southeast Asian and Arabic text, and any word with a combining mark) the profile measures each
-  prefix of a word under a `letterSpacing` of 2^20 px and reads the count off the width. Of 1,507 letter-spaced
-  paragraph-width pairs of real text outside the harness, 66 had a line off Safari's and 16 do (webkit-host, WebKit
-  22625.1.29.11.27). Three costs were accepted, each in the PR in full: a `measureText` call more for each prefix of
-  such a word new to its font, which WebKit shapes every time, so that the first `prepare()` of 94 new Hindi paragraphs
-  took 55-56 ms for 35-42 and of 400 Arabic ones 73-74 for 37-38; one cache for a font's letter-spaced and unspaced
-  text, so that on a Safari page that uses a font both ways, which of the two pays to measure a shared word shifts; and
-  a field more on each cached segment, 4 to 16 B. Firefox's `resize: cjk layout at new widths` read 6.1 to 12.6% slower
-  with it and 8.6 to 10.8% faster with #512, by preparation code `layout()` never runs, and level across the two
-  (harness/bench/README.md, Entries that misread). What it leaves is under Letter spacing in ENGINE_FOLLOWUPS.md.
-  Reopens with a Canvas call that gives a run's glyphs at once, or with an app whose letter-spaced Indic or Arabic text
-  shows the cost of a first `prepare()`.
+  in Safari** (landed on judgement with #513: the trade was put to the maintainer, who left the call to the landing).
+  Safari gives each glyph it draws one letter spacing, not each grapheme (`ComplexTextController.cpp:793-796`), and its
+  Canvas spaces text by the same code, so in text of WebKit's complex text path (Indic, Southeast Asian and Arabic text,
+  and any word with a combining mark) the profile measures each prefix of a word under a `letterSpacing` of 2^20 px and
+  reads the count off the width. Of 1,507 letter-spaced paragraph-width pairs of real text outside the harness, 66 had a
+  line off Safari's and 16 do (webkit-host, WebKit 22625.1.29.11.27). Three costs were accepted, each in the PR in full:
+  a `measureText` call more for each prefix of such a word new to its font, which WebKit shapes every time, so that the
+  first `prepare()` of 94 new Hindi paragraphs took 55-56 ms for 35-42 and of 400 Arabic ones 73-74 for 37-38; one cache
+  for a font's letter-spaced and unspaced text, so that on a Safari page that uses a font both ways, which of the two
+  pays to measure a shared word shifts; and a field more on each cached segment, 4 to 16 B. Firefox's `resize: cjk
+  layout at new widths` read 6.1 to 12.6% slower with it and 8.6 to 10.8% faster with #512, by preparation code
+  `layout()` never runs, and level across the two (harness/bench/README.md, Entries that misread). What it leaves is
+  under Letter spacing in ENGINE_FOLLOWUPS.md. Reopens with a Canvas call that gives a run's glyphs at once, or with an
+  app whose letter-spaced Indic or Arabic text shows the cost of a first `prepare()`.
 - **2026-10-12: the WebKit profile keeps reading the emoji-correction span**, the maintainer's decision. Not reading it
   there was weighed, since the read forces layout once per font string and Safari's Canvas and page were taken to agree
   on an emoji's width. On a page that isn't zoomed they do, 0 px apart in 19,188 cells of 36 fonts by 41 sizes in 13
