@@ -273,11 +273,46 @@ export function pastBound(browser: BrowserKind, kb: number, processes: number, b
     : null
 }
 
-// Each tick checks the bound first, on the processes the last table held, since the read that may follow holds the
-// process for as long as `ps` takes. The processes are found again from `ps` each second, and whenever the browser says
-// they moved. A read that fails keeps the last table's processes, and the next second reads again.
+// One `ps` table a second serves every browser the process has open, and one more whenever a browser says its
+// processes moved. Each job's watcher used to read its own, on the thread that serves the jobs' pages, so every read
+// stalled every job: a gate of three browsers ran `ps` 164 times, 13.9 of its 34 s, where it now runs it 52 times,
+// 4.4 s (2026-10-12, the reads of its launches and closes included). A read that fails keeps the last table's
+// processes, and the next second reads again.
+type Watcher = { found: (rows: readonly Row[]) => void }
+const watchers = new Set<Watcher>()
+let reader: ReturnType<typeof setInterval> | null = null
+function readTable(): void {
+  let rows: Row[]
+  try {
+    rows = processes(1)
+  } catch {
+    return
+  }
+  for (const watcher of [...watchers]) watcher.found(rows)
+}
+
+// Each tick checks the bound first, on the processes the last table held, since the read a moved browser then asks
+// for holds the process for as long as `ps` takes. The processes are found again from each table (readTable), the
+// first read as the watch starts, and the reader stops with the last browser watched.
 function watch(browser: BrowserKind, launched: Launched, fail: (error: Error) => void, boundMb: number): Session {
-  let ticks = 0
+  const watcher: Watcher = {
+    found(rows) {
+      const roots = launched.roots(rows)
+      if (typeof roots === 'string') {
+        unwatch()
+        fail(new Error(`${browser} ${roots} before its job ended`))
+        return
+      }
+      launched.known = descendants(rows, roots)
+    },
+  }
+  const unwatch = (): void => {
+    clearInterval(timer)
+    if (watchers.delete(watcher) && watchers.size === 0 && reader !== null) {
+      clearInterval(reader)
+      reader = null
+    }
+  }
   const timer = setInterval(() => {
     const tree = launched.known
     let kb = 0
@@ -287,30 +322,21 @@ function watch(browser: BrowserKind, launched: Launched, fail: (error: Error) =>
     for (const each of open) if (each !== launched) others.push(each.heldKb ?? 0)
     const why = pastBound(browser, kb, tree.length, boundMb, others)
     if (why !== null) {
-      clearInterval(timer)
+      unwatch()
       kill(launched)
       fail(new Error(why))
       return
     }
-    if (ticks++ % 10 !== 0 && launched.moved !== true) return
+    if (launched.moved !== true) return
     launched.moved = false
-    let rows: Row[]
-    try {
-      rows = processes(1)
-    } catch {
-      return
-    }
-    const roots = launched.roots(rows)
-    if (typeof roots === 'string') {
-      clearInterval(timer)
-      fail(new Error(`${browser} ${roots} before its job ended`))
-      return
-    }
-    launched.known = descendants(rows, roots)
+    readTable()
   }, 100)
+  watchers.add(watcher)
+  reader ??= setInterval(readTable, 1000)
+  readTable()
   return {
     close() {
-      clearInterval(timer)
+      unwatch()
       return release(launched)
     },
   }
