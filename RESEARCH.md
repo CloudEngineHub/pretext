@@ -177,8 +177,8 @@ a rule by reading it and its unit tests (`rebuild/src/engines/<engine>/`) agains
   it replaced the old suite, weighting a sample of real usage (how often does a user see a wrong line?) beside a
   generated catalog of behaviors (which behaviors are modeled?) (harness/README.md, Why the old suite went), with no
   must-pass tier (Decisions Log, 2026-09-24) and, since 2026-10-11, a tier that is only counted: a pinned case blocks
-  at 24 px and wider, away from the edges of a line change and inside what Pretext claims (Decisions Log, 2026-10-11).
-  Broad generated combinations are fine while they're fast.
+  at 24 px and wider, away from the edges of a line change and inside what Pretext claims, the old-gate set apart
+  (Decisions Log, 2026-10-11). Broad generated combinations are fine while they're fast.
 - **Cases grow** by behavior, not by a repro per bug as main before #340 grew (harness/README.md, "How cases grow").
 - **Tests signal real regressions**, not false ones, in a fast loop (engineering.md, Project Setup); once a suite is
   trusted, speed it up by engineering and by batching what isn't timing-sensitive. "No change" for a cleanup means that
@@ -5473,7 +5473,8 @@ decisions for the maintainer.
   tests were old: the engine tables (#340), the harness (#341), then the suite's removal (#348) (harness/README.md, "Why
   the old suite went").
 - **2026-09-24: no must-pass tier.** Every repeatable case is pinned alike, so a hard trade-off in the heuristics is
-  marked case by case on the accepted list, not forbidden by a tier.
+  marked case by case on the accepted list, not forbidden by a tier. Amended on 2026-10-11, below: a pinned case
+  blocks only at a real width inside the claims, and the others are counted.
 - **2026-09-24: the Gecko scan doesn't split text runs where the script changes**, as Firefox's script itemizer does. A
   simplification pass had kept the splits on 2026-09-16, to match Firefox, a call made on judgement that the maintainer
   hadn't ruled on; asked on 2026-09-24, the maintainer approved dropping them, under the relaxed stance of 2026-09-23:
@@ -6182,6 +6183,10 @@ decisions for the maintainer.
   tests; the entry-geometry fit fails none and still blocks in Firefox. Twelve more pairs of a defect and a browser
   that fail few cases, 1 to 31, still block, each on 1 to 9 blocking cases. The seven are those lost among 70 defects
   scored in each engine's profile on main as of #491, on the browsers' recorded Canvas widths: 41, 34 and 31 blocked
-  before and 39, 32 and 28 with the tiers. Keeping the edge cases blocking would hold five of the seven for 1,046 more
-  entries; it wasn't chosen. Reopens with a regression that reaches a release and that only a counted case showed, or
-  with a real layout under 24 px; the edge cases are the first to bring back.
+  before and 39, 32 and 28 with the tiers. They don't bound what passes: with the WebKit profile no longer keeping, on
+  a line that holds only an overflowing first character, the characters after it that can't start a line (one line of
+  `src/prepare.ts`), 1,081 webkit-host cases under 24 px fail that passed and 50 pass that failed; `check` and `gate`
+  exit 0, printing `under 24 px: 9806 right, 3537 wrong; since the list: +1081, -50`, and two unit tests fail. Keeping
+  the edge cases blocking would hold five of the seven for 1,046 more entries; it wasn't chosen. Reopens with a
+  regression that reaches a release and that only a counted case showed, or with a real layout under 24 px; the edge
+  cases are the first to bring back.
