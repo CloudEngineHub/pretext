@@ -153,11 +153,6 @@ export type EngineProfile = {
   // keeps a spacing the page doesn't give it (ENGINE_FOLLOWUPS.md, Letter spacing). Blink
   // and Gecko space clusters.
   letterSpacesGlyphs: boolean
-  // Blink's page shapes a soft hyphen inside its text, so nonspacing marks after
-  // one shape with the text before it and take no advance. Its Canvas turns the soft
-  // hyphen into a ZWSP and shapes each word alone, where such a mark can take a
-  // dotted circle. WebKit's page gives the marks the advance its Canvas measures.
-  shapesMarksAcrossSoftHyphen: boolean
   // When a selected discretionary hyphen does not fit, Blink retries the text
   // item against the width minus the hyphen (BreakText, line_breaker.cc:1705-1718,
   // Chromium 153), so the line ends at the latest earlier opportunity that leaves
@@ -1021,7 +1016,6 @@ function buildEngineProfile(): EngineProfile {
     canvasLetterSpacingDropsLigatures: engine !== 'webkit',
     unspacedCursive: engine === 'blink' ? 'run' : engine === 'gecko' ? 'cluster' : 'none',
     letterSpacesGlyphs: engine === 'webkit',
-    shapesMarksAcrossSoftHyphen: engine === 'blink',
     unfitHyphenRetreat: engine === 'blink' ? 'reduced-width' : engine === 'gecko' ? 'full-width' : 'full-width-or-first',
     hyphenFromPrimaryFont: engine !== 'gecko',
     letterSpaceTabStops: engine !== 'webkit',

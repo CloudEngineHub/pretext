@@ -130,8 +130,7 @@ function prepareInternal(
 //   2. Find break opportunities with the engine's own line-break scan
 //   3. Split the text into segments between them ("better." as one unit)
 //   4. Measure each segment via canvas measureText, cache by (segment, font).
-//      A run of combining marks that glue or a control separates from its grapheme
-//      measures after that grapheme, and WebKit measures a word with the space after it
+//      WebKit measures a word with the space after it
 //   5. Measure where each text segment of two or more graphemes can break under
 //      overflow-wrap: break-word: by graphemes, pairs or prefixes, per engine
 //   6. Correct emoji canvas inflation (probed once per font)

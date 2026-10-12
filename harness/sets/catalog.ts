@@ -192,11 +192,12 @@ export function followupTemplates(): Template[] {
   return out
 }
 
-// Runs of combining marks chained to one grapheme through soft hyphens or U+0001, past the 96 UTF-16 units after which a
-// run's context leaves out the chain's first runs (MARK_CHAIN_CONTEXT_UNITS in src/prepare.ts): runs of 100 and 200 marks,
-// whose widths Safari gives by their place after the grapheme, a separator and one mark repeated, two chains in one
+// Runs of combining marks chained to one grapheme through soft hyphens or U+0001: runs of 100 and 200 marks, whose
+// widths Safari gives by their place after the grapheme, a separator and one mark repeated, two chains in one
 // paragraph, a long run before such pairs, and Arabic vowel marks and keycaps after U+0001, which take no advance when
-// measured without the grapheme.
+// measured without the grapheme. They were made for the mark context, which measured each run after its grapheme and,
+// past 96 UTF-16 units (the MARK_CHAIN_CONTEXT_UNITS their origins name), the chain's last runs; preparation now
+// measures each run alone (ENGINE_FOLLOWUPS.md, Canvas answers that differ from the page).
 export function markChainTemplates(): Template[] {
   const pairs = (separator: string, marks: string, count: number): string => (separator + marks).repeat(count)
   const shapes: ReadonlyArray<readonly [string, string, string, number]> = [

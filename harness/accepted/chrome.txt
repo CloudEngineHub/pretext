@@ -13,6 +13,9 @@ rich-c613b39279a41fea count
 rich-d0104910d98009fb count
 rich-e16bbdd996294984 count
 
+## A mark after a soft hyphen under negative letter spacing, at 24 px, since the mark context was removed, which measured a run of combining marks after a soft hyphen, a ZWSP, a word joiner or a control with the letter before it and gave it no letter spacing: `aaaa`, a soft hyphen, U+0301 and `tail` in 16 px Arial at -1 px letter spacing, where Chrome gives the mark no gap, so `a` and `tail` are 24.35 px and take two lines, and the profile, whose mark is now text with a gap of its own, has them on one, 23.35 px wide; no real-usage text has a mark after a soft hyphen (ENGINE_FOLLOWUPS.md, Canvas answers that differ from the page)
+catalog-ba82282a557e4da2 count
+
 ## A padded rich item of a space and a ZWSP after a word, at 17-31 px, where the word fits its line and the item with its space doesn't: Chrome ends the line after the word and gives the item the next line, which it holds though it shows nothing (not traced); the library hangs the item's space and its ZWSP on the word's line, a line short, as it hangs a ZWSP after a space outside a padded item (ENGINE_FOLLOWUPS.md, Rich-inline item edges)
 rich-940ad57a2e132532 count
 

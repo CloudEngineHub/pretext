@@ -81,17 +81,7 @@ const extendedPictographicRe = /\p{Extended_Pictographic}/u
 const leadingCombiningMarkRe = lazyRegExp(String.raw`^\p{M}`, 'u')
 // Decimal digits and the joiners of numbers, times and dates.
 const numericRunRe = /^[\p{Nd}:\-/×,.+\u2013\u2014]+$/u
-const markRunRe = /^\p{M}+$/u
-const nonspacingMarkRunRe = /^\p{Mn}+$/u
-const controlOrMarkRunRe = /^(?:[\p{Cc}\u2028\u2029]|\p{M}+)$/u
 const controlCharacterRe = /^[\p{Cc}\u2028\u2029]$/u
-// The fewest UTF-16 units of a long chain of mark runs that a run's context keeps after
-// the grapheme (getMarkContext): measured after the whole chain, a long chain prepared in
-// time that grows with the square of its length. Safari gives a run a width that depends
-// on how far it sits from the grapheme, up to 61 units in the chains measured
-// (RESEARCH.md, Break Opportunities From Engine Data), so a context that keeps fewer
-// moves widths there.
-const MARK_CHAIN_CONTEXT_UNITS = 96
 
 function needsComplexTextPath(text: string): boolean {
   let previousIsEmoji = false
@@ -289,8 +279,7 @@ export type ParagraphLists = {
 // one for each of them, in every engine. Where that object is as large as a handle,
 // JavaScriptCore puts it in the handles' cells, one between each two, and Safari 27 ran
 // layout() over 2,000 short labels 14-17% slower. Any object of 13 to 18 fields that every
-// prepare() makes and drops lands there too: with one planted here, 11-13% slower. What one
-// of them keeps between calls for one text is beside it, and measureAnalysis() clears it.
+// prepare() makes and drops lands there too: with one planted here, 11-13% slower.
 
 // A WebKit text item runs to its next break opportunity, so it also owns any
 // zero-width breaks before the space. The item is measured with one following
@@ -325,55 +314,6 @@ function getFollowingSpaceTail(analysis: TextAnalysis, analysisIndex: number, to
 // item's kerning with the space is added to the text's own width.
 function getTailKerning(item: string, measurement: FontMeasurement, spaceWidth: number): number {
   return getFollowingSpaceMetrics(item, measurement).width - getSegmentMetrics(item, measurement).width - spaceWidth
-}
-
-// The source a run of combining marks shapes after when only zero-width glue,
-// controls or other such runs, with no break, separate the run from the grapheme
-// before it: that grapheme and what separates them. Without the separators, Canvas
-// can compose the marks with the grapheme or draw both in another font. A walk that
-// reaches the last run that asked takes that run's answer, so each segment is walked
-// and each grapheme found once, however many runs share it. Once what separates them
-// passes MARK_CHAIN_CONTEXT_UNITS, the context keeps the grapheme and the fewest of the
-// chain's last runs, each with the separators before it, that hold at least that many
-// units: in Chrome, Safari and Firefox, runs of 1 to 400 marks then measure as they do
-// after the whole chain, to 0.002px, and without the grapheme some took 25px less
-// (RESEARCH.md, Break Opportunities From Engine Data).
-let markRunIndex = -1
-let markBaseStart = -1 // where that run's grapheme starts in the normalized text, or -1
-let markChainStart = -1 // the segment after that grapheme
-let markChainKept = -1 // the first segment of the chain the context keeps
-// Asked only for a text segment no break comes before; the measured segments start at `from`.
-function getMarkContext(analysis: TextAnalysis, from: number, analysisIndex: number, text: string, graphemeTable: GraphemeTable): string | null {
-  if (!markRunRe.test(text)) return null
-  const { normalized, texts, starts, flags } = analysis
-  let baseStart = -1
-  for (let k = analysisIndex - 1; k >= from; k--) {
-    const kind = flags[k]! & KIND_BITS
-    const start = starts[k]!
-    const end = starts[k + 1]!
-    if (kind === ZERO_WIDTH_GLUE || ((kind === TEXT || kind === CONTROL) && controlOrMarkRunRe.test(texts[k]!))) {
-      if (k !== markRunIndex) continue
-      baseStart = markBaseStart
-    } else if (kind === TEXT) {
-      const ends = new Int32Array(end - start)
-      const count = findGraphemeEnds(graphemeTable, normalized, start, end, ends)
-      baseStart = count > 1 ? ends[count - 2]! : start
-      markChainStart = markChainKept = k + 1
-    }
-    break
-  }
-  markRunIndex = analysisIndex
-  markBaseStart = baseStart
-  if (baseStart < 0) return null
-  const start = starts[analysisIndex]!
-  if (start - baseStart <= MARK_CHAIN_CONTEXT_UNITS) return normalized.slice(baseStart, start)
-  // The kept part starts after the grapheme or a run of marks, moves only forward and
-  // never holds fewer than MARK_CHAIN_CONTEXT_UNITS.
-  for (let k = markChainKept + 1; start - starts[k]! >= MARK_CHAIN_CONTEXT_UNITS; k++) {
-    if (markRunRe.test(texts[k - 1]!)) markChainKept = k
-  }
-  if (markChainKept === markChainStart) return normalized.slice(baseStart, start)
-  return normalized.slice(baseStart, starts[markChainStart]) + normalized.slice(starts[markChainKept], start)
 }
 
 // Pieces split by a soft hyphen are measured apart, but Blink and Gecko shape
@@ -510,8 +450,6 @@ export function measureAnalysis(
   let previousJoinableMetrics: SegmentMetrics | null = null
   // WebKit's return from an unfit hyphen fits each side as measured alone (getJoinedNarrowing).
   const returnFitsEachSideAlone = engineProfile.unfitHyphenRetreat === 'full-width-or-first'
-  // What getMarkContext() keeps is one text's.
-  markRunIndex = -1
 
   // Each segment is stored at its index: `at` in the text's or the paragraph's three lists,
   // `mi - from` in the lists of the measured segments alone. Stored and not pushed, for V8:
@@ -535,19 +473,6 @@ export function measureAnalysis(
         // A control the engine hides takes no advance, only letter spacing.
         if (engineProfile.hidesControlCharacters && controlCharacterRe.test(text)) {
           spacingGraphemeCount = 1
-          break
-        }
-        // Such a run of marks adds its context with the marks, minus the context, and
-        // takes no letter spacing of its own. Only a segment no break comes before can be
-        // one, and the test is here so that the others make no call: with it Chrome 154
-        // prepares CJK text again 2.6% faster than with a call for every text segment, which
-        // V8 didn't inline (RESEARCH.md, Keeping Work Bounded, JavaScript Engines, under V8's
-        // inlining budgets and the mark context).
-        const markContext = (segment & UNBROKEN) === 0 ? null : getMarkContext(analysis, from, mi, text, engineProfile.graphemeTable)
-        if (markContext !== null) {
-          width = engineProfile.shapesMarksAcrossSoftHyphen && texts[mi - 1] === '\u00AD' && nonspacingMarkRunRe.test(text)
-            ? 0
-            : getTextWidth(markContext + text, fontMeasurement, emojiCorrection) - getTextWidth(markContext, fontMeasurement, emojiCorrection)
           break
         }
         // With an empty following-space tail, the text is measured together with the space,
