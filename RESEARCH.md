@@ -6247,7 +6247,7 @@ decisions for the maintainer.
   it tells by one read of `navigator.platform` when it is built (#505).** Only WebKit on Cocoa, Apple's platforms,
   resolves `monospace` and the other generic keywords by page language (`platformResolveGenericFamily` returns null
   under `!PLATFORM(COCOA)`, `FontDescription.cpp:115-120`). On its other ports the profile measured `13px monospace` as
-  `13px "Menlo"`, a family the system lacks: of 20 font and language cases at 71 widths in Playwright's WebKit for
+  `13px "Menlo"`, a family the system lacks: of 20 font and language cases at 71 widths in Playwright's WebKit 2370 for
   Linux, main was right at every width in 9 or 16, by the fonts installed, and is in all 20 now. The user agent can't
   tell the port, since Playwright's WebKit names a Mac on Linux. A Canvas question, whether the context has Menlo, a
   font only Apple ships, was built first: it cost Safari two `measureText` calls for each page language, about 0.8 ms of
@@ -6300,24 +6300,25 @@ decisions for the maintainer.
   import without `.js` or a Node global in `src/` failed only `bun run package-smoke-test`; `record --onlynew` recorded
   every case again and `check chrome` ran three browsers; and a draw passes on its line count and its lines' ends
   whatever their widths. The table's `off` column counts the passing draws of plain text with a line more than 1 px off
-  the browser's: 11, 16 and 23 of the 10,345 inside the claims in Chrome, Firefox and webkit-host, where the library
-  before the kerning between kana (#497) read 107 of Chrome's 344 Japanese draws off beside 15 failing. It is a report
-  and blocks nothing, reading no rich draw and no line that ends in a space with a box, as a pre-wrap line that wraps at
-  one does (harness/README.md, Bounds and blind spots); a gate on widths reopens with a recorder that reads those. The
-  cost is a second `tsc` run, about a tenth of a second.
+  the browser's: 11, 16 and 23 of the 10,345 inside the claims in Chrome 154.0.8037.98, Firefox 157.0.1 and webkit-host
+  (WebKit 22625.1.29.11.27), where the library before the kerning between kana (#497) read 107 of Chrome's 344 Japanese
+  draws off beside 15 failing. It is a report and blocks nothing, reading no rich draw and no line that ends in a space
+  with a box, as a pre-wrap line that wraps at one does (harness/README.md, Bounds and blind spots); a gate on widths
+  reopens with a recorder that reads those. The cost is a second `tsc` run, about a tenth of a second.
 - **2026-10-12: a unit test stays where it is the only check that fails on a planted defect, and 30 that weren't left
   `src/layout.test.ts`** (landed on judgement with #511). They asserted, on a fake Canvas, rules that another unit test,
   the offline invariants or the browsers' recorded cases hold too: 775 lines, 9% of the file. The rule was applied with
-  1,349 defects planted in `src/` one at a time (935 drawn over its files, 300 aimed at the lines the candidates name,
-  114 by hand): a candidate stays where no other check fails on one of them, counting the unit tests left, the offline
-  invariants and the browsers' `check`. 18 of 48 candidates stay, seven because the recorded cases their defects move
-  are under 24 px or at an edge of a line change, which are counted and don't block (the entry of 2026-10-11). The cost:
-  21 of the 1,349 failed `bun test` and now fail only a browser's `check`, on 1 to 117 blocking cases each; none passes
-  everything. It is a sample and not a proof: a first pass kept nine of the 48, and a second, which aimed defects at the
-  lines the removed tests name, brought nine more back. Reopens with a regression that a removed test would have failed
-  and `check` passed; browser cases at 24 px and wider for the rules only a kept test holds would let more of the 18 go.
-- **2026-10-12: `bun harness check` gets no copy that runs without a browser**, the maintainer's decision. One was
-  built: every case replayed in Bun over a table of the browsers' own recorded Canvas answers gave each browser's
+  1,349 defects planted in `src/` one at a time (935 drawn over its files, 300 aimed at the lines the 48 candidate tests
+  name, 114 by hand): a candidate stays where no other check fails on one of them, counting the unit tests left, the
+  offline invariants and the browsers' `check` (Chrome 154.0.8037.98, Firefox 157.0.1, webkit-host). 18 of the 48 stay,
+  seven because the recorded cases their defects move are under 24 px or at an edge of a line change, which are counted
+  and don't block (the entry of 2026-10-11). The cost: 21 of the 1,349 failed `bun test` and now fail only a browser's
+  `check`, on 1 to 117 blocking cases each; none passes everything. It is a sample and not a proof: a first pass kept
+  nine of the 48, and a second, which aimed defects at the lines the removed tests name, brought nine more back. Reopens
+  with a regression that a removed test would have failed and `check` passed; browser cases at 24 px and wider for the
+  rules only a kept test holds would let more of the 18 go.
+- **2026-10-12: `bun harness check` gets no copy that runs without a browser**, the maintainer's decision. One was built
+  (2026-10-11): every case replayed in Bun over a table of the browsers' own recorded Canvas answers gave each browser's
   predictions exactly, in about 3 s for the three where `check` in the browsers took about 14. It stays out for what it
   adds: about 950 lines of harness, and the table, a copy of what the browsers answer that goes stale when a pin, a
   recording or what the library asks of Canvas changes and is then recorded again in the browsers. Reopens where there
