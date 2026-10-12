@@ -164,9 +164,9 @@ type InternalPreparedRichInline = PreparedRichInline & {
   plainWidths: boolean
   // Per segment, where its text starts and ends in its item's text, and, for a segment whose text
   // isn't one stretch of its item's, as where white space inside it was removed, where each of
-  // its units is there, else null (null too where no segment has any). Null for a paragraph that
-  // is one text's handle, which finds them when a line is first materialized, from `text`, its
-  // item's, and keeps them beside the handle (textSources).
+  // its units is there, else null (null too where no segment has any). A paragraph that is one
+  // text's handle finds them when a line is first materialized, from `text`, its item's; a
+  // frozen one keeps them beside the handle, and these stay null (textSources).
   sourceStarts: number[] | null
   sourceEnds: number[] | null
   sourceUnits: (number[] | null)[] | null
@@ -1141,18 +1141,20 @@ function getSourceUnits(offsets: Int32Array, from: number, to: number, itemStart
   return units
 }
 
-// Per paragraph that is one text's handle, the three lists of where its segments are in the
-// item's text (InternalPreparedRichInline), found when a line of it is first materialized. They
-// are kept beside the handle, as its segments' grapheme ends are (getGraphemeEnds), and not on
-// it: no line function writes to a handle, so one the app froze, or a copy of one in a store
-// that freezes its state, materializes as any other. Preparation pays nothing for them: found
-// there, they took the chat demo's one-item paragraphs 6-9% longer to prepare and count once in
-// JavaScriptCore and 12-18% in V8, text seen before, and a third more heap a handle, for lines a
-// long list mostly never paints. Found again at every line, walking and materializing took 4-9
-// times as long, and over 100 times in a paragraph of 6,000 units. The lookup costs walking and
-// materializing 40 such paragraphs over and over 1-4%, and 3,000 of them in turn 10-13% in V8
-// and 17-21% in JavaScriptCore (node 23.10 and bun 1.4.2 on the harness's stand-in Canvas,
-// 2026-10-12).
+// Per frozen handle of a paragraph that is one text's handle, the three lists of where its
+// segments are in the item's text (InternalPreparedRichInline), found when a line of it is
+// first materialized. A handle keeps them itself; a frozen one can't take them, so they are
+// kept beside it, as its segments' grapheme ends are (getGraphemeEnds): no line function writes
+// to a frozen handle or to anything it holds, so one the app froze, or a copy of one in a store
+// that freezes its state, materializes as any other. Kept beside every handle, the lookup took
+// a pass that walks and materializes 3,000 of the chat demo's one-item paragraphs, each asked
+// once, 35-47% longer with the handles out of the processor's caches and 7-25% with them in,
+// and 40 of them over and over 1-9% (JavaScriptCore of bun 1.4.2, V8 15.4 and node 23.10's,
+// SpiderMonkey 156, one build a process on the harness's stand-in Canvas, 2026-10-12). Found
+// while preparing, the lists took such paragraphs 6-13% longer to prepare and count once in
+// JavaScriptCore and 12-20% in V8, text seen before, and a third more heap a handle, for lines
+// a long list mostly never paints; found again at every line, walking and materializing took
+// 5-9 times as long, and over 100 times in a paragraph of 6,000 units.
 type TextSources = { sourceStarts: number[]; sourceEnds: number[]; sourceUnits: (number[] | null)[] }
 const textSources = new WeakMap<InternalPreparedRichInline, TextSources>()
 
@@ -1171,7 +1173,13 @@ function findSegmentSources(flow: InternalPreparedRichInline): TextSources {
     sourceUnits.push(getSourceUnits(offsets, at, at + segments[i]!.length, 0))
   }
   const sources = { sourceStarts, sourceEnds, sourceUnits }
-  textSources.set(flow, sources)
+  if (Object.isFrozen(flow)) {
+    textSources.set(flow, sources)
+  } else {
+    flow.sourceStarts = sourceStarts
+    flow.sourceEnds = sourceEnds
+    flow.sourceUnits = sourceUnits
+  }
   return sources
 }
 
