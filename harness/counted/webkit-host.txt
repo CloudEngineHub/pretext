@@ -104,13 +104,10 @@ catalog-ee154999d04067f6 count
 catalog-efc5ebc1693c3350 count
 catalog-f53c63059c89508d count
 catalog-f67d77f18a519536 count
-facts-0813a82f5b36d627 count
 facts-0c20d220de63f660 count
-facts-115aa5301a218a7c count
 facts-16f400c9cce340c5 breaks
 facts-1d73fdcfd3a4e14b count
 facts-2acdaa0a964973de count
-facts-2b5e2b7ec8d01235 count
 facts-2d47f303daf39ccc count
 facts-34e40478041d4bf1 count
 facts-3a71b1e95c6b6a44 count
@@ -122,10 +119,8 @@ facts-50c7564febfa5479 breaks
 facts-52fc37530b0c0032 breaks
 facts-5381df9cdeb43d01 breaks
 facts-549054640f83ae38 count
-facts-59511962c1035168 breaks
 facts-5d9fdeae578f0f62 breaks
 facts-61ed74362250a711 count
-facts-630b7f1336a8356c count
 facts-653339e3f0893c9a count
 facts-67ff6f3290925e71 count
 facts-69b3bb3e39d23204 count
@@ -141,11 +136,8 @@ facts-af6aaa5b5fba96e4 count
 facts-b3f14ec4bd77f5cb count
 facts-bdba1d91c1b75c7c breaks
 facts-bf56bdd24cf0ce7e count
-facts-c9c9ecc1ebc192d5 count
-facts-cb726fe075c99028 count
 facts-d02e400865822a9e count
 facts-d1007d48b54072bf breaks
-facts-d586e19a99606fb9 count
 facts-debb625ca13006b9 breaks
 facts-e1fb0bbe15b11962 count
 facts-f3e608093c949711 breaks
@@ -2628,7 +2620,6 @@ facts-0738dafcf84f4c96 breaks
 facts-0792a7b2d9e3f483 count
 facts-0ed74272b2fa2c74 count
 facts-0f1ad885cb39a80a count
-facts-125df7c318a3efbc count
 facts-16d2d2b64c40a3ef count
 facts-1945c789bdf13a4b count
 facts-1aac752cc8ef26c8 count
@@ -2640,7 +2631,6 @@ facts-27c1be99c04854ba count
 facts-2d485e09a3bf0d50 count
 facts-2eaa366f9927e571 count
 facts-2fbbda749e28f9f5 count
-facts-3012d56fcfd33206 count
 facts-3695100997a5e9ac count
 facts-38a1ce8c61ba552d count
 facts-3c395b16cd23de2c breaks
@@ -2691,12 +2681,9 @@ facts-947f4c4a97a847a3 count
 facts-963fd0ff47a467ae count
 facts-9982ceb723c0bea5 count
 facts-9cb5f7202e01e6b6 count
-facts-9daebdb1b4aed7be count
-facts-a6eeb97138dc0f9c count
 facts-a7943ff49724c37e count
 facts-a823c76a4a38b8f5 count
 facts-a9226eb6155cdd9b count
-facts-aa32154a7d0b6b0b count
 facts-abde02b53184f996 count
 facts-accb74caab8fff0d count
 facts-af13cd7cacb5498b count
@@ -2704,7 +2691,6 @@ facts-b031feb5bdc3bc9d count
 facts-b07a76be9ebe4b76 count
 facts-b0e799a372f0d95a count
 facts-b268f3f5ee275f05 count
-facts-b5a970140a926fc0 count
 facts-b5ab1c68d39be8fd count
 facts-b7b4e98847034030 count
 facts-b8e592e9511bc57b count
@@ -2722,7 +2708,6 @@ facts-cb2d5cc303747edb count
 facts-cc939d224ccd4816 count
 facts-cc958466bac186aa count
 facts-ce9251eef6a8ada0 count
-facts-cf6147d4954ea1eb count
 facts-d4c268eb14035270 count
 facts-d54d8ea957f40c11 count
 facts-d5a3d937459712e1 count
@@ -2734,7 +2719,6 @@ facts-f038a833918e39d7 count
 facts-f174326e6aba5a55 count
 facts-f30eb70272204314 count
 facts-f39c5cd8e6f772a2 breaks
-facts-f5481e33af0ddcdc count
 facts-f7c254312e6c517b count
 facts-f8b095bc5316218f breaks
 facts-fbb22836f590bd81 count

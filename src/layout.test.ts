@@ -6736,8 +6736,7 @@ test('the Safari profile keeps the kerning between a word and a following space'
     const { prepareRichInline, walkRichInlineLineRanges } = await import(${JSON.stringify(richInlineUrl)})
     const kerning = []
     for (const [text, letterSpacing] of [
-      ['AA B', 0], ['AA\\u200B B', 0], ['AA\\u200E \\u05D0', 0], ['AA\\u2060 \\u2060B', 0], ['AA\\u2060 1', 0],
-      ['AA\\u200B \\u05D0', 0], ['AA\\u2060 (x\\u05D0)', 0], ['AA\\u00AD B', 0], ['AA B', 1],
+      ['AA B', 0], ['AA\\u200B B', 0], ['AA\\u2060 \\u2060B', 0], ['AA\\u200B \\u05D0', 0], ['AA\\u00AD B', 0], ['AA B', 1],
     ]) {
       const lines = layoutWithLines(prepareWithSegments(text, '16px Test', { letterSpacing }), 19.5, 20).lines
       kerning.push({ lines: lines.map(line => [line.text, line.width]), lineCount: layout(prepare(text, '16px Test', { letterSpacing }), 19.5, 20).lineCount })
@@ -6756,10 +6755,8 @@ test('the Safari profile keeps the kerning between a word and a following space'
     }
     const rich = []
     walkRichInlineLineRanges(prepareRichInline([{ text: 'A\\u2060 B', font: '16px Test' }]), 8.5, line => rich.push(line.width))
-    const paragraphs = [['AA\\u2060 B\\n\\u202Ax', 'pre-wrap'], ['AA\\u2060 B\\u2029\\u202Ax', 'normal'], ['AA\\u2060 B\\u202Ax', 'normal']]
-      .map(([text, whiteSpace]) => prepareWithSegments(text, '16px Test', { whiteSpace }).widths[0])
     const quote = layoutWithLines(prepareWithSegments('a\\u00AD\\u201Cb', '16px Test', { whiteSpace: 'pre-wrap' }), 20, 20).lines.map(line => line.text)
-    console.log(JSON.stringify({ kerning, spaced, wordMeasurements, paragraphs, quote, remainder: {
+    console.log(JSON.stringify({ kerning, spaced, wordMeasurements, quote, remainder: {
       lines: layoutWithLines(remainder, 8.5, 20).lines.map(line => [line.text, line.width, line.start.segmentIndex, line.start.graphemeIndex, line.end.segmentIndex, line.end.graphemeIndex]),
       signed,
       streamed,
@@ -6767,23 +6764,16 @@ test('the Safari profile keeps the kerning between a word and a following space'
       lineCount: layout(prepare('A\\u2060 B', '16px Test'), 8.5, 20).lineCount,
     } }))
   `
-  const { kerning, spaced, wordMeasurements, paragraphs, quote, remainder } =
-    JSON.parse(runInChild(script)) as Record<'kerning' | 'spaced' | 'wordMeasurements' | 'paragraphs' | 'quote' | 'remainder', unknown>
+  const { kerning, spaced, wordMeasurements, quote, remainder } =
+    JSON.parse(runInChild(script)) as Record<'kerning' | 'spaced' | 'wordMeasurements' | 'quote' | 'remainder', unknown>
   expect(kerning).toEqual([
     // The kerned word fits and the space hangs.
     { lines: [['AA ', 19], ['B', 8]], lineCount: 2 },
     { lines: [['AA\u200B ', 19], ['B', 8]], lineCount: 2 },
-    // A direction mark is a strong character that ends the word like a letter,
-    // and format characters after the space are skipped to the next letter.
-    { lines: [['AA\u200E ', 19], ['\u05D0', 8]], lineCount: 2 },
+    // A format character between the word and the space is in the word's item, whatever
+    // the direction of the text after the space.
     { lines: [['AA\u2060 ', 19], ['\u2060B', 8]], lineCount: 2 },
-    // An ASCII digit after the space takes the word's direction either way.
-    { lines: [['AA\u2060 ', 19], ['1', 8]], lineCount: 2 },
-    // Before right-to-left text the zero-width space may leave the word's bidi
-    // run, which is unknown without the paragraph direction.
-    { lines: [['A', 10], ['A\u200B ', 10], ['\u05D0', 8]], lineCount: 3 },
-    // A closed bracket pair after the space can take the paragraph direction.
-    { lines: [['A', 10], ['A\u2060 ', 10], ['(x', 16], ['\u05D0)', 16]], lineCount: 4 },
+    { lines: [['AA\u200B ', 19], ['\u05D0', 8]], lineCount: 2 },
     // On an RTL page a soft hyphen before the space also costs a hyphen.
     { lines: [['A', 10], ['A ', 10], ['B', 8]], lineCount: 3 },
     // Under letter spacing the word keeps its kerning with the space too.
@@ -6793,10 +6783,6 @@ test('the Safari profile keeps the kerning between a word and a following space'
   // alone, and keeps the -1px kerning.
   expect(spaced).toEqual([['QA ', 17], ['XA ', 17], ['q', 8]])
   expect(wordMeasurements).toEqual(['QA ', 'XA '])
-  // An explicit bidi control ends with its paragraph, at a newline in pre-wrap
-  // or at U+2029, so one in a later paragraph keeps the kerning. One in the same
-  // paragraph leaves the space's direction unknown.
-  expect(paragraphs).toEqual([19, 19, 20])
   // Safari 27 lets an opening curly quote start a line after a soft hyphen,
   // which paints its hyphen at the end of the line before.
   expect(quote).toEqual(['a-', '\u201Cb'])

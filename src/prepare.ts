@@ -107,20 +107,9 @@ function needsComplexTextPath(text: string): boolean {
   return false
 }
 
-const explicitBidiControlRe = /[\u202A-\u202E\u2066-\u2069]/
-// Format characters stand for bidi class BN, except the direction marks LRM,
-// RLM and ALM, which are strong characters like letters.
-const trailingFormatCharacterRe = /(?![\u200E\u200F\u061C])\p{Cf}$/u
-// Letters in the right-to-left blocks have bidi class R or AL, as do RLM and
-// ALM. Every other letter except modifier letters has class L, as does LRM.
-const rightToLeftLetterRe = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF\u200F\u{10800}-\u{10FFF}\u{1E800}-\u{1EFFF}]/u
-// Either of the two: a right-to-left letter or an explicit bidi control.
+// A character of the right-to-left blocks, whose letters have bidi class R or AL, as RLM
+// has, or an explicit bidi control.
 const mixedDirectionRe = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF\u200F\u{10800}-\u{10FFF}\u{1E800}-\u{1EFFF}\u202A-\u202E\u2066-\u2069]/u
-// The last letter or direction mark before format characters other than a soft
-// hyphen, and the first letter, direction mark or ASCII digit after the space,
-// past spaces and format characters.
-const letterBeforeFormatTailRe = lazyRegExp(String.raw`([\p{Lu}\p{Ll}\p{Lt}\p{Lo}\u200E\u200F\u061C])\p{M}*(?:(?![\u00AD\u200E\u200F\u061C])\p{Cf})+$`, 'u')
-const letterAfterSpacesRe = lazyRegExp(String.raw` (?: |(?![\u200E\u200F\u061C])\p{Cf})*([0-9\p{Lu}\p{Ll}\p{Lt}\p{Lo}\u200E\u200F\u061C])`, 'uy')
 
 function isSpaceKind(kind: number): boolean {
   return kind === SPACE || kind === PRESERVED_SPACE
@@ -287,11 +276,6 @@ function getUnspacedGraphemes(text: string, start: number, end: number, grapheme
   return unspaced
 }
 
-// Bidi class B: the characters that end a bidi paragraph.
-function isParagraphSeparatorCode(code: number): boolean {
-  return code === 0x0a || code === 0x0d || (code >= 0x1c && code <= 0x1e) || code === 0x85 || code === 0x2029
-}
-
 // The lists of a rich-inline paragraph's handle that each item's measurement adds its segments
 // to; `segmentFlags` has room for them from `widths.length` on.
 export type ParagraphLists = {
@@ -305,8 +289,8 @@ export type ParagraphLists = {
 // one for each of them, in every engine. Where that object is as large as a handle,
 // JavaScriptCore puts it in the handles' cells, one between each two, and Safari 27 ran
 // layout() over 2,000 short labels 14-17% slower. Any object of 13 to 18 fields that every
-// prepare() makes and drops lands there too: with one planted here, 11-13% slower. What two
-// of them keep between calls for one text is beside them, and measureAnalysis() clears it.
+// prepare() makes and drops lands there too: with one planted here, 11-13% slower. What one
+// of them keeps between calls for one text is beside it, and measureAnalysis() clears it.
 
 // A WebKit text item runs to its next break opportunity, so it also owns any
 // zero-width breaks before the space. The item is measured with one following
@@ -317,10 +301,15 @@ export type ParagraphLists = {
 // than 0 (TextUtil.cpp:103), which the per-grapheme gap model does not represent.
 // A soft hyphen before the space takes no kerning: on an RTL page WebKit needs
 // about a hyphen's width more to fit such an item, and preparation cannot see the
-// page direction. Returns the zero-width breaks between the text and the space,
-// or null when the text takes no kerning. `own` is the measured text, from
-// `ownStart` of the analysis's.
-function getFollowingSpaceTail(analysis: TextAnalysis, analysisIndex: number, to: number, text: string, own: string, ownStart: number): string | null {
+// page direction. WebKit splits a text item where the bidi level changes before it
+// measures it (breakAndComputeBidiLevels, InlineItemsBuilder.cpp:637-728), and
+// format characters between a word and the space resolve with the space. Premise:
+// the space resolves to the word's direction, so they stay in the word's item and
+// the word keeps its kerning. Its gap is a space that resolves to the other
+// direction, where Safari measures the word alone (ENGINE_FOLLOWUPS.md, Bidi
+// levels, direction and script runs). Returns the zero-width breaks between the
+// text and the space, or null when the text takes no kerning.
+function getFollowingSpaceTail(analysis: TextAnalysis, analysisIndex: number, to: number): string | null {
   const { normalized, spaceSources, starts, flags } = analysis
   let next = analysisIndex + 1
   while (next < to && (flags[next]! & KIND_BITS) === ZERO_WIDTH_BREAK) next++
@@ -329,52 +318,13 @@ function getFollowingSpaceTail(analysis: TextAnalysis, analysisIndex: number, to
   // A collapsed space's first source character: WebKit looks at the source after a text item.
   const spaceStart = starts[next]!
   if ((nextKind !== SPACE && nextKind !== PRESERVED_SPACE) || (spaceSources === null ? normalized.charCodeAt(spaceStart) : spaceSources[spaceStart]!) !== 0x20) return null
-  const tail = normalized.slice(starts[analysisIndex + 1], spaceStart)
-  return formatTailStaysWithWord(tail === '' ? text : text + tail, own, spaceStart - ownStart) ? tail : null
+  return normalized.slice(starts[analysisIndex + 1], spaceStart)
 }
 
 // A zero-width break before the space ends the measured item, so only the
 // item's kerning with the space is added to the text's own width.
 function getTailKerning(item: string, measurement: FontMeasurement, spaceWidth: number): number {
   return getFollowingSpaceMetrics(item, measurement).width - getSegmentMetrics(item, measurement).width - spaceWidth
-}
-
-// WebKit splits text items where resolved bidi levels change before it
-// measures them. Format characters between a word and the space resolve with
-// that space, so they stay in the word's item, and the word's last glyph keeps
-// its kerning with the space, only when the space resolves to the word's
-// direction. Without the paragraph direction that is known when the word's last
-// letter or direction mark and the first one after the space have the same
-// direction, with only spaces and format characters between (UAX #9 N1).
-// Explicit embeddings, overrides and isolates end with their paragraph (UAX #9
-// X8), so only controls in the space's own paragraph leave its direction
-// unknown. Spaces arrive in order, so each paragraph is scanned once.
-let hasExplicitBidiControls: boolean | null = null
-let controlParagraphEnd = -1
-let paragraphHasExplicitBidiControls = false
-function spaceParagraphHasExplicitBidiControls(own: string, spaceStart: number): boolean {
-  hasExplicitBidiControls ??= explicitBidiControlRe.test(own)
-  if (!hasExplicitBidiControls) return false
-  if (spaceStart < controlParagraphEnd) return paragraphHasExplicitBidiControls
-  let start = spaceStart
-  while (start > 0 && !isParagraphSeparatorCode(own.charCodeAt(start - 1))) start--
-  let end = spaceStart
-  while (end < own.length && !isParagraphSeparatorCode(own.charCodeAt(end))) end++
-  controlParagraphEnd = end
-  paragraphHasExplicitBidiControls = explicitBidiControlRe.test(own.slice(start, end))
-  return paragraphHasExplicitBidiControls
-}
-function formatTailStaysWithWord(item: string, own: string, spaceStart: number): boolean {
-  if (!trailingFormatCharacterRe.test(item)) return true
-  const before = letterBeforeFormatTailRe().exec(item)
-  if (before === null) return false
-  letterAfterSpacesRe().lastIndex = spaceStart
-  const after = letterAfterSpacesRe().exec(own)
-  if (after === null) return false
-  // An ASCII digit takes the direction of the text before it (UAX #9 W7 and N1).
-  const next = after[1]!
-  return (next.charCodeAt(0) <= 0x39 || rightToLeftLetterRe.test(before[1]!) === rightToLeftLetterRe.test(next)) &&
-    !spaceParagraphHasExplicitBidiControls(own, spaceStart)
 }
 
 // The source a run of combining marks shapes after when only zero-width glue,
@@ -563,9 +513,8 @@ export function measureAnalysis(
   let previousJoinableMetrics: SegmentMetrics | null = null
   // WebKit's return from an unfit hyphen fits each side as measured alone (getJoinedNarrowing).
   const returnFitsEachSideAlone = engineProfile.unfitHyphenRetreat === 'full-width-or-first'
-  // What getMarkContext() and spaceParagraphHasExplicitBidiControls() keep is one text's.
-  markRunIndex = controlParagraphEnd = -1
-  hasExplicitBidiControls = null
+  // What getMarkContext() keeps is one text's.
+  markRunIndex = -1
 
   // Each segment is stored at its index: `at` in the text's or the paragraph's three lists,
   // `mi - from` in the lists of the measured segments alone. Stored and not pushed, for V8:
@@ -608,7 +557,7 @@ export function measureAnalysis(
         // With an empty following-space tail, the text is measured together with the space,
         // so its kerned width costs no extra Canvas call, and other occurrences of the same
         // text measure it alone; with a zero-width tail, the item's kerning is added.
-        const followingSpaceTail = engineProfile.measureTextWithFollowingSpace && hasSpace ? getFollowingSpaceTail(analysis, mi, to, text, own, ownStart) : null
+        const followingSpaceTail = engineProfile.measureTextWithFollowingSpace && hasSpace ? getFollowingSpaceTail(analysis, mi, to) : null
         const measuredWithSpace = followingSpaceTail === ''
         const textMetrics = measuredWithSpace ? getFollowingSpaceMetrics(text, fontMeasurement) : getSegmentMetrics(text, fontMeasurement)
         previousJoinablePiece = text
