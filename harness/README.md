@@ -222,9 +222,9 @@ paragraph given with `--text`, line by line against the browser.
 
 `accepted/<browser>.txt` holds the blocking cases main has failed since #340, each under a written reason: the gate
 protects what main passes since #340, whose break rules port the engines' own, not what main before #340 passed by
-accident. A listed case that passes again or is gone blocks until `check --accept` takes it off, so a fix gets recorded.
-A lost pass isn't a regression until it's attributed: a true loss, two errors that cancelled, or a bad test or
-recording.
+accident. A listed case that passes again or is gone blocks until `check --accept="<reason>"` takes it off, so a fix
+gets recorded. A lost pass isn't a regression until it's attributed: a true loss, two errors that cancelled, or a bad
+test or recording.
 
 A reason isn't always a cause. The reasons #340's failures were accepted under name a shape of input and say that the
 browser breaks there otherwise ("Arabic and Hebrew beside brackets, controls, U+FFFC or rich-item edges, at 24 px and
@@ -233,12 +233,12 @@ Firefox's 244 and 118 of webkit-host's 165 (2026-10-11). Those entries are untra
 the browser's rule, or says that it isn't traced.
 
 `counted/<browser>.txt` holds the failing cases that don't block (What a case is and when it passes), each under why it
-is counted: under 24 px, an edge of a line change, outside the claims, old-gate. `check --accept` writes it, and nobody
-writes a reason into it. `check` prints how many of each kind pass and fail and, against the list, the failures it
-lacks and its entries that no longer fail (`since the list: +3, -0`); `equal` shows which cases moved between two
-builds. A change that moves a counted case owes nothing for it: no attribution, no reason, and `check` stays green. One
-that moves a blocking case owes what it always did. Until 2026-10-11 every pinned case blocked, and the counted
-failures were 9,822 of the three browsers' 10,545 accepted entries.
+is counted: under 24 px, an edge of a line change, outside the claims, old-gate. `check --accept="<reason>"` writes it,
+and nobody writes a reason into it. `check` prints how many of each kind pass and fail and, against the list, the
+failures it lacks and its entries that no longer fail (`since the list: +3, -0`); `equal` shows which cases moved
+between two builds. A change that moves a counted case owes nothing for it: no attribution, no reason, and `check` stays
+green. One that moves a blocking case owes what it always did. Until 2026-10-11 every pinned case blocked, and the
+counted failures were 9,822 of the three browsers' 10,545 accepted entries.
 
 `varying/<browser>.txt` lists predictions that move with the browser's state, between runs (`runs`, never judged) or
 with what was predicted before (`order`, judged in their own order). A lone prediction can't tell the library's caches
