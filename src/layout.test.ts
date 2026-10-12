@@ -8367,7 +8367,9 @@ test('the WebKit profile letter-spaces the glyphs of complex text as its Canvas 
   // one glyph, and `fi` is a ligature, 3px narrower. Canvas adds its letterSpacing to every
   // glyph that has an advance and keeps the ligature, as Safari's does. In 16px Devanagari MT
   // at 1px webkit-host spaces `\u0939\u093F\u0928\u094D\u0926\u0940`, two graphemes, five times, `\u0915\u093F` twice
-  // and lam with alef once (2026-10-11).
+  // and lam with alef once (2026-10-11). Canvas reports widths as 32-bit floats, so a text's
+  // width under a spacing less its width under none is a whole number of spacings only to
+  // rounding: here it comes out 2^-20 short, and the count still rounds to the glyphs.
   const layoutUrl = new URL('./layout.ts', import.meta.url).href
   const rowsOf = (userAgent: string, takesLetterSpacing: boolean): unknown => JSON.parse(runInChild(`
     Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { userAgent: ${JSON.stringify(userAgent)} } })
@@ -8386,7 +8388,7 @@ test('the WebKit profile letter-spaces the glyphs of complex text as its Canvas 
           if (advance !== 0) glyphs++
         }
         if (spacing >= 1) spacedCalls++
-        return { width: width + (spacing >= 1 ? glyphs * spacing : 0) }
+        return { width: width + (spacing >= 1 ? glyphs * spacing * (1 - 2 ** -20) : 0) }
       }
     }
     globalThis.OffscreenCanvas = class { getContext() { return new Context() } }
@@ -8401,6 +8403,9 @@ test('the WebKit profile letter-spaces the glyphs of complex text as its Canvas 
     }
     console.log(JSON.stringify({
       gaps: ['\\u0939\\u093F\\u0928\\u094D\\u0926\\u0940', '\\u0915\\u093F', '\\u0915\\u0941', '\\u0644\\u0627', '\\u0628\\u0644\\u0627', 'office'].map(gaps),
+      // One word of 96 graphemes is counted by its prefixes, where lam with alef is one glyph. One
+      // of 97 asks each grapheme alone, where the two are a glyph each.
+      long: ['\\u0915\\u093F'.repeat(94) + '\\u0644\\u0627', '\\u0915\\u093F'.repeat(95) + '\\u0644\\u0627'].map(gaps),
       // Four graphemes of two glyphs, 12px and two spacings each, in a 50px line at 4px.
       lines: layoutWithLines(prepareWithSegments('\\u0915\\u093F\\u0915\\u093F\\u0915\\u093F\\u0915\\u093F', font, { letterSpacing: 4 }), 50, 20).lines.map(line => [line.text.length / 2, line.width]),
       // New complex text asks Canvas once for each grapheme, seen text and simple text never.
@@ -8409,12 +8414,12 @@ test('the WebKit profile letter-spaces the glyphs of complex text as its Canvas 
   `))
   const safari = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Safari/605.1.15'
   const chrome = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36'
-  expect(rowsOf(safari, true)).toEqual({ gaps: [5, 2, 1, 1, 2, 6], lines: [[2, 40], [2, 40]], asked: [2, 0, 0] })
+  expect(rowsOf(safari, true)).toEqual({ gaps: [5, 2, 1, 1, 2, 6], long: [189, 192], lines: [[2, 40], [2, 40]], asked: [2, 0, 0] })
   // Under a context that takes no letterSpacing, and in the Blink profile, a grapheme takes
   // one, but an Arabic one in Blink's, which takes none.
-  const graphemes = { gaps: [2, 1, 1, 2, 3, 6], lines: [[3, 48], [1, 16]], asked: [0, 0, 0] }
+  const graphemes = { gaps: [2, 1, 1, 2, 3, 6], long: [96, 97], lines: [[3, 48], [1, 16]], asked: [0, 0, 0] }
   expect(rowsOf(safari, false)).toEqual(graphemes)
-  expect(rowsOf(chrome, true)).toEqual({ ...graphemes, gaps: [2, 1, 1, 0, 0, 6] })
+  expect(rowsOf(chrome, true)).toEqual({ ...graphemes, gaps: [2, 1, 1, 0, 0, 6], long: [94, 95] })
 })
 
 test('a width is measured under its own font, shaping and language, whatever was measured before it', () => {
