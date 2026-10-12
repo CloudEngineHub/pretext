@@ -58,7 +58,7 @@ judgement; one outside them needs the maintainer first.
 - Where Pretext can't do what the engine does cheaply, state the premise it takes instead and name its gap: what it gets wrong, and when. Pretext itself is such an approximation: Canvas widths summed per segment, with the engines' known differences corrected.
 - For plain text, the per-engine rebuild (`rebuild/` on branch `rebuild-20260916`) is the correctness reference: where it gets a case right, port its rule. For rich inline, follow the engine's own inline model: one paragraph's text broken across its spans.
 - Engine differences live in the engine profile and its tables, not in branches elsewhere.
-- Attribute every blocking case a change moves (fixed, right by luck, page history) before landing; a new accepted failure needs a written reason. A case blocks at 24 px and wider, away from the edges of a line change and inside what README claims; the others are counted and need neither (`harness/README.md`, What a case is and when it passes).
+- Attribute every blocking case a change moves (fixed, right by luck, page history) before landing; a new accepted failure needs a written reason. A case blocks at 24 px and wider, away from the edges of a line change and inside what README claims, the old-gate set apart; the others are counted and need neither (`harness/README.md`, What a case is and when it passes).
 - Write plain predictable code. For speed, aim at what stays true across engines and versions: stable types, good allocation patterns and plain C-like code, measured and commented (engineering.md, Control Flow). Don't shape code to one JIT's moving heuristics; accept a small regression that only such a heuristic explains, and don't keep dead or redundant code because one JIT runs it faster. Note what it costs (`RESEARCH.md`, Decisions Log).
 
 ### Implementation notes
@@ -88,12 +88,13 @@ judgement; one outside them needs the maintainer first.
 - Keep `bun test --parallel`, `bun run check` and `bun harness check` (Chrome, Firefox, webkit-host) green; run
   `bun harness gate` before landing a change to `src/` or `harness/`. Record new cases with
   `bun harness record --only-new`, and commit changed recordings and accepted, counted or varying lists with the change
-  that caused them (`check --accept` writes the first two).
-- Before landing a change to `src/` other than `layout.test.ts`, or to `harness/bench/`, run `bun harness bench main` and
-  paste the lines its output ends with into the PR: the line of counts and each entry it called, or its one line when
-  the change builds main's bytes, which starts no browser. An entry called slower needs a sentence: whether the change
-  runs that code, and whether a second run repeats it. So does growth over 5% in the `measureText` calls or submitted
-  units `bun harness equal main` prints. A release's figures come from the foreground bench against the last release
+  that caused them (`check --accept=<why>` writes the first two).
+- Before landing a change to `src/` other than `layout.test.ts`, run `bun harness bench main`, or for a change to the
+  bench's code (`harness/bench/`) alone `bun harness bench main --lib=main`, which times main against itself, and paste
+  the lines its output ends with into the PR: the line of counts and each entry it called, or its one line when the
+  change builds main's bytes, which starts no browser. An entry called slower needs a sentence: whether the change runs
+  that code, and whether a second run repeats it. So does growth over 5% in the `measureText` calls or submitted units
+  `bun harness equal main` prints. A release's figures come from the foreground bench against the last release
   (`DEVELOPMENT.md`).
 - Settle behaviour in the harness's pinned headed browsers, not headless ones. Jobs may run side by side while free
   plus inactive memory stays above about 30%, installed Safari one at a time; the bench runs alone on a quiet machine,
