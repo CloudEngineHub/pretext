@@ -8425,9 +8425,10 @@ test('the WebKit profile letter-spaces the glyphs of complex text as its Canvas 
 test("the WebKit profile keeps a text's glyph count for the font, and clearCache() drops it", () => {
   // The engine profile is computed once per process, so Safari runs in a child process. A
   // letter is 8px wide and the signs of aa, i and ii are glyphs of their own, 4px wide, until
-  // the font draws them on the letter, as another face of the family does once it loads.
-  // Canvas adds its letterSpacing to every glyph that has an advance. Each row is the letter
-  // spacings a text takes and the texts Canvas was asked about under a letterSpacing for it.
+  // the font draws them on the letter, as another face of the family does once it loads, and
+  // as a second font does from the start. Canvas adds its letterSpacing to every glyph that
+  // has an advance. Each row is the letter spacings a text takes and the texts Canvas was
+  // asked about under a letterSpacing for it.
   const layoutUrl = new URL('./layout.ts', import.meta.url).href
   const rows = JSON.parse(runInChild(`
     Object.defineProperty(globalThis, 'navigator', { configurable: true, value: {
@@ -8444,7 +8445,7 @@ test("the WebKit profile keeps a text's glyph count for the font, and clearCache
         let width = 0
         let glyphs = 0
         for (const ch of text) {
-          const advance = /[\\u093E-\\u0940]/.test(ch) ? (signsAdvance ? 4 : 0) : 8
+          const advance = /[\\u093E-\\u0940]/.test(ch) ? (signsAdvance && this.font !== '16px Joined' ? 4 : 0) : 8
           width += advance
           if (advance !== 0) glyphs++
         }
@@ -8456,12 +8457,13 @@ test("the WebKit profile keeps a text's glyph count for the font, and clearCache
     globalThis.OffscreenCanvas = class { getContext() { return new Context() } }
     const { prepareWithSegments, measureNaturalWidth, layoutWithLines, clearCache } = await import(${JSON.stringify(layoutUrl)})
     const font = '16px Test'
-    const width = (text, letterSpacing) => measureNaturalWidth(prepareWithSegments(text, font, { letterSpacing }))
-    const row = text => [(width(text, 4) - width(text, 0)) / 4, spaced.splice(0)]
+    const width = (text, letterSpacing, family = font) => measureNaturalWidth(prepareWithSegments(text, family, { letterSpacing }))
+    const row = (text, family) => [(width(text, 4, family) - width(text, 0, family)) / 4, spaced.splice(0)]
     const lines = text => layoutWithLines(prepareWithSegments(text, font, { letterSpacing: 4 }), 30, 20).lines.map(line => line.width)
     const ka = '\\u0915'
     const out = { rows: [row(ka + '\\u093E' + ka + '\\u093F'), row(ka + '\\u093E' + ka + '\\u0940'), row(ka + '\\u093E')] }
     out.kept = lines(ka + '\\u093E' + ka + '\\u0940')
+    out.other = row(ka + '\\u093E' + ka + '\\u093F', '16px Joined')
     // Past 96 graphemes each grapheme is asked alone, the same one once.
     out.rows.push(row((ka + '\\u093F').repeat(97)))
     clearCache()
@@ -8478,7 +8480,7 @@ test("the WebKit profile keeps a text's glyph count for the font, and clearCache
     width(ka + '\\u093E' + ka + '\\u093F ' + ka, 4)
     out.beforeSpace = [plain.slice().sort(), spaced.splice(0)]
     console.log(JSON.stringify(out))
-  `)) as { rows: [number, string[]][]; kept: number[]; afresh: number[]; beforeSpace: [string[], string[]] }
+  `)) as { rows: [number, string[]][]; kept: number[]; other: [number, string[]]; afresh: number[]; beforeSpace: [string[], string[]] }
   const ka = '\u0915'
   expect(rows.rows).toEqual([
     // A new word asks about each of its prefixes.
@@ -8495,6 +8497,8 @@ test("the WebKit profile keeps a text's glyph count for the font, and clearCache
   ])
   expect(rows.kept).toEqual([20, 20])
   expect(rows.afresh).toEqual(rows.kept)
+  // A text counted in one font is asked about again in another, and counts as that font draws it.
+  expect(rows.other).toEqual([2, [ka + '\u093E', ka + '\u093E' + ka + '\u093F']])
   expect(rows.beforeSpace).toEqual([[' ', '-', ka, ka + '\u093E', ka + '\u093E' + ka + '\u093F '], [ka + '\u093E', ka + '\u093E' + ka + '\u093F', ka]])
 })
 
