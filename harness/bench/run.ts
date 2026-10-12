@@ -1,18 +1,21 @@
-// bun harness bench <base> [--lib=<dir|ref>] [--browser=chrome,firefox,safari] [--sessions=2] [--rows=new,seen,...]
-//   [--background]
+// bun harness bench <base> [--lib=<dir|ref>] [--browser=chrome,firefox,webkit-host] [--sessions=3] [--rows=new,seen,...]
+//   [--quick] [--foreground]
 // Times <base>'s src/ against --lib's (this tree's by default) in the same documents, with a second copy of base as the
-// control (harness/README.md, Bench). After two sessions, each browser times the documents of the rows that read slower
-// or faster in a third. Pinned Chrome and Firefox and installed Safari run one at a time in the foreground; with
-// --background the harness's background browsers, webkit-host for WebKit, run instead and every verdict is a
-// hypothesis. Raw samples go to .artifacts/harness-bench/<time>/.
+// control (harness/README.md, Bench). The harness's background browsers, webkit-host for WebKit, time three sessions
+// each, every session of every browser side by side. --foreground times pinned Chrome and Firefox and installed Safari
+// one at a time in focused windows, as a release's bench does: two sessions there, and then each browser times the
+// documents of the rows that read slower or faster in a third. --quick times three rounds a document and no fresh
+// page, for iterating (QUICK_ROUNDS). Raw samples go to .artifacts/harness-bench/<time>/, with a run.json that names
+// the builds they compare. Two builds whose bundles are the same bytes aren't timed; `--lib=<base>` times a build
+// against itself.
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { serveJob, watched, windowTitle } from '../run.ts'
-import { BROWSER, type BrowserKind } from '../types.ts'
+import { BROWSER, BROWSERS, type BrowserKind } from '../types.ts'
 import { benchBundle, buildName, srcOf } from './lib.ts'
 import type { Doc, DocResult, OpSpec } from './page.ts'
-import { report, unconfirmed, type SessionResults } from './report.ts'
+import { FLOORS, report, summary, unconfirmed, type SessionResults } from './report.ts'
 import { createRng } from '../sets/build.ts'
 import type { RichInlineItem } from '../../src/rich-inline.ts'
 import { chatItems, familyText, itemReader, labels, MESSAGE_FAMILIES, reader, richItems, shapes, STYLE, units } from './texts.ts'
@@ -22,6 +25,12 @@ const LABELS = ['base', 'candidate', 'control'] as const
 const WARM = 2
 const ROUNDS: Record<(typeof ROWS)[number], number> = { new: 12, fresh: 9, rich: 12, seen: 16, resize: 16, lines: 12, worst: 12 }
 const TARGET_MS = 50
+// The quick form: every row with a verdict at three rounds a document, in three sessions. A reading's spread on most
+// rows is between documents, where a copy of a library keeps one speed, not between a document's rounds, so three
+// rounds say much of what twelve or sixteen do, in a third of the time (harness/bench/README.md, Protocol, has what
+// they miss).
+// The `new` row keeps its rounds: they cost half a second, and its spread is between batches of text.
+const QUICK_ROUNDS = 3
 const SEEN_UNITS: Record<(typeof MESSAGE_FAMILIES)[number], number> = { latin: 40_000, cjk: 15_000, arabic: 40_000, thai: 30_000, mixed: 40_000 }
 const FRESH_UNITS: Record<(typeof MESSAGE_FAMILIES)[number], number> = { latin: 1000, cjk: 200, arabic: 1000, thai: 650, mixed: 1000 }
 const RICH_UNITS = 1000
@@ -36,18 +45,19 @@ const FRESH_ROUNDS = WARM + ROUNDS.fresh
 // The documents of one session in one browser, in this order, so the rows that want new text meet text no document
 // before them laid out: new, fresh and rich read each family forward; seen, resize and lines take its first units.
 export type Planned = Omit<Doc, 'libraries'> & { lang: string; row: string; family: string; library?: string }
-export function documents(rows: readonly string[], seed: string, focus: boolean): Planned[] {
+export function documents(rows: readonly string[], seed: string, focus: boolean, quick = false): Planned[] {
   const out: Planned[] = []
   const doc = (row: (typeof ROWS)[number], family: string, lang: string, font: string, options: object, ops: OpSpec[], fresh?: { label: string; round: number; batches: string[][] }): void => {
     const id = `${row} ${family}${fresh === undefined ? '' : ` ${fresh.round} ${fresh.label}`}`
     out.push({
-      id, row, family, lang, seed: `${seed}/${id}`, font, options, focus, warm: WARM, rounds: ROUNDS[row], targetMs: TARGET_MS, ops,
+      id, row, family, lang, seed: `${seed}/${id}`, font, options, focus, warm: WARM, rounds: quick && row !== 'new' ? QUICK_ROUNDS : ROUNDS[row], targetMs: TARGET_MS, ops,
       ...(fresh === undefined ? {} : { library: fresh.label, fresh: { batches: fresh.batches, units: fresh.batches.map(units) } }),
     })
   }
   const rng = createRng(seed)
   const readers = new Map(MESSAGE_FAMILIES.map(family => [family, reader(family)]))
-  const want = (row: string): boolean => rows.includes(row)
+  // The fresh pages have no verdict and are most of a session's documents (165 of 196), so a quick session has none.
+  const want = (row: string): boolean => rows.includes(row) && !(quick && row === 'fresh')
   for (const family of MESSAGE_FAMILIES) {
     const size = newBatchSize(family)
     const batches = Array.from({ length: NEW_BATCHES }, () => readers.get(family)!.batch(size)!)
@@ -199,9 +209,15 @@ async function session(browser: BrowserKind, docs: Planned[], bundles: Record<st
 // documents whose rows read slower or faster (report.ts, unconfirmed): the floors are fitted to three sessions, so a
 // verdict needs three; one session stays a hypothesis, and three or more need no other. A browser that fails a session
 // sits out the rest, and the others' tables still print.
+// `together` starts every session of every browser at once, each in a browser process of its own, where one at a time
+// a session ends before the next starts, as a foreground window needs: one window has the focus. A bench is one busy
+// thread a browser and a verdict rests on ratios inside one document, so sessions side by side share the machine's
+// cores and not each other's samples, and a run takes its slowest session's time. A browser's sessions there have all
+// started by the time one fails, and run on.
 export async function runSessions(
   browsers: readonly BrowserKind[], sessions: number, plan: (seed: string) => Planned[],
   io: { time: (browser: BrowserKind, docs: Planned[]) => Promise<Map<string, DocResult>>; save: (entry: SessionResults) => void; log: (text: string) => void },
+  together = false,
 ): Promise<{ all: SessionResults[]; failed: Map<BrowserKind, string> }> {
   const all: SessionResults[] = []
   const failed = new Map<BrowserKind, string>()
@@ -223,31 +239,76 @@ export async function runSessions(
     io.log(`${browser} session ${s + 1}${only === null ? '' : ', confirming the rows that read slower or faster'}: ${docs.length} documents in ${((Date.now() - started) / 1000).toFixed(0)} s, seed ${seed}`)
     all.push(entry)
   }
-  for (let s = 0; s < sessions; s++) for (const browser of browsers) if (!failed.has(browser)) await run(browser, s, null)
-  for (const browser of browsers) {
-    const again = failed.has(browser) || sessions !== 2 ? [] : unconfirmed(all.filter(r => r.browser === browser))
+  const confirm = async (browser: BrowserKind): Promise<void> => {
+    const again = failed.has(browser) || sessions !== 2 ? [] : unconfirmed(all.filter(r => r.browser === browser), FLOORS[together ? 'sideBySide' : 'foreground'])
     if (again.length > 0) await run(browser, sessions, again)
   }
+  if (together) {
+    const started: Promise<void>[] = []
+    for (let b = 0; b < browsers.length; b++) for (let s = 0; s < sessions; s++) started.push(run(browsers[b]!, s, null))
+    await Promise.all(started)
+    await Promise.all(browsers.map(confirm))
+  } else {
+    for (let s = 0; s < sessions; s++) for (const browser of browsers) if (!failed.has(browser)) await run(browser, s, null)
+    for (const browser of browsers) await confirm(browser)
+  }
+  // Sessions side by side end in any order: the tables keep the browsers' order and each browser's sessions in theirs.
+  all.sort((a, b) => browsers.indexOf(a.browser as BrowserKind) - browsers.indexOf(b.browser as BrowserKind) || a.session - b.session)
   return { all, failed }
 }
 
-export async function bench(baseRef: string, lib: string, browsers: BrowserKind[], sessions: number, rows: readonly string[], background: boolean): Promise<void> {
-  const before = power()
-  if (!background && before.source === 'battery' && before.percent < 20) throw new Error(`On battery at ${before.percent}%: the Mac throttles; plug it in to time`)
+// What a bench's flags ask for. With none: the harness's background browsers, three sessions each, since side by side a
+// third costs no time and three need no confirming one. --foreground: the browsers that take the focus, two sessions
+// each and the confirming one. --quick: three sessions of three rounds a document, wherever they run. `named` is
+// --browser's browsers, or null without the flag.
+export type BenchOptions = { browsers: BrowserKind[]; sessions: number; rows: readonly string[]; foreground: boolean; quick: boolean }
+export function benchOptions(flags: ReadonlyMap<string, string>, named: readonly BrowserKind[] | null): BenchOptions {
+  const foreground = flags.has('foreground')
+  const quick = flags.has('quick')
+  const rows = flags.get('rows')?.split(',') ?? ROWS
+  if (quick && flags.has('rows') && rows.includes('fresh')) throw new Error('--rows=fresh can\'t go with --quick: a quick session times no fresh page')
+  return {
+    browsers: named === null ? BROWSERS.filter(browser => BROWSER[browser][foreground ? 'foreground' : 'background']) : [...named],
+    sessions: Number(flags.get('sessions') ?? (foreground && !quick ? 2 : 3)), rows, foreground, quick,
+  }
+}
+
+export async function bench(baseRef: string, lib: string, { browsers, sessions, rows, foreground, quick }: BenchOptions): Promise<void> {
+  const started = Date.now()
   const behind = browsers.find(browser => !BROWSER[browser].foreground)
-  if (!background && behind !== undefined) throw new Error(`${behind} runs in the background only: time its engine in a browser that runs in the foreground, or pass --background`)
-  const built = { base: await benchBundle(srcOf(baseRef)), candidate: await benchBundle(srcOf(lib)) }
+  if (foreground && behind !== undefined) throw new Error(`${behind} has no foreground window: time its engine in a browser that has one, or leave --foreground out`)
+  // Sessions side by side need a browser process each, and installed Safari is one app.
+  const single = browsers.find(browser => !BROWSER[browser].background)
+  if (!foreground && single !== undefined) throw new Error(`${single} has no background window of the harness's, which sessions side by side need: pass --foreground`)
+  const src = { base: srcOf(baseRef), candidate: srcOf(lib) }
+  const built = { base: await benchBundle(src.base), candidate: await benchBundle(src.candidate) }
+  // Two builds whose bundles are the same bytes, as after a change to comments or types alone, give a browser nothing
+  // to tell apart. One build named on both sides is a calibration, and is timed.
+  const same = built.base.code === built.candidate.code
+  if (same && src.base !== src.candidate) {
+    console.log(`bench ${baseRef} against ${lib}: the two bundles are the same bytes (${built.base.bytes} B minified), so there is nothing to time. To time a build against itself, name it on both sides: bun harness bench ${baseRef} --lib=${baseRef}`)
+    return
+  }
+  const before = power()
+  if (before.source === 'battery' && before.percent < 20) throw new Error(`On battery at ${before.percent}%: the Mac throttles; plug it in to time`)
   const stamp = new Date().toISOString().replace(/[:.]/g, '-')
   const dir = resolve(import.meta.dir, '../../.artifacts/harness-bench', stamp)
   mkdirSync(dir, { recursive: true })
-  console.log(`bench ${baseRef} against ${lib}, ${sessions} sessions in ${browsers.join(', ')}${background ? ', in the background (hypotheses)' : ', in the foreground'}; power ${before.source} ${before.percent}%, load ${load()}; samples in ${dir}`)
-  const { all, failed } = await runSessions(browsers, sessions, seed => documents(rows, seed, !background), {
-    time: (browser, docs) => session(browser, docs, { base: built.base.code, candidate: built.candidate.code }, !background),
+  // What the samples beside it compare: a saved run names its builds and how it timed them.
+  writeFileSync(join(dir, 'run.json'), JSON.stringify({ base: buildName(baseRef), candidate: buildName(lib), sameBytes: same, browsers, sessions, rows, background: !foreground, quick }))
+  console.log(`bench ${baseRef} against ${lib}, ${sessions} ${quick ? 'quick ' : ''}sessions in ${browsers.join(', ')}${foreground ? ', one at a time in the foreground' : ', side by side in background windows'}; power ${before.source} ${before.percent}%, load ${load()}; samples in ${dir}`)
+  const { all, failed } = await runSessions(browsers, sessions, seed => documents(rows, seed, foreground, quick), {
+    time: (browser, docs) => session(browser, docs, { base: built.base.code, candidate: built.candidate.code }, foreground),
     save: entry => writeFileSync(join(dir, `${entry.browser}-${entry.session}.json`), JSON.stringify(entry)),
     log: text => console.log(text),
-  })
+  }, !foreground)
   const after = power()
-  console.log(report(all, { builds: `base: ${buildName(baseRef)}; candidate: ${buildName(lib)}`, hypotheses: background, sizes: { base: built.base, candidate: built.candidate } }))
-  console.log(`power ${after.source} ${after.percent}%, load ${load()}`)
+  const builds = `base: ${buildName(baseRef)}; candidate: ${buildName(lib)}${quick ? `; quick sessions, ${QUICK_ROUNDS} rounds a document` : ''}`
+  const floors = FLOORS[foreground ? 'foreground' : 'sideBySide']
+  const seconds = ((Date.now() - started) / 1000).toFixed(0)
+  console.log(report(all, { builds, floors, sizes: { base: built.base, candidate: built.candidate } }))
+  console.log(`power ${after.source} ${after.percent}%, load ${load()}; ${seconds} s in all`)
+  const form = `${sessions} sessions each in ${browsers.join(', ')}, ${foreground ? 'one at a time in the foreground' : 'side by side in background windows'}, ${seconds} s${failed.size > 0 ? `; ${[...failed.keys()].join(', ')} failed a session` : ''}`
+  console.log(`\n${summary(all, { builds, form, floors })}`)
   if (failed.size > 0) throw new Error(`bench: ${[...failed].map(([browser, why]) => `${browser} ${why}`).join('; ')}`)
 }

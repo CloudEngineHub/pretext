@@ -29,10 +29,10 @@ export function buildName(refOrDir: string): string {
   return `this tree's src/ (on ${git('log', '-1', '--format=%h, %cs')}${git('status', '--porcelain', '--', 'src') === '' ? '' : ', with uncommitted changes'})`
 }
 
-// What a document runs of a library: handles of each kind, and one operation over them `reps` times, a width a rep.
-// A rich walk or stream keeps each line it is handed, in `kept`, as an app that paints its lines keeps them: a callback
+// What a document runs of a library: handles of each kind, and one operation over them `reps` times, a width a rep. A
+// rich walk or stream keeps each line it is handed, in `kept`, as an app that paints its lines keeps them: a callback
 // that reads only the line's width lets an engine that inlines a library's line builder never make the line, for that
-// library and not for another (harness/README.md, Bench). The run reads the last one, so the store isn't dead. A
+// library and not for another (harness/bench/README.md, Rows). The run reads the last one, so the store isn't dead. A
 // walk's `n +=` reads `n` before the call, so the widths its callback adds are overwritten and a walk, plain or rich,
 // adds line counts alone to `n`: `kept` is what makes the engine build each rich line.
 const ENTRY = `import * as L from 'LIB/layout.ts'
