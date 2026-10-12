@@ -11,7 +11,9 @@ import { BROWSER, type BrowserKind, type Case, type PageEnv, type Prediction, ty
 export type Mode = 'record' | 'predict'
 // `more`: asked each time the job's cases are done, with the results so far, for the cases to go on with in the same
 // browser process, in documents of their own, until it gives none: a search whose next cases depend on the last ones'
-// results (sets/widths.ts) then pays one launch and one close.
+// results (sets/widths.ts) then pays one launch and one close. A job that has laid out Firefox's U+FE0E cases isn't
+// asked, since that process lays out every case after them otherwise (score.ts): it ends, and the cases that would
+// have followed go in a job of their own.
 export type Job = {
   browser: BrowserKind; mode: Mode; cases: Case[]; documentSize: number; lib: string
   more?: (results: ReadonlyMap<string, Recording | Prediction>) => Case[]
@@ -169,7 +171,8 @@ export async function runJob<T extends Recording | Prediction>(job: Job): Promis
       pending = null
     }
     if (pending === null && next >= docs[doc]!.length) {
-      if (doc + 1 === docs.length && job.more !== undefined) {
+      // Firefox's U+FE0E documents are the last of the cases they came with (documents).
+      if (doc + 1 === docs.length && job.more !== undefined && !lateTextEmoji(job.browser, docs[doc]![0]!)) {
         const further = documents(job.browser, job.more(results), job.documentSize)
         for (let i = 0; i < further.length; i++) docs.push(further[i]!)
       }
