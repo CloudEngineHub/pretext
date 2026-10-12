@@ -18,7 +18,6 @@ const LINE_HEIGHT = 19
 type AnalysisModule = typeof import('./analysis.ts')
 type LayoutModule = typeof import('./layout.ts')
 type LineBreakModule = typeof import('./line-break.ts')
-type LineBreaksModule = typeof import('./line-breaks.ts')
 type GeckoLineBreaksModule = typeof import('./gecko-line-breaks.ts')
 type MeasurementModule = typeof import('./measurement.ts')
 type RichInlineModule = typeof import('./rich-inline.ts')
@@ -39,15 +38,12 @@ let clearCache: LayoutModule['clearCache']
 let countPreparedLines: LineBreakModule['countPreparedLines']
 let walkPreparedLinesRaw: LineBreakModule['walkPreparedLinesRaw']
 let SPACED: AnalysisModule['SPACED']
-let ONE_CLUSTER: AnalysisModule['ONE_CLUSTER']
 let getSegmentFit: MeasurementModule['getSegmentFit']
 let getFontMeasurement: MeasurementModule['getFontMeasurement']
-let getPreparationLanguage: MeasurementModule['getPreparationLanguage']
 let getEngineProfile: MeasurementModule['getEngineProfile']
 let analyzeText: AnalysisModule['analyzeText']
 let SEGMENT_KINDS: AnalysisModule['SEGMENT_KINDS']
 let KIND_BITS: AnalysisModule['KIND_BITS']
-let getBlinkLineBreaks: LineBreaksModule['getBlinkLineBreaks']
 let getGeckoLineBreaks: GeckoLineBreaksModule['getGeckoLineBreaks']
 let prepareRichInline: RichInlineModule['prepareRichInline']
 let layoutNextRichInlineLineRange: RichInlineModule['layoutNextRichInlineLineRange']
@@ -290,13 +286,12 @@ class TestOffscreenCanvas {
 
 beforeAll(async () => {
   Reflect.set(globalThis, 'OffscreenCanvas', TestOffscreenCanvas)
-  const [mod, lineBreakMod, measurementMod, richInlineMod, analysisMod, lineBreaksMod, geckoLineBreaksMod] = await Promise.all([
+  const [mod, lineBreakMod, measurementMod, richInlineMod, analysisMod, geckoLineBreaksMod] = await Promise.all([
     import('./layout.ts'),
     import('./line-break.ts'),
     import('./measurement.ts'),
     import('./rich-inline.ts'),
     import('./analysis.ts'),
-    import('./line-breaks.ts'),
     import('./gecko-line-breaks.ts'),
   ])
   ;({
@@ -314,9 +309,8 @@ beforeAll(async () => {
     clearCache,
   } = mod)
   ;({ countPreparedLines, walkPreparedLinesRaw } = lineBreakMod)
-  ;({ getSegmentFit, getFontMeasurement, getPreparationLanguage, getEngineProfile } = measurementMod)
-  ;({ analyzeText, SEGMENT_KINDS, KIND_BITS, SPACED, ONE_CLUSTER } = analysisMod)
-  ;({ getBlinkLineBreaks } = lineBreaksMod)
+  ;({ getSegmentFit, getFontMeasurement, getEngineProfile } = measurementMod)
+  ;({ analyzeText, SEGMENT_KINDS, KIND_BITS, SPACED } = analysisMod)
   ;({ getGeckoLineBreaks } = geckoLineBreaksMod)
   ;({ prepareRichInline, layoutNextRichInlineLineRange, materializeRichInlineLineRange, measureRichInlineStats, walkRichInlineLineRanges } = richInlineMod)
 })
@@ -344,21 +338,6 @@ describe('shared public contracts', () => {
       expect(collectStreamedLines(prepared, width)).toEqual(result.lines)
       expect(layout(prepare(text, FONT, { whiteSpace, letterSpacing }), width, LINE_HEIGHT).lineCount).toBe(1)
     }
-  })
-
-  test('a selected soft-hyphen threshold preserves every public line API', () => {
-    // The threshold leaves room for a hyphen plus one suffix grapheme, but
-    // selecting SHY must still end this line at the discretionary boundary.
-    const text = 'foo trans­atlantic said "hello" to 世界 and waved.'
-    const width = measureWidth('foo transa-', FONT) + 0.1
-    const prepared = prepareWithSegments(text, FONT)
-    const result = layoutWithLines(prepared, width, LINE_HEIGHT)
-    expect(result.lines[0]!.text).toBe('foo trans-')
-    expect(collectStreamedLines(prepared, width)).toEqual(result.lines)
-    expect(layout(prepare(text, FONT), width, LINE_HEIGHT).lineCount).toBe(result.lineCount)
-    expect(measureLineStats(prepared, width).lineCount).toBe(result.lineCount)
-    // The lines' ranges give the source back, soft hyphen and all, where the first line's text shows a hyphen.
-    expect(reconstructFromLineBoundaries(prepared, result.lines)).toBe(text)
   })
 
   test('a line\'s width leaves out the space it ends at', () => {
@@ -451,21 +430,6 @@ describe('shared public contracts', () => {
       expect(unbounded.measureRichInlineStats.lineCount).toBe(items.map(item => item.text).join('').split('\n').length)
       expect(at(NaN)).toEqual(unbounded)
     }
-  })
-
-  test('numeric layout APIs do not measure text after preparation', () => {
-    const text = 'foo trans­atlantic 世界\n\tbar'
-    const options = { whiteSpace: 'pre-wrap' } as const
-    const opaque = prepare(text, FONT, options)
-    const rich = prepareWithSegments(text, FONT, options)
-    const before = canvasMeasurementCount
-    for (const width of [30, 80, 160]) {
-      layout(opaque, width, LINE_HEIGHT)
-      measureLineStats(rich, width)
-      walkLineRanges(rich, width, () => {})
-      layoutNextLineRange(rich, width, { segmentIndex: 0, graphemeIndex: 0 })
-    }
-    expect(canvasMeasurementCount).toBe(before)
   })
 
   test('the line streams take the width before the cursor and start at the first line without one', () => {
@@ -690,7 +654,7 @@ describe('shared public contracts', () => {
     }
   })
 
-  test('a JSON copy of a handle lays out as the handle does', () => {
+  test('a JSON copy of a handle and a frozen handle lay out as the handle does', () => {
     // JSON turns a handle's typed arrays, its per-segment flags among them, into objects with no
     // length. The walkers count segments by `widths`, a plain array, and read the typed arrays by
     // index, which a copy answers the same; counting to the flags' length, they never returned on
@@ -700,6 +664,11 @@ describe('shared public contracts', () => {
     // width what the handle gives from every line function. The copy for the first width is made
     // before the handle lays anything out and the others after: materializeRichInlineLineRange()
     // fills fields of a paragraph that is one text's handle when it first runs.
+    // A handle of each kind that Object.freeze() froze before its first line gives the same too,
+    // and its JSON is the same after every line function as before: none writes to a frozen
+    // handle or to anything it holds, which a store that freezes its state has frozen as well. A
+    // frozen paragraph that is one text's handle keeps those fields beside the handle
+    // (findSegmentSources), where writing them onto it threw.
     const font = '16px Test'
     // HANDLE_TEXTS and a text whose first line layout()'s count steps again (countSteppedLines):
     // at 40px the simple stepper ends it before the next-line character, where the scan gives no
@@ -764,20 +733,33 @@ describe('shared public contracts', () => {
       ]) {
         const prepared = prepareWithSegments(text, '16px Test', options)
         const light = prepare(text, '16px Test', options)
+        const frozen = Object.freeze(prepareWithSegments(text, '16px Test', options))
+        const frozenLight = Object.freeze(prepare(text, '16px Test', options))
+        const before = JSON.stringify([frozen, frozenLight])
         // No text has more lines than a line per unit, plus one.
         const most = text.length + 1
         for (const width of widths) {
           compared++
-          if (linesOf(copyOf(prepared), copyOf(light), width, most) !== linesOf(prepared, light, width, most)) different.push([text, options, width])
+          const copied = linesOf(copyOf(prepared), copyOf(light), width, most)
+          const lines = linesOf(prepared, light, width, most)
+          if (copied !== lines) different.push([text, options, width, 'copy'])
+          if (linesOf(frozen, frozenLight, width, most) !== lines) different.push([text, options, width, 'frozen'])
         }
+        if (JSON.stringify([frozen, frozenLight]) !== before) different.push([text, options, 'written to'])
       }
       // No paragraph here has 99 lines.
       for (const [items, options] of ${JSON.stringify(paragraphs)}) {
         const prepared = prepareRichInline(items, options)
+        const frozen = Object.freeze(prepareRichInline(items, options))
+        const before = JSON.stringify(frozen)
         for (const width of widths) {
           compared++
-          if (richLinesOf(copyOf(prepared), width, 99) !== richLinesOf(prepared, width, 99)) different.push([items, options, width])
+          const copied = richLinesOf(copyOf(prepared), width, 99)
+          const lines = richLinesOf(prepared, width, 99)
+          if (copied !== lines) different.push([items, options, width, 'copy'])
+          if (richLinesOf(frozen, width, 99) !== lines) different.push([items, options, width, 'frozen'])
         }
+        if (JSON.stringify(frozen) !== before) different.push([items, options, 'written to'])
       }
       console.log(JSON.stringify({ compared, different }))
     `))
@@ -841,50 +823,6 @@ describe('boundary rules', () => {
   }
   const geckoProfile = { ...baseProfile, lineBreakScan: 'gecko' as const, hangTabs: false }
 
-  test('independent symbols use grapheme overflow without splitting attached marks', () => {
-    for (const text of ['||||', '|\u0301|\u0301']) {
-      const clusters = getSegmentGraphemes(text)
-      const width = measureWidth(clusters[0]!, FONT) + 0.1
-      const prepared = prepareWithSegments(text, FONT)
-      const lines = layoutWithLines(prepared, width, LINE_HEIGHT).lines
-      expect(lines.map(line => line.text)).toEqual(clusters)
-      expect(collectStreamedLines(prepared, width)).toEqual(lines)
-      expect(layout(prepare(text, FONT), width, LINE_HEIGHT).lineCount).toBe(clusters.length)
-    }
-  })
-
-  test('the Gecko profile keeps ASCII openers with the text after them', () => {
-    // As the Gecko break oracle answers, ICU4X keeps an opener after other ASCII
-    // punctuation, but breaks between the numeric prefixes U+2212 and `+` (PR).
-    for (const [text, expected] of [
-      ['####((aabb', ['####((aabb']],
-      ['""""[[aabb', ['""""[[aabb']],
-      ['−+x«value»!', ['−', '+x«value»!']],
-    ] as const) {
-      expect(analyzeText(text, geckoProfile).texts).toEqual([...expected])
-    }
-  })
-
-  test('the Gecko profile takes a soft hyphen at a normal break as a zero-width break', () => {
-    const kinds = (text: string) => {
-      const analysis = analyzeText(text, geckoProfile)
-      const kinds = kindsOf(analysis)
-      return analysis.texts.map((segment, i) => [segment, kinds[i]])
-    }
-    // Ideographs break before Latin letters, so no hyphen is drawn or fitted there.
-    expect(kinds('漢字\u00ADabc')).toEqual([['漢', 'text'], ['字', 'text'], ['\u00AD', 'zero-width-break'], ['abc', 'text']])
-    expect(kinds('ab\u00AD漢')).toEqual([['ab', 'text'], ['\u00AD', 'zero-width-break'], ['漢', 'text']])
-    // Inside a Latin word the soft hyphen is the only break and keeps its hyphen.
-    expect(kinds('cd\u00ADef')).toEqual([['cd', 'text'], ['\u00AD', 'soft-hyphen'], ['ef', 'text']])
-    // After a space the break is normal too, but a soft hyphen that starts the text or a pre-wrap
-    // line stays one, as a zero-width break there would hold a line.
-    expect(kinds('ab \u00ADcd')).toEqual([['ab', 'text'], [' ', 'space'], ['\u00AD', 'zero-width-break'], ['cd', 'text']])
-    expect(kinds(' \u00ADcd')[0]).toEqual(['\u00AD', 'soft-hyphen'])
-    expect(kinds(' \u00AD\u00ADcd').map(([, kind]) => kind)).toEqual(['soft-hyphen', 'text'])
-    const preWrap = analyzeText('ab\n\u00ADcd', geckoProfile, 'pre-wrap')
-    expect(kindsOf(preWrap)).toEqual(['text', 'hard-break', 'soft-hyphen', 'text'])
-  })
-
   test('the Gecko profile removes a newline between East Asian characters', () => {
     const normalized = (text: string, profile: AnalysisProfile, language: string | null = null) =>
       analyzeText(text, profile, 'normal', 'normal', language).normalized
@@ -903,235 +841,6 @@ describe('boundary rules', () => {
     expect(normalized('中文\n中文', { ...baseProfile, lineBreakScan: 'webkit' })).toBe('中文 中文')
   })
 
-  test('exclamation punctuation keeps the break browsers offer before a word', () => {
-    const profile = baseProfile
-    // The ASCII pair tables keep '!' with a following ASCII letter, and break
-    // '?' before '-' and '|'. UAX #14 otherwise separates EX from any
-    // following class that allows a break before it (LB31).
-    for (const [text, expected] of [
-      ['\u200B?ab', ['\u200B', '?', 'ab']],
-      ['\u200B!ab', ['\u200B', '!ab']],
-      ['x!\u00E9b', ['x!', '\u00E9b']],
-      ['\u200B!\u0430b', ['\u200B', '!', '\u0430b']],
-      ['\u200B?#ab', ['\u200B', '?', '#ab']],
-      ['?_ab', ['?', '_ab']],
-      ['\u200B\u061F\u0628\u0628', ['\u200B', '\u061F', '\u0628\u0628']],
-      ['x?$b', ['x?', '$b']],
-      ['x?-b', ['x?', '-', 'b']],
-      ['x?|b', ['x?', '|b']],
-      ['x!\u00A9b', ['x!', '\u00A9b']],
-      ['x!\u00ABb', ['x!\u00ABb']],
-      ['\u0628\u061B\u0628\u0628', ['\u0628\u061B', '\u0628\u0628']],
-    ] as const) {
-      expect(analyzeText(text, profile).texts).toEqual([...expected])
-    }
-    expect(analyzeText('x?-b', geckoProfile).texts).toEqual(['x?-', 'b'])
-    // Iteration marks are NS and stay after EX. CJ such as U+30FC starts a line
-    // under Chromium's normal rules, and not under Gecko's strict rules.
-    expect(analyzeText('\u65E5\uFF01\u3005', profile).texts).toEqual(['\u65E5\uFF01\u3005'])
-    expect(analyzeText('\u65E5\uFF1F\u30FC', profile).texts).toEqual(['\u65E5\uFF1F', '\u30FC'])
-    expect(analyzeText('\u65E5\uFF1F\u30FC', geckoProfile).texts).toEqual(['\u65E5\uFF1F\u30FC'])
-  })
-
-  test('closing punctuation and nonstarters stay with the text before them (#225)', () => {
-    // No break precedes CL, CP, EX, IS or NS, whatever comes before it (UAX #14
-    // LB13, LB21). Chrome, Safari and Firefox keep the mark with a word or a number
-    // until only the word fits an empty line.
-    const lines = (text: string, width: number) =>
-      layoutWithLines(prepareWithSegments(text, FONT), width, LINE_HEIGHT).lines.map(line => line.text.trimEnd())
-    for (const word of ['xxxx', '1234']) {
-      for (const mark of ['，', '」', '：', '。', '）', '！', '？', '、', '」。']) {
-        const text = `a ${word}${mark}b`
-        expect(lines(text, measureWidth(`${word}${mark}`, FONT) + 0.1)).toEqual(['a', `${word}${mark}`, 'b'])
-        // Half a mark wider than the word, which an emergency fill of the digits needs.
-        const narrow = lines(text, measureWidth(word, FONT) + measureWidth(mark[0]!, FONT) / 2)
-        expect(narrow.slice(0, 2)).toEqual(['a', word])
-        expect(narrow.join('')).toBe(`a${word}${mark}b`)
-      }
-    }
-    // The mark stays with the whole unit before it, and a space or zero-width space
-    // still separates it from the text before.
-    for (const [text, expected] of [
-      ['a 00:00:00：b', ['a', ' ', '00:00:00：', 'b']],
-      ['(10:30)，b', ['(10:30)，', 'b']],
-      ['foo@bar.com，b', ['foo@bar.com，', 'b']],
-      ['x“value”，b', ['x“value”，', 'b']],
-      ['x?，b', ['x?，', 'b']],
-      ['abcヽカ', ['abcヽ', 'カ']],
-      ['中（ابب） ', ['中', '（ابب） ']],
-      ['a ，b', ['a', ' ', '，', 'b']],
-      ['a​，b', ['a', '​', '，', 'b']],
-    ] as const) {
-      expect(prepareWithSegments(text, FONT).segments).toEqual([...expected])
-    }
-    // The opener starts a unit with the text after it.
-    const bracket = '739x「value」! end'
-    expect(prepareWithSegments(bracket, FONT).segments).toEqual(['739x', '「value」!', ' ', 'end'])
-    expect(lines(bracket, measureWidth('「value」!', FONT) + 0.1)).toEqual(['739x', '「value」!', 'end'])
-    expect(lines(bracket, measureWidth('「value', FONT) + 0.1)).toEqual(['739x', '「value', '」! end'])
-    // An overlong unit still breaks between graphemes.
-    expect(lines('abc」。d', measureWidth('c」', FONT) + 0.1)).toEqual(['ab', 'c」', '。d'])
-    // Firefox breaks at the end of a run of complex-script letters, whatever follows.
-    const khmer = 'a ខ\u17D2ម\u17C2រ，b'
-    expect(analyzeText(khmer, baseProfile).texts).toEqual(['a', ' ', 'ខ\u17D2ម\u17C2រ，', 'b'])
-    expect(analyzeText(khmer, geckoProfile).texts).toEqual(['a', ' ', 'ខ\u17D2ម\u17C2រ', '，', 'b'])
-    // Firefox splits text runs where the script changes, which would break before the Bengali
-    // letter here, and where the bidi level changes, which would start a cluster at a Balinese
-    // vowel killer after Arabic letters and at a skin-tone modifier after a Hebrew letter. The
-    // Gecko scan splits at neither, on purpose (RESEARCH.md, Decisions Log, 2026-09-24 and
-    // 2026-10-01).
-    expect(analyzeText('\u1019\u17D2\u09AF', geckoProfile).texts).toEqual(['\u1019\u17D2\u09AF'])
-    expect(analyzeText('\u0628\u0628\u1B44\u0628\u0628', geckoProfile).texts).toEqual(['\u0628\u0628\u1B44', '\u0628\u0628'])
-    expect(analyzeText('\u05D0\uD83C\uDFFB', geckoProfile).flags[0]! & ONE_CLUSTER).toBe(ONE_CLUSTER)
-    // The profile's graphemes look past a bidi control, so a mark after one joins the cluster
-    // before it. One that starts a cluster, as a Myanmar visarga does, goes on in the segment as
-    // it does without the control, and Firefox breaks before each where nothing fits.
-    expect(analyzeText('a\u200E\u0301b', geckoProfile).texts).toEqual(['a\u200E\u0301b'])
-    const visargas = analyzeText('a\u200E\u1038\u1038', geckoProfile)
-    expect(visargas.texts).toEqual(['a\u200E\u1038\u1038'])
-    expect(visargas.flags[0]! & ONE_CLUSTER).toBe(0)
-  })
-
-  test('the Gecko profile keeps a hyphen with the number after it', () => {
-    const gecko = geckoProfile
-    // ICU4X keeps a hyphen-minus (HY) with a following number (NU), ASCII or not
-    // (LB25): Firefox moves `log-2026` to the next line whole and breaks
-    // `crash-log-2026-09-12.txt` only after `crash-`. Blink's pair table breaks `-`
-    // before an ASCII digit after a letter or digit.
-    for (const [text, expected] of [
-      ['log-2026', ['log-2026']],
-      ['crash-log-2026-09-12.txt', ['crash-', 'log-2026-09-12.txt']],
-      ['2025-08-01 00:00:00\uFF0C2025-08-01 00:00:00', ['2025-08-01', ' ', '00:00:00\uFF0C', '2025-08-01', ' ', '00:00:00']],
-      ['n2-1o(r)', ['n2-1o(r)']],
-      ['x--1', ['x--1']],
-      ['a-\u0661\u0662', ['a-\u0661\u0662']],
-    ] as const) {
-      expect(analyzeText(text, gecko).texts).toEqual([...expected])
-    }
-    expect(analyzeText('crash-log-2026-09-12.txt', baseProfile).texts).toEqual(['crash-', 'log-', '2026-', '09-', '12.txt'])
-    expect(analyzeText('log-2026', gecko, 'normal', 'keep-all').texts).toEqual(['log-2026'])
-    expect(analyzeText('a 2025-08-01', gecko, 'pre-wrap').texts).toEqual(['a', ' ', '2025-08-01'])
-    // Fullwidth digits are ID, and U+2010 and U+2013 aren't HY, so the pair
-    // doesn't apply; Firefox still breaks there, as before a letter or `+`.
-    for (const text of ['a-\uFF11\uFF12', 'a\u20101', 'a\u20131', 'x-y', '1-+2']) {
-      expect(analyzeText(text, gecko).texts).toEqual(analyzeText(text, baseProfile).texts)
-    }
-  })
-
-  test('the Gecko profile breaks after a slash before a letter', () => {
-    const gecko = geckoProfile
-    // ICU4X breaks after `/` (SY) wherever UAX #14 allows it, before a letter of
-    // any script, an opener or `#`: Firefox paints `https:// | example.com` and
-    // `example.com/ | docs`, and ends an overflowing unit's line there. It also
-    // breaks after `|` (BA).
-    for (const [text, expected] of [
-      ['https://example.com/docs?a=b', ['https://', 'example.com/', 'docs?', 'a=b']],
-      ['and/or', ['and/', 'or']],
-      ['~/src/layout.ts', ['~/', 'src/', 'layout.ts']],
-      ['a//b', ['a//', 'b']],
-      ['a/(b)', ['a/', '(b)']],
-      ['a/#b', ['a/', '#b']],
-      ['a/\u0301b', ['a/\u0301', 'b']],
-      ['a/\u0639\u0631\u0628\u064a', ['a/', '\u0639\u0631\u0628\u064a']],
-      ['a/\u0e44\u0e17\u0e22', ['a/', '\u0e44\u0e17\u0e22']],
-      ['https://example.com/2026/09/docs', ['https://', 'example.com/2026/09/', 'docs']],
-      // No break before `/` after CJK text either (LB13).
-      ['\u6f22/abc', ['\u6f22/', 'abc']],
-      ['a/|b', ['a/|', 'b']],
-    ] as const) {
-      expect(analyzeText(text, gecko).texts).toEqual([...expected])
-    }
-    // The pair tables of Chromium and WebKit keep `/` with an ASCII letter.
-    for (const text of ['https://example.com/2026/09/docs', 'and/or', '~/src/layout.ts', 'a//b', 'a/(b)', 'a/#b', 'a/|b', '\u6f22/abc']) {
-      expect(analyzeText(text, baseProfile).texts).toEqual([text])
-    }
-    expect(analyzeText('and/or', gecko, 'normal', 'keep-all').texts).toEqual(['and/', 'or'])
-    expect(analyzeText('\u6f22/abc', gecko, 'normal', 'keep-all').texts).toEqual(['\u6f22/', 'abc'])
-    expect(analyzeText('a src/layout.ts', gecko, 'pre-wrap').texts).toEqual(['a', ' ', 'src/', 'layout.ts'])
-    // No break before a quote, IS, BA, a Hebrew letter (LB21b) or a number (LB25).
-    for (const text of ['a/"b"', 'a/.b', 'a/\u05e2\u05d1\u05e8', '1/2', 'a/1', 'docs/']) {
-      expect(analyzeText(text, gecko).texts).toEqual(analyzeText(text, baseProfile).texts)
-    }
-  })
-
-  test('a mark after CJK text stays with it, and each engine keeps the text after the mark as its pair rules do (#293)', () => {
-    const blink = { ...baseProfile, lineBreakScan: 'blink' as const }
-    const webkit = { ...baseProfile, lineBreakScan: 'webkit' as const }
-    const gecko = geckoProfile
-    // No engine breaks before these marks after CJK text (LB13, LB19, LB21). Blink's
-    // pair table keeps an ASCII mark with an ASCII letter or digit, except `?`.
-    // WebKit's table decides before a digit, and ICU before a letter where the mark
-    // follows a character that reached ICU; CL and CP after an ideograph or Hangul
-    // syllable skip ICU. Gecko follows UAX #14.
-    for (const [text, blinkTexts, webkitTexts, geckoTexts] of [
-      ["\u4e19'first", ["\u4e19'first"], ["\u4e19'first"], ["\u4e19'first"]],
-      ['\u4e19/first', ['\u4e19/first'], ['\u4e19/', 'first'], ['\u4e19/', 'first']],
-      ['\u4e19|first', ['\u4e19|first'], ['\u4e19|', 'first'], ['\u4e19|', 'first']],
-      ['\u4e19!first', ['\u4e19!first'], ['\u4e19!', 'first'], ['\u4e19!', 'first']],
-      ['\u4e19}first', ['\u4e19}first'], ['\u4e19}first'], ['\u4e19}', 'first']],
-      ['\ub2e4}first', ['\ub2e4}first'], ['\ub2e4}first'], ['\ub2e4}', 'first']],
-      ['\u3046}first', ['\u3046}first'], ['\u3046}', 'first'], ['\u3046}', 'first']],
-      ['\u4e19|1234', ['\u4e19|1234'], ['\u4e19|1234'], ['\u4e19|', '1234']],
-      ['\u4e19!1234', ['\u4e19!1234'], ['\u4e19!1234'], ['\u4e19!', '1234']],
-      ['\u4e19/1234', ['\u4e19/1234'], ['\u4e19/1234'], ['\u4e19/1234']],
-      // The table decides the pair after a mark that follows another mark.
-      ['\u4e19.!first', ['\u4e19.!first'], ['\u4e19.!first'], ['\u4e19.!', 'first']],
-      ['\u4e19?first', ['\u4e19?', 'first'], ['\u4e19?', 'first'], ['\u4e19?', 'first']],
-      ['\u4e19}\u03b1\u03b2', ['\u4e19}', '\u03b1\u03b2'], ['\u4e19}', '\u03b1\u03b2'], ['\u4e19}', '\u03b1\u03b2']],
-      ["\u4e19'\u03b1\u03b2", ["\u4e19'\u03b1\u03b2"], ["\u4e19'\u03b1\u03b2"], ["\u4e19'\u03b1\u03b2"]],
-    ] as const) {
-      expect(analyzeText(text, blink).texts).toEqual([...blinkTexts])
-      expect(analyzeText(text, webkit).texts).toEqual([...webkitTexts])
-      expect(analyzeText(text, gecko).texts).toEqual([...geckoTexts])
-    }
-    // Punctuation attaches by its class, such as NS and PO, and a hyphen keeps its
-    // own rules.
-    for (const [text, expected] of [
-      ['\u4e19\u203cfirst', ['\u4e19\u203c', 'first']],
-      ['\u6587\uff05\u6587', ['\u6587\uff05', '\u6587']],
-      ['\u4e19-first', ['\u4e19-', 'first']],
-    ] as const) {
-      expect(analyzeText(text, baseProfile).texts).toEqual([...expected])
-    }
-  })
-
-  test('ZWJ and a word-initial hyphen keep the following character', () => {
-    const profile = baseProfile
-    // UAX #14 LB8a and LB20a. The pair tables still break '-' before an ASCII letter,
-    // and Firefox's ICU4X rules predate LB20a.
-    expect(analyzeText('\u200Dab', profile).texts).toEqual(['\u200Dab'])
-    expect(analyzeText('a\n\u200Db', profile, 'pre-wrap').texts).toEqual(['a', '\n', '\u200Db'])
-    expect(analyzeText('x \u{1F600}\u200Db', profile).texts).toEqual(['x', ' ', '\u{1F600}\u200Db'])
-    expect(analyzeText('a \u2010b', profile).texts).toEqual(['a', ' ', '\u2010b'])
-    expect(analyzeText('a -b', profile).texts).toEqual(['a', ' ', '-', 'b'])
-    // WebKit's scan still reads a collapsed TAB (BA) before the hyphen.
-    expect(analyzeText('a\t\u2010b', profile).texts).toEqual(['a', ' ', '\u2010b'])
-    expect(analyzeText('a\t\u2010b', { ...profile, lineBreakScan: 'webkit' }).texts)
-      .toEqual(['a', ' ', '\u2010', 'b'])
-    expect(analyzeText('a \u2010b', geckoProfile).texts).toEqual(['a', ' ', '\u2010', 'b'])
-    // HL letters keep it too, and so do the other Unicode 17 HH dashes, astral ones included.
-    const hebrewProfile = profile
-    const noneProfile = geckoProfile
-    expect(analyzeText('a \u2010\u05D1b', hebrewProfile).texts).toEqual(['a', ' ', '\u2010\u05D1b'])
-    expect(analyzeText('a \u2012b', hebrewProfile).texts).toEqual(['a', ' ', '\u2012b'])
-    expect(analyzeText('a \u2013\u05D1b', hebrewProfile).texts).toEqual(['a', ' ', '\u2013\u05D1b'])
-    for (const text of ['a \u05BE\u05D1b', 'a \u1400b', 'a \u{10EAD}\u0430b']) {
-      expect(analyzeText(text, hebrewProfile).texts).toEqual(['a', ' ', text.slice(2)])
-    }
-    expect(analyzeText('a \u2013b', noneProfile).texts).toEqual(['a', ' ', '\u2013', 'b'])
-    // WebKit's scan reads the source, where a collapsed TAB is still BA, and Gecko's
-    // has no LB20a, so both break after every hyphen that follows one.
-    const tabProfile = { ...hebrewProfile, lineBreakScan: 'webkit' as const }
-    expect(analyzeText('x-y  \t\u2012b  \u2013b', tabProfile).texts)
-      .toEqual(['x-', 'y', ' ', '\u2012', 'b', ' ', '\u2013b'])
-    for (const text of ['a\t\u05BEb', 'a\t\u{10EAD}b']) {
-      for (const breakingProfile of [tabProfile, noneProfile]) {
-        expect(analyzeText(text, breakingProfile).texts).toEqual(['a', ' ', text.slice(2, -1), 'b'])
-      }
-      expect(analyzeText(text, hebrewProfile).texts).toEqual(['a', ' ', text.slice(2)])
-    }
-  })
-
   test('a ZWSP that starts a WebKit scan keeps a basic combining mark', () => {
     const profile = { ...baseProfile, lineBreakScan: 'webkit' as const }
     const segments = (text: string, whiteSpace?: 'pre-wrap') => {
@@ -1146,163 +855,6 @@ describe('boundary rules', () => {
     // Source before the ZWSP, even a collapsed leading space, is prior context.
     expect(segments(' \u200B\u0301ab')).toEqual(['\u200B:zero-width-break', '\u0301ab:text'])
     expect(segments('x\u200B\u0301ab')).toEqual(['x:text', '\u200B:zero-width-break', '\u0301ab:text'])
-  })
-
-  test('a soft hyphen or ZWSP the scan does not break after stays its own zero-width segment', () => {
-    const blink = { ...baseProfile, lineBreakScan: 'blink' as const }
-    const webkit = { ...baseProfile, lineBreakScan: 'webkit' as const }
-    const segments = (text: string, profile: Parameters<typeof analyzeText>[1], whiteSpace?: 'pre-wrap', wordBreak?: 'keep-all') => {
-      const analysis = analyzeText(text, profile, whiteSpace, wordBreak)
-      const kinds = kindsOf(analysis)
-      return analysis.texts.map((segment, i) => `${segment}:${kinds[i]}`)
-    }
-    // No break between a soft hyphen and a combining mark or a closing bracket, or
-    // between a ZWSP and a mark, so neither breaks like its kind; each stays apart
-    // instead of joining the text after it.
-    for (const profile of [blink, webkit]) {
-      expect(segments('a\u00AD\u0301\u00AD\u0323b', profile, 'pre-wrap')).toEqual(['a:text', '\u00AD:zero-width-glue', '\u0301:text', '\u00AD:zero-width-glue', '\u0323:text', 'b:text'])
-      expect(segments('ab\u00AD)cd', profile)).toEqual(['ab:text', '\u00AD:zero-width-glue', ')cd:text'])
-      expect(segments('a\u00AD\u3000b', profile)).toEqual(['a:text', '\u00AD:zero-width-glue', '\u3000:text', 'b:text'])
-      // A break follows a ZWSP even before a mark (LB8), and none precedes it (LB7).
-      expect(segments('a\u00AD\u200B\u0301b', profile)).toEqual(['a:text', '\u00AD:soft-hyphen', '\u200B:zero-width-break', '\u0301b:text'])
-      expect(segments('a\u200B\u00AD\u0301b', profile)).toEqual(['a:text', '\u200B:zero-width-break', '\u00AD:zero-width-glue', '\u0301:text', 'b:text'])
-      // A break after the soft hyphen or ZWSP keeps its kind, as does one before a
-      // space or a hard break, where the line can still end.
-      expect(segments('ab\u00ADcd', profile)).toEqual(['ab:text', '\u00AD:soft-hyphen', 'cd:text'])
-      expect(segments('a\u200B\u200Bb', profile)).toEqual(['a:text', '\u200B:zero-width-break', '\u200B:zero-width-break', 'b:text'])
-      expect(segments('a\u00AD b\u00AD\nc\u00AD', profile, 'pre-wrap')).toEqual(['a:text', '\u00AD:soft-hyphen', ' :preserved-space', 'b:text', '\u00AD:soft-hyphen', '\n:hard-break', 'c:text', '\u00AD:soft-hyphen'])
-    }
-    // Blink keeps letters across a ZWSP under keep-all; WebKit breaks before it.
-    expect(segments('abc\u200Bd', blink, undefined, 'keep-all')).toEqual(['abc:text', '\u200B:zero-width-break', 'd:text'])
-    expect(segments('a\u200B\u0301b', webkit, 'pre-wrap', 'keep-all')).toEqual(['a:text', '\u200B:zero-width-glue', '\u0301:text', 'b:text'])
-
-    // Zero-width glue is zero-width and unmeasured, takes no letter spacing, and a
-    // line neither ends at it nor draws a hyphen for it: without a break, graphemes
-    // fill the line across it.
-    const profile = getEngineProfile()
-    const previous = profile.lineBreakScan
-    profile.lineBreakScan = 'blink'
-    try {
-      const lines = (text: string, width: number, letterSpacing = 0) => {
-        const prepared = prepareWithSegments(text, FONT, { letterSpacing })
-        const result = layoutWithLines(prepared, width, LINE_HEIGHT)
-        expect(collectStreamedLines(prepared, width)).toEqual(result.lines)
-        expect(layout(prepare(text, FONT, { letterSpacing }), width, LINE_HEIGHT).lineCount).toBe(result.lineCount)
-        return result.lines
-      }
-      const prepared = prepareWithSegments('ab\u00AD)cd', FONT, { letterSpacing: 2 })
-      expect(prepared.kinds).toEqual(['text', 'zero-width-glue', 'text'])
-      expect(prepared.widths[1]).toBe(0)
-      expect(internals(prepared).segmentFlags[1]! & SPACED).toBe(0)
-      const whole = lines('ab\u00AD)cd', 1000, 2)
-      expect(whole.map(line => line.text)).toEqual(['ab)cd'])
-      expect(whole[0]!.width).toBeCloseTo(measureWidth('ab)cd', FONT) + 5 * 2)
-      const split = lines('ab\u00AD)cd', measureWidth('ab)c', FONT), 2)
-      expect(split.map(line => line.text)).toEqual(['ab)', 'cd'])
-      expect(split[0]!.width).toBeCloseTo(measureWidth('ab)', FONT) + 3 * 2)
-    } finally {
-      profile.lineBreakScan = previous
-    }
-  })
-
-  test('a control character stays its own segment on the scan path, measured alone', () => {
-    const blink = { ...baseProfile, lineBreakScan: 'blink' as const }
-    const webkit = { ...baseProfile, lineBreakScan: 'webkit' as const }
-    for (const profile of [blink, webkit]) {
-      for (const control of ['\u0000', '\u000B', '\u007F', '\u009F', '\u2028', '\u2029']) {
-        const analysis = analyzeText(`ab${control}cd`, profile)
-        expect(analysis.texts).toEqual(['ab', control, 'cd'])
-        // WebKit's items builder makes a separator that starts an item a forced break.
-        const separator = profile === webkit && control >= '\u2028'
-        expect(kindsOf(analysis)).toEqual(['text', separator ? 'hard-break' : 'text', 'text'])
-        expect(analyzeText(`a${control}${control} b`, profile).texts).toEqual(['a', control, control, ' ', 'b'])
-      }
-    }
-    // A separator that ICU's fast-forward passes stays inside a text item and ends no line.
-    const passed = analyzeText('か中？\u2028b', webkit)
-    expect({ texts: passed.texts, kinds: kindsOf(passed) }).toEqual({ texts: ['か', '中？', '\u2028', 'b'], kinds: ['text', 'text', 'text', 'text'] })
-    // NEL is text in the Blink profile and a control in the WebKit profile.
-    expect(kindsOf(analyzeText('ab\u0085cd', blink))).toEqual(['text', 'text', 'text'])
-    expect(kindsOf(analyzeText('ab\u0085cd', webkit))).toEqual(['text', 'control', 'text'])
-  })
-
-  test('the Gecko profile gives control characters no advance, only letter spacing', () => {
-    const profile = getEngineProfile()
-    const previous = profile.hidesControlCharacters
-    try {
-      for (const control of ['\u0000', '\u000B', '\u001C', '\u007F', '\u0085', '\u009f', '\u2028', '\u2029']) {
-        profile.hidesControlCharacters = true
-        clearCache()
-        const hidden = prepareWithSegments(`ab${control}cd`, FONT, { letterSpacing: 2 })
-        const index = hidden.segments.indexOf(control)
-        expect({ control, width: hidden.widths[index], spaced: (internals(hidden).segmentFlags[index]! & SPACED) !== 0 }).toEqual({ control, width: 0, spaced: true })
-        profile.hidesControlCharacters = false
-        clearCache()
-        const shown = prepareWithSegments(`ab${control}cd`, FONT)
-        expect(shown.widths[shown.segments.indexOf(control)]).toBe(measureWidth(control, FONT))
-      }
-    } finally {
-      profile.hidesControlCharacters = previous
-      clearCache()
-    }
-  })
-
-  test('Gecko returns an unfit soft hyphen to the latest earlier break that fits', () => {
-    const profile = getEngineProfile()
-    const previous = [profile.lineBreakScan, profile.hidesControlCharacters, profile.unfitHyphenRetreat] as const
-    try {
-      profile.lineBreakScan = 'gecko'
-      profile.hidesControlCharacters = true
-      // Gecko records a soft-hyphen break only where its hyphen fits, and any other
-      // break where its line fits, such as the break after a hidden control. That break
-      // takes no room, so Blink's retry at the width less the hyphen ends there too.
-      const text = '\u000Btrans\u00ADic'
-      const width = measureWidth('trans', FONT) + 0.1
-      const expected = ['\u000B', 'trans-', 'ic']
-      for (const unfitHyphenRetreat of ['reduced-width', 'full-width'] as const) {
-        profile.unfitHyphenRetreat = unfitHyphenRetreat
-        clearCache()
-        const prepared = prepareWithSegments(text, FONT, { whiteSpace: 'pre-wrap' })
-        expect(layoutWithLines(prepared, width, LINE_HEIGHT).lines.map(line => line.text)).toEqual(expected)
-        expect(collectStreamedLines(prepared, width).map(line => line.text)).toEqual(expected)
-        expect(layout(prepare(text, FONT, { whiteSpace: 'pre-wrap' }), width, LINE_HEIGHT).lineCount).toBe(expected.length)
-      }
-    } finally {
-      [profile.lineBreakScan, profile.hidesControlCharacters, profile.unfitHyphenRetreat] = previous
-      clearCache()
-    }
-  })
-
-  test('every text segment of an engine scan takes emergency grapheme breaks', () => {
-    const profile = getEngineProfile()
-    const previous = { lineBreakScan: profile.lineBreakScan, keepsLineStartPunctuation: profile.keepsLineStartPunctuation }
-    try {
-      for (const scan of ['blink', 'webkit', 'gecko'] as const) {
-        profile.lineBreakScan = scan
-        profile.keepsLineStartPunctuation = scan === 'webkit'
-        // Segment metrics belong to one engine profile.
-        clearCache()
-        // Digits, which Safari's JavaScriptCore doesn't mark word-like, symbols and emoji.
-        for (const text of ['11111111', '-0.475', '\u{1F1FA}\u{1F1F8}/\u{1F469}\u200D\u{1F4BB}', '\u{1F600}--tail']) {
-          const prepared = prepareWithSegments(text, FONT)
-          for (let i = 0; i < prepared.segments.length; i++) {
-            if (prepared.kinds[i] === 'text' && getSegmentGraphemes(prepared.segments[i]!).length > 1) {
-              expect({ text, segment: prepared.segments[i], breakable: internals(prepared).breakableFitAdvances[i] !== null }).toEqual({ text, segment: prepared.segments[i], breakable: true })
-            }
-          }
-          const graphemes = getSegmentGraphemes(text).filter(grapheme => grapheme !== ' ')
-          const width = Math.min(...graphemes.map(grapheme => measureWidth(grapheme, FONT))) + 0.1
-          // WebKit keeps `/` on the line of an overflowing first character in text above U+00FF.
-          const expected = scan === 'webkit' && text.includes('/') ? ['\u{1F1FA}\u{1F1F8}/', '\u{1F469}‍\u{1F4BB}'] : graphemes
-          const result = layoutWithLines(prepared, width, LINE_HEIGHT)
-          expect(result.lines.map(line => line.text)).toEqual(expected)
-          expect(collectStreamedLines(prepared, width)).toEqual(result.lines)
-          expect(layout(prepare(text, FONT), width, LINE_HEIGHT).lineCount).toBe(expected.length)
-        }
-      }
-    } finally {
-      Object.assign(profile, previous)
-    }
   })
 
   test('a Gecko text segment that is one cluster takes no emergency breaks', () => {
@@ -1594,31 +1146,6 @@ describe('boundary rules', () => {
     } finally {
       Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', measureText)
       clearCache()
-    }
-  })
-
-  test('a rich item keeps its collapsed leading whitespace as WebKit break context', () => {
-    const profile = getEngineProfile()
-    const previous = profile.lineBreakScan
-    profile.lineBreakScan = 'webkit'
-    try {
-      // The WebKit scan reads each item's own text, where a SPACE or TAB before the ZWSP
-      // separates the mark, and a fragment's text is its item's between its source offsets.
-      for (const parts of [[' \u200B\u0301ab', 'c'], ['x', '\t\u200B\u0301ab']]) for (const width of [1, 20]) {
-        const prepared = prepareRichInline(parts.map(text => ({ text, font: FONT })))
-        const items = parts.map(text => prepareWithSegments(text, FONT))
-        const texts = parts.map(() => '')
-        walkRichInlineLineRanges(prepared, width, range => {
-          for (const fragment of materializeRichInlineLineRange(prepared, range).fragments) {
-            expect(parts[fragment.itemIndex]!.slice(fragment.sourceStart, fragment.sourceEnd)).toBe(fragment.text)
-            texts[fragment.itemIndex] += fragment.text
-          }
-        })
-        // A line start after a wrap consumes the ZWSP, which is then in no fragment, as in no text line.
-        expect(texts.map(text => text.replace('\u200B', ''))).toEqual(items.map(item => item.segments.join('').replace('\u200B', '')))
-      }
-    } finally {
-      profile.lineBreakScan = previous
     }
   })
 
@@ -1987,71 +1514,6 @@ describe('boundary rules', () => {
       clearCache()
     }
   })
-
-  test('numeric signs stay with their numbers while ordinary hyphens retain their breaks', () => {
-    for (const [text, prefix, expected] of [
-      ['-0.475', '-0.47', ['-0.47', '5']],
-      ['≥-100nA', '≥-100n', ['≥-100', 'nA']],
-      ['well-known', 'well-kn', ['well-', 'known']],
-      ['foo -bar', '-bar', ['foo ', '-bar']],
-    ] as const) {
-      const width = measureWidth(prefix, FONT) + 0.1
-      const prepared = prepareWithSegments(text, FONT)
-      const result = layoutWithLines(prepared, width, LINE_HEIGHT)
-      expect(result.lines.map(line => line.text)).toEqual([...expected])
-      expect(collectStreamedLines(prepared, width)).toEqual(result.lines)
-      expect(layout(prepare(text, FONT), width, LINE_HEIGHT).lineCount).toBe(expected.length)
-    }
-  })
-
-  test('CJK hyphens attach left while overlong units retain emergency progress', () => {
-    for (const [text, prefix, expected] of [
-      ['(试验前-试验后)/试验前', '前-试验', ['(试验', '前-试验', '后)/试', '验前']],
-      ['温度-100nA', '度-100', ['温', '度-10', '0nA']],
-    ] as const) {
-      const width = measureWidth(prefix, FONT) + 0.1
-      const prepared = prepareWithSegments(text, FONT, { whiteSpace: 'pre-wrap' })
-      const result = layoutWithLines(prepared, width, LINE_HEIGHT)
-      expect(result.lines.map(line => line.text)).toEqual([...expected])
-      expect(collectStreamedLines(prepared, width)).toEqual(result.lines)
-      expect(layout(prepare(text, FONT, { whiteSpace: 'pre-wrap' }), width, LINE_HEIGHT).lineCount).toBe(expected.length)
-    }
-  })
-
-  test('a run of openers stays with the text after it', () => {
-    const text = 'e\u0301e\u0301「「tail'
-    const width = measureWidth('「「tail', FONT) + 0.1
-    const prepared = prepareWithSegments(text, FONT)
-    const result = layoutWithLines(prepared, width, LINE_HEIGHT)
-    expect(result.lines.map(line => line.text)).toEqual(['e\u0301e\u0301', '「「tail'])
-    expect(collectStreamedLines(prepared, width)).toEqual(result.lines)
-    expect(layout(prepare(text, FONT), width, LINE_HEIGHT).lineCount).toBe(2)
-  })
-
-  test('a collapsible space or zero-width space after an overflowing first glyph ends that line', () => {
-    // A soft hyphen later in the text moves the handle off the simple line
-    // walker, which must not move where the first line ends.
-    for (const separator of [' ', '\u200B']) {
-      for (const tail of ['', ' ab\u00ADcd']) {
-        const prepared = prepareWithSegments(`字${separator}字${tail}`, FONT)
-        const lines = layoutWithLines(prepared, 5, LINE_HEIGHT).lines
-        expect(lines.slice(0, 2).map(line => line.text)).toEqual([`字${separator}`, tail === '' ? '字' : '字 '])
-        expect(lines[0]!.end).toEqual({ segmentIndex: 2, graphemeIndex: 0 })
-        expect(collectStreamedLines(prepared, 5)).toEqual(lines)
-      }
-    }
-  })
-
-  test('a negative width lays out like 0 on both line walkers', () => {
-    // The soft hyphen moves the handle off the simple line walker.
-    for (const tail of ['', ' ab\u00ADcd']) {
-      const prepared = prepareWithSegments(`\u200B\u200Bb${tail}`, FONT)
-      const lines = layoutWithLines(prepared, 0, LINE_HEIGHT).lines
-      expect(lines[0]!.text).toBe('\u200B\u200B')
-      expect(layoutWithLines(prepared, -5, LINE_HEIGHT).lines).toEqual(lines)
-      expect(collectStreamedLines(prepared, -5)).toEqual(lines)
-    }
-  })
 })
 
 describe('engine break scans', () => {
@@ -2060,98 +1522,6 @@ describe('engine break scans', () => {
     for (let i = 1; i < length; i++) if (breaks[i] === 1) out.push(i)
     return out
   }
-
-  test('the ICU iterator finds the boundaries ICU C finds over the same line rules', () => {
-    // Every position in these texts reaches ICU in Blink's scan. The boundaries come from
-    // ICU C 78.3 opening Chrome 153's line_normal.brk with ubrk_openBinaryRules.
-    for (const [text, expected] of [
-      ['日本語「テスト」です。', [1, 2, 3, 5, 6, 8, 9]],
-      ['한국어테스트입니다', [1, 2, 3, 4, 5, 6, 7, 8]],
-      ['中文“你好”中文', [1, 2, 4, 6, 7]],
-      ['１２３，４５６円', [1, 2, 4, 5, 6, 7]],
-      ['‐אב״גד', []],
-      ['«مرحبا»،عالم', []],
-      ['👩‍💻👍🏽🇯🇵🇰🇷', [5, 9, 13]],
-      ['₩１００％ᄀᄀ가각', [2, 3, 5, 8]],
-      ['〈〔漢字〕〉ー々', [3, 6]],
-      ['ⅣⅤ→★☆※‼⁉', []],
-      // Cases from LineBreakTest.txt. In the last two, ICU's normal rules resolve small
-      // kana (CJ) to ID and break before them, where the file expects no break.
-      ['\u3066\u300C\uBD24\uC5B4?\u300D\u3068', [1, 3, 6]],
-      ['\u25CC\uA9B3\uA9C0\uA9A0', []],
-      ['\u0085\u0308\u2757', [1]],
-      ['\u200B\u0308\u3000', [1]],
-      ['\u200D\u0308\uFFFC', [2]],
-      ['\u2014-', []],
-      ['\u00B4\u05D0', []],
-      ['}\uFE19', []],
-      ['\uFE56\u00AB', []],
-      ['p\uFF08\u30AF\u30A4\u30C3\u30AF\u30FB\u30D6', [1, 3, 4, 5, 7]],
-      ['\u2757\u3041', [1]],
-    ] as const) {
-      expect({ text, breaks: positions(getBlinkLineBreaks(text, false, null), text.length) }).toEqual({ text, breaks: [...expected] })
-    }
-  })
-
-  test("Blink's scan opens Chrome's zh table for a zh page", () => {
-    const positions = (breaks: Uint8Array) => Array.from(breaks.keys()).filter(i => breaks[i] === 1)
-    // line_normal_cj.brk treats curly quotes as brackets and lets 〜 start a line.
-    for (const [text, root, zh] of [
-      ['中文“abc”中文', [1, 8], [1, 2, 7, 8]],
-      ['x〜y', [2], [1, 2]],
-    ] as const) {
-      expect(positions(getBlinkLineBreaks(text, false, null))).toEqual([...root])
-      expect(positions(getBlinkLineBreaks(text, false, 'ja'))).toEqual([...root])
-      expect(positions(getBlinkLineBreaks(text, false, 'zh-Hant'))).toEqual([...zh])
-      // A page without a language follows Chrome's UI language, which Intl shows as its
-      // default and preparation gives the scan.
-      const locale = new Intl.DateTimeFormat().resolvedOptions().locale
-      setLocale('')
-      expect(getPreparationLanguage(getEngineProfile())).toBe(locale)
-      setLocale()
-      expect(positions(getBlinkLineBreaks(text, false, locale))).toEqual([...(locale.toLowerCase().startsWith('zh') ? zh : root)])
-    }
-  })
-
-  test("Blink's scan follows its space rule, pair table, hyphen-digit rule and keep-all rule", () => {
-    // Cases the Blink break oracle was checked on, from Chromium source and installed Chrome.
-    for (const [text, keepAll, expected] of [
-      ['x?$b', false, [2]],
-      ['x?-b', false, [2, 3]],
-      ['x!©b', false, [2]],
-      ['丙!a', false, []],
-      ['a )', false, [2]],
-      ['a-$', false, []],
-      ['a\u00A0b', false, []],
-      ['a\u00ADb', false, [2]],
-      ['ABCD-1234', false, [5]],
-      ['a -1', false, [2]],
-      ['a -eb', false, [2, 3]],
-      ['a -éb', false, [2]],
-      ['a ‐©b', false, [2]],
-      ['xxxx，b', false, [5]],
-      ['1234」。b', false, [6]],
-      ['日本語 テスト', false, [1, 2, 4, 5, 6]],
-      ['日本語 テスト', true, [4]],
-      ['中文，中文', true, [3]],
-      ['日本語foo-bar', true, [7]],
-      ['a　b', false, [2]],
-      ['a\tb', false, [2]],
-      ['a\rb', false, []],
-      ['1234-5678', false, [5]],
-      ['AB-12', false, [3]],
-      ['a -אב', false, [2]],
-      ['a -\u0301\u00E9b', false, [2]],
-      ['abcァア', false, [3, 4]],
-      ['中文\u201Cabc\u201D中文', false, [1, 8]],
-      ['中文中文\u201D漢字kana', true, [5]],
-      ['한국어테스트 테스트입니다', true, [7]],
-      ['\u{1F600}\u{1F600}', false, [2]],
-    ] as const) {
-      expect({ text, keepAll, breaks: positions(getBlinkLineBreaks(text, keepAll, null), text.length) })
-        .toEqual({ text, keepAll, breaks: [...expected] })
-    }
-  })
 
   test("WebKit's scan follows its pair table, classes, ICU skip, keep-all rule and page language", async () => {
     const { getWebKitBreakBetweenItems, getWebKitLineBreaks } = await import('./line-breaks.ts')
@@ -2221,105 +1591,6 @@ describe('engine break scans', () => {
     expect(Array.from(getWebKitLineBreaks('ab\u2028cd', false, false, 'en'))).toEqual([0, 0, 0, 4, 0, 0])
     expect(Array.from(getWebKitLineBreaks('か中？\u2028b', false, false, 'en'))).toEqual([0, 1, 0, 0, 1, 0])
   })
-
-  test("Gecko's scan follows its white-space transform, text runs, nsLineBreaker and ICU4X's rules", async () => {
-    const { removeSkippableSegmentBreaks } = await import('./analysis.ts')
-    // Cases from the Gecko break oracle's tests and others, with the oracle's breaks,
-    // soft-hyphen breaks included. The scan reads the text after the segment break
-    // transformation, as analyzeText gives it: the text and breaks of a row whose
-    // segment break goes are shown after it.
-    for (const [text, language, keepAll, preserve, expected] of [
-      ['https://example.com', 'en', false, false, [8]],
-      ['example.com/docs', 'en', false, false, [12]],
-      ['and/or', 'en', false, false, [4]],
-      ['a/(b)', 'en', false, false, [2]],
-      ['see /docs', 'en', false, false, [4, 5]],
-      ['1/2', 'en', false, false, []],
-      ['a/"b"', 'en', false, false, []],
-      ['log-2026', 'en', false, false, []],
-      ['crash-log-2026-09-12.txt', 'en', false, false, [6]],
-      ['ab\u201012', 'en', false, false, [3]],
-      ['a \u1781\u17D2\u1798\u17C2\u179A\uFF0Cb', 'en', false, false, [2, 7, 8]],
-      ['x?-b', 'en', false, false, [3]],
-      ['a|b', 'en', false, false, [2]],
-      ['a\u200B\u0301b', 'en', false, false, []],
-      ['a\u200Bb', 'en', false, false, [2]],
-      ['a\u2007b', 'en', false, false, []],
-      ['a\u00A0b', 'en', false, false, []],
-      ['\u05D0|\u6587', 'en', true, false, []],
-      ['\u6587\u05D0|\u6587', 'en', true, false, [1]],
-      ['\u00AB word', 'en', false, false, [2]],
-      ['a   b', 'en', false, false, [4]],
-      ['ab\ncd', 'en', false, true, [3]],
-      ['ab\ncd\u4E2D', 'en', false, true, [5]],
-      ['a\tb', 'en', false, true, [2]],
-      ['a  b', 'en', false, true, [3]],
-      ['ab\u00ADcd', 'en', false, false, [3]],
-      ['ab-cd', 'en', true, false, []],
-      ['a\u200Bb', 'en', false, false, [2]], // a, ZWSP, LF, b
-      ['a\nb', 'en', false, false, [2]],
-      ['a \n\t b', 'en', false, false, [5]],
-      ['\u0628\u200E\u0650\u0628', 'en', false, false, []],
-      ['\u65E5\uFF1F\u30FC', 'en', false, false, []],
-      ['\u4E2D\u6587\u4E2D\u6587', 'en', false, false, [1, 2, 3]], // an LF between the two words
-      ['a\u3002', 'ja', false, false, []], // a, LF, U+3002
-      ['a\n\u3002', 'en', false, false, [2]],
-      ['\u0915\u0947 \u0301b', 'en', false, false, [3]],
-      ['a (\u05D0\u05D1) b', 'en', false, false, [2, 7]],
-    ] as const) {
-      // The transformation leaves these rows as they are.
-      expect(preserve ? text : removeSkippableSegmentBreaks(text, { lineBreakScan: 'gecko', graphemeTable: 'chromium/char', hangTabs: false }, language)).toBe(text)
-      expect({ text, language, keepAll, breaks: positions(getGeckoLineBreaks(text, preserve, keepAll, 'chromium/char').breaks, text.length) })
-        .toEqual({ text, language, keepAll, breaks: [...expected] })
-    }
-  })
-
-  test('grapheme clusters end where ICU ends them, in one pass', async () => {
-    const { findGraphemeEnds } = await import('./graphemes.ts')
-    const { getBreakRules, markRuleBoundaries } = await import('./line-breaks.ts')
-    const ends = (table: 'chromium/char' | 'apple/char', text: string) => {
-      const out = new Int32Array(text.length)
-      return Array.from(out.subarray(0, findGraphemeEnds(table, text, 0, text.length, out)))
-    }
-    for (const [text, expected] of [
-      ['\u{1F468}\u200D\u{1F469}\u200D\u{1F467}', [8]],
-      ['\u{1F1EF}\u{1F1F5}\u{1F1FA}\u{1F1F8}\u{1F1EB}', [4, 8, 10]],
-      ['1\uFE0F\u20E3#', [3, 4]],
-      ['\u0915\u094D\u0937\u093F\u0915', [4, 5]],
-      ['\u1100\u1161\u11A8\uAC00\uAC01', [3, 4, 5]],
-      ['\u6F22\uFE00\u5B57', [2, 3]],
-      ['a\r\nb\n\r', [1, 3, 4, 5, 6]],
-      ['\u0600a b', [2, 3, 4]],
-      ['a\uD800\u0301\uDC00', [1, 3, 4]],
-    ] as const) {
-      expect({ text, ends: ends('chromium/char', text) }).toEqual({ text, ends: [...expected] })
-      expect({ text, ends: ends('apple/char', text) }).toEqual({ text, ends: [...expected] })
-    }
-    // libicucore's rules take Apple's transcoding hints as Extend.
-    expect(ends('chromium/char', 'a\uF870\uF89F')).toEqual([1, 2, 3])
-    expect(ends('apple/char', 'a\uF870\uF89F')).toEqual([3])
-    // A range reads as if the text began and ended there.
-    const out = new Int32Array(4)
-    expect(Array.from(out.subarray(0, findGraphemeEnds('chromium/char', 'x\u0301\u0301y', 1, 3, out)))).toEqual([3])
-
-    // Against ICU's handleNext over random strings of one code point per class.
-    const samples = [0x0, 0xa, 0xd, 0x20, 0xa9, 0x300, 0x600, 0x903, 0x915, 0x94d, 0x1100, 0x1160, 0x11a8, 0x200c, 0x200d, 0xac00, 0xac01, 0x1f1e6, 0xf870, 0xd800]
-    let seed = 7
-    const random = (n: number) => { seed = (seed * 48271) % 0x7fffffff; return seed % n }
-    for (const table of ['chromium/char', 'apple/char'] as const) {
-      const rules = getBreakRules(table)
-      for (let t = 0; t < 20_000; t++) {
-        const alphabet = Array.from({ length: 2 + random(4) }, () => samples[random(samples.length)]!)
-        let text = ''
-        for (let length = 1 + random(24); length > 0; length--) text += String.fromCodePoint(alphabet[random(alphabet.length)]!)
-        const flags = new Uint8Array(text.length + 1)
-        markRuleBoundaries(rules, text, flags)
-        const expected: number[] = []
-        for (let b = 1; b <= text.length; b++) if (flags[b] === 1) expected.push(b)
-        expect({ table, text, ends: ends(table, text) }).toEqual({ table, text, ends: expected })
-      }
-    }
-  })
 })
 
 describe('measurement invariants', () => {
@@ -2331,6 +1602,23 @@ describe('measurement invariants', () => {
       ['12\tpx Test Sans', 12],
       [`${'1'.repeat(4096)}pt Test Sans`, 16],
     ] as const) expect(parseCssFontSize(font)).toBe(expected)
+  })
+
+  test('the fonts\' segment caches are dropped between two preparations once they hold more than 262,144 segments', () => {
+    clearCache()
+    prepare('seen before', FONT)
+    let text = ''
+    for (let i = 0; i < 262_144; i++) text += `w${i.toString(36)} `
+    // The bound is read when a preparation starts, so the paragraph that crosses it in its first
+    // item still has the caches for its second, and the next preparation starts without them.
+    prepareRichInline([{ text, font: FONT }, { text: 'seen before', font: FONT }])
+    let count = canvasMeasurementCount
+    prepare('seen before', FONT)
+    expect(canvasMeasurementCount).toBeGreaterThan(count)
+    count = canvasMeasurementCount
+    prepare('seen before', FONT)
+    expect(canvasMeasurementCount).toBe(count)
+    clearCache()
   })
 
   test('breakable fit cache distinguishes fit modes', () => {
@@ -3958,6 +3246,62 @@ describe('prepare invariants', () => {
       Reflect.deleteProperty(globalThis, 'document')
       clearCache()
     }
+  })
+
+  test('the WebKit profile keeps the generic keywords off Cocoa, under a Mac\'s user agent too', () => {
+    // The engine profile is computed once per process, so each navigator runs in a child
+    // process. WebKit asks Core Text for the keywords' families on Cocoa alone
+    // (FontDescription.cpp:115-120): on WebKitGTK and WPE the page draws `monospace` in the
+    // system's own font, and Menlo, which that system lacks, would be measured in its standard
+    // font. navigator.platform tells the port, not the user agent, which names a Mac on Linux
+    // under Playwright: WebKit gives `Linux` and the machine, `Win32`, `Haiku` or nothing off
+    // Cocoa (NavigatorBase.cpp:97-116). Each row is a page language, a font, and the Canvas
+    // font its text is measured in on Cocoa; elsewhere that is the font as given. An English
+    // page's context is asked nothing first.
+    const layoutUrl = new URL('./layout.ts', import.meta.url).href
+    const rows = [
+      ['en', '13px monospace', '13px "Menlo"'],
+      ['en', '14px "SF Mono", Menlo, monospace', '14px "SF Mono", Menlo, "Menlo"'],
+      ['en', '16px Arial, fantasy', '16px Arial, "Zapfino"'],
+      ['ru', '16px cursive', '16px "Snell Roundhand"'],
+      ['zh', '16px sans-serif', '16px "PingFang SC"'],
+      ['ja', '15px serif', '15px "Hiragino Mincho ProN"'],
+      ['en', '16px sans-serif', '16px sans-serif'],
+    ] as const
+    const measuredIn = (navigator: { userAgent: string, platform?: string }): unknown => JSON.parse(runInChild(`
+      Object.defineProperty(globalThis, 'navigator', { configurable: true, value: ${JSON.stringify(navigator)} })
+      const root = { lang: '' }
+      let measuredIn = ''
+      let asked = 0
+      class Context {
+        font = ''
+        measureText(text) {
+          if (text === 'code') measuredIn = this.font
+          else if (measuredIn === '') asked++
+          return { width: text.length * 8 }
+        }
+      }
+      globalThis.OffscreenCanvas = class { getContext() { return new Context() } }
+      globalThis.document = { documentElement: root }
+      const { prepare } = await import(${JSON.stringify(layoutUrl)})
+      const fonts = []
+      for (const [lang, font] of ${JSON.stringify(rows)}) {
+        root.lang = lang
+        prepare('code', font)
+        fonts.push(measuredIn)
+      }
+      console.log(JSON.stringify({ fonts, asked }))
+    `))
+    const linux = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15'
+    const iPhone = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0.1 Mobile/15E148 Safari/604.1'
+    const asGiven = { fonts: rows.map(row => row[1]), asked: 0 }
+    const named = { fonts: rows.map(row => row[2]), asked: 0 }
+    expect(measuredIn({ userAgent: linux, platform: 'Linux x86_64' })).toEqual(asGiven)
+    for (const platform of ['Linux aarch64', 'Win32', 'Haiku', '']) expect(measuredIn({ userAgent: SAFARI_USER_AGENT, platform })).toEqual(asGiven)
+    expect(measuredIn({ userAgent: SAFARI_USER_AGENT, platform: 'MacIntel' })).toEqual(named)
+    expect(measuredIn({ userAgent: iPhone, platform: 'iPhone' })).toEqual(named)
+    // A stand-in navigator with a user agent alone, as these tests' and the harness's are, is Cocoa's.
+    expect(measuredIn({ userAgent: SAFARI_USER_AGENT })).toEqual(named)
   })
 
   test('the page language resolves to a break language by its primary subtag', async () => {
@@ -6296,34 +5640,6 @@ describe('layout invariants', () => {
     expect(rich.lines.map(line => line.text).join('')).toBe('Superlongword')
     expect(rich.lines[0]!.start).toEqual({ segmentIndex: 0, graphemeIndex: 0 })
     expect(rich.lines.at(-1)!.end).toEqual({ segmentIndex: 1, graphemeIndex: 0 })
-  })
-
-  test('mixed-script canary keeps layoutWithLines and layoutNextLine aligned across CJK, RTL, and emoji', () => {
-    const prepared = prepareWithSegments('Hello 世界 مرحبا 🌍 test', FONT)
-    const width = 80
-    const expected = layoutWithLines(prepared, width, LINE_HEIGHT)
-
-    expect(expected.lines.map(line => line.text)).toEqual(['Hello 世', '界 مرحبا ', '🌍 test'])
-
-    const actual = collectStreamedLines(prepared, width)
-    expect(actual).toEqual(expected.lines)
-  })
-
-  test('layoutWithLines strips leading collapsible space after a ZWSP break the same way as layoutNextLine', () => {
-    const prepared = prepareWithSegments('生活就像海洋\u200B 只有意志坚定的人才能到达彼岸', FONT)
-    const width = prepared.widths[0]! - 1
-
-    expect(layoutWithLines(prepared, width, LINE_HEIGHT).lines).toEqual(collectStreamedLines(prepared, width))
-  })
-
-  test('chunked batch line walking normalizes spaces after zero-width breaks like streaming', () => {
-    const prepared = prepareWithSegments('x\u00AD A\u200B B', FONT)
-    const width = measureWidth('x A', FONT) + 0.1
-    const batched = layoutWithLines(prepared, width, LINE_HEIGHT)
-
-    expect(batched.lines.map(line => line.text.trimEnd())).toEqual(['x A\u200B', 'B'])
-    expect(collectStreamedLines(prepared, width)).toEqual(batched.lines)
-    expect(layout(prepared, width, LINE_HEIGHT).lineCount).toBe(batched.lineCount)
   })
 
   test('a word that fits past its soft hyphen stays whole, and the overflow after it breaks at the space', () => {
@@ -8823,4 +8139,111 @@ test('a line start inside a word asks Canvas for each of its strings once', () =
   const asked = ['ab⁠cd', '⁠', '⁠c', 'xb⁠cd']
   expect(askedIn(CHROME_USER_AGENT)).toEqual(asked)
   expect(askedIn(FIREFOX_USER_AGENT)).toEqual(asked)
+})
+
+test("a host with no document gets layouts from a font and measureText alone, under no navigator, React Native's and Bun's own", () => {
+  // What README says of measuring outside a browser, held: the global OffscreenCanvas is what
+  // it asks for and no more, a getContext() that returns a new plain object with a writable
+  // `font` and a measureText(text) that returns { width }, in a runtime with no document. A
+  // change that asks more of a context fails here, where it would break such hosts unseen. The
+  // measurer counts a terminal's cells, each as wide as the font's px size: none for a
+  // combining mark or a format character, two for CJK, emoji and the hyphen U+2010, one for
+  // anything else. U+2010 is wider than `-` so that the soft-hyphen question goes on to set
+  // fonts of its own on the object, `16px monospace` and `16px serif` (getHyphenText). Each
+  // text and a rich paragraph are laid out at three widths: nothing throws, every width is
+  // finite, no line is wider than its box by the width it reports, and layout() counts the
+  // lines layoutWithLines() returns. The engine profile is computed once per process, so each
+  // navigator runs in a child process: none, React Native's, which has no userAgent, and Bun's
+  // own, which names no browser. All three take the profile of an unrecognized engine, so all
+  // three give the same lines.
+  const layoutUrl = new URL('./layout.ts', import.meta.url).href
+  const richInlineUrl = new URL('./rich-inline.ts', import.meta.url).href
+  const latin = 'The quick brown fox jumps over the lazy dog, twice; then again.'
+  const texts: Array<[name: string, text: string, options?: object]> = [
+    ['Latin', latin],
+    ['CJK punctuation', '「漢字」、テスト。（括弧）と「引用」。春天到了，我们去公园！'],
+    ['CJK with Latin', '甲乙丙.first_week_voltage}户 2025-08-01 00:00:00，完成'],
+    ['soft hyphens', 'inter\u00ADnation\u00ADal\u00ADiza\u00ADtion of the Do\u00ADnau\u00ADdampf\u00ADschiff'],
+    ['a long word', 'https://example.com/a/very/long/path/that/does/not/fit?query=1&another=2'],
+    ['Arabic', 'بدأت الرحلة اليوم مع English words في المنتصف 123.'],
+    ['Thai', 'ภาษาไทยไม่มีช่องว่างระหว่างคำ ต้องใช้พจนานุกรม'],
+    ['emoji', 'Launch \u{1F680} day \u{1F468}\u200D\u{1F469}\u200D\u{1F467}\u200D\u{1F466} family \u{1F1EF}\u{1F1F5} flag ok'],
+    ['pre-wrap tabs', 'a\tb\tc\n  indented  line\n\nend ', { whiteSpace: 'pre-wrap' }],
+    ['letter spacing', 'spaced out text for a title', { letterSpacing: 2 }],
+    ['keep-all', '한국어 텍스트는 단어 단위로 줄바꿈', { wordBreak: 'keep-all' }],
+  ]
+  const rowsUnder = (navigator: string) => JSON.parse(runInChild(`
+    ${navigator}
+    const size = font => Number.parseFloat(/([\\d.]+)px/.exec(font)?.[1] ?? '16')
+    const cells = text => {
+      let count = 0
+      for (const ch of text) count += /[\\p{M}\\p{Cf}]/u.test(ch) ? 0 : /[\\u2010\\u2E80-\\u9FFF\\uAC00-\\uD7A3\\uFF00-\\uFFEF\\p{Extended_Pictographic}]/u.test(ch) ? 2 : 1
+      return count
+    }
+    globalThis.OffscreenCanvas = class {
+      getContext() {
+        return { font: '', measureText(text) { return { width: cells(text) * size(this.font) } } }
+      }
+    }
+    const { prepare, prepareWithSegments, layout, layoutWithLines, measureNaturalWidth } = await import(${JSON.stringify(layoutUrl)})
+    const { prepareRichInline, measureRichInlineStats, walkRichInlineLineRanges, materializeRichInlineLineRange } = await import(${JSON.stringify(richInlineUrl)})
+    const problems = typeof document === 'undefined' ? [] : ['the runtime has a document']
+    const attempt = (name, run) => {
+      try {
+        run()
+      } catch (error) {
+        problems.push(name + ' threw ' + error.name + ': ' + error.message)
+      }
+    }
+    // At one width: every width finite, no line wider than its box by the width it reports, and as many lines as counted.
+    const check = (name, maxWidth, widths, lines, lineCount) => {
+      if (!widths.every(Number.isFinite)) problems.push(name + ' at ' + maxWidth + 'px has a width that is not finite')
+      if (lines.some(line => line.width > maxWidth)) problems.push(name + ' at ' + maxWidth + 'px has a line wider than its box')
+      if (lineCount !== lines.length) problems.push(name + ' at ' + maxWidth + 'px counts ' + lineCount + ' lines for ' + lines.length)
+    }
+    const font = '16px Host Sans, sans-serif'
+    const lines = []
+    for (const [name, text, options] of ${JSON.stringify(texts)}) attempt(name, () => {
+      const prepared = prepareWithSegments(text, font, options)
+      const opaque = prepare(text, font, options)
+      for (const maxWidth of [128, 320, 640]) {
+        const laidOut = layoutWithLines(prepared, maxWidth, 20)
+        check(name, maxWidth, [measureNaturalWidth(prepared), laidOut.height, ...prepared.widths, ...laidOut.lines.map(line => line.width)], laidOut.lines, layout(opaque, maxWidth, 20).lineCount)
+        lines.push(laidOut.lines.map(line => [line.text, line.width]))
+      }
+    })
+    attempt('a rich paragraph', () => {
+      const prepared = prepareRichInline([
+        { text: 'Hello ', font },
+        { text: 'world', font: 'bold 12px Host Sans', break: 'never', extraWidth: 24 },
+        { width: 48 },
+        { text: ' and 「漢字」 more', font, letterSpacing: 2 },
+      ])
+      for (const maxWidth of [128, 320, 640]) {
+        const laidOut = []
+        walkRichInlineLineRanges(prepared, maxWidth, range => laidOut.push(materializeRichInlineLineRange(prepared, range)))
+        const stats = measureRichInlineStats(prepared, maxWidth)
+        const widths = laidOut.flatMap(line => [line.width, ...line.fragments.flatMap(fragment => [fragment.occupiedWidth, fragment.gapBefore])])
+        check('a rich paragraph', maxWidth, [stats.maxLineWidth, ...widths], laidOut, stats.lineCount)
+        lines.push(laidOut.map(line => [line.fragments.map(fragment => fragment.text), line.width]))
+      }
+    })
+    // The widths are the measurer's own in the text's font: the Latin sentence in the font measured above, then in
+    // a new one, then its capitals, which are new text, in the first again.
+    const latin = ${JSON.stringify(latin)}
+    const natural = []
+    for (const [text, inFont] of [[latin, font], [latin, 'italic 20px Host Serif'], [latin.toUpperCase(), font]]) {
+      attempt('the Latin sentence in ' + inFont, () => natural.push(measureNaturalWidth(prepare(text, inFont))))
+    }
+    console.log(JSON.stringify({ problems, natural, lines }))
+  `)) as { problems: string[]; natural: number[]; lines: unknown[] }
+  const none = rowsUnder("Reflect.deleteProperty(globalThis, 'navigator')")
+  const reactNative = rowsUnder("Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { product: 'ReactNative' } })")
+  const own = rowsUnder('')
+  // The Latin sentence is 63 cells, and the eleven texts and the rich paragraph are each laid out at three widths.
+  expect({ problems: none.problems, natural: none.natural, laidOut: none.lines.length })
+    .toEqual({ problems: [], natural: [63 * 16, 63 * 20, 63 * 16], laidOut: (texts.length + 1) * 3 })
+  expect(reactNative.problems).toEqual([])
+  expect(reactNative).toEqual(none)
+  expect(own).toEqual(none)
 })

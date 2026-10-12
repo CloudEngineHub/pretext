@@ -10,7 +10,7 @@ pins).
 
 ## Setup
 
-- `bun install`, then `bun test`, which runs the harness's offline tests with no browser.
+- `bun install`, then `bun test --parallel`, which runs the harness's offline tests with no browser.
 - Chrome and Firefox run as pinned copies of the installed apps, kept in `~/github/browser-engines/apps` (or the folder
   `HARNESS_APPS` names) and named in `pins.json`. `bun harness repin chrome` or `repin firefox` copies the installed app
   there; `--write` makes the copy the pin.
@@ -85,9 +85,11 @@ by `check` a line a kind, but one that fails needs no accepted entry and no reas
   on one line, which nearly always pass, so `check` prints the share right where the browser wraps, and the share with
   a wrong line count, the wrong height a virtualized list would get. Then a table counts draws one each, by script and
   by style (letter spacing, soft hyphens, pre-wrap, keep-all, rich inline, emoji): draws and failures, the same among
-  the draws the browser wraps, and the passing draws that fail the shrink-wrap check. A row's rate doesn't move with
-  the share `weights.json` gives its script or style, though the mix inside the row still follows the weights. Read the
-  worst rows with the headline: easy kinds flatter a pooled number (`RESEARCH.md`, Evaluation Traps).
+  the draws the browser wraps, the passing draws that fail the shrink-wrap check, and the passing draws of plain text
+  with a line predicted more than 1 px wider or narrower than the browser's (`off`), which pass on widths that aren't
+  the browser's. A row's rate doesn't move with the share `weights.json` gives its script or style, though the mix
+  inside the row still follows the weights. Read the worst rows with the headline: easy kinds flatter a pooled number
+  (`RESEARCH.md`, Evaluation Traps).
 - **The behaviour catalog** (`catalog`, `facts`, `rich`) answers which behaviours we model; deduplicated by what the
   browsers do, its size says nothing about real use. `check` prints first the count over a behaviour's cases at 24 px
   and wider, among the behaviours that have one there, away from the edges, that the browser lays out on more than one
@@ -102,7 +104,7 @@ by `check` a line a kind, but one that fails needs no accepted entry and no reas
 | `sample.ndjson` | The real-usage sample | `make.ts write` |
 | `reports.ndjson` | Filed reports with the text, font and width as filed (`sets/exact.ts`) | `make.ts write` |
 | `catalog.ndjson` | Families of templates, from the engines' rules, the UAX #14 classes between the scripts apps mix, the shapes `ENGINE_FOLLOWUPS.md` names, bidi controls where Firefox's line breaking looks past them, CJK marks Chrome halts next to other punctuation, letter-spaced words whose ligatures the browsers turn off, emoji characters a named font draws itself and one word wider than its line, kerned or joined, that each browser cuts between letters its own way, plus adversarial `main/*` cases taken from the old test suite | the width search |
-| `facts.ndjson` | The engine facts `src/layout.test.ts` checks on plain text, in a browser | the width search |
+| `facts.ndjson` | The engine facts `src/layout.test.ts` checked on plain text when each was added, in a browser; a unit test that alone caught no planted defect has since been taken out | the width search |
 | `rich.ndjson` | Rich-inline paragraphs: styled runs, span edges, chips, padded code spans, boxes (an empty inline-block of a width and a height, top-aligned), the shapes whose lines changed when items began to continue the line (#369), keep-all and pre-wrap paragraphs, fullwidth punctuation at an item's edge, a line's return from an unfit soft hyphen to a break between two text segments, a lone carriage return at an item's edge, a line separator that ends an item before white space, paragraphs narrower than 1px, searched from 0px, and characters of no width, a tab, a hyphen or U+3000 at an item's edge, where rich inline has the browsers' lines and where it doesn't, plus `main/*` cases | the width search |
 | `census.ndjson`, `books.ndjson`, `smoke.ndjson` | Real paragraphs of `corpora/` at several widths, and whole books, from the per-engine rebuild | taken once |
 | `oracles.ndjson` | The mode oracles (pre-wrap, keep-all, symbols, letter spacing, soft hyphens) the old test suite ran | taken once |
@@ -463,6 +465,10 @@ rounds (`types.ts`, `wholePixelBoxes`). The width report leaves those lines out 
 the lines of webkit-host's passing sample draws inside the claims were more than 0.05 px off, without them 0.8%
 (2026-10-01). The shrink-wrap check keeps them, so there it misses a box up to a pixel too narrow where such a line is
 the widest, as in a fifth of the sample's pre-wrap draws, and webkit-host's `narrow` column reads low on pre-wrap text.
+The table's `off` column counts no rich draw, and it leaves a line that ends in a space with a box out in every browser
+(`score.ts`, `widthsOff`): a third of the lines of the sample's plain pre-wrap draws (2026-10-12), which it reads by
+their other lines. It counts the draws that vary between runs (`varying/`) as the table's other columns do, so its row
+for `system-ui` font lists reads 77 or 78 in webkit-host from one run to the next (2026-10-12).
 The harness doesn't see re-layout at a line's own width; several rules of the Gecko profile's analysis of bidi
 controls (`ENGINE_FOLLOWUPS.md`, Harness debt); an emoji modifier split from its
 base across rich items; a rich paragraph of one item, which the adapter writes as plain text, so `src/layout.test.ts`
