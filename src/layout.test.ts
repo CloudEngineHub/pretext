@@ -233,7 +233,7 @@ function collectStreamedLines(
   const most = prepared.segments.join('').length + 1
 
   while (true) {
-    const line = layoutNextLine(prepared as Parameters<typeof layoutNextLine>[0], cursor, width)
+    const line = layoutNextLine(prepared as Parameters<typeof layoutNextLine>[0], width, cursor)
     if (line === null) break
     if (lines.push(line) > most) throw new Error(`layoutNextLine gives more than ${most} lines`)
     cursor = line.end
@@ -463,9 +463,36 @@ describe('shared public contracts', () => {
       layout(opaque, width, LINE_HEIGHT)
       measureLineStats(rich, width)
       walkLineRanges(rich, width, () => {})
-      layoutNextLineRange(rich, { segmentIndex: 0, graphemeIndex: 0 }, width)
+      layoutNextLineRange(rich, width, { segmentIndex: 0, graphemeIndex: 0 })
     }
     expect(canvasMeasurementCount).toBe(before)
+  })
+
+  test('the line streams take the width before the cursor and start at the first line without one', () => {
+    // layoutNextLine() and layoutNextLineRange() take (prepared, maxWidth, start?), the order
+    // of layoutNextRichInlineLineRange(): without a start they give the text's first line,
+    // and each line's end passed back gives the next, the lines layoutWithLines() gives.
+    for (const options of [undefined, { whiteSpace: 'pre-wrap' }] as const) {
+      const prepared = prepareWithSegments('a\tbb trans\u00ADatlantic 中文字 Superlongword of  spaces', FONT, options)
+      for (const width of [0, 30, 60, 137.5, Infinity]) {
+        const { lines } = layoutWithLines(prepared, width, LINE_HEIGHT)
+        expect(layoutNextLine(prepared, width)).toEqual(layoutNextLine(prepared, width, { segmentIndex: 0, graphemeIndex: 0 }))
+        expect(layoutNextLineRange(prepared, width)).toEqual(layoutNextLineRange(prepared, width, { segmentIndex: 0, graphemeIndex: 0 }))
+        const streamed: unknown[] = []
+        const ranges: unknown[] = []
+        for (let line = layoutNextLine(prepared, width); line !== null; line = layoutNextLine(prepared, width, line.end)) streamed.push(line)
+        for (let range = layoutNextLineRange(prepared, width); range !== null; range = layoutNextLineRange(prepared, width, range.end)) ranges.push(materializeLineRange(prepared, range))
+        expect(streamed).toEqual(lines)
+        expect(ranges).toEqual(lines)
+      }
+    }
+    // A stream without a start moves no cursor of its own: a second one starts at the first line too.
+    const prepared = prepareWithSegments('one two three', FONT)
+    const first = layoutNextLineRange(prepared, 40)!
+    expect(first.start).toEqual({ segmentIndex: 0, graphemeIndex: 0 })
+    first.start.segmentIndex = 2
+    first.end.segmentIndex = 0
+    expect(layoutNextLineRange(prepared, 40)!.start).toEqual({ segmentIndex: 0, graphemeIndex: 0 })
   })
 
   // The engine profile is computed once per process, so a test of every engine runs each in a
@@ -527,7 +554,7 @@ describe('shared public contracts', () => {
     const linesOf = (prepared: PreparedText): unknown => {
       const walked: unknown[] = []
       const count = walkLineRanges(prepared, 60, line => walked.push(line))
-      const first = layoutNextLineRange(prepared, { segmentIndex: 0, graphemeIndex: 0 }, 60)
+      const first = layoutNextLineRange(prepared, 60, { segmentIndex: 0, graphemeIndex: 0 })
       return [count, walked, first, measureLineStats(prepared, 60), measureNaturalWidth(prepared)]
     }
     expect(linesOf(light)).toEqual(linesOf(withSegments))
@@ -547,7 +574,7 @@ describe('shared public contracts', () => {
         let cursor = { segmentIndex: 0, graphemeIndex: 0 }
         // No text has more lines than a line per unit, plus one.
         for (let i = 0; i <= text.length + 1; i++) {
-          const line = layoutNextLineRange(prepared, cursor, width)
+          const line = layoutNextLineRange(prepared, width, cursor)
           if (line === null) break
           streamed.push(line)
           cursor = line.end
@@ -712,7 +739,7 @@ describe('shared public contracts', () => {
           if (walked.push(materializeLineRange(prepared, range)) > most) throw new Error('a walk goes on')
         })
         return JSON.stringify([
-          count, walked, stream(end => layoutNextLine(prepared, end ?? start, width), most), stream(end => layoutNextLineRange(light, end ?? start, width), most),
+          count, walked, stream(end => layoutNextLine(prepared, width, end ?? start), most), stream(end => layoutNextLineRange(light, width, end ?? start), most),
           layout(light, width, 20), measureLineStats(light, width), measureNaturalWidth(light), layoutWithLines(prepared, width, 20),
         ])
       }
@@ -4124,7 +4151,7 @@ describe('rich-inline invariants', () => {
     const spaceFont = '8px Test Sans'
     for (const letterSpacing of [-5, -measureWidth(' ', spaceFont), 1]) {
       const source = prepareWithSegments(' ', spaceFont, { whiteSpace: 'pre-wrap', letterSpacing })
-      const space = layoutNextLineRange(source, { segmentIndex: 0, graphemeIndex: 0 }, Infinity)!
+      const space = layoutNextLineRange(source, Infinity, { segmentIndex: 0, graphemeIndex: 0 })!
       // The gap keeps the signed advance; a line holding only this SPACE
       // reports it clamped at zero.
       const spaceAdvance = measureWidth(' ', spaceFont) + letterSpacing
@@ -6504,7 +6531,7 @@ describe('layout invariants', () => {
       const streamed: NonNullable<ReturnType<LayoutModule['layoutNextLineRange']>>[] = []
       let cursor = { segmentIndex: 0, graphemeIndex: 0 }
       for (let lineIndex = 0; lineIndex <= expected.length; lineIndex++) {
-        const line = layoutNextLineRange(prepared, JSON.parse(JSON.stringify(cursor)) as typeof cursor, 100)
+        const line = layoutNextLineRange(prepared, 100, JSON.parse(JSON.stringify(cursor)) as typeof cursor)
         if (line === null) break
         streamed.push(line)
         cursor = JSON.parse(JSON.stringify(line.end)) as typeof cursor
@@ -6531,7 +6558,7 @@ describe('layout invariants', () => {
     expect(batched.lines[0]?.text).toBe('foo ')
     expect(batched.lines[1]?.text.startsWith('ab')).toBe(true)
 
-    const streamed = layoutNextLine(prepared, { segmentIndex: 0, graphemeIndex: 0 }, width)
+    const streamed = layoutNextLine(prepared, width, { segmentIndex: 0, graphemeIndex: 0 })
     expect(streamed?.text).toBe('foo ')
     expect(layout(prepared, width, LINE_HEIGHT).lineCount).toBe(batched.lineCount)
   })
@@ -7225,12 +7252,12 @@ test('unchosen terminal soft hyphens consume source without painting a hyphen', 
         expect(measureLineStats(prepared, 500).maxLineWidth).toBeCloseTo(measureLineStats(reference, 500).maxLineWidth)
         let cursor: TestLayoutCursor = { segmentIndex: 0, graphemeIndex: 0 }
         for (const line of actual.lines) {
-          const range = layoutNextLineRange(prepared, cursor, 500)!
+          const range = layoutNextLineRange(prepared, 500, cursor)!
           expect(materializeLineRange(prepared, range)).toEqual(line)
           cursor = range.end
         }
         expect(cursor.segmentIndex).toBe(prepared.segments.length)
-        expect(layoutNextLine(prepared, cursor, 500)).toBeNull()
+        expect(layoutNextLine(prepared, 500, cursor)).toBeNull()
       }
     }
   }
@@ -7405,10 +7432,10 @@ test('the Safari profile keeps the kerning between a word and a following space'
     const signed = []
     walkPreparedLinesRaw(remainder, 8.5, (width, ...cursors) => signed.push([width, ...cursors]))
     const streamed = []
-    let range = layoutNextLineRange(remainder, { segmentIndex: 0, graphemeIndex: 0 }, 8.5)
+    let range = layoutNextLineRange(remainder, 8.5, { segmentIndex: 0, graphemeIndex: 0 })
     while (range !== null) {
       if (streamed.push(range.width) > 5) throw new Error('layoutNextLineRange gives more than 5 lines')
-      range = layoutNextLineRange(remainder, range.end, 8.5)
+      range = layoutNextLineRange(remainder, 8.5, range.end)
     }
     const rich = []
     walkRichInlineLineRanges(prepareRichInline([{ text: 'A\\u2060 B', font: '16px Test' }]), 8.5, line => rich.push(line.width))
@@ -7853,7 +7880,7 @@ test('the Chromium profile cuts a word as lines shaped alone', () => {
       const questions = asked.filter(question => question !== text)
       const lines = layoutWithLines(prepared, width, 20).lines.map(line => [line.text, line.width])
       const stream = []
-      for (let line = layoutNextLine(prepared, { segmentIndex: 0, graphemeIndex: 0 }, width); line !== null; line = layoutNextLine(prepared, line.end, width)) stream.push([line.text, line.width])
+      for (let line = layoutNextLine(prepared, width, { segmentIndex: 0, graphemeIndex: 0 }); line !== null; line = layoutNextLine(prepared, width, line.end)) stream.push([line.text, line.width])
       // Preserved spaces send a text to the full walker.
       const walked = layoutWithLines(prepareWithSegments('  ' + text, font, { whiteSpace: 'pre-wrap', letterSpacing }), width, 20).lines.slice(1).map(line => [line.text, line.width])
       const same = layout(prepare(text, font, { letterSpacing }), width, 20).lineCount === lines.length && JSON.stringify(stream) === JSON.stringify(lines) && JSON.stringify(walked) === JSON.stringify(lines)

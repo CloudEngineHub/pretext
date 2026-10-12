@@ -278,13 +278,16 @@ export function measureNaturalWidth(prepared: PreparedText): number {
   return measureLineStats(prepared, Number.POSITIVE_INFINITY).maxLineWidth
 }
 
+// Where a line stream starts without a `start`: the text's first line.
+const TEXT_START_CURSOR: LayoutCursor = { segmentIndex: 0, graphemeIndex: 0 }
+
 // Steps one streamed line from `start` into the result's cursors: the
 // normalized line start and the line end. Returns the reported width, or null
 // after the last line.
 function stepNextLine(
   prepared: PreparedText,
-  start: LayoutCursor,
   maxWidth: number,
+  start: LayoutCursor,
   lineStart: LayoutCursor,
   lineEnd: LayoutCursor,
 ): number | null {
@@ -299,14 +302,17 @@ function stepNextLine(
   return width === null ? null : Math.max(0, width)
 }
 
+// The line streams take the width before the cursor, as layoutNextRichInlineLineRange()
+// does, and start at the text's first line without one: pass each line's `end` back
+// for the next.
 export function layoutNextLine(
   prepared: PreparedTextWithSegments,
-  start: LayoutCursor,
   maxWidth: number,
+  start: LayoutCursor = TEXT_START_CURSOR,
 ): LayoutLine | null {
   const lineStart = { segmentIndex: 0, graphemeIndex: 0 }
   const end = { segmentIndex: 0, graphemeIndex: 0 }
-  const width = stepNextLine(prepared, start, maxWidth, lineStart, end)
+  const width = stepNextLine(prepared, maxWidth, start, lineStart, end)
   if (width === null) return null
 
   const text = buildLineTextFromRange(
@@ -321,12 +327,12 @@ export function layoutNextLine(
 
 export function layoutNextLineRange(
   prepared: PreparedText,
-  start: LayoutCursor,
   maxWidth: number,
+  start: LayoutCursor = TEXT_START_CURSOR,
 ): LayoutLineRange | null {
   const lineStart = { segmentIndex: 0, graphemeIndex: 0 }
   const end = { segmentIndex: 0, graphemeIndex: 0 }
-  const width = stepNextLine(prepared, start, maxWidth, lineStart, end)
+  const width = stepNextLine(prepared, maxWidth, start, lineStart, end)
   return width === null ? null : { width, start: lineStart, end }
 }
 

@@ -254,17 +254,17 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
       const streamed: LayoutLineRange[] = []
       for (let i = 0; ; i++) {
         const before = { ...cursor }
-        const line = api.layoutNextLine(prepared, cursor, width)
+        const line = api.layoutNextLine(prepared, width, cursor)
         if (!same(cursor, before)) fail('cursors', at, `layoutNextLine moved its start cursor to ${JSON.stringify(cursor)}`)
-        const range = api.layoutNextLineRange(prepared, before, width)
+        const range = api.layoutNextLineRange(prepared, width, before)
         if (line === null || range === null) {
-          if (api.layoutNextLine(prepared, json(before), width) !== null) fail('cursors', at, 'a JSON copy of the end cursor starts the text again')
+          if (api.layoutNextLine(prepared, width, json(before)) !== null) fail('cursors', at, 'a JSON copy of the end cursor starts the text again')
           break
         }
         if (i >= steps) return fail('walkers end', at, `layoutNextLine gives more than ${steps} lines`)
         streamed.push(range)
         if (!same(line, batch[i])) fail('line objects', at, `layoutNextLine line ${i} is ${JSON.stringify(line)}; layoutWithLines' ${JSON.stringify(batch[i])}`)
-        if (!same(api.layoutNextLine(prepared, json(before), width), line)) fail('cursors', at, `a JSON copy of the cursor before line ${i} resumes otherwise`)
+        if (!same(api.layoutNextLine(prepared, width, json(before)), line)) fail('cursors', at, `a JSON copy of the cursor before line ${i} resumes otherwise`)
         if (!same(api.materializeLineRange(prepared, json(range)), line)) fail('cursors', at, `a JSON copy of range ${i} materializes otherwise`)
         if (!same(api.materializeLineRange(prepared, line), line)) fail('round trip', at, `line ${i} passed back as a range gives another line`)
         cursor = { ...line.end }
@@ -280,7 +280,7 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
       // Streamed at a width that changes per line, as around a float.
       const varied: LayoutLine[] = []
       const widths = [width, Math.max(1, width / 2), width * 1.5]
-      for (let line = api.layoutNextLine(prepared, START, width); line !== null; line = api.layoutNextLine(prepared, line.end, widths[varied.length % 3]!)) {
+      for (let line = api.layoutNextLine(prepared, width, START); line !== null; line = api.layoutNextLine(prepared, widths[varied.length % 3]!, line.end)) {
         if (varied.push(line) > steps) return fail('walkers end', at, `layoutNextLine gives more than ${steps} lines at changing widths`)
       }
       const variedCoverage = covers(stream, spans(varied), whiteSpace)
@@ -594,7 +594,7 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
             if (api.measureLineStats(handle, width).lineCount > most) fail('walkers end', label, `measureLineStats gives more than ${most} lines at ${width}`)
             api.walkLineRanges(handle, width, () => { if (++lines > most) throw new Error(`walkLineRanges gives more than ${most} lines at ${width}`) })
             lines = 0
-            for (let range = api.layoutNextLineRange(handle, START, width); range !== null; range = api.layoutNextLineRange(handle, range.end, width)) {
+            for (let range = api.layoutNextLineRange(handle, width, START); range !== null; range = api.layoutNextLineRange(handle, width, range.end)) {
               if (++lines > most) throw new Error(`layoutNextLineRange gives more than ${most} lines at ${width}`)
             }
             lines = 0

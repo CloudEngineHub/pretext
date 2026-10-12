@@ -18,9 +18,9 @@
 // fails its case instead of stalling the page, and so does a range that names no place in its text,
 // before its text is built, since builds before #353, which --lib can run, build the text of a range that ends at
 // segment Infinity without end. A cursor's place is found with the library's own graphemes (cursorOffsets), so the
-// adapter needs a build with src/graphemes.ts (from 2026-09-24), and for a rich case one whose materialized fragments
-// have sourceStart and sourceEnd (#460). The offline invariants (invariants.ts) call the same agreement checks and the
-// same cursor map.
+// adapter needs a build with src/graphemes.ts (from 2026-09-24), for a rich case one whose materialized fragments have
+// sourceStart and sourceEnd (#460), and one whose line streams take the width before the cursor, as the agreement
+// checks call them. The offline invariants (invariants.ts) call the same agreement checks and the same cursor map.
 import {
   layout, layoutNextLine, layoutNextLineRange, layoutWithLines, materializeLineRange, measureLineStats, prepare, prepareWithSegments,
   walkLineRanges, type LayoutCursor, type LayoutLineRange, type PrepareOptions, type PreparedTextWithSegments,
@@ -227,10 +227,10 @@ export function plainDisagreement(api: LineApis, prepared: PreparedTextWithSegme
   }
   let cursor: LayoutCursor = { segmentIndex: 0, graphemeIndex: 0 }
   for (let i = 0; ; i++) {
-    const range = api.layoutNextLineRange(prepared, cursor, width)
+    const range = api.layoutNextLineRange(prepared, width, cursor)
     // layoutNextLine builds the text of the same range.
     if (range !== null && offsetOf(range.end) < 0) return `layoutNextLineRange line ${i} is ${showRange(range)}, outside the text's ${segments} segments`
-    const line = api.layoutNextLine(prepared, cursor, width)
+    const line = api.layoutNextLine(prepared, width, cursor)
     if (range === null || line === null) {
       if (range !== line) return `at line ${i}, layoutNextLineRange ${range === null ? 'ends' : 'goes on'} and layoutNextLine ${line === null ? 'ends' : 'goes on'}`
       return i === n ? null : `layoutNextLineRange gives ${i} lines; walkLineRanges ${n}`
