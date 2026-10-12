@@ -426,7 +426,7 @@ describe('the stored recordings', () => {
     expect(() => parseArgs(['record', '--browser=firefox', '--zoom=1.25'])).toThrow('no switch')
   })
 
-  test('a flag its command doesn\'t read stops the run: dropped, record --onlynew recorded every case again over the checked-in recordings', () => {
+  test('a flag or an argument its command doesn\'t read stops the run: dropped, record --onlynew recorded every case again over the checked-in recordings', () => {
     const unread = [
       ['record', '--onlynew'], ['check', '--only-new'], ['check', '--browsers=chrome'], ['check', '--case=x.ndjson'], ['gate', '--samples=10'], ['equal', 'main', '--ofline'],
       ['bench', 'main', '--row=new'], ['bench', 'main', '--session=1'], ['bench', 'main', '--offline'], ['repin', 'chrome', '--wirte'], ['explain', '--text=a b', '--whitespace=pre-wrap'],
@@ -435,12 +435,20 @@ describe('the stored recordings', () => {
     // An argument that starts as a flag and isn't one was a positional nothing read.
     expect(() => parseArgs(['record', '--only_new'])).toThrow('--only_new isn\'t a flag')
     expect(() => parseArgs(['explain', '--text=a b', '--letterSpacing=2'])).toThrow('--letterSpacing=2 isn\'t a flag')
-    // Every flag cli.ts's header names parses with its command.
+    // An argument its command doesn't take stops the run too: a browser's name, a single-hyphen flag, or a flag's
+    // value written after a space, where gate --sample 10 read --sample as 0 and recorded no case again.
+    const extra = [
+      ['check', 'chrome'], ['check', '-h'], ['gate', '--sample', '10'], ['record', '--seed', '3'], ['check', '--accept', 'a reason'], ['equal', 'main', 'HEAD'],
+      ['bench', 'main', '--sessions', '1'], ['repin', 'chrome', 'firefox'], ['explain', 'sample-1', 'sample-2'],
+    ]
+    for (let i = 0; i < extra.length; i++) expect(() => parseArgs(extra[i]!)).toThrow(`${extra[i]![0]} takes no ${extra[i]!.at(-1)!}: `)
+    // Every flag a command reads parses with it, and so does the one argument four commands take.
     const taken = [
-      ['record', '--only-new', '--sample=5', '--seed=1', '--browser=chrome', '--cases=x.ndjson', '--lib=src', '--store=/tmp/store'], ['check', '--accept=why'], ['gate', '--sample=10', '--seed=7'],
-      ['equal', 'main', '--offline'], ['bench', 'main', '--sessions=2', '--rows=new', '--quick', '--foreground', '--lib=main'], ['repin', 'chrome', '--write'],
+      ['record', '--only-new', '--sample=5', '--seed=1', '--browser=chrome', '--cases=x.ndjson', '--lib=src', '--store=/tmp/store'], ['check', '--accept=why'], ['gate', '--accept=why', '--sample=10', '--seed=7'],
+      ['equal', 'main', '--offline'], ['bench', 'main', '--sessions=2', '--rows=new', '--quick', '--foreground', '--lib=main'], ['repin', 'safari', '--write', '--seed=7'],
       ['explain', '--text=a b', '--width=320', '--font=16px Arial', '--lang=en', '--white-space=pre-wrap', '--word-break=keep-all', '--letter-spacing=1'],
       ['check', '--browser=ios', '--runtime=iOS 26.0'], ['check', '--browser=chrome', '--scale=2'], ['check', '--browser=chrome', '--zoom=1.25'], ['check', '--help'],
+      ['explain', 'sample-1', '--browser=firefox'],
     ]
     for (let i = 0; i < taken.length; i++) expect(parseArgs(taken[i]!).command).toBe(taken[i]![0])
   })

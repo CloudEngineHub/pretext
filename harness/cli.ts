@@ -29,7 +29,7 @@
 //   --scale=<n>              Chrome and Firefox at device scale factor n; --zoom=<n>: Chrome at page zoom n
 //   --browser=ios --runtime="iOS 26.0"   Safari in a simulator of that runtime, booted for each job, deleted after it
 //   --store=<dir>            the folder these runs keep recordings and lists in, .artifacts/harness-store by default
-// A flag its command doesn't read stops the run. --help prints this header.
+// A flag or an argument its command doesn't read stops the run. --help prints this header.
 import { execFileSync } from 'node:child_process'
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { basename, join, resolve } from 'node:path'
@@ -77,6 +77,10 @@ const FLAGS = new Map<string, readonly string[]>([
   ['bench', ['sessions', 'rows', 'quick', 'foreground']], ['repin', ['write', 'seed']],
   ['explain', ['text', 'width', 'font', 'lang', 'white-space', 'word-break', 'letter-spacing']],
 ])
+// The commands that take one argument beside their flags: equal's ref, bench's base, repin's browser and explain's
+// case. Any other argument stops the run as an unread flag does: dropped, `check chrome` and `check -h` ran in three
+// browsers, and `gate --sample 10` read --sample as 0 and recorded no case again.
+const ARGUMENT: readonly string[] = ['equal', 'bench', 'repin', 'explain']
 
 // What --help, no command and an unknown command print: this file's header.
 function usage(): string {
@@ -99,6 +103,8 @@ export function parseArgs(args: readonly string[]): Args {
     for (const name of flags.keys()) {
       if (!reads.includes(name) && !SHARED.includes(name)) throw new Error(`${command} reads no --${name}; it reads ${reads.concat(SHARED).map(flag => `--${flag}`).join(', ')}`)
     }
+    const extra = positional[ARGUMENT.includes(command!) ? 2 : 1]
+    if (extra !== undefined) throw new Error(`${command} takes no ${extra}: a flag is written --name or --name=value, as in --browser=chrome`)
   }
   const browserFlag = flags.get('browser') ?? (command === 'explain' ? 'chrome' : 'all')
   const browsers: BrowserKind[] = browserFlag === 'all' ? BROWSERS.filter(browser => BROWSER[browser].background) : browserFlag.split(',') as BrowserKind[]
