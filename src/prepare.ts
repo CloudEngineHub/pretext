@@ -302,8 +302,9 @@ export type ParagraphLists = {
 // and not nested in it: nested, every call makes an object for the variables they read and
 // one for each of them, in every engine. Where that object is as large as a handle,
 // JavaScriptCore puts it in the handles' cells, one between each two, and Safari 27 ran
-// layout() over 2,000 short labels 14-17% slower. What two of them keep between their calls
-// for one text is beside them, and measureAnalysis() clears it.
+// layout() over 2,000 short labels 14-17% slower. Any object of 13 to 18 fields that every
+// prepare() makes and drops lands there too: with one planted here, 11-13% slower. What two
+// of them keep between calls for one text is beside them, and measureAnalysis() clears it.
 
 // A WebKit text item runs to its next break opportunity, so it also owns any
 // zero-width breaks before the space. The item is measured with one following
