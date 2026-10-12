@@ -1192,8 +1192,9 @@ alone in a new font, 15px Arial, makes 1.51 times main's `measureText` calls (97
 (287 to 355), the first 100 9% more and all of them 1.4% more (11,810 to 11,981). Those were counted before the font's
 question, which adds its two calls of 189 units to each. Alone in a new font that kerns, Gatsby paragraphs make 1.37
 times the calls, Hindi ones 1.21 and Thai ones 1.14; Chinese, Japanese and Korean ones stay within 2% in order and 6%
-alone, since ideographs, kana and Hangul syllables aren't asked about. Korean's figure rests on a premise (below): asked
-about, its syllables made 2.30 times main's calls in order and 3.16 times the units.
+alone, since ideographs, kana and Hangul syllables aren't asked about with the space (two kana in a row are asked about
+apart, below). Korean's figure rests on a premise (below): asked about, its syllables made 2.30 times main's calls in
+order and 3.16 times the units.
 
 The harness predicts its sample's 11,901 paragraphs in 72 documents, where their 331 font strings are new 1,764 times,
 1,508 of them with a text that holds a space: 6.7 paragraphs to a new font. There the calls grow 10.1% (245,597 to
@@ -1397,6 +1398,23 @@ vocabulary. The premises and their gaps:
 Kerning across a ZWSP or a soft hyphen before a space, across a rich item's edge and across the gap between two items
 stays missing (ENGINE_FOLLOWUPS.md). Letter-spaced text takes the kerning too, as Blink turns off only ligatures under
 spacing (Engine Facts, Chrome).
+
+The Chromium profile also takes the kerning between two kana (first built in #412; `getKanaKerning()` in
+`src/measurement.ts`, `addKanaKerning()` in `src/prepare.ts`). Blink's layout shapes a run of kana in one call, katakana
+with hiragana (`GetScriptForOpenType`, `script_run_iterator.cc:20-36`), so a font's pair kerning applies between them,
+and its Canvas starts a word at each kana or ideograph that follows another (`NextWordEndIndex`,
+`plain_text_node.cc:92-153`) and reports none of it. Nineteen faces of macOS 27 kern kana, each its own pairs (2,458 of
+33,489 in Hiragino Sans; all tighten, but for Klee's), and Osaka, Hiragino Sans GB, BIZ UDGothic, PingFang and Apple SD
+Gothic Neo kern none; a family macOS lacks, as Meiryo or Noto Sans JP, falls back to Hiragino Sans (every pair of 183
+kana on the page in 92 font specs, pinned Chrome 154.0.8037.57, 2026-10-02). A second context under `textRendering =
+'optimizeLegibility'` shapes a string whole where the lookups of its list's first font cover the space glyph (Engine
+Facts, Chrome): there a pair less each kana alone was the page's kerning to 0.02px for every pair in 86 of the 92 specs.
+Under a list led by Helvetica Neue, Verdana or Georgia it cuts as the first context does, so such a list is asked again
+without its first families (`getFontKanaKerning()` has the two tests a shorter list passes). Of 1,200 held-out pairs of
+a Japanese Wikipedia paragraph and a width in four Hiragino lists, 242 had a line on another character than Chrome's
+without the kerning, 25 of them a wrong line count, and none has with it; the harness's sample goes from 21 failing
+draws inside what Pretext claims to 6 (pinned Chrome 154.0.8037.98, 2026-10-11). ENGINE_FOLLOWUPS.md, Kerning between
+kana, has what is left, and the Decisions Log, 2026-10-11, the price.
 
 Where a pair's adjustment sits decides what a break inside the pair leaves on each side: GPOS pair positioning puts it
 all on the first glyph, the legacy `kern` table half on each (`hb-kern.hh:102-106`). On macOS, Times New Roman, Verdana,
@@ -4626,7 +4644,8 @@ Mostly on main as it was then, measured with the old suite in installed browsers
   both, and on the harness both fixed 4 or 5 of the sample's 11 kerning failures and lost one or two of its passes,
   for 66% more `measureText` calls on the sample. In the default state the same measurement changes nothing, since
   Canvas cuts at the U+0020 (pinned Chrome 154, 2026-09-30). The profile uses `fontKerning` only to learn, once per
-  font, whether it kerns with the space.
+  font, whether it kerns with the space or between kana, and a context under `optimizeLegibility` only for two kana in
+  a row (Kerning At Line Edges).
 - **A word measured whole with its spaces in Chrome**, U+2028 standing for them, as the WebKit profile measures a word
   with its U+0020: exact for the word, and it fixed 10 of the sample's 11 kerning failures, but every distinct word
   costs a second Canvas call for the space after it and a third for the space before it, 67% more calls and 118% more
@@ -6121,3 +6140,18 @@ decisions for the maintainer.
   ways; Canvas at the font size times the device pixel ratio, divided by the ratio, gave the page's width at each of
   18 sizes of Arial from 9 to 26px in Chrome and Firefox in that run), or with a harness page that has CSS of its
   own, which would hold these states in place where today no check does.
+- **2026-10-11: the Chromium profile takes the kerning between kana, and Japanese text in a font that kerns kana pays
+  for it**, the maintainer's decision. The fix was first built as #412 and closed then for its cost against what the
+  harness showed, 15 failing sample cases of which 1 was a wrong height. A held-out trial then found a line on another
+  character than Chrome's in one in five of 1,200 pairs of a Japanese paragraph and a width, and a wrong height in one
+  in fifty, in every Hiragino list tried (Part 2, Kerning At Line Edges). What it costs, in Chrome alone, by the bench
+  with its CJK rows as Japanese text in 16px Hiragino Sans (Chrome 154.0.8037.98, 2026-10-11, two runs): text prepared
+  again reads 6.3% and 7.8% slower, a keep-all paragraph prepared again 4 to 6%, the line functions 2 to 5% over such
+  text, whose widths are no longer whole pixels (the stream 4.6% and 4.9%; `layout()` about 2%, within the bench's
+  noise), and new text about a fifth in each run (21.6% and 24.5%), which bands as wide don't settle. Text new to such a
+  font makes about 1.9 times the `measureText` calls until its pairs are known, and each font string that kerns kana
+  keeps a table of 292 KB. Chinese text in PingFang TC, which kerns no kana, reads level. Tried and not kept: the kana
+  at a segment's edges kept with its metrics and the kerning added in the measuring loop, in place of a second pass over
+  the text, read 6.8% slower on text prepared again, no faster, for more code in the loop every text runs. Reopens if
+  Chrome ships `TextMetrics.getTextClusters()`, which gives a run's pairs in one call, or with a cheaper way to find a
+  text's pairs.
