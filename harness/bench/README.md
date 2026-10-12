@@ -198,7 +198,11 @@ before the glyph spacings did, costs a tenth as much there.
   foreground form, or more runs. The letter-spaced Hindi and Arabic documents joined `worst` on 2026-10-12 and take
   its 2%: in five runs of the row, a build against itself (e440dd64, the same browsers and machine, each run alone), a
   copy held 2% or less on their twelve entries in 118 of 120 readings, 1.6% at most in webkit-host, and one entry was
-  called, Firefox's `hindi-letter-spaced prepare-cleared`, at -5.8%, -2.5% and -4.2%.
+  called, Firefox's `hindi-letter-spaced prepare-cleared`, at -5.8%, -2.5% and -4.2%. Two runs of the row with main
+  against itself (abd3e10b, where a pass of `prepare-cleared` costs webkit-host a tenth as much) called none of its 66
+  entries; a copy held more than 2% on three of those twelve entries' 48 readings, none in webkit-host: Chrome's
+  `hindi-letter-spaced prepare` 2.5%, and Firefox's `arabic-letter-spaced prepare-cleared` 2.2% in one run and 4.0%,
+  on the control, in the other.
 - **The foreground's floors.** Floors from the worst single reading would be too wide, since one copy can run slow for a
   whole document (in one session Firefox 156.0.1's base copy took about twice as long as the other two on kept CJK
   handles, 2026-09-26), and would have hidden a real 20-25% slowdown. These floors flag all four slowdowns known between
@@ -248,6 +252,13 @@ before the glyph spacings did, costs a tenth as much there.
   wide, so an entry there says nothing of a smaller change, and one it calls has its control nearly as far out: read a
   change to new text in the other two browsers' rows, and time Firefox's again alone (`--browser=firefox --rows=new`) or
   in the foreground before quoting it.
+- **webkit-host's `worst: cjk-letter-spaced prepare`.** A copy of the library can keep another speed for that document:
+  a copy of base's own code sat 18% to 33% from base in 11 of 94 session readings (the controls of 17 runs and the
+  candidates of the seven of them that timed a build against itself, with abd3e10b, 3585bb66 or e440dd64 as base;
+  2026-10-11 and 12, webkit-host on WebKit 22625.1.29.11.27), and a build against itself was called slower there in
+  one run of five, at +10.0%, +23.0% and +23.5% (e440dd64). The band covers such a copy only when it is the control's
+  (Reading a table), so read a change to letter-spaced CJK preparation there over ten sessions (`--rows=worst
+  --browser=webkit-host --sessions=10`).
 
 ## Session times
 
