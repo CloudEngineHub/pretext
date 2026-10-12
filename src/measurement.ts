@@ -422,12 +422,12 @@ const LETTER_SPACED_SHAPING = '0.000001px'
 // that preparation measures anything. A handle keeps its own widths, so nothing prepared
 // changes; text prepared afterwards is measured again. Prose adds segments ever more slowly,
 // but ids, numbers and URLs never repeat, so without a bound the caches grow for as long as the
-// page lives. The bound is a safety net well above what a page uses, not a tuned size: 11,290
-// texts of 883,084 units in one font fill 71,294 segments in the Chromium profile, 90,023 in
-// Gecko's and 115,367 in WebKit's, 241-363 B each in JavaScriptCore, and a bound under a page's
-// own count has its text measured again and again: at 65,536, preparing those texts a second
-// time asks Canvas 81,286 to 196,534 times, where under no bound it asks nothing (stand-in
-// Canvas, 2026-10-12).
+// page lives. The bound is a safety net well above what a page uses, not a tuned size: the
+// 11,290 plain texts of the harness's real-usage sample, 883,084 units, fill in one font 71,294
+// segments in the Chromium profile, 90,023 in Gecko's and 115,367 in WebKit's, 241-363 B each in
+// JavaScriptCore, and a bound under a page's own count has its text measured again and again:
+// at 65,536, preparing those texts a second time asks Canvas 81,286 to 196,534 times, where
+// under no bound it asks nothing (the harness's stand-in Canvas, 2026-10-12).
 const MAX_CACHED_SEGMENTS = 1 << 18
 
 // Graphemes the emoji font may draw a glyph in, which Canvas widths then tell
@@ -1295,9 +1295,10 @@ function measureFitAdvances(
 // prefixes and line-edge facts all come from that shaping. The context isn't touched
 // here: text that is all in the font's caches measures nothing (getContext).
 export function getFontMeasurement(font: string, language: string | null, letterSpaced: boolean): FontMeasurement {
-  // Preparation starts here, with the language it resolved. After that language
-  // changes, start again with a new context and empty caches; clearing the caches
-  // alone would re-measure with fonts resolved under the old language.
+  // Measuring starts here, for a text and for each item of a rich-inline paragraph, with the
+  // language the preparation resolved. After that language changes, start again with a new
+  // context and empty caches; clearing the caches alone would re-measure with fonts resolved
+  // under the old language.
   if (measureState === null || measureState.language !== language) measureState = createMeasureState(language)
   const state = measureState
   const shaped = letterSpaced && state.shapesLetterSpaced
