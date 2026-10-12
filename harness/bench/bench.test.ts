@@ -245,6 +245,20 @@ describe('sessions side by side', () => {
     expect([...failed]).toEqual([['chrome', 'session 2: stalled']])
     expect(all.map(r => `${r.browser} ${r.session}`)).toEqual(['chrome 0', 'chrome 2', 'firefox 0', 'firefox 1', 'firefox 2'])
   })
+
+  test('two sessions side by side are confirmed by the floors fitted to them, and two in the foreground by the foreground\'s: a lines document whose copy sits 2.5% from base, noise side by side, would be timed a third time', async () => {
+    const timed = async (together: boolean): Promise<string[]> => {
+      const given: string[] = []
+      const time = (browser: BrowserKind, docs: Planned[]): Promise<Map<string, DocResult>> => {
+        given.push(`${browser} ${docs.length}`)
+        return Promise.resolve(new Map(docs.map(d => [d.id, { id: d.id, timerStep: 0.005, start: snapshot, end: snapshot, ops: d.ops.map(spec => ({ op: spec.op, rounds: rounds(1.025, 1) })) }])))
+      }
+      await runSessions(['chrome'], 2, seed => documents(['lines'], seed, false), { time, save: () => {}, log: () => {} }, together)
+      return given
+    }
+    expect(await timed(true)).toEqual(['chrome 3', 'chrome 3'])
+    expect(await timed(false)).toEqual(['chrome 3', 'chrome 3', 'chrome 3'])
+  })
 })
 
 describe('the quick plan', () => {

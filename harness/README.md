@@ -299,7 +299,7 @@ claims rest on these ratios; nothing timed is checked in.
   page is hidden and slowed: the output counts the documents that ran hidden, and a run that counts any is timed again.
 - **`--quick`** times three rounds a document, where the default times twelve or sixteen, and no fresh page, in about
   45 s, for iterating. No claim rests on it: it calls main against itself on one to three entries a run, and of a build
-  with work planted in it it called 50 and 52 entries where the default called 71.
+  with work planted in it it called 50 and 52 entries where the default called 67.
 - **`--foreground`** times pinned Chrome and Firefox and installed Safari in focused windows, one at a time: two
   sessions and a third of the documents whose entries were called, about eleven minutes with the screen, by floors of
   its own. A release's bench against the last release uses it (`DEVELOPMENT.md`, Releasing).

@@ -115,8 +115,9 @@ of its other four documents goes to the full walker.
   #435's slowdown was called in Chrome in both of two quick runs and in Firefox in neither, where the default called
   Chrome's in three runs of three and Firefox's in one; and a build with work planted in it (15% more counting in
   `layout()`, 5% more walking in `measureLineStats()`, 15% more Canvas calls on new text) was called on 52 and 50
-  entries where the default called 71. So it says where to look while a change is being written, a call or a level
-  reading there is a hypothesis, and the table a change lands on is the default's.
+  entries by either form's floors, where the default called 71 by the foreground's and 67 by its own. So it says where
+  to look while a change is being written, a call or a level reading there is a hypothesis, and the table a change
+  lands on is the default's.
 
 ## Reading a table
 
@@ -239,9 +240,9 @@ of its other four documents goes to the full walker.
 
 ## Session times
 
-Side by side, a run takes its slowest session's time: a session of every row took about 88 s in webkit-host, 100 s in
-Chrome and 137 s in Firefox with nine at once, and a run 133 to 137 s (2026-10-11). In the foreground a session of every
-row takes 96 s in Chrome, 117 s in Firefox and 98 s in Safari (six sessions each, 2026-10-07; a document that loses
-focus waits a minute and starts again): a little over ten minutes for the two, and then the confirming sessions, which
-would have timed 57 of the third sessions' 145 documents in the 19 runs above (Protocol). A quick run took 42 to 44 s.
-Nothing timed is checked in.
+Side by side, a run takes its slowest session's time: a session of every row took 84 to 88 s in webkit-host, 97 to
+101 s in Chrome and 131 to 138 s in Firefox with nine at once, and a run 133 to 138 s (24 runs, 2026-10-11). In the
+foreground a session of every row takes 96 s in Chrome, 117 s in Firefox and 98 s in Safari (six sessions each,
+2026-10-07; a document that loses focus waits a minute and starts again): a little over ten minutes for the two, and
+then the confirming sessions, which would have timed 57 of the third sessions' 145 documents in the 19 runs above
+(Protocol). A quick run took 42 to 44 s. Nothing timed is checked in.
