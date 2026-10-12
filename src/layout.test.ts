@@ -8414,6 +8414,12 @@ test("a font string Canvas doesn't take throws, and the question leaves later me
     for (const font of ${JSON.stringify([...bad, bad[0]])}) rows.refused.push(width('hello', font))
     rows.refused.push(width('world!', '32px Test'))
     rows.refused.push(caught(() => prepareRichInline([{ text: 'ab', font: '32px Test' }, { text: 'cd', font: '' }])), width('again!', '32px Test'))
+    // Under a letter spacing the Chromium and Gecko profiles keep a font's measurements apart from
+    // its unspaced ones, and a font is asked about there too: a string the context ignores
+    // throws, and the font prepared before it is measured in itself, with 1px after each of
+    // the word's five letters, and unspaced.
+    const spaced = (text, font) => caught(() => measureNaturalWidth(prepare(text, font, { letterSpacing: 1 })))
+    rows.spaced = [spaced('hello', ''), spaced('hello', 'Test 16px'), spaced('hello', '32px Test'), width('spaced', '32px Test')]
     // The shapes of the CSS font shorthand: a style, a variant, a weight as a word or a number,
     // a stretch, a line height, families quoted, unquoted and listed, generic families, and
     // sizes that aren't in px, the last two of them relative to a font. The text has two kana
@@ -8459,6 +8465,7 @@ test("a font string Canvas doesn't take throws, and the question leaves later me
   // question's own fonts and the other kana lists were all taken.
   const rows = (thrown: string[], kana: string[][], cutLists: string[]): unknown => ({
     refused: [80, ...bad.map(refused), refused(bad[0]!), 96, refused(''), 96],
+    spaced: [refused(''), refused(bad[0]!), 85, 96],
     thrown,
     kana,
     taken: [40, 2.5, 5, 20],
