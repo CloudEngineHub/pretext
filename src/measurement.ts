@@ -169,6 +169,24 @@ export type EngineProfile = {
   // prepare.ts). In 16px Arial at 76-80px Safari 27 lays out
   // `the interna\u00ADtion\u00ADal` as `the` / `interna-` / `tional`, and at 40px
   // `trans\u00ADi\u00ADt\u00ADlantic` starts with `trans-`, 40.9px wide.
+  // Each engine tests the hyphen against the line as it shapes it, which the
+  // segments, measured apart, are wider than where letters kern or join across a
+  // soft hyphen. Blink reads the line's width from the item shaped whole, soft
+  // hyphens and all, and shapes the line's end again where the break isn't safe,
+  // as between two kerned letters (the width BreakText tests, line_breaker.cc:
+  // 1684-1703; ShapingLineBreaker::ShapeLine, shaping_line_breaker.cc:511-559): the
+  // pairs across the soft hyphens a line passes narrow it, and the pair across the
+  // one it ends at doesn't. Gecko drops soft hyphens from its text run
+  // (IsDiscardable, nsTextFrameUtils.cpp:32-49), shapes a word once, whole
+  // (SetLineBreaks, gfxTextRun.cpp:1292-1301), and adds up the advances before the
+  // break (BreakAndMeasureText, gfxTextRun.cpp:1085-1097, 1139-1151), so there the
+  // line's last letter keeps what the pair across its end put on its advance.
+  // Premise: all of what the two sides measure narrower joined, as a GPOS pair's
+  // kerning is. Its gap is a pair from a `kern` table, of which HarfBuzz leaves half
+  // on the first letter (hb-kern.hh:102-106), and a ligature across the soft
+  // hyphen, whose letters share its advance (ComputeLigatureData, gfxTextRun.cpp:
+  // 238-322): there the profile keeps a hyphen that overflows by more than Firefox
+  // lets it (ENGINE_FOLLOWUPS.md, Line edges).
   unfitHyphenRetreat: 'reduced-width' | 'full-width' | 'full-width-or-first'
   // A chosen soft hyphen paints U+2010 where a font has a glyph for it, else `-`.
   // WebKit and Blink ask the primary font alone (hyphenString,

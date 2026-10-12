@@ -1971,7 +1971,7 @@ describe('prepare invariants', () => {
     }
   })
 
-  test('Blink keeps an unfit hyphen where the text around the soft hyphen measures narrower joined by the overflow', () => {
+  test('an unfit hyphen stays where the soft hyphens its line passes narrow their neighbours by the overflow, and in Gecko the one it ends at', () => {
     const profile = getEngineProfile()
     const previous = profile.unfitHyphenRetreat
     const measureText = Object.getOwnPropertyDescriptor(TestCanvasRenderingContext2D.prototype, 'measureText')!
@@ -1982,17 +1982,32 @@ describe('prepare invariants', () => {
         return { width: measureWidth(text, this.font) - 2 * (text.match(/AV/g) ?? []).length }
       },
     })
-    profile.unfitHyphenRetreat = 'reduced-width'
     try {
       const font = '16px Kerning Test Sans'
-      expect(layoutWithLines(prepareWithSegments('ab B\u00ADVAV', font), 36, LINE_HEIGHT).lines.map(line => line.text))
-        .toEqual(['ab ', 'B-', 'VAV'])
-      // A and VAV measure 2px narrower joined: the hyphen line stays where it
-      // overflows by less, and returns where it overflows by more.
-      const joined = prepareWithSegments('ab A\u00ADVAV', font)
-      const hyphenLine = measureWidth('ab A', font) + internals(joined).discretionaryHyphenWidth
-      expect(layoutWithLines(joined, hyphenLine - 1, LINE_HEIGHT).lines.map(line => line.text)).toEqual(['ab A-', 'VAV'])
-      expect(layoutWithLines(joined, hyphenLine - 3, LINE_HEIGHT).lines.map(line => line.text)).toEqual(['ab ', 'AVAV'])
+      const lines = (text: string, width: number): string[] => {
+        const prepared = prepareWithSegments(text, font)
+        const result = layoutWithLines(prepared, width, LINE_HEIGHT).lines.map(line => line.text)
+        expect(collectStreamedLines(prepared, width).map(line => line.text)).toEqual(result)
+        expect(layout(prepare(text, font), width, LINE_HEIGHT).lineCount).toBe(result.length)
+        return result
+      }
+      const hyphen = internals(prepareWithSegments('a\u00ADb', font)).discretionaryHyphenWidth
+      for (const retreat of ['reduced-width', 'full-width'] as const) {
+        profile.unfitHyphenRetreat = retreat
+        expect(lines('ab B\u00ADVAV', 36)).toEqual(['ab ', 'B-', 'VAV'])
+        // The line passes the soft hyphen between A and V, which the engine shapes across: its
+        // hyphen stays where it overflows by less than the 2px, and returns where by more.
+        const passed = 'ab A\u00ADVx\u00ADyz'
+        const passedLine = measureWidth('ab A', font) + measureWidth('Vx', font) + hyphen
+        expect(lines(passed, passedLine - 1)).toEqual(['ab AVx-', 'yz'])
+        expect(lines(passed, passedLine - 3)).toEqual(['ab A-', 'Vxyz'])
+        // The line ends at that soft hyphen. Gecko's line keeps the kerning on its last letter,
+        // and Blink's, shaped again at its end, has none of it.
+        const ended = 'ab A\u00ADVAV'
+        const endedLine = measureWidth('ab A', font) + hyphen
+        expect(lines(ended, endedLine - 1)).toEqual(retreat === 'full-width' ? ['ab A-', 'VAV'] : ['ab ', 'AVAV'])
+        expect(lines(ended, endedLine - 3)).toEqual(['ab ', 'AVAV'])
+      }
     } finally {
       Object.defineProperty(TestCanvasRenderingContext2D.prototype, 'measureText', measureText)
       profile.unfitHyphenRetreat = previous

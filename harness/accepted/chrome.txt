@@ -85,6 +85,9 @@ rich-86cdfab93b144e71 count
 rich-959420c66f7e0ac2 breaks
 rich-a3758e3807dd0add count
 
+## Arabic letters joined across the soft hyphen a line ends at, in 16 px Noto Naskh Arabic at 1 px letter spacing and 46 px: Blink shapes the line's end again with the text after the break as context (ShapingLineBreaker::ShapeLine, shaping_line_breaker.cc:511-559), so the letter before the soft hyphen keeps its joining form and Chrome's `بب ببب-` is 35.76 px wide and stays, where the profile sums the two sides measured apart, 49.30 px, and returns to the space; it passed only while the profile counted, at the soft hyphen a line ends at, what the two sides measure narrower joined, which is none of Blink's line between kerned letters (ENGINE_FOLLOWUPS.md, Line edges)
+catalog-92b4511c3afb9973 count
+
 ## CJK beside Latin, closing punctuation, small kana or U+FFFC, and CJK under keep-all or a changed page language, at 24 px and wider: Chrome breaks there where the library doesn't
 catalog-02ca7fd9ca677cc3 count
 catalog-049257d4c1e29d62 count
@@ -173,7 +176,6 @@ catalog-e9143587a70f29e6 breaks
 catalog-eb1540de8b7e83c5 count
 catalog-ef80bea8577ea4c7 count
 catalog-f3e9817d3ecaac20 count
-catalog-f4eb54b166bade8f count
 catalog-f842244a21359caf count
 catalog-fc2fc27d218a91d8 count
 facts-1fe27e7853d9044e breaks

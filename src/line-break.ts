@@ -418,20 +418,24 @@ function staysAfterObject(segmentFlags: Uint8Array, segmentCount: number, start:
 // `breakWidth`, returns to an earlier opportunity: where it ends at a selected
 // discretionary hyphen that doesn't fit. A return needs an overflow that isolated
 // widths can show: the soft hyphens on the line may measure narrower joined than apart
-// by less than the overflow.
+// by less than the overflow. Those are the soft hyphens the line passes, whose text the
+// engine shapes whole, and with `endKeepsJoin` the one the line ends at too
+// (EngineProfile, unfitHyphenRetreat).
 function returnsFromUnfitHyphen(
   prepared: PreparedLineData,
   lineStartSegmentIndex: number,
   breakSegmentIndex: number,
   breakWidth: number,
   fitLimit: number,
+  endKeepsJoin: boolean,
 ): boolean {
   const { discretionaryHyphenContexts, segmentFlags } = prepared
   const softHyphenIndex = breakSegmentIndex - 1
   if (softHyphenIndex < lineStartSegmentIndex || (segmentFlags[softHyphenIndex]! & KIND_BITS) !== SOFT_HYPHEN || breakWidth <= fitLimit) return false
   const overflow = breakWidth - fitLimit
   let narrowing = 0
-  if (discretionaryHyphenContexts !== null) for (let i = lineStartSegmentIndex; i <= softHyphenIndex; i++) narrowing += discretionaryHyphenContexts[i]!
+  const last = endKeepsJoin ? softHyphenIndex : softHyphenIndex - 1
+  if (discretionaryHyphenContexts !== null) for (let i = lineStartSegmentIndex; i <= last; i++) narrowing += discretionaryHyphenContexts[i]!
   return narrowing < overflow
 }
 
@@ -503,6 +507,9 @@ function walkPreparedComplexLines(
   // the soft hyphen the line reaches before any of its opportunities has fit, since one
   // without a hyphen fits where the text before it did.
   const keepsFirstBreak = retreatsFromUnfitHyphen && engineProfile.unfitHyphenRetreat === 'full-width-or-first'
+  // Gecko's line keeps what the letters on the two sides of the soft hyphen it ends at
+  // measure narrower joined. Blink shapes the line's end again, without it.
+  const hyphenEndKeepsJoin = engineProfile.unfitHyphenRetreat === 'full-width'
 
   let lastLineWidth: number | null = null
   while (true) {
@@ -978,7 +985,7 @@ function walkPreparedComplexLines(
           fitBreakSegmentIndex >= 0 &&
           pendingBreakSegmentIndex === lineEndSegmentIndex &&
           lineEndGraphemeIndex === 0 &&
-          returnsFromUnfitHyphen(prepared, lineStartSegmentIndex, lineEndSegmentIndex, pendingBreakWidth, fitLimit)
+          returnsFromUnfitHyphen(prepared, lineStartSegmentIndex, lineEndSegmentIndex, pendingBreakWidth, fitLimit, hyphenEndKeepsJoin)
         ) {
           endSegmentIndex = fitBreakSegmentIndex
           endGraphemeIndex = 0

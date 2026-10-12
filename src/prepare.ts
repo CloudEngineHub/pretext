@@ -317,7 +317,9 @@ function getTailKerning(item: string, measurement: FontMeasurement, spaceWidth: 
 // the unbroken text together: cursive joins, marks and kerning across the soft
 // hyphen. Canvas shows how much narrower the neighbors measure joined than
 // apart, which isolated widths can't show when proving that a hyphen overflows.
-// WebKit's return fits each side as measured alone and takes none (unfitHyphenRetreat).
+// A line counts it for the soft hyphens it passes, and in Gecko for the one it
+// ends at (returnsFromUnfitHyphen in src/line-break.ts). WebKit's return fits each
+// side as measured alone and takes none (unfitHyphenRetreat).
 function getJoinedNarrowing(analysis: TextAnalysis, analysisIndex: number, to: number, before: string | null, beforeMetrics: SegmentMetrics | null, measurement: FontMeasurement, emojiCorrection: number, lineFitEpsilon: number): number {
   if (before === null) return 0
   const { texts, flags } = analysis
