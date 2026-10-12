@@ -6346,12 +6346,13 @@ decisions for the maintainer.
   line off Safari's and 16 do (webkit-host, WebKit 22625.1.29.11.27). Three costs were accepted, each in the PR in full:
   a `measureText` call more for each prefix of such a word new to its font, which WebKit shapes every time, so that the
   first `prepare()` of 94 new Hindi paragraphs took 55-56 ms where it took 35-42 before, and of 400 Arabic ones 73-74
-  where 37-38; one cache for a font's letter-spaced and unspaced text, so that on a Safari page that uses a font both
-  ways, which of the two pays to measure a shared word shifts; and a field more on each cached segment, 4 to 16 B.
-  Firefox's `resize: cjk layout at new widths` read 6.1 to 12.6% slower with it and 8.6 to 10.8% faster with #512, by
-  preparation code `layout()` never runs, and level across the two (harness/bench/README.md, Entries that misread). What
-  it leaves is under Letter spacing in ENGINE_FOLLOWUPS.md. Reopens with a Canvas call that gives a run's glyphs at
-  once, or with an app whose letter-spaced Indic or Arabic text shows the cost of a first `prepare()`.
+  where 37-38; a letter-spaced word measured with the space after it, as an unspaced one is, in the cache the two share,
+  so that on a Safari page that uses a font both ways, which of the two pays to measure a shared word shifts; and a
+  field more on each cached segment, 4 to 16 B. Firefox's `resize: cjk layout at new widths` read 6.1 to 12.6% slower
+  with it and 8.6 to 10.8% faster with #512, by preparation code `layout()` never runs, and level across the two
+  (harness/bench/README.md, Entries that misread). What it leaves is under Letter spacing in ENGINE_FOLLOWUPS.md.
+  Reopens with a Canvas call that gives a run's glyphs at once, or with an app whose letter-spaced Indic or Arabic text
+  shows the cost of a first `prepare()`.
 - **2026-10-12: the WebKit profile keeps reading the emoji-correction span**, the maintainer's decision. Not reading it
   there was weighed, since the read forces layout once per font string and Safari's Canvas and page were taken to agree
   on an emoji's width. On a page that isn't zoomed they do, 0 px apart in 19,188 cells of 36 fonts by 41 sizes in 13
