@@ -8352,6 +8352,126 @@ test('letter spacing leaves out cursive scripts as Chrome and Firefox do', () =>
   expect([chrome.rich, firefox.rich, safari.rich]).toEqual([40, 40, 48])
 })
 
+test("a font string Canvas doesn't take throws, and the question leaves later measurements as they were", () => {
+  // The engine profile is computed once per process, so each engine runs in a child process,
+  // under `ja`, a language whose generic families the WebKit profile names in the Canvas font.
+  // Like a browser's, the context's font setter ignores a string that isn't a CSS font shorthand
+  // and keeps the font it had; under Firefox's user agent it ignores a size in em or %, as
+  // Firefox's OffscreenCanvas does. Like Safari's, the context takes a face the page adds only
+  // when its font string changes: until then a family named Late measures twice as wide. A
+  // character is half its font's size wide, the size being the font's first px length, else 16.
+  // Unrefused, a string the context ignores was measured in whatever font the context held
+  // last: `Test 16px` after a 32px text measured `hello` 80px wide.
+  const layoutUrl = new URL('./layout.ts', import.meta.url).href
+  const richInlineUrl = new URL('./rich-inline.ts', import.meta.url).href
+  const bad = ['Test 16px', '16px', '', 'bold Test', 'var(--font)', '16px Source Sans 3']
+  const rowsOf = (userAgent: string): unknown => JSON.parse(runInChild(`
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { userAgent: ${JSON.stringify(userAgent)} } })
+    const family = /(?:"[^"]*"|'[^']*'|-?[A-Za-z_][\\w-]*(?: +-?[A-Za-z_][\\w-]*)*)/.source
+    const size = /(?:\\d*\\.?\\d+(?:px|pt|em|%)|calc\\([^)]*\\)|large)/.source
+    const settings = /(?:(?:italic|oblique(?: +\\d+deg)?|small-caps|bold|[1-9]\\d{0,2}|(?:semi-)?condensed) +)*/.source
+    const lineHeight = /(?: *\\/ *(?:normal|[\\d.]+(?:px)?))?/.source
+    const shorthand = new RegExp('^' + settings + size + lineHeight + ' +' + family + '(?: *, *' + family + ')*$')
+    const takes = navigator.userAgent.includes('Firefox/') ? value => shorthand.test(value) && !/^[\\d.]+(?:em|%)/.test(value) : value => shorthand.test(value)
+    const assigned = []
+    const probed = []
+    let added = false
+    class Context {
+      taken = '10px sans-serif'
+      face = false
+      letterSpacing = '0px'
+      fontKerning = 'auto'
+      textRendering = 'auto'
+      get font() { return this.taken }
+      set font(value) {
+        assigned.push(value)
+        if (!takes(value) || value === this.taken) return
+        this.taken = value
+        this.face = added
+      }
+      measureText(text) {
+        if (this.textRendering !== 'auto') probed.push(this.taken)
+        const width = text.length * Number.parseFloat(/([\\d.]+)px/.exec(this.taken)?.[1] ?? '16') / 2 * (this.taken.includes('Late') && !this.face ? 2 : 1)
+        return { width, actualBoundingBoxLeft: 0, actualBoundingBoxRight: width }
+      }
+    }
+    globalThis.OffscreenCanvas = class { getContext() { return new Context() } }
+    const { prepare, measureNaturalWidth, clearCache, setLocale } = await import(${JSON.stringify(layoutUrl)})
+    const { prepareRichInline } = await import(${JSON.stringify(richInlineUrl)})
+    setLocale('ja')
+    const caught = make => {
+      try {
+        return make()
+      } catch (error) {
+        return error.name + ': ' + error.message
+      }
+    }
+    const width = (text, font) => caught(() => measureNaturalWidth(prepare(text, font)))
+    const rows = {}
+    // A string the context ignores throws each time it is given, as a rich item's font too, and
+    // new text in the font prepared before it is then measured in that font.
+    rows.refused = [width('hello', '32px Test')]
+    for (const font of ${JSON.stringify([...bad, bad[0]])}) rows.refused.push(width('hello', font))
+    rows.refused.push(width('world!', '32px Test'))
+    rows.refused.push(caught(() => prepareRichInline([{ text: 'ab', font: '32px Test' }, { text: 'cd', font: '' }])), width('again!', '32px Test'))
+    // The shapes of the CSS font shorthand: a style, a variant, a weight as a word or a number,
+    // a stretch, a line height, families quoted, unquoted and listed, generic families, and
+    // sizes that aren't in px, the last two of them relative to a font. The text has two kana
+    // in a row, for which the Chromium profile asks a second context.
+    rows.thrown = [
+      '16px Test', 'italic 16px Test', 'oblique 10deg 16px Test', 'small-caps bold 16px Test', '450 16px Test', 'italic 600 semi-condensed 16px/20px Test',
+      '16px/1.2 Test', '16px / normal Test', '16px "Two Words"', "16px 'Two Words'", '16px Two Words', '16px Test, "Two Words", serif',
+      '16px serif', '16px sans-serif', '16px monospace', '16px cursive', '16px fantasy', '16px system-ui', '16px ui-monospace, monospace',
+      '12pt Test', 'large Test', '12pt/1.5 serif', 'calc(1px + 1pt) Test, serif', '1.5em Test', '120% Test',
+    ].filter(font => typeof width('\\u304B\\u306A a', font) === 'string')
+    // The fonts the second context measured kana under for a font that kerns none: the font's
+    // list and the list without its first family, or the font's list alone where the shorter
+    // one, cut inside calc(), is no font string and the context keeps the font's.
+    const under = font => {
+      probed.length = 0
+      width('\\u304B\\u306A', font)
+      return [...new Set(probed)]
+    }
+    rows.kana = [under('20px Test, serif'), under('calc(2px + 1pt) Test, serif')]
+    // A font the context takes is measured in itself, the two the question sets among them.
+    rows.taken = [width('hello', '16px Test'), width('hello', '1px serif'), width('hello', '2px serif'), width('hello', 'italic 600 8px Test')]
+    // A font asked about already isn't asked about again, until the caches are cleared.
+    const before = assigned.length
+    width('hello', '16px Test')
+    rows.again = assigned.length - before
+    clearCache()
+    width('hello', '16px Test')
+    rows.cleared = assigned.slice(before)
+    // A face added after its font was measured: new text in the font still measures without
+    // it, and after clearCache() the question has changed the context's font string, so the
+    // text measured before takes it.
+    rows.late = [width('late', '16px Late')]
+    added = true
+    rows.late.push(width('more', '16px Late'))
+    clearCache()
+    rows.late.push(width('late', '16px Late'))
+    rows.ignored = [...new Set(assigned.filter(value => !takes(value)))]
+    console.log(JSON.stringify(rows))
+  `))
+  const refused = (font: string): string => `RangeError: font must be a font string Canvas takes, a size in px then a family, such as 16px Inter, not "${font}"`
+  // Everything the contexts ignored is a string that threw, but for the Chromium profile's two
+  // shorter lists cut inside calc(): the caller's fonts as the WebKit profile rewrites them, the
+  // question's own fonts and the other kana lists were all taken.
+  const rows = (thrown: string[], kana: string[][], cutLists: string[]): unknown => ({
+    refused: [80, ...bad.map(refused), refused(bad[0]!), 96, refused(''), 96],
+    thrown,
+    kana,
+    taken: [40, 2.5, 5, 20],
+    again: 0,
+    cleared: ['1px serif', '16px Test', '16px Test'],
+    late: [64, 64, 32],
+    ignored: [...bad, ...cutLists, ...thrown],
+  })
+  expect(rowsOf(CHROME_USER_AGENT)).toEqual(rows([], [['20px Test, serif', '20px  serif'], ['calc(2px + 1pt) Test, serif']], ['calc(1px  serif', 'calc(2px  serif']))
+  expect(rowsOf(FIREFOX_USER_AGENT)).toEqual(rows(['1.5em Test', '120% Test'], [[], []], []))
+  expect(rowsOf(SAFARI_USER_AGENT)).toEqual(rows([], [[], []], []))
+})
+
 test('a width is measured under its own font, shaping and language, whatever was measured before it', () => {
   // The engine profile is computed once per process, so each engine runs in a child process.
   // Preparation sets the context where it measures, not where it looks a font up, so each row
