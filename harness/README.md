@@ -85,9 +85,11 @@ by `check` a line a kind, but one that fails needs no accepted entry and no reas
   on one line, which nearly always pass, so `check` prints the share right where the browser wraps, and the share with
   a wrong line count, the wrong height a virtualized list would get. Then a table counts draws one each, by script and
   by style (letter spacing, soft hyphens, pre-wrap, keep-all, rich inline, emoji): draws and failures, the same among
-  the draws the browser wraps, and the passing draws that fail the shrink-wrap check. A row's rate doesn't move with
-  the share `weights.json` gives its script or style, though the mix inside the row still follows the weights. Read the
-  worst rows with the headline: easy kinds flatter a pooled number (`RESEARCH.md`, Evaluation Traps).
+  the draws the browser wraps, the passing draws that fail the shrink-wrap check, and the passing draws of plain text
+  with a line predicted more than 1 px wider or narrower than the browser's (`off`), which pass on widths that aren't
+  the browser's. A row's rate doesn't move with the share `weights.json` gives its script or style, though the mix
+  inside the row still follows the weights. Read the worst rows with the headline: easy kinds flatter a pooled number
+  (`RESEARCH.md`, Evaluation Traps).
 - **The behaviour catalog** (`catalog`, `facts`, `rich`) answers which behaviours we model; deduplicated by what the
   browsers do, its size says nothing about real use. `check` prints first the count over a behaviour's cases at 24 px
   and wider, among the behaviours that have one there, away from the edges, that the browser lays out on more than one
@@ -460,6 +462,9 @@ rounds (`types.ts`, `wholePixelBoxes`). The width report leaves those lines out 
 the lines of webkit-host's passing sample draws inside the claims were more than 0.05 px off, without them 0.8%
 (2026-10-01). The shrink-wrap check keeps them, so there it misses a box up to a pixel too narrow where such a line is
 the widest, as in a fifth of the sample's pre-wrap draws, and webkit-host's `narrow` column reads low on pre-wrap text.
+The table's `off` column counts no rich draw, and it leaves a line that ends in a space with a box out in every browser
+(`score.ts`, `widthsOff`): a third of the lines of the sample's plain pre-wrap draws (2026-10-12), which it reads by
+their other lines.
 The harness doesn't see re-layout at a line's own width; several rules of the Gecko profile's analysis of bidi
 controls (`ENGINE_FOLLOWUPS.md`, Harness debt); an emoji modifier split from its
 base across rich items; a rich paragraph of one item, which the adapter writes as plain text, so `src/layout.test.ts`

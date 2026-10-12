@@ -36,7 +36,7 @@ import { basename, join, resolve } from 'node:path'
 import {
   accept, attribute, behaviourLine, buildChange, checkBlocks, commitSeed, countBehaviour, countDraw, countedFailures, countedOnly, countedTallies, countWidths, drawRows, freshRecordings,
   gateBlocks, gateSample, headline, judge,
-  observable, outsideClaims, percent, pinning, reverseOrder, score, SEED, shown, shrinkWrapShort, tableLines, weightedShare, WIDTH_STEPS, widthBand, widthShares,
+  observable, outsideClaims, percent, pinning, reverseOrder, score, SEED, shown, shrinkWrapShort, tableLines, weightedShare, WIDTH_STEPS, widthBand, widthShares, widthsOff,
   type Behaviour, type Draw, type Outcome, type Pinning, type Stratum, type WidthTally,
 } from './score.ts'
 import { bench, benchOptions } from './bench/run.ts'
@@ -311,7 +311,7 @@ export async function check(browser: BrowserKind, cases: Case[], o: Options, io:
       draws.push({ group: c.sample.group, weight: c.sample.weight, pass, inClaims: outside === null, wrapped, height: pass || outcome.status === 'breaks' })
       sampleWeight += c.sample.weight
       if (c.sample.standIn === true) standInWeight += c.sample.weight
-      countDraw(table, drawRows(c, outside), pass, wrapped, short)
+      countDraw(table, drawRows(c, outside), pass, wrapped, short, pass && widthsOff(c, recording, prediction))
       if (outside !== null) outsideReasons.add(outside)
       else if (pass) countWidths(sampleWidths, recording, prediction, wholePixels)
     }
@@ -348,7 +348,7 @@ export async function check(browser: BrowserKind, cases: Case[], o: Options, io:
     out.push(`  real-usage sample, in claims: ${claimed === null ? '-' : `${percent(claimed.share, 1)} of real paragraphs right, ${interval(claimed)}`} (${draws.length} draws, ${percent(standInWeight, sampleWeight)} of their weight stand-ins; ${BROWSER[browser].phone ? 'a simulator\'s' : 'macOS'} rendering only; the intervals cover sampling error alone, not the guesses among weights.json's shares)`)
     out.push(`    where the browser wraps, ${weightedShare(draws, draw => draw.inClaims, draw => draw.wrapped)} of that weight: ${weightedShare(draws, draw => draw.wrapped && draw.inClaims, draw => draw.pass)} right`)
     out.push(`    a wrong line count or no prediction, so a wrong height: ${weightedShare(draws, draw => draw.inClaims, draw => !draw.height)} of real paragraphs`)
-    out.push('    draws counted one each, whatever their weight (wrapped: the browser lays the draw out on more than one line; narrow: it passes, and a box as wide as its widest predicted line, rounded up, is narrower than the browser\'s widest line):')
+    out.push('    draws counted one each, whatever their weight (wrapped: the browser lays the draw out on more than one line; narrow: it passes, and a box as wide as its widest predicted line, rounded up, is narrower than the browser\'s widest line; off: it passes, is plain text, and has a line predicted more than 1 px wider or narrower than the browser\'s):')
     out.push(...tableLines(table).map(line => `      ${line}`))
   }
   for (const [set, list] of [...behaviours].sort((x, y) => (x[0] < y[0] ? -1 : 1))) out.push(`  ${behaviourLine(set, list)}`)

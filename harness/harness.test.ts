@@ -14,7 +14,7 @@ import { box } from './sets/build.ts'
 import {
   accept, attribute, behaviourLine, buildChange, checkBlocks, commitSeed, countBehaviour, countDraw, COUNTED, countedFailures, countedOnly, countedTallies, countWidths, drawRows, freshRecordings,
   gateBlocks, gateSample, headline, judge,
-  libraryFaults, outsideClaims, pinning, predictionChange, reverseOrder, score, SEED, strata, tableLines, weightedShare, widthShares,
+  libraryFaults, outsideClaims, pinning, predictionChange, reverseOrder, score, SEED, strata, tableLines, weightedShare, widthShares, widthsOff,
   type Behaviour, type Draw, type Outcome, type Stratum, type Verdict, type WidthTally,
 } from './score.ts'
 import {
@@ -231,22 +231,22 @@ describe('what check prints beside the headline', () => {
     expect(outsideClaims(plain, { unsupported: 'word-break break-all' })).toBe('word-break break-all')
     expect(outsideClaims(systemUi, predicted(TEXT, STARTS))).toBe('a system-ui font list')
     const table = new Map<string, Stratum>()
-    for (let i = 0; i < 14; i++) countDraw(table, drawRows(styled, null), true, true, i === 0)
-    countDraw(table, drawRows(styled, null), false, true, false)
-    for (let i = 0; i < 30; i++) countDraw(table, drawRows(plain, null), true, false, false)
-    countDraw(table, drawRows(systemUi, 'a system-ui font list'), false, true, false)
+    for (let i = 0; i < 14; i++) countDraw(table, drawRows(styled, null), true, true, i === 0, i < 2)
+    countDraw(table, drawRows(styled, null), false, true, false, false)
+    for (let i = 0; i < 30; i++) countDraw(table, drawRows(plain, null), true, false, false, false)
+    countDraw(table, drawRows(systemUi, 'a system-ui font list'), false, true, false, false)
     expect(tableLines(table)).toEqual([
-      '                                       draws  wrong            wrapped  wrong            narrow',
-      'in claims                                 45      1    2.22%       15      1    6.67%       1    2.22%',
-      'script en                                 30      0    0.00%        0      0        -       0    0.00%',
-      'script ja                                 15      1    6.67%       15      1    6.67%       1    6.67%',
-      'letter spacing                            15      1    6.67%       15      1    6.67%       1    6.67%',
-      'soft hyphens                              15      1    6.67%       15      1    6.67%       1    6.67%',
-      'pre-wrap                                  15      1    6.67%       15      1    6.67%       1    6.67%',
-      'keep-all                                  15      1    6.67%       15      1    6.67%       1    6.67%',
-      'rich inline                               15      1    6.67%       15      1    6.67%       1    6.67%',
-      'emoji                                     15      1    6.67%       15      1    6.67%       1    6.67%',
-      'outside claims: a system-ui font list      1      1  100.00%        1      1  100.00%       0    0.00%',
+      '                                       draws  wrong            wrapped  wrong            narrow              off',
+      'in claims                                 45      1    2.22%       15      1    6.67%       1    2.22%       2    4.44%',
+      'script en                                 30      0    0.00%        0      0        -       0    0.00%       0    0.00%',
+      'script ja                                 15      1    6.67%       15      1    6.67%       1    6.67%       2   13.33%',
+      'letter spacing                            15      1    6.67%       15      1    6.67%       1    6.67%       2   13.33%',
+      'soft hyphens                              15      1    6.67%       15      1    6.67%       1    6.67%       2   13.33%',
+      'pre-wrap                                  15      1    6.67%       15      1    6.67%       1    6.67%       2   13.33%',
+      'keep-all                                  15      1    6.67%       15      1    6.67%       1    6.67%       2   13.33%',
+      'rich inline                               15      1    6.67%       15      1    6.67%       1    6.67%       2   13.33%',
+      'emoji                                     15      1    6.67%       15      1    6.67%       1    6.67%       2   13.33%',
+      'outside claims: a system-ui font list      1      1  100.00%        1      1  100.00%       0    0.00%       0    0.00%',
     ])
   })
 
@@ -265,6 +265,27 @@ describe('what check prints beside the headline', () => {
     countWidths(wholePixels, recording, prediction, TEXT)
     expect(wholePixels).toEqual({ lines: 1, over: [0, 0, 0], inexact: 3 })
     expect(widthShares({ lines: 0, over: [0, 0, 0], inexact: 0 })).toBe('- / - / - of the 0 lines')
+  })
+
+  test('a passing draw with a line more than a pixel wider or narrower than the browser\'s counts as off, but for the widths the recorder takes otherwise: a script that passes by the luck of its widths would read as one laid out right', () => {
+    const starts = [0, 12, 31]
+    const { recording } = layOut(TEXT, starts)
+    // Recorded 88, 132 and 88 px; the second line ends in a space with a box, as a pre-wrap line that wraps at one does.
+    const widths = (list: number[]): Prediction => {
+      const prediction = predicted(TEXT, starts)
+      if (!('lines' in prediction)) throw new Error('unreachable')
+      for (let i = 0; i < list.length; i++) prediction.lines[i]!.width = list[i]!
+      return prediction
+    }
+    const plain = paragraphCase(TEXT)
+    expect(recording).toEqual({ lines: [{ first: 0, last: 11, width: 88 }, { first: 12, last: 30, width: 132 }, { first: 31, last: 42, width: 88 }], height: 60 })
+    expect(widthsOff(plain, recording, widths([88.9, 132, 87.1]))).toBe(false)
+    expect([widthsOff(plain, recording, widths([88, 132, 89.1])), widthsOff(plain, recording, widths([86.9, 132, 88]))]).toEqual([true, true])
+    // A line whose last visible character is a space isn't compared: the recorder took that space off by its box.
+    expect(widthsOff(plain, recording, widths([88, 140, 88]))).toBe(false)
+    // Nor is a rich draw: its recorded widths leave out an item's padding at a line's edge.
+    const padded: Case = { ...plain, paragraph: { ...plain.paragraph, runs: [{ ...plain.paragraph.runs[0]!, node: 'span', padding: 6 }] } }
+    expect(widthsOff(padded, recording, widths([100, 132, 100]))).toBe(false)
   })
 
   test('a behaviour counts at 24 px and wider only where the browser wraps one of its cases there, and at the edges only where its lines change there: two thirds of the catalog would count as modelled at real widths on one line at 100,000 px', () => {
@@ -802,8 +823,8 @@ describe('the commands, with a stand-in browser', () => {
     expect(printed).toContain('\n  real-usage sample, in claims: 66.67% of real paragraphs right, 95% interval ')
     expect(printed).toContain('\n    where the browser wraps, 100.00% of that weight: 66.67% right\n')
     expect(printed).toContain('\n    a wrong line count or no prediction, so a wrong height: 0.00% of real paragraphs\n')
-    expect(printed).toContain('\n      in claims                                 2      1   50.00%        2      1   50.00%       1   50.00%\n')
-    expect(printed).toContain('\n      outside claims: word-break break-all      1      1  100.00%        1      1  100.00%       0    0.00%\n')
+    expect(printed).toContain('\n      in claims                                 2      1   50.00%        2      1   50.00%       1   50.00%       1   50.00%\n')
+    expect(printed).toContain('\n      outside claims: word-break break-all      1      1  100.00%        1      1  100.00%       0    0.00%       0    0.00%\n')
     expect(printed).toContain('\n  catalog: at 24 px and wider, 1 behaviours modelled of the 1 the browser wraps there, 1 also at the edges of the 1 whose lines change there; over every width, 0 of 1 modelled, 0 of them also 1/64 px either side of where the lines change\n')
     expect(printed).toContain('\n  counted, never blocking (harness/counted/chrome.txt lists the failures; since the list: + failures it lacks, - entries that no longer fail):\n    under 24 px: 0 right, 1 wrong; since the list: +0, -0\n    an edge of a line change, at 24 px and wider: 1 right, 0 wrong; since the list: +0, -1\n    outside the claims: 0 right, 1 wrong; since the list: +1, -0\n    old-gate: 0 right, 0 wrong; since the list: +0, -0\n')
     expect(printed).toContain('\n    the sample with its draws outside the claims, 25.00% of the weight (word-break break-all): 50.00% of real paragraphs right, 95% interval ')

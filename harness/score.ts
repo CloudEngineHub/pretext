@@ -251,9 +251,10 @@ export function strata(c: Case): string[] {
   return out
 }
 
-// A row of the table: its draws and those that fail, the same among the draws the browser wraps, and the passing draws
-// whose box would be too narrow (`narrow`: shrinkWrapShort).
-export type Stratum = { draws: number; wrong: number; wrapped: number; wrappedWrong: number; narrow: number }
+// A row of the table: its draws and those that fail, the same among the draws the browser wraps, the passing draws
+// whose box would be too narrow (`narrow`: shrinkWrapShort), and the passing draws with a line over a pixel from the
+// browser's (`off`: widthsOff).
+export type Stratum = { draws: number; wrong: number; wrapped: number; wrappedWrong: number; narrow: number; off: number }
 
 const IN_CLAIMS = 'in claims'
 const OUTSIDE = 'outside claims: '
@@ -264,21 +265,22 @@ export function drawRows(c: Case, outside: string | null): string[] {
   return outside === null ? [IN_CLAIMS, ...strata(c)] : [OUTSIDE + outside]
 }
 
-export function countDraw(table: Map<string, Stratum>, rows: readonly string[], pass: boolean, wrapped: boolean, narrow: boolean): void {
+export function countDraw(table: Map<string, Stratum>, rows: readonly string[], pass: boolean, wrapped: boolean, narrow: boolean, off: boolean): void {
   for (let i = 0; i < rows.length; i++) {
     let row = table.get(rows[i]!)
-    if (row === undefined) table.set(rows[i]!, row = { draws: 0, wrong: 0, wrapped: 0, wrappedWrong: 0, narrow: 0 })
+    if (row === undefined) table.set(rows[i]!, row = { draws: 0, wrong: 0, wrapped: 0, wrappedWrong: 0, narrow: 0, off: 0 })
     row.draws++
     if (wrapped) row.wrapped++
     if (!pass) row.wrong++
     if (!pass && wrapped) row.wrappedWrong++
     if (narrow) row.narrow++
+    if (off) row.off++
   }
 }
 
 // The table as check prints it: the draws inside the claims, then by script, the most drawn first, then by style, then
-// the draws outside the claims, by reason. Each share is of the count two columns to its left; `narrow` is a share of
-// the row's draws.
+// the draws outside the claims, by reason. Each share is of the count two columns to its left; `narrow` and `off` are
+// shares of the row's draws.
 export function tableLines(table: ReadonlyMap<string, Stratum>): string[] {
   const byDraws = (a: string, b: string): number => table.get(b)!.draws - table.get(a)!.draws || (a < b ? -1 : 1)
   const names = [...table.keys()]
@@ -290,10 +292,10 @@ export function tableLines(table: ReadonlyMap<string, Stratum>): string[] {
   for (let i = 0; i < order.length; i++) label = Math.max(label, order[i]!.length)
   const count = (n: number, width: number): string => String(n).padStart(width)
   const share = (part: number, whole: number): string => percent(part, whole).padStart(8)
-  const out = [`${''.padEnd(label)}  draws  wrong            wrapped  wrong            narrow`]
+  const out = [`${''.padEnd(label)}  draws  wrong            wrapped  wrong            narrow              off`]
   for (let i = 0; i < order.length; i++) {
     const row = table.get(order[i]!)!
-    out.push(`${order[i]!.padEnd(label)}  ${count(row.draws, 5)}  ${count(row.wrong, 5)} ${share(row.wrong, row.draws)}  ${count(row.wrapped, 7)}  ${count(row.wrappedWrong, 5)} ${share(row.wrappedWrong, row.wrapped)}  ${count(row.narrow, 6)} ${share(row.narrow, row.draws)}`)
+    out.push(`${order[i]!.padEnd(label)}  ${count(row.draws, 5)}  ${count(row.wrong, 5)} ${share(row.wrong, row.draws)}  ${count(row.wrapped, 7)}  ${count(row.wrappedWrong, 5)} ${share(row.wrappedWrong, row.wrapped)}  ${count(row.narrow, 6)} ${share(row.narrow, row.draws)}  ${count(row.off, 6)} ${share(row.off, row.draws)}`)
   }
   return out
 }
@@ -321,6 +323,26 @@ export function countWidths(tally: WidthTally, recording: Recording, prediction:
     tally.lines++
     for (let k = 0; k < WIDTH_STEPS.length; k++) if (gap > WIDTH_STEPS[k]!) tally.over[k]!++
   }
+}
+
+// Whether a case that passes has a line predicted more than a pixel wider or narrower than the recorded one. Its
+// breaks are the browser's and its widths aren't, so what the fit rests on is off there and the pass may be the
+// widths' luck: a script whose passing draws mostly read so fails at other widths. What differs by the recorder's own
+// doing is left out:
+// - a rich case, whose recorded widths leave out the padding of an item at a line's edge (observe.ts, lineWidths);
+// - a line whose last visible character is a space, as a pre-wrap line that wraps at a space has, in every browser.
+//   The recorder takes an ending space off by its box, which WebKit gives in whole pixels (countWidths); before a line
+//   feed or at the end of a pre-wrap text the library counts the spaces that fit; and Firefox keeps the space that
+//   ends a line of mixed direction inside the line, where the recorder leaves it in.
+export function widthsOff(c: Case, recording: Recording, prediction: Prediction): boolean {
+  if ('error' in recording || !('lines' in prediction) || isRich(c.paragraph.runs)) return false
+  const text = caseText(c)
+  for (let i = 0; i < recording.lines.length; i++) {
+    const line = recording.lines[i]!
+    if (line.last >= 0 && text.charCodeAt(line.last) === 0x20) continue
+    if (Math.abs(prediction.lines[i]!.width - line.width) > 1) return true
+  }
+  return false
 }
 
 export function widthShares(tally: WidthTally): string {
