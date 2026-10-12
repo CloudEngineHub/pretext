@@ -377,6 +377,10 @@ export async function bisect(set: string, templates: readonly Template[], browse
   // of them Firefox's holds, for under half a second of page work (2026-10-11). They now share a browser process: the
   // job asks for the next round once it has recorded one (run.ts, `more`), until it has recorded JOB_CASES, and the
   // search is saved after each job. Page history only moves which widths get searched, here as with SWEEP_DOCUMENT.
+  // Firefox's U+FE0E cases are more than page history, so a round that holds one ends its job (run.ts): with the rounds
+  // after it in the same process, plain U+1F600 in 12px Arial was 17 px wide from the second round on, 12.5 px in a
+  // job a round, and the search found other widths for each of four templates with U+1F600 and no U+FE0E, searched
+  // beside two with it (Firefox 157.0.1, 2026-10-11).
   for (let cases = nextRound(); cases.length > 0; cases = nextRound()) {
     const take = (results: ReadonlyMap<string, Recording | Prediction>): void => {
       for (const [id, recording] of results) state.recordings.set(id, recording as Recording)
