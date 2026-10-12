@@ -373,6 +373,7 @@ type MeasureState = {
   // What letter-spaced text measures in each font where shapesLetterSpaced: the same text
   // shaped without its optional ligatures.
   letterSpacedFonts: Map<string, FontMeasurement>
+  segments: number // The segments the fonts' caches hold between them (MAX_CACHED_SEGMENTS)
 }
 let measureState: MeasureState | null = null
 // What preparation keeps per font. It all goes together, when the caches clear or the
@@ -423,6 +424,19 @@ const MAX_PREFIX_FIT_GRAPHEMES = 96
 // measures 54.2031px in Chrome 154 and 54.2px in Firefox 156, their pages' widths with
 // `font-variant-ligatures: none` (2026-09-30).
 const LETTER_SPACED_SHAPING = '0.000001px'
+
+// The most segments the fonts' caches hold between them when a preparation starts
+// (getPreparationLanguage): past it they are all dropped, as clearCache() drops them, before
+// that preparation measures anything. A handle keeps its own widths, so nothing prepared
+// changes; text prepared afterwards is measured again. Prose adds segments ever more slowly,
+// but ids, numbers and URLs never repeat, so without a bound the caches grow for as long as the
+// page lives. The bound is a safety net well above what a page uses, not a tuned size: the
+// 11,290 plain texts of the harness's real-usage sample, 883,084 units, fill in one font 71,294
+// segments in the Chromium profile, 90,023 in Gecko's and 115,367 in WebKit's, 241-363 B each in
+// JavaScriptCore, and a bound under a page's own count has its text measured again and again:
+// at 65,536, preparing those texts a second time asks Canvas 81,286 to 196,534 times, where
+// under no bound it asks nothing (the harness's stand-in Canvas, 2026-10-12).
+const MAX_CACHED_SEGMENTS = 1 << 18
 
 // Graphemes the emoji font may draw a glyph in, which Canvas widths then tell
 // (countEmojiGlyphs): those holding an emoji-presentation character or a pictograph,
@@ -571,6 +585,11 @@ export function setLocaleLanguage(locale: string | undefined): void {
 // else the page's, or null without a document. The Chromium profile lays out a page
 // without one under Blink's default locale (laysOutUnderDefaultLocale).
 export function getPreparationLanguage(profile: EngineProfile): string | null {
+  // A preparation starts with this read, so the fonts' caches are bounded here, between two
+  // preparations (MAX_CACHED_SEGMENTS), and not where a font is looked up: a rich-inline
+  // paragraph looks one up for each of its items, and caches dropped between two of them would
+  // have one paragraph measured partly from the caches and partly anew.
+  if (measureState !== null && measureState.segments > MAX_CACHED_SEGMENTS) clearMeasurementCaches()
   let language = localeLanguage ?? null
   if (localeLanguage === undefined && typeof document !== 'undefined') {
     const lang = (document.documentElement as HTMLElement | null | undefined)?.lang
@@ -644,6 +663,7 @@ export function getFollowingSpaceMetrics(seg: string, measurement: FontMeasureme
 function addMetrics(cache: Map<string, SegmentMetrics>, seg: string, text: string, measurement: FontMeasurement): SegmentMetrics {
   const metrics: SegmentMetrics = { width: getContext(measurement).measureText(text).width, emojiCount: -1, fit: null, spaceKerning: null }
   cache.set(seg, metrics)
+  measurement.state.segments++
   if (!measurement.measuredKana && kanaRe.test(seg)) measurement.measuredKana = true
   return metrics
 }
@@ -1285,9 +1305,10 @@ function measureFitAdvances(
 // prefixes and line-edge facts all come from that shaping. The context isn't touched
 // here: text that is all in the font's caches measures nothing (getContext).
 export function getFontMeasurement(font: string, language: string | null, letterSpaced: boolean): FontMeasurement {
-  // Preparation starts here, with the language it resolved. After that language
-  // changes, start again with a new context and empty caches; clearing the caches
-  // alone would re-measure with fonts resolved under the old language.
+  // Measuring starts here, for a text and for each item of a rich-inline paragraph, with the
+  // language the preparation resolved. After that language changes, start again with a new
+  // context and empty caches; clearing the caches alone would re-measure with fonts resolved
+  // under the old language.
   if (measureState === null || measureState.language !== language) measureState = createMeasureState(language)
   const state = measureState
   const shaped = letterSpaced && state.shapesLetterSpaced
@@ -1371,10 +1392,13 @@ function createMeasureState(language: string | null): MeasureState {
     shapesLetterSpaced: takesLetterSpacing && profile.canvasLetterSpacingDropsLigatures,
     fonts: new Map(),
     letterSpacedFonts: new Map(),
+    segments: 0,
   }
 }
 
 export function clearMeasurementCaches(): void {
-  measureState?.fonts.clear()
-  measureState?.letterSpacedFonts.clear()
+  if (measureState === null) return
+  measureState.fonts.clear()
+  measureState.letterSpacedFonts.clear()
+  measureState.segments = 0
 }
