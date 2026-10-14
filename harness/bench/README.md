@@ -257,7 +257,11 @@ before the glyph spacings did, costs a tenth as much there.
   and with one do-nothing top-level variable more (4.7% to 10.3%); and level under a narrower form of the same change
   that leaves the loop as it was (medians of +0.4% to +1.1% in three runs of every row). `lines: cjk walk` read 5.5% to
   7.7% slower with it over six sessions, and 5.9% to 10.0% with main's stepper and line start put back, where the
-  Latin messages' entries then read level (Firefox 157.0.1, 2026-10-14; `RESEARCH.md`, Decisions Log, 2026-10-14).
+  Latin messages' entries then read level. Moving the full walker's tests for a zero-width space under its test for a
+  break segment, code neither row runs, left the two as they were over six sessions, +4.5% to +12.1% and +6.4% to
+  +8.4%, while two runs of every row called neither: in each, one session of three read 10% to 13% slower and the
+  other two -2% to +5%, so Firefox keeps a copy at one of two speeds on these rows (Firefox 157.0.1, 2026-10-14;
+  `RESEARCH.md`, Decisions Log, 2026-10-14).
 - **Firefox's `resize: latin layout at widths seen before`** reads 12% to 23% slower since #515, and that is no
   misreading: the change runs that code. Removing entry geometry (2ece40cb), the widths the library measured afresh for
   a line that starts inside a word at an invisible character, takes one test out of the loop in which
