@@ -475,7 +475,9 @@ The harness doesn't see re-layout at a line's own width; several rules of the Ge
 controls (`ENGINE_FOLLOWUPS.md`, Harness debt); an emoji modifier split from its
 base across rich items; a rich paragraph of one item, which the adapter writes as plain text, so `src/layout.test.ts`
 checks its line functions against the same item with an empty item after it, the form of the rich set's one such
-paragraph (`under-1px/one-item`); a line that holds only an atomic item of white space, or in Firefox a padded item of
+paragraph (`under-1px/one-item`); text nodes of one style, which the adapter writes as one text, where Firefox's lines
+turn on the node a zero-width space is in after preserved spaces that hang (`ENGINE_FOLLOWUPS.md`, Line edges); a line
+that holds only an atomic item of white space, or in Firefox a padded item of
 only a soft hyphen, which has no text for the recorder to list, so a prediction with that line is scored as a line too
 many though the recorded height has it; Chrome's UI language, and so its `zh` table for pages without a
 `lang`; rendering other than macOS's and an iOS simulator's (Other ratios and phones), though Android and Windows are

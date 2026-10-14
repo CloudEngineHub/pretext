@@ -273,9 +273,9 @@ function mapSourceLineBreaks(source: string, normalizedLength: number, sourceBre
 
 // A FORCED_BREAK after U+2028 or U+2029 makes the separator a hard break in every white-space
 // mode, and a SOFT_HYPHEN_BREAK makes a soft hyphen a zero-width break: the line can end there
-// without a hyphen. One with only soft hyphens before it on its chunk stays a soft hyphen, since
-// a zero-width break there holds a line and Firefox, which drops soft hyphens from its text runs,
-// gives it none.
+// without a hyphen, and Firefox, which drops soft hyphens from its text runs, has nothing there
+// (DROPPED). One with only soft hyphens before it on its chunk stays a soft hyphen: no line ends
+// at a chunk's start, and a line's start leaves either out.
 function classifySegmentUnit(normalized: string, breaks: Uint8Array, i: number, code: number, whiteSpace: WhiteSpaceMode, scan: AnalysisProfile['lineBreakScan']): SegmentKindCode {
   if ((code === 0x2028 || code === 0x2029) && (breaks[i + 1]! & FORCED_BREAK) !== 0) return HARD_BREAK
   if (code === 0x00AD && (breaks[i + 1]! & SOFT_HYPHEN_BREAK) !== 0 && followsChunkContent(normalized, i)) return ZERO_WIDTH_BREAK

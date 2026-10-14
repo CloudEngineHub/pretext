@@ -2088,9 +2088,9 @@ joined text keeps; a 4,858-case probe fixed 370 Chrome, 511 Firefox and 1,308 we
 
 A ZWSP that started an item kept the line it holds at a text's start, and a zero-width break that only the joined text
 gives there held none: taking every item start that continues a run as inside a chunk lost 76 webkit-host, 3 Chrome and
-2 Firefox probe cases. In the paragraph a ZWSP after a wrap is inside its chunk, as in a text, so a line start consumes
-it, where the browsers give it a line of its own when the text after it doesn't fit (ENGINE_FOLLOWUPS.md, Rich-inline
-item edges). A fragment's text was its item's own, with the hyphen at its end taken from the copy: built wholly from
+2 Firefox probe cases. In the paragraph a ZWSP after a wrap was inside its chunk, as in a text, so a line start
+consumed it, where the browsers give it a line of its own when the text after it doesn't fit, until a ZWSP became
+content of no width in every walker (Decisions Log, 2026-10-14). A fragment's text was its item's own, with the hyphen at its end taken from the copy: built wholly from
 the copy, it showed a soft hyphen that Gecko's joined scan makes text before a bidi control (#373), which the
 paragraph's analysis avoids by starting a segment where an item starts with one. In the Gecko profile a joined window
 that starts after collapsible white space is analyzed after a space, which Gecko's scan reads as context, so it breaks
@@ -4562,7 +4562,8 @@ Mostly on main as it was then, measured with the old suite in installed browsers
 
 - **A ZWSP right after a forced break inside a word** takes its own line in all three browsers; copying that lost
   290-560 results per browser to six unmodelled behaviors. Reopens once joined Arabic widths and letter spacing on
-  invisibles land.
+  invisibles land. Taken up without them on 2026-10-14, after the engines' scans (#340) and the two tiers of pinned
+  cases (Decisions Log).
 - **Letter spacing on invisibles**: no gap anywhere lost 73 cases (2026-09-11); a 14-line patch went +442 / −172 on
   passes leaning on a cancelling bug (2026-09-23/24). Reopens with ENGINE_FOLLOWUPS.md, Letter spacing, on one
   per-grapheme spacing unit.
@@ -6432,3 +6433,17 @@ decisions for the maintainer.
   prediction moves. What it leaves is under Line edges in ENGINE_FOLLOWUPS.md: in the Chromium profile letters that join
   across that soft hyphen, and in the Gecko profile a `kern`-table pair or a ligature there. Reopens with real text
   whose line turns on one of those.
+- **2026-10-14: a zero-width space is content of no width in every walker: no line's end hangs it and no line's start
+  leaves it out** (landed on judgement with #NNN, for #521). It stays on a line where the content before it fits, and
+  else starts the next line, which it holds, as Blink, WebKit and Gecko lay it out; right after an atomic item wider
+  than its line Firefox alone keeps it, a field of the engine profile (`zeroWidthSpaceStaysAfterAtomic`). The reason:
+  it is each engine's rule, an editor's caret anchor after an image needs its line, and the port costs nothing that
+  shows. In Chrome 155.0.8059.80, Firefox 157.0.1 and webkit-host no blocking case fails that passed and 6, 5 and 6
+  accepted ones pass; of the counted cases 297, 307 and 285 pass that failed and 17, 9 and 14 fail that passed, all
+  under 24 px, each by a second gap the hang had hidden; the bench calls no entry slower. It takes up the dead end of
+  a ZWSP after a forced break (Dead Ends, Invisible Characters, Controls And Soft Hyphens) without the two changes
+  that entry waited on, and closes three gaps of 2026-10-06's entry on rich inline as one paragraph: the ZWSP's line
+  after a space and after content that overflows, and in Firefox the hang that ends at one in pre-wrap. What it
+  leaves is under Line edges in ENGINE_FOLLOWUPS.md: Chrome's kerning across a ZWSP, a fit within a layout unit that
+  now shows as a line, and a soft hyphen beside one. Reopens with real text that turns on one of those, or if a later
+  bench shows the walkers' tests for one on `layout()`.
