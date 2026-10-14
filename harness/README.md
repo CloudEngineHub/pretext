@@ -348,14 +348,16 @@ how each form's floors were fitted, the entries known to misread, and what a run
 ## Browsers and pins
 
 Builds are read from the app bundles, since a user agent names only the major version. Each Firefox copy gets its update
-policy before its first launch, since a pinned Firefox once updated itself (`browsers.ts` has how). A Chrome copy has
-no such guard: Google's updater updated the pinned copy of 154.0.8037.57 in place to 154.0.8037.98 (2026-10-06), after
+policy before its first launch, since a pinned Firefox once updated itself (`browsers.ts` has how). A Chrome copy has no
+such guard: Google's updater updated the pinned copy of 154.0.8037.57 in place to 154.0.8037.98 (2026-10-06), after
 which `record`, `check` and `gate` refuse until a repin. That build recorded all 43,203 cases as 154.0.8037.57 had,
-lines, widths and height, and holds the same break data. Safari can't be
-pinned, and a macOS update moves all three browsers (system fonts, Core Text, ICU, emoji). `repin` records every case
-with the new build into a scratch copy of the recordings and prints the cases laid out otherwise, the new page history,
-and whether the browser still holds the files of `scripts/engine-data/` that its `sources.json` lists: the engines'
-compiled break rules and ICU's character properties, not the two pair tables (DEVELOPMENT.md, Engine Data).
+lines, widths and height, and holds the same break data. The pin went to 155.0.8059.80 on 2026-10-14, after the
+installed Chrome updated itself twice: 155.0.8059.40 (2026-10-13) and 155.0.8059.80 each recorded all 43,795 cases as
+154.0.8037.98 had, lines, widths and height, and hold the same break data. Safari can't be pinned, and a macOS update
+moves all three browsers (system fonts, Core Text, ICU, emoji). `repin` records every case with the new build into a
+scratch copy of the recordings and prints the cases laid out otherwise, the new page history, and whether the browser
+still holds the files of `scripts/engine-data/` that its `sources.json` lists: the engines' compiled break rules and
+ICU's character properties, not the two pair tables (DEVELOPMENT.md, Engine Data).
 
 Firefox's pin went from 156.0.1 to 157.0.1 on 2026-10-10, four days after the installed Firefox updated itself. The two
 builds recorded all 44,881 cases alike that day, lines, widths and height, and 157.0.1 holds the same break data.
