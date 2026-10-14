@@ -3,11 +3,13 @@
 // catalog.ts. The oracles for documented modes (pre-wrap, keep-all, symbols, letter spacing, soft hyphens), which the
 // old harness ran in Chrome and Safari only, were taken once into oracles.ndjson, which every browser runs.
 import type { Case, Paragraph } from '../types.ts'
-import { makeCase, paragraph, parseFont, span } from './build.ts'
+import { box, makeCase, paragraph, parseFont, span } from './build.ts'
 
+// A report's text is one text node, or its parts: a string is a bare text node, a part with a font a span, and a part
+// with a box an empty inline-block of that width and height (build.ts's box), as the harness draws an image.
 type Report = {
   issue: string
-  text: string | ReadonlyArray<string | { text: string; font: string }>
+  text: string | ReadonlyArray<string | { text: string; font: string } | { box: readonly [width: number, height: number] }>
   font: string
   width: number
   lineHeight?: number
@@ -47,6 +49,12 @@ const REPORTS: readonly Report[] = [
   { issue: '#421', text: 'To.'.repeat(5), font: '16px "Helvetica Neue", Helvetica, Arial, sans-serif', width: 54, lineHeight: 22, whiteSpace: 'pre-wrap' },
   { issue: '#433', text: 'Bit\u{AD}te die Ne\u{AD}ben\u{AD}rol\u{AD}len-Ta\u{AD}kes vor der End\u{AD}ab\u{AD}mi\u{AD}schung noch ein\u{AD}mal mit der Re\u{AD}gie\u{AD}as\u{AD}sis\u{AD}ten\u{AD}tin durch\u{AD}hö\u{AD}ren.', font: '400 16px "Helvetica Neue", "PingFang SC", "Geeza Pro", sans-serif', width: 172, lineHeight: 24 },
   { issue: '#433', text: 'Les re\u{AD}pré\u{AD}sen\u{AD}tantes syn\u{AD}di\u{AD}cales ont pré\u{AD}sen\u{AD}té une contre-pro\u{AD}po\u{AD}si\u{AD}tion par\u{AD}ti\u{AD}cu\u{AD}liè\u{AD}re\u{AD}ment cir\u{AD}cons\u{AD}tan\u{AD}ciée.', font: '400 16px Arial, "PingFang SC", "Geeza Pro", sans-serif', width: 150, lineHeight: 24 },
+  // An editor's zero-width space after each image, as its caret anchor: two images a pixel wider than their box, one half
+  // a pixel wider, one that fits, and the two wide ones with no zero-width space.
+  { issue: '#521', text: [{ box: [68.898, 64] }, '\u{200B}', { box: [68.898, 64] }, '\u{200B}'], font: '12px Calibri, sans-serif', width: 67.898, lineHeight: 20.96, whiteSpace: 'pre-wrap' },
+  { issue: '#521', text: [{ box: [68.398, 64] }, '\u{200B}'], font: '12px Calibri, sans-serif', width: 67.898, lineHeight: 20.96, whiteSpace: 'pre-wrap' },
+  { issue: '#521', text: [{ box: [67.398, 64] }, '\u{200B}'], font: '12px Calibri, sans-serif', width: 67.898, lineHeight: 20.96, whiteSpace: 'pre-wrap' },
+  { issue: '#521', text: [{ box: [68.898, 64] }, { box: [68.898, 64] }], font: '12px Calibri, sans-serif', width: 67.898, lineHeight: 20.96, whiteSpace: 'pre-wrap' },
 ]
 
 // #206 (fixed by #208): repeated symbols in a chat message, at the widths and letter spacing main's suite runs.
@@ -56,7 +64,7 @@ export function reportCases(): Case[] {
   const cases: Case[] = []
   const add = (r: Report): void => {
     const f = parseFont(r.font)
-    const parts = typeof r.text === 'string' ? [r.text] : r.text.map(part => (typeof part === 'string' ? part : span(part.text, parseFont(part.font))))
+    const parts = typeof r.text === 'string' ? [r.text] : r.text.map(part => (typeof part === 'string' ? part : 'box' in part ? box(part.box[0], part.box[1], f) : span(part.text, parseFont(part.font))))
     const p = paragraph({ font: f, lang: r.lang ?? 'en', width: r.width, ...(r.lineHeight === undefined ? {} : { lineHeight: r.lineHeight }), whiteSpace: r.whiteSpace ?? 'normal', letterSpacing: r.letterSpacing ?? 0 }, parts)
     cases.push(makeCase('report', { family: `report/${r.issue}`, origin: `github.com/chenglou/pretext/issues/${r.issue.slice(1)}, as filed`, pageLang: r.lang ?? 'en', paragraph: p }))
   }

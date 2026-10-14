@@ -187,10 +187,12 @@ name the fonts they run in where that isn't 16px Arial. A fact added after them 
 that added or last changed the fact, which this paragraph names, since a later merge moves the test and a case's family
 and origin keep the line: line 1000 at dbfab0de (#399), Firefox's white space around bidi controls, line 2140 at
 785e5af2 (#446), Chrome's return from an unfit hyphen to a break between two text segments, whose second row runs in
-16px Hiragino Sans, and line 1575 at f2e54d1b (#455), the WebKit profile's lone carriage return, which runs in 16px
+16px Hiragino Sans, line 1575 at f2e54d1b (#455), the WebKit profile's lone carriage return, which runs in 16px
 Menlo alone: there Safari gives the carriage return a character's width, the profile gives it none, and of
 webkit-host's six failures at 24 px and wider the two away from an edge are accepted and the four at one counted
-(`RESEARCH.md`, Decisions Log, 2026-10-06). Such a fact also names the
+(`RESEARCH.md`, Decisions Log, 2026-10-06), and line 5959 at c3e28361 (#NNN), a zero-width space after content that
+doesn't fit its line, whose rows of a letter wider than its line run in 40px Arial, the size the fact names, so that
+the letter is wider than a line of 24 px. Such a fact also names the
 paragraph directions it runs in where a browser's lines turn on them (the first of those, both). The facts set has no
 cover, so it keeps the width where a template's words join, which the catalog's cover drops once a narrower change has
 shown that kind of break: a fact that rests on a line's width, such as one space against two, goes there.

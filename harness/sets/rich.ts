@@ -184,7 +184,16 @@
 //   (getWebKitBreakBetweenItems in src/line-breaks.ts); in pre-wrap a tab in an item of its own after an item that ends
 //   with a space, which Firefox, with no break inside a run of spaces and tabs, takes to the next line with the word
 //   before the space; and a left-to-right mark in an item of its own that ends the paragraph after a space, which gets
-//   no line in Firefox, which drops it, and the next line in Chrome and Safari where the space doesn't fit.
+//   no line in Firefox, which drops it, and the next line in Chrome and Safari where the space doesn't fit;
+// - a ZWSP in an item of its own right after content wider than its line, as an editor keeps one after an image for the
+//   caret (#521): every browser lays it out as content of no width, so Chrome and Safari start the next line with it,
+//   which it holds though it shows nothing, and Firefox keeps it on the line of a box, after which it has no break
+//   (zeroWidthSpaceStaysAfterAtomic in src/measurement.ts), and starts the next line with it after a letter; after a
+//   box, after a bold letter in 40px Arial, and in pre-wrap after a box and an item of two spaces, where Firefox
+//   starts the next line with it too, the spaces' frame leaving it no room (hangGoesOnPastEmpty in
+//   src/line-break.ts). Each starts with a word, the letter with two narrow ones, which gives the line an earlier
+//   break, so that a width the cut takes inside a layout is one where the content before the ZWSP is wider than its
+//   line.
 import { TEXTS } from '../../src/test-data.ts'
 import type { CssFont, Paragraph, TextRun } from '../types.ts'
 import { box, codePoints, createRng, font, paragraph, span } from './build.ts'
@@ -202,6 +211,7 @@ const KOREAN = font('"Apple SD Gothic Neo", "Malgun Gothic", sans-serif', 15)
 const KOREAN_CHIP = font('"Apple SD Gothic Neo", "Malgun Gothic", sans-serif', 12)
 const JAPANESE = font('"Hiragino Sans"', 16)
 const COURIER = font('"Courier New"', 16)
+const WIDE = font('Arial', 40)
 
 type Part = string | TextRun
 
@@ -444,7 +454,7 @@ export function richTemplates(): Template[] {
     const [family, parts, whiteSpace] = narrow[i]!
     out.push({ ...template(`under-1px/${family}`, 'a paragraph narrower than 1px in a box narrower than 1px (src/layout.test.ts, a rich paragraph lays out at the width given under 1px, and at 0 under 0)', ARIAL, parts, 'en', 'normal', whiteSpace), widths: [0, 0.5] })
   }
-  // The header's last three entries: each family's origin, then its templates.
+  // The header's last four entries: each family's origin, then its templates.
   const chip = (text: string): TextRun => span(text, CHIP, { atomic: true, padding: 11 })
   const padded = (text: string, padding: number, f: CssFont = ARIAL): TextRun => span(text, f, { padding })
   const gap = '(ENGINE_FOLLOWUPS.md, Rich-inline item edges)'
@@ -467,6 +477,7 @@ export function richTemplates(): Template[] {
     'keep-all/zwsp-ends-item': `word-break: keep-all, a ZWSP that ends an item ${design}`,
     'pre-wrap/tab-item-after-space': `white-space: pre-wrap, a tab in an item of its own after an item that ends with a space ${design}`,
     'item-edges/bidi-control-ends-paragraph': `a paragraph that ends with an item of only a bidi control, after a space ${design}`,
+    'item-edges/zwsp-after-overflow': 'a ZWSP in an item of its own right after a box or a letter wider than its line (#521; src/layout.test.ts, a zero-width space after an object wider than its line takes each engine\'s line)',
   }
   const atEdges: ReadonlyArray<readonly [string, CssFont, readonly TextRun[], string?, Paragraph['wordBreak']?, Paragraph['whiteSpace']?]> = [
     ['item-edges/bidi-control-between-spaces', ARIAL, [item('aa see '), item('\u{200E} this')]],
@@ -507,6 +518,9 @@ export function richTemplates(): Template[] {
     ['keep-all/zwsp-ends-item', KOREAN, [span('안녕하세요\u{200B}', BOLD(KOREAN)), item('세계에서 한국어', KOREAN)], 'ko', 'keep-all'],
     ['pre-wrap/tab-item-after-space', ARIAL, [item('one two '), item('\t'), item('three')], 'en', 'normal', 'pre-wrap'],
     ['item-edges/bidi-control-ends-paragraph', ARIAL, [item('Hello again '), item('\u{200E}')]],
+    ['item-edges/zwsp-after-overflow', ARIAL, [item('Photo '), box(120, 20, ARIAL), item('\u{200B}')]],
+    ['item-edges/zwsp-after-overflow', WIDE, [item('ii ', WIDE), span('M', BOLD(WIDE)), item('\u{200B}', WIDE)]],
+    ['item-edges/zwsp-after-overflow', ARIAL, [item('Photo '), box(120, 20, ARIAL), item('  '), item('\u{200B}')], 'en', 'normal', 'pre-wrap'],
   ]
   for (let i = 0; i < atEdges.length; i++) {
     const [family, base, parts, lang, wordBreak, whiteSpace] = atEdges[i]!
