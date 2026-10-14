@@ -266,7 +266,7 @@ a rule by reading it and its unit tests (`rebuild/src/engines/<engine>/`) agains
   added (#460) and `start` and `end` taken off a materialized fragment's type (Decisions Log, 2026-10-10), the line
   functions that return no text take a `prepare()`
   handle, and the type of a `prepareWithSegments()` handle shows three fields only (Decisions Log, 2026-10-06, for
-  both). The API discussion, a review of the whole public API at the end of the project and before any release, has
+  both). The API discussion, a review of the whole public API at the end of the project, has
   issue #321's `direction` option and `devicePixelRatio` in `layout()` on its list (TODO.md). One bundle serves every
   engine (Decisions Log, 2026-09-26).
 - **No public API that serves no known user (2026-09-29).** A new option or export needs an app or a person who needs
@@ -2645,7 +2645,7 @@ advances would reopen it. The rebuild's DOM-free formulas, W being Canvas's widt
 `Math.ceil(64 × W(size × DPR)) / (64 × DPR)` at DPR 2 and `W(size)` at DPR 1, Firefox's `W(size × DPR) / DPR`, Safari's
 `W(size)` (September 2026; Safari's holds on a page that isn't zoomed, and under a page zoom from 100% to 300% it is
 `W(size × zoom) / zoom`: Decisions Log, 2026-10-12). They'd retire the DOM exception and work in workers, but make
-prepared widths depend on the DPR at prepare time, which the API discussion planned before a release decides (TODO.md,
+prepared widths depend on the DPR at prepare time, which the API discussion decides (TODO.md,
 End of project).
 
 Letter-spaced text is counted the same way. The Blink and Gecko profiles measure its stretches through the context that

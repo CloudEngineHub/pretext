@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.0 - 2026-10-14
 
 ### Upgrading from 0.0.9
 
