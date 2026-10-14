@@ -328,6 +328,20 @@ export type EngineProfile = {
   // (setEmptyObjectFacts in src/rich-inline.ts). Blink and WebKit fit it as any other atomic
   // inline and move it to the next line.
   emptyAtomicAlwaysFits: boolean
+  // Whether a zero-width space right after an atomic item or a box wider than its line stays on
+  // that line. Every engine lays a zero-width space out as text of no width (walkPreparedComplexLines
+  // in src/line-break.ts has the rule), and Blink and WebKit break after an atomic inline
+  // (CanBreakAfterAtomicInline, line_breaker.cc:1168-1208; isAtSoftWrapOpportunity,
+  // InlineFormattingUtils.cpp:446-450), so there the zero-width space starts the next line. Gecko
+  // records the break after the atomic inline as its line's first (nsLineLayout.cpp:1057-1071),
+  // which rules out the one overflow-wrap gives before a cluster, taken only on a line with no
+  // break yet (gfxTextRun.cpp:1068-1074), and the line breaker starts again after the atomic
+  // frame, so the text after it has no break at its start (analyzeText in src/analysis.ts): the
+  // text frame takes its text up to the break after the zero-width space, and a frame of no
+  // width is placed wherever it falls (CanPlaceFrame, nsLineLayout.cpp:1264-1270). Two images
+  // wider than their box, each before a zero-width space, are four lines in Chrome 155 and
+  // Safari 27 and two in Firefox 157 (#521).
+  zeroWidthSpaceStaysAfterAtomic: boolean
   // Where the preserved spaces that end a pre-wrap line's text and overflow the line still hang
   // once an item that takes no room follows them on the line, an atomic item of width 0 or an
   // item of soft hyphens alone. Gecko takes the hang out of each text frame's own width, the
@@ -1014,6 +1028,7 @@ function buildEngineProfile(): EngineProfile {
     hardBreakItemRetreat: engine === 'blink' ? 'item' : engine === 'webkit' ? 'fit' : 'last-grapheme',
     paddedOpeningFit: engine === 'blink' ? 'start' : engine === 'webkit' ? 'placed' : 'both',
     emptyAtomicAlwaysFits: engine === 'gecko',
+    zeroWidthSpaceStaysAfterAtomic: engine === 'gecko',
     hangsSpacesPerTextFrame: engine === 'gecko',
     testsHyphenBeforeAtomic: engine !== 'webkit',
     transformsSegmentBreaksAcrossItems: engine === 'blink',

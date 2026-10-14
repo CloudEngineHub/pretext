@@ -14,11 +14,6 @@ catalog-bc37ba36eebfd65c breaks
 ## A U+3000 that ends a rich item before an item of only a bidi control that ends the paragraph, at 16-48 px, where the text before the U+3000 fits its line and the U+3000 doesn't: Firefox drops the control and hangs the U+3000 (not traced); the Gecko profile keeps a control that ends the paragraph with the U+3000's segment, whose text then doesn't end with the U+3000, so it gets no hang (addIdeographicSpaceHangs in src/prepare.ts) and the last ideograph goes down with it, or it takes a line alone, a line too many (ENGINE_FOLLOWUPS.md, Line edges)
 rich-1d2bf7bd726ec4a2 count
 
-## A ZWSP that is a rich item, or starts one, right after a space, at 37-84 px, where the text before the space fits its line and the space doesn't: Firefox ends the line after the space and starts the next with the ZWSP, which holds that line though it shows nothing where nothing follows it or the word after it doesn't fit beside it, and in pre-wrap keeps the ZWSP on the space's line, as the library does (not traced); the text walkers hang the ZWSP with the space, so the library is a line short (ENGINE_FOLLOWUPS.md, Line edges)
-rich-3e2560b5cce34ec1 count
-rich-d0104910d98009fb count
-rich-e16bbdd996294984 count
-
 ## A bidi control that starts an item between two spaces, at 28 px, where the word before the first space starts its line and the word after the second doesn't fit beside that space: Firefox leaves the control and both spaces on the first word's line, where they take no room, and starts the next line at the second word; the Gecko profile starts a line with the control and its space, which hold that line alone, a line too many (ENGINE_FOLLOWUPS.md, Rich-inline item edges)
 rich-1a756c0429cffa1d count
 rich-9600fb89ae2dc5d4 count
@@ -26,9 +21,6 @@ rich-a2bdbe6aca58bf4b count
 
 ## A bidi control that starts an item between two spaces, at 48-50 px, where the word before the first space fits its line and that space doesn't, and text follows the second space in its own item: Firefox fits the control's text frame from the space after it (BreakAndMeasureText, gfxTextRun.cpp:1085-1109, 1175-1188) and, where the word after that space doesn't fit, leaves on the line the frame's piece of no width, its controls with that space, trimmed or in pre-wrap hung (nsTextFrame.cpp:11202-11229), which fits wherever it starts (CanPlaceFrame, nsLineLayout.cpp:1264-1271), so the line keeps its last word; the Gecko profile gives the control no break, as the scan gives none before a space, so the line goes back to its last break, a line too many (ENGINE_FOLLOWUPS.md, Rich-inline item edges)
 rich-7e88e4ba66dc0c93 count
-
-## A padded rich item of a space and a ZWSP after a word, at 17-31 px, where the word fits its line and the item with its space doesn't: Firefox ends the line after the word and gives the item the next line, which it holds though it shows nothing (not traced); the library hangs the item's space and its ZWSP on the word's line, a line short, as it hangs a ZWSP after a space outside a padded item (ENGINE_FOLLOWUPS.md, Rich-inline item edges)
-rich-940ad57a2e132532 count
 
 ## A padded rich item of only a soft hyphen after a space, at 50 px, where the word before the space and the item's two edges fit the line and the space between them doesn't: Firefox places a frame by its end less the trimmable space that ends the text before it (CanPlaceFrame, nsLineLayout.cpp:1251-1252), which a text frame whose characters are all discarded leaves standing (nsTextFrame.cpp:11421-11429), so the item stays on the word's line; the Gecko profile makes the soft hyphen a zero-width break and counts the space before it in the width of a line that ends after it, as the text walker does, so the item goes down with the text after it, which doesn't fit beside its padding, a line too many (ENGINE_FOLLOWUPS.md, White space and controls)
 rich-4f23cc28c4b544d8 count
@@ -52,9 +44,6 @@ rich-28babe2ade6fd628 count
 ## A soft hyphen whose hyphen doesn't fit, where rich items split its word, at 24 px and wider: Firefox breaks the word between letters, the library at the soft hyphen, as it does for the text in one node (ENGINE_FOLLOWUPS.md)
 rich-8736e842495c21ea count
 rich-d7a1851aecf96951 breaks
-
-## A space and a ZWSP that end a rich pre-wrap item before an item that starts with a space, at 81.8-84 px and at width 1, where the text before the first space fits its line and that space doesn't: Firefox hangs the first space and starts the next line with the ZWSP, so the second space starts that line (not traced); the library carries the run of spaces that hang past the zero-width break that ends the item, as past a soft hyphen there, which Firefox drops, so both spaces hang on the first line (ENGINE_FOLLOWUPS.md, Rich-inline item edges)
-rich-95f5d3ebc6bd5aed breaks
 
 ## A space before a CR where the line would end, at 24 px and wider: Firefox's fit trims only the run of spaces that ends the line (gfxTextRun::BreakAndMeasureText, gfxTextRun.cpp:1152-1160), and the CR after the space ends that run, so `aaaa A` with its space, 55.17 px, doesn't fit at 52-55.15 px and `A` starts the next line, where the Gecko analysis takes the CR out of the text, hangs the space and fits `aaaa A`; before #399 the CR was one more space that hung (ENGINE_FOLLOWUPS.md, White space and controls)
 catalog-28710b5f63c26c5b count

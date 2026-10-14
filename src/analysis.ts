@@ -48,6 +48,12 @@ export const RETURNABLE = 0x40
 // The engine's clusters don't split the segment, so no emergency break splits it
 // either. Measurement clears it.
 export const ONE_CLUSTER = 0x80
+// In its place on a prepared handle: the zero-width break is a soft hyphen, which the Gecko scan
+// makes one where its break draws no hyphen (classifySegmentUnit). Firefox's text run drops it,
+// so it is a break with nothing there: it stays with the line that ends at it and no line starts
+// with it, where a zero-width space is content (walkPreparedComplexLines in src/line-break.ts).
+// Measurement sets it.
+export const DROPPED = 0x80
 export type SegmentKindCode = typeof TEXT | typeof SPACE | typeof ZERO_WIDTH_BREAK | typeof SOFT_HYPHEN |
   typeof PRESERVED_SPACE | typeof TAB | typeof ZERO_WIDTH_GLUE | typeof CONTROL | typeof HARD_BREAK
 // Each kind's name by its code, as prepareWithSegments() gives them.

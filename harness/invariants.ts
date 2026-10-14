@@ -26,8 +26,8 @@
 // - every line API agrees with walkLineRanges (predict.ts's check), and layoutWithLines and layoutNextLine give equal
 //   line objects, so a field one of them forgets shows;
 // - lines cover the source forward without overlap, at a fixed width and at one that changes per line, and between lines
-//   leave only collapsed spaces, a soft hyphen or ZWSP that doesn't break, a pre-wrap line feed, in Safari a U+2028 or
-//   U+2029, or in Firefox a bidi control;
+//   leave only collapsed spaces, a soft hyphen, a pre-wrap line feed, in Safari a U+2028 or U+2029, or in Firefox a
+//   bidi control, and never a ZWSP, which is content of no width on the line it is on;
 // - stepping leaves its start cursor as it was, the ranges a stream gives stay as they were, JSON copies of cursors and
 //   ranges resume the same, and a text's materialized line passed back as a range gives the same line (a rich one's
 //   type is no range's, its fragments having no cursors: an app passes its range back);
@@ -226,11 +226,11 @@ export async function runInvariants(profile: Profile, lib: string, draws: { dir:
   // makes a hard break in normal white space as a line feed is one in pre-wrap.
   const gecko = profile === 'gecko'
   const removed = gecko ? /[\r\f]/g : profile === 'webkit' ? /\r/g : null
-  const unpaintedNormal = gecko ? /^[ \u00AD\u200B\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]*$/ : profile === 'webkit' ? /^[ \u00AD\u200B\u2028\u2029]*$/ : /^[ \u00AD\u200B]*$/
-  const unpaintedPreWrap = gecko ? /^[\n\u00AD\u200B\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]*$/ : /^[\n\u00AD\u200B]*$/
+  const unpaintedNormal = gecko ? /^[ \u00AD\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]*$/ : profile === 'webkit' ? /^[ \u00AD\u2028\u2029]*$/ : /^[ \u00AD]*$/
+  const unpaintedPreWrap = gecko ? /^[\n\u00AD\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]*$/ : /^[\n\u00AD]*$/
   // The same in a rich item's own text, which white space hasn't been normalized in.
-  const unpaintedSourceNormal = gecko ? /^[ \t\n\r\f\u00AD\u200B\u2028\u2029\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]*$/ : /^[ \t\n\r\f\u00AD\u200B\u2028\u2029]*$/
-  const unpaintedSourcePreWrap = gecko ? /^[\n\r\f\u00AD\u200B\u2028\u2029\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]*$/ : /^[\n\r\f\u00AD\u200B\u2028\u2029]*$/
+  const unpaintedSourceNormal = gecko ? /^[ \t\n\r\f\u00AD\u2028\u2029\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]*$/ : /^[ \t\n\r\f\u00AD\u2028\u2029]*$/
+  const unpaintedSourcePreWrap = gecko ? /^[\n\r\f\u00AD\u2028\u2029\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]*$/ : /^[\n\r\f\u00AD\u2028\u2029]*$/
   const covers = (stream: string, spans: ReadonlyArray<[number, number]>, whiteSpace: 'normal' | 'pre-wrap', from = 0, source = false): string | null => {
     const unpainted = source ? (whiteSpace === 'normal' ? unpaintedSourceNormal : unpaintedSourcePreWrap) : whiteSpace === 'normal' ? unpaintedNormal : unpaintedPreWrap
     let end = from
