@@ -491,7 +491,6 @@ function walkPreparedComplexLines(
   const openingEdges = items === undefined ? null : items.openingEdges
   const emptyObjectSpaces = items === undefined ? null : items.emptyObjectSpaces
   const emptyObjectReturns = items === undefined ? null : items.emptyObjectReturns
-  const hangEnds = items === undefined ? null : items.hangEnds
   const engineProfile = getEngineProfile()
   // Preserved spaces and tabs at the end of a line hang past it (CSS Text 3
   // §4.1.2), so they take no room when fitting and don't size the line (§8.2).
@@ -509,7 +508,6 @@ function walkPreparedComplexLines(
   // (nsLineBreaker.cpp:321-330), and so does one inside the spaces' own item, which ends their
   // run (ParagraphSegmentData, hangEnds).
   const hangGoesOnPastEmpty = items !== undefined && engineProfile.hangsSpacesPerTextFrame
-  const zeroWidthSpaceStaysAfterAtomic = engineProfile.zeroWidthSpaceStaysAfterAtomic
   const testsHyphenBeforeAtomic = engineProfile.testsHyphenBeforeAtomic
   const zeroWidthGlueTakesLine = engineProfile.zeroWidthGlueTakesLine
   const tabsInAppUnits = engineProfile.tabsInAppUnits
@@ -681,7 +679,7 @@ function walkPreparedComplexLines(
           // Bounded, Work Done Only Where A Rule Applies; Decisions Log, 2026-10-08).
           let hangs = (1 << kind & hangingKinds) !== 0
           if (hangGoesOnPastEmpty && kind === ZERO_WIDTH_BREAK && hangEndSegmentIndex === i &&
-            ((flags & DROPPED) !== 0 || (hangStartWidth - hangEdgesWidth <= fitLimit && (hangEnds === null || hangEnds[i] === 0)))) hangs = true
+            ((flags & DROPPED) !== 0 || (hangStartWidth - hangEdgesWidth <= fitLimit && (items.hangEnds === null || items.hangEnds[i] === 0)))) hangs = true
           if (hangs) {
             if (hangEndSegmentIndex !== i) {
               hangStartWidth = lineW - lineEndTrimmed + leadingSpacing
@@ -829,18 +827,26 @@ function walkPreparedComplexLines(
               // the two sides of a zero-width space, so a letter wider than its line by
               // less than that kerning fits there, and Chrome keeps the zero-width space
               // on its line (ENGINE_FOLLOWUPS.md, Line edges).
+              //
+              // Only a break segment can stay, so all of this is under that one test, and
+              // the profile's field is read where a zero-width space overflows right after
+              // an object: a line that ends at a segment that is no break pays nothing for
+              // the rule, and a walk reads nothing for it at its start (RESEARCH.md, Keeping
+              // Work Bounded, Work Done Only Where A Rule Applies).
               const contentW = lineW - lineEndTrimmed
-              const afterObject = kind === ZERO_WIDTH_BREAK && (segmentFlags[i - 1]! & KIND_BITS) === OBJECT
-              const stays = kind === ZERO_WIDTH_BREAK && (flags & DROPPED) === 0
-                ? afterObject && (zeroWidthSpaceStaysAfterAtomic || (openingEdges !== null && openingEdges[i - 1]! !== 0))
-                : breakAfter && (hangs || kind !== TAB) && (contentW <= fitLimit || (pendingBreakSegmentIndex < 0 && (kind === SPACE || kind === ZERO_WIDTH_BREAK)) || afterObject)
-              if (stays) {
-                endWidth = hangs ? hangStartWidth : contentW
-                lineW += advance
-                endSegmentIndex = i + 1
-                if (kind === ZERO_WIDTH_BREAK) while (endSegmentIndex < segmentCount && (segmentFlags[endSegmentIndex]! & KIND_BITS) === ZERO_WIDTH_BREAK) endSegmentIndex++
-                endGraphemeIndex = 0
-                break decided
+              if (breakAfter) {
+                const afterObject = kind === ZERO_WIDTH_BREAK && (segmentFlags[i - 1]! & KIND_BITS) === OBJECT
+                const stays = kind === ZERO_WIDTH_BREAK && (flags & DROPPED) === 0
+                  ? afterObject && (engineProfile.zeroWidthSpaceStaysAfterAtomic || (openingEdges !== null && openingEdges[i - 1]! !== 0))
+                  : (hangs || kind !== TAB) && (contentW <= fitLimit || (pendingBreakSegmentIndex < 0 && (kind === SPACE || kind === ZERO_WIDTH_BREAK)) || afterObject)
+                if (stays) {
+                  endWidth = hangs ? hangStartWidth : contentW
+                  lineW += advance
+                  endSegmentIndex = i + 1
+                  if (kind === ZERO_WIDTH_BREAK) while (endSegmentIndex < segmentCount && (segmentFlags[endSegmentIndex]! & KIND_BITS) === ZERO_WIDTH_BREAK) endSegmentIndex++
+                  endGraphemeIndex = 0
+                  break decided
+                }
               }
               // Gecko's line returns from a tab that doesn't fit to its latest break (below), as
               // BreakAndMeasureText keeps the last break whose line fits (gfxTextRun.cpp:1086-1101).
