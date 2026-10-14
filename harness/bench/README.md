@@ -252,7 +252,7 @@ before the glyph spacings did, costs a tenth as much there.
   reading of 6% to 13% there with no change to code `layout()` runs wants a second change's table before being blamed on
   one. A third change moved it and does change that code: #NNN, which lays a zero-width space out as content, takes a
   test out of `countPreparedLines()`'s loop where a line starts and swaps one where it ends. With it the row read 5.4%
-  to 8.4% slower over six sessions and 10% to 15% in two runs of every row, on messages that hold no zero-width space
+  to 8.4% slower over six sessions and 8% to 15% in three runs of every row, on messages that hold no zero-width space
   and all take that loop; as much with main's two tests put back (5.8% to 11.3% in five sessions, 51.6% in a sixth)
   and with one do-nothing top-level variable more (4.7% to 10.3%); and level under a narrower form of the same change
   that leaves the loop as it was (medians of +0.4% to +1.1% in three runs of every row). `lines: cjk walk` read 5.5% to
