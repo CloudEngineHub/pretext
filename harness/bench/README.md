@@ -250,7 +250,14 @@ before the glyph spacings did, costs a tenth as much there.
   bindings #513 adds. So it comes with the 42 lines #513 changes in `measureAnalysis()`, of which the Gecko profile runs
   two tests a segment and no allocation, or with those bindings: one variable more needn't move the names that matter. A
   reading of 6% to 13% there with no change to code `layout()` runs wants a second change's table before being blamed on
-  one.
+  one. A third change moved it and does change that code: #NNN, which lays a zero-width space out as content, takes a
+  test out of `countPreparedLines()`'s loop where a line starts and swaps one where it ends. With it the row read 5.4%
+  to 8.4% slower over six sessions and 10% to 15% in two runs of every row, on messages that hold no zero-width space
+  and all take that loop; as much with main's two tests put back (5.8% to 11.3% in five sessions, 51.6% in a sixth)
+  and with one do-nothing top-level variable more (4.7% to 10.3%); and level under a narrower form of the same change
+  that leaves the loop as it was (medians of +0.4% to +1.1% in three runs of every row). `lines: cjk walk` read 5.5% to
+  7.7% slower with it over six sessions, and 5.9% to 10.0% with main's stepper and line start put back, where the
+  Latin messages' entries then read level (Firefox 157.0.1, 2026-10-14; `RESEARCH.md`, Decisions Log, 2026-10-14).
 - **Firefox's `resize: latin layout at widths seen before`** reads 12% to 23% slower since #515, and that is no
   misreading: the change runs that code. Removing entry geometry (2ece40cb), the widths the library measured afresh for
   a line that starts inside a word at an invisible character, takes one test out of the loop in which
