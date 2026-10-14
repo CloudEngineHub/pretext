@@ -36,6 +36,7 @@ const REPORTS: readonly Report[] = [
   { issue: '#195', text: 'x'.repeat(56), font: 'bold 15px "Shantell Sans", cursive', width: 140, lineHeight: 18, whiteSpace: 'pre-wrap' },
   { issue: '#210', text: '\u{200B}≤100nA\u{200B}', font: '12px Calibri, sans-serif', width: 25, lineHeight: 20.96, whiteSpace: 'pre-wrap' },
   { issue: '#210', text: '\u{200B}', font: '12px Calibri, sans-serif', width: 25, lineHeight: 20.96, whiteSpace: 'pre-wrap' },
+  { issue: '#210', text: [{ text: '\u{200B}', font: '12px Calibri, sans-serif' }, { text: '\n', font: '12px Calibri, sans-serif' }, { text: '≥40V', font: '12px Calibri, sans-serif' }, { text: '\n', font: '12px Calibri, sans-serif' }, { text: '\u{200B}', font: '12px Calibri, sans-serif' }], font: '12px Calibri, sans-serif', width: 100, lineHeight: 20.96, whiteSpace: 'pre-wrap' },
   { issue: '#323', text: ['the ', { text: 'inter', font: 'bold 16px Arial' }, 'na\u{AD}tion\u{AD}al'], font: '16px Arial', width: 52.5, lineHeight: 20 },
   { issue: '#323', text: ['the ', { text: 'inter', font: 'bold 16px Arial' }, 'na\u{AD}tion\u{AD}al'], font: '16px Arial', width: 54, lineHeight: 20 },
   { issue: '#323', text: ['the ', { text: 'inter', font: 'bold 16px Arial' }, 'na\u{AD}tion\u{AD}al'], font: '16px Arial', width: 56, lineHeight: 20 },
