@@ -8,6 +8,7 @@ import { scriptClassFacts } from './generated/engine-break-data.js'
 import { DEFAULT_IGNORABLE, getClass, hasProperty, lazyRegExp, unpackClasses, type ClassTable } from './line-breaks.js'
 import {
   CONTROL,
+  DROPPED,
   HARD_BREAK,
   KIND_BITS,
   ONE_CLUSTER,
@@ -579,8 +580,14 @@ export function measureAnalysis(
     if (segments !== null) segments[mi - from] = text
     // Contexts for every segment of soft hyphens, whatever its kind here, one that is glue
     // too, where the scan gives no break after it: a handle with contexts is one whose lines
-    // return from an unfit hyphen, measured below.
+    // return from an unfit hyphen, measured below. One that is a zero-width break is marked
+    // (DROPPED), which tells it from a zero-width space, and its text is the full walker's: the
+    // simple walkers take every zero-width break for a zero-width space.
     if (kind !== TEXT && text.charCodeAt(0) === 0xAD) {
+      if (kind === ZERO_WIDTH_BREAK) {
+        segmentFlags[at] = segmentFlags[at]! | DROPPED
+        simpleKinds = false
+      }
       discretionaryHyphenContexts ??= zeros(mi - from)
       discretionaryHyphenContexts[mi - from] = returnFitsEachSideAlone ? 0 : getJoinedNarrowing(analysis, mi, to, previousJoinablePiece, previousJoinableMetrics, fontMeasurement, emojiCorrection, engineProfile.lineFitEpsilon)
     } else if (discretionaryHyphenContexts !== null) {

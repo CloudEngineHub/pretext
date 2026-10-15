@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- A zero-width space now gets the line the browser gives it. Where the content before it doesn't fit its line, it starts the next line, and holds that line alone where nothing follows it or the next word doesn't fit beside it: after a letter wider than the line, after a space that ends the line and, in Chrome and Safari, after an image or a `break: 'never'` item wider than the line, where Firefox keeps it on that item's line. So an editor's caret anchor after an image wider than its box is a line of its own in Chrome and Safari, as on the page, and `lineCount` and `height` count that line. A line that ended with such a zero-width space now ends before it, and the next line's range and text start with it. This also gives back the line that 1.0.0 took from a zero-width space in a rich-inline item of its own (#525).
+
 ## 1.0.0 - 2026-10-14
 
 ### Upgrading from 0.0.9

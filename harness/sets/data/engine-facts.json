@@ -34,5 +34,9 @@
 {"test": "src/layout.test.ts:1000 Gecko lays out bidi controls as its text run, which leaves them out", "texts": ["ab \u200e cd", "ab \u200f cd"], "modes": ["normal"], "pageLangs": ["en"], "directions": ["ltr", "rtl"]},
 {"test": "src/layout.test.ts:2140 Blink returns an unfit soft hyphen to the latest earlier break that leaves room for the hyphen", "texts": ["x ab-i\u00adefgh", "x ab?cd\u00adefgh"], "modes": ["normal"], "pageLangs": ["en"]},
 {"test": "src/layout.test.ts:2140 Blink returns an unfit soft hyphen to the latest earlier break that leaves room for the hyphen", "texts": ["x \u65e5\u672c\u8a9e\u00ad\u65e5\u672c\u8a9e", "x \u65e5\u672c\u8a9e\u00adabcdefg"], "modes": ["normal"], "pageLangs": ["en"], "families": ["\"Hiragino Sans\""]},
-{"test": "src/layout.test.ts:1575 the WebKit profile takes a lone carriage return out of normal white space, with the breaks its scan found around it", "texts": ["ab\rcd ef"], "modes": ["normal"], "pageLangs": ["en"], "families": ["Menlo"]}
+{"test": "src/layout.test.ts:1575 the WebKit profile takes a lone carriage return out of normal white space, with the breaks its scan found around it", "texts": ["ab\rcd ef"], "modes": ["normal"], "pageLangs": ["en"], "families": ["Menlo"]},
+{"test": "src/layout.test.ts:5959 a zero-width space stays where the content before it fits, and else starts the next line, which it holds", "texts": ["ii M\u200b"], "modes": ["normal", "pre-wrap"], "pageLangs": ["en"], "size": 40},
+{"test": "src/layout.test.ts:5959 a zero-width space stays where the content before it fits, and else starts the next line, which it holds", "texts": ["ii M\u200bM"], "modes": ["normal"], "pageLangs": ["en"], "size": 40},
+{"test": "src/layout.test.ts:5959 a zero-width space stays where the content before it fits, and else starts the next line, which it holds", "texts": ["Hello world \u200b"], "modes": ["normal", "pre-wrap"], "pageLangs": ["en"]},
+{"test": "src/layout.test.ts:1320 the Gecko profile returns a line from a tab that doesn't fit to its latest break", "texts": ["M\u200b\u200b\tis"], "modes": ["pre-wrap"], "pageLangs": ["en"]}
 ]

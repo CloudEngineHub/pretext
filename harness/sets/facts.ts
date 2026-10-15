@@ -16,14 +16,15 @@
 // The ones that lay out rich items are in rich.ts, and three read only the user agent. A fact added since keeps its
 // test's line as of the pull request or commit that added it, which harness/README.md names (Adding a case), and names
 // the paragraph directions it runs in where a browser's lines turn on them (left-to-right otherwise). Here each text
-// runs in 16px Arial, or in each family its fact names where the fact is a font's, and widths.ts finds where each
-// browser's lines change.
+// runs in 16px Arial, or in each family its fact names where the fact is a font's, at the size it names where its rule
+// needs a letter wider than a line of 24px or more, as the fact of a zero-width space after content wider than its
+// line does, at 40px, and widths.ts finds where each browser's lines change.
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { font, paragraph } from './build.ts'
 import type { Template } from './widths.ts'
 
-type Fact = { test: string; texts: string[]; modes: Array<'normal' | 'pre-wrap' | 'keep-all'>; pageLangs: string[]; families?: string[]; directions?: Array<'ltr' | 'rtl'> }
+type Fact = { test: string; texts: string[]; modes: Array<'normal' | 'pre-wrap' | 'keep-all'>; pageLangs: string[]; families?: string[]; directions?: Array<'ltr' | 'rtl'>; size?: number }
 
 export function factTemplates(): Template[] {
   const facts = JSON.parse(readFileSync(join(import.meta.dir, 'data/engine-facts.json'), 'utf8')) as Fact[]
@@ -38,7 +39,7 @@ export function factTemplates(): Template[] {
       const lang = fact.pageLangs[l]!
       out.push({
         family: `facts/layout.test.ts:${line}`, origin: fact.test, pageLang: lang, widths: [], grid: true,
-        paragraph: paragraph({ font: font(families[k]!, 16), lang, whiteSpace: mode === 'pre-wrap' ? 'pre-wrap' : 'normal', wordBreak: mode === 'keep-all' ? 'keep-all' : 'normal', direction: directions[d]! }, [fact.texts[t]!]),
+        paragraph: paragraph({ font: font(families[k]!, fact.size ?? 16), lang, whiteSpace: mode === 'pre-wrap' ? 'pre-wrap' : 'normal', wordBreak: mode === 'keep-all' ? 'keep-all' : 'normal', direction: directions[d]! }, [fact.texts[t]!]),
       })
     }
   }

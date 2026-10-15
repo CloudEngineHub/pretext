@@ -1,9 +1,9 @@
 import '../harness/watchdog.ts'
 import { beforeAll, beforeEach, describe, expect, test } from 'bun:test'
 import type { AnalysisProfile } from './analysis.ts'
-import type { LayoutCursor, PreparedText, PreparedTextWithSegments } from './layout.ts'
+import type { LayoutCursor, PrepareOptions, PreparedText, PreparedTextWithSegments } from './layout.ts'
 import type { PreparedLineBreakData } from './line-break.ts'
-import type { RichInlineBox, RichInlineItem, RichInlineLineRange, RichInlineOptions } from './rich-inline.ts'
+import type { RichInlineBox, RichInlineCursor, RichInlineItem, RichInlineLineRange, RichInlineOptions } from './rich-inline.ts'
 
 // Unit checks over a deterministic fake canvas backend: the shipped prepare/layout
 // and rich-inline exports, and the rules behind them (the engines' break scans, the
@@ -1354,6 +1354,14 @@ describe('boundary rules', () => {
         const b = round(measureWidth('b', LARGE))
         expect(lines('a\t \t b', stop + 6)).toEqual([['a\t ', round(stop)], ['\t ', round(stop)], ['b', b]])
         expect(lines('x a\t \t b', stop + 6)).toEqual([['x ', round(measureWidth('x', LARGE))], ['a\t ', round(stop)], ['\t ', round(stop)], ['b', b]])
+        // Nor between two zero-width spaces (UAX #14 LB7), so the latest break isn't there: with
+        // none on the line it wraps before the tab and both stay with the letter, and after a
+        // space the line returns to the break before both, which hold the next line where the
+        // tab doesn't fit beside them. In 16px Arial at 24.3px Firefox 157.0.1 lays `M`, two
+        // zero-width spaces, a tab and `is` out as three lines, and `Mom `, two, a tab and `is`
+        // as five, the third with nothing on it.
+        expect(lines('a​​\tb', stop - 1)).toEqual([['a​​', round(measureWidth('a', LARGE))], ['\t', round(stop)], ['b', b]])
+        expect(lines('a ​​\tb', stop - 1)).toEqual([['a ', round(measureWidth('a', LARGE))], ['​​', 0], ['\t', round(stop)], ['b', b]])
         // A break of the joined text inside a rich item's segment is such a break: the two Thai
         // items join into words that break after the second item's first letter, and its tab, under
         // half a `0` before its stop, takes the stop after and doesn't fit.
@@ -2707,6 +2715,7 @@ describe('prepare invariants', () => {
       ['hardBreakItemRetreat', 'item', 'fit', 'last-grapheme'],
       ['paddedOpeningFit', 'start', 'placed', 'both'],
       ['emptyAtomicAlwaysFits', false, false, true],
+      ['zeroWidthSpaceStaysAfterAtomic', false, false, true],
       ['hangsSpacesPerTextFrame', false, false, true],
       ['testsHyphenBeforeAtomic', true, false, true],
       ['transformsSegmentBreaksAcrossItems', true, false, false],
@@ -3183,6 +3192,78 @@ describe('rich-inline invariants', () => {
     expect(line.end).toEqual({ itemIndex: 3, segmentIndex: 0, graphemeIndex: 0 })
     expect(layoutNextRichInlineLineRange(prepared, 1, line.end)).toBeNull()
     expect(measureRichInlineStats(prepared, measureWidth('A', FONT)).lineCount).toBe(1)
+  })
+
+  test("a zero-width space after an object wider than its line takes each engine's line", async () => {
+    // An image wider than its box with a zero-width space after it as a caret anchor (#521).
+    // Chrome and Safari break after an atomic inline and start the next line with the
+    // zero-width space, which holds it; Firefox has no break there and keeps a frame of no width
+    // where it falls (EngineProfile, zeroWidthSpaceStaysAfterAtomic). Each row matches Chrome
+    // 155.0.8059.80, Firefox 157.0.1 and Safari 27.0's engine (2026-10-14): the items, the
+    // options, the width, and the items of each line in Chrome and Safari and in Firefox.
+    const engines = [await engineProfileUnder(CHROME_USER_AGENT), await engineProfileUnder(SAFARI_USER_AGENT), await engineProfileUnder(FIREFOX_USER_AGENT)]
+    const Z = '​'
+    const text = (value: string): RichInlineItem => ({ text: value, font: FONT })
+    const anchor = text(Z)
+    const preWrap = { whiteSpace: 'pre-wrap' } as const
+    const nbsp = measureWidth(' ', FONT)
+    const chip = (width: number): RichInlineItem => ({ text: ' ', font: FONT, break: 'never', extraWidth: width - nbsp })
+    const hello = measureWidth('Hello', FONT)
+    const space = measureWidth(' ', FONT)
+    type Row = [items: Array<RichInlineItem | RichInlineBox>, options: Parameters<typeof prepareRichInline>[1], width: number, lines: number[][], gecko?: number[][]]
+    const rows: Row[] = [
+      // #521 as filed: two images, one that overflows, one that fits, and two with no anchor.
+      [[{ width: 68.898 }, anchor, { width: 68.898 }, anchor], preWrap, 67.898, [[0], [1], [2], [3]], [[0, 1], [2, 3]]],
+      [[{ width: 68.398 }, anchor], preWrap, 67.898, [[0], [1]], [[0, 1]]],
+      [[{ width: 67.398 }, anchor], preWrap, 67.898, [[0, 1]]],
+      [[{ width: 68.898 }, { width: 68.898 }], preWrap, 67.898, [[0], [1]]],
+      // The same in normal white space, and for an atomic no-break space as wide as the image.
+      [[{ width: 68.898 }, anchor, { width: 68.898 }, anchor], {}, 67.898, [[0], [1], [2], [3]], [[0, 1], [2, 3]]],
+      [[chip(68.898), anchor, chip(68.898), anchor], preWrap, 67.898, [[0], [1], [2], [3]], [[0, 1], [2, 3]]],
+      // A word after the anchor shares its line where it fits beside it, and else goes down whole.
+      [[{ width: 60 }, anchor, text('Hello')], {}, hello, [[0], [1, 2]], [[0, 1], [2]]],
+      [[{ width: 60 }, anchor, text('Hello')], {}, hello - 1, [[0], [1], [2], [2]], [[0, 1], [2], [2]]],
+      // Two anchors stay together, as no break comes between them.
+      [[{ width: 60 }, anchor, anchor], {}, 40, [[0], [1, 2]], [[0, 1, 2]]],
+      // After a letter wider than its line, and after a space that doesn't fit, every engine
+      // starts the next line with it.
+      [[text('A'), anchor], {}, 5, [[0], [1]]],
+      [[text('Hello '), anchor], {}, hello, [[0], [1]]],
+      [[text('Hello '), anchor], {}, hello + space, [[0, 1]]],
+      // After preserved spaces that hang, Firefox keeps one that starts an item, whose frame
+      // starts at the line's end, but one inside the spaces' own item, or after a box wider
+      // than the line, starts the next line there too.
+      [[text('Hello  '), anchor], preWrap, hello + space, [[0], [1]], [[0, 1]]],
+      [[text('Hello'), text(`  ${Z}`)], preWrap, hello + space, [[0, 1], [1]]],
+      [[{ width: 60 }, text('  '), anchor], preWrap, 40, [[0, 1], [2]]],
+    ]
+    const profile = getEngineProfile()
+    const previous = { ...profile }
+    try {
+      for (let e = 0; e < engines.length; e++) {
+        Object.assign(profile, engines[e]!)
+        clearCache()
+        for (const [items, options, width, lines, gecko] of rows) {
+          const prepared = prepareRichInline(items, options)
+          const walked: number[][] = []
+          walkRichInlineLineRanges(prepared, width, range => { walked.push(range.fragments.map(fragment => fragment.itemIndex)) })
+          const expected = profile.lineBreakScan === 'gecko' && gecko !== undefined ? gecko : lines
+          expect({ engine: profile.lineBreakScan, items, options, width, lines: walked }).toEqual({ engine: profile.lineBreakScan, items, options, width, lines: expected })
+          expect(measureRichInlineStats(prepared, width).lineCount).toBe(expected.length)
+          const streamed: number[][] = []
+          for (let cursor: RichInlineCursor | undefined; streamed.length <= walked.length;) {
+            const range = layoutNextRichInlineLineRange(prepared, width, cursor)
+            if (range === null) break
+            streamed.push(range.fragments.map(fragment => fragment.itemIndex))
+            cursor = range.end
+          }
+          expect(streamed).toEqual(walked)
+        }
+      }
+    } finally {
+      Object.assign(profile, previous)
+      clearCache()
+    }
   })
 
   test('a paragraph of one item lays out as that item with an empty item after it', async () => {
@@ -5850,13 +5931,18 @@ describe('layout invariants', () => {
     }
   })
 
-  test('line counts preserve leading and resumed zero-width spaces at emergency widths', () => {
+  test('line counts keep every zero-width space on a line of its own at emergency widths', () => {
+    // A zero-width space is content of no width: after a grapheme wider than the line, and after
+    // the space that hangs there, it starts the next line, which it holds where the grapheme
+    // after it doesn't fit beside it.
     for (const [text, expected] of [
       [' \u200Babc', ['\u200B', 'a', 'b', 'c']],
-      ['a \u200Babc', ['a ', 'a', 'b', 'c']],
+      ['a \u200Babc', ['a ', '\u200B', 'a', 'b', 'c']],
       ['\u200B\u200Bab', ['\u200B\u200B', 'a', 'b']],
       ['abc', ['a', 'b', 'c']],
-      ['字\u200B字', ['字\u200B', '字']],
+      ['字\u200B字', ['字', '\u200B', '字']],
+      ['a\u200B', ['a', '\u200B']],
+      ['a\u200B\u200B', ['a', '\u200B\u200B']],
     ] as const) {
       const prepared = prepareWithSegments(text, FONT)
       const compact = prepare(text, FONT)
@@ -5875,6 +5961,75 @@ describe('layout invariants', () => {
         expect(layout(compact, width, LINE_HEIGHT)).toEqual({ lineCount: expected.length, height: expected.length * LINE_HEIGHT })
       }
       expect(canvasMeasurementCount).toBe(measured)
+    }
+  })
+
+  test('a zero-width space stays where the content before it fits, and else starts the next line, which it holds', () => {
+    // Every engine lays a zero-width space out as text of no width (walkPreparedComplexLines in
+    // src/line-break.ts): no line's end hangs it and no line's start leaves it out. Each row's
+    // lines are those of Chrome 155.0.8059.80, Firefox 157.0.1 and Safari 27.0's engine for the
+    // same shape in 16px and 40px Arial (2026-10-14), but one in Firefox, which gives the last
+    // character of a text a letter-spacing gap whatever it is (ENGINE_FOLLOWUPS.md, Letter
+    // spacing): a zero-width space that ends its text needs room for that gap too, so in 40px
+    // Arial at 4px `M`, 33.32px wide, and one are two lines at 39px there and one at 45px.
+    const Z = '​'
+    const letter = measureWidth('A', FONT)
+    const word = measureWidth('Hello', FONT)
+    const space = measureWidth(' ', FONT)
+    const preWrap = { whiteSpace: 'pre-wrap' } as const
+    const rows: Array<[text: string, options: PrepareOptions, width: number, lines: string[]]> = [
+      // After a grapheme wider than its line: the next line, which it holds alone where nothing
+      // follows it, where a hard break does and where the text after it doesn't fit beside it.
+      [`A${Z}`, {}, letter - 1, ['A', Z]],
+      [`A${Z}`, {}, letter, [`A${Z}`]],
+      [`A${Z}`, preWrap, letter - 1, ['A', Z]],
+      [`字${Z}b`, {}, letter + 1, ['字', `${Z}b`]],
+      [`A${Z}b`, {}, letter - 1, ['A', Z, 'b']],
+      [`A${Z}\nb`, preWrap, letter - 1, ['A', Z, 'b']],
+      // No break comes between two of them, and the last piece of a word cut between letters
+      // keeps one where the piece fits.
+      [`A${Z}${Z}`, {}, letter - 1, ['A', `${Z}${Z}`]],
+      [`Hello${Z}`, {}, 2 * letter, ['He', 'll', `o${Z}`]],
+      // After a space that doesn't fit, where the word before it does: the space ends its line,
+      // which no longer trims it where a zero-width space follows it there.
+      [`Hello ${Z}`, {}, word, ['Hello ', Z]],
+      [`Hello ${Z}`, {}, word + space, [`Hello ${Z}`]],
+      [`Hello ${Z}world`, {}, word, ['Hello ', `${Z}world`]],
+      [`Hello ${Z}worldwide`, {}, word, ['Hello ', Z, 'world', 'wide']],
+      // Preserved spaces hang, and it fits only where every one of them does.
+      [`Hello  ${Z}`, preWrap, word + space, ['Hello  ', Z]],
+      [`Hello  ${Z}`, preWrap, word + 2 * space, [`Hello  ${Z}`]],
+      // The gap after the last letter is that letter's, so it counts in what the zero-width
+      // space fits after, under a negative letter spacing too.
+      [`A${Z}`, { letterSpacing: 2 }, letter + 1, ['A', Z]],
+      [`A${Z}`, { letterSpacing: 2 }, letter + 2, [`A${Z}`]],
+      [`A${Z}`, { letterSpacing: -2 }, letter - 2, [`A${Z}`]],
+      [`A${Z}`, { letterSpacing: -2 }, letter - 3, ['A', Z]],
+    ]
+    for (const [text, options, width, expected] of rows) {
+      const prepared = prepareWithSegments(text, FONT, options)
+      const lines = layoutWithLines(prepared, width, LINE_HEIGHT)
+      expect({ text, options, width, lines: lines.lines.map(line => line.text) }).toEqual({ text, options, width, lines: expected })
+      expect(collectStreamedLines(prepared, width).map(({ text, start, end }) => ({ text, start, end }))).toEqual(lines.lines.map(({ text, start, end }) => ({ text, start, end })))
+      expect(measureLineStats(prepared, width).lineCount).toBe(expected.length)
+      expect(walkLineRanges(prepared, width, () => {})).toBe(expected.length)
+      expect(layout(prepare(text, FONT, options), width, LINE_HEIGHT)).toEqual({ lineCount: expected.length, height: expected.length * LINE_HEIGHT })
+    }
+
+    // The zero-width break the Gecko scan makes of a soft hyphen after a space is no content:
+    // Firefox drops it from its text, so it still ends with the line before it and holds none.
+    const profile = getEngineProfile()
+    const previous = profile.lineBreakScan
+    try {
+      profile.lineBreakScan = 'gecko'
+      clearCache()
+      const prepared = prepareWithSegments('Hello ­worldwide', FONT)
+      expect(prepared.kinds).toEqual(['text', 'space', 'zero-width-break', 'text'])
+      expect(layoutWithLines(prepared, word, LINE_HEIGHT).lines.map(line => line.text)).toEqual(['Hello ', 'world', 'wide'])
+      expect(layout(prepare('Hello ­worldwide', FONT), word, LINE_HEIGHT).lineCount).toBe(3)
+    } finally {
+      profile.lineBreakScan = previous
+      clearCache()
     }
   })
 
@@ -6027,7 +6182,8 @@ describe('layout invariants', () => {
         ['中」\n中', 23, ['中', '」', '中'], [16, 16, 16]],
         ['」\n', 8, ['」'], [8]],
         ['」\n', 7, ['」'], [16]],
-        ['」\u200B中', 7, ['」\u200B', '中'], [16, 16]],
+        // A zero-width space after a mark that doesn't fit even halted starts the next line.
+        ['」\u200B中', 7, ['」', '\u200B', '中'], [16, 0, 16]],
         // A line whose closing mark follows text the scan gives no break before.
         ['中\u0001」\n', 34, ['中\u0001」'], [33.6]],
         // Only where no break before it fits, and a space after it still hangs.
@@ -6051,7 +6207,6 @@ describe('layout invariants', () => {
         [' 中', ' ', ['中'], false],
         ['\u0001', '', ['\u0001'], false],
         ['\t中', '\t', ['中'], false],
-        ['\u200B中', '\u200B', ['中'], false],
       ]
       const marks: [string, boolean][] = [['」', true], ['』', true], ['）', true], ['】', true], ['〉', true], ['》', true], ['。', false], ['、', false], ['，', false]]
       for (let m = 0; m < marks.length; m++) {
@@ -6064,6 +6219,14 @@ describe('layout invariants', () => {
           if (halts && breakAfter) cases.push([`中中${mark}${after}`, 40, [`中中${mark}${hung}`, ...rest], [40, ...restWidths]])
           else cases.push([`中中${mark}${after}`, 40, ['中', `中${mark}${hung}`, ...rest], [16, 32, ...restWidths]])
         }
+        // A zero-width space after the mark is content of no width: it stays on the line of a
+        // mark that fits whole, and starts the next line after one that fits only halted, as
+        // the halt is the line end's and with it after the mark the line would hold the mark
+        // whole. In 40px Hiragino Sans at 70px, Chrome 155 lays `字」` and a zero-width space
+        // out as two lines, the second with nothing on it, and at 90px as one.
+        if (halts) cases.push([`中${mark}\u200B中`, 24, [`中${mark}`, '\u200B中'], [24, 16]], [`中${mark}\u200B`, 24, [`中${mark}`, '\u200B'], [24, 0]])
+        else cases.push([`中${mark}\u200B中`, 24, ['中', `${mark}\u200B`, '中'], [16, 16, 16]])
+        cases.push([`中中${mark}\u200B中`, 40, ['中', `中${mark}\u200B`, '中'], [16, 32, 16]])
       }
       for (const [text, width, expected, widths] of cases) {
         // Spaces hang in both white-space modes; a line feed is a hard break only in pre-wrap.
@@ -6298,9 +6461,12 @@ describe('layout invariants', () => {
       expect(richLines([{ text: '中中」', extraWidth: 2 }, { text: '.中' }], 33).map(line => line.slice(0, line.indexOf(':')))).toEqual(['中', '中」', '.中'])
       // A run of U+3000 that ends an item hangs whatever the next item starts with, where a
       // text's run hangs only before a break its scan gives (ENGINE_FOLLOWUPS.md, Line edges).
+      // A zero-width space that starts the next item starts the next line, as any content does
+      // after a run that hangs past the line's end.
       for (const second of ['\u200B中', '」中', { width: 0 }]) {
-        expect({ second, lines: richLines([{ text: '中中\u3000' }, typeof second === 'string' ? { text: second } : second], 24).slice(0, 2) }).toEqual({ second, lines: ['中:16', second === '\u200B中' ? '中\u3000\u200B:16' : '中\u3000:16'] })
+        expect({ second, lines: richLines([{ text: '中中\u3000' }, typeof second === 'string' ? { text: second } : second], 24).slice(0, 2) }).toEqual({ second, lines: ['中:16', '中\u3000:16'] })
       }
+      expect(richLines([{ text: '中中\u3000' }, { text: '\u200B中' }], 24)).toEqual(['中:16', '中\u3000:16', '\u200B中:16'])
       // In pre-wrap the next item's preserved space, tab or line feed joins the mark's text, which
       // gives no break before it, and a ZWSP that starts the next item gives none in either mode.
       for (const [second, whiteSpace] of [[' 中', 'pre-wrap'], ['\t中', 'pre-wrap'], ['\n中', 'pre-wrap'], ['\u200B中', 'normal']] as const) {

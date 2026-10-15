@@ -187,10 +187,14 @@ name the fonts they run in where that isn't 16px Arial. A fact added after them 
 that added or last changed the fact, which this paragraph names, since a later merge moves the test and a case's family
 and origin keep the line: line 1000 at dbfab0de (#399), Firefox's white space around bidi controls, line 2140 at
 785e5af2 (#446), Chrome's return from an unfit hyphen to a break between two text segments, whose second row runs in
-16px Hiragino Sans, and line 1575 at f2e54d1b (#455), the WebKit profile's lone carriage return, which runs in 16px
+16px Hiragino Sans, line 1575 at f2e54d1b (#455), the WebKit profile's lone carriage return, which runs in 16px
 Menlo alone: there Safari gives the carriage return a character's width, the profile gives it none, and of
 webkit-host's six failures at 24 px and wider the two away from an edge are accepted and the four at one counted
-(`RESEARCH.md`, Decisions Log, 2026-10-06). Such a fact also names the
+(`RESEARCH.md`, Decisions Log, 2026-10-06), line 5959 at c3e28361 (#525), a zero-width space after content that
+doesn't fit its line, whose rows of a letter wider than its line run in 40px Arial, the size the fact names, so that
+the letter is wider than a line of 24 px, and line 1320 at 474acee6 (#525), two zero-width spaces before a tab that
+doesn't fit, between which no line ends, so that Firefox's line keeps both with the letter before them. Such a fact
+also names the
 paragraph directions it runs in where a browser's lines turn on them (the first of those, both). The facts set has no
 cover, so it keeps the width where a template's words join, which the catalog's cover drops once a narrower change has
 shown that kind of break: a fact that rests on a line's width, such as one space against two, goes there.
@@ -473,7 +477,9 @@ The harness doesn't see re-layout at a line's own width; several rules of the Ge
 controls (`ENGINE_FOLLOWUPS.md`, Harness debt); an emoji modifier split from its
 base across rich items; a rich paragraph of one item, which the adapter writes as plain text, so `src/layout.test.ts`
 checks its line functions against the same item with an empty item after it, the form of the rich set's one such
-paragraph (`under-1px/one-item`); a line that holds only an atomic item of white space, or in Firefox a padded item of
+paragraph (`under-1px/one-item`); text nodes of one style, which the adapter writes as one text, where Firefox's lines
+turn on the node a zero-width space is in after preserved spaces that hang (`ENGINE_FOLLOWUPS.md`, Line edges); a line
+that holds only an atomic item of white space, or in Firefox a padded item of
 only a soft hyphen, which has no text for the recorder to list, so a prediction with that line is scored as a line too
 many though the recorded height has it; Chrome's UI language, and so its `zh` table for pages without a
 `lang`; rendering other than macOS's and an iOS simulator's (Other ratios and phones), though Android and Windows are

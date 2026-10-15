@@ -3,6 +3,7 @@ import {
   alignToSource,
   analyzeText,
   isCollapsibleSpaceCode,
+  DROPPED,
   HARD_BREAK,
   KIND_BITS,
   OBJECT,
@@ -615,7 +616,7 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
     itemEndHalts,
     hyphenRooms: discretionaryHyphenContexts !== null && profile.unfitHyphenRetreat === 'reduced-width' ? getHyphenRooms(hyphenWidths, itemSegments, segmentItems) : null,
     insideExtras, fillExtras, openingEdges,
-    emptyObjectSpaces: null, emptyObjectReturns: null,
+    emptyObjectSpaces: null, emptyObjectReturns: null, hangEnds: null,
   }
   // The properties measureAnalysis() gives a text's handle, in its order, then the paragraph's own.
   const data = {
@@ -637,6 +638,15 @@ export function prepareRichInline(items: Array<RichInlineItem | RichInlineBox>, 
   } satisfies PreparedLineData as PreparedSegments
   data.segments = segments
   if (hasEmptyObject && profile.emptyAtomicAlwaysFits) setEmptyObjectFacts(segmentData, data, items, itemSegments, segmentItems, source, starts)
+  // Each item is a text frame: a zero-width space after preserved spaces of its own item ends
+  // the run of them that hangs (ParagraphSegmentData, hangEnds).
+  if (preserve && profile.hangsSpacesPerTextFrame && source.includes('\u200B')) {
+    for (let i = 1; i < segmentCount; i++) {
+      if ((segmentFlags[i]! & (KIND_BITS | DROPPED)) === ZERO_WIDTH_BREAK && (segmentFlags[i - 1]! & KIND_BITS) === PRESERVED_SPACE && segmentItems[i] === segmentItems[i - 1]) {
+        ;(segmentData.hangEnds ??= new Uint8Array(segmentCount))[i] = 1
+      }
+    }
+  }
 
   let onlyItem = -1
   for (let index = 0; index < items.length && !paddedOrObject; index++) {
