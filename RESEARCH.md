@@ -6434,7 +6434,7 @@ decisions for the maintainer.
   across that soft hyphen, and in the Gecko profile a `kern`-table pair or a ligature there. Reopens with real text
   whose line turns on one of those.
 - **2026-10-14: a zero-width space is content of no width in every walker: no line's end hangs it and no line's start
-  leaves it out** (#NNN, for #521; its cost in speed went to the maintainer with the pull request). It stays on a line
+  leaves it out** (#525, for #521; its cost in speed went to the maintainer with the pull request). It stays on a line
   where the content before it fits, and else starts the next line, which it holds, as Blink, WebKit and Gecko lay it
   out; right after an atomic item wider than its line Firefox alone keeps it, a field of the engine profile
   (`zeroWidthSpaceStaysAfterAtomic`). The reason: it is each engine's rule, and an editor's caret anchor after an image
@@ -6453,7 +6453,7 @@ decisions for the maintainer.
   of every row, on the last src, calls three: Firefox's `lines: cjk stats`, 4 to 5% slower, on the messages of
   `lines: cjk walk`; webkit-host's `worst: pre-wrap-chunks layout`, one of the three above; and Firefox's
   `worst: pre-wrap-chunks prepare`, which six sessions alone read level. A narrower form, the rule after an object
-  alone, was built for comparison (#NNN has both tables): it fixes #521's own layouts and no other shape, and reads
+  alone, was built for comparison (#525 has its numbers): it fixes #521's own layouts and no other shape, and reads
   13 of Firefox's entries 4 to 13% slower in a run of every row, its line functions among them. It takes up the dead
   end of a ZWSP after a forced break (Dead Ends, Invisible Characters, Controls And Soft Hyphens) without the two
   changes that entry waited on, and closes three gaps of 2026-10-06's entry on rich inline as one paragraph: the
