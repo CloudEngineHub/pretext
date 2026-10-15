@@ -1354,6 +1354,14 @@ describe('boundary rules', () => {
         const b = round(measureWidth('b', LARGE))
         expect(lines('a\t \t b', stop + 6)).toEqual([['a\t ', round(stop)], ['\t ', round(stop)], ['b', b]])
         expect(lines('x a\t \t b', stop + 6)).toEqual([['x ', round(measureWidth('x', LARGE))], ['a\t ', round(stop)], ['\t ', round(stop)], ['b', b]])
+        // Nor between two zero-width spaces (UAX #14 LB7), so the latest break isn't there: with
+        // none on the line it wraps before the tab and both stay with the letter, and after a
+        // space the line returns to the break before both, which hold the next line where the
+        // tab doesn't fit beside them. In 16px Arial at 24.3px Firefox 157.0.1 lays `M`, two
+        // zero-width spaces, a tab and `is` out as three lines, and `Mom `, two, a tab and `is`
+        // as five, the third with nothing on it.
+        expect(lines('a​​\tb', stop - 1)).toEqual([['a​​', round(measureWidth('a', LARGE))], ['\t', round(stop)], ['b', b]])
+        expect(lines('a ​​\tb', stop - 1)).toEqual([['a ', round(measureWidth('a', LARGE))], ['​​', 0], ['\t', round(stop)], ['b', b]])
         // A break of the joined text inside a rich item's segment is such a break: the two Thai
         // items join into words that break after the second item's first letter, and its tab, under
         // half a `0` before its stop, takes the stop after and doesn't fit.

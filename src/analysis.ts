@@ -67,7 +67,8 @@ export const SEGMENT_KINDS: readonly SegmentBreakKind[] = [
 // flags byte: its kind, UNBROKEN where the engine's scan gives no break before text, zero-width
 // glue or a control, other than at a line start, and where tabs don't hang before a tab or
 // the spaces after one, RETURNABLE at the other segments of text with such a boundary, which
-// `hasUnbroken` tells, and ONE_CLUSTER where the scan has clusters of its own.
+// `hasUnbroken` tells, and ONE_CLUSTER where the scan has clusters of its own. A zero-width
+// space right after another is UNBROKEN too, which `hasUnbroken` leaves out.
 export type TextAnalysis = {
   normalized: string
   spaceSources: Uint16Array | null
@@ -400,6 +401,15 @@ function segmentAtLineBreaks(normalized: string, spaceSources: Uint16Array | nul
   // white space ends the line: Gecko breaks only after the whole run (nsLineBreaker.cpp:
   // 318-330). A soft hyphen before the tab keeps its break (GetHyphenationBreaks,
   // nsTextFrame.cpp:4409-4457).
+  //
+  // No break comes between two zero-width spaces either (UAX #14 LB7), so the second is
+  // marked too: a line that goes back to its last break, as Gecko's does from a tab that
+  // doesn't fit, goes back past both, where the second would hold a line of its own (`M`,
+  // two of them, a tab and `is` in pre-wrap at 24px are three lines in Firefox 157, the
+  // tab on the second). It isn't counted in `hasUnbroken`, which takes a text off the
+  // simple walkers: the second fits wherever the first does, so no line of theirs ends
+  // between the two, and none goes back to a break from it. A soft hyphen that is a
+  // zero-width break (classifySegmentUnit) is left as it was.
   let hasUnbroken = false
   const count = flags.length
   for (let j = count - 2; j >= 0; j--) {
@@ -411,6 +421,7 @@ function segmentAtLineBreaks(normalized: string, spaceSources: Uint16Array | nul
     } else if (next === TEXT || next === ZERO_WIDTH_GLUE || next === CONTROL) {
       if (kind === ZERO_WIDTH_BREAK || kind === SOFT_HYPHEN) flags[j] = flags[j]! & ~KIND_BITS | ZERO_WIDTH_GLUE
     } else {
+      if (next === ZERO_WIDTH_BREAK && kind === ZERO_WIDTH_BREAK && normalized.charCodeAt(starts[j + 1]!) === 0x200B) flags[j + 1] = flags[j + 1]! | UNBROKEN
       continue
     }
     flags[j + 1] = flags[j + 1]! | UNBROKEN
