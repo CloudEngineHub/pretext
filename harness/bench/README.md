@@ -260,8 +260,13 @@ before the glyph spacings did, costs a tenth as much there.
   Latin messages' entries then read level. Moving the full walker's tests for a zero-width space under its test for a
   break segment, code neither row runs, left the two as they were over six sessions, +4.5% to +12.1% and +6.4% to
   +8.4%, while two runs of every row called neither: in each, one session of three read 10% to 13% slower and the
-  other two -2% to +5%, so Firefox keeps a copy at one of two speeds on these rows (Firefox 157.0.1, 2026-10-14;
-  `RESEARCH.md`, Decisions Log, 2026-10-14).
+  other two -2% to +5%, so Firefox keeps a copy at one of two speeds on these rows. The converse builds read level
+  over six sessions each: main with the change's two tests in the loop, -1.3% to +2.9% on the first row, main with one
+  do-nothing top-level variable more, -1.4% to +1.1%, and main with the change's stepper and line start, -1.8% to
+  +1.6% on `lines: cjk walk`, where the Latin messages' entries read 3% to 9% faster. So both readings come with the
+  rest of the change's bundle and not with the loops they run, and one variable more doesn't make them; what in the
+  bundle does wasn't found. On the change's last src the two rows read +5.4% to +9.5% and +7.8% to +11.6% (Firefox
+  157.0.1, 2026-10-14; `RESEARCH.md`, Decisions Log, 2026-10-14).
 - **Firefox's `resize: latin layout at widths seen before`** reads 12% to 23% slower since #515, and that is no
   misreading: the change runs that code. Removing entry geometry (2ece40cb), the widths the library measured afresh for
   a line that starts inside a word at an invisible character, takes one test out of the loop in which
